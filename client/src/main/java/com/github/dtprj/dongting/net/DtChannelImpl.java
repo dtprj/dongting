@@ -46,7 +46,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private final SocketChannel channel;
     private final DecodeContext decodeContext;
     private final RespWriter respWriter;
-    private final Peer peer;
+    final Peer peer; // null in server side
     private final SocketAddress remoteAddr;
     private final SocketAddress localAddr;
 
@@ -63,14 +63,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private int currentReadPacketSize;
     private DecoderCallback currentDecoderCallback;
 
-    private boolean running = true;
-
     private final IoChannelQueue subQueue;
 
+    private boolean running = true;
     private boolean closed;
-
+    boolean handshake;
     boolean listenerOnConnectedCalled;
-
 
     public DtChannelImpl(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig, Peer peer,
                          SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
@@ -121,6 +119,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     protected boolean end(boolean success) {
         if (!success) {
             return false;
+        }
+
+        if (!handshake && peer == null) { // peer is null is server side
+            if (packet.getCommand() != Commands.CMD_HANDSHAKE || packet.getPacketType() != PacketType.TYPE_REQ) {
+                throw new NetException("first command is not handshake, command=" + packet.getCommand());
+            }
         }
 
         if (requestForResp == null && processorForRequest == null) {
@@ -449,10 +453,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         } catch (Exception e) {
             log.error("channel close error", e);
         }
-    }
-
-    public Peer getPeer() {
-        return peer;
     }
 
     // for unit test

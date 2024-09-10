@@ -28,8 +28,6 @@ public class HandshakeBody {
     public static final long MAGIC1 = 0xAE10_9045_1C22_DA13L;
     public static final long MAGIC2 = 0x1CD7_D1A3_0A61_935FL;
 
-    long magic1;
-    long magic2;
     int majorVersion;
     int minorVersion;
     ConfigBody config;
@@ -46,10 +44,14 @@ public class HandshakeBody {
         public boolean readVarNumber(int index, long value) {
             switch (index) {
                 case 1:
-                    result.magic1 = value;
+                    if (value != MAGIC1) {
+                        throw new NetException("handshake failed, magic1 not match");
+                    }
                     break;
                 case 2:
-                    result.magic2 = value;
+                    if (value != MAGIC2) {
+                        throw new NetException("handshake failed, magic2 not match");
+                    }
                     break;
                 case 3:
                     result.majorVersion = (int) value;
@@ -71,12 +73,12 @@ public class HandshakeBody {
         }
     }
 
-    public static class HandshakeBodyWritePacket extends SmallNoCopyWritePacket {
+    public static class WritePacket extends SmallNoCopyWritePacket {
 
         private final HandshakeBody v;
         private final int configBodySize;
 
-        public HandshakeBodyWritePacket(HandshakeBody v) {
+        public WritePacket(HandshakeBody v) {
             this.v = v;
             configBodySize = v.config == null ? 0 : v.config.calcActualBodySize();
         }

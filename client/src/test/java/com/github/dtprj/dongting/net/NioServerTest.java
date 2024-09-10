@@ -39,6 +39,7 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -122,12 +123,39 @@ public class NioServerTest {
             s.setSoTimeout(30000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
-            simpleTest(CMD_IO_PING, in, out, 1);
-            simpleTest(CMD_BIZ_PING1, in, out, 2);
-            simpleTest(CMD_BIZ_PING2, in, out, 3);
+            handshake(in, out);
+            simpleTest(CMD_IO_PING, in, out, 2);
+            simpleTest(CMD_BIZ_PING1, in, out, 3);
+            simpleTest(CMD_BIZ_PING2, in, out, 4);
         } finally {
             DtUtil.close(s);
         }
+    }
+
+    private static void handshake(DataInputStream in, DataOutputStream out) throws Exception {
+        DtPacket.Handshake handshakeBody = DtPacket.Handshake.newBuilder()
+                .setMagic1(HandshakeBody.MAGIC1)
+                .setMagic2(HandshakeBody.MAGIC2)
+                .setMajorVersion(DtUtil.RPC_MAJOR_VER)
+                .setMinorVersion(DtUtil.RPC_MINOR_VER)
+                .build();
+        DtPacket.Packet reqPacket = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
+                .setSeq(1)
+                .setCommand(Commands.CMD_HANDSHAKE)
+                .setBody(handshakeBody.toByteString())
+                .setTimeout(Duration.ofSeconds(10).toNanos())
+                .build();
+        byte[] reqPacketBytes = reqPacket.toByteArray();
+        out.writeInt(reqPacketBytes.length);
+        out.write(reqPacketBytes);
+        out.flush();
+
+        int len = in.readInt();
+        byte[] resp = new byte[len];
+        in.readFully(resp);
+        DtPacket.Packet packet = DtPacket.Packet.parseFrom(resp);
+        assertEquals(PacketType.TYPE_RESP, packet.getPacketType());
+        assertEquals(CmdCodes.SUCCESS, packet.getRespCode());
     }
 
     private static void simpleTest(int cmd, DataInputStream in, DataOutputStream out, int seq) throws Exception {
@@ -169,6 +197,7 @@ public class NioServerTest {
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             Random r = new Random();
             DtTime t = new DtTime();
+            handshake(in, out);
             int seq = 0;
             while (t.elapse(TimeUnit.MILLISECONDS) < millis) {
                 int count = innerLoop <= 0 ? r.nextInt(10) + 1 : innerLoop;
@@ -321,6 +350,7 @@ public class NioServerTest {
             s.setSoTimeout(tick(1000));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
             int code = invoke(1, 12323434, 5000, in, out);
             assertEquals(CmdCodes.COMMAND_NOT_SUPPORT, code);
         } finally {
@@ -331,6 +361,8 @@ public class NioServerTest {
     private static class InvokeThread extends Thread {
         private final int bodySize;
         AtomicInteger result = new AtomicInteger(-1);
+        private final CountDownLatch latch1 = new CountDownLatch(1);
+        private final CountDownLatch latch2 = new CountDownLatch(1);
 
         public InvokeThread(int bodySize) {
             this.bodySize = bodySize;
@@ -343,11 +375,22 @@ public class NioServerTest {
                 s.setTcpNoDelay(true);
                 DataInputStream in = new DataInputStream(s.getInputStream());
                 DataOutputStream out = new DataOutputStream(s.getOutputStream());
+                handshake(in, out);
+                latch1.countDown();
+                latch2.await();
                 int code = invoke(1, 50000, bodySize, in, out);
                 result.set(code);
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+
+        public void waitHandshake() throws InterruptedException {
+            latch1.await();
+        }
+
+        public void notifyInvoke() {
+            latch2.countDown();
         }
     }
 
@@ -365,8 +408,16 @@ public class NioServerTest {
             InvokeThread t2 = new InvokeThread(100);
             InvokeThread t3 = new InvokeThread(100);
             t1.start();
+            t1.waitHandshake();
             t2.start();
+            t2.waitHandshake();
             t3.start();
+            t3.waitHandshake();
+
+            t1.notifyInvoke();
+            t2.notifyInvoke();
+            t3.notifyInvoke();
+
             t1.join(1000);
             t2.join(1000);
             t3.join(1000);
@@ -376,7 +427,11 @@ public class NioServerTest {
             InvokeThread t1 = new InvokeThread(6000);
             InvokeThread t2 = new InvokeThread(6000);
             t1.start();
+            t1.waitHandshake();
             t2.start();
+            t2.waitHandshake();
+            t1.notifyInvoke();
+            t2.notifyInvoke();
             t1.join(1000);
             t2.join(1000);
             assertEquals(CmdCodes.FLOW_CONTROL, t1.result.get() + t2.result.get());
@@ -415,6 +470,7 @@ public class NioServerTest {
             s.setSoTimeout(1000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
             assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING1, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING2, 5000, in, out));
@@ -481,6 +537,7 @@ public class NioServerTest {
             s.setSoTimeout(5000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
             int seq = 0;
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING1, 5000, in, out));
@@ -504,6 +561,7 @@ public class NioServerTest {
             s.setSoTimeout(tick(10));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
             assertThrows(SocketTimeoutException.class, () -> invoke(10003, 10004, 5000, in, out));
         } finally {
             DtUtil.close(s);
@@ -514,6 +572,7 @@ public class NioServerTest {
             s.setSoTimeout(tick(10));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
             assertThrows(SocketTimeoutException.class, () -> invoke(10004, 10004, 5000, in, out));
         } finally {
             DtUtil.close(s);
@@ -556,6 +615,7 @@ public class NioServerTest {
             s.setSoTimeout(500);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
             assertEquals(CmdCodes.SUCCESS, invoke(1, 3333, 5000, in, out));
         } finally {
             DtUtil.close(s);

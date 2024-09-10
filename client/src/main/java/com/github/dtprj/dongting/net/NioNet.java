@@ -266,4 +266,8 @@ public abstract class NioNet extends AbstractLifeCircle {
         int port = Integer.parseInt(hostPortStr.substring(x + 1).trim());
         return new HostPort(host, port);
     }
+
+    public void setChannelListener(ChannelListener channelListener) {
+        nioStatus.channelListener = channelListener;
+    }
 }

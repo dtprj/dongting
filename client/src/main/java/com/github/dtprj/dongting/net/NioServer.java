@@ -53,8 +53,6 @@ public class NioServer extends NioNet implements Runnable {
     private final Thread acceptThread;
     final NioWorker[] workers;
 
-    private static final PingProcessor PING_PROCESSOR = new PingProcessor();
-
     public NioServer(NioServerConfig config) {
         super(config);
         this.config = config;
@@ -67,7 +65,8 @@ public class NioServer extends NioNet implements Runnable {
         for (int i = 0; i < workers.length; i++) {
             workers[i] = new NioWorker(nioStatus, config.getName() + "IoWorker" + i, config, null);
         }
-        register(Commands.CMD_PING, PING_PROCESSOR);
+        register(Commands.CMD_PING, new PingProcessor());
+        register(Commands.CMD_HANDSHAKE, new HandshakeProcessor(config), null);
     }
 
     @Override
@@ -254,10 +253,6 @@ public class NioServer extends NioNet implements Runnable {
 
     public <T> void sendOneWay(DtChannel dtc, WritePacket request, DtTime timeout, RpcCallback<T> callback) {
         push((DtChannelImpl) dtc, request, null, timeout, callback);
-    }
-
-    public void setChannelListener(ChannelListener channelListener) {
-        nioStatus.channelListener = channelListener;
     }
 
     public NioServerConfig getConfig() {

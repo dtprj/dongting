@@ -64,7 +64,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final AtomicInteger notified = new AtomicInteger(0);
 
     private int channelIndex;
-    private final ArrayList<DtChannelImpl> channelsList;
+    private final ArrayList<DtChannelImpl> channelsList;// client side only
     private final IntObjMap<DtChannelImpl> channels;
     private final IoWorkerQueue ioWorkerQueue;
 
@@ -339,12 +339,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     perfCallback.fire(PerfConsts.RPC_C_MARK_READ);
                 }
             }
+        } catch (NetException | IOException e) {
+            log.warn("{} error, channel will close: {}", stage, e.toString());
+            closeChannelBySelKey(key);
         } catch (Exception e) {
-            if (e instanceof IOException) {
-                log.warn("{} error, channel will close: {}", stage, e.toString());
-            } else {
-                log.warn("{} error, channel will close: {}", stage, e);
-            }
+            log.warn("{} error, channel will close: {}", stage, e);
             closeChannelBySelKey(key);
         }
     }
@@ -368,11 +367,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             channelIndex++;
         }
         DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++);
-        if (peer != null) {
-            peer.setDtChannel(dtc);
-            peer.setConnectionId(peer.getConnectionId() + 1);
-            peer.setStatus(PeerStatus.connected);
-        }
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.getSubQueue().setRegisterForWrite(new RegWriteRunner(selectionKey));
 
@@ -404,24 +398,32 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     // invoke by NioServer accept thread
     public void newChannelAccept(SocketChannel sc) {
         doInIoThread(() -> {
+            if (status >= STATUS_STOPPING) {
+                log.info("accept new channel while worker closed, ignore it: {}", sc);
+                closeChannel0(sc);
+                return;
+            }
             try {
                 DtChannelImpl dtc = initNewChannel(sc, null);
-                // TODO do handshake
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
-                if (nioStatus.channelListener != null) {
-                    try {
-                        nioStatus.channelListener.onConnected(dtc);
-                    } catch (Throwable e) {
-                        log.error("channelListener.onConnected error: {}", e);
-                    } finally {
-                        dtc.listenerOnConnectedCalled = true;
-                    }
-                }
             } catch (Throwable e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
                 closeChannel0(sc);
             }
         }, null);
+    }
+
+    void finishHandshake(DtChannelImpl dtc) {
+        dtc.handshake = true;
+        if (nioStatus.channelListener != null) {
+            try {
+                nioStatus.channelListener.onConnected(dtc);
+            } catch (Throwable e) {
+                log.error("channelListener.onConnected error: {}", e);
+            } finally {
+                dtc.listenerOnConnectedCalled = true;
+            }
+        }
     }
 
     // invoke by other threads
@@ -436,6 +438,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     void doConnect(CompletableFuture<Void> f, Peer peer, DtTime deadline) {
+        if (status >= STATUS_PREPARE_STOP) {
+            f.completeExceptionally(new NetException("worker closed"));
+            return;
+        }
         PeerStatus s = peer.getStatus();
         if (s == PeerStatus.not_connect) {
             peer.setStatus(PeerStatus.connecting);
@@ -447,6 +453,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             f.complete(null);
             return;
         } else {
+            // connecting, handshake
             peer.getConnectInfo().future.whenComplete((v, ex) -> {
                 if (ex == null) {
                     f.complete(null);
@@ -490,27 +497,101 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     // called client side
     private void whenConnected(SelectionKey key) {
         ConnectInfo ci = (ConnectInfo) key.attachment();
-        SocketChannel channel = ci.channel;
         try {
-            if (!ci.future.isDone()) {
+            SocketChannel channel = ci.channel;
+            if (ci.future.isDone()) {
+                return;
+            }
+            if (status >= STATUS_STOPPING) {
+                log.info("connect channel while worker closed, ignore it: {}", channel);
+                closeChannel0(channel);
+                return;
+            }
+            try {
                 channel.finishConnect();
                 DtChannelImpl dtc = initNewChannel(channel, ci.peer);
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
                 channelsList.add(dtc);
-                ci.peer.enqueueAfterConnect();
-                ci.future.complete(null);
+
+                Peer peer = ci.peer;
+                peer.setDtChannel(dtc);
+                peer.setConnectionId(peer.getConnectionId() + 1);
+                peer.setStatus(PeerStatus.handshake);
+
+                sendHandshake(dtc, ci);
+            } catch (Throwable e) {
+                log.warn("connect channel fail: {}, {}", ci.peer.getEndPoint(), e.toString());
+                closeChannel0(channel);
+                ci.peer.setStatus(PeerStatus.not_connect);
+                ci.peer.setConnectInfo(null);
+                NetException netEx = new NetException(e);
+                ci.peer.cleanWaitingConnectList(wd -> netEx);
+                ci.future.completeExceptionally(netEx);
             }
-        } catch (Throwable e) {
-            log.warn("connect channel fail: {}, {}", ci.peer.getEndPoint(), e.toString());
-            closeChannel0(channel);
-            ci.peer.setStatus(PeerStatus.not_connect);
-            ci.peer.setConnectInfo(null);
-            NetException netEx = new NetException(e);
-            ci.peer.cleanWaitingConnectList(wd -> netEx);
-            ci.future.completeExceptionally(netEx);
         } finally {
             outgoingConnects.remove(ci);
         }
+    }
+
+    private void sendHandshake(DtChannelImpl dtc, ConnectInfo ci) {
+        RpcCallback<HandshakeBody> rpcCallback = new RpcCallback<>() {
+            @Override
+            public void success(ReadPacket<HandshakeBody> resp) {
+                if (status >= STATUS_STOPPING) {
+                    log.info("handshake while worker closed, ignore it: {}", dtc.getChannel());
+                    close(dtc);
+                    return;
+                }
+                if (resp.getBody() == null || resp.getBody().config == null) {
+                    log.error("handshake fail: invalid response");
+                    close(dtc);
+                    return;
+                }
+                ConfigBody cb = resp.getBody().config;
+                if (cb.maxPacketSize > 0 && cb.maxPacketSize < config.getMaxPacketSize()) {
+                    config.setMaxPacketSize(cb.maxPacketSize);
+                }
+                if (cb.maxBodySize > 0 && cb.maxBodySize < config.getMaxBodySize()) {
+                    config.setMaxBodySize(cb.maxBodySize);
+                }
+                if (cb.maxOutPending > 0 && cb.maxOutPending < config.getMaxOutRequests()) {
+                    config.setMaxOutRequests(cb.maxOutPending);
+                }
+                if (cb.maxOutPendingBytes > 0 && cb.maxOutPendingBytes < config.getMaxOutBytes()) {
+                    config.setMaxOutBytes(cb.maxOutPendingBytes);
+                }
+
+                ci.peer.setStatus(PeerStatus.connected);
+                ci.peer.enqueueAfterConnect();
+                finishHandshake(dtc);
+                ci.future.complete(null);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                log.error("handshake fail: {}", ex);
+                close(dtc);
+            }
+        };
+
+        HandshakeBody hb = new HandshakeBody();
+        hb.majorVersion = DtUtil.RPC_MAJOR_VER;
+        hb.minorVersion = DtUtil.RPC_MINOR_VER;
+        ConfigBody cb = new ConfigBody();
+        cb.maxPacketSize = config.getMaxPacketSize();
+        cb.maxBodySize = config.getMaxBodySize();
+        cb.maxOutPending = config.getMaxOutRequests();
+        cb.maxOutPendingBytes = config.getMaxOutBytes();
+        cb.maxInPending = config.getMaxInRequests();
+        cb.maxInPendingBytes = config.getMaxInBytes();
+        hb.config = cb;
+        HandshakeBody.WritePacket p = new HandshakeBody.WritePacket(hb);
+        p.packetType = PacketType.TYPE_REQ;
+        p.command = Commands.CMD_HANDSHAKE;
+
+        WriteData wd = new WriteData(dtc, p, ci.deadline, rpcCallback,
+                ctx -> ctx.toDecoderCallback(new HandshakeBody.Callback()));
+        dtc.getSubQueue().enqueue(wd);
     }
 
     public void doInIoThread(Runnable runnable, CompletableFuture<?> future) {
@@ -569,8 +650,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         }
 
-        Peer peer = dtc.getPeer();
-        if (peer != null && peer.getDtChannel() == dtc) {
+        Peer peer = dtc.peer;
+        if (peer != null) {
             peer.setDtChannel(null);
             peer.setStatus(PeerStatus.not_connect);
         }

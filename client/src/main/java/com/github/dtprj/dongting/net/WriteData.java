@@ -43,12 +43,11 @@ class WriteData {
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;
-        DecoderCallbackCreator t = respDecoderCallback;
-        this.respDecoderCallback = t;
+        this.respDecoderCallback = respDecoderCallback;
         this.estimateSize = data.calcMaxPacketSize();
     }
 
-    // for request or one way request (server push)
+    // for request or one way request (server push), client handshake
     public <T> WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout, RpcCallback<T> callback,
                          DecoderCallbackCreator<T> respDecoderCallback) {
         this.dtc = dtc;
@@ -56,8 +55,7 @@ class WriteData {
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;
-        DecoderCallbackCreator t = respDecoderCallback;
-        this.respDecoderCallback = t;
+        this.respDecoderCallback = respDecoderCallback;
         this.estimateSize = data.calcMaxPacketSize();
     }
 

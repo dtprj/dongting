@@ -30,6 +30,9 @@ public class DtUtil {
 
     private static final int JAVA_VER = majorVersion(System.getProperty("java.specification.version", "1.8"));
 
+    public static final int RPC_MAJOR_VER = 1;
+    public static final int RPC_MINOR_VER = 0;
+
     // 0 no debug code
     // 1 base debug code
     // 2 more debug code
