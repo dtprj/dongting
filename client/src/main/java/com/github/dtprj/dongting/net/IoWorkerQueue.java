@@ -114,13 +114,17 @@ class IoWorkerQueue {
             return null;
         }
         int idx = invokeIndex;
-        if (idx < size) {
-            invokeIndex = idx + 1;
-            return list.get(idx);
-        } else {
-            invokeIndex = 0;
-            return list.get(0);
+        if (idx >= size) {
+            idx = 0;
         }
+        while (idx < size) {
+            DtChannelImpl dtc = list.get(idx);
+            if (dtc.handshake && dtc.getChannel().isOpen()) {
+                invokeIndex = idx + 1;
+                return dtc;
+            }
+        }
+        return null;
     }
 
     public void close() {
