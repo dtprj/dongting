@@ -101,41 +101,8 @@ public abstract class NioNet extends AbstractLifeCircle {
             int estimateSize = generalCheck(request, timeout, callback);
             request.setPacketType(decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
 
-            while (true) {
-                VersionFactory.getInstance().acquireFence();
-                int maxPending = config.getMaxOutRequests();
-                long maxPendingBytes = config.getMaxOutBytes();
-                if (maxPending <= 0 && maxPendingBytes <= 0) {
-                    break;
-                }
-
-                long t = perfCallback.takeTime(PerfConsts.RPC_D_ACQUIRE);
-                lock.lock();
-                try {
-                    if (maxPending > 0 && pendingRequests + 1 > maxPending) {
-                        if (!pendingReqCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
-                            throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
-                                    + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
-                        }
-                        // re-check all
-                        continue;
-                    }
-                    if (maxPendingBytes > 0 && pendingBytes + estimateSize > maxPendingBytes) {
-                        if (!pendingBytesCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
-                            throw new NetTimeoutException("too many pending bytes, client wait permit timeout in "
-                                    + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
-                        }
-                        // re-check all
-                        continue;
-                    }
-                    pendingRequests++;
-                    pendingBytes += estimateSize;
-                } finally {
-                    lock.unlock();
-                    perfCallback.fireTime(PerfConsts.RPC_D_ACQUIRE, t);
-                }
-                callback = wrapCallback(callback, estimateSize);
-                break;
+            if (request.command != Commands.CMD_HANDSHAKE) {
+                callback = acquirePermitAndWrapCallback(timeout, callback, estimateSize);
             }
         } catch (Exception e) {
             RpcCallback.callFail(callback, e);
@@ -149,6 +116,47 @@ public abstract class NioNet extends AbstractLifeCircle {
             wd = new WriteData(dtc, request, timeout, callback, decoder);
         }
         worker.writeReqInBizThreads(wd);
+    }
+
+    private <T> RpcCallback<T> acquirePermitAndWrapCallback(DtTime timeout, RpcCallback<T> callback,
+                                                            int estimateSize) throws InterruptedException {
+        while (true) {
+            VersionFactory.getInstance().acquireFence();
+            int maxPending = config.getMaxOutRequests();
+            long maxPendingBytes = config.getMaxOutBytes();
+            if (maxPending <= 0 && maxPendingBytes <= 0) {
+                break;
+            }
+
+            long t = perfCallback.takeTime(PerfConsts.RPC_D_ACQUIRE);
+            lock.lock();
+            try {
+                if (maxPending > 0 && pendingRequests + 1 > maxPending) {
+                    if (!pendingReqCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
+                        throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
+                                + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
+                    }
+                    // re-check all
+                    continue;
+                }
+                if (maxPendingBytes > 0 && pendingBytes + estimateSize > maxPendingBytes) {
+                    if (!pendingBytesCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
+                        throw new NetTimeoutException("too many pending bytes, client wait permit timeout in "
+                                + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
+                    }
+                    // re-check all
+                    continue;
+                }
+                pendingRequests++;
+                pendingBytes += estimateSize;
+            } finally {
+                lock.unlock();
+                perfCallback.fireTime(PerfConsts.RPC_D_ACQUIRE, t);
+            }
+            callback = wrapCallback(callback, estimateSize);
+            break;
+        }
+        return callback;
     }
 
     private <T> int generalCheck(WritePacket request, DtTime timeout, RpcCallback<T> callback) {
