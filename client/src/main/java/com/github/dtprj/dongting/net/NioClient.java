@@ -326,4 +326,40 @@ public class NioClient extends NioNet {
     public NioClientConfig getConfig() {
         return config;
     }
+
+    protected void processServerConfigHint(@SuppressWarnings("unused") Peer peer, ConfigBody cb) {
+        int serverCount = peers.size();
+        int v = computeHint(cb.maxPacketSize, serverCount);
+        if (v > 0 && v < config.getMaxPacketSize()) {
+            config.setMaxPacketSize(v);
+        }
+        v = computeHint(cb.maxBodySize, serverCount);
+        if (v > 0 && v < config.getMaxBodySize()) {
+            config.setMaxBodySize(v);
+        }
+        v = computeHint(cb.maxOutPending, serverCount);
+        if (v > 0 && v < config.getMaxOutRequests()) {
+            config.setMaxOutRequests(v);
+        }
+        long v2 = computeHint(cb.maxOutPendingBytes, serverCount);
+        if (v2 > 0 && v2 < config.getMaxOutBytes()) {
+            config.setMaxOutBytes(v2);
+        }
+    }
+
+    private int computeHint(int serverHint, int serverCount) {
+        if (serverHint <= 0) {
+            return 0;
+        }
+        int v = serverHint * serverCount;
+        return v < 0 ? Integer.MAX_VALUE : v;
+    }
+
+    private long computeHint(long serverHint, int serverCount) {
+        if (serverHint <= 0) {
+            return 0;
+        }
+        long v = serverHint * serverCount;
+        return v < 0 ? Long.MAX_VALUE : v;
+    }
 }

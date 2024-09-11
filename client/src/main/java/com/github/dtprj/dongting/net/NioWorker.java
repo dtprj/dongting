@@ -548,17 +548,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     return;
                 }
                 ConfigBody cb = resp.getBody().config;
-                if (cb.maxPacketSize > 0 && cb.maxPacketSize < config.getMaxPacketSize()) {
-                    config.setMaxPacketSize(cb.maxPacketSize);
-                }
-                if (cb.maxBodySize > 0 && cb.maxBodySize < config.getMaxBodySize()) {
-                    config.setMaxBodySize(cb.maxBodySize);
-                }
-                if (cb.maxOutPending > 0 && cb.maxOutPending < config.getMaxOutRequests()) {
-                    config.setMaxOutRequests(cb.maxOutPending);
-                }
-                if (cb.maxOutPendingBytes > 0 && cb.maxOutPendingBytes < config.getMaxOutBytes()) {
-                    config.setMaxOutBytes(cb.maxOutPendingBytes);
+                if (config != null && config.isServerHint()) {
+                    client.processServerConfigHint(dtc.peer, cb);
+                    config.writeFence();
                 }
 
                 ci.peer.setStatus(PeerStatus.connected);

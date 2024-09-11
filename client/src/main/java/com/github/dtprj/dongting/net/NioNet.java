@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -98,6 +97,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                            DecoderCallbackCreator<T> decoder, DtTime timeout,
                            RpcCallback<T> callback) {
         try {
+            config.readFence();
             int estimateSize = generalCheck(request, timeout, callback);
             request.setPacketType(decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
 
@@ -121,7 +121,6 @@ public abstract class NioNet extends AbstractLifeCircle {
     private <T> RpcCallback<T> acquirePermitAndWrapCallback(DtTime timeout, RpcCallback<T> callback,
                                                             int estimateSize) throws InterruptedException {
         while (true) {
-            VersionFactory.getInstance().acquireFence();
             int maxPending = config.getMaxOutRequests();
             long maxPendingBytes = config.getMaxOutBytes();
             if (maxPending <= 0 && maxPendingBytes <= 0) {
@@ -275,6 +274,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         return new HostPort(host, port);
     }
 
+    @SuppressWarnings("unused")
     public void setChannelListener(ChannelListener channelListener) {
         nioStatus.channelListener = channelListener;
     }

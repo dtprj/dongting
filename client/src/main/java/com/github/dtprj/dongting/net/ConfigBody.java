@@ -89,4 +89,28 @@ public class ConfigBody {
         PbUtil.writeUnsignedInt32(buf, 5, maxOutPending);
         PbUtil.writeFix64(buf, 6, maxOutPendingBytes);
     }
+
+    public int getMaxPacketSize() {
+        return maxPacketSize;
+    }
+
+    public int getMaxBodySize() {
+        return maxBodySize;
+    }
+
+    public int getMaxInPending() {
+        return maxInPending;
+    }
+
+    public long getMaxInPendingBytes() {
+        return maxInPendingBytes;
+    }
+
+    public int getMaxOutPending() {
+        return maxOutPending;
+    }
+
+    public long getMaxOutPendingBytes() {
+        return maxOutPendingBytes;
+    }
 }

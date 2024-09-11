@@ -27,6 +27,11 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public abstract class NioConfig {
+    // use as fence
+    private volatile int version = 1;
+    @SuppressWarnings("unused")
+    private int versionHelper;
+
     private int bizThreads;
     private String name;
 
@@ -50,6 +55,8 @@ public abstract class NioConfig {
 
     private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
     private Supplier<DecodeContext> decodeContextFactory = DecodeContext::new;
+
+    private boolean serverHint = true;
 
     public int getBizThreads() {
         return bizThreads;
@@ -169,5 +176,21 @@ public abstract class NioConfig {
 
     public void setDecodeContextFactory(Supplier<DecodeContext> decodeContextFactory) {
         this.decodeContextFactory = decodeContextFactory;
+    }
+
+    public boolean isServerHint() {
+        return serverHint;
+    }
+
+    public void setServerHint(boolean serverHint) {
+        this.serverHint = serverHint;
+    }
+
+    public void readFence() {
+        versionHelper += version;
+    }
+
+    public synchronized void writeFence() {
+        version++;
     }
 }

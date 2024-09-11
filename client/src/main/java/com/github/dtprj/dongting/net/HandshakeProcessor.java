@@ -24,10 +24,10 @@ import com.github.dtprj.dongting.log.DtLogs;
 /**
  * @author huangli
  */
-final class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
+class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
     private static final DtLog log = DtLogs.getLogger(HandshakeProcessor.class);
 
-    private final NioServerConfig config;
+    protected final NioServerConfig config;
 
     public HandshakeProcessor(NioServerConfig config) {
         this.config = config;
@@ -50,12 +50,9 @@ final class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         hb.majorVersion = DtUtil.RPC_MAJOR_VER;
         hb.minorVersion = DtUtil.RPC_MINOR_VER;
 
-        ConfigBody cb = new ConfigBody();
-        cb.maxPacketSize = config.getMaxPacketSize();
-        cb.maxBodySize = config.getMaxBodySize();
-        cb.maxOutPending = config.getMaxInRequests() >>> 3;
-        cb.maxOutPendingBytes = config.getMaxInBytes() >>> 3;
-        hb.config = cb;
+        if (config.isServerHint()) {
+            hb.config = buildServerHint();
+        }
 
         HandshakeBody.WritePacket p = new HandshakeBody.WritePacket(hb);
         p.setRespCode(CmdCodes.SUCCESS);
@@ -63,6 +60,15 @@ final class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         dtc.workerStatus.worker.finishHandshake(dtc);
 
         return p;
+    }
+
+    protected ConfigBody buildServerHint() {
+        ConfigBody cb = new ConfigBody();
+        cb.maxPacketSize = config.getMaxPacketSize();
+        cb.maxBodySize = config.getMaxBodySize();
+        cb.maxOutPending = config.getMaxInRequests() >>> 3;
+        cb.maxOutPendingBytes = config.getMaxInBytes() >>> 3;
+        return cb;
     }
 
 }
