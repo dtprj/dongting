@@ -515,7 +515,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
                 Peer peer = ci.peer;
                 peer.dtChannel = dtc;
-                peer.connectionId = peer.getConnectionId() + 1;
+                peer.connectionId++;
                 peer.status = PeerStatus.handshake;
 
                 sendHandshake(dtc, ci);

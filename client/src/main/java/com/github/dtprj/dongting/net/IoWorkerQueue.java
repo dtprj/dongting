@@ -123,6 +123,7 @@ class IoWorkerQueue {
                 invokeIndex = idx + 1;
                 return dtc;
             }
+            idx++;
         }
         return null;
     }

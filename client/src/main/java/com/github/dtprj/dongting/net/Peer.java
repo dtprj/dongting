@@ -24,9 +24,10 @@ import java.util.function.Function;
  * @author huangli
  */
 public class Peer {
-    volatile PeerStatus status;
     private final HostPort endPoint;
     final NioNet owner;
+
+    volatile PeerStatus status;
     DtChannelImpl dtChannel;
     int connectionId;
     NioWorker.ConnectInfo connectInfo;
@@ -47,10 +48,6 @@ public class Peer {
 
     public PeerStatus getStatus() {
         return status;
-    }
-
-    public int getConnectionId() {
-        return connectionId;
     }
 
     void addToWaitConnectList(WriteData data) {
