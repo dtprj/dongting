@@ -366,10 +366,10 @@ public class NioClientTest {
         Peer p2 = null;
         for (Peer peer : client.getPeers()) {
             if (hp1.equals(peer.getEndPoint())) {
-                assertNull(peer.getDtChannel());
+                assertNull(peer.dtChannel);
                 p1 = peer;
             } else {
-                assertNotNull(peer.getDtChannel());
+                assertNotNull(peer.dtChannel);
                 p2 = peer;
             }
         }
@@ -399,7 +399,7 @@ public class NioClientTest {
         DtUtil.close(server1, server2);
         server1 = null;
         server2 = null;
-        TestUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.getDtChannel() == null));
+        TestUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.dtChannel == null));
         try {
             sendSync(5000, client, tick(500));
         } catch (ExecutionException e) {
@@ -464,12 +464,12 @@ public class NioClientTest {
         sendSync(5000, client, tick(500));
 
         client.disconnect(p1).get();
-        assertNull(p1.getDtChannel());
+        assertNull(p1.dtChannel);
         assertEquals(2, client.getPeers().size());
         sendSync(5000, client, tick(100));
 
         client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
-        assertNotNull(p1.getDtChannel());
+        assertNotNull(p1.dtChannel);
         assertEquals(2, client.getPeers().size());
         sendSyncByPeer(5000, client, p1, tick(500));
 

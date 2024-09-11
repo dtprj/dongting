@@ -102,7 +102,7 @@ public class NioServerClientTest {
             client.start();
             client.waitStart();
 
-            DtChannelImpl dtc = client.getPeers().get(0).getDtChannel();
+            DtChannelImpl dtc = client.getPeers().get(0).dtChannel;
 
 
             // seq int32 overflow test

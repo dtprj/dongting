@@ -70,7 +70,7 @@ class IoWorkerQueue {
         Peer peer = wo.getPeer();
         if (peer != null) {
             if (peer.getStatus() == PeerStatus.connected) {
-                DtChannelImpl dtc = peer.getDtChannel();
+                DtChannelImpl dtc = peer.dtChannel;
                 wo.setDtc(dtc);
                 dtc.getSubQueue().enqueue(wo);
             } else if (peer.getStatus() == PeerStatus.removed) {

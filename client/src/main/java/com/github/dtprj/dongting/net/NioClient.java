@@ -264,12 +264,12 @@ public class NioClient extends NioNet {
     }
 
     private void removePeer(Peer peer, CompletableFuture<Void> f) {
-        if (peer.getDtChannel() != null) {
-            worker.close(peer.getDtChannel());
+        if (peer.dtChannel != null) {
+            worker.close(peer.dtChannel);
         }
         peers.remove(peer);
         peer.cleanWaitingConnectList(wd -> new NetException("peer removed"));
-        peer.setStatus(PeerStatus.removed);
+        peer.status = PeerStatus.removed;
         f.complete(null);
     }
 
@@ -318,7 +318,7 @@ public class NioClient extends NioNet {
     }
 
     private void checkOwner(Peer peer) {
-        if (peer.getOwner() != this) {
+        if (peer.owner != this) {
             throw new IllegalArgumentException("the peer is not owned by this client");
         }
     }

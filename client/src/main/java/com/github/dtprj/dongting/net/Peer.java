@@ -24,14 +24,14 @@ import java.util.function.Function;
  * @author huangli
  */
 public class Peer {
-    private volatile PeerStatus status;
+    volatile PeerStatus status;
     private final HostPort endPoint;
-    private final NioNet owner;
-    private DtChannelImpl dtChannel;
-    private int connectionId;
+    final NioNet owner;
+    DtChannelImpl dtChannel;
+    int connectionId;
+    NioWorker.ConnectInfo connectInfo;
 
     private LinkedList<WriteData> waitConnectList;
-    private NioWorker.ConnectInfo connectInfo;
 
     Peer(HostPort endPoint, NioNet owner) {
         Objects.requireNonNull(endPoint);
@@ -92,31 +92,4 @@ public class Peer {
         waitConnectList = null;
     }
 
-    NioNet getOwner() {
-        return owner;
-    }
-
-    DtChannelImpl getDtChannel() {
-        return dtChannel;
-    }
-
-    void setDtChannel(DtChannelImpl dtChannel) {
-        this.dtChannel = dtChannel;
-    }
-
-    void setStatus(PeerStatus status) {
-        this.status = status;
-    }
-
-    void setConnectionId(int connectionId) {
-        this.connectionId = connectionId;
-    }
-
-    NioWorker.ConnectInfo getConnectInfo() {
-        return connectInfo;
-    }
-
-    void setConnectInfo(NioWorker.ConnectInfo connectInfo) {
-        this.connectInfo = connectInfo;
-    }
 }
