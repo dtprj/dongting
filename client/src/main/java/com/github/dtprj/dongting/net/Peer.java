@@ -25,16 +25,21 @@ import java.util.function.Function;
  */
 public class Peer {
     private final HostPort endPoint;
-    final NioNet owner;
+    final NioClient owner;
 
     volatile PeerStatus status;
     DtChannelImpl dtChannel;
+
     int connectionId;
     NioWorker.ConnectInfo connectInfo;
 
+    boolean needConnect;
+    int retry;
+    long lastConnectFailNanos;
+
     private LinkedList<WriteData> waitConnectList;
 
-    Peer(HostPort endPoint, NioNet owner) {
+    Peer(HostPort endPoint, NioClient owner) {
         Objects.requireNonNull(endPoint);
         Objects.requireNonNull(owner);
         this.endPoint = endPoint;
@@ -80,7 +85,7 @@ public class Peer {
         if (waitConnectList == null) {
             return;
         }
-        for(Iterator<WriteData> it = waitConnectList.iterator();it.hasNext();){
+        for (Iterator<WriteData> it = waitConnectList.iterator(); it.hasNext(); ) {
             WriteData wd = it.next();
             it.remove();
             wd.setDtc(dtChannel);
@@ -89,4 +94,33 @@ public class Peer {
         waitConnectList = null;
     }
 
+    void markNotConnect(NioConfig config, WorkerStatus workerStatus) {
+        NioClientConfig c = (NioClientConfig) config;
+        if (needConnect) {
+            long base;
+            int index;
+            if (retry == 0) {
+                base = workerStatus.ts.getNanoTime();
+                index = 0;
+                workerStatus.retryConnect++;
+            } else {
+                base = lastConnectFailNanos;
+                index = retry > c.getConnectRetryIntervals().length - 1 ?
+                        c.getConnectRetryIntervals().length - 1 : retry;
+            }
+            retry = retry + 1 > 0 ? retry + 1 : Integer.MAX_VALUE;
+            lastConnectFailNanos = base + c.getConnectRetryIntervals()[index] * 1_000_000;
+        } else {
+            resetConnectRetry(workerStatus);
+        }
+        status = PeerStatus.not_connect;
+    }
+
+    void resetConnectRetry(WorkerStatus workerStatus) {
+        if (retry > 0) {
+            workerStatus.retryConnect--;
+        }
+        retry = 0;
+        lastConnectFailNanos = 0;
+    }
 }

@@ -33,6 +33,8 @@ class WorkerStatus {
     int packetsToWrite;
     Timestamp ts;
 
+    int retryConnect;
+
     public WorkerStatus(NioWorker worker) {
         this.worker = worker;
     }

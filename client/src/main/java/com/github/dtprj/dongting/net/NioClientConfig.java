@@ -23,12 +23,12 @@ import java.util.List;
 public class NioClientConfig extends NioConfig {
     private List<HostPort> hostPorts;
     private int waitStartTimeout = 2000;
+    private int[] connectRetryIntervals = {100, 1000, 5000, 10 * 1000, 20 * 1000, 30 * 1000, 60 * 1000};
 
     public NioClientConfig() {
         setName("DtNioClient");
         setBizThreads(Runtime.getRuntime().availableProcessors());
 
-        // TODO negotiate with server
         setMaxOutRequests(2000);
         setMaxOutBytes(32 * 1024 * 1024);
         setMaxInRequests(100);
@@ -51,4 +51,11 @@ public class NioClientConfig extends NioConfig {
         this.waitStartTimeout = waitStartTimeout;
     }
 
+    public int[] getConnectRetryIntervals() {
+        return connectRetryIntervals;
+    }
+
+    public void setConnectRetryIntervals(int[] connectRetryIntervals) {
+        this.connectRetryIntervals = connectRetryIntervals;
+    }
 }
