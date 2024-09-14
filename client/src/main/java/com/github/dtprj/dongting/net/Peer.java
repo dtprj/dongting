@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Objects;
@@ -24,6 +27,8 @@ import java.util.function.Function;
  * @author huangli
  */
 public class Peer {
+    private static final DtLog log = DtLogs.getLogger(Peer.class);
+
     private final HostPort endPoint;
     final NioClient owner;
 
@@ -105,11 +110,12 @@ public class Peer {
                 workerStatus.retryConnect++;
             } else {
                 base = lastConnectFailNanos;
-                index = retry > c.getConnectRetryIntervals().length - 1 ?
-                        c.getConnectRetryIntervals().length - 1 : retry;
+                index = Math.min(retry, c.getConnectRetryIntervals().length - 1);
             }
+            long millis = c.getConnectRetryIntervals()[index];
+            lastConnectFailNanos = base + millis * 1_000_000;
             retry = retry + 1 > 0 ? retry + 1 : Integer.MAX_VALUE;
-            lastConnectFailNanos = base + c.getConnectRetryIntervals()[index] * 1_000_000;
+            log.info("peer {} connect fail, {}th retry after {}ms", endPoint, retry, millis);
         } else {
             resetConnectRetry(workerStatus);
         }
