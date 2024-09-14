@@ -5,6 +5,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.CodecTestUtil;
 import com.github.dtprj.dongting.codec.DtPacket;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
@@ -101,6 +102,7 @@ public class PacketPbTest {
         buf.flip();
 
         WorkerStatus workerStatus = new WorkerStatus(null);
+        workerStatus.setTs(new Timestamp());
         workerStatus.setHeapPool(CodecTestUtil.createContext().getHeapPool());
 
         DtChannelImpl dtc = new DtChannelImpl(new NioStatus(), workerStatus,

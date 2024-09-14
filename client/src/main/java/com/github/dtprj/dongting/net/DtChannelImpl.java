@@ -51,6 +51,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private final SocketAddress localAddr;
 
     private final int channelIndexInWorker;
+    final long createTimeNanos;
+
     int seq = 1;
 
     private final MultiParser parser;
@@ -78,6 +80,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.peer = peer;
+        this.createTimeNanos = workerStatus.ts.getNanoTime();
 
         this.decodeContext = nioConfig.getDecodeContextFactory().get();
         this.decodeContext.setHeapPool(workerStatus.getHeapPool());
@@ -413,7 +416,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     public int getAndIncSeq() {
-        return seq++;
+        int c = seq++;
+        if (c < 0) {
+            seq = 1;
+            c = 1;
+        }
+        return c;
     }
 
     public int getChannelIndexInWorker() {

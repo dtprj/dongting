@@ -70,7 +70,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final Timestamp timestamp = new Timestamp();
 
-    private final LinkedList<ConnectInfo> outgoingConnects = new LinkedList<>();
+    private final LinkedList<DtChannelImpl> incomingConnects;//server side only
+    private final LinkedList<ConnectInfo> outgoingConnects;//client side only
     final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
 
     private final ByteBufferPool directPool;
@@ -101,8 +102,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.ioWorkerQueue = new IoWorkerQueue(this, config);
         if (client == null) {
             this.channelsList = null;
+            this.outgoingConnects = null;
+            this.incomingConnects = new LinkedList<>();
         } else {
             this.channelsList = new ArrayList<>();
+            this.outgoingConnects = new LinkedList<>();
+            this.incomingConnects = null;
         }
 
         this.directPool = config.getPoolFactory().createPool(timestamp, true);
@@ -156,7 +161,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
 
             if (client != null) {
-                cleanTimeoutConnect(ts);
+                cleanOutgoingTimeoutConnect(ts);
             }
             if (readBuffer != null) {
                 releaseReadBuffer();
@@ -169,7 +174,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (DtUtil.DEBUG >= 2) {
                 log.info("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("close error. {}", e);
         }
     }
@@ -203,8 +208,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     releaseReadBuffer();
                 }
                 cleanTimeoutReq(ts);
-                cleanTimeoutConnect(ts);
-                if(status == STATUS_RUNNING){
+                if (client != null) {
+                    cleanOutgoingTimeoutConnect(ts);
+                } else {
+                    cleanIncomingConnects(ts);
+                }
+                if (status == STATUS_RUNNING) {
                     tryReconnect(ts);
                 }
                 directPool.clean();
@@ -405,18 +414,25 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 closeChannel0(sc);
                 return;
             }
+            DtChannelImpl dtc;
             try {
-                DtChannelImpl dtc = initNewChannel(sc, null);
-                channels.put(dtc.getChannelIndexInWorker(), dtc);
+                dtc = initNewChannel(sc, null);
             } catch (Throwable e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
                 closeChannel0(sc);
+                return;
             }
+            channels.put(dtc.getChannelIndexInWorker(), dtc);
+            incomingConnects.addLast(dtc);
         }, null);
     }
 
     void finishHandshake(DtChannelImpl dtc) {
         dtc.handshake = true;
+        if (incomingConnects != null) {
+            //server side
+            incomingConnects.remove(dtc);
+        }
         if (nioStatus.channelListener != null) {
             try {
                 nioStatus.channelListener.onConnected(dtc);
@@ -660,6 +676,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             // O(n) in client side
             channelsList.remove(dtc);
         }
+        if (!dtc.handshake && incomingConnects != null) {
+            incomingConnects.remove(dtc);
+        }
         closeChannel0(dtc.getChannel());
         if (config.isFinishPendingImmediatelyWhenChannelClose()) {
             try {
@@ -735,7 +754,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void cleanTimeoutConnect(Timestamp roundStartTime) {
+    private void cleanOutgoingTimeoutConnect(Timestamp roundStartTime) {
         boolean close = status >= STATUS_PREPARE_STOP;
         for (Iterator<ConnectInfo> it = this.outgoingConnects.iterator(); it.hasNext(); ) {
             ConnectInfo ci = it.next();
@@ -755,6 +774,20 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 ci.peer.cleanWaitingConnectList(wd -> netEx);
                 ci.future.completeExceptionally(netEx);
                 it.remove();
+            }
+        }
+    }
+
+    private void cleanIncomingConnects(Timestamp roundStartTime) {
+        long t = roundStartTime.getNanoTime() - TimeUnit.SECONDS.toNanos(5);
+        for (Iterator<DtChannelImpl> it = this.incomingConnects.iterator(); it.hasNext(); ) {
+            DtChannelImpl dtc = it.next();
+            if (dtc.createTimeNanos - t < 0) {
+                log.warn("incoming connect timeout: {}", dtc.getChannel());
+                it.remove();
+                close(dtc);
+            } else {
+                break;
             }
         }
     }
@@ -818,6 +851,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     protected void logWorkerStatus() {
         log.info("worker={}, outgoingConnects={}, pendingOutgoingRequests={}",
-                workerName, outgoingConnects.size(), pendingOutgoingRequests.size());
+                workerName, outgoingConnects == null ? 0 : outgoingConnects.size(), pendingOutgoingRequests.size());
     }
 }
