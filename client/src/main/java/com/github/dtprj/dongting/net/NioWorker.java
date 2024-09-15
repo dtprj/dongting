@@ -576,7 +576,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 }
 
                 ci.peer.status = PeerStatus.connected;
-                ci.peer.enqueueAfterConnect();
                 ci.peer.resetConnectRetry(workerStatus);
                 finishHandshake(dtc);
                 ci.future.complete(null);
@@ -607,6 +606,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         WriteData wd = new WriteData(dtc, p, ci.deadline, rpcCallback,
                 ctx -> ctx.toDecoderCallback(new HandshakeBody.Callback()));
         dtc.getSubQueue().enqueue(wd);
+        // send pending request as quickly as possible, even before handshake finished
+        ci.peer.enqueueAfterConnect();
     }
 
     public void doInIoThread(Runnable runnable, CompletableFuture<?> future) {
