@@ -52,6 +52,7 @@ import java.util.function.Consumer;
  *
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);
 
@@ -558,7 +559,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void sendHandshake(DtChannelImpl dtc, ConnectInfo ci) {
-        RpcCallback<HandshakeBody> rpcCallback = new RpcCallback<>() {
+        RpcCallback<HandshakeBody> rpcCallback = new RpcCallback<HandshakeBody>() {
             @Override
             public void success(ReadPacket<HandshakeBody> resp) {
                 if (status >= STATUS_PREPARE_STOP) {
