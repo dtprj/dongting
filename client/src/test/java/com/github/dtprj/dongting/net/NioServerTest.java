@@ -621,4 +621,70 @@ public class NioServerTest {
             DtUtil.close(s);
         }
     }
+
+    @Test
+    public void handshakeTest1() throws Exception {
+        setupServer(null);
+        server.start();
+        Socket s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setSoTimeout(3000);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+
+            DtPacket.Handshake handshakeBody = DtPacket.Handshake.newBuilder()
+                    .setMagic1(HandshakeBody.MAGIC2) // reverse magic1 and magic2
+                    .setMagic2(HandshakeBody.MAGIC1)
+                    .setMajorVersion(DtUtil.RPC_MAJOR_VER)
+                    .setMinorVersion(DtUtil.RPC_MINOR_VER)
+                    .build();
+            DtPacket.Packet reqPacket = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
+                    .setSeq(1)
+                    .setCommand(Commands.CMD_HANDSHAKE)
+                    .setBody(handshakeBody.toByteString())
+                    .setTimeout(Duration.ofSeconds(10).toNanos())
+                    .build();
+            byte[] reqPacketBytes = reqPacket.toByteArray();
+            out.writeInt(reqPacketBytes.length);
+            out.write(reqPacketBytes);
+            out.flush();
+
+            try {
+                in.readInt();
+                fail();
+            } catch (EOFException e) {
+            }
+        } finally {
+            DtUtil.close(s);
+        }
+    }
+
+    @Test
+    public void handshakeTest2() throws Exception {
+        setupServer(c -> {
+            c.setSelectTimeout(1);
+            c.setCleanInterval(0);
+        });
+        server.start();
+        Socket s = new Socket("127.0.0.1", PORT);
+        long oldTimeout = NioWorker.incomingConnectTimeout;
+        NioWorker.incomingConnectTimeout = 1000 * 1000; // 1ms
+        try {
+            s.setSoTimeout(3000);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+
+            out.writeInt(100);
+            out.flush();
+
+            try {
+                in.readInt();
+                fail();
+            } catch (EOFException e) {
+            }
+        } finally {
+            NioWorker.incomingConnectTimeout = oldTimeout;
+            DtUtil.close(s);
+        }
+    }
 }

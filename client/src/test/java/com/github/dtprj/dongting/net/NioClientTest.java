@@ -70,12 +70,18 @@ public class NioClientTest {
         private volatile boolean stop;
         private long sleep;
         private int resultCode = CmdCodes.SUCCESS;
+        private final boolean handshakeTest;
 
         public BioServer(int port) throws Exception {
+            this(port, false);
+        }
+
+        public BioServer(int port, boolean handshakeTest) throws Exception {
             ss = new ServerSocket();
             ss.setReuseAddress(true);
             ss.bind(new InetSocketAddress(port));
             new Thread(this::runAcceptThread).start();
+            this.handshakeTest = handshakeTest;
         }
 
         public void runAcceptThread() {
@@ -119,8 +125,9 @@ public class NioClientTest {
             DataOutputStream out = null;
             try {
                 out = new DataOutputStream(s.getOutputStream());
+                boolean handshake = false;
                 while (!stop) {
-                    if (queue.size() > 1) {
+                    if (handshake && queue.size() > 1) {
                         ArrayList<DtPacket.Packet> list = new ArrayList<>();
                         queue.drainTo(list);
                         // shuffle
@@ -129,7 +136,12 @@ public class NioClientTest {
                         }
                     } else {
                         DtPacket.Packet packet = queue.take();
-                        writePacket(out, packet);
+                        if (!handshakeTest || handshake) {
+                            writePacket(out, packet);
+                        } else {
+                            writeHandshakeResp(out, packet);
+                            handshake = true;
+                        }
                     }
                 }
             } catch (InterruptedException e) {
@@ -139,6 +151,28 @@ public class NioClientTest {
             } finally {
                 DtUtil.close(out);
             }
+        }
+
+        private void writeHandshakeResp(DataOutputStream out, DtPacket.Packet packet) throws Exception {
+            DtPacket.Handshake h1 = DtPacket.Handshake.parseFrom(packet.getBody());
+            DtPacket.Config c1 = h1.getConfig();
+            DtPacket.Config c2 = DtPacket.Config.newBuilder().mergeFrom(c1)
+                    .setMaxBodySize(c1.getMaxBodySize() >>> 1)
+                    .setMaxPacketSize(c1.getMaxPacketSize() >>> 1)
+                    .setMaxOutPending(c1.getMaxOutPending() >>> 1)
+                    .setMaxOutPendingBytes(c1.getMaxOutPendingBytes() >>> 1)
+                    .build();
+            DtPacket.Handshake h2 = DtPacket.Handshake.newBuilder().mergeFrom(h1)
+                    .setConfig(c2).build();
+            packet = DtPacket.Packet.newBuilder().mergeFrom(packet)
+                    .setPacketType(PacketType.TYPE_RESP)
+                    .setRespCode(resultCode)
+                    .setRespMsg("msg")
+                    .setBody(h2.toByteString())
+                    .build();
+            byte[] bs = packet.toByteArray();
+            out.writeInt(bs.length);
+            out.write(bs);
         }
 
         private void writePacket(DataOutputStream out, DtPacket.Packet packet) throws Exception {
@@ -843,6 +877,27 @@ public class NioClientTest {
         }
 
         sendSyncByPeer(100, client, peer, tick(1000));
+    }
 
+    @Test
+    public void handshakeTest() throws Exception {
+        server1 = new BioServer(9000, true);
+        NioClientConfig c = new NioClientConfig();
+        c.setReadBufferSize(2048);
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+
+        int maxPacketSize = c.getMaxPacketSize();
+        int maxBodySize = c.getMaxBodySize();
+        int maxOutRequests = c.getMaxOutRequests();
+        long maxOutBytes = c.getMaxOutBytes();
+
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        c.readFence();
+        Assertions.assertEquals(maxPacketSize >>> 1, c.getMaxPacketSize());
+        Assertions.assertEquals(maxBodySize >>> 1, c.getMaxBodySize());
+        Assertions.assertEquals(maxOutRequests >>> 1, c.getMaxOutRequests());
+        Assertions.assertEquals(maxOutBytes >>> 1, c.getMaxOutBytes());
     }
 }

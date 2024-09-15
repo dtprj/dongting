@@ -41,7 +41,7 @@ public class HandshakeBody {
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public boolean readFix64(int index, long value) {
             switch (index) {
                 case 1:
                     if (value != MAGIC1) {
@@ -53,6 +53,13 @@ public class HandshakeBody {
                         throw new NetException("handshake failed, magic2 not match");
                     }
                     break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readVarNumber(int index, long value) {
+            switch (index) {
                 case 3:
                     result.majorVersion = (int) value;
                     break;

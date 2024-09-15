@@ -46,18 +46,11 @@ public class ConfigBody {
                 case 3:
                     result.maxInPending = (int) value;
                     break;
-                case 5:
-                    result.maxOutPending = (int) value;
-                    break;
-            }
-            return true;
-        }
-
-        @Override
-        public boolean readFix64(int index, long value) {
-            switch (index) {
                 case 4:
                     result.maxInPendingBytes = value;
+                    break;
+                case 5:
+                    result.maxOutPending = (int) value;
                     break;
                 case 6:
                     result.maxOutPendingBytes = value;
@@ -72,22 +65,22 @@ public class ConfigBody {
         }
     }
 
-    public int calcActualBodySize(){
+    public int calcActualBodySize() {
         return PbUtil.accurateUnsignedIntSize(1, maxPacketSize) +
                 PbUtil.accurateUnsignedIntSize(2, maxBodySize) +
                 PbUtil.accurateUnsignedIntSize(3, maxInPending) +
-                PbUtil.accurateFix64Size(4, maxInPendingBytes) +
+                PbUtil.accurateUnsignedLongSize(4, maxInPendingBytes) +
                 PbUtil.accurateUnsignedIntSize(5, maxOutPending) +
-                PbUtil.accurateFix64Size(6, maxOutPendingBytes);
+                PbUtil.accurateUnsignedLongSize(6, maxOutPendingBytes);
     }
 
     public void encodeBody(ByteBuffer buf) {
         PbUtil.writeUnsignedInt32(buf, 1, maxPacketSize);
         PbUtil.writeUnsignedInt32(buf, 2, maxBodySize);
         PbUtil.writeUnsignedInt32(buf, 3, maxInPending);
-        PbUtil.writeFix64(buf, 4, maxInPendingBytes);
+        PbUtil.writeUnsignedInt64(buf, 4, maxInPendingBytes);
         PbUtil.writeUnsignedInt32(buf, 5, maxOutPending);
-        PbUtil.writeFix64(buf, 6, maxOutPendingBytes);
+        PbUtil.writeUnsignedInt64(buf, 6, maxOutPendingBytes);
     }
 
     public int getMaxPacketSize() {

@@ -55,6 +55,8 @@ import java.util.function.Consumer;
 class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);
 
+    static long incomingConnectTimeout = 5 * 1000 * 1000 * 1000L;
+
     private final String workerName;
     private final Thread thread;
     private final NioStatus nioStatus;
@@ -780,7 +782,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanIncomingConnects(Timestamp roundStartTime) {
-        long t = roundStartTime.getNanoTime() - TimeUnit.SECONDS.toNanos(5);
+        long t = roundStartTime.getNanoTime() - incomingConnectTimeout;
         for (Iterator<DtChannelImpl> it = this.incomingConnects.iterator(); it.hasNext(); ) {
             DtChannelImpl dtc = it.next();
             if (dtc.createTimeNanos - t < 0) {
