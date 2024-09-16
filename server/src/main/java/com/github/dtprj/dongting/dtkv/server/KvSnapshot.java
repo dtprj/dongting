@@ -83,14 +83,14 @@ class KvSnapshot extends Snapshot {
         while (iterator.hasNext()) {
             Map.Entry<String, Value> en = iterator.next();
             Value value = en.getValue();
-            while (value != null && value.getRaftIndex() > getSnapshotInfo().getLastIncludedIndex()) {
-                value = value.getPrevious();
+            while (value != null && value.raftIndex > getSnapshotInfo().getLastIncludedIndex()) {
+                value = value.previous;
             }
-            if (value != null && value.getData() != null) {
+            if (value != null && value.data != null) {
                 String key = en.getKey();
                 encodeStatus.keyBytes = key.getBytes(StandardCharsets.UTF_8);
-                encodeStatus.valueBytes = value.getData();
-                encodeStatus.raftIndex = value.getRaftIndex();
+                encodeStatus.valueBytes = value.data;
+                encodeStatus.raftIndex = value.raftIndex;
                 currentValue = value;
                 break;
             }

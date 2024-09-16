@@ -34,8 +34,8 @@ class KvImpl {
         }
         Value value = map.get(key);
         while (value != null) {
-            if (value.getRaftIndex() > index) {
-                value = value.getPrevious();
+            if (value.raftIndex > index) {
+                value = value.previous;
             } else {
                 break;
             }
@@ -43,7 +43,7 @@ class KvImpl {
         if (value == null) {
             return null;
         } else {
-            RefBuffer rb = value.getData();
+            RefBuffer rb = value.data;
             if (rb != null) {
                 rb.retain();
             }
@@ -55,7 +55,7 @@ class KvImpl {
         if (v == null) {
             return null;
         }
-        RefBuffer rb = v.getData();
+        RefBuffer rb = v.data;
         if (rb != null) {
             rb.release();
         }
@@ -76,13 +76,13 @@ class KvImpl {
             newValue.key = oldValue.key;
         }
         if (maxOpenSnapshotIndex > 0) {
-            while (oldValue != null && oldValue.getRaftIndex() > maxOpenSnapshotIndex) {
+            while (oldValue != null && oldValue.raftIndex > maxOpenSnapshotIndex) {
                 release(oldValue);
-                oldValue = oldValue.getPrevious();
+                oldValue = oldValue.previous;
             }
-            newValue.setPrevious(oldValue);
-            if (oldValue != null && !oldValue.isEvicted()) {
-                oldValue.setEvicted(true);
+            newValue.previous = oldValue;
+            if (oldValue != null && !oldValue.evicted) {
+                oldValue.evicted = true;
                 needCleanList.add(newValue);
             }
         } else {
@@ -94,10 +94,10 @@ class KvImpl {
         LinkedList<Value> needCleanList = this.needCleanList;
         while (!needCleanList.isEmpty()) {
             Value v = needCleanList.removeFirst();
-            Value previous = v.getPrevious();
+            Value previous = v.previous;
             release(previous);
-            v.setPrevious(null);
-            if (v.getData() == null && !v.isEvicted()) {
+            v.previous = null;
+            if (v.data == null && !v.evicted) {
                 map.remove(v.key);
             }
         }
@@ -112,15 +112,15 @@ class KvImpl {
             if (oldValue == null) {
                 return Boolean.FALSE;
             } else {
-                boolean result = oldValue.getData() != null;
-                while (oldValue != null && oldValue.getRaftIndex() > maxOpenSnapshotIndex) {
+                boolean result = oldValue.data != null;
+                while (oldValue != null && oldValue.raftIndex > maxOpenSnapshotIndex) {
                     release(oldValue);
-                    oldValue = oldValue.getPrevious();
+                    oldValue = oldValue.previous;
                 }
                 if (oldValue != null) {
                     Value newValue = new Value(index, oldValue.key, null);
-                    newValue.setPrevious(oldValue);
-                    oldValue.setEvicted(true);
+                    newValue.previous = oldValue;
+                    oldValue.evicted = true;
                     map.put(key, newValue);
                     needCleanList.add(newValue);
                 }

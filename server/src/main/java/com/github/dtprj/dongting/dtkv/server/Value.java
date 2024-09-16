@@ -22,40 +22,15 @@ import com.github.dtprj.dongting.buf.RefBuffer;
  */
 class Value {
     String key;
-    private final RefBuffer data;
-    private final long raftIndex;
+    final RefBuffer data;
+    final long raftIndex;
 
-    private Value previous;
-    private boolean evicted;
+    Value previous;
+    boolean evicted;
 
     public Value(long raftIndex, String key, RefBuffer data) {
         this.raftIndex = raftIndex;
         this.data = data;
         this.key = key;
     }
-
-    public RefBuffer getData() {
-        return data;
-    }
-
-    public long getRaftIndex() {
-        return raftIndex;
-    }
-
-    public Value getPrevious() {
-        return previous;
-    }
-
-    public void setPrevious(Value previous) {
-        this.previous = previous;
-    }
-
-    public boolean isEvicted() {
-        return evicted;
-    }
-
-    public void setEvicted(boolean evicted) {
-        this.evicted = evicted;
-    }
-
 }
