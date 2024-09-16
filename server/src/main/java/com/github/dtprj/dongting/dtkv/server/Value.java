@@ -21,14 +21,14 @@ import com.github.dtprj.dongting.buf.RefBuffer;
  * @author huangli
  */
 class Value {
-    private final String key;
+    String key;
     private final RefBuffer data;
     private final long raftIndex;
 
     private Value previous;
     private boolean evicted;
 
-    public Value(long raftIndex,String key, RefBuffer data) {
+    public Value(long raftIndex, String key, RefBuffer data) {
         this.raftIndex = raftIndex;
         this.data = data;
         this.key = key;
@@ -58,7 +58,4 @@ class Value {
         this.evicted = evicted;
     }
 
-    public String getKey() {
-        return key;
-    }
 }

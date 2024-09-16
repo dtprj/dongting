@@ -72,6 +72,9 @@ class KvImpl {
         data.retain();
         Value newValue = new Value(index, key, data);
         Value oldValue = map.put(key, newValue);
+        if (oldValue != null) {
+            newValue.key = oldValue.key;
+        }
         if (maxOpenSnapshotIndex > 0) {
             while (oldValue != null && oldValue.getRaftIndex() > maxOpenSnapshotIndex) {
                 release(oldValue);
@@ -95,7 +98,7 @@ class KvImpl {
             release(previous);
             v.setPrevious(null);
             if (v.getData() == null && !v.isEvicted()) {
-                map.remove(v.getKey());
+                map.remove(v.key);
             }
         }
     }
@@ -115,7 +118,7 @@ class KvImpl {
                     oldValue = oldValue.getPrevious();
                 }
                 if (oldValue != null) {
-                    Value newValue = new Value(index, key, null);
+                    Value newValue = new Value(index, oldValue.key, null);
                     newValue.setPrevious(oldValue);
                     oldValue.setEvicted(true);
                     map.put(key, newValue);
