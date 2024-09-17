@@ -77,7 +77,7 @@ class KvImpl {
                 oldValue = oldValue.previous;
             }
             newValue.previous = oldValue;
-            if (oldValue != null && !oldValue.evicted) {
+            if (oldValue != null) {
                 oldValue.evicted = true;
                 needCleanList.add(newValue);
             }
