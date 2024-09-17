@@ -73,7 +73,7 @@ class WriteData {
     @SuppressWarnings({"unchecked", "rawtypes"})
     void callSuccess(ReadPacket resp) {
         if (data.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
-            RpcCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp));
+            RpcCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
         } else {
             RpcCallback.callSuccess(callback, resp);
         }

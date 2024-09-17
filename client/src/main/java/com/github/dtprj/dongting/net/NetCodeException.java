@@ -21,34 +21,29 @@ package com.github.dtprj.dongting.net;
 public class NetCodeException extends NetException {
     private static final long serialVersionUID = -5950474263583156637L;
     private final int code;
-    private final String msg;
-    private final ReadPacket<?> respPacket;
+    private final byte[] extra;
 
-    public NetCodeException(int code, String msg) {
+    public NetCodeException(int code, String msg, byte[] extra) {
+        super(msg);
         this.code = code;
-        this.msg = msg;
-        this.respPacket = null;
+        this.extra = extra;
     }
 
-    NetCodeException(int code, String msg, ReadPacket<?> respPacket) {
-        this.code = code;
-        this.msg = msg;
-        this.respPacket = respPacket;
+    @Override
+    public Throwable fillInStackTrace() {
+        return this;
     }
 
     public int getCode() {
         return code;
     }
 
-    /**
-     * be called in client side
-     */
-    public ReadPacket<?> getRespPacket() {
-        return respPacket;
+    public byte[] getExtra() {
+        return extra;
     }
 
     @Override
     public String toString() {
-        return "receive error from server: code=" + code + ", msg=" + msg;
+        return "receive error from server: code=" + code + ", msg=" + getMessage();
     }
 }

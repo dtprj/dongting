@@ -226,7 +226,7 @@ public class RaftClient extends AbstractLifeCircle {
                 if (retry && ex instanceof NetCodeException) {
                     NetCodeException ncEx = (NetCodeException) ex;
                     if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
-                        Peer newLeader = updateLeaderFromExtra(ncEx.getRespPacket(), gi);
+                        Peer newLeader = updateLeaderFromExtra(ncEx.getExtra(), gi);
                         if (newLeader != null && !timeout.isTimeout()) {
                             request.reset();
                             send(request, decoder, timeout, c, gi, false);
@@ -314,9 +314,8 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private Peer updateLeaderFromExtra(ReadPacket<?> packet, GroupInfo groupInfo) {
-        byte[] bs = packet.getExtra();
-        if (bs == null) {
+    private Peer updateLeaderFromExtra(byte[] extra, GroupInfo groupInfo) {
+        if (extra == null) {
             return null;
         }
         lock.lock();
@@ -326,7 +325,7 @@ public class RaftClient extends AbstractLifeCircle {
                 // group info changed, drop the result
                 return null;
             }
-            String s = new String(bs, StandardCharsets.UTF_8);
+            String s = new String(extra, StandardCharsets.UTF_8);
             Peer leader = parseLeader(groupInfo, Integer.parseInt(s));
             if (leader != null) {
                 GroupInfo newGroupInfo = new GroupInfo(groupInfo.groupId, groupInfo.epoch,
