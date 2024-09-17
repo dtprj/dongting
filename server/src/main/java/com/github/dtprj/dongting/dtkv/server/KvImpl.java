@@ -43,11 +43,7 @@ class KvImpl {
         if (value == null) {
             return null;
         } else {
-            RefBuffer rb = value.data;
-            if (rb != null) {
-                rb.retain();
-            }
-            return rb;
+            return value.data;
         }
     }
 

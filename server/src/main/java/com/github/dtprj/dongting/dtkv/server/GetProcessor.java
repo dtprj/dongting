@@ -90,6 +90,9 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
                 RefBuffer rb = dtKV.get(logIndex, frame.getBody().getKey());
+                if (rb != null) {
+                    rb.retain();
+                }
                 RefBufWritePacket wf = new RefBufWritePacket(rb);
                 wf.setRespCode(CmdCodes.SUCCESS);
                 writeResp(reqInfo, wf);
