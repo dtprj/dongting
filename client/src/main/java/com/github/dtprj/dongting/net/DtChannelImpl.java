@@ -168,6 +168,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             case Packet.IDX_RESP_CODE:
                 packet.respCode = (int) value;
                 break;
+            case Packet.IDX_BIZ_CODE:
+                packet.bizCode = (int) value;
+                break;
         }
         return true;
     }
@@ -188,7 +191,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (this.readBody) {
             throw new PbException("body has read");
         }
-        if (index == Packet.IDX_TIMOUT) {
+        if (index == Packet.IDX_TIMEOUT) {
             packet.timeout = value;
         }
         return true;

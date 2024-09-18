@@ -48,9 +48,10 @@ public abstract class WritePacket extends Packet implements Encodable {
             + 1 + 5 // uint32 command = 2;
             + 1 + 4 // fixed32 seq = 3;
             + 1 + 5 // uint32 resp_code = 4;
-            // string resp_msg = 5;
-            + 1 + 8; // fixed32 timeout_millis = 6;
-    // string extra = 7;
+            + 1 + 5 // string biz_code = 5;
+            // string resp_msg = 6;
+            + 1 + 8; // fixed32 timeout_millis = 7;
+    // string extra = 8;
 
 
     protected abstract int calcActualBodySize();
@@ -90,9 +91,10 @@ public abstract class WritePacket extends Packet implements Encodable {
                     + PbUtil.accurateUnsignedIntSize(IDX_COMMAND, command) // uint32 command = 2;
                     + PbUtil.accurateFix32Size(IDX_SEQ, seq) // fixed32 seq = 3;
                     + PbUtil.accurateUnsignedIntSize(IDX_RESP_CODE, respCode) // uint32 resp_code = 4;
-                    + PbUtil.accurateLengthDelimitedSize(IDX_MSG, msgBytes == null ? 0 : msgBytes.length) // string resp_msg = 5;
-                    + PbUtil.accurateFix64Size(IDX_TIMOUT, timeout) // fixed64 timeout = 6;
-                    + PbUtil.accurateLengthDelimitedSize(IDX_EXTRA, extra == null ? 0 : extra.length) // bytes extra = 7;
+                    + PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode) // uint32 biz_code = 5;
+                    + PbUtil.accurateLengthDelimitedSize(IDX_MSG, msgBytes == null ? 0 : msgBytes.length) // string resp_msg = 6;
+                    + PbUtil.accurateFix64Size(IDX_TIMEOUT, timeout) // fixed64 timeout = 7;
+                    + PbUtil.accurateLengthDelimitedSize(IDX_EXTRA, extra == null ? 0 : extra.length) // bytes extra = 8;
                     + PbUtil.accurateLengthDelimitedSize(IDX_BODY, actualBodySize()); // bytes body = 15;
             this.dumpSize = dumpSize;
         }
@@ -113,8 +115,9 @@ public abstract class WritePacket extends Packet implements Encodable {
                 PbUtil.writeUnsignedInt32(buf, IDX_COMMAND, command);
                 PbUtil.writeFix32(buf, IDX_SEQ, seq);
                 PbUtil.writeUnsignedInt32(buf, IDX_RESP_CODE, respCode);
+                PbUtil.writeUnsignedInt32(buf, IDX_BIZ_CODE, bizCode);
                 PbUtil.writeUTF8(buf, IDX_MSG, msg);
-                PbUtil.writeFix64(buf, IDX_TIMOUT, timeout);
+                PbUtil.writeFix64(buf, IDX_TIMEOUT, timeout);
                 PbUtil.writeBytes(buf, IDX_EXTRA, extra);
                 if (bodySize > 0) {
                     PbUtil.writeLengthDelimitedPrefix(buf, Packet.IDX_BODY, bodySize);

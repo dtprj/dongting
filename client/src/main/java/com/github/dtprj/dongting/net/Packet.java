@@ -23,15 +23,17 @@ public abstract class Packet {
     public static final int IDX_COMMAND = 2;
     public static final int IDX_SEQ = 3;
     public static final int IDX_RESP_CODE = 4;
-    public static final int IDX_MSG = 5;
-    public static final int IDX_TIMOUT = 6;
-    public static final int IDX_EXTRA = 7;
+    public static final int IDX_BIZ_CODE = 5;
+    public static final int IDX_MSG = 6;
+    public static final int IDX_TIMEOUT = 7;
+    public static final int IDX_EXTRA = 8;
     public static final int IDX_BODY = 15;
 
     int packetType;
     int command;
     int seq;
     int respCode;
+    int bizCode;
     String msg;
     long timeout;
     byte[] extra;
@@ -42,6 +44,7 @@ public abstract class Packet {
                 ",cmd=" + command +
                 ",seq=" + seq +
                 ",respCode=" + respCode +
+                ",bizCode=" + bizCode +
                 ")";
     }
 
@@ -76,6 +79,14 @@ public abstract class Packet {
 
     public void setRespCode(int respCode) {
         this.respCode = respCode;
+    }
+
+    public int getBizCode() {
+        return bizCode;
+    }
+
+    public void setBizCode(int bizCode) {
+        this.bizCode = bizCode;
     }
 
     public String getMsg() {

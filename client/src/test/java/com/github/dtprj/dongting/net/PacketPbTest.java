@@ -29,27 +29,27 @@ public class PacketPbTest {
     }
 
     private void test() throws Exception {
-        test0(1, 0, 0, 0, "1", new byte[]{1}, 0, 0);
-        test0(2, 1, 1, 1, "123", new byte[]{1, 5}, 1, 1);
-        test0(1000, 1000, 1000, 1000, "123", null, 10000, 1000);
-        test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", null, Long.MAX_VALUE, 1000);
-        test0(-1, -1, -1, -1, "123", null, -1, 1000);
-        test0(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, "123", null, Long.MIN_VALUE, 1000);
+        test0(1, 0, 0, 0, 1, "1", new byte[]{1}, 0, 0);
+        test0(2, 1, 1, 1, 0, "123", new byte[]{1, 5}, 1, 1);
+        test0(1000, 1000, 1000, 1000, 2000, "123", null, 10000, 1000);
+        test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", null, Long.MAX_VALUE, 1000);
+        test0(-1, -1, -1, -1, -1, "123", null, -1, 1000);
+        test0(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, "123", null, Long.MIN_VALUE, 1000);
 
         char[] cs = new char[2000];
         Arrays.fill(cs, 'a');
         byte[] extra = new byte[2000];
         new Random().nextBytes(extra);
-        test0(1000, 1000, 1000, 1000, new String(cs), null, 1000, 1000);
+        test0(1000, 1000, 1000, 1000, 2000, new String(cs), null, 1000, 1000);
     }
 
-    private void test0(int packetType, int command, int seq, int respCode, String msg, byte[] extra,
+    private void test0(int packetType, int command, int seq, int respCode, int bizCode, String msg, byte[] extra,
                        long timeout, int bodySize) throws Exception {
-        testEncode0(packetType, command, seq, respCode, msg, extra, timeout, bodySize);
-        testDecode0(packetType, command, seq, respCode, msg, extra, timeout, bodySize);
+        testEncode0(packetType, command, seq, respCode, bizCode, msg, extra, timeout, bodySize);
+        testDecode0(packetType, command, seq, respCode, bizCode, msg, extra, timeout, bodySize);
     }
 
-    private void testEncode0(int packetType, int command, int seq, int respCode, String msg, byte[] extra,
+    private void testEncode0(int packetType, int command, int seq, int respCode, int bizCode, String msg, byte[] extra,
                              long timeout, int bodySize) throws Exception {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
@@ -58,6 +58,7 @@ public class PacketPbTest {
         f.setCommand(command);
         f.setSeq(seq);
         f.setRespCode(respCode);
+        f.setBizCode(bizCode);
         f.setMsg(msg);
         f.setTimeout(timeout);
         f.setExtra(extra);
@@ -70,6 +71,7 @@ public class PacketPbTest {
         assertEquals(command, pbf.getCommand());
         assertEquals(seq, pbf.getSeq());
         assertEquals(respCode, pbf.getRespCode());
+        assertEquals(bizCode, pbf.getBizCode());
         assertEquals(msg, pbf.getRespMsg());
         assertEquals(timeout, pbf.getTimeout());
         if (extra != null) {
@@ -80,7 +82,7 @@ public class PacketPbTest {
         assertArrayEquals(bs, pbf.getBody().toByteArray());
     }
 
-    private void testDecode0(int packetType, int command, int seq, int respCode,
+    private void testDecode0(int packetType, int command, int seq, int respCode, int bizCode,
                              String msg, byte[] extra, long timeout, int bodySize) throws IOException {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
@@ -89,6 +91,7 @@ public class PacketPbTest {
                 .setCommand(command)
                 .setSeq(seq)
                 .setRespCode(respCode)
+                .setBizCode(bizCode)
                 .setRespMsg(msg)
                 .setTimeout(timeout)
                 .setBody(ByteString.copyFrom(bs));
@@ -134,6 +137,7 @@ public class PacketPbTest {
         assertEquals(command, dtc.getPacket().getCommand());
         assertEquals(seq, dtc.getPacket().getSeq());
         assertEquals(respCode, dtc.getPacket().getRespCode());
+        assertEquals(bizCode, dtc.getPacket().getBizCode());
         assertEquals(msg, dtc.getPacket().getMsg());
         assertArrayEquals(extra, dtc.getPacket().getExtra());
         assertEquals(timeout, dtc.getPacket().getTimeout());

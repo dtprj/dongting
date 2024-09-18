@@ -20,9 +20,10 @@ message Packet {
   uint32 command = 2;
   fixed32 seq = 3;
   uint32 resp_code = 4;
-  string resp_msg = 5;
-  fixed64 timeout = 6;
-  bytes extra = 7;
+  uint32 biz_code = 5;
+  string resp_msg = 6;
+  fixed64 timeout = 7;
+  bytes extra = 8;
   bytes body = 15;
 }
 
