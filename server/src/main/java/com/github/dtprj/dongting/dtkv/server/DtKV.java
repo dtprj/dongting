@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -53,18 +52,20 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private final FiberGroup mainFiberGroup;
     private final RaftGroupConfigEx config;
+    private final KvConfig kvConfig;
     private final boolean useSeparateExecutor;
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
-    private long maxOpenSnapshotIndex;
 
-    private final ReentrantLock kvStatusLock = new ReentrantLock();
-    private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new KvImpl(), 0);
+    private volatile KvStatus kvStatus;
     private EncodeStatus encodeStatus;
 
-    public DtKV(RaftGroupConfigEx config, boolean useSeparateExecutor) {
+    public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
         this.mainFiberGroup = config.getFiberGroup();
         this.config = config;
-        this.useSeparateExecutor = useSeparateExecutor;
+        this.useSeparateExecutor = kvConfig.isUseSeparateExecutor();
+        this.kvConfig = kvConfig;
+        KvImpl kvImpl = new KvImpl(kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
+        this.kvStatus = new KvStatus(KvStatus.RUNNING, kvImpl, 0);
     }
 
     @Override
@@ -124,13 +125,25 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 return kvStatus.kvImpl.get(index, key.getStr());
             case BIZ_TYPE_PUT:
                 RefBuffer data = (RefBuffer) input.getBody();
-                kvStatus.kvImpl.put(index, key.getStr(), data, maxOpenSnapshotIndex);
+                if (data == null || data.getBuffer() == null) {
+                    return KvResult.CODE_KEY_IS_NULL;
+                }
+                kvStatus.kvImpl.put(index, key.getStr(), toBytes(data));
                 return null;
             case BIZ_TYPE_REMOVE:
-                return kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
+                return kvStatus.kvImpl.remove(index, key.getStr());
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
+    }
+
+    private byte[] toBytes(RefBuffer rb) {
+        ByteBuffer bb = rb.getBuffer();
+        int oldPos = bb.position();
+        byte[] bytes = new byte[bb.remaining()];
+        bb.get(bytes);
+        bb.position(oldPos);
+        return bytes;
     }
 
     /**
@@ -138,7 +151,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public RefBuffer get(long index, String key) {
+    public KvResult get(long index, String key) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
         return kvStatus.kvImpl.get(index, key);
@@ -170,7 +183,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
-            newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
+            KvImpl kvImpl = new KvImpl(kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
+            newStatus(KvStatus.INSTALLING_SNAPSHOT, kvImpl);
             encodeStatus = new EncodeStatus(((DispatcherThread) Thread.currentThread()).getHeapPool());
         } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
             throw new IllegalStateException("current status error: " + kvStatus.status);
@@ -182,7 +196,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                     long raftIndex = encodeStatus.raftIndex;
                     // TODO use byte buffer pool?
                     String key = new String(encodeStatus.keyBytes, StandardCharsets.UTF_8);
-                    kvImpl.put(raftIndex, key, encodeStatus.valueBytes, 0);
+                    kvImpl.put(raftIndex, key, encodeStatus.valueBytes);
                     encodeStatus.reset();
                 } else {
                     break;
@@ -201,13 +215,13 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         ensureRunning(kvStatus);
         KvSnapshot snapshot = new KvSnapshot(si, () -> kvStatus, this::closeSnapshot);
         openSnapshots.add(snapshot);
-        updateMax();
+        updateMinMax();
         return snapshot;
     }
 
     private void closeSnapshot(Snapshot snapshot) {
         openSnapshots.remove(snapshot);
-        updateMax();
+        updateMinMax();
         if (maxOpenSnapshotIndex == 0) {
             KvImpl kvImpl = kvStatus.kvImpl;
             if (kvImpl != null) {
@@ -216,13 +230,22 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
     }
 
-    private void updateMax() {
+    private void updateMinMax() {
         long max = 0;
+        long min = Long.MAX_VALUE;
         for (Snapshot s : openSnapshots) {
-            SnapshotInfo si = s.getSnapshotInfo();
-            max = Math.max(max, si.getLastIncludedIndex());
+            long idx = s.getSnapshotInfo().getLastIncludedIndex();
+            max = Math.max(max, idx);
+            min = Math.min(min, idx);
         }
-        this.maxOpenSnapshotIndex = max;
+        if (min == Long.MAX_VALUE) {
+            min = 0;
+        }
+        KvImpl kvImpl = kvStatus.kvImpl;
+        if (kvImpl != null) {
+            kvImpl.maxOpenSnapshotIndex = max;
+            kvImpl.minOpenSnapshotIndex = min;
+        }
     }
 
     private static void ensureRunning(KvStatus kvStatus) {
@@ -257,6 +280,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
     }
 
+    /**
+     * may be called in other threads.
+     */
     @Override
     protected void doStop(DtTime timeout, boolean force) {
         newStatus(KvStatus.CLOSED, null);
@@ -265,13 +291,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
     }
 
-    private void newStatus(int status, KvImpl kvImpl) {
-        kvStatusLock.lock();
-        try {
-            //noinspection NonAtomicOperationOnVolatileField
-            kvStatus = new KvStatus(status, kvImpl, kvStatus.epoch + 1);
-        } finally {
-            kvStatusLock.unlock();
-        }
+    private synchronized void newStatus(int status, KvImpl kvImpl) {
+        kvStatus = new KvStatus(status, kvImpl, kvStatus.epoch + 1);
     }
 }

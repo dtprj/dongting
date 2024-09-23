@@ -35,10 +35,10 @@ import java.util.function.Supplier;
 class KvSnapshot extends Snapshot {
     private final Supplier<KvStatus> statusSupplier;
     private final Consumer<Snapshot> closeCallback;
-    private final Iterator<Map.Entry<String, Value>> iterator;
+    private final Iterator<Map.Entry<String, KvNode>> iterator;
     private final int epoch;
 
-    private Value currentValue;
+    private KvNode currentKvNode;
 
     private final EncodeStatus encodeStatus = new EncodeStatus(((DispatcherThread) Thread.currentThread()).getHeapPool());
 
@@ -61,17 +61,17 @@ class KvSnapshot extends Snapshot {
 
         int startPos = buffer.position();
         while (true) {
-            if (currentValue == null) {
+            if (currentKvNode == null) {
                 nextValue();
             }
-            if (currentValue == null) {
+            if (currentKvNode == null) {
                 // no more data
                 return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
             }
 
             if (encodeStatus.writeToBuffer(buffer)) {
                 encodeStatus.reset();
-                currentValue = null;
+                currentKvNode = null;
             } else {
                 // buffer is full
                 return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
@@ -81,17 +81,17 @@ class KvSnapshot extends Snapshot {
 
     private void nextValue() {
         while (iterator.hasNext()) {
-            Map.Entry<String, Value> en = iterator.next();
-            Value value = en.getValue();
-            while (value != null && value.raftIndex > getSnapshotInfo().getLastIncludedIndex()) {
-                value = value.previous;
+            Map.Entry<String, KvNode> en = iterator.next();
+            KvNode kvNode = en.getValue();
+            while (kvNode != null && kvNode.raftIndex > getSnapshotInfo().getLastIncludedIndex()) {
+                kvNode = kvNode.previous;
             }
-            if (value != null && value.data != null) {
+            if (kvNode != null && kvNode.data != null) {
                 String key = en.getKey();
                 encodeStatus.keyBytes = key.getBytes(StandardCharsets.UTF_8);
-                encodeStatus.valueBytes = value.data;
-                encodeStatus.raftIndex = value.raftIndex;
-                currentValue = value;
+                encodeStatus.valueBytes = kvNode.data;
+                encodeStatus.raftIndex = kvNode.raftIndex;
+                currentKvNode = kvNode;
                 break;
             }
         }

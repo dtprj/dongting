@@ -15,22 +15,18 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
-
 /**
  * @author huangli
  */
-class Value {
-    String key;
-    final RefBuffer data;
-    final long raftIndex;
+class KvNodeHolder {
+    final String key;
+    final String keyInDir;
 
-    Value previous;
-    boolean evicted;
+    KvNode latest;
 
-    public Value(long raftIndex, String key, RefBuffer data) {
-        this.raftIndex = raftIndex;
-        this.data = data;
+    public KvNodeHolder(String key, String keyInDir, KvNode n) {
         this.key = key;
+        this.keyInDir = keyInDir;
+        this.latest = n;
     }
 }

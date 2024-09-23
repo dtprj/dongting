@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
+import com.github.dtprj.dongting.dtkv.server.KvConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.log.DtLog;
@@ -112,7 +113,9 @@ public class RaftBenchmark extends BenchBase {
         DefaultRaftFactory raftFactory = new DefaultRaftFactory(serverConfig) {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
-                return new DtKV(groupConfig, STATEMACHINE_USE_SEPARATE_EXECUTOR);
+                KvConfig kvConfig = new KvConfig();
+                kvConfig.setUseSeparateExecutor(STATEMACHINE_USE_SEPARATE_EXECUTOR);
+                return new DtKV(groupConfig, kvConfig);
             }
 
             @Override
