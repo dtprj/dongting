@@ -15,31 +15,48 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import java.util.HashMap;
-
 /**
  * @author huangli
  */
-class KvNode {
-    final byte[] data;
-    final long raftIndex;
-    final boolean dir;
-    final HashMap<String, KvNodeHolder> children;
+public class KvNode {
+    protected final byte[] data;
+    protected final long createIndex;
+    protected final long createTime;
 
-    KvNode previous;
-    long removeAtIndex;
+    protected long updateIndex;
+    protected long updateTime;
 
-    public KvNode(long raftIndex, byte[] data) {
-        this.raftIndex = raftIndex;
+    protected final boolean dir;
+
+
+    public KvNode(long createIndex, long createTime, boolean dir, byte[] data) {
+        this.createIndex = createIndex;
+        this.createTime = createTime;
         this.data = data;
-        this.dir = false;
-        children = null;
+        this.dir = dir;
     }
 
-    public KvNode() {
-        this.raftIndex = 0;
-        this.data = null;
-        this.dir = true;
-        this.children = new HashMap<>();
+    public byte[] getData() {
+        return data;
+    }
+
+    public long getCreateIndex() {
+        return createIndex;
+    }
+
+    public boolean isDir() {
+        return dir;
+    }
+
+    public long getUpdateIndex() {
+        return updateIndex;
+    }
+
+    public long getCreateTime() {
+        return createTime;
+    }
+
+    public long getUpdateTime() {
+        return updateTime;
     }
 }

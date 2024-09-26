@@ -97,8 +97,8 @@ class KvSnapshot extends Snapshot {
             if (h == null) {
                 return;
             }
-            KvNode n = h.latest;
-            while (n != null && n.raftIndex > lastIncludeRaftIndex) {
+            KvNodeEx n = h.latest;
+            while (n != null && n.createIndex > lastIncludeRaftIndex) {
                 n = n.previous;
             }
             if (n == null || n.removeAtIndex > 0) {
@@ -108,7 +108,7 @@ class KvSnapshot extends Snapshot {
                 String key = en.getKey();
                 encodeStatus.keyBytes = key.getBytes(StandardCharsets.UTF_8);
                 encodeStatus.valueBytes = n.data;
-                encodeStatus.raftIndex = n.raftIndex;
+                encodeStatus.raftIndex = n.createIndex;
                 encodeStatus.dir = n.dir;
                 currentKvNode = n;
                 return;

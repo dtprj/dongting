@@ -15,18 +15,23 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import java.util.HashMap;
+
 /**
  * @author huangli
  */
-class KvNodeHolder {
-    final String key;
-    final String keyInDir;
+class KvNodeEx extends KvNode {
+    final HashMap<String, KvNodeHolder> children;
 
-    KvNodeEx latest;
+    KvNodeEx previous;
+    long removeAtIndex;
 
-    public KvNodeHolder(String key, String keyInDir, KvNodeEx n) {
-        this.key = key;
-        this.keyInDir = keyInDir;
-        this.latest = n;
+    public KvNodeEx(long createIndex, long createTime, boolean dir, byte[] data) {
+        super(createIndex, createTime, dir, data);
+        if (dir) {
+            children = new HashMap<>();
+        } else {
+            children = null;
+        }
     }
 }

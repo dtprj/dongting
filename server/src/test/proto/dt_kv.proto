@@ -35,6 +35,4 @@ message RemoveReq {
   string key = 2;
 }
 
-message RemoveResp {
-  int32 result = 1;
-}
+// return EmptyBodyRespFrame

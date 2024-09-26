@@ -70,7 +70,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         this.config = config;
         this.useSeparateExecutor = kvConfig.isUseSeparateExecutor();
         this.kvConfig = kvConfig;
-        KvImpl kvImpl = new KvImpl(kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
+        KvImpl kvImpl = new KvImpl(config.getTs(), kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
         this.kvStatus = new KvStatus(KvStatus.RUNNING, kvImpl, 0);
     }
 
@@ -189,7 +189,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
-            KvImpl kvImpl = new KvImpl(kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
+            KvImpl kvImpl = new KvImpl(config.getTs(), kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
             newStatus(KvStatus.INSTALLING_SNAPSHOT, kvImpl);
             encodeStatus = new EncodeStatus();
         } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {

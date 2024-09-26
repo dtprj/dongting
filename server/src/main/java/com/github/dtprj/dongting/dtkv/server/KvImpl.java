@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.common.Timestamp;
+
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,19 +31,23 @@ class KvImpl {
     // with each step only accessing a portion of the map. Therefore, ConcurrentHashMap is needed here.
     final ConcurrentHashMap<String, KvNodeHolder> map;
 
+
     // for fast access root dir
-    private final KvNode root;
+    private final KvNodeEx root;
 
     // write operations is not atomic, so we need lock although ConcurrentHashMap is used
     private final ReentrantReadWriteLock.ReadLock readLock;
     private final ReentrantReadWriteLock.WriteLock writeLock;
 
+    private final Timestamp ts;
+
     long maxOpenSnapshotIndex = 0;
     long minOpenSnapshotIndex = 0;
 
-    public KvImpl(int initCapacity, float loadFactor) {
+    public KvImpl(Timestamp ts, int initCapacity, float loadFactor) {
+        this.ts = ts;
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
-        this.root = new KvNode();
+        this.root = new KvNodeEx(0, 0, true, null);
         this.map.put("", new KvNodeHolder("", "", root));
         ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
         readLock = lock.readLock();
@@ -64,7 +70,7 @@ class KvImpl {
             if (h == null) {
                 return KvResult.NOT_FOUND;
             }
-            KvNode kvNode = h.latest;
+            KvNodeEx kvNode = h.latest;
             if (kvNode.removeAtIndex > 0) {
                 return KvResult.NOT_FOUND;
             }
@@ -90,7 +96,7 @@ class KvImpl {
         if (key.charAt(0) == '.' || key.charAt(key.length() - 1) == '.') {
             return new KvResult(KvResult.CODE_INVALID_KEY);
         }
-        KvNode dir;
+        KvNodeEx dir;
         int lastIndexOfDot = key.lastIndexOf('.');
         if (lastIndexOfDot > 0) {
             String dirKey = key.substring(0, lastIndexOfDot);
@@ -105,19 +111,28 @@ class KvImpl {
         } else {
             dir = root;
         }
-        KvNode newKvNode = new KvNode(index, data);
+        long now = ts.getWallClockMillis();
         writeLock.lock();
         try {
             KvNodeHolder h = map.get(key);
             boolean overwrite;
             if (h == null) {
                 String keyInDir = key.substring(lastIndexOfDot + 1);
+                KvNodeEx newKvNode = new KvNodeEx(index, now, false, data);
                 h = new KvNodeHolder(key, keyInDir, newKvNode);
                 map.put(key, h);
                 dir.children.put(keyInDir, h);
                 overwrite = false;
             } else {
                 overwrite = h.latest.removeAtIndex == 0;
+                KvNodeEx newKvNode;
+                if (overwrite) {
+                    newKvNode = new KvNodeEx(h.latest.createIndex, h.latest.createTime, false, data);
+                } else {
+                    newKvNode = new KvNodeEx(index, now, false, data);
+                }
+                newKvNode.updateIndex = index;
+                newKvNode.updateTime = now;
                 newKvNode.previous = h.latest;
                 h.latest = newKvNode;
             }
@@ -129,11 +144,11 @@ class KvImpl {
     }
 
     private void gc(KvNodeHolder h) {
-        KvNode n = h.latest;
+        KvNodeEx n = h.latest;
         if (maxOpenSnapshotIndex > 0) {
-            KvNode parent = null;
+            KvNodeEx parent = null;
             while (n != null) {
-                if (n.raftIndex > maxOpenSnapshotIndex && (parent != null || n.removeAtIndex > 0)) {
+                if (n.createIndex > maxOpenSnapshotIndex && (parent != null || n.removeAtIndex > 0)) {
                     // n is not needed
                     if (parent == null) {
                         if (n.previous == null) {
@@ -145,7 +160,7 @@ class KvImpl {
                     } else {
                         parent.previous = n.previous;
                     }
-                } else if ((parent != null && parent.raftIndex <= minOpenSnapshotIndex
+                } else if ((parent != null && parent.createIndex <= minOpenSnapshotIndex
                         && (parent.removeAtIndex == 0 || parent.removeAtIndex > minOpenSnapshotIndex))
                         || (n.removeAtIndex > 0 && n.removeAtIndex <= minOpenSnapshotIndex)) {
                     if (parent == null) {
@@ -199,10 +214,10 @@ class KvImpl {
         if (h == null) {
             return KvResult.NOT_FOUND;
         }
-        KvNode n = h.latest;
+        KvNodeEx n = h.latest;
         if (n.dir && !n.children.isEmpty()) {
             for (Map.Entry<String, KvNodeHolder> e : n.children.entrySet()) {
-                KvNode child = e.getValue().latest;
+                KvNodeEx child = e.getValue().latest;
                 if (child.removeAtIndex == 0) {
                     return new KvResult(KvResult.CODE_HAS_CHILDREN);
                 }
