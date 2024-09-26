@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 class KvImpl {
     // When iterating over this map, we need to divide the process into multiple steps,
     // with each step only accessing a portion of the map. Therefore, ConcurrentHashMap is needed here.
-    private final ConcurrentHashMap<String, KvNodeHolder> map;
+    final ConcurrentHashMap<String, KvNodeHolder> map;
 
     // for fast access root dir
     private final KvNode root;
@@ -173,17 +173,21 @@ class KvImpl {
     }
 
     public Supplier<Boolean> gc() {
-        // run in write thread, no need lock
         Iterator<Map.Entry<String, KvNodeHolder>> it = map.entrySet().iterator();
         return () -> {
-            for (int i = 0; i < 3000; i++) {
-                if (!it.hasNext()) {
-                    return Boolean.FALSE;
+            writeLock.lock();
+            try {
+                for (int i = 0; i < 3000; i++) {
+                    if (!it.hasNext()) {
+                        return Boolean.FALSE;
+                    }
+                    KvNodeHolder h = it.next().getValue();
+                    gc(h);
                 }
-                KvNodeHolder h = it.next().getValue();
-                gc(h);
+                return Boolean.TRUE;
+            } finally {
+                writeLock.unlock();
             }
-            return Boolean.TRUE;
         };
     }
 

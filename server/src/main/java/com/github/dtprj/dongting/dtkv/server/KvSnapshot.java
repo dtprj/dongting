@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -26,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -35,20 +35,25 @@ import java.util.function.Supplier;
 class KvSnapshot extends Snapshot {
     private final Supplier<KvStatus> statusSupplier;
     private final Consumer<Snapshot> closeCallback;
-    private final Iterator<Map.Entry<String, KvNode>> iterator;
     private final int epoch;
+    private final ConcurrentHashMap<String, KvNodeHolder> map;
+    private final long lastIncludeRaftIndex;
 
+    private boolean processDir = true;
+    private Iterator<Map.Entry<String, KvNodeHolder>> iterator;
     private KvNode currentKvNode;
 
-    private final EncodeStatus encodeStatus = new EncodeStatus(((DispatcherThread) Thread.currentThread()).getHeapPool());
+    private final EncodeStatus encodeStatus = new EncodeStatus();
 
     public KvSnapshot(SnapshotInfo si, Supplier<KvStatus> statusSupplier, Consumer<Snapshot> closeCallback) {
         super(si);
         this.statusSupplier = statusSupplier;
         this.closeCallback = closeCallback;
         KvStatus kvStatus = statusSupplier.get();
-        this.iterator = kvStatus.kvImpl.getMap().entrySet().iterator();
+        this.map = kvStatus.kvImpl.map;
+        this.iterator = map.entrySet().iterator();
         this.epoch = kvStatus.epoch;
+        this.lastIncludeRaftIndex = si.getLastIncludedIndex();
     }
 
     @Override
@@ -65,8 +70,14 @@ class KvSnapshot extends Snapshot {
                 nextValue();
             }
             if (currentKvNode == null) {
-                // no more data
-                return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
+                if (processDir) {
+                    processDir = false;
+                    iterator = map.entrySet().iterator();
+                    continue;
+                } else {
+                    // no more data
+                    return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
+                }
             }
 
             if (encodeStatus.writeToBuffer(buffer)) {
@@ -81,18 +92,26 @@ class KvSnapshot extends Snapshot {
 
     private void nextValue() {
         while (iterator.hasNext()) {
-            Map.Entry<String, KvNode> en = iterator.next();
-            KvNode kvNode = en.getValue();
-            while (kvNode != null && kvNode.raftIndex > getSnapshotInfo().getLastIncludedIndex()) {
-                kvNode = kvNode.previous;
+            Map.Entry<String, KvNodeHolder> en = iterator.next();
+            KvNodeHolder h = en.getValue();
+            if (h == null) {
+                return;
             }
-            if (kvNode != null && kvNode.data != null) {
+            KvNode n = h.latest;
+            while (n != null && n.raftIndex > lastIncludeRaftIndex) {
+                n = n.previous;
+            }
+            if (n == null || n.removeAtIndex > 0) {
+                continue;
+            }
+            if (processDir == n.dir) {
                 String key = en.getKey();
                 encodeStatus.keyBytes = key.getBytes(StandardCharsets.UTF_8);
-                encodeStatus.valueBytes = kvNode.data;
-                encodeStatus.raftIndex = kvNode.raftIndex;
-                currentKvNode = kvNode;
-                break;
+                encodeStatus.valueBytes = n.data;
+                encodeStatus.raftIndex = n.raftIndex;
+                encodeStatus.dir = n.dir;
+                currentKvNode = n;
+                return;
             }
         }
     }
