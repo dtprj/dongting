@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -40,6 +41,7 @@ class KvSnapshot extends Snapshot {
     private final long lastIncludeRaftIndex;
 
     private boolean processDir = true;
+    private final LinkedList<KvNodeHolder> dirQueue = new LinkedList<>();
     private Iterator<Map.Entry<String, KvNodeHolder>> iterator;
     private KvNode currentKvNode;
 
@@ -50,9 +52,10 @@ class KvSnapshot extends Snapshot {
         this.statusSupplier = statusSupplier;
         this.closeCallback = closeCallback;
         KvStatus kvStatus = statusSupplier.get();
-        this.map = kvStatus.kvImpl.map;
-        this.iterator = map.entrySet().iterator();
+        KvImpl kv = kvStatus.kvImpl;
+        this.map = kv.map;
         this.epoch = kvStatus.epoch;
+        this.dirQueue.addLast(kv.root);
         this.lastIncludeRaftIndex = si.getLastIncludedIndex();
     }
 
@@ -67,7 +70,7 @@ class KvSnapshot extends Snapshot {
         int startPos = buffer.position();
         while (true) {
             if (currentKvNode == null) {
-                nextValue();
+                loadNextNode();
             }
             if (currentKvNode == null) {
                 if (processDir) {
@@ -90,7 +93,16 @@ class KvSnapshot extends Snapshot {
         }
     }
 
-    private void nextValue() {
+    private void loadNextNode() {
+        if (processDir) {
+            if (iterator == null) {
+                KvNodeHolder h = dirQueue.removeFirst();
+                if (h == null) {
+                    return;
+                }
+                iterator = h.latest.children.entrySet().iterator();
+            }
+        }
         while (iterator.hasNext()) {
             Map.Entry<String, KvNodeHolder> en = iterator.next();
             KvNodeHolder h = en.getValue();

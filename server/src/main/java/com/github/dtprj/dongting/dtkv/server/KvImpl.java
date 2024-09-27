@@ -29,9 +29,10 @@ class KvImpl {
     // with each step only accessing a portion of the map. Therefore, ConcurrentHashMap is needed here.
     final ConcurrentHashMap<String, KvNodeHolder> map;
 
+    public static final char SEPARATOR = '/';
 
     // for fast access root dir
-    private final KvNodeHolder root;
+    final KvNodeHolder root;
 
     // write operations is not atomic, so we need lock although ConcurrentHashMap is used
     private final ReentrantReadWriteLock.ReadLock readLock;
@@ -82,16 +83,17 @@ class KvImpl {
         if (key == null || key.isEmpty()) {
             return new KvResult(KvResult.CODE_KEY_IS_NULL);
         }
+        key = key.trim();
         if (data == null || data.length == 0) {
             return new KvResult(KvResult.CODE_VALUE_IS_NULL);
         }
-        if (key.charAt(0) == '.' || key.charAt(key.length() - 1) == '.') {
+        if (key.charAt(0) == SEPARATOR || key.charAt(key.length() - 1) == SEPARATOR) {
             return new KvResult(KvResult.CODE_INVALID_KEY);
         }
         KvNodeHolder parent;
-        int lastIndexOfDot = key.lastIndexOf('.');
-        if (lastIndexOfDot > 0) {
-            String dirKey = key.substring(0, lastIndexOfDot);
+        int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
+        if (lastIndexOfSep > 0) {
+            String dirKey = key.substring(0, lastIndexOfSep);
             parent = map.get(dirKey);
             if (parent == null || parent.latest.removeAtIndex > 0) {
                 return new KvResult(KvResult.CODE_DIR_NOT_EXISTS);
@@ -107,7 +109,7 @@ class KvImpl {
         try {
             boolean overwrite;
             if (h == null) {
-                String keyInDir = key.substring(lastIndexOfDot + 1);
+                String keyInDir = key.substring(lastIndexOfSep + 1);
                 KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, false, data);
                 h = new KvNodeHolder(key, keyInDir, newKvNode, parent);
                 map.put(key, h);
@@ -182,8 +184,36 @@ class KvImpl {
         map.get(h.keyInDir).latest.children.remove(h.keyInDir);
     }
 
-    void installPut(EncodeStatus encodeStatus) {
-
+    void installSnapshotPut(EncodeStatus encodeStatus) {
+        // do not need lock, no other requests during install snapshot
+        KvNodeEx n = new KvNodeEx(encodeStatus.createIndex, encodeStatus.createTime,
+                encodeStatus.createIndex, encodeStatus.updateTime, encodeStatus.dir, encodeStatus.valueBytes);
+        if (encodeStatus.keyBytes.length == 0) {
+            root.latest = n;
+        } else {
+            byte[] keyBytes = encodeStatus.keyBytes;
+            int lastIndexOfSep = -1;
+            for (int size = keyBytes.length, i = size - 1; i >= 1; i--) {
+                if (keyBytes[i] == SEPARATOR) {
+                    lastIndexOfSep = i;
+                    break;
+                }
+            }
+            KvNodeHolder parent;
+            String key = new String(keyBytes);
+            String keyInDir;
+            if (lastIndexOfSep == -1) {
+                parent = root;
+                keyInDir = key;
+            } else {
+                String dirKey = new String(keyBytes, 0, lastIndexOfSep);
+                parent = map.get(dirKey);
+                keyInDir = new String(keyBytes, lastIndexOfSep + 1, keyBytes.length - lastIndexOfSep - 1);
+            }
+            KvNodeHolder h = new KvNodeHolder(key, keyInDir, n, parent);
+            parent.latest.children.put(keyInDir, h);
+            map.put(key, h);
+        }
     }
 
     public Supplier<Boolean> gc() {

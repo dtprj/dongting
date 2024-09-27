@@ -172,7 +172,10 @@ class EncodeStatus {
         updateTime = buf.getLong();
         dir = buf.get() == 1;
         int keySize = DtUtil.checkPositive(buf.getInt(), "keySize");
+
+        // TODO use pool?
         keyBytes = new byte[keySize];
+
         if (!dir) {
             int valueSize = DtUtil.checkPositive(buf.getInt(), "valueSize");
             valueBytes = new byte[valueSize];

@@ -202,7 +202,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (data != null && data.hasRemaining()) {
             while (data.hasRemaining()) {
                 if (encodeStatus.readFromBuffer(data)) {
-                    kvImpl.installPut(encodeStatus);
+                    kvImpl.installSnapshotPut(encodeStatus);
                     encodeStatus.reset();
                 } else {
                     break;
