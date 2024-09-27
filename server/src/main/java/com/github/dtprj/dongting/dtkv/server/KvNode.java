@@ -19,19 +19,20 @@ package com.github.dtprj.dongting.dtkv.server;
  * @author huangli
  */
 public class KvNode {
+    protected final boolean dir;
     protected final byte[] data;
+
     protected final long createIndex;
     protected final long createTime;
 
-    protected long updateIndex;
-    protected long updateTime;
+    protected final long updateIndex;
+    protected final long updateTime;
 
-    protected final boolean dir;
-
-
-    public KvNode(long createIndex, long createTime, boolean dir, byte[] data) {
+    public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
         this.createIndex = createIndex;
         this.createTime = createTime;
+        this.updateIndex = updateIndex;
+        this.updateTime = updateTime;
         this.data = data;
         this.dir = dir;
     }

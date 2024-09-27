@@ -21,12 +21,14 @@ package com.github.dtprj.dongting.dtkv.server;
 class KvNodeHolder {
     final String key;
     final String keyInDir;
+    final KvNodeHolder parent;
 
     KvNodeEx latest;
 
-    public KvNodeHolder(String key, String keyInDir, KvNodeEx n) {
+    public KvNodeHolder(String key, String keyInDir, KvNodeEx n, KvNodeHolder parent) {
         this.key = key;
         this.keyInDir = keyInDir;
         this.latest = n;
+        this.parent = parent;
     }
 }

@@ -26,11 +26,15 @@ class EncodeStatus {
     byte[] keyBytes;
     byte[] valueBytes;
     boolean dir;
-    long raftIndex;
+    long createIndex;
+    long createTime;
+    long updateIndex;
+    long updateTime;
 
     private int offset;
 
-    private static final int HEADER_SIZE = 17;
+    // createIndex(8) + createTime(8) + updateIndex(8) + updateTime(8) + dir(1) + keySize(4) + valueSize(4)
+    private static final int HEADER_SIZE = 41;
     private final ByteBuffer headerBuffer = ByteBuffer.allocate(HEADER_SIZE);
 
     private int state;
@@ -43,7 +47,10 @@ class EncodeStatus {
         valueBytes = null;
         offset = 0;
         dir = false;
-        raftIndex = 0;
+        createIndex = 0;
+        createTime = 0;
+        updateIndex = 0;
+        updateTime = 0;
         state = STATE_HEADER;
     }
 
@@ -88,7 +95,10 @@ class EncodeStatus {
     }
 
     private void writeHeader(ByteBuffer buf) {
-        buf.putLong(raftIndex);
+        buf.putLong(createIndex);
+        buf.putLong(createTime);
+        buf.putLong(updateIndex);
+        buf.putLong(updateTime);
         buf.putInt(keyBytes.length);
         buf.put(dir ? (byte) 1 : (byte) 0);
         if (dir) {
@@ -156,7 +166,10 @@ class EncodeStatus {
     }
 
     private void readHeader(ByteBuffer buf) {
-        raftIndex = buf.getLong();
+        createIndex = buf.getLong();
+        createTime = buf.getLong();
+        updateIndex = buf.getLong();
+        updateTime = buf.getLong();
         dir = buf.get() == 1;
         int keySize = DtUtil.checkPositive(buf.getInt(), "keySize");
         keyBytes = new byte[keySize];

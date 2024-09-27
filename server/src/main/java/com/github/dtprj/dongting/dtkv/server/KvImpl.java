@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.common.Timestamp;
-
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,22 +31,20 @@ class KvImpl {
 
 
     // for fast access root dir
-    private final KvNodeEx root;
+    private final KvNodeHolder root;
 
     // write operations is not atomic, so we need lock although ConcurrentHashMap is used
     private final ReentrantReadWriteLock.ReadLock readLock;
     private final ReentrantReadWriteLock.WriteLock writeLock;
 
-    private final Timestamp ts;
-
     long maxOpenSnapshotIndex = 0;
     long minOpenSnapshotIndex = 0;
 
-    public KvImpl(Timestamp ts, int initCapacity, float loadFactor) {
-        this.ts = ts;
+    public KvImpl(int initCapacity, float loadFactor) {
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
-        this.root = new KvNodeEx(0, 0, true, null);
-        this.map.put("", new KvNodeHolder("", "", root));
+        KvNodeEx n = new KvNodeEx(0, 0, 0, 0, true, null);
+        this.root = new KvNodeHolder("", "", n, null);
+        this.map.put("", root);
         ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
         readLock = lock.readLock();
         writeLock = lock.writeLock();
@@ -74,19 +70,15 @@ class KvImpl {
             if (kvNode.removeAtIndex > 0) {
                 return KvResult.NOT_FOUND;
             }
-            if (kvNode.dir) {
-                return new KvResult(KvResult.CODE_NOT_VALUE);
-            } else {
-                KvResult r = new KvResult(KvResult.CODE_SUCCESS);
-                r.setData(kvNode.data);
-                return r;
-            }
+            KvResult r = new KvResult(KvResult.CODE_SUCCESS);
+            r.setData(kvNode);
+            return r;
         } finally {
             readLock.unlock();
         }
     }
 
-    public KvResult put(long index, String key, byte[] data) {
+    public KvResult put(long index, String key, byte[] data, long timestamp) {
         if (key == null || key.isEmpty()) {
             return new KvResult(KvResult.CODE_KEY_IS_NULL);
         }
@@ -96,47 +88,50 @@ class KvImpl {
         if (key.charAt(0) == '.' || key.charAt(key.length() - 1) == '.') {
             return new KvResult(KvResult.CODE_INVALID_KEY);
         }
-        KvNodeEx dir;
+        KvNodeHolder parent;
         int lastIndexOfDot = key.lastIndexOf('.');
         if (lastIndexOfDot > 0) {
             String dirKey = key.substring(0, lastIndexOfDot);
-            KvNodeHolder h = map.get(dirKey);
-            dir = h == null ? null : h.latest;
-            if (dir == null || dir.removeAtIndex > 0) {
+            parent = map.get(dirKey);
+            if (parent == null || parent.latest.removeAtIndex > 0) {
                 return new KvResult(KvResult.CODE_DIR_NOT_EXISTS);
             }
-            if (!dir.dir) {
+            if (!parent.latest.dir) {
                 return new KvResult(KvResult.CODE_NOT_DIR);
             }
         } else {
-            dir = root;
+            parent = root;
         }
-        long now = ts.getWallClockMillis();
+        KvNodeHolder h = map.get(key);
         writeLock.lock();
         try {
-            KvNodeHolder h = map.get(key);
             boolean overwrite;
             if (h == null) {
                 String keyInDir = key.substring(lastIndexOfDot + 1);
-                KvNodeEx newKvNode = new KvNodeEx(index, now, false, data);
-                h = new KvNodeHolder(key, keyInDir, newKvNode);
+                KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, false, data);
+                h = new KvNodeHolder(key, keyInDir, newKvNode, parent);
                 map.put(key, h);
-                dir.children.put(keyInDir, h);
+                parent.latest.children.put(keyInDir, h);
                 overwrite = false;
             } else {
                 overwrite = h.latest.removeAtIndex == 0;
                 KvNodeEx newKvNode;
                 if (overwrite) {
-                    newKvNode = new KvNodeEx(h.latest.createIndex, h.latest.createTime, false, data);
+                    newKvNode = new KvNodeEx(h.latest.createIndex, h.latest.createTime, index, timestamp, false, data);
                 } else {
-                    newKvNode = new KvNodeEx(index, now, false, data);
+                    newKvNode = new KvNodeEx(index, timestamp, index, timestamp, false, data);
                 }
-                newKvNode.updateIndex = index;
-                newKvNode.updateTime = now;
                 newKvNode.previous = h.latest;
                 h.latest = newKvNode;
             }
             gc(h);
+            while (parent != null) {
+                KvNodeEx oldDirNode = parent.latest;
+                parent.latest = new KvNodeEx(oldDirNode, index, timestamp);
+                parent.latest.previous = oldDirNode;
+                gc(parent);
+                parent = parent.parent;
+            }
             return overwrite ? KvResult.SUCCESS_OVERWRITE : KvResult.SUCCESS;
         } finally {
             writeLock.unlock();
@@ -146,11 +141,11 @@ class KvImpl {
     private void gc(KvNodeHolder h) {
         KvNodeEx n = h.latest;
         if (maxOpenSnapshotIndex > 0) {
-            KvNodeEx parent = null;
+            KvNodeEx newNode = null;
             while (n != null) {
-                if (n.createIndex > maxOpenSnapshotIndex && (parent != null || n.removeAtIndex > 0)) {
+                if (n.createIndex > maxOpenSnapshotIndex && (newNode != null || n.removeAtIndex > 0)) {
                     // n is not needed
-                    if (parent == null) {
+                    if (newNode == null) {
                         if (n.previous == null) {
                             removeFromMap(h);
                             return;
@@ -158,19 +153,19 @@ class KvImpl {
                             h.latest = n.previous;
                         }
                     } else {
-                        parent.previous = n.previous;
+                        newNode.previous = n.previous;
                     }
-                } else if ((parent != null && parent.createIndex <= minOpenSnapshotIndex
-                        && (parent.removeAtIndex == 0 || parent.removeAtIndex > minOpenSnapshotIndex))
+                } else if ((newNode != null && newNode.createIndex <= minOpenSnapshotIndex
+                        && (newNode.removeAtIndex == 0 || newNode.removeAtIndex > minOpenSnapshotIndex))
                         || (n.removeAtIndex > 0 && n.removeAtIndex <= minOpenSnapshotIndex)) {
-                    if (parent == null) {
+                    if (newNode == null) {
                         removeFromMap(h);
                     } else {
-                        parent.previous = null;
+                        newNode.previous = null;
                     }
                     return;
                 }
-                parent = n;
+                newNode = n;
                 n = n.previous;
             }
         } else {
@@ -185,6 +180,10 @@ class KvImpl {
     private void removeFromMap(KvNodeHolder h) {
         map.remove(h.key);
         map.get(h.keyInDir).latest.children.remove(h.keyInDir);
+    }
+
+    void installPut(EncodeStatus encodeStatus) {
+
     }
 
     public Supplier<Boolean> gc() {
@@ -224,14 +223,14 @@ class KvImpl {
             }
         }
         KvResult r;
-        if (n.removeAtIndex == 0) {
-            n.removeAtIndex = index;
-            r = KvResult.SUCCESS;
-        } else {
-            r = KvResult.NOT_FOUND;
-        }
         writeLock.lock();
         try {
+            if (n.removeAtIndex == 0) {
+                n.removeAtIndex = index;
+                r = KvResult.SUCCESS;
+            } else {
+                r = KvResult.NOT_FOUND;
+            }
             gc(h);
         } finally {
             writeLock.unlock();

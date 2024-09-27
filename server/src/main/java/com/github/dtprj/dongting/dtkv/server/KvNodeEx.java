@@ -26,12 +26,18 @@ class KvNodeEx extends KvNode {
     KvNodeEx previous;
     long removeAtIndex;
 
-    public KvNodeEx(long createIndex, long createTime, boolean dir, byte[] data) {
-        super(createIndex, createTime, dir, data);
+    public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime,
+                    boolean dir, byte[] data) {
+        super(createIndex, createTime, updateIndex, updateTime, dir, data);
         if (dir) {
             children = new HashMap<>();
         } else {
             children = null;
         }
+    }
+
+    public KvNodeEx(KvNodeEx oldNode, long updateIndex, long updateTime) {
+        super(oldNode.createIndex, oldNode.createTime, updateIndex, updateTime, oldNode.dir, oldNode.data);
+        this.children = oldNode.children;
     }
 }

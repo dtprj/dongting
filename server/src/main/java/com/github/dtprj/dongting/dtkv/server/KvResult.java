@@ -22,17 +22,17 @@ public class KvResult {
 
     public static final int CODE_SUCCESS = 0;
     public static final int CODE_NOT_FOUND = 1;
-    public static final int CODE_NOT_VALUE = 2;
-    public static final int CODE_NOT_DIR = 3;
-    public static final int CODE_KEY_IS_NULL = 4;
-    public static final int CODE_VALUE_IS_NULL = 5;
+    public static final int CODE_SUCCESS_OVERWRITE = 2;
+    public static final int CODE_NOT_VALUE = 3;
+    public static final int CODE_NOT_DIR = 4;
+    public static final int CODE_KEY_IS_NULL = 5;
+    public static final int CODE_VALUE_IS_NULL = 6;
     public static final int CODE_INVALID_KEY = 7;
     public static final int CODE_DIR_NOT_EXISTS = 8;
     public static final int CODE_HAS_CHILDREN = 9;
-    public static final int CODE_SUCCESS_OVERWRITE = 10;
 
     private final int code;
-    private byte[] data;
+    private KvNode data;
 
     public static final KvResult SUCCESS = new KvResult(CODE_SUCCESS);
     public static final KvResult NOT_FOUND = new KvResult(CODE_NOT_FOUND);
@@ -46,11 +46,11 @@ public class KvResult {
         return code;
     }
 
-    public byte[] getData() {
+    public KvNode getData() {
         return data;
     }
 
-    public void setData(byte[] data) {
+    public void setData(KvNode data) {
         this.data = data;
     }
 }

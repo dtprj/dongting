@@ -108,7 +108,7 @@ class KvSnapshot extends Snapshot {
                 String key = en.getKey();
                 encodeStatus.keyBytes = key.getBytes(StandardCharsets.UTF_8);
                 encodeStatus.valueBytes = n.data;
-                encodeStatus.raftIndex = n.createIndex;
+                encodeStatus.createIndex = n.createIndex;
                 encodeStatus.dir = n.dir;
                 currentKvNode = n;
                 return;
