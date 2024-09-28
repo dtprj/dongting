@@ -98,7 +98,7 @@ class KvImpl {
             if (parent == null || parent.latest.removeAtIndex > 0) {
                 return new KvResult(KvResult.CODE_DIR_NOT_EXISTS);
             }
-            if (!parent.latest.dir) {
+            if (!parent.latest.isDir()) {
                 return new KvResult(KvResult.CODE_NOT_DIR);
             }
         } else {
@@ -119,7 +119,8 @@ class KvImpl {
                 overwrite = h.latest.removeAtIndex == 0;
                 KvNodeEx newKvNode;
                 if (overwrite) {
-                    newKvNode = new KvNodeEx(h.latest.createIndex, h.latest.createTime, index, timestamp, false, data);
+                    newKvNode = new KvNodeEx(h.latest.getCreateIndex(), h.latest.getCreateTime(),
+                            index, timestamp, false, data);
                 } else {
                     newKvNode = new KvNodeEx(index, timestamp, index, timestamp, false, data);
                 }
@@ -145,7 +146,7 @@ class KvImpl {
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx newNode = null;
             while (n != null) {
-                if (n.createIndex > maxOpenSnapshotIndex && (newNode != null || n.removeAtIndex > 0)) {
+                if (n.getCreateIndex() > maxOpenSnapshotIndex && (newNode != null || n.removeAtIndex > 0)) {
                     // n is not needed
                     if (newNode == null) {
                         if (n.previous == null) {
@@ -157,7 +158,7 @@ class KvImpl {
                     } else {
                         newNode.previous = n.previous;
                     }
-                } else if ((newNode != null && newNode.createIndex <= minOpenSnapshotIndex
+                } else if ((newNode != null && newNode.getCreateIndex() <= minOpenSnapshotIndex
                         && (newNode.removeAtIndex == 0 || newNode.removeAtIndex > minOpenSnapshotIndex))
                         || (n.removeAtIndex > 0 && n.removeAtIndex <= minOpenSnapshotIndex)) {
                     if (newNode == null) {
@@ -244,7 +245,7 @@ class KvImpl {
             return KvResult.NOT_FOUND;
         }
         KvNodeEx n = h.latest;
-        if (n.dir && !n.children.isEmpty()) {
+        if (n.isDir() && !n.children.isEmpty()) {
             for (Map.Entry<String, KvNodeHolder> e : n.children.entrySet()) {
                 KvNodeEx child = e.getValue().latest;
                 if (child.removeAtIndex == 0) {

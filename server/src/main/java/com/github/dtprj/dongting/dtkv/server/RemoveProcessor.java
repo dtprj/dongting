@@ -21,8 +21,7 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.dtkv.RemoveReq;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.PbIntWritePacket;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WritePacket;
@@ -86,8 +85,9 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
         reqInfo.getRaftGroup().submitLinearTask(ri, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {
-                PbIntWritePacket resp = new PbIntWritePacket(Commands.DTKV_REMOVE, (Boolean) result ? 1 : 0);
-                resp.setRespCode(CmdCodes.SUCCESS);
+                KvResult r = (KvResult) result;
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                resp.setBizCode(r.getCode());
                 writeResp(reqInfo, resp);
             }
 

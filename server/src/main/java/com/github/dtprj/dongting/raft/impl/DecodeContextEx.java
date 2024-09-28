@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.dtkv.server.GetProcessor;
+import com.github.dtprj.dongting.dtkv.server.PutProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReq;
 import com.github.dtprj.dongting.raft.rpc.AppendResp;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -29,6 +31,8 @@ public final class DecodeContextEx extends DecodeContext {
 
     private AppendReq.Callback appendReqCallback;
     private AppendResp.Callback appendRespCallback;
+    private GetProcessor.GetReqCallback getReqCallback;
+    private PutProcessor.PutReqDecoderCallback putReqDecoderCallback;
 
     public DecodeContextEx() {
     }
@@ -38,17 +42,31 @@ public final class DecodeContextEx extends DecodeContext {
         return new DecodeContextEx();
     }
 
-    public AppendReq.Callback createOrGetAppendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {
+    public AppendReq.Callback appendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {
         if (appendReqCallback == null) {
             appendReqCallback = new AppendReq.Callback(decoderFactory);
         }
         return appendReqCallback;
     }
 
-    public AppendResp.Callback createOrGetAppendRespCallback() {
+    public AppendResp.Callback appendRespCallback() {
         if (appendRespCallback == null) {
             appendRespCallback = new AppendResp.Callback();
         }
         return appendRespCallback;
+    }
+
+    public GetProcessor.GetReqCallback getReqDecoderCallback() {
+        if (getReqCallback == null) {
+            getReqCallback = new GetProcessor.GetReqCallback();
+        }
+        return getReqCallback;
+    }
+
+    public PutProcessor.PutReqDecoderCallback putReqDecoderCallback() {
+        if (putReqDecoderCallback == null) {
+            putReqDecoderCallback = new PutProcessor.PutReqDecoderCallback();
+        }
+        return putReqDecoderCallback;
     }
 }

@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -38,9 +39,21 @@ import java.nio.ByteBuffer;
  */
 public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
 
-    private static final class PutReqDecoderCallback extends PbCallback<PutReq> {
+    // re-used
+    public static final class PutReqDecoderCallback extends PbCallback<PutReq> {
 
-        private final PutReq result = new PutReq();
+        private PutReq result;
+
+        @Override
+        protected void begin(int len) {
+            result = new PutReq();
+        }
+
+        @Override
+        protected boolean end(boolean success) {
+            result = null;
+            return success;
+        }
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -73,7 +86,8 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
 
     @Override
     public DecoderCallback<PutReq> createDecoderCallback(int cmd, DecodeContext context) {
-        return context.toDecoderCallback(new PutReqDecoderCallback());
+        PutReqDecoderCallback c = ((DecodeContextEx) context).putReqDecoderCallback();
+        return context.toDecoderCallback(c);
     }
 
     @Override
@@ -93,7 +107,9 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
         RaftCallback c = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {
+                KvResult r = (KvResult) result;
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                resp.setBizCode(r.getCode());
                 writeResp(reqInfo, resp);
             }
 

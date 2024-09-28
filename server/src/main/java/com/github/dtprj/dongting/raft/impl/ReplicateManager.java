@@ -144,7 +144,7 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
     protected final RaftMember member;
 
     protected static final DecoderCallbackCreator<AppendResp> APPEND_RESP_DECODER_CALLBACK_CREATOR = ctx -> {
-        AppendResp.Callback c = ((DecodeContextEx) ctx).createOrGetAppendRespCallback();
+        AppendResp.Callback c = ((DecodeContextEx) ctx).appendRespCallback();
         return ctx.toDecoderCallback(c);
     };
 

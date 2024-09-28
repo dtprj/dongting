@@ -35,7 +35,7 @@ public abstract class AbstractCodecCallback<T> {
     }
 
     protected boolean end(boolean success) {
-        return true;
+        return success;
     }
 
 

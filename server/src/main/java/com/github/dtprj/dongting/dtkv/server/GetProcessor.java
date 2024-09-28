@@ -15,16 +15,16 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.dtkv.GetReq;
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.net.RefBufWritePacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -37,8 +37,20 @@ import java.nio.ByteBuffer;
  */
 public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
 
-    private static final class GetReqDecoderCallback extends PbCallback<GetReq> {
-        private final GetReq result = new GetReq();
+    // re-used
+    public static final class GetReqCallback extends PbCallback<GetReq> {
+        private GetReq result;
+
+        @Override
+        protected void begin(int len) {
+            result = new GetReq();
+        }
+
+        @Override
+        protected boolean end(boolean success) {
+            result = null;
+            return success;
+        }
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -68,7 +80,8 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
 
     @Override
     public DecoderCallback<GetReq> createDecoderCallback(int cmd, DecodeContext context) {
-        return context.toDecoderCallback(new GetReqDecoderCallback());
+        GetReqCallback c = ((DecodeContextEx) context).getReqDecoderCallback();
+        return context.toDecoderCallback(c);
     }
 
     @Override
@@ -89,12 +102,10 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
                 processError(reqInfo, ex);
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
-                RefBuffer rb = dtKV.get(logIndex, frame.getBody().getKey());
-                if (rb != null) {
-                    rb.retain();
-                }
-                RefBufWritePacket wf = new RefBufWritePacket(rb);
+                KvResult r = dtKV.get(logIndex, frame.getBody().getKey());
+                KvNode.WritePacket wf = new KvNode.WritePacket(r.getData());
                 wf.setRespCode(CmdCodes.SUCCESS);
+                wf.setBizCode(r.getCode());
                 writeResp(reqInfo, wf);
             }
         });

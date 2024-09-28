@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -110,18 +111,18 @@ class KvSnapshot extends Snapshot {
                 return;
             }
             KvNodeEx n = h.latest;
-            while (n != null && n.createIndex > lastIncludeRaftIndex) {
+            while (n != null && n.getCreateIndex() > lastIncludeRaftIndex) {
                 n = n.previous;
             }
             if (n == null || n.removeAtIndex > 0) {
                 continue;
             }
-            if (processDir == n.dir) {
+            if (processDir == n.isDir()) {
                 String key = en.getKey();
                 encodeStatus.keyBytes = key.getBytes(StandardCharsets.UTF_8);
-                encodeStatus.valueBytes = n.data;
-                encodeStatus.createIndex = n.createIndex;
-                encodeStatus.dir = n.dir;
+                encodeStatus.valueBytes = n.getData();
+                encodeStatus.createIndex = n.getCreateIndex();
+                encodeStatus.dir = n.isDir();
                 currentKvNode = n;
                 return;
             }

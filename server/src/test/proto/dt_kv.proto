@@ -20,7 +20,14 @@ message GetReq {
   string key = 2;
 }
 
-// return bytes array
+message KvNode {
+  bool dir = 1;
+  fixed64 create_index = 2;
+  fixed64 create_time = 3;
+  fixed64 modify_index = 4;
+  fixed64 modify_time = 5;
+  bytes value = 6;
+}
 
 message PutReq {
   int32 group_id = 1;

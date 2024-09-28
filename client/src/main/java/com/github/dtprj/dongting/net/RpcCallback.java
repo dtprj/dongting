@@ -62,4 +62,18 @@ public interface RpcCallback<T> {
             }
         };
     }
+
+    static RpcCallback<Void> createBizCodeCallback(CompletableFuture<Integer> f) {
+        return new RpcCallback<Void>() {
+            @Override
+            public void success(ReadPacket<Void> resp) {
+                f.complete(resp.getBizCode());
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        };
+    }
 }
