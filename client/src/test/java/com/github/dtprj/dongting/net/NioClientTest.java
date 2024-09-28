@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public class NioClientTest {
     private static final DtLog log = DtLogs.getLogger(NioClientTest.class);
 
@@ -309,13 +310,17 @@ public class NioClientTest {
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
-        if (rf.getBody() instanceof RefBuffer) {
-            RefBuffer rc = (RefBuffer) rf.getBody();
-            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-            rc.release();
+        if (bs.length > 0) {
+            if (rf.getBody() instanceof RefBuffer) {
+                RefBuffer rc = (RefBuffer) rf.getBody();
+                assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+                rc.release();
+            } else {
+                ByteBuffer buf = (ByteBuffer) rf.getBody();
+                assertEquals(ByteBuffer.wrap(bs), buf);
+            }
         } else {
-            ByteBuffer buf = (ByteBuffer) rf.getBody();
-            assertEquals(ByteBuffer.wrap(bs), buf);
+            assertNull(rf.getBody());
         }
     }
 
@@ -333,8 +338,12 @@ public class NioClientTest {
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         RefBuffer rc = rf.getBody();
-        assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-        rc.release();
+        if (bs.length > 0) {
+            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+            rc.release();
+        } else {
+            assertNull(rc);
+        }
     }
 
     private static CompletableFuture<Void> sendAsync(int maxBodySize, NioClient client, long timeoutMillis) {
@@ -351,8 +360,12 @@ public class NioClientTest {
             assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
             RefBuffer rc = rf.getBody();
-            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-            rc.release();
+            if (bs.length > 0) {
+                assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+                rc.release();
+            } else {
+                assertNull(rc);
+            }
             return null;
         });
     }
