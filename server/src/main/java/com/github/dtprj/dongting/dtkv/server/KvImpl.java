@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.dtkv.KvCodes;
+
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -59,7 +61,7 @@ class KvImpl {
      */
     public KvResult get(@SuppressWarnings("unused") long raftIndex, String key) {
         if (key == null || key.isEmpty()) {
-            return new KvResult(KvResult.CODE_KEY_IS_NULL);
+            return new KvResult(KvCodes.CODE_KEY_IS_NULL);
         }
         readLock.lock();
         try {
@@ -71,7 +73,7 @@ class KvImpl {
             if (kvNode.removeAtIndex > 0) {
                 return KvResult.NOT_FOUND;
             }
-            KvResult r = new KvResult(KvResult.CODE_SUCCESS);
+            KvResult r = new KvResult(KvCodes.CODE_SUCCESS);
             r.setData(kvNode);
             return r;
         } finally {
@@ -81,14 +83,14 @@ class KvImpl {
 
     public KvResult put(long index, String key, byte[] data, long timestamp) {
         if (key == null || key.isEmpty()) {
-            return new KvResult(KvResult.CODE_KEY_IS_NULL);
+            return new KvResult(KvCodes.CODE_KEY_IS_NULL);
         }
         key = key.trim();
         if (data == null || data.length == 0) {
-            return new KvResult(KvResult.CODE_VALUE_IS_NULL);
+            return new KvResult(KvCodes.CODE_VALUE_IS_NULL);
         }
         if (key.charAt(0) == SEPARATOR || key.charAt(key.length() - 1) == SEPARATOR) {
-            return new KvResult(KvResult.CODE_INVALID_KEY);
+            return new KvResult(KvCodes.CODE_INVALID_KEY);
         }
         KvNodeHolder parent;
         int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
@@ -96,10 +98,10 @@ class KvImpl {
             String dirKey = key.substring(0, lastIndexOfSep);
             parent = map.get(dirKey);
             if (parent == null || parent.latest.removeAtIndex > 0) {
-                return new KvResult(KvResult.CODE_DIR_NOT_EXISTS);
+                return new KvResult(KvCodes.CODE_DIR_NOT_EXISTS);
             }
             if (!parent.latest.isDir()) {
-                return new KvResult(KvResult.CODE_NOT_DIR);
+                return new KvResult(KvCodes.CODE_NOT_DIR);
             }
         } else {
             parent = root;
@@ -249,7 +251,7 @@ class KvImpl {
             for (Map.Entry<String, KvNodeHolder> e : n.children.entrySet()) {
                 KvNodeEx child = e.getValue().latest;
                 if (child.removeAtIndex == 0) {
-                    return new KvResult(KvResult.CODE_HAS_CHILDREN);
+                    return new KvResult(KvCodes.CODE_HAS_CHILDREN);
                 }
             }
         }

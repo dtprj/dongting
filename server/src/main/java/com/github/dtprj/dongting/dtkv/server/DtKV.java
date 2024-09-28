@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -135,7 +136,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_PUT:
                 RefBuffer data = (RefBuffer) input.getBody();
                 if (data == null || data.getBuffer() == null) {
-                    return KvResult.CODE_KEY_IS_NULL;
+                    return KvCodes.CODE_KEY_IS_NULL;
                 }
                 kvStatus.kvImpl.put(index, key.getStr(), toBytes(data), ts.getWallClockMillis());
                 return null;

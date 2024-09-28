@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvNode;
 
 /**
@@ -22,23 +23,12 @@ import com.github.dtprj.dongting.dtkv.KvNode;
  */
 public class KvResult {
 
-    public static final int CODE_SUCCESS = 0;
-    public static final int CODE_NOT_FOUND = 1;
-    public static final int CODE_SUCCESS_OVERWRITE = 2;
-    public static final int CODE_NOT_VALUE = 3;
-    public static final int CODE_NOT_DIR = 4;
-    public static final int CODE_KEY_IS_NULL = 5;
-    public static final int CODE_VALUE_IS_NULL = 6;
-    public static final int CODE_INVALID_KEY = 7;
-    public static final int CODE_DIR_NOT_EXISTS = 8;
-    public static final int CODE_HAS_CHILDREN = 9;
-
     private final int code;
     private KvNode data;
 
-    public static final KvResult SUCCESS = new KvResult(CODE_SUCCESS);
-    public static final KvResult NOT_FOUND = new KvResult(CODE_NOT_FOUND);
-    public static final KvResult SUCCESS_OVERWRITE = new KvResult(CODE_SUCCESS_OVERWRITE);
+    public static final KvResult SUCCESS = new KvResult(KvCodes.CODE_SUCCESS);
+    public static final KvResult NOT_FOUND = new KvResult(KvCodes.CODE_NOT_FOUND);
+    public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.CODE_SUCCESS_OVERWRITE);
 
     public KvResult(int code) {
         this.code = code;
