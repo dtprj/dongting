@@ -23,11 +23,12 @@ public interface KvCodes {
     int CODE_SUCCESS = 0;
     int CODE_NOT_FOUND = 1;
     int CODE_SUCCESS_OVERWRITE = 2;
-    int CODE_NOT_VALUE = 3;
-    int CODE_NOT_DIR = 4;
+    int CODE_EXISTS = 3;
+    int CODE_PARENT_NOT_DIR = 4;
     int CODE_KEY_IS_NULL = 5;
     int CODE_VALUE_IS_NULL = 6;
     int CODE_INVALID_KEY = 7;
-    int CODE_DIR_NOT_EXISTS = 8;
+    int CODE_PARENT_DIR_NOT_EXISTS = 8;
     int CODE_HAS_CHILDREN = 9;
+    int CODE_KEY_TOO_LONG = 10;
 }

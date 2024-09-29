@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -66,15 +65,12 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private volatile KvStatus kvStatus;
     private EncodeStatus encodeStatus;
 
-    private final Timestamp ts;
-
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
         this.mainFiberGroup = config.getFiberGroup();
         this.config = config;
-        this.ts = config.getTs();
         this.useSeparateExecutor = kvConfig.isUseSeparateExecutor();
         this.kvConfig = kvConfig;
-        KvImpl kvImpl = new KvImpl(kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
+        KvImpl kvImpl = new KvImpl(config.getTs(), kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
         this.kvStatus = new KvStatus(KvStatus.RUNNING, kvImpl, 0);
     }
 
@@ -138,7 +134,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 if (data == null || data.getBuffer() == null) {
                     return KvCodes.CODE_KEY_IS_NULL;
                 }
-                kvStatus.kvImpl.put(index, key.getStr(), toBytes(data), ts.getWallClockMillis());
+                kvStatus.kvImpl.put(index, key.getStr(), toBytes(data));
                 return null;
             case BIZ_TYPE_REMOVE:
                 return kvStatus.kvImpl.remove(index, key.getStr());
@@ -193,7 +189,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
-            KvImpl kvImpl = new KvImpl(kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
+            KvImpl kvImpl = new KvImpl(config.getTs(), kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
             newStatus(KvStatus.INSTALLING_SNAPSHOT, kvImpl);
             encodeStatus = new EncodeStatus();
         } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {

@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 class EncodeStatus {
     byte[] keyBytes;
     byte[] valueBytes;
-    boolean dir;
     long createIndex;
     long createTime;
     long updateIndex;
@@ -33,8 +32,8 @@ class EncodeStatus {
 
     private int offset;
 
-    // createIndex(8) + createTime(8) + updateIndex(8) + updateTime(8) + dir(1) + keySize(4) + valueSize(4)
-    private static final int HEADER_SIZE = 41;
+    // createIndex(8) + createTime(8) + updateIndex(8) + updateTime(8) + keySize(4) + valueSize(4)
+    private static final int HEADER_SIZE = 40;
     private final ByteBuffer headerBuffer = ByteBuffer.allocate(HEADER_SIZE);
 
     private int state;
@@ -46,7 +45,6 @@ class EncodeStatus {
         keyBytes = null;
         valueBytes = null;
         offset = 0;
-        dir = false;
         createIndex = 0;
         createTime = 0;
         updateIndex = 0;
@@ -100,8 +98,7 @@ class EncodeStatus {
         buf.putLong(updateIndex);
         buf.putLong(updateTime);
         buf.putInt(keyBytes.length);
-        buf.put(dir ? (byte) 1 : (byte) 0);
-        if (dir) {
+        if (valueBytes == null) {
             buf.putInt(0);
         } else {
             buf.putInt(valueBytes.length);
@@ -170,17 +167,14 @@ class EncodeStatus {
         createTime = buf.getLong();
         updateIndex = buf.getLong();
         updateTime = buf.getLong();
-        dir = buf.get() == 1;
         int keySize = DtUtil.checkPositive(buf.getInt(), "keySize");
 
         // TODO use pool?
         keyBytes = new byte[keySize];
 
-        if (!dir) {
-            int valueSize = DtUtil.checkPositive(buf.getInt(), "valueSize");
+        int valueSize = DtUtil.checkNotNegative(buf.getInt(), "valueSize");
+        if (valueSize > 0) {
             valueBytes = new byte[valueSize];
-        } else {
-            buf.getInt();
         }
     }
 
