@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.NetBizCodeException;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
@@ -41,7 +42,7 @@ public class KvClient extends AbstractLifeCircle {
         this.raftClient = new RaftClient(nioClientConfig);
     }
 
-    public CompletableFuture<Integer> put(int groupId, String key, byte[] value, DtTime timeout) {
+    public CompletableFuture<Void> put(int groupId, String key, byte[] value, DtTime timeout) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
         SmallNoCopyWritePacket wf = new SmallNoCopyWritePacket() {
@@ -63,9 +64,15 @@ public class KvClient extends AbstractLifeCircle {
             }
         };
         wf.setCommand(Commands.DTKV_PUT);
-        CompletableFuture<Integer> f = new CompletableFuture<>();
-        raftClient.sendRequest(groupId, wf, c -> DecoderCallback.VOID_DECODE_CALLBACK,
-                timeout, RpcCallback.createBizCodeCallback(f));
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RpcCallback<Void> c = RpcCallback.create(f, p -> {
+            int bc = p.getBizCode();
+            if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_SUCCESS_OVERWRITE) {
+                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
+            }
+            return null;
+        });
+        raftClient.sendRequest(groupId, wf, ctx -> DecoderCallback.VOID_DECODE_CALLBACK, timeout, c);
         return f;
     }
 
@@ -89,13 +96,18 @@ public class KvClient extends AbstractLifeCircle {
         };
         wf.setCommand(Commands.DTKV_GET);
         CompletableFuture<KvNode> f = new CompletableFuture<>();
-
-        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(new KvNode.Callback()),
-                timeout, RpcCallback.create(f));
+        RpcCallback<KvNode> c = RpcCallback.create(f, p -> {
+            int bc = p.getBizCode();
+            if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
+                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
+            }
+            return p.getBody();
+        });
+        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(new KvNode.Callback()), timeout, c);
         return f;
     }
 
-    public CompletableFuture<Integer> remove(int groupId, String key, DtTime timeout) {
+    public CompletableFuture<Void> remove(int groupId, String key, DtTime timeout) {
         Objects.requireNonNull(key);
         SmallNoCopyWritePacket wf = new SmallNoCopyWritePacket() {
 
@@ -114,9 +126,15 @@ public class KvClient extends AbstractLifeCircle {
             }
         };
         wf.setCommand(Commands.DTKV_REMOVE);
-        CompletableFuture<Integer> f = new CompletableFuture<>();
-        raftClient.sendRequest(groupId, wf, c -> DecoderCallback.VOID_DECODE_CALLBACK,
-                timeout, RpcCallback.createBizCodeCallback(f));
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RpcCallback<Void> c = RpcCallback.create(f, p -> {
+            int bc = p.getBizCode();
+            if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
+                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
+            }
+            return null;
+        });
+        raftClient.sendRequest(groupId, wf, ctx -> DecoderCallback.VOID_DECODE_CALLBACK, timeout, c);
         return f;
     }
 

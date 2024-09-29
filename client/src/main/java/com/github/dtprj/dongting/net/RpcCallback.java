@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.log.BugLog;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -49,11 +50,11 @@ public interface RpcCallback<T> {
         }
     }
 
-    static <T> RpcCallback<T> create(CompletableFuture<T> f) {
-        return new RpcCallback<T>() {
+    static <X1, X2> RpcCallback<X1> create(CompletableFuture<X2> f, Function<ReadPacket<X1>, X2> converter) {
+        return new RpcCallback<X1>() {
             @Override
-            public void success(ReadPacket<T> resp) {
-                f.complete(resp.getBody());
+            public void success(ReadPacket<X1> resp) {
+                f.complete(converter.apply(resp));
             }
 
             @Override
@@ -63,17 +64,4 @@ public interface RpcCallback<T> {
         };
     }
 
-    static RpcCallback<Void> createBizCodeCallback(CompletableFuture<Integer> f) {
-        return new RpcCallback<Void>() {
-            @Override
-            public void success(ReadPacket<Void> resp) {
-                f.complete(resp.getBizCode());
-            }
-
-            @Override
-            public void fail(Throwable ex) {
-                f.completeExceptionally(ex);
-            }
-        };
-    }
 }

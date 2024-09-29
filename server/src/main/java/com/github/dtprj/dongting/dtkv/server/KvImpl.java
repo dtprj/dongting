@@ -300,13 +300,12 @@ class KvImpl {
         writeLock.lock();
         try {
             n.removeAtIndex = index;
-            r = KvResult.SUCCESS;
             gc(h);
             updateParent(index, ts.getWallClockMillis(), h.parent);
         } finally {
             writeLock.unlock();
         }
-        return r;
+        return KvResult.SUCCESS;
     }
 
     public KvResult mkdir(long index, String key) {

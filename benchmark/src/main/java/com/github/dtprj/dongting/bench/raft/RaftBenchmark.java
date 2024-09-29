@@ -209,7 +209,7 @@ public class RaftBenchmark extends BenchBase {
             int k = Integer.reverse((int) startTime);
             k = Math.abs(k % KEYS);
             final DtTime timeout = new DtTime(2500, TimeUnit.MILLISECONDS);
-            CompletableFuture<Integer> f = clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout);
+            CompletableFuture<Void> f = clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout);
 
             if (SYNC) {
                 f.get();
