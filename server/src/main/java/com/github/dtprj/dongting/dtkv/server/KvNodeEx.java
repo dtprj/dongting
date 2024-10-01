@@ -30,7 +30,7 @@ class KvNodeEx extends KvNode {
 
     public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime,
                     boolean dir, byte[] data) {
-        super(createIndex, createTime, updateIndex, updateTime, dir, data);
+        super(createIndex, createTime, updateIndex, updateTime, data);
         if (dir) {
             children = new HashMap<>();
         } else {
@@ -39,7 +39,7 @@ class KvNodeEx extends KvNode {
     }
 
     public KvNodeEx(KvNodeEx oldNode, long updateIndex, long updateTime) {
-        super(oldNode.createIndex, oldNode.createTime, updateIndex, updateTime, oldNode.dir, oldNode.data);
+        super(oldNode.createIndex, oldNode.createTime, updateIndex, updateTime, oldNode.data);
         this.children = oldNode.children;
     }
 }

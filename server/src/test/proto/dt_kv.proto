@@ -15,31 +15,30 @@
  */
 syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.config";
-message GetReq {
-  int32 group_id = 1;
-  string key = 2;
-}
-
 message KvNode {
-  bool dir = 1;
-  fixed64 create_index = 2;
-  fixed64 create_time = 3;
-  fixed64 modify_index = 4;
-  fixed64 modify_time = 5;
-  bytes value = 6;
+  fixed64 create_index = 1;
+  fixed64 create_time = 2;
+  fixed64 modify_index = 3;
+  fixed64 modify_time = 4;
+  bytes value = 15;
 }
 
-message PutReq {
+message KvResult {
+  int32 biz_code = 1;
+  KvNode node = 2;
+}
+
+message KvReq {
   int32 group_id = 1;
   string key = 2;
-  bytes value = 3;
+  repeated string keys = 3[packed = false];
+  bytes value = 13;
+  repeated bytes values = 14[packed = false];
+  bytes expect_value = 15; // reserved for cas operation
 }
 
-// return EmptyBodyRespFrame
-
-message RemoveReq {
-  int32 group_id = 1;
-  string key = 2;
+message KvResp {
+  KvNode result = 1;
+  repeated KvResult results = 2[packed = false];
+  repeated KvNode children = 3[packed = false];
 }
-
-// return EmptyBodyRespFrame

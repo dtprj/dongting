@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
 
 import java.nio.ByteBuffer;
 
@@ -25,7 +24,6 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class KvNode {
-    protected final boolean dir;
 
     protected final long createIndex;
     protected final long createTime;
@@ -34,50 +32,39 @@ public class KvNode {
 
     protected final byte[] data;
 
-    public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
+    public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, byte[] data) {
         this.createIndex = createIndex;
         this.createTime = createTime;
         this.updateIndex = updateIndex;
         this.updateTime = updateTime;
         this.data = data;
-        this.dir = dir;
     }
 
-    public static class WritePacket extends SmallNoCopyWritePacket {
+    public boolean isDir() {
+        return data == null || data.length == 0;
+    }
 
-        private final KvNode n;
+    public static int calcActualSize(KvNode n) {
+        return n == null ? 0 : PbUtil.accurateLengthDelimitedSize(2, n.data == null ? 0 : n.data.length)
+                + PbUtil.accurateFix64Size(3, n.createIndex)
+                + PbUtil.accurateFix64Size(4, n.createTime)
+                + PbUtil.accurateFix64Size(5, n.updateIndex)
+                + PbUtil.accurateFix64Size(6, n.updateTime);
+    }
 
-        public WritePacket(KvNode n) {
-            this.n = n;
+    public static void encode(ByteBuffer buf, KvNode n) {
+        if (n == null) {
+            return;
         }
-
-        @Override
-        protected int calcActualBodySize() {
-            return n == null ? 0 : PbUtil.accurateUnsignedIntSize(1, n.dir ? 1 : 0)
-                    + PbUtil.accurateFix64Size(2, n.createIndex)
-                    + PbUtil.accurateFix64Size(3, n.createTime)
-                    + PbUtil.accurateFix64Size(4, n.updateIndex)
-                    + PbUtil.accurateFix64Size(5, n.updateTime)
-                    + PbUtil.accurateLengthDelimitedSize(6, n.data == null ? 0 : n.data.length);
-        }
-
-        @Override
-        protected void encodeBody(ByteBuffer buf) {
-            if (n == null) {
-                return;
-            }
-            PbUtil.writeUnsignedInt32(buf, 1, n.dir ? 1 : 0);
-            PbUtil.writeFix64(buf, 2, n.createIndex);
-            PbUtil.writeFix64(buf, 3, n.createTime);
-            PbUtil.writeFix64(buf, 4, n.updateIndex);
-            PbUtil.writeFix64(buf, 5, n.updateTime);
-            PbUtil.writeBytes(buf, 6, n.data);
-        }
+        PbUtil.writeBytes(buf, 2, n.data);
+        PbUtil.writeFix64(buf, 3, n.createIndex);
+        PbUtil.writeFix64(buf, 4, n.createTime);
+        PbUtil.writeFix64(buf, 5, n.updateIndex);
+        PbUtil.writeFix64(buf, 6, n.updateTime);
     }
 
     public static class Callback extends PbCallback<KvNode> {
 
-        private boolean dir;
         private long createIndex;
         private long createTime;
         private long updateIndex;
@@ -85,26 +72,28 @@ public class KvNode {
         private byte[] data;
 
         @Override
-        public boolean readVarNumber(int index, long value) {
-            if (index == 1) {
-                dir = value == 1;
-            }
-            return true;
+        protected boolean end(boolean success) {
+            createIndex = 0;
+            createTime = 0;
+            updateIndex = 0;
+            updateTime = 0;
+            data = null;
+            return success;
         }
 
         @Override
         public boolean readFix64(int index, long value) {
             switch (index) {
-                case 2:
+                case 3:
                     createIndex = value;
                     break;
-                case 3:
+                case 4:
                     createTime = value;
                     break;
-                case 4:
+                case 5:
                     updateIndex = value;
                     break;
-                case 5:
+                case 6:
                     updateTime = value;
                     break;
             }
@@ -113,7 +102,7 @@ public class KvNode {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == 6) {
+            if (index == 2) {
                 data = parseBytes(buf, fieldLen, currentPos);
             }
             return true;
@@ -121,7 +110,7 @@ public class KvNode {
 
         @Override
         protected KvNode getResult() {
-            return new KvNode(createIndex, createTime, updateIndex, updateTime, dir, data);
+            return new KvNode(createIndex, createTime, updateIndex, updateTime, data);
         }
     }
 
@@ -131,10 +120,6 @@ public class KvNode {
 
     public long getCreateIndex() {
         return createIndex;
-    }
-
-    public boolean isDir() {
-        return dir;
     }
 
     public long getUpdateIndex() {
