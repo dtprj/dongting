@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 
@@ -23,51 +26,62 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class KvResult {
+public class KvResult implements Encodable {
+    private static final int IDX_BIZ_CODE = 1;
+    private static final int IDX_NODE = 2;
 
-    private int code;
-    private KvNode data;
+    private final int bizCode;
+    private final KvNode data;
+    private final int size;
+    private final int sizeOfField1;
 
-    public static final KvResult SUCCESS = new KvResult(KvCodes.CODE_SUCCESS);
-    public static final KvResult NOT_FOUND = new KvResult(KvCodes.CODE_NOT_FOUND);
-    public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.CODE_SUCCESS_OVERWRITE);
+    public static final KvResult SUCCESS = new KvResult(KvCodes.CODE_SUCCESS, null);
+    public static final KvResult NOT_FOUND = new KvResult(KvCodes.CODE_NOT_FOUND, null);
+    public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.CODE_SUCCESS_OVERWRITE, null);
 
-    public KvResult(int code) {
-        this.code = code;
+    public KvResult(int bizCode, KvNode data) {
+        this.bizCode = bizCode;
+        this.data = data;
+
+        this.sizeOfField1 = PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode);
+        this.size = sizeOfField1 +
+                (data == null ? 0 : PbUtil.accurateLengthDelimitedSize(IDX_NODE, data.actualSize()));
     }
 
-    public static int calcActualSize(KvResult r) {
-        return PbUtil.accurateUnsignedIntSize(1, r.code) +
-                (r.data == null ? 0 : PbUtil.accurateLengthDelimitedSize(2, KvNode.calcActualSize(r.data)));
+    @Override
+    public int actualSize() {
+        return size;
     }
 
-    public static void encode(ByteBuffer buf, KvResult r) {
-        PbUtil.writeUnsignedInt32(buf, 1, r.code);
-        if (r.data != null) {
-            PbUtil.writeLengthDelimitedPrefix(buf, 2, KvNode.calcActualSize(r.data));
-            KvNode.encode(buf, r.data);
+    @Override
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        if (context.stage < IDX_BIZ_CODE) {
+            if (destBuffer.remaining() < sizeOfField1) {
+                return false;
+            }
+            PbUtil.writeUnsignedInt32(destBuffer, IDX_BIZ_CODE, bizCode);
+            context.stage = IDX_BIZ_CODE;
         }
+        if (context.stage == IDX_BIZ_CODE) {
+            if (context.encodeNested(destBuffer, data)) {
+                context.stage = EncodeContext.STAGE_END;
+                return true;
+            } else {
+                return false;
+            }
+        }
+        throw new CodecException(context);
     }
 
     public static class Callback extends PbCallback<KvResult> {
-        private KvResult r;
-        private KvNode.Callback nodeCallback = new KvNode.Callback();
-
-        @Override
-        protected void begin(int len) {
-            r = new KvResult(KvCodes.CODE_SUCCESS);
-        }
-
-        @Override
-        protected boolean end(boolean success) {
-            r = null;
-            return success;
-        }
+        private final KvNode.Callback nodeCallback = new KvNode.Callback();
+        private int bizCode;
+        private KvNode data;
 
         @Override
         public boolean readVarNumber(int index, long value) {
             if (index == 1) {
-                r.code = (int) value;
+                bizCode = (int) value;
             }
             return true;
         }
@@ -75,26 +89,23 @@ public class KvResult {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == 2) {
-                r.data = parseNested(buf, fieldLen, currentPos, nodeCallback);
+                data = parseNested(buf, fieldLen, currentPos, nodeCallback);
             }
             return true;
         }
 
         @Override
         protected KvResult getResult() {
-            return r;
+            return new KvResult(bizCode, data);
         }
     }
 
-    public int getCode() {
-        return code;
+    public int getBizCode() {
+        return bizCode;
     }
 
     public KvNode getData() {
         return data;
     }
 
-    public void setData(KvNode data) {
-        this.data = data;
-    }
 }

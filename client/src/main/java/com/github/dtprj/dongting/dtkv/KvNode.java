@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 
@@ -23,12 +26,20 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class KvNode {
+public class KvNode implements Encodable {
+
+    private static final int IDX_DATA = 2;
+    private static final int IDX_CREATE_INDEX = 3;
+    private static final int IDX_CREATE_TIME = 4;
+    private static final int IDX_UPDATE_INDEX = 5;
+    private static final int IDX_UPDATE_TIME = 6;
 
     protected final long createIndex;
     protected final long createTime;
     protected final long updateIndex;
     protected final long updateTime;
+
+    private final int size_3to6;
 
     protected final byte[] data;
 
@@ -38,29 +49,63 @@ public class KvNode {
         this.updateIndex = updateIndex;
         this.updateTime = updateTime;
         this.data = data;
+
+        this.size_3to6 = PbUtil.accurateFix64Size(IDX_CREATE_INDEX, createIndex)
+                + PbUtil.accurateFix64Size(IDX_CREATE_TIME, createTime)
+                + PbUtil.accurateFix64Size(IDX_UPDATE_INDEX, updateIndex)
+                + PbUtil.accurateFix64Size(IDX_UPDATE_TIME, updateTime);
     }
 
     public boolean isDir() {
         return data == null || data.length == 0;
     }
 
-    public static int calcActualSize(KvNode n) {
-        return n == null ? 0 : PbUtil.accurateLengthDelimitedSize(2, n.data == null ? 0 : n.data.length)
-                + PbUtil.accurateFix64Size(3, n.createIndex)
-                + PbUtil.accurateFix64Size(4, n.createTime)
-                + PbUtil.accurateFix64Size(5, n.updateIndex)
-                + PbUtil.accurateFix64Size(6, n.updateTime);
+    @Override
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        int stage = context.stage;
+        int pending = context.pending;
+        try {
+            int remaining = destBuffer.remaining();
+            if (stage < IDX_DATA) {
+                if (data == null) {
+                    stage = IDX_DATA;
+                } else {
+                    int needWrite = data.length - pending;
+                    if (remaining >= needWrite) {
+                        destBuffer.put(data, pending, needWrite);
+                        stage = IDX_DATA;
+                        remaining -= needWrite;
+                        pending = 0;
+                    } else {
+                        destBuffer.put(data, pending, remaining);
+                        pending += remaining;
+                        return false;
+                    }
+                }
+            }
+            if (stage == IDX_DATA) {
+                if (remaining < size_3to6) {
+                    return false;
+                } else {
+                    PbUtil.writeFix64(destBuffer, IDX_CREATE_INDEX, createIndex);
+                    PbUtil.writeFix64(destBuffer, IDX_CREATE_TIME, createTime);
+                    PbUtil.writeFix64(destBuffer, IDX_UPDATE_INDEX, updateIndex);
+                    PbUtil.writeFix64(destBuffer, IDX_UPDATE_TIME, updateTime);
+                    stage = EncodeContext.STAGE_END;
+                    return true;
+                }
+            }
+            throw new CodecException(context);
+        } finally {
+            context.pending = pending;
+            context.stage = stage;
+        }
     }
 
-    public static void encode(ByteBuffer buf, KvNode n) {
-        if (n == null) {
-            return;
-        }
-        PbUtil.writeBytes(buf, 2, n.data);
-        PbUtil.writeFix64(buf, 3, n.createIndex);
-        PbUtil.writeFix64(buf, 4, n.createTime);
-        PbUtil.writeFix64(buf, 5, n.updateIndex);
-        PbUtil.writeFix64(buf, 6, n.updateTime);
+    @Override
+    public int actualSize() {
+        return PbUtil.accurateLengthDelimitedSize(IDX_DATA, data == null ? 0 : data.length)
+                + size_3to6;
     }
 
     public static class Callback extends PbCallback<KvNode> {
@@ -84,16 +129,16 @@ public class KvNode {
         @Override
         public boolean readFix64(int index, long value) {
             switch (index) {
-                case 3:
+                case IDX_CREATE_INDEX:
                     createIndex = value;
                     break;
-                case 4:
+                case IDX_CREATE_TIME:
                     createTime = value;
                     break;
-                case 5:
+                case IDX_UPDATE_INDEX:
                     updateIndex = value;
                     break;
-                case 6:
+                case IDX_UPDATE_TIME:
                     updateTime = value;
                     break;
             }
@@ -102,7 +147,7 @@ public class KvNode {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == 2) {
+            if (index == IDX_DATA) {
                 data = parseBytes(buf, fieldLen, currentPos);
             }
             return true;

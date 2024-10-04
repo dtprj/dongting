@@ -87,7 +87,7 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
             public void success(long raftIndex, Object result) {
                 KvResult r = (KvResult) result;
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                resp.setBizCode(r.getCode());
+                resp.setBizCode(r.getBizCode());
                 writeResp(reqInfo, resp);
             }
 

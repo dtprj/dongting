@@ -36,20 +36,23 @@ public class ByteArrayEncoder implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer buffer) {
-        if (size == 0) {
+        return encodeBytes(context, buffer, data);
+    }
+
+    public static boolean encodeBytes(EncodeContext context, ByteBuffer destBuffer, byte[] data) {
+        if (data == null) {
             return true;
         }
-        Integer lastPos = (Integer) context.getStatus();
-        int pos = lastPos == null ? 0 : lastPos;
-
-        int count = Math.min(buffer.remaining(), size - pos);
-        buffer.put(data, pos, count);
-
-        boolean finish = pos + count >= size;
-        if (!finish) {
-            context.setStatus(pos + count);
+        int remaining = destBuffer.remaining();
+        int needWrite = data.length - context.pending;
+        if (remaining > needWrite) {
+            destBuffer.put(data, context.pending, needWrite);
+            return true;
+        } else {
+            destBuffer.put(data, context.pending, remaining);
+            context.pending += remaining;
+            return false;
         }
-        return finish;
     }
 
     public int actualSize() {
@@ -84,5 +87,5 @@ public class ByteArrayEncoder implements Encodable {
             this.r = null;
             return success;
         }
-    };
+    }
 }

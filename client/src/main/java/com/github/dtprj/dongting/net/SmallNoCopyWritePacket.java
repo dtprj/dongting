@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.EncodeContext;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -22,7 +24,7 @@ import java.nio.ByteBuffer;
  */
 public abstract class SmallNoCopyWritePacket extends RetryableWritePacket {
     @Override
-    protected final boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+    protected final boolean encodeBody(EncodeContext context, ByteBuffer dest) {
         if (dest.remaining() < actualBodySize()) {
             return false;
         }

@@ -16,11 +16,12 @@
 syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.config";
 message KvNode {
-  fixed64 create_index = 1;
-  fixed64 create_time = 2;
-  fixed64 modify_index = 3;
-  fixed64 modify_time = 4;
-  bytes value = 15;
+  string key = 1; // reserved
+  bytes value = 2;
+  fixed64 create_index = 3;
+  fixed64 create_time = 4;
+  fixed64 modify_index = 5;
+  fixed64 modify_time = 6;
 }
 
 message KvResult {
@@ -31,10 +32,10 @@ message KvResult {
 message KvReq {
   int32 group_id = 1;
   string key = 2;
-  repeated string keys = 3[packed = false];
-  bytes value = 13;
-  repeated bytes values = 14[packed = false];
-  bytes expect_value = 15; // reserved for cas operation
+  bytes value = 3;
+  repeated string keys = 4[packed = false];
+  repeated bytes values = 5[packed = false];
+  bytes expect_value = 6; // reserved for cas operation
 }
 
 message KvResp {

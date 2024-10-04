@@ -16,19 +16,43 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.raft.RaftReq;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
  * @author huangli
  */
-public class KvReq extends RaftReq {
+public class KvReq extends RaftReq implements Encodable {
+    private static final int IDX_GROUP_ID = 1;
+    private static final int IDX_KEY = 2;
+    private static final int IDX_VALUE = 3;
+    private static final int IDX_KEYS = 4;
+    private static final int IDX_VALUES = 5;
+    private static final int IDX_EXPECT_VALUE = 6;
+
     private String key;
     private RefBuffer value;
     private List<String> keys;
     private List<byte[]> values;
     private byte[] expectValue;
+
+    public KvReq() {
+
+    }
+
+    @Override
+    public int actualSize() {
+        return 0;
+    }
+
+    @Override
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        return false;
+    }
 
     public String getKey() {
         return key;

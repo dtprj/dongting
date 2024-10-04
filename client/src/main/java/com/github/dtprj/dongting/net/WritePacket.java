@@ -56,7 +56,7 @@ public abstract class WritePacket extends Packet implements Encodable {
 
     protected abstract int calcActualBodySize();
 
-    protected abstract boolean encodeBody(RpcEncodeContext context, ByteBuffer dest);
+    protected abstract boolean encodeBody(EncodeContext context, ByteBuffer dest);
 
     public final int calcMaxPacketSize() {
         return MAX_HEADER_SIZE
@@ -103,8 +103,8 @@ public abstract class WritePacket extends Packet implements Encodable {
 
     @Override
     public final boolean encode(EncodeContext context, ByteBuffer buf) {
-        RpcEncodeContext c = (RpcEncodeContext) context;
-        if (c.packetEncodeStatus == STATUS_INIT) {
+        int step = context.getStage();
+        if (step == STATUS_INIT) {
             int totalSize = actualSize();
             int headerSize = totalSize - actualBodySize();
             if (buf.remaining() < headerSize) {
@@ -122,26 +122,27 @@ public abstract class WritePacket extends Packet implements Encodable {
                 if (bodySize > 0) {
                     PbUtil.writeLengthDelimitedPrefix(buf, Packet.IDX_BODY, bodySize);
                 }
-                c.packetEncodeStatus = STATUS_HEADER_ENCODE_FINISHED;
+                step = STATUS_HEADER_ENCODE_FINISHED;
             }
         }
-        if (c.packetEncodeStatus == STATUS_HEADER_ENCODE_FINISHED) {
-            boolean finish = false;
+        boolean finish = false;
+        if (step == STATUS_HEADER_ENCODE_FINISHED) {
             try {
                 if (bodySize > 0) {
-                    finish = encodeBody(c, buf);
+                    finish = encodeBody(context, buf);
                 } else {
                     finish = true;
                 }
             } finally {
                 if (finish) {
-                    c.packetEncodeStatus = STATUS_ENCODE_FINISHED;
+                    step = STATUS_ENCODE_FINISHED;
                 }
             }
-            return finish;
         } else {
-            throw new NetException("invalid status: " + c.packetEncodeStatus);
+            throw new NetException("invalid status: " + step);
         }
+        context.setStage(step);
+        return finish;
     }
 
     public final void clean() {

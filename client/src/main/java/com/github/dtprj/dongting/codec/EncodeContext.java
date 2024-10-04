@@ -17,15 +17,63 @@ package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
 public class EncodeContext {
     private final RefBufferFactory heapPool;
-    private Object status;
+
+    public static final int STAGE_BEGIN = 0;
+    public static final int STAGE_END = Integer.MAX_VALUE;
+
+    public Object status;
+    public int stage;
+    public int pending;
+
+    private EncodeContext nested;
+    private boolean nestedUse;
 
     public EncodeContext(RefBufferFactory heapPool) {
         this.heapPool = heapPool;
+    }
+
+    public void reset() {
+        this.status = null;
+        this.stage = STAGE_BEGIN;
+        this.pending = 0;
+        if (nestedUse) {
+            nested.reset();
+            nestedUse = false;
+        }
+    }
+
+    public EncodeContext createOrGetNestedContext() {
+        if (nested == null) {
+            nested = new EncodeContext(heapPool);
+        }
+        if (!nestedUse) {
+            nestedUse = true;
+        }
+        return nested;
+    }
+
+    public boolean encodeNested(ByteBuffer buf, Encodable nestedObj) {
+        if (nestedObj == null) {
+            return true;
+        }
+        EncodeContext sub = createOrGetNestedContext();
+        if (pending == 0) {
+            sub.reset();
+        }
+        if (nestedObj.encode(sub, buf)) {
+            pending = 0;
+            return true;
+        } else {
+            pending = 1;
+            return false;
+        }
     }
 
     public RefBufferFactory getHeapPool() {
@@ -40,7 +88,19 @@ public class EncodeContext {
         this.status = status;
     }
 
-    public void reset() {
-        this.status = null;
+    public int getStage() {
+        return stage;
+    }
+
+    public void setStage(int stage) {
+        this.stage = stage;
+    }
+
+    public int getPending() {
+        return pending;
+    }
+
+    public void setPending(int pending) {
+        this.pending = pending;
     }
 }

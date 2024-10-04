@@ -105,7 +105,7 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
                 KvResult r = dtKV.get(logIndex, frame.getBody().getKey());
                 KvNode.WritePacket wf = new KvNode.WritePacket(r.getData());
                 wf.setRespCode(CmdCodes.SUCCESS);
-                wf.setBizCode(r.getCode());
+                wf.setBizCode(r.getBizCode());
                 writeResp(reqInfo, wf);
             }
         });

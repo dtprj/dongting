@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
@@ -53,7 +54,7 @@ class IoChannelQueue {
     private boolean writing;
 
     private WriteData lastWriteData;
-    private final RpcEncodeContext encodeContext;
+    private final EncodeContext encodeContext;
 
     private final PerfCallback perfCallback;
 
@@ -61,7 +62,7 @@ class IoChannelQueue {
         this.directPool = workerStatus.getDirectPool();
         this.workerStatus = workerStatus;
         this.dtc = dtc;
-        this.encodeContext = new RpcEncodeContext(heapPool);
+        this.encodeContext = new EncodeContext(heapPool);
         this.perfCallback = config.getPerfCallback();
     }
 

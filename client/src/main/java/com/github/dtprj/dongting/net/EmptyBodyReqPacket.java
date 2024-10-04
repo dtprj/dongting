@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.EncodeContext;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -32,7 +34,7 @@ public class EmptyBodyReqPacket extends RetryableWritePacket {
     }
 
     @Override
-    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
         return true;
     }
 }

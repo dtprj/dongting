@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.EncodeContext;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -55,7 +57,7 @@ public class ByteBufferWritePacket extends RetryableWritePacket {
         return srcCopy;
     }
 
-    static boolean encodeBody(RpcEncodeContext context,ByteBuffer src, ByteBuffer dest) {
+    static boolean encodeBody(EncodeContext context, ByteBuffer src, ByteBuffer dest) {
         if (src == null) {
             return true;
         }
@@ -81,7 +83,7 @@ public class ByteBufferWritePacket extends RetryableWritePacket {
     }
 
     @Override
-    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
         return encodeBody(context, data, dest);
     }
 }

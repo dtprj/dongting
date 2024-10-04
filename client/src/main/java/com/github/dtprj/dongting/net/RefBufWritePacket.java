@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.EncodeContext;
 
 import java.nio.ByteBuffer;
 
@@ -46,7 +47,7 @@ public class RefBufWritePacket extends WritePacket {
     }
 
     @Override
-    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
         return ByteBufferWritePacket.encodeBody(context, refBuffer == null ? null : refBuffer.getBuffer(), dest);
     }
 }

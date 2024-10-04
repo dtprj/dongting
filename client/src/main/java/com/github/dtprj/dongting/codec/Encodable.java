@@ -21,6 +21,9 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public interface Encodable {
+    /**
+     * return true if encode finished.
+     */
     boolean encode(EncodeContext context, ByteBuffer destBuffer);
 
     int actualSize();
