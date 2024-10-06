@@ -93,8 +93,7 @@ class KvImpl {
             if (kvNode.removeAtIndex > 0) {
                 return KvResult.NOT_FOUND;
             }
-            r = new KvResult(KvCodes.CODE_SUCCESS);
-            r.setData(kvNode);
+            r = new KvResult(KvCodes.CODE_SUCCESS, kvNode);
             return r;
         } finally {
             readLock.unlock();

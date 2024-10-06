@@ -25,7 +25,7 @@ import java.nio.charset.StandardCharsets;
  *
  * @author huangli
  */
-public class PbUtil {
+public final class PbUtil {
 
     private static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
     private static final int MAX_TAG_LENGTH = 5;
@@ -301,7 +301,7 @@ public class PbUtil {
             return 7;
         } else if (value <= MAX_8_BYTE_LONG_VALUE) {
             return 8;
-        } else  {
+        } else {
             // MAX_9_BYTE_LONG_VALUE==Long.MAX_VALUE, so ...
             return 9;
         }

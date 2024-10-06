@@ -15,9 +15,11 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
+import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.raft.RaftReq;
 
 import java.nio.ByteBuffer;
@@ -34,63 +36,81 @@ public class KvReq extends RaftReq implements Encodable {
     private static final int IDX_VALUES = 5;
     private static final int IDX_EXPECT_VALUE = 6;
 
-    private String key;
-    private RefBuffer value;
-    private List<String> keys;
-    private List<byte[]> values;
-    private byte[] expectValue;
+    private final byte[] key;
+    private final Encodable value;
+    private final List<byte[]> keys;
+    private final List<Encodable> values;
+    private final Encodable expectValue;
 
-    public KvReq() {
+    private final int size;
 
+    public KvReq(int groupId, byte[] key, Encodable value, List<byte[]> keys,
+                 List<Encodable> values, Encodable expectValue) {
+        super(groupId);
+        this.key = key;
+        this.value = value;
+        this.keys = keys;
+        this.values = values;
+        this.expectValue = expectValue;
+        this.size = PbUtil.accurateUnsignedIntSize(IDX_GROUP_ID, groupId)
+                + EncodeUtil.actualSize(IDX_KEY, key)
+                + EncodeUtil.actualSize(IDX_VALUE, value)
+                + EncodeUtil.actualSizeOfBytes(IDX_KEYS, keys)
+                + EncodeUtil.actualSizeOfObjs(IDX_VALUES, values)
+                + EncodeUtil.actualSize(IDX_EXPECT_VALUE, expectValue);
     }
 
     @Override
     public int actualSize() {
-        return 0;
+        return size;
     }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        return false;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public RefBuffer getValue() {
-        return value;
-    }
-
-    public void setValue(RefBuffer value) {
-        this.value = value;
-    }
-
-    public List<String> getKeys() {
-        return keys;
-    }
-
-    public void setKeys(List<String> keys) {
-        this.keys = keys;
-    }
-
-    public List<byte[]> getValues() {
-        return values;
-    }
-
-    public void setValues(List<byte[]> values) {
-        this.values = values;
-    }
-
-    public byte[] getExpectValue() {
-        return expectValue;
-    }
-
-    public void setExpectValue(byte[] expectValue) {
-        this.expectValue = expectValue;
+        int remaining = destBuffer.remaining();
+        if (context.stage == EncodeContext.STAGE_BEGIN) {
+            if (remaining < PbUtil.maxUnsignedIntSize()) {
+                return false;
+            }
+            PbUtil.writeUnsignedInt32(destBuffer, IDX_GROUP_ID, groupId);
+            context.stage = IDX_GROUP_ID;
+        }
+        if (context.stage == IDX_GROUP_ID) {
+            if (EncodeUtil.encode(context, destBuffer, IDX_KEY, key)) {
+                context.stage = IDX_KEY;
+            } else {
+                return false;
+            }
+        }
+        if (context.stage == IDX_KEY) {
+            if (EncodeUtil.encode(context, destBuffer, IDX_VALUE, value)) {
+                context.stage = IDX_VALUE;
+            } else {
+                return false;
+            }
+        }
+        if (context.stage == IDX_VALUE) {
+            if (EncodeUtil.encodeBytes(context, destBuffer, IDX_KEYS, keys)) {
+                context.stage = IDX_KEYS;
+            } else {
+                return false;
+            }
+        }
+        if (context.stage == IDX_KEYS) {
+            if (EncodeUtil.encodeObjs(context, destBuffer, IDX_VALUES, values)) {
+                context.stage = IDX_VALUES;
+            } else {
+                return false;
+            }
+        }
+        if (context.stage == IDX_VALUES) {
+            if (EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
+                context.stage = EncodeContext.STAGE_END;
+                return true;
+            } else {
+                return false;
+            }
+        }
+        throw new CodecException(context);
     }
 }

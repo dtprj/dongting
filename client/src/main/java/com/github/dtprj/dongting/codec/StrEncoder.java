@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public class StrEncoder extends ByteArrayEncoder {
+public final class StrEncoder extends ByteArrayEncoder {
 
     private final String str;
 

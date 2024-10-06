@@ -17,8 +17,6 @@ package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
@@ -49,31 +47,17 @@ public class EncodeContext {
         }
     }
 
-    public EncodeContext createOrGetNestedContext() {
+    public EncodeContext createOrGetNestedContext(boolean reset) {
         if (nested == null) {
             nested = new EncodeContext(heapPool);
         }
         if (!nestedUse) {
             nestedUse = true;
         }
+        if (reset) {
+            nested.reset();
+        }
         return nested;
-    }
-
-    public boolean encodeNested(ByteBuffer buf, Encodable nestedObj) {
-        if (nestedObj == null) {
-            return true;
-        }
-        EncodeContext sub = createOrGetNestedContext();
-        if (pending == 0) {
-            sub.reset();
-        }
-        if (nestedObj.encode(sub, buf)) {
-            pending = 0;
-            return true;
-        } else {
-            pending = 1;
-            return false;
-        }
     }
 
     public RefBufferFactory getHeapPool() {

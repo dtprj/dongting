@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv;
 import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 
@@ -62,44 +63,27 @@ public class KvNode implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        int stage = context.stage;
-        int pending = context.pending;
-        try {
-            int remaining = destBuffer.remaining();
-            if (stage < IDX_DATA) {
-                if (data == null) {
-                    stage = IDX_DATA;
-                } else {
-                    int needWrite = data.length - pending;
-                    if (remaining >= needWrite) {
-                        destBuffer.put(data, pending, needWrite);
-                        stage = IDX_DATA;
-                        remaining -= needWrite;
-                        pending = 0;
-                    } else {
-                        destBuffer.put(data, pending, remaining);
-                        pending += remaining;
-                        return false;
-                    }
-                }
+        int remaining = destBuffer.remaining();
+        if (context.stage < IDX_DATA) {
+            if (EncodeUtil.encode(context, destBuffer, IDX_DATA, data)) {
+                context.stage = IDX_DATA;
+            } else {
+                return false;
             }
-            if (stage == IDX_DATA) {
-                if (remaining < size_3to6) {
-                    return false;
-                } else {
-                    PbUtil.writeFix64(destBuffer, IDX_CREATE_INDEX, createIndex);
-                    PbUtil.writeFix64(destBuffer, IDX_CREATE_TIME, createTime);
-                    PbUtil.writeFix64(destBuffer, IDX_UPDATE_INDEX, updateIndex);
-                    PbUtil.writeFix64(destBuffer, IDX_UPDATE_TIME, updateTime);
-                    stage = EncodeContext.STAGE_END;
-                    return true;
-                }
-            }
-            throw new CodecException(context);
-        } finally {
-            context.pending = pending;
-            context.stage = stage;
         }
+        if (context.stage == IDX_DATA) {
+            if (remaining < size_3to6) {
+                return false;
+            } else {
+                PbUtil.writeFix64(destBuffer, IDX_CREATE_INDEX, createIndex);
+                PbUtil.writeFix64(destBuffer, IDX_CREATE_TIME, createTime);
+                PbUtil.writeFix64(destBuffer, IDX_UPDATE_INDEX, updateIndex);
+                PbUtil.writeFix64(destBuffer, IDX_UPDATE_TIME, updateTime);
+                context.stage = EncodeContext.STAGE_END;
+                return true;
+            }
+        }
+        throw new CodecException(context);
     }
 
     @Override
@@ -108,6 +92,7 @@ public class KvNode implements Encodable {
                 + size_3to6;
     }
 
+    // re-used
     public static class Callback extends PbCallback<KvNode> {
 
         private long createIndex;

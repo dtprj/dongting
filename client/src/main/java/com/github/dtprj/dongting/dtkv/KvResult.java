@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv;
 import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 
@@ -39,6 +40,10 @@ public class KvResult implements Encodable {
     public static final KvResult NOT_FOUND = new KvResult(KvCodes.CODE_NOT_FOUND, null);
     public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.CODE_SUCCESS_OVERWRITE, null);
 
+    public KvResult(int bizCode) {
+        this(bizCode, null);
+    }
+
     public KvResult(int bizCode, KvNode data) {
         this.bizCode = bizCode;
         this.data = data;
@@ -54,26 +59,27 @@ public class KvResult implements Encodable {
     }
 
     @Override
-    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        if (context.stage < IDX_BIZ_CODE) {
+    public boolean encode(EncodeContext c, ByteBuffer destBuffer) {
+        if (c.stage < IDX_BIZ_CODE) {
             if (destBuffer.remaining() < sizeOfField1) {
                 return false;
             }
             PbUtil.writeUnsignedInt32(destBuffer, IDX_BIZ_CODE, bizCode);
-            context.stage = IDX_BIZ_CODE;
+            c.stage = IDX_BIZ_CODE;
         }
-        if (context.stage == IDX_BIZ_CODE) {
-            if (context.encodeNested(destBuffer, data)) {
-                context.stage = EncodeContext.STAGE_END;
+        if (c.stage == IDX_BIZ_CODE) {
+            if (EncodeUtil.encode(c, destBuffer, IDX_BIZ_CODE, data)) {
+                c.stage = EncodeContext.STAGE_END;
                 return true;
             } else {
                 return false;
             }
         }
-        throw new CodecException(context);
+        throw new CodecException(c);
     }
 
     public static class Callback extends PbCallback<KvResult> {
+        // re-used
         private final KvNode.Callback nodeCallback = new KvNode.Callback();
         private int bizCode;
         private KvNode data;
