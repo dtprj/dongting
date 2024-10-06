@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.RpcEncodeContext;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -110,7 +110,7 @@ public class AppendReqWritePacket extends WritePacket {
     }
 
     @Override
-    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
         while (true) {
             switch (writeStatus) {
                 case WRITE_HEADER:
@@ -192,7 +192,7 @@ public class AppendReqWritePacket extends WritePacket {
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean writeData(RpcEncodeContext context, ByteBuffer dest, Encodable data) {
+    private boolean writeData(EncodeContext context, ByteBuffer dest, Encodable data) {
         if (!dest.hasRemaining()) {
             return false;
         }

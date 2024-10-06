@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
@@ -131,26 +131,20 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_GET:
                 return kvStatus.kvImpl.get(index, key.getStr());
             case BIZ_TYPE_PUT:
-                RefBuffer data = (RefBuffer) input.getBody();
-                if (data == null || data.getBuffer() == null) {
+                ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
+                if (data == null) {
                     return KvCodes.CODE_KEY_IS_NULL;
                 }
-                kvStatus.kvImpl.put(index, key.getStr(), toBytes(data));
-                return null;
+                byte[] bs = data.getData();
+                if (bs == null || bs.length == 0) {
+                    return KvCodes.CODE_VALUE_IS_NULL;
+                }
+                return kvStatus.kvImpl.put(index, key.getStr(), bs);
             case BIZ_TYPE_REMOVE:
                 return kvStatus.kvImpl.remove(index, key.getStr());
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
-    }
-
-    private byte[] toBytes(RefBuffer rb) {
-        ByteBuffer bb = rb.getBuffer();
-        int oldPos = bb.position();
-        byte[] bytes = new byte[bb.remaining()];
-        bb.get(bytes);
-        bb.position(oldPos);
-        return bytes;
     }
 
     /**

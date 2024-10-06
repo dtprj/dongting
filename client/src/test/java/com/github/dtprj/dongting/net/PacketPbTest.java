@@ -5,6 +5,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.CodecTestUtil;
 import com.github.dtprj.dongting.codec.DtPacket;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
@@ -63,7 +64,7 @@ public class PacketPbTest {
         f.setTimeout(timeout);
         f.setExtra(extra);
         ByteBuffer buf = ByteBuffer.allocate(f.actualSize());
-        f.encode(new RpcEncodeContext(null), buf);
+        f.encode(new EncodeContext(null), buf);
         buf.flip();
         buf.position(4);
         DtPacket.Packet pbf = DtPacket.Packet.parseFrom(buf);

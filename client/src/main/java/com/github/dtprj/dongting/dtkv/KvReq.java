@@ -39,29 +39,31 @@ public class KvReq extends RaftReq implements Encodable {
     private final byte[] key;
     private final Encodable value;
     private final List<byte[]> keys;
-    private final List<Encodable> values;
+    private final List<? extends Encodable> values;
     private final Encodable expectValue;
 
-    private final int size;
+    private int size;
 
     public KvReq(int groupId, byte[] key, Encodable value, List<byte[]> keys,
-                 List<Encodable> values, Encodable expectValue) {
+                 List<? extends Encodable> values, Encodable expectValue) {
         super(groupId);
         this.key = key;
         this.value = value;
         this.keys = keys;
         this.values = values;
         this.expectValue = expectValue;
-        this.size = PbUtil.accurateUnsignedIntSize(IDX_GROUP_ID, groupId)
-                + EncodeUtil.actualSize(IDX_KEY, key)
-                + EncodeUtil.actualSize(IDX_VALUE, value)
-                + EncodeUtil.actualSizeOfBytes(IDX_KEYS, keys)
-                + EncodeUtil.actualSizeOfObjs(IDX_VALUES, values)
-                + EncodeUtil.actualSize(IDX_EXPECT_VALUE, expectValue);
     }
 
     @Override
     public int actualSize() {
+        if (size == 0) {
+            size = PbUtil.accurateUnsignedIntSize(IDX_GROUP_ID, groupId)
+                    + EncodeUtil.actualSize(IDX_KEY, key)
+                    + EncodeUtil.actualSize(IDX_VALUE, value)
+                    + EncodeUtil.actualSizeOfBytes(IDX_KEYS, keys)
+                    + EncodeUtil.actualSizeOfObjs(IDX_VALUES, values)
+                    + EncodeUtil.actualSize(IDX_EXPECT_VALUE, expectValue);
+        }
         return size;
     }
 
@@ -112,5 +114,25 @@ public class KvReq extends RaftReq implements Encodable {
             }
         }
         throw new CodecException(context);
+    }
+
+    public byte[] getKey() {
+        return key;
+    }
+
+    public Encodable getValue() {
+        return value;
+    }
+
+    public List<byte[]> getKeys() {
+        return keys;
+    }
+
+    public List<? extends Encodable> getValues() {
+        return values;
+    }
+
+    public Encodable getExpectValue() {
+        return expectValue;
     }
 }

@@ -38,6 +38,10 @@ public abstract class AbstractCodecCallback<T> {
         return success;
     }
 
+    protected final StrEncoder parseStrEncoder(ByteBuffer buf, int fieldLen, int currentPos) {
+        String s = parseUTF8(buf, fieldLen, currentPos);
+        return s == null ? null : new StrEncoder(s);
+    }
 
     protected final String parseUTF8(ByteBuffer buf, int fieldLen, int currentPos) {
         if (fieldLen == 0) {
@@ -93,6 +97,11 @@ public abstract class AbstractCodecCallback<T> {
             }
             return s;
         }
+    }
+
+    protected final ByteArrayEncoder parseByteArrayEncoder(ByteBuffer buf, int fieldLen, int currentPos) {
+        byte[] arr = parseBytes(buf, fieldLen, currentPos);
+        return arr == null ? null : new ByteArrayEncoder(arr);
     }
 
     protected final byte[] parseBytes(ByteBuffer buf, int fieldLen, int currentPos) {

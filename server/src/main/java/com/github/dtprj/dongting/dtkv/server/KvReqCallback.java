@@ -15,7 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.dtkv.KvReq;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -24,7 +26,8 @@ import java.util.List;
 /**
  * @author huangli
  */
-public class KvReqCallback extends PbCallback<Void> {
+// re-used
+public class KvReqCallback extends PbCallback<KvReq> {
 
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_KEY = 2;
@@ -34,11 +37,11 @@ public class KvReqCallback extends PbCallback<Void> {
     private static final int IDX_EXPECT_VALUE = 6;
 
     int groupId;
-    String key;
-    byte[] value;
-    List<String> keys;
-    List<byte[]> values;
-    byte[] expectValue;
+    byte[] key;
+    ByteArrayEncoder value;
+    List<byte[]> keys;
+    List<ByteArrayEncoder> values;
+    ByteArrayEncoder expectValue;
 
     @Override
     public boolean readVarNumber(int index, long value) {
@@ -52,16 +55,16 @@ public class KvReqCallback extends PbCallback<Void> {
     public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         switch (index) {
             case IDX_KEY:
-                key = parseUTF8(buf, fieldLen, currentPos);
+                key = parseBytes(buf, fieldLen, currentPos);
                 break;
             case IDX_VALUE:
-                value = parseBytes(buf, fieldLen, currentPos);
+                value = parseStrEncoder(buf, fieldLen, currentPos);
                 break;
             case IDX_KEYS:
                 if (keys == null) {
                     keys = new ArrayList<>();
                 }
-                String k = parseUTF8(buf, fieldLen, currentPos);
+                byte[] k = parseBytes(buf, fieldLen, currentPos);
                 if (k != null) {
                     keys.add(k);
                 }
@@ -70,20 +73,20 @@ public class KvReqCallback extends PbCallback<Void> {
                 if (values == null) {
                     values = new ArrayList<>();
                 }
-                byte[] v = parseBytes(buf, fieldLen, currentPos);
+                ByteArrayEncoder v = parseByteArrayEncoder(buf, fieldLen, currentPos);
                 if (v != null) {
                     values.add(v);
                 }
                 break;
             case IDX_EXPECT_VALUE:
-                expectValue = parseBytes(buf, fieldLen, currentPos);
+                expectValue = parseByteArrayEncoder(buf, fieldLen, currentPos);
                 break;
         }
         return true;
     }
 
     @Override
-    protected Void getResult() {
-        return null;
+    protected KvReq getResult() {
+        return new KvReq(groupId, key, value, keys, values, expectValue);
     }
 }

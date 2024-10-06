@@ -15,10 +15,10 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.StrEncoder;
+import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
@@ -32,66 +32,24 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
-public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
+public class PutProcessor extends AbstractRaftBizProcessor<KvReq> {
 
-    // re-used
-    public static final class PutReqDecoderCallback extends PbCallback<PutReq> {
-
-        private PutReq result;
-
-        @Override
-        protected void begin(int len) {
-            result = new PutReq();
-        }
-
-        @Override
-        protected boolean end(boolean success) {
-            result = null;
-            return success;
-        }
-
-        @Override
-        public boolean readVarNumber(int index, long value) {
-            if (index == 1) {
-                result.setGroupId((int) value);
-            }
-            return true;
-        }
-
-        @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == 2) {
-                result.setKey(parseUTF8(buf, fieldLen, currentPos));
-            } else if (index == 3) {
-                result.setValue(parseRefBuffer(buf, fieldLen, currentPos));
-            }
-            return true;
-        }
-
-        @Override
-        public PutReq getResult() {
-            return result;
-        }
-    }
 
     public PutProcessor(RaftServer raftServer) {
         super(raftServer);
     }
 
-
     @Override
-    public DecoderCallback<PutReq> createDecoderCallback(int cmd, DecodeContext context) {
-        PutReqDecoderCallback c = ((DecodeContextEx) context).putReqDecoderCallback();
-        return context.toDecoderCallback(c);
+    public DecoderCallback<KvReq> createDecoderCallback(int cmd, DecodeContext context) {
+        DecodeContextEx e = (DecodeContextEx) context;
+        return context.toDecoderCallback(e.kvReqCallback());
     }
 
     @Override
-    protected int getGroupId(ReadPacket<PutReq> frame) {
+    protected int getGroupId(ReadPacket<KvReq> frame) {
         return frame.getBody().getGroupId();
     }
 
@@ -99,10 +57,10 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
      * run in io thread.
      */
     @Override
-    protected WritePacket doProcess(ReqInfo<PutReq> reqInfo) {
-        PutReq req = reqInfo.getReqFrame().getBody();
+    protected WritePacket doProcess(ReqInfo<KvReq> reqInfo) {
+        KvReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new StrEncoder(req.getKey()), req.getValue(),
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new ByteArrayEncoder(req.getKey()), req.getValue(),
                 reqContext.getTimeout(), false);
         RaftCallback c = new RaftCallback() {
             @Override

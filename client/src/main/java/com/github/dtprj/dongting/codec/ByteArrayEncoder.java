@@ -27,12 +27,25 @@ public class ByteArrayEncoder implements Encodable {
 
     public ByteArrayEncoder(byte[] data) {
         this.data = data;
-        this.size = EncodeUtil.actualSize(data);
+        this.size = data == null ? 0 : data.length;
     }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer buffer) {
-        return EncodeUtil.encode(context, buffer, data);
+        if (data == null) {
+            return true;
+        }
+        int remaining = buffer.remaining();
+        int needWrite = size - context.pending;
+        if (remaining >= needWrite) {
+            buffer.put(data, context.pending, needWrite);
+            context.pending = 0;
+            return true;
+        } else {
+            buffer.put(data, context.pending, remaining);
+            context.pending += remaining;
+            return false;
+        }
     }
 
     public int actualSize() {

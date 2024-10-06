@@ -16,9 +16,9 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.RpcEncodeContext;
 import com.github.dtprj.dongting.net.WritePacket;
 
 import java.nio.ByteBuffer;
@@ -209,7 +209,7 @@ public class InstallSnapshotReq {
         }
 
         @Override
-        protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+        protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
             if (!headerWritten) {
                 if (dest.remaining() >= headerSize) {
                     PbUtil.writeUnsignedInt32(dest, 1, req.groupId);

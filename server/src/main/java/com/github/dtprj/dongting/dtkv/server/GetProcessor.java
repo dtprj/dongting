@@ -17,8 +17,8 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
@@ -30,71 +30,31 @@ import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
-public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
-
-    // re-used
-    public static final class GetReqCallback extends PbCallback<GetReq> {
-        private GetReq result;
-
-        @Override
-        protected void begin(int len) {
-            result = new GetReq();
-        }
-
-        @Override
-        protected boolean end(boolean success) {
-            result = null;
-            return success;
-        }
-
-        @Override
-        public boolean readVarNumber(int index, long value) {
-            if (index == 1) {
-                result.setGroupId((int) value);
-            }
-            return true;
-        }
-
-        @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == 2) {
-                result.setKey(parseUTF8(buf, fieldLen, currentPos));
-            }
-            return true;
-        }
-
-        @Override
-        public GetReq getResult() {
-            return result;
-        }
-    }
+public class GetProcessor extends AbstractRaftBizProcessor<KvReq> {
 
     public GetProcessor(RaftServer server) {
         super(server);
     }
 
     @Override
-    public DecoderCallback<GetReq> createDecoderCallback(int cmd, DecodeContext context) {
-        GetReqCallback c = ((DecodeContextEx) context).getReqDecoderCallback();
-        return context.toDecoderCallback(c);
+    public DecoderCallback<KvReq> createDecoderCallback(int cmd, DecodeContext context) {
+        DecodeContextEx e = (DecodeContextEx) context;
+        return context.toDecoderCallback(e.kvReqCallback());
     }
 
     @Override
-    protected int getGroupId(ReadPacket<GetReq> frame) {
+    protected int getGroupId(ReadPacket<KvReq> frame) {
         return frame.getBody().getGroupId();
     }
-
     /**
      * run in io thread.
      */
     @Override
-    protected WritePacket doProcess(ReqInfo<GetReq> reqInfo) {
-        ReadPacket<GetReq> frame = reqInfo.getReqFrame();
+    protected WritePacket doProcess(ReqInfo<KvReq> reqInfo) {
+        ReadPacket<KvReq> frame = reqInfo.getReqFrame();
         ReqContext reqContext = reqInfo.getReqContext();
         RaftGroup group = reqInfo.getRaftGroup();
         group.getLeaseReadIndex(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {

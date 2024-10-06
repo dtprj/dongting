@@ -15,72 +15,48 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.StrEncoder;
+import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
-public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
-
-    private static final class RemoveReqDecoderCallback extends PbCallback<RemoveReq> {
-        private final RemoveReq result = new RemoveReq();
-        @Override
-        public boolean readVarNumber(int index, long value) {
-            if (index == 1) {
-                result.setGroupId((int) value);
-            }
-            return true;
-        }
-
-        @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == 2) {
-                result.setKey(parseUTF8(buf, fieldLen, currentPos));
-            }
-            return true;
-        }
-
-        @Override
-        public RemoveReq getResult() {
-            return result;
-        }
-    }
+public class RemoveProcessor extends AbstractRaftBizProcessor<KvReq> {
 
     public RemoveProcessor(RaftServer raftServer) {
         super(raftServer);
     }
 
     @Override
-    public DecoderCallback<RemoveReq> createDecoderCallback(int cmd, DecodeContext context) {
-        return context.toDecoderCallback(new RemoveReqDecoderCallback());
+    public DecoderCallback<KvReq> createDecoderCallback(int cmd, DecodeContext context) {
+        DecodeContextEx e = (DecodeContextEx) context;
+        return context.toDecoderCallback(e.kvReqCallback());
     }
 
     @Override
-    protected int getGroupId(ReadPacket<RemoveReq> frame) {
+    protected int getGroupId(ReadPacket<KvReq> frame) {
         return frame.getBody().getGroupId();
     }
 
     @Override
-    protected WritePacket doProcess(ReqInfo<RemoveReq> reqInfo) {
-        RemoveReq req = reqInfo.getReqFrame().getBody();
+    protected WritePacket doProcess(ReqInfo<KvReq> reqInfo) {
+        KvReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, new StrEncoder(req.getKey()), null,
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, new ByteArrayEncoder(req.getKey()), null,
                 reqContext.getTimeout(), false);
         reqInfo.getRaftGroup().submitLinearTask(ri, new RaftCallback() {
             @Override
