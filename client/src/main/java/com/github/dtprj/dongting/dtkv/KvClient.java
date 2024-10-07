@@ -15,18 +15,17 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
-import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.RpcCallback;
-import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
 import com.github.dtprj.dongting.raft.RaftClient;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -45,24 +44,9 @@ public class KvClient extends AbstractLifeCircle {
     public CompletableFuture<Void> put(int groupId, String key, byte[] value, DtTime timeout) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
-        SmallNoCopyWritePacket wf = new SmallNoCopyWritePacket() {
-
-            private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
-
-            @Override
-            protected void encodeBody(ByteBuffer buf) {
-                PbUtil.writeUnsignedInt32(buf, 1, groupId);
-                PbUtil.writeBytes(buf, 2, keyBytes);
-                PbUtil.writeBytes(buf, 3, value);
-            }
-
-            @Override
-            protected int calcActualBodySize() {
-                return PbUtil.accurateUnsignedIntSize(1, groupId)
-                        + PbUtil.accurateLengthDelimitedSize(2, keyBytes.length)
-                        + PbUtil.accurateLengthDelimitedSize(3, value.length);
-            }
-        };
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
+                new ByteArrayEncoder(value), null, null, null);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
         CompletableFuture<Void> f = new CompletableFuture<>();
         RpcCallback<Void> c = RpcCallback.create(f, p -> {
@@ -72,59 +56,33 @@ public class KvClient extends AbstractLifeCircle {
             }
             return null;
         });
-        raftClient.sendRequest(groupId, wf, ctx -> DecoderCallback.VOID_DECODE_CALLBACK, timeout, c);
+        raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
         return f;
     }
 
     public CompletableFuture<KvNode> get(int groupId, String key, DtTime timeout) {
         Objects.requireNonNull(key);
-        SmallNoCopyWritePacket wf = new SmallNoCopyWritePacket() {
-
-            private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
-
-            @Override
-            protected void encodeBody(ByteBuffer buf) {
-                PbUtil.writeUnsignedInt32(buf, 1, groupId);
-                PbUtil.writeBytes(buf, 2, keyBytes);
-            }
-
-            @Override
-            protected int calcActualBodySize() {
-                return PbUtil.accurateUnsignedIntSize(1, groupId)
-                        + PbUtil.accurateLengthDelimitedSize(2, keyBytes.length);
-            }
-        };
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
+                null, null, null, null);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_GET);
         CompletableFuture<KvNode> f = new CompletableFuture<>();
-        RpcCallback<KvNode> c = RpcCallback.create(f, p -> {
+        RpcCallback<KvResp> c = RpcCallback.create(f, p -> {
             int bc = p.getBizCode();
             if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
                 f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
             }
-            return p.getBody();
+            return p.getBody().getResult();
         });
-        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(new KvNode.Callback()), timeout, c);
+        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(new KvResp.Callback()), timeout, c);
         return f;
     }
 
     public CompletableFuture<Void> remove(int groupId, String key, DtTime timeout) {
         Objects.requireNonNull(key);
-        SmallNoCopyWritePacket wf = new SmallNoCopyWritePacket() {
-
-            private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
-
-            @Override
-            protected void encodeBody(ByteBuffer buf) {
-                PbUtil.writeUnsignedInt32(buf, 1, groupId);
-                PbUtil.writeBytes(buf, 2, keyBytes);
-            }
-
-            @Override
-            protected int calcActualBodySize() {
-                return PbUtil.accurateUnsignedIntSize(1, groupId)
-                        + PbUtil.accurateLengthDelimitedSize(2, keyBytes.length);
-            }
-        };
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
+                null, null, null, null);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_REMOVE);
         CompletableFuture<Void> f = new CompletableFuture<>();
         RpcCallback<Void> c = RpcCallback.create(f, p -> {
@@ -134,7 +92,7 @@ public class KvClient extends AbstractLifeCircle {
             }
             return null;
         });
-        raftClient.sendRequest(groupId, wf, ctx -> DecoderCallback.VOID_DECODE_CALLBACK, timeout, c);
+        raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
         return f;
     }
 

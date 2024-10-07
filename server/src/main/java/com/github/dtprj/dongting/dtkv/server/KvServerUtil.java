@@ -29,8 +29,9 @@ public class KvServerUtil {
      */
     public static void initKvServer(RaftServer server){
         NioServer nioServer = server.getServiceNioServer();
-        nioServer.register(Commands.DTKV_GET, new GetProcessor(server));
-        nioServer.register(Commands.DTKV_PUT, new PutProcessor(server));
-        nioServer.register(Commands.DTKV_REMOVE, new RemoveProcessor(server));
+        KvProcessor p = new KvProcessor(server);
+        nioServer.register(Commands.DTKV_GET, p);
+        nioServer.register(Commands.DTKV_PUT, p);
+        nioServer.register(Commands.DTKV_REMOVE, p);
     }
 }

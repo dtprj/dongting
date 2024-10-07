@@ -132,4 +132,15 @@ public class KvResp implements Encodable {
         }
     }
 
+    public KvNode getResult() {
+        return result;
+    }
+
+    public List<KvResult> getResults() {
+        return results;
+    }
+
+    public List<KvNode> getChildren() {
+        return children;
+    }
 }
