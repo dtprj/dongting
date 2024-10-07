@@ -19,8 +19,8 @@ import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
-import com.github.dtprj.dongting.net.RpcEncodeContext;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.util.CodecTestUtil;
@@ -66,7 +66,7 @@ public class AppendReqWritePacketTest {
     private void testEncode0(boolean addHeader, boolean addBody) {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
         ByteBuffer buf = ByteBuffer.allocate(f.actualBodySize());
-        Assertions.assertTrue(f.encodeBody(new RpcEncodeContext(null), buf));
+        Assertions.assertTrue(f.encodeBody(new EncodeContext(null), buf));
         assertEquals(buf.position(), f.actualBodySize());
 
         buf.clear();
@@ -90,7 +90,7 @@ public class AppendReqWritePacketTest {
 
     private void testSmallBufferEncode0(boolean addHeader, boolean addBody) {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
-        RpcEncodeContext context = new RpcEncodeContext(null);
+        EncodeContext context = new EncodeContext(null);
         DecodeContext decodeContext = CodecTestUtil.createContext();
         AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory);
         PbParser p = new PbParser();

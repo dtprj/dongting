@@ -33,7 +33,7 @@ class KvImpl {
     // with each step only accessing a portion of the map. Therefore, ConcurrentHashMap is needed here.
     final ConcurrentHashMap<String, KvNodeHolder> map;
 
-    public static final char SEPARATOR = '/';
+    public static final char SEPARATOR = '.';
 
     // for fast access root dir
     final KvNodeHolder root;
@@ -58,11 +58,14 @@ class KvImpl {
         writeLock = lock.writeLock();
     }
 
-    private KvResult checkKey(String key) {
+    private KvResult checkKey(String key, boolean allowEmpty) {
         if (key == null || key.isEmpty()) {
-            return new KvResult(KvCodes.CODE_KEY_IS_NULL);
+            if (allowEmpty) {
+                return null;
+            } else {
+                return new KvResult(KvCodes.CODE_KEY_IS_NULL);
+            }
         }
-        key = key.trim();
         if (key.charAt(0) == SEPARATOR || key.charAt(key.length() - 1) == SEPARATOR) {
             return new KvResult(KvCodes.CODE_INVALID_KEY);
         }
@@ -79,13 +82,19 @@ class KvImpl {
      * the raftIndex parameter, and this does not violate linearizability.
      */
     public KvResult get(@SuppressWarnings("unused") long raftIndex, String key) {
-        KvResult r = checkKey(key);
+        key = key == null ? "" : key.trim();
+        KvResult r = checkKey(key, true);
         if (r != null) {
             return r;
         }
         readLock.lock();
         try {
-            KvNodeHolder h = map.get(key);
+            KvNodeHolder h;
+            if (key == null || key.isEmpty()) {
+                h = root;
+            } else {
+                h = map.get(key);
+            }
             if (h == null) {
                 return KvResult.NOT_FOUND;
             }
@@ -108,7 +117,7 @@ class KvImpl {
     }
 
     protected KvResult doPut(long index, String key, byte[] data, boolean lock) {
-        KvResult r = checkKey(key);
+        KvResult r = checkKey(key, false);
         if (r != null) {
             return r;
         }
@@ -277,7 +286,7 @@ class KvImpl {
     }
 
     public KvResult remove(long index, String key) {
-        KvResult r = checkKey(key);
+        KvResult r = checkKey(key, false);
         if (r != null) {
             return r;
         }

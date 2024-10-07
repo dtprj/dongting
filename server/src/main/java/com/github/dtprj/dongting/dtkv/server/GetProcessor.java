@@ -17,10 +17,11 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvReq;
+import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WritePacket;
@@ -29,6 +30,8 @@ import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * @author huangli
@@ -62,8 +65,10 @@ public class GetProcessor extends AbstractRaftBizProcessor<KvReq> {
                 processError(reqInfo, ex);
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
-                KvResult r = dtKV.get(logIndex, frame.getBody().getKey());
-                KvNode.WritePacket wf = new KvNode.WritePacket(r.getData());
+                byte[] bs = frame.getBody().getKey();
+                KvResult r = dtKV.get(logIndex, new String(bs, StandardCharsets.UTF_8));
+                KvResp resp = new KvResp(r.getData(), null, null);
+                EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
                 wf.setRespCode(CmdCodes.SUCCESS);
                 wf.setBizCode(r.getBizCode());
                 writeResp(reqInfo, wf);

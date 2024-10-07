@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -40,6 +39,7 @@ import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -126,22 +126,17 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     private Object exec0(long index, RaftInput input, KvStatus kvStatus) {
-        StrEncoder key = (StrEncoder) input.getHeader();
+        ByteArrayEncoder key = (ByteArrayEncoder) input.getHeader();
+        String ks = key == null ? null : new String(key.getData(), StandardCharsets.UTF_8);
         switch (input.getBizType()) {
             case BIZ_TYPE_GET:
-                return kvStatus.kvImpl.get(index, key.getStr());
+                return kvStatus.kvImpl.get(index, ks);
             case BIZ_TYPE_PUT:
-                ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
-                if (data == null) {
-                    return KvCodes.CODE_KEY_IS_NULL;
-                }
-                byte[] bs = data.getData();
-                if (bs == null || bs.length == 0) {
-                    return KvCodes.CODE_VALUE_IS_NULL;
-                }
-                return kvStatus.kvImpl.put(index, key.getStr(), bs);
+                ByteArrayEncoder body = (ByteArrayEncoder) input.getBody();
+                byte[] bs = body == null ? null : body.getData();
+                return kvStatus.kvImpl.put(index, ks, bs);
             case BIZ_TYPE_REMOVE:
-                return kvStatus.kvImpl.remove(index, key.getStr());
+                return kvStatus.kvImpl.remove(index, ks);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
