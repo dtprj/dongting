@@ -273,7 +273,7 @@ public class NioServer extends NioNet implements Runnable {
 
         @Override
         public DecoderCallback<RefBuffer> createDecoderCallback(int command, DecodeContext c) {
-            return c.createRefBufferDecoderCallback(true);
+            return c.refBufferDecoderCallback(true);
         }
 
     }

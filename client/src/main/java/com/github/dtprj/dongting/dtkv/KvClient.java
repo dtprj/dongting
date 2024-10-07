@@ -74,7 +74,7 @@ public class KvClient extends AbstractLifeCircle {
             }
             return p.getBody().getResult();
         });
-        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(new KvResp.Callback()), timeout, c);
+        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
         return f;
     }
 

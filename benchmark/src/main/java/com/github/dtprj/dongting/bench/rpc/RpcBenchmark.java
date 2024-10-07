@@ -132,7 +132,7 @@ public class RpcBenchmark extends BenchBase {
 
             if (SYNC) {
                 CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(
-                        req, ctx -> ctx.createRefBufferDecoderCallback(true), timeout);
+                        req, ctx -> ctx.refBufferDecoderCallback(true), timeout);
                 ReadPacket<RefBuffer> rf = f.get();
                 success(state);
                 RefBuffer rc = rf.getBody();
@@ -153,7 +153,7 @@ public class RpcBenchmark extends BenchBase {
                         RpcBenchmark.this.fail(state);
                     }
                 };
-                client.sendRequest(req, ctx -> ctx.createRefBufferDecoderCallback(true), timeout, c);
+                client.sendRequest(req, ctx -> ctx.refBufferDecoderCallback(true), timeout, c);
             }
         } catch (Exception e) {
             fail(state);

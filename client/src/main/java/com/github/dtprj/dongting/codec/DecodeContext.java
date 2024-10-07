@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -40,6 +41,7 @@ public class DecodeContext {
 
     // caches
     private PbNoCopyDecoderCallback pbNoCopyDecoderCallback;
+    private KvResp.Callback kvRespCallback;
     private RefBufferDecoderCallback refBufferDecoderCallback;
     private RefBufferDecoderCallback refBufferDecoderCallbackPlain;
 
@@ -125,7 +127,7 @@ public class DecodeContext {
         return (DecoderCallback<T>) c;
     }
 
-    public RefBufferDecoderCallback createRefBufferDecoderCallback(boolean plain) {
+    public RefBufferDecoderCallback refBufferDecoderCallback(boolean plain) {
         RefBufferDecoderCallback c;
         if (plain) {
             c = refBufferDecoderCallbackPlain;
@@ -141,5 +143,12 @@ public class DecodeContext {
             }
         }
         return c;
+    }
+
+    public KvResp.Callback kvRespCallback() {
+        if (kvRespCallback == null) {
+            kvRespCallback = new KvResp.Callback();
+        }
+        return kvRespCallback;
     }
 }
