@@ -28,7 +28,8 @@ public abstract class RetryableWritePacket extends WritePacket {
         // perform any cleanup in the callback of RPC.
     }
 
-    public void reset() {
-        super.reset();
+    @Override
+    public boolean canRetry() {
+        return true;
     }
 }

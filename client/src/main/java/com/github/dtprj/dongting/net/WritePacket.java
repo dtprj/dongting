@@ -165,9 +165,13 @@ public abstract class WritePacket extends Packet implements Encodable {
     protected void doClean() {
     }
 
-    void reset() {
+    public void prepareRetry() {
         use = false;
         cleaned = false;
+    }
+
+    public boolean canRetry() {
+        return false;
     }
 
 }

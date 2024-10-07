@@ -62,4 +62,9 @@ public abstract class CopyWritePacket extends WritePacket {
             tempRefBuffer = null;
         }
     }
+
+    @Override
+    public boolean canRetry() {
+        return true;
+    }
 }
