@@ -29,11 +29,15 @@ import java.util.function.Supplier;
  * @author huangli
  */
 class KvImpl {
+    public static final char SEPARATOR = '.';
+    private static final int MAX_KEY_SIZE = 8 * 1024;
+    private static final int MAX_VALUE_SIZE = 1024 * 1024;
+
+
     // When iterating over this map, we need to divide the process into multiple steps,
     // with each step only accessing a portion of the map. Therefore, ConcurrentHashMap is needed here.
     final ConcurrentHashMap<String, KvNodeHolder> map;
 
-    public static final char SEPARATOR = '.';
 
     // for fast access root dir
     final KvNodeHolder root;
@@ -50,7 +54,7 @@ class KvImpl {
     public KvImpl(Timestamp ts, int initCapacity, float loadFactor) {
         this.ts = ts;
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
-        KvNodeEx n = new KvNodeEx(0, 0, 0, 0, true, null);
+        KvNodeEx n = new KvNodeEx(0, 0, 0, 0, null);
         this.root = new KvNodeHolder("", "", n, null);
         this.map.put("", root);
         ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
@@ -59,7 +63,7 @@ class KvImpl {
     }
 
     private KvResult checkKey(String key, boolean allowEmpty) {
-        if (key == null || key.isEmpty()) {
+        if (key.isEmpty()) {
             if (allowEmpty) {
                 return null;
             } else {
@@ -69,7 +73,7 @@ class KvImpl {
         if (key.charAt(0) == SEPARATOR || key.charAt(key.length() - 1) == SEPARATOR) {
             return new KvResult(KvCodes.CODE_INVALID_KEY);
         }
-        if (key.length() > 8 * 1024) {
+        if (key.length() > MAX_KEY_SIZE) {
             return new KvResult(KvCodes.CODE_KEY_TOO_LONG);
         }
         return null;
@@ -90,7 +94,7 @@ class KvImpl {
         readLock.lock();
         try {
             KvNodeHolder h;
-            if (key == null || key.isEmpty()) {
+            if (key.isEmpty()) {
                 h = root;
             } else {
                 h = map.get(key);
@@ -113,10 +117,14 @@ class KvImpl {
         if (data == null || data.length == 0) {
             return new KvResult(KvCodes.CODE_VALUE_IS_NULL);
         }
+        if (data.length > MAX_VALUE_SIZE) {
+            return new KvResult(KvCodes.CODE_VALUE_TOO_LONG);
+        }
         return doPut(index, key, data, true);
     }
 
     protected KvResult doPut(long index, String key, byte[] data, boolean lock) {
+        key = key == null ? "" : key.trim();
         KvResult r = checkKey(key, false);
         if (r != null) {
             return r;
@@ -145,7 +153,7 @@ class KvImpl {
             long timestamp = ts.getWallClockMillis();
             if (h == null) {
                 String keyInDir = key.substring(lastIndexOfSep + 1);
-                KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, data == null, data);
+                KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, data);
                 h = new KvNodeHolder(key, keyInDir, newKvNode, parent);
                 map.put(key, h);
                 parent.latest.children.put(keyInDir, h);
@@ -154,14 +162,14 @@ class KvImpl {
                 overwrite = h.latest.removeAtIndex == 0;
                 KvNodeEx newKvNode;
                 if (overwrite) {
-                    if (data == null) {
+                    if (data == null || data.length == 0) {
                         // mkdir can't overwrite any value
-                        return new KvResult(KvCodes.CODE_EXISTS);
+                        return new KvResult(h.latest.isDir() ? KvCodes.CODE_DIR_EXISTS : KvCodes.CODE_VALUE_EXISTS);
                     }
                     newKvNode = new KvNodeEx(h.latest.getCreateIndex(), h.latest.getCreateTime(),
-                            index, timestamp, false, data);
+                            index, timestamp, data);
                 } else {
-                    newKvNode = new KvNodeEx(index, timestamp, index, timestamp, data == null, data);
+                    newKvNode = new KvNodeEx(index, timestamp, index, timestamp, data);
                 }
                 h.latest = newKvNode;
                 if (maxOpenSnapshotIndex > 0) {
@@ -237,7 +245,7 @@ class KvImpl {
     void installSnapshotPut(EncodeStatus encodeStatus) {
         // do not need lock, no other requests during install snapshot
         KvNodeEx n = new KvNodeEx(encodeStatus.createIndex, encodeStatus.createTime, encodeStatus.createIndex,
-                encodeStatus.updateTime, encodeStatus.valueBytes == null, encodeStatus.valueBytes);
+                encodeStatus.updateTime, encodeStatus.valueBytes);
         if (encodeStatus.keyBytes.length == 0) {
             root.latest = n;
         } else {
@@ -286,6 +294,7 @@ class KvImpl {
     }
 
     public KvResult remove(long index, String key) {
+        key = key == null ? "" : key.trim();
         KvResult r = checkKey(key, false);
         if (r != null) {
             return r;

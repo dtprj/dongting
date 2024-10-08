@@ -41,6 +41,16 @@ public class KvClient extends AbstractLifeCircle {
         this.raftClient = new RaftClient(nioClientConfig);
     }
 
+    private RpcCallback<Void> voidCallback(CompletableFuture<Void> f, int anotherSuccessCode) {
+        return RpcCallback.create(f, p -> {
+            int bc = p.getBizCode();
+            if (bc != KvCodes.CODE_SUCCESS && bc != anotherSuccessCode) {
+                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
+            }
+            return null;
+        });
+    }
+
     public CompletableFuture<Void> put(int groupId, String key, byte[] value, DtTime timeout) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
@@ -49,13 +59,7 @@ public class KvClient extends AbstractLifeCircle {
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
         CompletableFuture<Void> f = new CompletableFuture<>();
-        RpcCallback<Void> c = RpcCallback.create(f, p -> {
-            int bc = p.getBizCode();
-            if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_SUCCESS_OVERWRITE) {
-                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
-            }
-            return null;
-        });
+        RpcCallback<Void> c = voidCallback(f, KvCodes.CODE_SUCCESS_OVERWRITE);
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
         return f;
     }
@@ -85,13 +89,19 @@ public class KvClient extends AbstractLifeCircle {
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_REMOVE);
         CompletableFuture<Void> f = new CompletableFuture<>();
-        RpcCallback<Void> c = RpcCallback.create(f, p -> {
-            int bc = p.getBizCode();
-            if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
-                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
-            }
-            return null;
-        });
+        RpcCallback<Void> c = voidCallback(f, KvCodes.CODE_NOT_FOUND);
+        raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
+        return f;
+    }
+
+    public CompletableFuture<Void> mkdir(int groupId, String key, DtTime timeout) {
+        Objects.requireNonNull(key);
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
+                null, null, null, null);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
+        wf.setCommand(Commands.DTKV_MKDIR);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RpcCallback<Void> c = voidCallback(f, KvCodes.CODE_DIR_EXISTS);
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
         return f;
     }

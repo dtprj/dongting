@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -64,19 +65,27 @@ public class KvProcessor extends AbstractRaftBizProcessor<KvReq> {
     @Override
     protected WritePacket doProcess(ReqInfo<KvReq> reqInfo) {
         ReadPacket<KvReq> frame = reqInfo.getReqFrame();
+        KvReq req = frame.getBody();
         switch (frame.getCommand()) {
             case Commands.DTKV_GET:
-                return doGet(reqInfo, frame);
+                doGet(reqInfo, frame);
+                break;
             case Commands.DTKV_PUT:
-                return doPut(reqInfo);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArrayEncoder(req.getKey()), req.getValue());
+                break;
             case Commands.DTKV_REMOVE:
-                return doRemove(reqInfo);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, new ByteArrayEncoder(req.getKey()), null);
+                break;
+            case Commands.DTKV_MKDIR:
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, new ByteArrayEncoder(req.getKey()), null);
+                break;
             default:
                 throw new RaftException("unknown command: " + frame.getCommand());
         }
+        return null;
     }
 
-    private WritePacket doGet(ReqInfo<KvReq> reqInfo, ReadPacket<KvReq> frame) {
+    private void doGet(ReqInfo<KvReq> reqInfo, ReadPacket<KvReq> frame) {
         ReqContext reqContext = reqInfo.getReqContext();
         RaftGroup group = reqInfo.getRaftGroup();
         group.getLeaseReadIndex(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {
@@ -85,7 +94,8 @@ public class KvProcessor extends AbstractRaftBizProcessor<KvReq> {
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
                 byte[] bs = frame.getBody().getKey();
-                KvResult r = dtKV.get(logIndex, new String(bs, StandardCharsets.UTF_8));
+                String key = bs == null ? null : new String(bs, StandardCharsets.UTF_8);
+                KvResult r = dtKV.get(logIndex, key);
                 KvResp resp = new KvResp(r.getData(), null, null);
                 EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
                 wf.setRespCode(CmdCodes.SUCCESS);
@@ -93,23 +103,11 @@ public class KvProcessor extends AbstractRaftBizProcessor<KvReq> {
                 writeResp(reqInfo, wf);
             }
         });
-        return null;
     }
 
-    private WritePacket doRemove(ReqInfo<KvReq> reqInfo) {
-        KvReq req = reqInfo.getReqFrame().getBody();
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, new ByteArrayEncoder(req.getKey()), null,
-                reqInfo.getReqContext().getTimeout(), false);
+    private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, Encodable header, Encodable body) {
+        RaftInput ri = new RaftInput(bizType, header, body, reqInfo.getReqContext().getTimeout(), false);
         reqInfo.getRaftGroup().submitLinearTask(ri, new RC(reqInfo));
-        return null;
-    }
-
-    protected WritePacket doPut(ReqInfo<KvReq> reqInfo) {
-        KvReq req = reqInfo.getReqFrame().getBody();
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new ByteArrayEncoder(req.getKey()), req.getValue(),
-                reqInfo.getReqContext().getTimeout(), false);
-        reqInfo.getRaftGroup().submitLinearTask(ri, new RC(reqInfo));
-        return null;
     }
 
     private class RC implements RaftCallback {

@@ -54,6 +54,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_TYPE_GET = 0;
     public static final int BIZ_TYPE_PUT = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
+    public static final int BIZ_TYPE_MKDIR = 3;
 
     private Executor dtkvExecutor;
 
@@ -77,14 +78,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     public DecoderCallback<? extends Encodable> createHeaderCallback(int bizType, DecodeContext context) {
-        switch (bizType) {
-            case BIZ_TYPE_GET:
-            case BIZ_TYPE_REMOVE:
-            case BIZ_TYPE_PUT:
-                return new StrEncoder.Callback();
-            default:
-                throw new IllegalArgumentException("unknown bizType " + bizType);
-        }
+        return new StrEncoder.Callback();
     }
 
     @Override
@@ -92,6 +86,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
+            case BIZ_TYPE_MKDIR:
                 return null;
             case BIZ_TYPE_PUT:
                 return new RefBufferDecoderCallback();
@@ -137,6 +132,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 return kvStatus.kvImpl.put(index, ks, bs);
             case BIZ_TYPE_REMOVE:
                 return kvStatus.kvImpl.remove(index, ks);
+            case BIZ_TYPE_MKDIR:
+                return kvStatus.kvImpl.mkdir(index, ks);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
