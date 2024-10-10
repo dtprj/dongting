@@ -52,7 +52,6 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
      */
     @Override
     public final WritePacket process(ReadPacket<T> packet, ReqContext reqContext) {
-        Object body = packet.getBody();
         int groupId = getGroupId(packet);
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
@@ -61,12 +60,6 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
             EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_FOUND);
             errorResp.setMsg("raft group not found: " + groupId);
             log.error(errorResp.getMsg());
-            return errorResp;
-        }
-        if (body == null) {
-            // no data need invoke clean
-            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-            errorResp.setMsg("empty body");
             return errorResp;
         }
         GroupComponents gc = g.getGroupComponents();
