@@ -36,11 +36,15 @@ public class EncodeUtil {
         }
         if (c.pending == 0) {
             int r = destBuffer.remaining();
-            int prefixSize = PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, o.actualSize());
+            int actualSize = o.actualSize();
+            if (actualSize == 0) {
+                return true;
+            }
+            int prefixSize = PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, actualSize);
             if (r < prefixSize) {
                 return false;
             }
-            PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, prefixSize);
+            PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, actualSize);
             c.pending = 1;
         }
         EncodeContext sub;
@@ -68,7 +72,7 @@ public class EncodeUtil {
     }
 
     public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
-        if (o == null) {
+        if (o == null || o.length == 0) {
             return true;
         }
         if (context.pending == 0) {
@@ -77,7 +81,7 @@ public class EncodeUtil {
             if (r < prefixSize) {
                 return false;
             }
-            PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, prefixSize);
+            PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, o.length);
             context.pending = 1;
         }
         int arrOffset = context.pending - 1;
@@ -98,7 +102,7 @@ public class EncodeUtil {
     }
 
     public static int actualSizeOfBytes(int pbIndex, List<byte[]> list) {
-        if (list == null) {
+        if (list == null || list.isEmpty()) {
             return 0;
         }
         int size = 0;
@@ -112,7 +116,7 @@ public class EncodeUtil {
     }
 
     public static boolean encodeBytes(EncodeContext c, ByteBuffer dest, int pbIndex, List<byte[]> list) {
-        if (list == null) {
+        if (list == null || list.isEmpty()) {
             return true;
         }
         EncodeContext sub;
@@ -128,7 +132,7 @@ public class EncodeUtil {
         int i = sub.stage;
         for (; i < count; i++) {
             byte[] bs = list.get(i);
-            if (!encode(c, dest, pbIndex, bs)) {
+            if (!encode(sub, dest, pbIndex, bs)) {
                 sub.stage = i;
                 return false;
             }
@@ -139,7 +143,7 @@ public class EncodeUtil {
     }
 
     public static int actualSizeOfObjs(int pbIndex, List<? extends Encodable> list) {
-        if (list == null) {
+        if (list == null || list.isEmpty()) {
             return 0;
         }
         int size = 0;
@@ -153,7 +157,7 @@ public class EncodeUtil {
     }
 
     public static boolean encodeObjs(EncodeContext c, ByteBuffer dest, int pbIndex, List<? extends Encodable> list) {
-        if (list == null) {
+        if (list == null || list.isEmpty()) {
             return true;
         }
         EncodeContext sub;
@@ -169,7 +173,7 @@ public class EncodeUtil {
         int i = sub.stage;
         for (; i < count; i++) {
             Encodable o = list.get(i);
-            if (!encode(c, dest, pbIndex, o)) {
+            if (!encode(sub, dest, pbIndex, o)) {
                 sub.stage = i;
                 return false;
             }

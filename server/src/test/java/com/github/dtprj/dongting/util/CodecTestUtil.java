@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.util;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 
@@ -25,10 +26,17 @@ import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
  * @author huangli
  */
 public class CodecTestUtil {
-    public static DecodeContextEx createContext() {
-        ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
+
+    private final static ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
+    private final static RefBufferFactory refBufferFactory = new RefBufferFactory(pool, 128);
+
+    public static DecodeContextEx decodeContext() {
         DecodeContextEx c = new DecodeContextEx();
-        c.setHeapPool(new RefBufferFactory(pool, 128));
+        c.setHeapPool(refBufferFactory);
         return c;
+    }
+
+    public static EncodeContext encodeContext() {
+        return new EncodeContext(refBufferFactory);
     }
 }

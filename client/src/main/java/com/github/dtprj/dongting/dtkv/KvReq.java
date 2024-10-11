@@ -71,46 +71,47 @@ public class KvReq extends RaftReq implements Encodable {
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         int remaining = destBuffer.remaining();
         if (context.stage == EncodeContext.STAGE_BEGIN) {
-            if (remaining < PbUtil.maxUnsignedIntSize()) {
-                return false;
+            if (groupId != 0) {
+                if (remaining < PbUtil.maxUnsignedIntSize()) {
+                    return false;
+                }
+                PbUtil.writeUnsignedInt32(destBuffer, IDX_GROUP_ID, groupId);
             }
-            PbUtil.writeUnsignedInt32(destBuffer, IDX_GROUP_ID, groupId);
             context.stage = IDX_GROUP_ID;
         }
         if (context.stage == IDX_GROUP_ID) {
-            if (EncodeUtil.encode(context, destBuffer, IDX_KEY, key)) {
-                context.stage = IDX_KEY;
-            } else {
+            if (key != null && !EncodeUtil.encode(context, destBuffer, IDX_KEY, key)) {
                 return false;
             }
+            context.stage = IDX_KEY;
         }
         if (context.stage == IDX_KEY) {
-            if (EncodeUtil.encode(context, destBuffer, IDX_VALUE, value)) {
-                context.stage = IDX_VALUE;
-            } else {
+            if (value != null && !EncodeUtil.encode(context, destBuffer, IDX_VALUE, value)) {
                 return false;
+            } else {
+                context.stage = IDX_VALUE;
             }
         }
         if (context.stage == IDX_VALUE) {
-            if (EncodeUtil.encodeBytes(context, destBuffer, IDX_KEYS, keys)) {
-                context.stage = IDX_KEYS;
-            } else {
+            if (keys != null && !EncodeUtil.encodeBytes(context, destBuffer, IDX_KEYS, keys)) {
                 return false;
+            } else {
+                context.stage = IDX_KEYS;
             }
         }
         if (context.stage == IDX_KEYS) {
-            if (EncodeUtil.encodeObjs(context, destBuffer, IDX_VALUES, values)) {
-                context.stage = IDX_VALUES;
-            } else {
+            if (values != null && !EncodeUtil.encodeObjs(context, destBuffer, IDX_VALUES, values)) {
                 return false;
+            } else {
+                context.stage = IDX_VALUES;
             }
         }
         if (context.stage == IDX_VALUES) {
-            if (EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
+            if (expectValue!=null && !EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
+                return false;
+            } else {
                 context.stage = EncodeContext.STAGE_END;
                 return true;
-            } else {
-                return false;
             }
         }
         throw new CodecException(context);

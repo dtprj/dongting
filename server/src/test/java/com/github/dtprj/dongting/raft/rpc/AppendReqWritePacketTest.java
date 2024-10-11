@@ -71,7 +71,7 @@ public class AppendReqWritePacketTest {
 
         buf.clear();
 
-        DecodeContext decodeContext = CodecTestUtil.createContext();
+        DecodeContext decodeContext = CodecTestUtil.decodeContext();
         AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
@@ -91,7 +91,7 @@ public class AppendReqWritePacketTest {
     private void testSmallBufferEncode0(boolean addHeader, boolean addBody) {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
         EncodeContext context = new EncodeContext(null);
-        DecodeContext decodeContext = CodecTestUtil.createContext();
+        DecodeContext decodeContext = CodecTestUtil.decodeContext();
         AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
