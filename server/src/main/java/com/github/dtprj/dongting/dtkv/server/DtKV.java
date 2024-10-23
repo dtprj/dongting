@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
@@ -89,7 +88,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_MKDIR:
                 return null;
             case BIZ_TYPE_PUT:
-                return new RefBufferDecoderCallback();
+                return new ByteArrayEncoder.Callback();
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }
