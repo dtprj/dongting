@@ -76,7 +76,8 @@ public class KvClient extends AbstractLifeCircle {
             if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
                 f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
             }
-            return p.getBody().getResult();
+            KvResp resp = p.getBody();
+            return resp == null ? null : resp.getResult();
         });
         raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
         return f;
