@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.codec.StrEncoder;
@@ -33,50 +34,12 @@ import java.util.ArrayList;
  */
 public class KvReqTest {
 
-    private final String KEY = "test_key";
-    private final String VALUE = "test_value";
-    private final String EXPECT_VALUE = "test_expect_value";
-    private final int LOOP = 3;
-
-    private KvReq buildReq() {
-        ArrayList<byte[]> keys = new ArrayList<>();
-        ArrayList<StrEncoder> values = new ArrayList<>();
-        for (int i = 0; i < LOOP; i++) {
-            keys.add((KEY + i).getBytes());
-            values.add(new StrEncoder(VALUE + i));
-        }
-        return new KvReq(1, KEY.getBytes(), new StrEncoder(VALUE),
-                keys, values, new StrEncoder(EXPECT_VALUE));
-    }
-
-    @Test
-    public void testFullBuffer() throws Exception {
-        KvReq req = buildReq();
-        ByteBuffer buf = ByteBuffer.allocate(1024);
-        EncodeContext encodeContext = CodecTestUtil.encodeContext();
-        Assertions.assertTrue(req.encode(encodeContext, buf));
-        buf.flip();
-        check1(buf);
-        buf.position(0);
-        check2(buf);
-    }
-
-    @Test
-    public void testSmallBuffer() {
-        KvReq req = buildReq();
-        ByteBuffer smallBuf = ByteBuffer.allocate(1);
-        ByteBuffer bigBuf = ByteBuffer.allocate(32);
-        EncodeContext encodeContext = CodecTestUtil.encodeContext();
-
-        PbParser p = new PbParser();
-        KvReqCallback callback = new KvReqCallback();
-        p.prepareNext(CodecTestUtil.decodeContext(), callback, req.actualSize());
-
+    static Object encodeAndParse(ByteBuffer smallBuf, ByteBuffer bigBuf, Encodable e, EncodeContext c, PbParser p) {
         ByteBuffer buf = smallBuf;
-        while (!req.encode(encodeContext, buf)) {
+        while (!e.encode(c, buf)) {
             if (buf.position() == 0) {
                 buf = bigBuf;
-                if(req.encode(encodeContext, buf)) {
+                if (e.encode(c, buf)) {
                     break;
                 }
             }
@@ -86,38 +49,75 @@ public class KvReqTest {
             buf = smallBuf;
         }
         buf.flip();
-        KvReq r = (KvReq) p.parse(buf);
-        compare(r);
+        Object o = p.parse(buf);
+        Assertions.assertNotNull(o);
+        return o;
     }
 
-    private void check1(ByteBuffer buf) throws Exception {
-        DtKv.KvReq req = DtKv.KvReq.parseFrom(buf);
-        Assertions.assertEquals(1, req.getGroupId());
-        Assertions.assertEquals(KEY, req.getKey());
-        Assertions.assertEquals(VALUE, new String(req.getValue().toByteArray()));
-        Assertions.assertEquals(EXPECT_VALUE, new String(req.getExpectValue().toByteArray()));
-        for (int i = 0; i < LOOP; i++) {
-            Assertions.assertEquals(KEY + i, req.getKeys(i));
-            Assertions.assertEquals(VALUE + i, new String(req.getValues(i).toByteArray()));
+    private KvReq buildReq() {
+        ArrayList<byte[]> keys = new ArrayList<>();
+        ArrayList<StrEncoder> values = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            keys.add(("test_key" + i).getBytes());
+            values.add(new StrEncoder("test_value" + i));
         }
+        return new KvReq(1, "test_key".getBytes(), new StrEncoder("test_value"),
+                keys, values, new StrEncoder("test_expect_value"));
     }
 
-    private void check2(ByteBuffer buf) {
+    @Test
+    public void testFullBuffer() throws Exception {
+        KvReq req = buildReq();
+        ByteBuffer buf = ByteBuffer.allocate(256);
+        EncodeContext encodeContext = CodecTestUtil.encodeContext();
+        Assertions.assertTrue(req.encode(encodeContext, buf));
+        buf.flip();
+        DtKv.KvReq protoReq = DtKv.KvReq.parseFrom(buf);
+        compare1(req, protoReq);
+
+        buf.position(0);
         PbParser p = new PbParser();
         KvReqCallback callback = new KvReqCallback();
         p.prepareNext(CodecTestUtil.decodeContext(), callback, buf.limit());
         KvReq r = (KvReq) p.parse(buf);
-        compare(r);
+        compare2(req, r);
     }
 
-    private void compare(KvReq r) {
-        Assertions.assertEquals(1, r.getGroupId());
-        Assertions.assertEquals(KEY, new String(r.getKey()));
-        Assertions.assertEquals(VALUE, new String(((ByteArrayEncoder) r.getValue()).getData()));
-        Assertions.assertEquals(EXPECT_VALUE, new String(((ByteArrayEncoder) r.getExpectValue()).getData()));
-        for (int i = 0; i < LOOP; i++) {
-            Assertions.assertEquals(KEY + i, new String(r.getKeys().get(i)));
-            Assertions.assertEquals(VALUE + i, new String(((ByteArrayEncoder) r.getValues().get(i)).getData()));
+    @Test
+    public void testSmallBuffer() {
+        KvReq req = buildReq();
+        ByteBuffer smallBuf = ByteBuffer.allocate(1);
+        ByteBuffer bigBuf = ByteBuffer.allocate(256);
+        EncodeContext encodeContext = CodecTestUtil.encodeContext();
+
+        PbParser p = new PbParser();
+        KvReqCallback callback = new KvReqCallback();
+        p.prepareNext(CodecTestUtil.decodeContext(), callback, req.actualSize());
+
+        KvReq r = (KvReq) KvReqTest.encodeAndParse(smallBuf, bigBuf, req, encodeContext, p);
+        compare2(req, r);
+    }
+
+    private void compare1(KvReq expect, DtKv.KvReq req) {
+        Assertions.assertEquals(expect.getGroupId(), req.getGroupId());
+        Assertions.assertEquals(new String(expect.getKey()), req.getKey());
+        Assertions.assertEquals(((StrEncoder) expect.getValue()).getStr(), req.getValue().toStringUtf8());
+        Assertions.assertEquals(((StrEncoder) expect.getExpectValue()).getStr(), req.getExpectValue().toStringUtf8());
+        for (int i = 0; i < expect.getKeys().size(); i++) {
+            Assertions.assertEquals(new String(expect.getKeys().get(i)), req.getKeys(i));
+            StrEncoder s = (StrEncoder) expect.getValues().get(i);
+            Assertions.assertEquals(s.getStr(), req.getValues(i).toStringUtf8());
+        }
+    }
+
+    private void compare2(KvReq expect, KvReq r) {
+        Assertions.assertEquals(expect.getGroupId(), r.getGroupId());
+        Assertions.assertArrayEquals(expect.getKey(), r.getKey());
+        Assertions.assertArrayEquals(((StrEncoder) expect.getValue()).getStr().getBytes(), ((ByteArrayEncoder) r.getValue()).getData());
+        Assertions.assertArrayEquals(((StrEncoder) expect.getExpectValue()).getStr().getBytes(), ((ByteArrayEncoder) r.getExpectValue()).getData());
+        for (int i = 0; i < expect.getKeys().size(); i++) {
+            Assertions.assertArrayEquals(expect.getKeys().get(i), r.getKeys().get(i));
+            Assertions.assertArrayEquals(((StrEncoder) expect.getValues().get(i)).getStr().getBytes(), ((ByteArrayEncoder) r.getValues().get(i)).getData());
         }
     }
 

@@ -20,8 +20,8 @@ message KvNode {
   bytes value = 2;
   fixed64 create_index = 3;
   fixed64 create_time = 4;
-  fixed64 modify_index = 5;
-  fixed64 modify_time = 6;
+  fixed64 update_index = 5;
+  fixed64 update_time = 6;
 }
 
 message KvResult {

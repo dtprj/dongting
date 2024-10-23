@@ -23,6 +23,7 @@ import org.opentest4j.AssertionFailedError;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -105,5 +106,14 @@ public class TestUtil {
 
     public static ByteBufferPool directPool(){
         return new DefaultPoolFactory().createPool(new Timestamp(), true);
+    }
+
+    public static String randomStr(int length) {
+        Random r = new Random();
+        byte[] bytes = new byte[length];
+        for (int i = 0; i < length; i++) {
+            bytes[i] = (byte) (r.nextInt(26) + 'a');
+        }
+        return new String(bytes);
     }
 }

@@ -68,7 +68,7 @@ public class KvResult implements Encodable {
             c.stage = IDX_BIZ_CODE;
         }
         if (c.stage == IDX_BIZ_CODE) {
-            if (EncodeUtil.encode(c, destBuffer, IDX_BIZ_CODE, data)) {
+            if (EncodeUtil.encode(c, destBuffer, IDX_NODE, data)) {
                 c.stage = EncodeContext.STAGE_END;
                 return true;
             } else {

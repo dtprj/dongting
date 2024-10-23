@@ -58,7 +58,7 @@ public class KvReqCallback extends PbCallback<KvReq> {
                 key = parseBytes(buf, fieldLen, currentPos);
                 break;
             case IDX_VALUE:
-                value = parseStrEncoder(buf, fieldLen, currentPos);
+                value = parseByteArrayEncoder(buf, fieldLen, currentPos);
                 break;
             case IDX_KEYS:
                 if (keys == null) {
