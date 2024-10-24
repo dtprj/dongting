@@ -21,15 +21,12 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author huangli
  */
 public abstract class Snapshot {
     private static final DtLog log = DtLogs.getLogger(Snapshot.class);
-    private static final AtomicLong NEXT_ID = new AtomicLong();
-    private final long id = NEXT_ID.incrementAndGet();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final SnapshotInfo snapshotInfo;
 
@@ -52,21 +49,4 @@ public abstract class Snapshot {
     }
 
     protected abstract void doClose();
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof Snapshot) {
-            return id == ((Snapshot)obj).id;
-        }
-        return false;
-    }
-
-    @Override
-    public int hashCode() {
-        return Long.hashCode(id);
-    }
-
-    public long getId() {
-        return id;
-    }
 }

@@ -76,6 +76,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private static final String KEY_PREPARED_OBSERVERS = "preparedObservers";
     private static final String KEY_LAST_CONFIG_CHANGE_INDEX = "lastConfigChangeIndex";
     private static final String KEY_BUFFER_SIZE = "bufferSize";
+    private static final String KEY_LAST_ID = "lastId";
 
     private final RaftGroupConfigEx groupConfig;
     private final ExecutorService ioExecutor;
@@ -84,6 +85,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     private final SaveSnapshotLoopFrame saveLoopFrame;
 
+    private long nextId = 1;
     private File snapshotDir;
 
     private final LinkedList<Pair<File, File>> snapshotFiles = new LinkedList<>();
@@ -155,6 +157,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             Set<Integer> preparedObservers = RaftUtil.strToIdSet(p.get(KEY_PREPARED_OBSERVERS));
             long lastConfigChangeIndex = Long.parseLong(p.get(KEY_LAST_CONFIG_CHANGE_INDEX));
             int bufferSize = Integer.parseInt(p.get(KEY_BUFFER_SIZE));
+            nextId = Long.parseLong(p.get(KEY_LAST_ID)) + 1;
             SnapshotInfo si = new SnapshotInfo(lastIndex, lastTerm, members, observers, preparedMembers,
                     preparedObservers, lastConfigChangeIndex);
 
@@ -212,7 +215,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private FrameCallResult doSave(Void unused) {
-            SaveFrame f = new SaveFrame();
+            SaveFrame f = new SaveFrame(nextId++);
             return Fiber.call(f, this::afterSave);
         }
 
@@ -244,6 +247,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private final SnapshotInfo snapshotInfo = new SnapshotInfo(raftStatus);
 
         private final int bufferSize = groupConfig.getDiskSnapshotBufferSize();
+        private final long id;
         private RefBufferFactory directBufferFactory;
 
 
@@ -258,6 +262,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private boolean success;
         private boolean cancel;
+
+        public SaveFrame(long id) {
+            this.id = id;
+        }
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -302,9 +310,11 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
             this.directBufferFactory = new RefBufferFactory(getFiberGroup().getThread().getDirectPool(), 0);
             readSnapshot = stateMachine.takeSnapshot(snapshotInfo);
+            log.info("begin save snapshot {}. groupId={}, lastIndex={}, lastTerm={}", id,
+                    groupConfig.getGroupId(), snapshotInfo.getLastIncludedIndex(), snapshotInfo.getLastIncludedTerm());
 
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String baseName = sdf.format(new Date()) + "_" + readSnapshot.getId();
+            String baseName = sdf.format(new Date()) + "_" + id;
             File dataFile = new File(snapshotDir, baseName + DATA_SUFFIX);
             this.newIdxFile = new File(snapshotDir, baseName + IDX_SUFFIX);
 
@@ -377,7 +387,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
-            log.info("snapshot data file write success: {}", newDataFile.getFile().getPath());
+            log.info("snapshot {} data file write success: {}", id, newDataFile.getFile().getPath());
 
             statusFile = new StatusFile(newIdxFile, groupConfig);
             return Fiber.call(statusFile.init(), this::afterStatusFileInit);
