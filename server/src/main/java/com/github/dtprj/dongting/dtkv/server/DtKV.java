@@ -28,8 +28,6 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -49,7 +47,6 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class DtKV extends AbstractLifeCircle implements StateMachine {
-    private static final DtLog log = DtLogs.getLogger(DtKV.class);
     public static final int BIZ_TYPE_GET = 0;
     public static final int BIZ_TYPE_PUT = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
@@ -71,7 +68,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         this.config = config;
         this.useSeparateExecutor = kvConfig.isUseSeparateExecutor();
         this.kvConfig = kvConfig;
-        KvImpl kvImpl = new KvImpl(config.getTs(), kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
+        KvImpl kvImpl = new KvImpl(config.getTs(), config.getGroupId(), kvConfig.getInitMapCapacity(),
+                kvConfig.getLoadFactor());
         this.kvStatus = new KvStatus(KvStatus.RUNNING, kvImpl, 0);
     }
 
@@ -175,7 +173,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
-            KvImpl kvImpl = new KvImpl(config.getTs(), kvConfig.getInitMapCapacity(), kvConfig.getLoadFactor());
+            KvImpl kvImpl = new KvImpl(config.getTs(), config.getGroupId(), kvConfig.getInitMapCapacity(),
+                    kvConfig.getLoadFactor());
             newStatus(KvStatus.INSTALLING_SNAPSHOT, kvImpl);
             encodeStatus = new EncodeStatus();
         } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
@@ -211,19 +210,16 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private void closeSnapshot(Snapshot snapshot) {
         openSnapshots.remove(snapshot);
         updateMinMax();
-        Supplier<Boolean> gc = kvStatus.kvImpl.gc();
-        long t = System.currentTimeMillis();
+        Supplier<Boolean> task = kvStatus.kvImpl.createGcTask();
         if (useSeparateExecutor) {
-            doGcInExecutor(gc, t);
+            doGcInExecutor(task);
         } else {
-            mainFiberGroup.fireFiber("gc" + config.getGroupId(), new FiberFrame<>() {
+            mainFiberGroup.fireFiber("task" + config.getGroupId(), new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
-                    if (gc.get()) {
+                    if (task.get()) {
                         return Fiber.yield(this);
                     } else {
-                        log.info("group {} gc done, cost {} ms", config.getGroupId(),
-                                System.currentTimeMillis() - t);
                         return Fiber.frameReturn();
                     }
                 }
@@ -231,13 +227,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
     }
 
-    private void doGcInExecutor(Supplier<Boolean> gc, long t) {
+    private void doGcInExecutor(Supplier<Boolean> gc) {
         dtkvExecutor.execute(() -> {
             if (gc.get()) {
-                doGcInExecutor(gc, t);
-            } else {
-                log.info("group {} gc done, cost {} ms", config.getGroupId(),
-                        System.currentTimeMillis() - t);
+                doGcInExecutor(gc);
             }
         });
     }

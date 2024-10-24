@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -29,10 +31,13 @@ import java.util.function.Supplier;
  * @author huangli
  */
 class KvImpl {
+    private static final DtLog log = DtLogs.getLogger(KvImpl.class);
+
     public static final char SEPARATOR = '.';
     private static final int MAX_KEY_SIZE = 8 * 1024;
     private static final int MAX_VALUE_SIZE = 1024 * 1024;
 
+    private final int groupId;
 
     // When iterating over this map, we need to divide the process into multiple steps,
     // with each step only accessing a portion of the map. Therefore, ConcurrentHashMap is needed here.
@@ -51,8 +56,9 @@ class KvImpl {
     long maxOpenSnapshotIndex = 0;
     long minOpenSnapshotIndex = 0;
 
-    public KvImpl(Timestamp ts, int initCapacity, float loadFactor) {
+    public KvImpl(Timestamp ts, int groupId, int initCapacity, float loadFactor) {
         this.ts = ts;
+        this.groupId = groupId;
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
         KvNodeEx n = new KvNodeEx(0, 0, 0, 0, null);
         this.root = new KvNodeHolder("", "", n, null);
@@ -274,13 +280,16 @@ class KvImpl {
         }
     }
 
-    public Supplier<Boolean> gc() {
+    public Supplier<Boolean> createGcTask() {
         Iterator<Map.Entry<String, KvNodeHolder>> it = map.entrySet().iterator();
+        long t = System.currentTimeMillis();
+        log.info("group {} start gc task", groupId);
         return () -> {
             writeLock.lock();
             try {
                 for (int i = 0; i < 3000; i++) {
                     if (!it.hasNext()) {
+                        log.info("group {} gc task finished, cost {} ms", groupId, System.currentTimeMillis() - t);
                         return Boolean.FALSE;
                     }
                     KvNodeHolder h = it.next().getValue();
