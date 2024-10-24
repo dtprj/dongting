@@ -335,7 +335,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private RefBuffer createBuffer() {
             RefBuffer buf = directBufferFactory.create(bufferSize);
             buf.getBuffer().position(4);
-            buf.getBuffer().limit(bufferSize - 8);
+            buf.getBuffer().limit(bufferSize - 4);
             return buf;
         }
 
