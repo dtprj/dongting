@@ -61,6 +61,9 @@ public class RaftStatusImpl extends RaftStatus {
     private FiberCondition dataArrivedCondition;
     private TailCache tailCache;
 
+    // for leader, groupReadyIndex is the firstIndex of currentTerm.
+    // for follower, groupReadyIndex is the first log item index of a valid AppendEntries request.
+    // reset to Long.MAX_VALUE in RaftUtil.resetStatus(), called when change to follower/observer/candidate or increase term.
     private long groupReadyIndex = Long.MAX_VALUE;
     private CompletableFuture<Void> groupReadyFuture = new CompletableFuture<>(); // shared
 

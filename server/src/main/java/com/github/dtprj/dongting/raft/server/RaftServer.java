@@ -95,7 +95,10 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final PendingStat serverStat = new PendingStat();
 
+    // indicate each group has enough members (>= elect quorum) raft ping ok
     private final CompletableFuture<Void> allMemberReadyFuture = new CompletableFuture<>();
+
+    // indicate each group has applied groupReadyIndex, and serviceNioServer started
     private final CompletableFuture<Void> allGroupReadyFuture = new CompletableFuture<>();
 
     private final Set<RaftSequenceProcessor<?>> raftSequenceProcessors = new HashSet<>();
@@ -406,6 +409,7 @@ public class RaftServer extends AbstractLifeCircle {
     private void afterAllMemberReady(Void unused, Throwable ex) {
         if (ex != null) {
             allGroupReadyFuture.completeExceptionally(ex);
+            return;
         }
         try {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
