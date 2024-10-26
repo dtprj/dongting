@@ -160,7 +160,7 @@ public class StatusFile implements AutoCloseable {
                 buf.put((byte) '\n');
             }
             while (buf.hasRemaining()) {
-                buf.put((byte) ' ');
+                buf.put((byte) '\n');
             }
 
             crc32c.reset();
