@@ -76,7 +76,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private static final String KEY_PREPARED_OBSERVERS = "preparedObservers";
     private static final String KEY_LAST_CONFIG_CHANGE_INDEX = "lastConfigChangeIndex";
     private static final String KEY_BUFFER_SIZE = "bufferSize";
-    private static final String KEY_LAST_ID = "lastId";
+    private static final String KEY_NEXT_ID = "nextSnapshotId";
 
     private final RaftGroupConfigEx groupConfig;
     private final ExecutorService ioExecutor;
@@ -157,7 +157,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             Set<Integer> preparedObservers = RaftUtil.strToIdSet(p.get(KEY_PREPARED_OBSERVERS));
             long lastConfigChangeIndex = Long.parseLong(p.get(KEY_LAST_CONFIG_CHANGE_INDEX));
             int bufferSize = Integer.parseInt(p.get(KEY_BUFFER_SIZE));
-            nextId = Long.parseLong(p.get(KEY_LAST_ID)) + 1;
+            nextId = Long.parseLong(p.get(KEY_NEXT_ID));
             SnapshotInfo si = new SnapshotInfo(lastIndex, lastTerm, members, observers, preparedMembers,
                     preparedObservers, lastConfigChangeIndex);
 
@@ -404,6 +404,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             p.put(KEY_PREPARED_OBSERVERS, RaftUtil.setToStr(si.getPreparedObservers()));
             p.put(KEY_LAST_CONFIG_CHANGE_INDEX, String.valueOf(si.getLastConfigChangeIndex()));
             p.put(KEY_BUFFER_SIZE, String.valueOf(bufferSize));
+            p.put(KEY_NEXT_ID, String.valueOf(nextId));
 
             // just for human reading
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
