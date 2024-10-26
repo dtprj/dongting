@@ -177,10 +177,12 @@ class KvImpl {
                 } else {
                     newKvNode = new KvNodeEx(index, timestamp, index, timestamp, data);
                 }
-                h.latest = newKvNode;
                 if (maxOpenSnapshotIndex > 0) {
                     newKvNode.previous = h.latest;
+                    h.latest = newKvNode;
                     gc(h);
+                } else {
+                    h.latest = newKvNode;
                 }
             }
             updateParent(index, timestamp, parent);
@@ -230,8 +232,9 @@ class KvImpl {
                         newNode.previous = null;
                     }
                     return;
+                } else {
+                    newNode = n;
                 }
-                newNode = n;
                 n = n.previous;
             }
         } else {
