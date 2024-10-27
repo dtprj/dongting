@@ -146,7 +146,7 @@ public class AppendReq {
                 if (logItemCallback.codecFactory == null) {
                     logItemCallback.codecFactory = decoderFactory.apply(result.groupId);
                     if (logItemCallback.codecFactory == null) {
-                        log.error("can't find raft group: {}", result.groupId);
+                        log.error("can't find raft group codecFactory: {}", result.groupId);
                         // cancel parse, so return null, but parent parser not canceled,
                         // we will get a ReadPacket with null body
                         return false;

@@ -53,6 +53,13 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
     @Override
     public final WritePacket process(ReadPacket<T> packet, ReqContext reqContext) {
         int groupId = getGroupId(packet);
+        if (groupId < 0) {
+            // can't find raft group in decode phrase, return -1
+            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_FOUND);
+            errorResp.setMsg("raft group not found: " + groupId);
+            log.error(errorResp.getMsg());
+            return errorResp;
+        }
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         if (g == null) {
