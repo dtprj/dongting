@@ -241,6 +241,9 @@ public class VoteManager {
         }
 
         private FrameCallResult loop(Void input) {
+            if (isGroupShouldStopPlain()) {
+                return Fiber.frameReturn();
+            }
             RaftStatusImpl raftStatus = VoteManager.this.raftStatus;
             boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > raftStatus.getElectTimeoutNanos();
             if (voting) {
@@ -297,6 +300,10 @@ public class VoteManager {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (isGroupShouldStopPlain()) {
+                cancelVote();
+                return Fiber.frameReturn();
+            }
             if (req.isPreVote()) {
                 return processPreVoteResp();
             } else {
