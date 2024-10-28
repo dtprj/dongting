@@ -35,9 +35,8 @@ import java.util.function.Supplier;
  * @author huangli
  */
 class KvSnapshot extends Snapshot {
-    private final Supplier<KvStatus> statusSupplier;
+    private final Supplier<Boolean> cancel;
     private final Consumer<Snapshot> closeCallback;
-    private final int epoch;
     private final ConcurrentHashMap<String, KvNodeHolder> map;
     private final long lastIncludeRaftIndex;
 
@@ -48,14 +47,11 @@ class KvSnapshot extends Snapshot {
 
     private final EncodeStatus encodeStatus = new EncodeStatus();
 
-    public KvSnapshot(SnapshotInfo si, Supplier<KvStatus> statusSupplier, Consumer<Snapshot> closeCallback) {
+    public KvSnapshot(SnapshotInfo si, KvImpl kv, Supplier<Boolean> cancel, Consumer<Snapshot> closeCallback) {
         super(si);
-        this.statusSupplier = statusSupplier;
+        this.cancel = cancel;
         this.closeCallback = closeCallback;
-        KvStatus kvStatus = statusSupplier.get();
-        KvImpl kv = kvStatus.kvImpl;
         this.map = kv.map;
-        this.epoch = kvStatus.epoch;
         this.dirQueue.addLast(kv.root);
         this.lastIncludeRaftIndex = si.getLastIncludedIndex();
     }
@@ -63,9 +59,8 @@ class KvSnapshot extends Snapshot {
     @Override
     public FiberFuture<Integer> readNext(ByteBuffer buffer) {
         FiberGroup fiberGroup = FiberGroup.currentGroup();
-        KvStatus current = statusSupplier.get();
-        if (current.status != KvStatus.RUNNING || current.epoch != epoch) {
-            return FiberFuture.failedFuture(fiberGroup, new RaftException("the snapshot is expired"));
+        if (cancel.get()) {
+            return FiberFuture.failedFuture(fiberGroup, new RaftException("canceled"));
         }
 
         int startPos = buffer.position();

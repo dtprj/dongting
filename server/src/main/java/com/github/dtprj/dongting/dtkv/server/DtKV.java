@@ -21,14 +21,15 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
@@ -70,7 +71,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         this.kvConfig = kvConfig;
         KvImpl kvImpl = new KvImpl(config.getTs(), config.getGroupId(), kvConfig.getInitMapCapacity(),
                 kvConfig.getLoadFactor());
-        this.kvStatus = new KvStatus(KvStatus.RUNNING, kvImpl, 0);
+        updateStatus(false, kvImpl);
     }
 
     @Override
@@ -94,13 +95,11 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     public FiberFuture<Object> exec(long index, RaftInput input) {
-        KvStatus kvStatus = this.kvStatus;
-        ensureRunning(kvStatus);
         FiberFuture<Object> f = mainFiberGroup.newFuture("dtkv-exec");
         if (useSeparateExecutor) {
             dtkvExecutor.execute(() -> {
                 try {
-                    Object r = exec0(index, input, kvStatus);
+                    Object r = exec0(index, input);
                     f.fireComplete(r);
                 } catch (Exception e) {
                     f.fireCompleteExceptionally(e);
@@ -108,7 +107,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             });
         } else {
             try {
-                Object r = exec0(index, input, kvStatus);
+                Object r = exec0(index, input);
                 f.complete(r);
             } catch (Exception e) {
                 f.completeExceptionally(e);
@@ -117,7 +116,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         return f;
     }
 
-    private Object exec0(long index, RaftInput input, KvStatus kvStatus) {
+    private Object exec0(long index, RaftInput input) {
+        if (kvStatus.installSnapshot) {
+            throw new DtBugException("dtkv is install snapshot");
+        }
         ByteArrayEncoder key = (ByteArrayEncoder) input.getHeader();
         String ks = key == null ? null : new String(key.getData(), StandardCharsets.UTF_8);
         switch (input.getBizType()) {
@@ -143,7 +145,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      */
     public KvResult get(long index, String key) {
         KvStatus kvStatus = this.kvStatus;
-        ensureRunning(kvStatus);
+        if (kvStatus.installSnapshot) {
+            return new KvResult(KvCodes.CODE_INSTALL_SNAPSHOT);
+        }
         return kvStatus.kvImpl.get(index, key);
     }
 
@@ -175,10 +179,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (offset == 0) {
             KvImpl kvImpl = new KvImpl(config.getTs(), config.getGroupId(), kvConfig.getInitMapCapacity(),
                     kvConfig.getLoadFactor());
-            newStatus(KvStatus.INSTALLING_SNAPSHOT, kvImpl);
+            updateStatus(true, kvImpl);
             encodeStatus = new EncodeStatus();
-        } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
-            throw new IllegalStateException("current status error: " + kvStatus.status);
+        } else if (!kvStatus.installSnapshot) {
+            throw new DtBugException("current status is not install snapshot");
         }
         KvImpl kvImpl = kvStatus.kvImpl;
         if (data != null && data.hasRemaining()) {
@@ -192,16 +196,16 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             }
         }
         if (done) {
-            newStatus(KvStatus.RUNNING, kvImpl);
+            updateStatus(false, kvImpl);
             encodeStatus = null;
         }
     }
 
     @Override
     public Snapshot takeSnapshot(SnapshotInfo si) {
-        KvStatus kvStatus = this.kvStatus;
-        ensureRunning(kvStatus);
-        KvSnapshot snapshot = new KvSnapshot(si, () -> kvStatus, this::closeSnapshot);
+        int currentEpoch = kvStatus.epoch;
+        Supplier<Boolean> cancel = () -> kvStatus.epoch != currentEpoch;
+        KvSnapshot snapshot = new KvSnapshot(si, kvStatus.kvImpl, cancel, this::closeSnapshot);
         openSnapshots.add(snapshot);
         updateMinMax();
         return snapshot;
@@ -253,19 +257,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
     }
 
-    private static void ensureRunning(KvStatus kvStatus) {
-        switch (kvStatus.status) {
-            case KvStatus.RUNNING:
-                break;
-            case KvStatus.INSTALLING_SNAPSHOT:
-                throw new RaftException("state machine is installing snapshot");
-            case KvStatus.CLOSED:
-                throw new RaftException("state machine is closed");
-            default:
-                throw new RaftException(String.valueOf(kvStatus.status));
-        }
-    }
-
     protected Executor createExecutor() {
         return Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r);
@@ -290,13 +281,16 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      */
     @Override
     protected void doStop(DtTime timeout, boolean force) {
-        newStatus(KvStatus.CLOSED, null);
         if (dtkvExecutor != null) {
             stopExecutor(dtkvExecutor);
         }
     }
 
-    private synchronized void newStatus(int status, KvImpl kvImpl) {
-        kvStatus = new KvStatus(status, kvImpl, kvStatus.epoch + 1);
+    private synchronized void updateStatus(boolean installSnapshot, KvImpl kvImpl) {
+        if (kvStatus == null) {
+            kvStatus = new KvStatus(installSnapshot, kvImpl, 0);
+        } else {
+            kvStatus = new KvStatus(installSnapshot, kvImpl, kvStatus.epoch + 1);
+        }
     }
 }

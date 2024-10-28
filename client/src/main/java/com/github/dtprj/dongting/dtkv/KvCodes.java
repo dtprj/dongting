@@ -33,4 +33,5 @@ public interface KvCodes {
     int CODE_HAS_CHILDREN = 10;
     int CODE_KEY_TOO_LONG = 11;
     int CODE_VALUE_TOO_LONG = 12;
+    int CODE_INSTALL_SNAPSHOT = 13;
 }

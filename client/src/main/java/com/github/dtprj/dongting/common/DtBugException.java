@@ -13,20 +13,20 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.dtkv.server;
+package com.github.dtprj.dongting.common;
 
 /**
  * @author huangli
  */
-class KvStatus {
+public class DtBugException extends DtException {
+    private static final long serialVersionUID = -5245692015991898799L;
 
-    final boolean installSnapshot;
-    final KvImpl kvImpl;
-    final int epoch;
-
-    public KvStatus(boolean installSnapshot, KvImpl kvImpl, int epoch) {
-        this.installSnapshot = installSnapshot;
-        this.kvImpl = kvImpl;
-        this.epoch = epoch;
+    public DtBugException(String message) {
+        super(message);
     }
+
+    public DtBugException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }
