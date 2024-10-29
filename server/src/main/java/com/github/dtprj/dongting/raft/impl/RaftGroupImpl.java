@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -72,7 +73,7 @@ public class RaftGroupImpl extends RaftGroup {
     @Override
     public boolean isLeader() {
         RaftMember leader = raftStatus.getShareStatus().currentLeader;
-        return leader !=null && leader.getNode().isSelf();
+        return leader != null && leader.getNode().isSelf();
     }
 
     @Override
@@ -170,7 +171,20 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Long> fireSaveSnapshot() {
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
-        gc.getFiberGroup().getExecutor().execute(() -> gc.getSnapshotManager().fireSaveSnapshot(f));
+        gc.getFiberGroup().getExecutor().execute(() -> {
+            try {
+                FiberFuture<Long> ff = gc.getSnapshotManager().saveSnapshot();
+                ff.registerCallback((idx, ex) -> {
+                    if (ex != null) {
+                        f.completeExceptionally(ex);
+                    } else {
+                        f.complete(idx);
+                    }
+                });
+            } catch (Exception e) {
+                f.completeExceptionally(e);
+            }
+        });
         return f;
     }
 

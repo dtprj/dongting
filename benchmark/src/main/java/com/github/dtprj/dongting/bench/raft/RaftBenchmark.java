@@ -182,13 +182,7 @@ public class RaftBenchmark extends BenchBase {
     }
 
     @Override
-    public void shutdown() throws Exception {
-        //noinspection unchecked
-        CompletableFuture<Long>[] saveFutures = new CompletableFuture[NODE_COUNT];
-        for (int i = 0; i < raftServers.size(); i++) {
-            saveFutures[i] = raftServers.get(i).getRaftGroup(GROUP_ID).fireSaveSnapshot();
-        }
-        CompletableFuture.allOf(saveFutures).get(10, TimeUnit.SECONDS);
+    public void shutdown() {
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         DtUtil.stop(timeout, clients);
         DtUtil.stop(timeout, raftServers.toArray(new RaftServer[0]));

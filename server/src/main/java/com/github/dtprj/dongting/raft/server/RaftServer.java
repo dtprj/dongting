@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -462,7 +463,8 @@ public class RaftServer extends AbstractLifeCircle {
                 serviceNioServer.stop(timeout);
             }
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-            raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout)));
+            raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout,
+                    g.getGroupComponents().getGroupConfig().isSaveSnapshotWhenClose())));
             nodeManager.stop(timeout);
 
             try {
@@ -487,16 +489,26 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private CompletableFuture<Void> stopGroup(RaftGroupImpl g, DtTime timeout) {
+    private CompletableFuture<Void> stopGroup(RaftGroupImpl g, DtTime timeout, boolean saveSnapshot) {
         FiberGroup fiberGroup = g.getFiberGroup();
         if (fiberGroup.isShouldStop()) {
             return g.getShutdownFuture();
         }
         fiberGroup.requestShutdown();
+        GroupComponents gc = g.getGroupComponents();
         fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                GroupComponents gc = g.getGroupComponents();
+                FiberFuture<Long> f;
+                if (saveSnapshot) {
+                    f = gc.getSnapshotManager().saveSnapshot();
+                }else{
+                    f = FiberFuture.completedFuture(getFiberGroup(), 0L);
+                }
+                return f.await(this::afterSaveSnapshot);
+            }
+
+            private FrameCallResult afterSaveSnapshot(Long notUsed) {
                 gc.getApplyManager().shutdown(timeout);
                 return gc.getRaftLog().close().await(this::afterRaftLogClose);
             }
@@ -623,7 +635,8 @@ public class RaftServer extends AbstractLifeCircle {
      * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> removeGroup(int groupId, long acquireLockTimeoutMillis, DtTime shutdownTimeout) {
+    public CompletableFuture<Void> removeGroup(int groupId, boolean saveSnapshot, long acquireLockTimeoutMillis,
+                                               DtTime shutdownTimeout) {
         return doChange(acquireLockTimeoutMillis, () -> {
             try {
                 RaftGroupImpl g = raftGroups.get(groupId);
@@ -631,7 +644,7 @@ public class RaftServer extends AbstractLifeCircle {
                     log.warn("removeGroup failed: group not exist, groupId={}", groupId);
                     return CompletableFuture.failedFuture(new RaftException("group not exist: " + groupId));
                 }
-                return stopGroup(g, shutdownTimeout);
+                return stopGroup(g, shutdownTimeout, saveSnapshot);
             } catch (Exception e) {
                 return CompletableFuture.failedFuture(e);
             }

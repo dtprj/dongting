@@ -51,7 +51,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
@@ -89,7 +88,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private File snapshotDir;
 
     private final LinkedList<Pair<File, File>> snapshotFiles = new LinkedList<>();
-    private final LinkedList<Pair<Long, CompletableFuture<Long>>> saveRequest = new LinkedList<>();
+    private final LinkedList<Pair<Long, FiberFuture<Long>>> saveRequest = new LinkedList<>();
 
     public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine) {
         this.groupConfig = groupConfig;
@@ -234,9 +233,11 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     @Override
-    public void fireSaveSnapshot(CompletableFuture<Long> f) {
+    public FiberFuture<Long> saveSnapshot() {
+        FiberFuture<Long> f = groupConfig.getFiberGroup().newFuture("saveSnapshot-" + groupConfig.getGroupId());
         saveRequest.addLast(new Pair<>(raftStatus.getLastApplied(), f));
         saveLoopFrame.saveSnapshotCond.signal();
+        return f;
     }
 
     private class SaveFrame extends FiberFrame<Void> {
@@ -358,15 +359,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private boolean checkCancel() {
-            if (isGroupShouldStopPlain()) {
-                if (cancel) {
-                    log.info("snapshot save task is cancelled");
-                    cancel = true;
-                }
-                return true;
-            }
+            // do not check isGroupShouldStopPlain() here
+
             if (raftStatus.isInstallSnapshot()) {
-                if (cancel) {
+                if (!cancel) {
                     log.warn("install snapshot, cancel save snapshot task");
                     cancel = true;
                 }
@@ -423,7 +419,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private void complete(Throwable ex) {
             long raftIndex = snapshotInfo.getLastIncludedIndex();
-            Pair<Long, CompletableFuture<Long>> req;
+            Pair<Long, FiberFuture<Long>> req;
             while ((req = saveRequest.peek()) != null) {
                 if (req.getLeft() <= raftIndex) {
                     if (ex == null) {

@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.PerfCallback;
 /**
  * @author huangli
  */
+@SuppressWarnings("unused")
 public class RaftGroupConfig {
     private final int groupId;
     private final String nodeIdOfMembers;
@@ -52,6 +53,8 @@ public class RaftGroupConfig {
     private int diskSnapshotBufferSize = 64 * 1024;
     private int replicateSnapshotConcurrency = 4;
     private int replicateSnapshotBufferSize = 64 * 1024;
+
+    private boolean saveSnapshotWhenClose = true;
 
     RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -233,5 +236,13 @@ public class RaftGroupConfig {
 
     public void setSnapshotConcurrency(int snapshotConcurrency) {
         this.snapshotConcurrency = snapshotConcurrency;
+    }
+
+    public boolean isSaveSnapshotWhenClose() {
+        return saveSnapshotWhenClose;
+    }
+
+    public void setSaveSnapshotWhenClose(boolean saveSnapshotWhenClose) {
+        this.saveSnapshotWhenClose = saveSnapshotWhenClose;
     }
 }
