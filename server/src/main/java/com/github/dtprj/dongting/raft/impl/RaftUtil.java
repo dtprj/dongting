@@ -40,7 +40,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.zip.CRC32C;
 
 /**
@@ -159,9 +158,7 @@ public final class RaftUtil {
 
     private static void resetStatus(RaftStatusImpl raftStatus, boolean cleanLastConfirmReqNanos) {
         raftStatus.setGroupReadyIndex(Long.MAX_VALUE);
-        if (raftStatus.getGroupReadyFuture() == null) {
-            raftStatus.setGroupReadyFuture(new CompletableFuture<>());
-        }
+        raftStatus.setGroupReady(false);
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setCurrentLeader(null);

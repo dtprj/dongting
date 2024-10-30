@@ -65,7 +65,7 @@ public class RaftStatusImpl extends RaftStatus {
     // for follower, groupReadyIndex is the first log item index of a valid AppendEntries request.
     // reset to Long.MAX_VALUE in RaftUtil.resetStatus(), called when change to follower/observer/candidate or increase term.
     private long groupReadyIndex = Long.MAX_VALUE;
-    private CompletableFuture<Void> groupReadyFuture = new CompletableFuture<>(); // shared
+    private boolean groupReady; // shared
 
     private boolean shareStatusUpdated;
     private long electTimeoutNanos; // shared
@@ -112,7 +112,7 @@ public class RaftStatusImpl extends RaftStatus {
             ss.lastApplied = lastApplied;
             ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - electTimeoutDelta;
             ss.currentLeader = currentLeader;
-            ss.groupReadyFuture = groupReadyFuture;
+            ss.groupReady = groupReady;
 
             this.shareStatusUpdated = false;
             this.shareStatus = ss;
@@ -162,9 +162,9 @@ public class RaftStatusImpl extends RaftStatus {
         }
     }
 
-    public void setGroupReadyFuture(CompletableFuture<Void> groupReadyFuture) {
-        if (groupReadyFuture != this.groupReadyFuture) {
-            this.groupReadyFuture = groupReadyFuture;
+    public void setGroupReady(boolean groupReady) {
+        if (groupReady != this.groupReady) {
+            this.groupReady = groupReady;
             this.shareStatusUpdated = true;
         }
     }
@@ -306,8 +306,8 @@ public class RaftStatusImpl extends RaftStatus {
         return electTimeoutNanos;
     }
 
-    public CompletableFuture<Void> getGroupReadyFuture() {
-        return groupReadyFuture;
+    public boolean isGroupReady() {
+        return groupReady;
     }
 
     public boolean isInstallSnapshot() {

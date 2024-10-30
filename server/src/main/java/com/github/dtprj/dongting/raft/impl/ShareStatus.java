@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import java.util.concurrent.CompletableFuture;
-
 /**
  * @author huangli
  */
@@ -24,6 +22,6 @@ public class ShareStatus {
     public long lastApplied;
     public RaftRole role;
     public long leaseEndNanos;
-    public CompletableFuture<Void> groupReadyFuture;
+    public boolean groupReady;
     public RaftMember currentLeader;
 }

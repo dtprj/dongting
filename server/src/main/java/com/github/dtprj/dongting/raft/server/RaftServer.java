@@ -414,10 +414,13 @@ public class RaftServer extends AbstractLifeCircle {
         }
         try {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+            DtTime deadline = new DtTime(1000, TimeUnit.DAYS);
             raftGroups.forEach((groupId, g) -> {
                 ShareStatus ss = g.getGroupComponents().getRaftStatus().getShareStatus();
-                if (ss.groupReadyFuture != null && !ss.groupReadyFuture.isDone()) {
-                    futures.add(ss.groupReadyFuture);
+                if (!ss.groupReady) {
+                    CompletableFuture<Long> f = new CompletableFuture<>();
+                    g.getGroupComponents().getApplyManager().addToWaitReadyQueue(deadline, f);
+                    futures.add(f.thenApply(idx -> null));
                 }
             });
 

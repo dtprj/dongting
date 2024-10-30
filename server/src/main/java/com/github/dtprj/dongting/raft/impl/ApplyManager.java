@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -33,23 +34,28 @@ import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
+import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptySet;
 
 /**
  * @author huangli
  */
-public class ApplyManager {
+public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<Long>>> {
     private static final DtLog log = DtLogs.getLogger(ApplyManager.class);
 
     private final GroupComponents gc;
@@ -67,6 +73,8 @@ public class ApplyManager {
     private long initCommitIndex;
     private boolean initFutureComplete = false;
 
+    private final PriorityQueue<Pair<DtTime, CompletableFuture<Long>>> waitReadyQueue;
+
     private int execCount = 0;
 
     private final PerfCallback perfCallback;
@@ -76,6 +84,13 @@ public class ApplyManager {
         this.raftStatus = gc.getRaftStatus();
         this.gc = gc;
         this.perfCallback = gc.getGroupConfig().getPerfCallback();
+        this.waitReadyQueue = new PriorityQueue<>(this);
+    }
+
+    @Override
+    public int compare(Pair<DtTime, CompletableFuture<Long>> o1, Pair<DtTime, CompletableFuture<Long>> o2) {
+        long diff = o1.getLeft().rest(TimeUnit.NANOSECONDS, ts) - o2.getLeft().rest(TimeUnit.NANOSECONDS, ts);
+        return diff < 0 ? -1 : diff > 0 ? 1 : 0;
     }
 
     public void postInit() {
@@ -102,6 +117,8 @@ public class ApplyManager {
     private void startApplyFiber(FiberGroup fiberGroup) {
         Fiber f = new Fiber("apply", fiberGroup, new ApplyFrame(), false, 50);
         f.start();
+        Fiber f2 = new Fiber("waitGroupReadyTimeout", fiberGroup, new WaitGroupReadyTimeoutFrame(), true);
+        f2.start();
     }
 
     public void apply() {
@@ -116,6 +133,7 @@ public class ApplyManager {
         } catch (Throwable e) {
             log.error("state machine stop failed", e);
         }
+        processWaitGroupReadyQueue(true, null);
     }
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
@@ -172,6 +190,60 @@ public class ApplyManager {
         }
     }
 
+    // if processItemsNotTimeout==true and group should stop, use null as leaseReadIndex
+    private void processWaitGroupReadyQueue(boolean processItemsNotTimeout, Long leaseReadIndex) {
+        if (waitReadyQueue.isEmpty()) {
+            return;
+        }
+        Iterator<Pair<DtTime, CompletableFuture<Long>>> it = waitReadyQueue.iterator();
+        while (it.hasNext()) {
+            Pair<DtTime, CompletableFuture<Long>> p = it.next();
+            DtTime deadline = p.getLeft();
+            CompletableFuture<Long> f = p.getRight();
+            if (deadline.isTimeout(ts)) {
+                it.remove();
+                RaftExecTimeoutException e = new RaftExecTimeoutException("wait group ready timeout: "
+                        + deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
+                completeWaitReadyFuture(f, null, e);
+            } else if (processItemsNotTimeout) {
+                it.remove();
+                if (leaseReadIndex != null) {
+                    completeWaitReadyFuture(f, leaseReadIndex, null);
+                } else {
+                    completeWaitReadyFuture(f, null, new RaftException("group should stop"));
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    private void completeWaitReadyFuture(CompletableFuture<Long> f, Long index, Throwable ex) {
+        try {
+            if (ex != null) {
+                f.completeExceptionally(ex);
+            } else {
+                f.complete(index);
+            }
+        } catch (Exception e) {
+            log.error("lease read callback failed", e);
+        }
+    }
+
+    public void addToWaitReadyQueue(DtTime t, CompletableFuture<Long> f) {
+        if (t.isTimeout(raftStatus.getTs())) {
+            RaftExecTimeoutException e = new RaftExecTimeoutException("wait group ready timeout: "
+                    + t.getTimeout(TimeUnit.MILLISECONDS) + "ms");
+            completeWaitReadyFuture(f, null, e);
+        } else if (gc.getFiberGroup().isShouldStop()) {
+            completeWaitReadyFuture(f, null, new RaftException("group should stop"));
+        } else if (raftStatus.isGroupReady()) {
+            completeWaitReadyFuture(f, raftStatus.getLastApplied(), null);
+        } else {
+            waitReadyQueue.add(new Pair<>(t, f));
+        }
+    }
+
     private void afterExec(long index, RaftTask rt, Object execResult, Throwable execEx) {
         if (execEx != null && !rt.getInput().isReadOnly()) {
             throw Fiber.fatal(execEx);
@@ -181,14 +253,13 @@ public class ApplyManager {
         raftStatus.setLastApplied(index);
         raftStatus.setLastAppliedTerm(rt.getItem().getTerm());
 
-        // copy share status should happen before group ready future and raft task future complete
-        if (raftStatus.getGroupReadyFuture() != null && index >= raftStatus.getGroupReadyIndex()) {
-            CompletableFuture<Void> f = raftStatus.getGroupReadyFuture();
-            raftStatus.setGroupReadyFuture(null);
+        if (!raftStatus.isGroupReady() && index >= raftStatus.getGroupReadyIndex()) {
+            raftStatus.setGroupReady(true);
+            // copy share status should happen before group ready notifications
             raftStatus.copyShareStatus();
-            f.complete(null);
-            log.info("{} mark group ready future complete: groupId={}, groupReadyIndex={}",
+            log.info("{} mark group ready: groupId={}, groupReadyIndex={}",
                     raftStatus.getRole(), raftStatus.getGroupId(), raftStatus.getGroupReadyIndex());
+            processWaitGroupReadyQueue(true, index);
         } else {
             raftStatus.copyShareStatus();
         }
@@ -410,6 +481,14 @@ public class ApplyManager {
                 set.add(Integer.parseInt(f));
             }
             return set;
+        }
+    }
+
+    private class WaitGroupReadyTimeoutFrame extends FiberFrame<Void> {
+        @Override
+        public FrameCallResult execute(Void input) {
+            processWaitGroupReadyQueue(false, null);
+            return Fiber.sleep(100, this);
         }
     }
 }

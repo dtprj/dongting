@@ -18,15 +18,16 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
-import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -130,29 +131,31 @@ public class RaftGroupImpl extends RaftGroup {
             return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
         }
         ShareStatus ss = raftStatus.getShareStatus();
-        // NOTICE : timestamp is not thread safe
-        readTimestamp.refresh(1);
         if (ss.role != RaftRole.leader) {
             return CompletableFuture.failedFuture(new NotLeaderException(
                     ss.currentLeader == null ? null : ss.currentLeader.getNode()));
         }
 
-        CompletableFuture<Void> groupReadyFuture = ss.groupReadyFuture;
-        if (groupReadyFuture == null || groupReadyFuture.isDone()) {
+        // NOTICE : timestamp is not thread safe
+        if (ss.groupReady) {
+            readTimestamp.refresh(1);
             long t = readTimestamp.getNanoTime();
             if (ss.leaseEndNanos - t < 0) {
                 return CompletableFuture.failedFuture(new NotLeaderException(null));
             }
             return CompletableFuture.completedFuture(ss.lastApplied);
         }
-        // wait fist commit of applied
-        return groupReadyFuture.thenCompose(v -> {
-            if (deadline.isTimeout()) {
-                return CompletableFuture.failedFuture(new RaftExecTimeoutException());
+
+        // wait group ready
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        fiberGroup.fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                gc.getApplyManager().addToWaitReadyQueue(deadline, f);
+                return Fiber.frameReturn();
             }
-            // ss should re-read
-            return getLeaseReadIndex(deadline);
         });
+        return f;
     }
 
     @Override
