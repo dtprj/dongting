@@ -53,7 +53,7 @@ public class Dispatcher extends AbstractLifeCircle {
     final IndexedQueue<FiberGroup> readyGroups = new IndexedQueue<>(8);
     private final PriorityQueue<Fiber> scheduleQueue = new PriorityQueue<>(this::compareFiberByScheduleTime);
 
-    private final Timestamp ts = new Timestamp();
+    final Timestamp ts = new Timestamp();
 
     final DispatcherThread thread;
 
