@@ -230,18 +230,26 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
     }
 
-    public void addToWaitReadyQueue(DtTime t, CompletableFuture<Long> f) {
-        if (t.isTimeout(raftStatus.getTs())) {
-            RaftExecTimeoutException e = new RaftExecTimeoutException("wait group ready timeout: "
-                    + t.getTimeout(TimeUnit.MILLISECONDS) + "ms");
-            completeWaitReadyFuture(f, null, e);
-        } else if (gc.getFiberGroup().isShouldStop()) {
-            completeWaitReadyFuture(f, null, new RaftException("group should stop"));
-        } else if (raftStatus.isGroupReady()) {
-            completeWaitReadyFuture(f, raftStatus.getLastApplied(), null);
-        } else {
-            waitReadyQueue.add(new Pair<>(t, f));
-        }
+    public CompletableFuture<Long> addToWaitReadyQueue(DtTime t) {
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        gc.getFiberGroup().fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                if (t.isTimeout(raftStatus.getTs())) {
+                    RaftExecTimeoutException e = new RaftExecTimeoutException("wait group ready timeout: "
+                            + t.getTimeout(TimeUnit.MILLISECONDS) + "ms");
+                    completeWaitReadyFuture(f, null, e);
+                } else if (isGroupShouldStopPlain()) {
+                    completeWaitReadyFuture(f, null, new RaftException("group should stop"));
+                } else if (raftStatus.isGroupReady()) {
+                    completeWaitReadyFuture(f, raftStatus.getLastApplied(), null);
+                } else {
+                    waitReadyQueue.add(new Pair<>(t, f));
+                }
+                return Fiber.frameReturn();
+            }
+        });
+        return f;
     }
 
     private void afterExec(long index, RaftTask rt, Object execResult, Throwable execEx) {

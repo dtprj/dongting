@@ -18,11 +18,9 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -147,15 +145,7 @@ public class RaftGroupImpl extends RaftGroup {
         }
 
         // wait group ready
-        CompletableFuture<Long> f = new CompletableFuture<>();
-        fiberGroup.fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                gc.getApplyManager().addToWaitReadyQueue(deadline, f);
-                return Fiber.frameReturn();
-            }
-        });
-        return f;
+        return gc.getApplyManager().addToWaitReadyQueue(deadline);
     }
 
     @Override
