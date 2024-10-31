@@ -279,10 +279,7 @@ public class RaftServer extends AbstractLifeCircle {
             gc.getProcessorChannels().put(processor.getTypeId(), channel);
         }
 
-        RaftGroupImpl g = new RaftGroupImpl(gc);
-        CompletableFuture<Void> f = g.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(g.getGroupId()));
-        g.setShutdownFuture(f);
-        return g;
+        return new RaftGroupImpl(gc);
     }
 
     private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
@@ -493,38 +490,42 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private CompletableFuture<Void> stopGroup(RaftGroupImpl g, DtTime timeout, boolean saveSnapshot) {
-        FiberGroup fiberGroup = g.getFiberGroup();
-        if (fiberGroup.isShouldStop()) {
-            return g.getShutdownFuture();
-        }
-        fiberGroup.requestShutdown();
-        GroupComponents gc = g.getGroupComponents();
-        fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                FiberFuture<Long> f;
-                if (saveSnapshot) {
-                    f = gc.getSnapshotManager().saveSnapshot();
-                }else{
-                    f = FiberFuture.completedFuture(getFiberGroup(), 0L);
+        synchronized (g) {
+            if (g.getShutdownFuture() != null) {
+                return g.getShutdownFuture();
+            }
+            FiberGroup fiberGroup = g.getFiberGroup();
+            fiberGroup.requestShutdown();
+            GroupComponents gc = g.getGroupComponents();
+            fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    FiberFuture<Long> f;
+                    if (saveSnapshot) {
+                        f = gc.getSnapshotManager().saveSnapshot();
+                    } else {
+                        f = FiberFuture.completedFuture(getFiberGroup(), 0L);
+                    }
+                    return f.await(this::afterSaveSnapshot);
                 }
-                return f.await(this::afterSaveSnapshot);
-            }
 
-            private FrameCallResult afterSaveSnapshot(Long notUsed) {
-                gc.getApplyManager().shutdown(timeout);
-                return gc.getRaftLog().close().await(this::afterRaftLogClose);
-            }
+                private FrameCallResult afterSaveSnapshot(Long notUsed) {
+                    gc.getApplyManager().shutdown(timeout);
+                    return gc.getRaftLog().close().await(this::afterRaftLogClose);
+                }
 
-            private FrameCallResult afterRaftLogClose(Void unused) {
-                return g.getGroupComponents().getStatusManager().close().await(this::justReturn);
-            }
-        });
+                private FrameCallResult afterRaftLogClose(Void unused) {
+                    return g.getGroupComponents().getStatusManager().close().await(this::justReturn);
+                }
+            });
 
-        // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
-        raftFactory.stopDispatcher(fiberGroup.getDispatcher(), timeout);
+            // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
+            raftFactory.stopDispatcher(fiberGroup.getDispatcher(), timeout);
 
-        return g.getShutdownFuture();
+            CompletableFuture<Void> f = g.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(g.getGroupId()));
+            g.setShutdownFuture(f);
+            return f;
+        }
     }
 
     private void checkStatus() {
