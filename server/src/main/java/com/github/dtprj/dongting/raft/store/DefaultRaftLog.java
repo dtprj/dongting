@@ -268,10 +268,7 @@ public class DefaultRaftLog implements RaftLog {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (isGroupShouldStopPlain()) {
-                return Fiber.frameReturn();
-            }
-            return Fiber.sleepUntilShouldStop(deleteIntervalMillis, this::deleteLogs);
+            return Fiber.sleep(deleteIntervalMillis, this::deleteLogs);
         }
 
         @SuppressWarnings("BooleanMethodIsAlwaysInverted")
