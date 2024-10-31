@@ -92,4 +92,32 @@ public class SleepTest extends AbstractFiberTest {
         super.shutdownDispatcher();
         Assertions.assertFalse(error.get());
     }
+
+    // call sleepUntilShouldStop() after shutdown
+    @Test
+    public void testSleepUntilShouldStop2() throws Exception {
+        AtomicBoolean error = new AtomicBoolean();
+        Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                getFiberGroup().requestShutdown();
+                return Fiber.yield(this::afterYield);
+            }
+
+            private FrameCallResult afterYield(Void unused) {
+                Assertions.assertTrue(isGroupShouldStopPlain());
+                return Fiber.sleepUntilShouldStop(1000, this::justReturn);
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) throws Throwable {
+                error.set(true);
+                return super.handle(ex);
+            }
+        });
+        fiberGroup.fireFiber(f);
+
+        super.shutdownDispatcher();
+        Assertions.assertFalse(error.get());
+    }
 }

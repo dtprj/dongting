@@ -451,13 +451,17 @@ public class Dispatcher extends AbstractLifeCircle {
         Fiber fiber = getCurrentFiberAndCheck(null);
         checkInterrupt(fiber);
         checkReentry(fiber);
-        FiberFrame currentFrame = fiber.stackTop;
-        currentFrame.resumePoint = resumePoint;
         FiberGroup g = fiber.fiberGroup;
-        fiber.scheduleTimeoutMillis = millis;
         if (g.isShouldStopPlain()) {
+            // as same as yield, to avoid dead loop if the resumePoint not check shouldStop and call this method again
+            FiberFrame currentFrame = fiber.stackTop;
+            currentFrame.resumePoint = resumePoint;
+            fiber.ready = false;
             return;
         }
+        FiberFrame currentFrame = fiber.stackTop;
+        currentFrame.resumePoint = resumePoint;
+        fiber.scheduleTimeoutMillis = millis;
         fiber.source = g.shouldStopCondition;
         g.shouldStopCondition.addWaiter(fiber);
         fiber.ready = false;
