@@ -31,12 +31,12 @@ import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
 /**
  * @author huangli
  */
-public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
-    private static final DtLog log = DtLogs.getLogger(AbstractRaftGroupProcessor.class);
+public abstract class RaftProcessor<T> extends ReqProcessor<T> {
+    private static final DtLog log = DtLogs.getLogger(RaftProcessor.class);
 
     protected final RaftServer raftServer;
 
-    public AbstractRaftGroupProcessor(RaftServer raftServer) {
+    public RaftProcessor(RaftServer raftServer) {
         this.raftServer = raftServer;
     }
 

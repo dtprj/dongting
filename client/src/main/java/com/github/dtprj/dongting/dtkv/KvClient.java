@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
@@ -78,6 +79,25 @@ public class KvClient extends AbstractLifeCircle {
             }
             KvResp resp = p.getBody();
             return resp == null ? null : resp.getResult();
+        });
+        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
+        return f;
+    }
+
+    public CompletableFuture<List<KvNode>> list(int groupId, String key, DtTime timeout) {
+        Objects.requireNonNull(key);
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
+                null, null, null, null);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
+        wf.setCommand(Commands.DTKV_LIST);
+        CompletableFuture<List<KvNode>> f = new CompletableFuture<>();
+        RpcCallback<KvResp> c = RpcCallback.create(f, p -> {
+            int bc = p.getBizCode();
+            if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
+                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
+            }
+            KvResp resp = p.getBody();
+            return resp == null ? null : resp.getChildren();
         });
         raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
         return f;

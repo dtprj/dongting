@@ -25,7 +25,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.WritePacket;
-import com.github.dtprj.dongting.raft.server.AbstractRaftGroupProcessor;
+import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * @author huangli
  */
-public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcessor<T> {
+public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
     private static final DtLog log = DtLogs.getLogger(RaftSequenceProcessor.class);
 
     private static final AtomicInteger PROCESSOR_TYPE_ID = new AtomicInteger();

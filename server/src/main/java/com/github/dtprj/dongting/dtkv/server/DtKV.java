@@ -23,7 +23,9 @@ import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -39,6 +41,7 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,10 +51,11 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class DtKV extends AbstractLifeCircle implements StateMachine {
-    public static final int BIZ_TYPE_GET = 0;
-    public static final int BIZ_TYPE_PUT = 1;
+    public static final int BIZ_TYPE_PUT = 0;
+    public static final int BIZ_TYPE_GET = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
     public static final int BIZ_TYPE_MKDIR = 3;
+    public static final int BIZ_TYPE_LIST = 4;
 
     private Executor dtkvExecutor;
 
@@ -85,6 +89,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
             case BIZ_TYPE_MKDIR:
+            case BIZ_TYPE_LIST:
                 return null;
             case BIZ_TYPE_PUT:
                 return new ByteArrayEncoder.Callback();
@@ -149,6 +154,19 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             return new KvResult(KvCodes.CODE_INSTALL_SNAPSHOT);
         }
         return kvStatus.kvImpl.get(index, key);
+    }
+
+    /**
+     * raft lease read, can read in any threads.
+     *
+     * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
+     */
+    public Pair<Integer, List<KvNode>> list(long index, String key) {
+        KvStatus kvStatus = this.kvStatus;
+        if (kvStatus.installSnapshot) {
+            return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);
+        }
+        return kvStatus.kvImpl.list(index, key);
     }
 
     @Override

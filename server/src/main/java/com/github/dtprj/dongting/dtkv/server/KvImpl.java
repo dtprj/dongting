@@ -15,13 +15,17 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -68,21 +72,21 @@ class KvImpl {
         writeLock = lock.writeLock();
     }
 
-    private KvResult checkKey(String key, boolean allowEmpty) {
+    private int checkKey(String key, boolean allowEmpty) {
         if (key.isEmpty()) {
             if (allowEmpty) {
-                return null;
+                return KvCodes.CODE_SUCCESS;
             } else {
-                return new KvResult(KvCodes.CODE_KEY_IS_NULL);
+                return KvCodes.CODE_KEY_IS_NULL;
             }
         }
         if (key.charAt(0) == SEPARATOR || key.charAt(key.length() - 1) == SEPARATOR) {
-            return new KvResult(KvCodes.CODE_INVALID_KEY);
+            return KvCodes.CODE_INVALID_KEY;
         }
         if (key.length() > MAX_KEY_SIZE) {
-            return new KvResult(KvCodes.CODE_KEY_TOO_LONG);
+            return KvCodes.CODE_KEY_TOO_LONG;
         }
-        return null;
+        return KvCodes.CODE_SUCCESS;
     }
 
     /**
@@ -93,9 +97,9 @@ class KvImpl {
      */
     public KvResult get(@SuppressWarnings("unused") long raftIndex, String key) {
         key = key == null ? "" : key.trim();
-        KvResult r = checkKey(key, true);
-        if (r != null) {
-            return r;
+        int ck = checkKey(key, true);
+        if (ck != KvCodes.CODE_SUCCESS) {
+            return new KvResult(ck);
         }
         readLock.lock();
         try {
@@ -112,8 +116,49 @@ class KvImpl {
             if (kvNode.removeAtIndex > 0) {
                 return KvResult.NOT_FOUND;
             }
-            r = new KvResult(KvCodes.CODE_SUCCESS, kvNode);
-            return r;
+            return new KvResult(KvCodes.CODE_SUCCESS, kvNode);
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    /**
+     * This method may be called in other threads.
+     * <p>
+     * For simplification, this method reads the latest snapshot, rather than the one specified by
+     * the raftIndex parameter, and this does not violate linearizability.
+     */
+    public Pair<Integer, List<KvNode>> list(@SuppressWarnings("unused") long raftIndex, String key) {
+        key = key == null ? "" : key.trim();
+        int ck = checkKey(key, true);
+        if (ck != KvCodes.CODE_SUCCESS) {
+            return new Pair<>(ck, null);
+        }
+        readLock.lock();
+        try {
+            KvNodeHolder h;
+            if (key.isEmpty()) {
+                h = root;
+            } else {
+                h = map.get(key);
+            }
+            if (h == null) {
+                return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
+            }
+            KvNodeEx kvNode = h.latest;
+            if (kvNode.removeAtIndex > 0) {
+                return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
+            }
+            if (!kvNode.isDir()) {
+                return new Pair<>(KvCodes.CODE_PARENT_NOT_DIR, null);
+            }
+            ArrayList<KvNode> list = new ArrayList<>(kvNode.children.size());
+            for (KvNodeHolder child : kvNode.children.values()) {
+                if (child.latest.removeAtIndex == 0) {
+                    list.add(child.latest);
+                }
+            }
+            return new Pair<>(KvCodes.CODE_SUCCESS, list);
         } finally {
             readLock.unlock();
         }
@@ -131,9 +176,9 @@ class KvImpl {
 
     protected KvResult doPut(long index, String key, byte[] data, boolean lock) {
         key = key == null ? "" : key.trim();
-        KvResult r = checkKey(key, false);
-        if (r != null) {
-            return r;
+        int ck = checkKey(key, false);
+        if (ck != KvCodes.CODE_SUCCESS) {
+            return new KvResult(ck);
         }
 
         KvNodeHolder parent;
@@ -307,9 +352,9 @@ class KvImpl {
 
     public KvResult remove(long index, String key) {
         key = key == null ? "" : key.trim();
-        KvResult r = checkKey(key, false);
-        if (r != null) {
-            return r;
+        int ck = checkKey(key, false);
+        if (ck != KvCodes.CODE_SUCCESS) {
+            return new KvResult(ck);
         }
         KvNodeHolder h = map.get(key);
         if (h == null) {

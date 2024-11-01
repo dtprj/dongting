@@ -29,15 +29,15 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public abstract class AbstractRaftBizProcessor<T> extends AbstractRaftGroupProcessor<T> {
+public abstract class RaftBizProcessor<T> extends RaftProcessor<T> {
 
-    private static final DtLog log = DtLogs.getLogger(AbstractRaftBizProcessor.class);
+    private static final DtLog log = DtLogs.getLogger(RaftBizProcessor.class);
 
-    public AbstractRaftBizProcessor(RaftServer raftServer) {
+    public RaftBizProcessor(RaftServer raftServer) {
         super(raftServer);
     }
 
-    public void processError(ReqInfo<?> reqInfo, Throwable ex) {
+    protected void writeErrorResp(ReqInfo<?> reqInfo, Throwable ex) {
         Throwable root = DtUtil.rootCause(ex);
         if (root instanceof RaftExecTimeoutException) {
             ReadPacket<?> reqFrame = reqInfo.getReqFrame();

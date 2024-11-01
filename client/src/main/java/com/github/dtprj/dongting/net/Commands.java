@@ -19,7 +19,7 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public interface Commands {
-    // 1 ~ 15 for most common commands, in protobuf var int 1~15 use 1 byte
+    // 1 ~ 15 for most common commands, in protobuf var int 1~15 use 1 byte, 16~2047 use 2 bytes
     int CMD_PING = 1;
     int CMD_HANDSHAKE = 2;
     int CMD_HEARTBEAT = 3;
@@ -29,7 +29,7 @@ public interface Commands {
 
     // 16 ~ 29 for rpc
 
-    // 100 ~ 109 for raft server
+    // 100 ~ 119 for raft
     int NODE_PING = 100;
     int RAFT_PING = 101;
     int RAFT_REQUEST_VOTE = 102;
@@ -37,9 +37,8 @@ public interface Commands {
     int RAFT_LEADER_TRANSFER = 104;
     int RAFT_QUERY_STATUS = 105;
 
-    // 110 ~ 119 for raft client
-
     // 120 ~ 139 for dt kv
-    int DTKV_REMOVE = 122;
-    int DTKV_MKDIR = 123;
+    int DTKV_REMOVE = 120;
+    int DTKV_MKDIR = 121;
+    int DTKV_LIST = 122;
 }
