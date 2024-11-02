@@ -18,9 +18,11 @@ package com.github.dtprj.dongting.raft.test;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Timestamp;
 import org.opentest4j.AssertionFailedError;
 
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Random;
@@ -94,8 +96,31 @@ public class TestUtil {
         }
     }
 
+    private static final Field TIMESTAMP_NANO_TIME;
+    private static final Field TIMESTAMP_WALL_CLOCK_MILLIS;
+
+    static {
+        try {
+            TIMESTAMP_NANO_TIME = Timestamp.class.getDeclaredField("nanoTime");
+            TIMESTAMP_NANO_TIME.setAccessible(true);
+            TIMESTAMP_WALL_CLOCK_MILLIS = Timestamp.class.getDeclaredField("wallClockMillis");
+            TIMESTAMP_WALL_CLOCK_MILLIS.setAccessible(true);
+        } catch (Exception e) {
+            throw new DtException(e);
+        }
+    }
+
+    public static void updateTimestamp(Timestamp ts, long nanoTime, long wallClockMillis) {
+        try {
+            TIMESTAMP_NANO_TIME.set(ts, nanoTime);
+            TIMESTAMP_WALL_CLOCK_MILLIS.set(ts, wallClockMillis);
+        } catch (Exception e) {
+            throw new DtException(e);
+        }
+    }
+
     public static void plus1Hour(Timestamp ts) {
-        ts.updateForUnitTest(ts.getNanoTime() + Duration.ofHours(1).toNanos(),
+        updateTimestamp(ts, ts.getNanoTime() + Duration.ofHours(1).toNanos(),
                 ts.getWallClockMillis() + Duration.ofHours(1).toMillis());
     }
 
@@ -104,7 +129,7 @@ public class TestUtil {
         return new RefBufferFactory(p, 0);
     }
 
-    public static ByteBufferPool directPool(){
+    public static ByteBufferPool directPool() {
         return new DefaultPoolFactory().createPool(new Timestamp(), true);
     }
 

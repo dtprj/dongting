@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -53,8 +54,8 @@ public class BaseFiberTest {
             dispatcher.doInDispatcherThread(new FiberQueueTask(null) {
                 @Override
                 protected void run() {
-                    // fix time if it's updated by TimeStamp.updateForUnitTest()
-                    dispatcher.getTs().updateForUnitTest(System.nanoTime(), System.currentTimeMillis());
+                    // fix time if it's updated by TestUtil.updateTimestamp()
+                    TestUtil.updateTimestamp(dispatcher.getTs(), System.nanoTime(), System.currentTimeMillis());
                     dispatcher.stop(new DtTime(1000, TimeUnit.MILLISECONDS));
                 }
             });

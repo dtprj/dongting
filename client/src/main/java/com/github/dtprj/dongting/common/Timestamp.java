@@ -69,9 +69,4 @@ public class Timestamp {
     public void refresh() {
         update(System.currentTimeMillis());
     }
-
-    public void updateForUnitTest(long nanoTime, long wallClockMillis) {
-        this.nanoTime = nanoTime;
-        this.wallClockMillis = wallClockMillis;
-    }
 }

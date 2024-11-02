@@ -11,4 +11,5 @@ module dongting.client {
     exports com.github.dtprj.dongting.raft;
     exports com.github.dtprj.dongting.queue to dongting.server;
     exports com.github.dtprj.dongting.unsafe to dongting.server;
+    opens com.github.dtprj.dongting.common to dongting.server;
 }
