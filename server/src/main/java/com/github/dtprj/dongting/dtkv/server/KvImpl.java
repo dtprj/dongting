@@ -95,7 +95,7 @@ class KvImpl {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      */
-    public KvResult get(@SuppressWarnings("unused") long raftIndex, String key) {
+    public KvResult get(String key) {
         key = key == null ? "" : key.trim();
         int ck = checkKey(key, true);
         if (ck != KvCodes.CODE_SUCCESS) {
@@ -128,7 +128,7 @@ class KvImpl {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      */
-    public Pair<Integer, List<KvNode>> list(@SuppressWarnings("unused") long raftIndex, String key) {
+    public Pair<Integer, List<KvNode>> list(String key) {
         key = key == null ? "" : key.trim();
         int ck = checkKey(key, true);
         if (ck != KvCodes.CODE_SUCCESS) {

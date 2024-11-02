@@ -128,8 +128,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         ByteArrayEncoder key = (ByteArrayEncoder) input.getHeader();
         String ks = key == null ? null : new String(key.getData(), StandardCharsets.UTF_8);
         switch (input.getBizType()) {
-            case BIZ_TYPE_GET:
-                return kvStatus.kvImpl.get(index, ks);
             case BIZ_TYPE_PUT:
                 ByteArrayEncoder body = (ByteArrayEncoder) input.getBody();
                 byte[] bs = body == null ? null : body.getData();
@@ -145,28 +143,32 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     /**
      * raft lease read, can read in any threads.
-     *
+     * <p>
+     * For simplification, this method reads the latest snapshot, rather than the one specified by
+     * the raftIndex parameter, and this does not violate linearizability.
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public KvResult get(long index, String key) {
+    public KvResult get(String key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             return new KvResult(KvCodes.CODE_INSTALL_SNAPSHOT);
         }
-        return kvStatus.kvImpl.get(index, key);
+        return kvStatus.kvImpl.get(key);
     }
 
     /**
      * raft lease read, can read in any threads.
-     *
+     * <p>
+     * For simplification, this method reads the latest snapshot, rather than the one specified by
+     * the raftIndex parameter, and this does not violate linearizability.
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public Pair<Integer, List<KvNode>> list(long index, String key) {
+    public Pair<Integer, List<KvNode>> list(String key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);
         }
-        return kvStatus.kvImpl.list(index, key);
+        return kvStatus.kvImpl.list(key);
     }
 
     @Override

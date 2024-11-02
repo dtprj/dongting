@@ -113,7 +113,7 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
 
     private void doGet(ReqInfo<KvReq> reqInfo, KvReq req) {
         leaseRead(reqInfo, req, (dtKV, logIndex, key) -> {
-            KvResult r = dtKV.get(logIndex, key);
+            KvResult r = dtKV.get(key);
             KvResp resp = new KvResp(r.getData(), null, null);
             EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
@@ -124,7 +124,7 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
 
     private void doList(ReqInfo<KvReq> reqInfo, KvReq req) {
         leaseRead(reqInfo, req, (dtKV, logIndex, key) -> {
-            Pair<Integer, List<KvNode>> p = dtKV.list(logIndex, key);
+            Pair<Integer, List<KvNode>> p = dtKV.list(key);
             KvResp resp = new KvResp(null, null, p.getRight());
             EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
