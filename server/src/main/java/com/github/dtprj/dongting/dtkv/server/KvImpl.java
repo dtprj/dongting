@@ -22,6 +22,8 @@ import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.sm.Snapshot;
+import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -57,8 +60,9 @@ class KvImpl {
 
     private final Timestamp ts;
 
-    long maxOpenSnapshotIndex = 0;
-    long minOpenSnapshotIndex = 0;
+    private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
+    private long maxOpenSnapshotIndex = 0;
+    private long minOpenSnapshotIndex = 0;
 
     public KvImpl(Timestamp ts, int groupId, int initCapacity, float loadFactor) {
         this.ts = ts;
@@ -328,11 +332,14 @@ class KvImpl {
         }
     }
 
-    public Supplier<Boolean> createGcTask() {
+    private Supplier<Boolean> createGcTask(Supplier<Boolean> cancel) {
         Iterator<Map.Entry<String, KvNodeHolder>> it = map.entrySet().iterator();
         long t = System.currentTimeMillis();
         log.info("group {} start gc task", groupId);
         return () -> {
+            if (cancel.get()) {
+                return Boolean.FALSE;
+            }
             writeLock.lock();
             try {
                 for (int i = 0; i < 3000; i++) {
@@ -385,5 +392,33 @@ class KvImpl {
 
     public KvResult mkdir(long index, String key) {
         return doPut(index, key, null, true);
+    }
+
+    private void updateMinMax() {
+        long max = 0;
+        long min = Long.MAX_VALUE;
+        for (Snapshot s : openSnapshots) {
+            long idx = s.getSnapshotInfo().getLastIncludedIndex();
+            max = Math.max(max, idx);
+            min = Math.min(min, idx);
+        }
+        if (min == Long.MAX_VALUE) {
+            min = 0;
+        }
+        maxOpenSnapshotIndex = max;
+        minOpenSnapshotIndex = min;
+    }
+
+    public Snapshot takeSnapshot(SnapshotInfo si, Supplier<Boolean> cancel, Consumer<Supplier<Boolean>> gcExecutor) {
+        KvSnapshot snapshot = new KvSnapshot(si, this, cancel, gcExecutor);
+        openSnapshots.add(snapshot);
+        updateMinMax();
+        return snapshot;
+    }
+
+    void closeSnapshot(KvSnapshot snapshot, Consumer<Supplier<Boolean>> gcExecutor) {
+        openSnapshots.remove(snapshot);
+        updateMinMax();
+        gcExecutor.accept(createGcTask(snapshot.cancel));
     }
 }

@@ -35,8 +35,9 @@ import java.util.function.Supplier;
  * @author huangli
  */
 class KvSnapshot extends Snapshot {
-    private final Supplier<Boolean> cancel;
-    private final Consumer<Snapshot> closeCallback;
+    final Supplier<Boolean> cancel;
+    private final KvImpl kv;
+    private final Consumer<Supplier<Boolean>> gcExecutor;
     private final ConcurrentHashMap<String, KvNodeHolder> map;
     private final long lastIncludeRaftIndex;
 
@@ -47,11 +48,12 @@ class KvSnapshot extends Snapshot {
 
     private final EncodeStatus encodeStatus = new EncodeStatus();
 
-    public KvSnapshot(SnapshotInfo si, KvImpl kv, Supplier<Boolean> cancel, Consumer<Snapshot> closeCallback) {
+    public KvSnapshot(SnapshotInfo si, KvImpl kv, Supplier<Boolean> cancel, Consumer<Supplier<Boolean>> gcExecutor) {
         super(si);
+        this.kv = kv;
         this.cancel = cancel;
-        this.closeCallback = closeCallback;
         this.map = kv.map;
+        this.gcExecutor = gcExecutor;
         this.dirQueue.addLast(kv.root);
         this.lastIncludeRaftIndex = si.getLastIncludedIndex();
     }
@@ -125,6 +127,6 @@ class KvSnapshot extends Snapshot {
 
     @Override
     protected void doClose() {
-        closeCallback.accept(this);
+        kv.closeSnapshot(this, gcExecutor);
     }
 }

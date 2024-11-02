@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
@@ -40,7 +41,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -63,7 +63,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private final RaftGroupConfigEx config;
     private final KvConfig kvConfig;
     private final boolean useSeparateExecutor;
-    private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
 
     private volatile KvStatus kvStatus;
     private EncodeStatus encodeStatus;
@@ -146,6 +145,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * <p>
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
+     *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
     public KvResult get(String key) {
@@ -161,6 +161,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * <p>
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
+     *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
     public Pair<Integer, List<KvNode>> list(String key) {
@@ -223,58 +224,13 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     public Snapshot takeSnapshot(SnapshotInfo si) {
+        KvStatus kvStatus = this.kvStatus;
+        if (kvStatus.installSnapshot) {
+            throw new RaftException("dtkv is install snapshot");
+        }
         int currentEpoch = kvStatus.epoch;
         Supplier<Boolean> cancel = () -> kvStatus.epoch != currentEpoch;
-        KvSnapshot snapshot = new KvSnapshot(si, kvStatus.kvImpl, cancel, this::closeSnapshot);
-        openSnapshots.add(snapshot);
-        updateMinMax();
-        return snapshot;
-    }
-
-    private void closeSnapshot(Snapshot snapshot) {
-        openSnapshots.remove(snapshot);
-        updateMinMax();
-        Supplier<Boolean> task = kvStatus.kvImpl.createGcTask();
-        if (useSeparateExecutor) {
-            doGcInExecutor(task);
-        } else {
-            mainFiberGroup.fireFiber("task" + config.getGroupId(), new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    if (task.get()) {
-                        return Fiber.yield(this);
-                    } else {
-                        return Fiber.frameReturn();
-                    }
-                }
-            });
-        }
-    }
-
-    private void doGcInExecutor(Supplier<Boolean> gc) {
-        dtkvExecutor.execute(() -> {
-            if (gc.get()) {
-                doGcInExecutor(gc);
-            }
-        });
-    }
-
-    private void updateMinMax() {
-        long max = 0;
-        long min = Long.MAX_VALUE;
-        for (Snapshot s : openSnapshots) {
-            long idx = s.getSnapshotInfo().getLastIncludedIndex();
-            max = Math.max(max, idx);
-            min = Math.min(min, idx);
-        }
-        if (min == Long.MAX_VALUE) {
-            min = 0;
-        }
-        KvImpl kvImpl = kvStatus.kvImpl;
-        if (kvImpl != null) {
-            kvImpl.maxOpenSnapshotIndex = max;
-            kvImpl.minOpenSnapshotIndex = min;
-        }
+        return kvStatus.kvImpl.takeSnapshot(si, cancel, this::doGcInExecutor);
     }
 
     protected Executor createExecutor() {
@@ -287,6 +243,28 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     protected void stopExecutor(Executor executor) {
         ((ExecutorService) executor).shutdown();
+    }
+
+    private void doGcInExecutor(Supplier<Boolean> gcTask) {
+        if (useSeparateExecutor) {
+            dtkvExecutor.execute(() -> {
+                if (gcTask.get()) {
+                    doGcInExecutor(gcTask);
+                }
+            });
+        } else {
+            Fiber f = new Fiber("gcTask" + config.getGroupId(), mainFiberGroup, new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    if (gcTask.get()) {
+                        return Fiber.yield(this);
+                    } else {
+                        return Fiber.frameReturn();
+                    }
+                }
+            }, true);
+            f.start();
+        }
     }
 
     @Override
