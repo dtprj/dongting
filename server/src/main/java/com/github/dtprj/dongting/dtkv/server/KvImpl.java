@@ -217,8 +217,9 @@ class KvImpl {
                 overwrite = h.latest.removeAtIndex == 0;
                 KvNodeEx newKvNode;
                 if (overwrite) {
-                    if (data == null || data.length == 0) {
-                        // mkdir can't overwrite any value
+                    boolean newValueIsDir = data == null || data.length == 0;
+                    boolean oldValueIsDir = h.latest.isDir();
+                    if (newValueIsDir != oldValueIsDir) {
                         return new KvResult(h.latest.isDir() ? KvCodes.CODE_DIR_EXISTS : KvCodes.CODE_VALUE_EXISTS);
                     }
                     newKvNode = new KvNodeEx(h.latest.getCreateIndex(), h.latest.getCreateTime(),
