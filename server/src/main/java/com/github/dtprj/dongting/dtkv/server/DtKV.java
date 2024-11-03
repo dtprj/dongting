@@ -224,7 +224,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     public Snapshot takeSnapshot(SnapshotInfo si) {
-        KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             throw new RaftException("dtkv is install snapshot");
         }
