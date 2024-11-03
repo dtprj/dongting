@@ -175,10 +175,10 @@ class KvImpl {
         if (data.length > MAX_VALUE_SIZE) {
             return new KvResult(KvCodes.CODE_VALUE_TOO_LONG);
         }
-        return doPut(index, key, data, true);
+        return doPut(index, key, data);
     }
 
-    protected KvResult doPut(long index, String key, byte[] data, boolean lock) {
+    protected KvResult doPut(long index, String key, byte[] data) {
         key = key == null ? "" : key.trim();
         int ck = checkKey(key, false);
         if (ck != KvCodes.CODE_SUCCESS) {
@@ -200,9 +200,7 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        if (lock) {
-            writeLock.lock();
-        }
+        writeLock.lock();
         try {
             boolean overwrite;
             long timestamp = ts.getWallClockMillis();
@@ -238,9 +236,7 @@ class KvImpl {
             updateParent(index, timestamp, parent);
             return overwrite ? KvResult.SUCCESS_OVERWRITE : KvResult.SUCCESS;
         } finally {
-            if (lock) {
-                writeLock.unlock();
-            }
+            writeLock.unlock();
         }
     }
 
@@ -392,7 +388,7 @@ class KvImpl {
     }
 
     public KvResult mkdir(long index, String key) {
-        return doPut(index, key, null, true);
+        return doPut(index, key, null);
     }
 
     private void updateMinMax() {
