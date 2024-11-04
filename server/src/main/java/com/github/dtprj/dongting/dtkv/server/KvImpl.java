@@ -294,7 +294,7 @@ class KvImpl {
 
     private void removeFromMap(KvNodeHolder h) {
         map.remove(h.key);
-        map.get(h.keyInDir).latest.children.remove(h.keyInDir);
+        h.parent.latest.children.remove(h.keyInDir);
     }
 
     void installSnapshotPut(EncodeStatus encodeStatus) {
