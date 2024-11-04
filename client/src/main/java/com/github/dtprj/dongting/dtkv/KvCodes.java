@@ -26,12 +26,11 @@ public interface KvCodes {
     int CODE_DIR_EXISTS = 3;
     int CODE_VALUE_EXISTS = 4;
     int CODE_PARENT_NOT_DIR = 5;
-    int CODE_KEY_IS_NULL = 6;
-    int CODE_VALUE_IS_NULL = 7;
-    int CODE_INVALID_KEY = 8;
-    int CODE_PARENT_DIR_NOT_EXISTS = 9;
-    int CODE_HAS_CHILDREN = 10;
-    int CODE_KEY_TOO_LONG = 11;
-    int CODE_VALUE_TOO_LONG = 12;
-    int CODE_INSTALL_SNAPSHOT = 13;
+    int CODE_INVALID_KEY = 6;
+    int CODE_INVALID_VALUE = 7;
+    int CODE_PARENT_DIR_NOT_EXISTS = 8;
+    int CODE_HAS_CHILDREN = 9;
+    int CODE_KEY_TOO_LONG = 10;
+    int CODE_VALUE_TOO_LONG = 11;
+    int CODE_INSTALL_SNAPSHOT = 12;
 }

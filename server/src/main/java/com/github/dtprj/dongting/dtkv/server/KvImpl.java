@@ -81,7 +81,7 @@ class KvImpl {
             if (allowEmpty) {
                 return KvCodes.CODE_SUCCESS;
             } else {
-                return KvCodes.CODE_KEY_IS_NULL;
+                return KvCodes.CODE_INVALID_KEY;
             }
         }
         if (key.charAt(0) == SEPARATOR || key.charAt(key.length() - 1) == SEPARATOR) {
@@ -170,7 +170,7 @@ class KvImpl {
 
     public KvResult put(long index, String key, byte[] data) {
         if (data == null || data.length == 0) {
-            return new KvResult(KvCodes.CODE_VALUE_IS_NULL);
+            return new KvResult(KvCodes.CODE_INVALID_VALUE);
         }
         if (data.length > MAX_VALUE_SIZE) {
             return new KvResult(KvCodes.CODE_VALUE_TOO_LONG);
