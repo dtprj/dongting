@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;

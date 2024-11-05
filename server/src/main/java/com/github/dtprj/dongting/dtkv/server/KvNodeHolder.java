@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.common.ByteArray;
+
 /**
  * @author huangli
  */
