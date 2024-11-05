@@ -40,8 +40,8 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * @author huangli
@@ -96,7 +96,7 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
         return null;
     }
 
-    private void leaseRead(ReqInfo<KvReq> reqInfo, KvReq req, LeaseReadCallback callback) {
+    private void leaseRead(ReqInfo<KvReq> reqInfo, BiFunction<DtKV, Long, WritePacket> callback) {
         ReqContext reqContext = reqInfo.getReqContext();
         RaftGroup group = reqInfo.getRaftGroup();
         group.getLeaseReadIndex(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {
@@ -104,16 +104,14 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
                 writeErrorResp(reqInfo, ex);
             } else {
                 DtKV dtKV = (DtKV) reqInfo.getRaftGroup().getStateMachine();
-                byte[] bs = req.getKey();
-                String key = bs == null ? null : new String(bs, StandardCharsets.UTF_8);
-                writeResp(reqInfo, callback.exec(dtKV, logIndex, key));
+                writeResp(reqInfo, callback.apply(dtKV, logIndex));
             }
         });
     }
 
     private void doGet(ReqInfo<KvReq> reqInfo, KvReq req) {
-        leaseRead(reqInfo, req, (dtKV, logIndex, key) -> {
-            KvResult r = dtKV.get(key);
+        leaseRead(reqInfo, (dtKV, logIndex) -> {
+            KvResult r = dtKV.get(req.getKey());
             KvResp resp = new KvResp(r.getData(), null, null);
             EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
@@ -123,8 +121,8 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
     }
 
     private void doList(ReqInfo<KvReq> reqInfo, KvReq req) {
-        leaseRead(reqInfo, req, (dtKV, logIndex, key) -> {
-            Pair<Integer, List<KvNode>> p = dtKV.list(key);
+        leaseRead(reqInfo, (dtKV, logIndex) -> {
+            Pair<Integer, List<KvNode>> p = dtKV.list(req.getKey());
             KvResp resp = new KvResp(null, null, p.getRight());
             EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
@@ -136,11 +134,6 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
     private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, Encodable header, Encodable body) {
         RaftInput ri = new RaftInput(bizType, header, body, reqInfo.getReqContext().getTimeout(), false);
         reqInfo.getRaftGroup().submitLinearTask(ri, new RC(reqInfo));
-    }
-
-    @FunctionalInterface
-    private interface LeaseReadCallback {
-        WritePacket exec(DtKV dtKV, long logIndex, String key);
     }
 
     private class RC implements RaftCallback {

@@ -167,7 +167,7 @@ class EncodeStatus {
         createTime = buf.getLong();
         updateIndex = buf.getLong();
         updateTime = buf.getLong();
-        int keySize = DtUtil.checkPositive(buf.getInt(), "keySize");
+        int keySize = DtUtil.checkNotNegative(buf.getInt(), "keySize");
 
         // TODO use pool?
         keyBytes = new byte[keySize];

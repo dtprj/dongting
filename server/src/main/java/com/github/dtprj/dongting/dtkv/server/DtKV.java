@@ -40,7 +40,6 @@ import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -124,17 +123,16 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             throw new DtBugException("dtkv is install snapshot");
         }
-        ByteArrayEncoder key = (ByteArrayEncoder) input.getHeader();
-        String ks = key == null ? null : new String(key.getData(), StandardCharsets.UTF_8);
+        byte[] key = input.getHeader() == null ? null : ((ByteArrayEncoder) input.getHeader()).getData();
         switch (input.getBizType()) {
             case BIZ_TYPE_PUT:
                 ByteArrayEncoder body = (ByteArrayEncoder) input.getBody();
                 byte[] bs = body == null ? null : body.getData();
-                return kvStatus.kvImpl.put(index, ks, bs);
+                return kvStatus.kvImpl.put(index, key, bs);
             case BIZ_TYPE_REMOVE:
-                return kvStatus.kvImpl.remove(index, ks);
+                return kvStatus.kvImpl.remove(index, key);
             case BIZ_TYPE_MKDIR:
-                return kvStatus.kvImpl.mkdir(index, ks);
+                return kvStatus.kvImpl.mkdir(index, key);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
@@ -148,7 +146,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public KvResult get(String key) {
+    public KvResult get(byte[] key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             return new KvResult(KvCodes.CODE_INSTALL_SNAPSHOT);
@@ -164,7 +162,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public Pair<Integer, List<KvNode>> list(String key) {
+    public Pair<Integer, List<KvNode>> list(byte[] key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);

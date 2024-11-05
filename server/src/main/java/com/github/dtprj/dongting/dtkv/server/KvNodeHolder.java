@@ -19,13 +19,13 @@ package com.github.dtprj.dongting.dtkv.server;
  * @author huangli
  */
 class KvNodeHolder {
-    final String key;
-    final String keyInDir;
+    final ByteArray key;
+    final ByteArray keyInDir;
     final KvNodeHolder parent;
 
     KvNodeEx latest;
 
-    public KvNodeHolder(String key, String keyInDir, KvNodeEx n, KvNodeHolder parent) {
+    public KvNodeHolder(ByteArray key, ByteArray keyInDir, KvNodeEx n, KvNodeHolder parent) {
         this.key = key;
         this.keyInDir = keyInDir;
         this.latest = n;

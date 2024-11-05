@@ -23,7 +23,7 @@ import java.util.HashMap;
  * @author huangli
  */
 class KvNodeEx extends KvNode {
-    final HashMap<String, KvNodeHolder> children;
+    final HashMap<ByteArray, KvNodeHolder> children;
 
     KvNodeEx previous;
     long removeAtIndex;

@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -40,7 +39,7 @@ import java.util.function.Supplier;
 class KvImpl {
     private static final DtLog log = DtLogs.getLogger(KvImpl.class);
 
-    public static final char SEPARATOR = '.';
+    public static final byte SEPARATOR = '.';
     private static final int MAX_KEY_SIZE = 8 * 1024;
     private static final int MAX_VALUE_SIZE = 1024 * 1024;
 
@@ -48,7 +47,7 @@ class KvImpl {
 
     // When iterating over this map, we need to divide the process into multiple steps,
     // with each step only accessing a portion of the map. Therefore, ConcurrentHashMap is needed here.
-    final ConcurrentHashMap<String, KvNodeHolder> map;
+    final ConcurrentHashMap<ByteArray, KvNodeHolder> map;
 
 
     // for fast access root dir
@@ -69,25 +68,25 @@ class KvImpl {
         this.groupId = groupId;
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
         KvNodeEx n = new KvNodeEx(0, 0, 0, 0, null);
-        this.root = new KvNodeHolder("", "", n, null);
-        this.map.put("", root);
+        this.root = new KvNodeHolder(ByteArray.EMPTY, ByteArray.EMPTY, n, null);
+        this.map.put(ByteArray.EMPTY, root);
         ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
         readLock = lock.readLock();
         writeLock = lock.writeLock();
     }
 
-    private int checkKey(String key, boolean allowEmpty) {
-        if (key.isEmpty()) {
+    private int checkKey(byte[] key, boolean allowEmpty) {
+        if (key == null || key.length == 0) {
             if (allowEmpty) {
                 return KvCodes.CODE_SUCCESS;
             } else {
                 return KvCodes.CODE_INVALID_KEY;
             }
         }
-        if (key.charAt(0) == SEPARATOR || key.charAt(key.length() - 1) == SEPARATOR) {
+        if (key[0] == SEPARATOR || key[key.length - 1] == SEPARATOR) {
             return KvCodes.CODE_INVALID_KEY;
         }
-        if (key.length() > MAX_KEY_SIZE) {
+        if (key.length > MAX_KEY_SIZE) {
             return KvCodes.CODE_KEY_TOO_LONG;
         }
         return KvCodes.CODE_SUCCESS;
@@ -99,8 +98,7 @@ class KvImpl {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      */
-    public KvResult get(String key) {
-        key = key == null ? "" : key.trim();
+    public KvResult get(byte[] key) {
         int ck = checkKey(key, true);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
@@ -108,10 +106,10 @@ class KvImpl {
         readLock.lock();
         try {
             KvNodeHolder h;
-            if (key.isEmpty()) {
+            if (key == null || key.length == 0) {
                 h = root;
             } else {
-                h = map.get(key);
+                h = map.get(new ByteArray(key));
             }
             if (h == null) {
                 return KvResult.NOT_FOUND;
@@ -132,8 +130,7 @@ class KvImpl {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      */
-    public Pair<Integer, List<KvNode>> list(String key) {
-        key = key == null ? "" : key.trim();
+    public Pair<Integer, List<KvNode>> list(byte[] key) {
         int ck = checkKey(key, true);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new Pair<>(ck, null);
@@ -141,10 +138,10 @@ class KvImpl {
         readLock.lock();
         try {
             KvNodeHolder h;
-            if (key.isEmpty()) {
+            if (key == null || key.length == 0) {
                 h = root;
             } else {
-                h = map.get(key);
+                h = map.get(new ByteArray(key));
             }
             if (h == null) {
                 return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
@@ -168,7 +165,7 @@ class KvImpl {
         }
     }
 
-    public KvResult put(long index, String key, byte[] data) {
+    public KvResult put(long index, byte[] key, byte[] data) {
         if (data == null || data.length == 0) {
             return new KvResult(KvCodes.CODE_INVALID_VALUE);
         }
@@ -178,17 +175,19 @@ class KvImpl {
         return doPut(index, key, data);
     }
 
-    protected KvResult doPut(long index, String key, byte[] data) {
-        key = key == null ? "" : key.trim();
+    private KvResult doPut(long index, byte[] key, byte[] data) {
         int ck = checkKey(key, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
+        return doPut(index, new ByteArray(key), data);
+    }
 
+    private KvResult doPut(long index, ByteArray key, byte[] data) {
         KvNodeHolder parent;
         int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
         if (lastIndexOfSep > 0) {
-            String dirKey = key.substring(0, lastIndexOfSep);
+            ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
             if (parent == null || parent.latest.removeAtIndex > 0) {
                 return new KvResult(KvCodes.CODE_PARENT_DIR_NOT_EXISTS);
@@ -205,7 +204,7 @@ class KvImpl {
             boolean overwrite;
             long timestamp = ts.getWallClockMillis();
             if (h == null) {
-                String keyInDir = key.substring(lastIndexOfSep + 1);
+                ByteArray keyInDir = key.sub(lastIndexOfSep + 1);
                 KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, data);
                 h = new KvNodeHolder(key, keyInDir, newKvNode, parent);
                 map.put(key, h);
@@ -301,27 +300,20 @@ class KvImpl {
         // do not need lock, no other requests during install snapshot
         KvNodeEx n = new KvNodeEx(encodeStatus.createIndex, encodeStatus.createTime, encodeStatus.createIndex,
                 encodeStatus.updateTime, encodeStatus.valueBytes);
-        if (encodeStatus.keyBytes.length == 0) {
+        if (encodeStatus.keyBytes == null || encodeStatus.keyBytes.length == 0) {
             root.latest = n;
         } else {
-            byte[] keyBytes = encodeStatus.keyBytes;
-            int lastIndexOfSep = -1;
-            for (int size = keyBytes.length, i = size - 1; i >= 1; i--) {
-                if (keyBytes[i] == SEPARATOR) {
-                    lastIndexOfSep = i;
-                    break;
-                }
-            }
             KvNodeHolder parent;
-            String key = new String(keyBytes);
-            String keyInDir;
+            ByteArray key = new ByteArray(encodeStatus.keyBytes);
+            ByteArray keyInDir;
+            int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
             if (lastIndexOfSep == -1) {
                 parent = root;
                 keyInDir = key;
             } else {
-                String dirKey = new String(keyBytes, 0, lastIndexOfSep);
+                ByteArray dirKey = key.sub(0, lastIndexOfSep);
                 parent = map.get(dirKey);
-                keyInDir = new String(keyBytes, lastIndexOfSep + 1, keyBytes.length - lastIndexOfSep - 1);
+                keyInDir = key.sub(lastIndexOfSep + 1);
             }
             KvNodeHolder h = new KvNodeHolder(key, keyInDir, n, parent);
             parent.latest.children.put(keyInDir, h);
@@ -330,7 +322,7 @@ class KvImpl {
     }
 
     private Supplier<Boolean> createGcTask(Supplier<Boolean> cancel) {
-        Iterator<Map.Entry<String, KvNodeHolder>> it = map.entrySet().iterator();
+        Iterator<KvNodeHolder> it = map.values().iterator();
         long t = System.currentTimeMillis();
         log.info("group {} start gc task", groupId);
         return () -> {
@@ -344,7 +336,7 @@ class KvImpl {
                         log.info("group {} gc task finished, cost {} ms", groupId, System.currentTimeMillis() - t);
                         return Boolean.FALSE;
                     }
-                    KvNodeHolder h = it.next().getValue();
+                    KvNodeHolder h = it.next();
                     gc(h);
                 }
                 return Boolean.TRUE;
@@ -354,13 +346,12 @@ class KvImpl {
         };
     }
 
-    public KvResult remove(long index, String key) {
-        key = key == null ? "" : key.trim();
+    public KvResult remove(long index, byte[] key) {
         int ck = checkKey(key, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
-        KvNodeHolder h = map.get(key);
+        KvNodeHolder h = map.get(new ByteArray(key));
         if (h == null) {
             return KvResult.NOT_FOUND;
         }
@@ -369,8 +360,8 @@ class KvImpl {
             return KvResult.NOT_FOUND;
         }
         if (n.isDir() && !n.children.isEmpty()) {
-            for (Map.Entry<String, KvNodeHolder> e : n.children.entrySet()) {
-                KvNodeEx child = e.getValue().latest;
+            for (KvNodeHolder c : n.children.values()) {
+                KvNodeEx child = c.latest;
                 if (child.removeAtIndex == 0) {
                     return new KvResult(KvCodes.CODE_HAS_CHILDREN);
                 }
@@ -387,7 +378,7 @@ class KvImpl {
         return KvResult.SUCCESS;
     }
 
-    public KvResult mkdir(long index, String key) {
+    public KvResult mkdir(long index, byte[] key) {
         return doPut(index, key, null);
     }
 

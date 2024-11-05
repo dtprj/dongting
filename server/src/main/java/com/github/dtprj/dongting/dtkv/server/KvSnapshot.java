@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -23,11 +24,9 @@ import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -38,12 +37,11 @@ class KvSnapshot extends Snapshot {
     final Supplier<Boolean> cancel;
     private final KvImpl kv;
     private final Consumer<Supplier<Boolean>> gcExecutor;
-    private final ConcurrentHashMap<String, KvNodeHolder> map;
     private final long lastIncludeRaftIndex;
 
-    private boolean processDir = true;
-    private final LinkedList<KvNodeHolder> dirQueue = new LinkedList<>();
-    private Iterator<Map.Entry<String, KvNodeHolder>> iterator;
+    private final Iterator<KvNodeHolder> iterator;
+    private final IndexedQueue<KvNodeHolder> stack = new IndexedQueue<>(16);
+    private final HashSet<ByteArray> processedDirs = new HashSet<>();
     private KvNode currentKvNode;
 
     private final EncodeStatus encodeStatus = new EncodeStatus();
@@ -52,10 +50,9 @@ class KvSnapshot extends Snapshot {
         super(si);
         this.kv = kv;
         this.cancel = cancel;
-        this.map = kv.map;
         this.gcExecutor = gcExecutor;
-        this.dirQueue.addLast(kv.root);
         this.lastIncludeRaftIndex = si.getLastIncludedIndex();
+        this.iterator = kv.map.values().iterator();
     }
 
     @Override
@@ -71,14 +68,8 @@ class KvSnapshot extends Snapshot {
                 loadNextNode();
             }
             if (currentKvNode == null) {
-                if (processDir) {
-                    processDir = false;
-                    iterator = map.entrySet().iterator();
-                    continue;
-                } else {
-                    // no more data
-                    return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
-                }
+                // no more data
+                return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
             }
 
             if (encodeStatus.writeToBuffer(buffer)) {
@@ -92,37 +83,50 @@ class KvSnapshot extends Snapshot {
     }
 
     private void loadNextNode() {
-        if (processDir) {
-            if (iterator == null) {
-                KvNodeHolder h = dirQueue.removeFirst();
-                if (h == null) {
-                    return;
+        while (stack.size() > 0 || iterator.hasNext()) {
+            KvNodeHolder h;
+            KvNodeEx n;
+            // should process parent dir first
+            if (stack.size() > 0) {
+                h = stack.removeLast();
+                n = getNode(h);
+            } else {
+                h = iterator.next();
+                n = getNode(h);
+                if (n == null) {
+                    continue;
                 }
-                iterator = h.latest.children.entrySet().iterator();
+                if (h.parent != null && !processedDirs.contains(h.parent.key)) {
+                    while (h.parent != null && !processedDirs.contains(h.parent.key)) {
+                        stack.addLast(h);
+                        h = h.parent;
+                    }
+                    n = getNode(h);
+                }
             }
+            if (Objects.requireNonNull(n).isDir()) {
+                processedDirs.add(h.key);
+            }
+            encodeStatus.keyBytes = h.key.getData();
+            encodeStatus.valueBytes = n.getData();
+            encodeStatus.createIndex = n.getCreateIndex();
+            encodeStatus.createTime = n.getCreateTime();
+            encodeStatus.updateIndex = n.getUpdateIndex();
+            encodeStatus.updateTime = n.getUpdateTime();
+            currentKvNode = n;
+            return;
         }
-        while (iterator.hasNext()) {
-            Map.Entry<String, KvNodeHolder> en = iterator.next();
-            KvNodeHolder h = en.getValue();
-            if (h == null) {
-                return;
-            }
-            KvNodeEx n = h.latest;
-            while (n != null && n.getCreateIndex() > lastIncludeRaftIndex) {
-                n = n.previous;
-            }
-            if (n == null || n.removeAtIndex > 0) {
-                continue;
-            }
-            if (processDir == n.isDir()) {
-                String key = en.getKey();
-                encodeStatus.keyBytes = key.getBytes(StandardCharsets.UTF_8);
-                encodeStatus.valueBytes = n.getData();
-                encodeStatus.createIndex = n.getCreateIndex();
-                currentKvNode = n;
-                return;
-            }
+    }
+
+    private KvNodeEx getNode(KvNodeHolder h) {
+        KvNodeEx n = h.latest;
+        while (n != null && n.getCreateIndex() > lastIncludeRaftIndex) {
+            n = n.previous;
         }
+        if (n == null || n.removeAtIndex > 0) {
+            return null;
+        }
+        return n;
     }
 
     @Override
