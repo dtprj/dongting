@@ -20,11 +20,11 @@ import java.util.Objects;
 /**
  * @author huangli
  */
-final class ByteArray {
+public final class ByteArray {
     private final byte[] data;
     private final int startPos;
     private final int len;
-    private final int hash;
+    private int hash;
 
     private String str;
 
@@ -39,11 +39,6 @@ final class ByteArray {
         this.data = data;
         this.startPos = startPos;
         this.len = len;
-        int h = 1;
-        for (int i = 0; i < len; i++) {
-            h = 31 * h + data[startPos + i];
-        }
-        this.hash = h;
     }
 
     public int lastIndexOf(byte b) {
@@ -81,6 +76,16 @@ final class ByteArray {
 
     @Override
     public int hashCode() {
+        if (hash == 0) {
+            int h = 1;
+            for (int i = 0; i < len; i++) {
+                h = 31 * h + data[startPos + i];
+            }
+            if (h == 0) {
+                h = 1;
+            }
+            this.hash = h;
+        }
         return hash;
     }
 
