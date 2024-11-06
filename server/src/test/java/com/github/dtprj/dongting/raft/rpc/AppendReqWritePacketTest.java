@@ -15,12 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.util.CodecTestUtil;
@@ -42,19 +42,19 @@ public class AppendReqWritePacketTest {
 
         @Override
         public DecoderCallback<? extends Encodable> createBodyCallback(int bizType, DecodeContext context) {
-            return new ByteArrayEncoder.Callback();
+            return new ByteArray.Callback();
         }
 
         @Override
         public DecoderCallback<? extends Encodable> createHeaderCallback(int bizType, DecodeContext context) {
-            return new ByteArrayEncoder.Callback();
+            return new ByteArray.Callback();
         }
     };
 
     private static Encodable createBytes(int size) {
         byte[] bytes = new byte[size];
         new Random().nextBytes(bytes);
-        return new ByteArrayEncoder(bytes);
+        return new ByteArray(bytes);
     }
 
     @Test
@@ -161,14 +161,14 @@ public class AppendReqWritePacketTest {
             assertEquals(l1.getTimestamp(), l2.getTimestamp());
             assertEquals(l1.getType(), l2.getType());
             if (l1.getHeader() != null) {
-                assertArrayEquals(((ByteArrayEncoder) l1.getHeader()).getData(),
-                        ((ByteArrayEncoder) l2.getHeader()).getData());
+                assertArrayEquals(((ByteArray) l1.getHeader()).getData(),
+                        ((ByteArray) l2.getHeader()).getData());
             } else {
                 assertNull(l2.getHeader());
             }
             if (l1.getBody() != null) {
-                assertArrayEquals(((ByteArrayEncoder) l1.getBody()).getData(),
-                        ((ByteArrayEncoder) l2.getBody()).getData());
+                assertArrayEquals(((ByteArray) l1.getBody()).getData(),
+                        ((ByteArray) l2.getBody()).getData());
             } else {
                 assertNull(l2.getBody());
             }

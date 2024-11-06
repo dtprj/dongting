@@ -26,12 +26,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author huangli
  */
 public class StrEncoderTest {
-    @Test
-    public void testNull() {
-        StrEncoder e = new StrEncoder(null);
-        assertEquals(0, e.actualSize());
-        assertTrue(e.encode(new EncodeContext(null), ByteBuffer.allocate(0)));
-    }
 
     @Test
     public void testEmpty() {

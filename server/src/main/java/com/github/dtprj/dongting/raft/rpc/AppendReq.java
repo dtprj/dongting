@@ -15,10 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -242,7 +242,7 @@ public class AppendReq {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         currentDecoderCallback = codecFactory.createHeaderCallback(item.getBizType(), context.createOrGetNestedContext());
                     } else {
-                        currentDecoderCallback = new ByteArrayEncoder.Callback();
+                        currentDecoderCallback = new ByteArray.Callback();
                     }
                 } else {
                     currentDecoderCallback = null;
@@ -257,7 +257,7 @@ public class AppendReq {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         currentDecoderCallback = codecFactory.createBodyCallback(item.getBizType(), context.createOrGetNestedContext());
                     } else {
-                        currentDecoderCallback = new ByteArrayEncoder.Callback();
+                        currentDecoderCallback = new ByteArray.Callback();
                     }
                 } else {
                     currentDecoderCallback = null;

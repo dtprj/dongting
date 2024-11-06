@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
@@ -56,7 +56,7 @@ public class KvClient extends AbstractLifeCircle {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
         KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
-                new ByteArrayEncoder(value), null, null, null);
+                new ByteArray(value), null, null, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
         CompletableFuture<Void> f = new CompletableFuture<>();

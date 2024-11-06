@@ -16,11 +16,11 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -330,7 +330,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                         callback = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext)
                                 : codecFactory.createBodyCallback(header.bizType, decodeContext);
                     } else {
-                        callback = new ByteArrayEncoder.Callback();
+                        callback = new ByteArray.Callback();
                     }
                     decoder.prepareNext(decodeContext, callback);
                 }

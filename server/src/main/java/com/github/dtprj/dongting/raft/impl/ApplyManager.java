@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
@@ -469,7 +469,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
-            byte[] data = ((ByteArrayEncoder) rt.getInput().getBody()).getData();
+            byte[] data = ((ByteArray) rt.getInput().getBody()).getData();
             String dataStr = new String(data);
             String[] fields = dataStr.split(";");
             Set<Integer> oldMemberIds = parseSet(fields[0]);

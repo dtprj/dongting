@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -161,7 +161,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         for (int i = 0; i < bizHeaderLen; i++) {
             bs[i] = (byte) i;
         }
-        item.setHeader(new ByteArrayEncoder(bs));
+        item.setHeader(new ByteArray(bs));
         int bodySize = totalSize - LogHeader.computeTotalLen(0, bizHeaderLen, 0);
         if (bodySize > 0) {
             // crc 4 bytes
@@ -171,7 +171,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         for (int i = 0; i < bodySize; i++) {
             bs[i] = (byte) i;
         }
-        item.setBody(new ByteArrayEncoder(bs));
+        item.setBody(new ByteArray(bs));
 
         return item;
     }
@@ -233,7 +233,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
             if (bizHeaderLen > 0) {
                 for (int j = 0; j < bizHeaderLen; j++) {
-                    assertEquals(((ByteArrayEncoder) item.getHeader()).getData()[j], buf.get());
+                    assertEquals(((ByteArray) item.getHeader()).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bizHeaderLen, bizHeaderLen);
@@ -243,7 +243,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             if (header.bodyLen > 0) {
                 int bodyLen = header.bodyLen;
                 for (int j = 0; j < bodyLen; j++) {
-                    assertEquals(((ByteArrayEncoder)item.getBody()).getData()[j], buf.get());
+                    assertEquals(((ByteArray)item.getBody()).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bodyLen, bodyLen);

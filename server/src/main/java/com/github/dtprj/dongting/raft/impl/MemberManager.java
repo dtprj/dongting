@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -498,7 +498,7 @@ public class MemberManager {
             return CompletableFuture.failedFuture(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
         }
         CompletableFuture<Long> outputFuture = new CompletableFuture<>();
-        RaftInput input = new RaftInput(0, null, new ByteArrayEncoder(data), null, false);
+        RaftInput input = new RaftInput(0, null, new ByteArray(data), null, false);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {
