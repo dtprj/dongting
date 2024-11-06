@@ -76,18 +76,19 @@ class KvImpl {
         writeLock = lock.writeLock();
     }
 
-    private int checkKey(byte[] key, boolean allowEmpty) {
-        if (key == null || key.length == 0) {
+    private int checkKey(ByteArray key, boolean allowEmpty) {
+        byte[] bs = key == null ? null : key.getData();
+        if (bs == null || bs.length == 0) {
             if (allowEmpty) {
                 return KvCodes.CODE_SUCCESS;
             } else {
                 return KvCodes.CODE_INVALID_KEY;
             }
         }
-        if (key[0] == SEPARATOR || key[key.length - 1] == SEPARATOR) {
+        if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
             return KvCodes.CODE_INVALID_KEY;
         }
-        if (key.length > MAX_KEY_SIZE) {
+        if (bs.length > MAX_KEY_SIZE) {
             return KvCodes.CODE_KEY_TOO_LONG;
         }
         return KvCodes.CODE_SUCCESS;
@@ -99,7 +100,7 @@ class KvImpl {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      */
-    public KvResult get(byte[] key) {
+    public KvResult get(ByteArray key) {
         int ck = checkKey(key, true);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
@@ -107,10 +108,10 @@ class KvImpl {
         readLock.lock();
         try {
             KvNodeHolder h;
-            if (key == null || key.length == 0) {
+            if (key == null || key.getData().length == 0) {
                 h = root;
             } else {
-                h = map.get(new ByteArray(key));
+                h = map.get(key);
             }
             if (h == null) {
                 return KvResult.NOT_FOUND;
@@ -131,7 +132,7 @@ class KvImpl {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      */
-    public Pair<Integer, List<KvNode>> list(byte[] key) {
+    public Pair<Integer, List<KvNode>> list(ByteArray key) {
         int ck = checkKey(key, true);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new Pair<>(ck, null);
@@ -139,10 +140,10 @@ class KvImpl {
         readLock.lock();
         try {
             KvNodeHolder h;
-            if (key == null || key.length == 0) {
+            if (key == null || key.getData().length == 0) {
                 h = root;
             } else {
-                h = map.get(new ByteArray(key));
+                h = map.get(key);
             }
             if (h == null) {
                 return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
@@ -166,7 +167,7 @@ class KvImpl {
         }
     }
 
-    public KvResult put(long index, byte[] key, byte[] data) {
+    public KvResult put(long index, ByteArray key, byte[] data) {
         if (data == null || data.length == 0) {
             return new KvResult(KvCodes.CODE_INVALID_VALUE);
         }
@@ -176,15 +177,11 @@ class KvImpl {
         return doPut(index, key, data);
     }
 
-    private KvResult doPut(long index, byte[] key, byte[] data) {
+    private KvResult doPut(long index, ByteArray key, byte[] data) {
         int ck = checkKey(key, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
-        return doPut(index, new ByteArray(key), data);
-    }
-
-    private KvResult doPut(long index, ByteArray key, byte[] data) {
         KvNodeHolder parent;
         int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
         if (lastIndexOfSep > 0) {
@@ -347,12 +344,12 @@ class KvImpl {
         };
     }
 
-    public KvResult remove(long index, byte[] key) {
+    public KvResult remove(long index, ByteArray key) {
         int ck = checkKey(key, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
-        KvNodeHolder h = map.get(new ByteArray(key));
+        KvNodeHolder h = map.get(key);
         if (h == null) {
             return KvResult.NOT_FOUND;
         }
@@ -379,7 +376,7 @@ class KvImpl {
         return KvResult.SUCCESS;
     }
 
-    public KvResult mkdir(long index, byte[] key) {
+    public KvResult mkdir(long index, ByteArray key) {
         return doPut(index, key, null);
     }
 

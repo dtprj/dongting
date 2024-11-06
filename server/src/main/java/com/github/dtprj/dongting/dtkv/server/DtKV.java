@@ -122,7 +122,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             throw new DtBugException("dtkv is install snapshot");
         }
-        byte[] key = input.getHeader() == null ? null : ((ByteArray) input.getHeader()).getData();
+        ByteArray key = input.getHeader() == null ? null : (ByteArray) input.getHeader();
         switch (input.getBizType()) {
             case BIZ_TYPE_PUT:
                 ByteArray body = (ByteArray) input.getBody();
@@ -145,7 +145,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public KvResult get(byte[] key) {
+    public KvResult get(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             return new KvResult(KvCodes.CODE_INSTALL_SNAPSHOT);
@@ -161,7 +161,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public Pair<Integer, List<KvNode>> list(byte[] key) {
+    public Pair<Integer, List<KvNode>> list(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);
