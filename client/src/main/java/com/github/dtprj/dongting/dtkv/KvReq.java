@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.raft.RaftReq;
 
 import java.nio.ByteBuffer;
@@ -37,15 +38,15 @@ public class KvReq extends RaftReq implements Encodable {
     private static final int IDX_EXPECT_VALUE = 6;
 
     private final byte[] key;
-    private final Encodable value;
+    private final ByteArray value;
     private final List<byte[]> keys;
-    private final List<? extends Encodable> values;
-    private final Encodable expectValue;
+    private final List<? extends ByteArray> values;
+    private final ByteArray expectValue;
 
     private int size;
 
-    public KvReq(int groupId, byte[] key, Encodable value, List<byte[]> keys,
-                 List<? extends Encodable> values, Encodable expectValue) {
+    public KvReq(int groupId, byte[] key, ByteArray value, List<byte[]> keys,
+                 List<? extends ByteArray> values, ByteArray expectValue) {
         super(groupId);
         this.key = key;
         this.value = value;
@@ -121,7 +122,7 @@ public class KvReq extends RaftReq implements Encodable {
         return key;
     }
 
-    public Encodable getValue() {
+    public ByteArray getValue() {
         return value;
     }
 
@@ -129,11 +130,11 @@ public class KvReq extends RaftReq implements Encodable {
         return keys;
     }
 
-    public List<? extends Encodable> getValues() {
+    public List<? extends ByteArray> getValues() {
         return values;
     }
 
-    public Encodable getExpectValue() {
+    public ByteArray getExpectValue() {
         return expectValue;
     }
 }
