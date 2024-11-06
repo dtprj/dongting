@@ -15,11 +15,11 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.codec.StrEncoder;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.config.DtKv;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.util.CodecTestUtil;
@@ -113,11 +113,11 @@ public class KvReqTest {
     private void compare2(KvReq expect, KvReq r) {
         Assertions.assertEquals(expect.getGroupId(), r.getGroupId());
         Assertions.assertArrayEquals(expect.getKey(), r.getKey());
-        Assertions.assertArrayEquals(((StrEncoder) expect.getValue()).getStr().getBytes(), ((ByteArrayEncoder) r.getValue()).getData());
-        Assertions.assertArrayEquals(((StrEncoder) expect.getExpectValue()).getStr().getBytes(), ((ByteArrayEncoder) r.getExpectValue()).getData());
+        Assertions.assertArrayEquals(((StrEncoder) expect.getValue()).getStr().getBytes(), ((ByteArray) r.getValue()).getData());
+        Assertions.assertArrayEquals(((StrEncoder) expect.getExpectValue()).getStr().getBytes(), ((ByteArray) r.getExpectValue()).getData());
         for (int i = 0; i < expect.getKeys().size(); i++) {
             Assertions.assertArrayEquals(expect.getKeys().get(i), r.getKeys().get(i));
-            Assertions.assertArrayEquals(((StrEncoder) expect.getValues().get(i)).getStr().getBytes(), ((ByteArrayEncoder) r.getValues().get(i)).getData());
+            Assertions.assertArrayEquals(((StrEncoder) expect.getValues().get(i)).getStr().getBytes(), ((ByteArray) r.getValues().get(i)).getData());
         }
     }
 

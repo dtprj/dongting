@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.KvReq;
 
 import java.nio.ByteBuffer;
@@ -38,10 +38,10 @@ public class KvReqCallback extends PbCallback<KvReq> {
 
     int groupId;
     byte[] key;
-    ByteArrayEncoder value;
+    ByteArray value;
     List<byte[]> keys;
-    List<ByteArrayEncoder> values;
-    ByteArrayEncoder expectValue;
+    List<ByteArray> values;
+    ByteArray expectValue;
 
     @Override
     public boolean readVarNumber(int index, long value) {
@@ -58,7 +58,7 @@ public class KvReqCallback extends PbCallback<KvReq> {
                 key = parseBytes(buf, fieldLen, currentPos);
                 break;
             case IDX_VALUE:
-                value = parseByteArrayEncoder(buf, fieldLen, currentPos);
+                value = parseByteArray(buf, fieldLen, currentPos);
                 break;
             case IDX_KEYS:
                 if (keys == null) {
@@ -73,13 +73,13 @@ public class KvReqCallback extends PbCallback<KvReq> {
                 if (values == null) {
                     values = new ArrayList<>();
                 }
-                ByteArrayEncoder v = parseByteArrayEncoder(buf, fieldLen, currentPos);
+                ByteArray v = parseByteArray(buf, fieldLen, currentPos);
                 if (v != null) {
                     values.add(v);
                 }
                 break;
             case IDX_EXPECT_VALUE:
-                expectValue = parseByteArrayEncoder(buf, fieldLen, currentPos);
+                expectValue = parseByteArray(buf, fieldLen, currentPos);
                 break;
         }
         return true;

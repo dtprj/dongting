@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.codec;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.common.ByteArray;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -99,9 +100,9 @@ public abstract class AbstractCodecCallback<T> {
         }
     }
 
-    protected final ByteArrayEncoder parseByteArrayEncoder(ByteBuffer buf, int fieldLen, int currentPos) {
+    protected final ByteArray parseByteArray(ByteBuffer buf, int fieldLen, int currentPos) {
         byte[] arr = parseBytes(buf, fieldLen, currentPos);
-        return arr == null ? null : new ByteArrayEncoder(arr);
+        return arr == null ? null : new ByteArray(arr);
     }
 
     protected final byte[] parseBytes(ByteBuffer buf, int fieldLen, int currentPos) {

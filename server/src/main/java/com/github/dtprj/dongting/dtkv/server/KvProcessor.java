@@ -15,10 +15,10 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvReq;
@@ -79,13 +79,13 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
                 doGet(reqInfo, req);
                 break;
             case Commands.DTKV_PUT:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArrayEncoder(req.getKey()), req.getValue());
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArray(req.getKey()), req.getValue());
                 break;
             case Commands.DTKV_REMOVE:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, new ByteArrayEncoder(req.getKey()), null);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, new ByteArray(req.getKey()), null);
                 break;
             case Commands.DTKV_MKDIR:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, new ByteArrayEncoder(req.getKey()), null);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, new ByteArray(req.getKey()), null);
                 break;
             case Commands.DTKV_LIST:
                 doList(reqInfo, req);

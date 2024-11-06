@@ -15,12 +15,11 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
@@ -78,7 +77,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     public DecoderCallback<? extends Encodable> createHeaderCallback(int bizType, DecodeContext context) {
-        return new StrEncoder.Callback();
+        return new ByteArray.Callback();
     }
 
     @Override
@@ -90,7 +89,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_LIST:
                 return null;
             case BIZ_TYPE_PUT:
-                return new ByteArrayEncoder.Callback();
+                return new ByteArray.Callback();
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }
@@ -123,10 +122,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             throw new DtBugException("dtkv is install snapshot");
         }
-        byte[] key = input.getHeader() == null ? null : ((ByteArrayEncoder) input.getHeader()).getData();
+        byte[] key = input.getHeader() == null ? null : ((ByteArray) input.getHeader()).getData();
         switch (input.getBizType()) {
             case BIZ_TYPE_PUT:
-                ByteArrayEncoder body = (ByteArrayEncoder) input.getBody();
+                ByteArray body = (ByteArray) input.getBody();
                 byte[] bs = body == null ? null : body.getData();
                 return kvStatus.kvImpl.put(index, key, bs);
             case BIZ_TYPE_REMOVE:

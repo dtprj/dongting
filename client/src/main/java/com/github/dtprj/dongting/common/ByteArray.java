@@ -15,12 +15,17 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
+
+import java.nio.ByteBuffer;
 import java.util.Objects;
 
 /**
  * @author huangli
  */
-public final class ByteArray {
+public final class ByteArray implements Encodable {
     private final byte[] data;
     private final int startPos;
     private final int len;
@@ -104,6 +109,55 @@ public final class ByteArray {
             byte[] ret = new byte[len];
             System.arraycopy(data, startPos, ret, 0, len);
             return ret;
+        }
+    }
+
+    @Override
+    public boolean encode(EncodeContext context, ByteBuffer buffer) {
+        if (len == 0) {
+            return true;
+        }
+        int remaining = buffer.remaining();
+        int needWrite = len - context.pending;
+        if (remaining >= needWrite) {
+            buffer.put(data, startPos + context.pending, needWrite);
+            context.pending = 0;
+            return true;
+        } else {
+            buffer.put(data, startPos + context.pending, remaining);
+            context.pending += remaining;
+            return false;
+        }
+    }
+
+    @Override
+    public int actualSize() {
+        return len;
+    }
+
+    public static final class Callback extends DecoderCallback<ByteArray> {
+
+        private byte[] r;
+
+        @Override
+        public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+            r = parseBytes(buffer, bodyLen, currentPos);
+            return true;
+        }
+
+        @Override
+        protected ByteArray getResult() {
+            if (r == null) {
+                return EMPTY;
+            } else {
+                return new ByteArray(r);
+            }
+        }
+
+        @Override
+        protected boolean end(boolean success) {
+            this.r = null;
+            return success;
         }
     }
 }
