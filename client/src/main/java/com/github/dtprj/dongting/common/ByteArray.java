@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * @author huangli
  */
-public final class ByteArray implements Encodable {
+public class ByteArray implements Encodable {
     private final byte[] data;
     private final int startPos;
     private final int len;

@@ -15,18 +15,20 @@
  */
 package com.github.dtprj.dongting.codec;
 
+import com.github.dtprj.dongting.common.ByteArray;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 /**
  * @author huangli
  */
-public final class StrEncoder extends ByteArrayEncoder {
+public final class StrEncoder extends ByteArray {
 
     private final String str;
 
     public StrEncoder(String str) {
-        super(str == null ? null : str.getBytes(StandardCharsets.UTF_8));
+        super(str.getBytes(StandardCharsets.UTF_8));
         this.str = str;
     }
 
@@ -62,6 +64,4 @@ public final class StrEncoder extends ByteArrayEncoder {
             return r;
         }
     }
-
-    ;
 }
