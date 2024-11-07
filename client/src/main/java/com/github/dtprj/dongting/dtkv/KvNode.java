@@ -29,11 +29,11 @@ import java.nio.ByteBuffer;
  */
 public class KvNode implements Encodable {
 
-    private static final int IDX_DATA = 2;
-    private static final int IDX_CREATE_INDEX = 3;
-    private static final int IDX_CREATE_TIME = 4;
-    private static final int IDX_UPDATE_INDEX = 5;
-    private static final int IDX_UPDATE_TIME = 6;
+    private static final int IDX_DATA = 1;
+    private static final int IDX_CREATE_INDEX = 2;
+    private static final int IDX_CREATE_TIME = 3;
+    private static final int IDX_UPDATE_INDEX = 4;
+    private static final int IDX_UPDATE_TIME = 5;
 
     protected final long createIndex;
     protected final long createTime;
