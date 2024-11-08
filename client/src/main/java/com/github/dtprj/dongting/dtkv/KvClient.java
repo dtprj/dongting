@@ -81,7 +81,7 @@ public class KvClient extends AbstractLifeCircle {
             if (resp == null || resp.getResults().isEmpty()) {
                 return null;
             }
-            return resp.getResults().get(0).getData();
+            return resp.getResults().get(0).getNode();
         });
         raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
         return f;

@@ -34,7 +34,7 @@ public class KvResult implements Encodable {
     private static final int IDX_KEY_IN_DIR = 3;
 
     private final int bizCode;
-    private final KvNode data;
+    private final KvNode node;
     private final ByteArray keyInDir;
     private final int size;
     private final int sizeOfField1;
@@ -47,18 +47,18 @@ public class KvResult implements Encodable {
         this(bizCode, null, null);
     }
 
-    public KvResult(int bizCode, KvNode data) {
-        this(bizCode, data, null);
+    public KvResult(int bizCode, KvNode node) {
+        this(bizCode, node, null);
     }
 
-    public KvResult(int bizCode, KvNode data, ByteArray keyInDir) {
+    public KvResult(int bizCode, KvNode node, ByteArray keyInDir) {
         this.bizCode = bizCode;
-        this.data = data;
+        this.node = node;
         this.keyInDir = keyInDir;
 
         this.sizeOfField1 = PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode);
         this.size = sizeOfField1 +
-                (data == null ? 0 : PbUtil.accurateLengthDelimitedSize(IDX_NODE, data.actualSize()))
+                (node == null ? 0 : PbUtil.accurateLengthDelimitedSize(IDX_NODE, node.actualSize()))
                 + (keyInDir == null ? 0 : keyInDir.actualSize());
     }
 
@@ -77,7 +77,7 @@ public class KvResult implements Encodable {
             c.stage = IDX_BIZ_CODE;
         }
         if (c.stage == IDX_BIZ_CODE) {
-            if (EncodeUtil.encode(c, destBuffer, IDX_NODE, data)) {
+            if (EncodeUtil.encode(c, destBuffer, IDX_NODE, node)) {
                 c.stage = IDX_KEY_IN_DIR;
                 return true;
             } else {
@@ -138,8 +138,8 @@ public class KvResult implements Encodable {
         return bizCode;
     }
 
-    public KvNode getData() {
-        return data;
+    public KvNode getNode() {
+        return node;
     }
 
 }

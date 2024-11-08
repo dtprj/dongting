@@ -70,11 +70,11 @@ public class KvResultTest {
 
     public static void compare1(KvResult expect, DtKv.KvResult result) {
         Assertions.assertEquals(expect.getBizCode(), result.getBizCode());
-        KvNodeTest.compare1(expect.getData(), result.getNode());
+        KvNodeTest.compare1(expect.getNode(), result.getNode());
     }
 
     public static void compare2(KvResult expect, KvResult r) {
         Assertions.assertEquals(expect.getBizCode(), r.getBizCode());
-        KvNodeTest.compare2(expect.getData(), r.getData());
+        KvNodeTest.compare2(expect.getNode(), r.getNode());
     }
 }
