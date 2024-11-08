@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -28,6 +27,7 @@ import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -132,12 +132,14 @@ class KvImpl {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      */
-    public Pair<Integer, List<KvNode>> list(ByteArray key) {
+    public Pair<Integer, List<KvResult>> list(ByteArray key) {
         int ck = checkKey(key, true);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new Pair<>(ck, null);
         }
         readLock.lock();
+        boolean linked;
+        List<KvResult> list;
         try {
             KvNodeHolder h;
             if (key == null || key.getData().length == 0) {
@@ -155,15 +157,26 @@ class KvImpl {
             if (!kvNode.isDir()) {
                 return new Pair<>(KvCodes.CODE_PARENT_NOT_DIR, null);
             }
-            ArrayList<KvNode> list = new ArrayList<>(kvNode.children.size());
+            if (kvNode.children.size() > 10) {
+                linked = true;
+                list = new LinkedList<>();
+            } else {
+                linked = false;
+                list = new ArrayList<>();
+            }
             for (KvNodeHolder child : kvNode.children.values()) {
                 if (child.latest.removeAtIndex == 0) {
-                    list.add(child.latest);
+                    list.add(new KvResult(KvCodes.CODE_SUCCESS, child.latest, child.keyInDir));
                 }
             }
-            return new Pair<>(KvCodes.CODE_SUCCESS, list);
         } finally {
             readLock.unlock();
+        }
+        if (linked) {
+            // encode should use random access list
+            return new Pair<>(KvCodes.CODE_SUCCESS, new ArrayList<>(list));
+        } else {
+            return new Pair<>(KvCodes.CODE_SUCCESS, list);
         }
     }
 

@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.dtkv.KvReq;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * @author huangli
@@ -32,21 +31,29 @@ public class KvReqCallback extends PbCallback<KvReq> {
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_KEY = 2;
     private static final int IDX_VALUE = 3;
-    private static final int IDX_KEYS = 4;
-    private static final int IDX_VALUES = 5;
-    private static final int IDX_EXPECT_VALUE = 6;
+    private static final int IDX_KEYS_SIZE = 4;
+    private static final int IDX_KEYS = 5;
+    private static final int IDX_VALUES_SIZE = 6;
+    private static final int IDX_VALUES = 7;
+    private static final int IDX_EXPECT_VALUE = 8;
 
     int groupId;
     byte[] key;
     ByteArray value;
-    List<byte[]> keys;
-    List<ByteArray> values;
+    private int keysSize;
+    ArrayList<byte[]> keys;
+    private int valuesSize;
+    ArrayList<ByteArray> values;
     ByteArray expectValue;
 
     @Override
     public boolean readVarNumber(int index, long value) {
         if (index == IDX_GROUP_ID) {
             groupId = (int) value;
+        } else if (index == IDX_KEYS_SIZE) {
+            keysSize = (int) value;
+        } else if (index == IDX_VALUES_SIZE) {
+            valuesSize = (int) value;
         }
         return true;
     }
@@ -62,7 +69,7 @@ public class KvReqCallback extends PbCallback<KvReq> {
                 break;
             case IDX_KEYS:
                 if (keys == null) {
-                    keys = new ArrayList<>();
+                    keys = keysSize == 0 ? new ArrayList<>() : new ArrayList<>(keysSize);
                 }
                 byte[] k = parseBytes(buf, fieldLen, currentPos);
                 if (k != null) {
@@ -71,7 +78,7 @@ public class KvReqCallback extends PbCallback<KvReq> {
                 break;
             case IDX_VALUES:
                 if (values == null) {
-                    values = new ArrayList<>();
+                    values = valuesSize == 0 ? new ArrayList<>() : new ArrayList<>(valuesSize);
                 }
                 ByteArray v = parseByteArray(buf, fieldLen, currentPos);
                 if (v != null) {

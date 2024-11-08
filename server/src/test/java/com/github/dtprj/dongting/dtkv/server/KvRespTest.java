@@ -32,9 +32,7 @@ import java.util.Arrays;
 public class KvRespTest {
 
     private KvResp buildResp() {
-        return new KvResp(KvNodeTest.buildNode(),
-                Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()),
-                Arrays.asList(KvNodeTest.buildNode(), KvNodeTest.buildNode()));
+        return new KvResp(Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
     }
 
     @Test
@@ -71,22 +69,14 @@ public class KvRespTest {
     }
 
     private void compare1(KvResp expect, DtKv.KvResp resp) {
-        KvNodeTest.compare1(expect.getResult(), resp.getResult());
         for (int i = 0; i < expect.getResults().size(); i++) {
             KvResultTest.compare1(expect.getResults().get(i), resp.getResults(i));
-        }
-        for (int i = 0; i < expect.getChildren().size(); i++) {
-            KvNodeTest.compare1(expect.getChildren().get(i), resp.getChildren(i));
         }
     }
 
     private void compare2(KvResp expect, KvResp r) {
-        KvNodeTest.compare2(expect.getResult(), r.getResult());
         for (int i = 0; i < expect.getResults().size(); i++) {
             KvResultTest.compare2(expect.getResults().get(i), r.getResults().get(i));
-        }
-        for (int i = 0; i < expect.getChildren().size(); i++) {
-            KvNodeTest.compare2(expect.getChildren().get(i), r.getChildren().get(i));
         }
     }
 }

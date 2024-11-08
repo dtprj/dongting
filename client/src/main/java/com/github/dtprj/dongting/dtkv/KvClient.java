@@ -78,26 +78,29 @@ public class KvClient extends AbstractLifeCircle {
                 f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
             }
             KvResp resp = p.getBody();
-            return resp == null ? null : resp.getResult();
+            if (resp == null || resp.getResults().isEmpty()) {
+                return null;
+            }
+            return resp.getResults().get(0).getData();
         });
         raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
         return f;
     }
 
-    public CompletableFuture<List<KvNode>> list(int groupId, String key, DtTime timeout) {
+    public CompletableFuture<List<KvResult>> list(int groupId, String key, DtTime timeout) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
                 null, null, null, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_LIST);
-        CompletableFuture<List<KvNode>> f = new CompletableFuture<>();
+        CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
         RpcCallback<KvResp> c = RpcCallback.create(f, p -> {
             int bc = p.getBizCode();
             if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
                 f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
             }
             KvResp resp = p.getBody();
-            return resp == null ? null : resp.getChildren();
+            return resp == null ? null : resp.getResults();
         });
         raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
         return f;

@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -161,7 +160,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public Pair<Integer, List<KvNode>> list(ByteArray key) {
+    public Pair<Integer, List<KvResult>> list(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);

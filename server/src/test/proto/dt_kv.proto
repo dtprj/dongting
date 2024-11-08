@@ -26,19 +26,21 @@ message KvNode {
 message KvResult {
   int32 biz_code = 1;
   KvNode node = 2;
+  string key_in_dir = 3;
 }
 
 message KvReq {
   int32 group_id = 1;
   string key = 2;
   bytes value = 3;
-  repeated string keys = 4[packed = false];
-  repeated bytes values = 5[packed = false];
-  bytes expect_value = 6; // reserved for cas operation
+  int32 keys_size = 4;
+  repeated string keys = 5[packed = false];
+  int32 values_size = 6;
+  repeated bytes values = 7[packed = false];
+  bytes expect_value = 8; // reserved for cas operation
 }
 
 message KvResp {
-  KvNode result = 1;
+  int32 size = 1;
   repeated KvResult results = 2[packed = false];
-  repeated KvNode children = 3[packed = false];
 }

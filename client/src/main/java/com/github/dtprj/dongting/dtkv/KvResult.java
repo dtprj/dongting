@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.common.ByteArray;
 
 import java.nio.ByteBuffer;
 
@@ -30,9 +31,11 @@ import java.nio.ByteBuffer;
 public class KvResult implements Encodable {
     private static final int IDX_BIZ_CODE = 1;
     private static final int IDX_NODE = 2;
+    private static final int IDX_KEY_IN_DIR = 3;
 
     private final int bizCode;
     private final KvNode data;
+    private final ByteArray keyInDir;
     private final int size;
     private final int sizeOfField1;
 
@@ -41,16 +44,22 @@ public class KvResult implements Encodable {
     public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.CODE_SUCCESS_OVERWRITE, null);
 
     public KvResult(int bizCode) {
-        this(bizCode, null);
+        this(bizCode, null, null);
     }
 
     public KvResult(int bizCode, KvNode data) {
+        this(bizCode, data, null);
+    }
+
+    public KvResult(int bizCode, KvNode data, ByteArray keyInDir) {
         this.bizCode = bizCode;
         this.data = data;
+        this.keyInDir = keyInDir;
 
         this.sizeOfField1 = PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode);
         this.size = sizeOfField1 +
-                (data == null ? 0 : PbUtil.accurateLengthDelimitedSize(IDX_NODE, data.actualSize()));
+                (data == null ? 0 : PbUtil.accurateLengthDelimitedSize(IDX_NODE, data.actualSize()))
+                + (keyInDir == null ? 0 : keyInDir.actualSize());
     }
 
     @Override
@@ -69,6 +78,14 @@ public class KvResult implements Encodable {
         }
         if (c.stage == IDX_BIZ_CODE) {
             if (EncodeUtil.encode(c, destBuffer, IDX_NODE, data)) {
+                c.stage = IDX_KEY_IN_DIR;
+                return true;
+            } else {
+                return false;
+            }
+        }
+        if (c.stage == IDX_KEY_IN_DIR) {
+            if (EncodeUtil.encode(c, destBuffer, IDX_KEY_IN_DIR, keyInDir)) {
                 c.stage = EncodeContext.STAGE_END;
                 return true;
             } else {
@@ -83,10 +100,19 @@ public class KvResult implements Encodable {
         private final KvNode.Callback nodeCallback = new KvNode.Callback();
         private int bizCode;
         private KvNode data;
+        private ByteArray keyInDir;
+
+        @Override
+        protected boolean end(boolean success) {
+            bizCode = 0;
+            data = null;
+            keyInDir = null;
+            return success;
+        }
 
         @Override
         public boolean readVarNumber(int index, long value) {
-            if (index == 1) {
+            if (index == IDX_BIZ_CODE) {
                 bizCode = (int) value;
             }
             return true;
@@ -94,15 +120,17 @@ public class KvResult implements Encodable {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == 2) {
+            if (index == IDX_NODE) {
                 data = parseNested(buf, fieldLen, currentPos, nodeCallback);
+            } else if (index == IDX_KEY_IN_DIR) {
+                keyInDir = parseByteArray(buf, fieldLen, currentPos);
             }
             return true;
         }
 
         @Override
         protected KvResult getResult() {
-            return new KvResult(bizCode, data);
+            return new KvResult(bizCode, data, keyInDir);
         }
     }
 

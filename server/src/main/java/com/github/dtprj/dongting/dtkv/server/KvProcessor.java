@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -40,6 +39,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -112,7 +112,7 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
     private void doGet(ReqInfo<KvReq> reqInfo, KvReq req) {
         leaseRead(reqInfo, (dtKV, logIndex) -> {
             KvResult r = dtKV.get(new ByteArray(req.getKey()));
-            KvResp resp = new KvResp(r.getData(), null, null);
+            KvResp resp = new KvResp(Collections.singletonList(r));
             EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
             wf.setBizCode(r.getBizCode());
@@ -122,8 +122,8 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
 
     private void doList(ReqInfo<KvReq> reqInfo, KvReq req) {
         leaseRead(reqInfo, (dtKV, logIndex) -> {
-            Pair<Integer, List<KvNode>> p = dtKV.list(new ByteArray(req.getKey()));
-            KvResp resp = new KvResp(null, null, p.getRight());
+            Pair<Integer, List<KvResult>> p = dtKV.list(new ByteArray(req.getKey()));
+            KvResp resp = new KvResp(p.getRight());
             EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
             wf.setBizCode(p.getLeft());

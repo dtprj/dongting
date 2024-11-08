@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.raft.RaftReq;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -33,20 +34,22 @@ public class KvReq extends RaftReq implements Encodable {
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_KEY = 2;
     private static final int IDX_VALUE = 3;
-    private static final int IDX_KEYS = 4;
-    private static final int IDX_VALUES = 5;
-    private static final int IDX_EXPECT_VALUE = 6;
+    private static final int IDX_KEYS_SIZE = 4;
+    private static final int IDX_KEYS = 5;
+    private static final int IDX_VALUES_SIZE = 6;
+    private static final int IDX_VALUES = 7;
+    private static final int IDX_EXPECT_VALUE = 8;
 
     private final byte[] key;
     private final ByteArray value;
-    private final List<byte[]> keys;
-    private final List<? extends ByteArray> values;
+    private final ArrayList<byte[]> keys;
+    private final ArrayList<? extends ByteArray> values;
     private final ByteArray expectValue;
 
     private int size;
 
-    public KvReq(int groupId, byte[] key, ByteArray value, List<byte[]> keys,
-                 List<? extends ByteArray> values, ByteArray expectValue) {
+    public KvReq(int groupId, byte[] key, ByteArray value, ArrayList<byte[]> keys,
+                 ArrayList<? extends ByteArray> values, ByteArray expectValue) {
         super(groupId);
         this.key = key;
         this.value = value;
@@ -61,7 +64,9 @@ public class KvReq extends RaftReq implements Encodable {
             size = PbUtil.accurateUnsignedIntSize(IDX_GROUP_ID, groupId)
                     + EncodeUtil.actualSize(IDX_KEY, key)
                     + EncodeUtil.actualSize(IDX_VALUE, value)
+                    + PbUtil.accurateUnsignedIntSize(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
                     + EncodeUtil.actualSizeOfBytes(IDX_KEYS, keys)
+                    + PbUtil.accurateUnsignedIntSize(IDX_VALUES_SIZE, values == null ? 0 : values.size())
                     + EncodeUtil.actualSizeOfObjs(IDX_VALUES, values)
                     + EncodeUtil.actualSize(IDX_EXPECT_VALUE, expectValue);
         }
@@ -70,10 +75,9 @@ public class KvReq extends RaftReq implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        int remaining = destBuffer.remaining();
         if (context.stage == EncodeContext.STAGE_BEGIN) {
             if (groupId != 0) {
-                if (remaining < PbUtil.maxUnsignedIntSize()) {
+                if (destBuffer.remaining() < PbUtil.maxUnsignedIntSize()) {
                     return false;
                 }
                 PbUtil.writeUnsignedInt32(destBuffer, IDX_GROUP_ID, groupId);
@@ -94,6 +98,15 @@ public class KvReq extends RaftReq implements Encodable {
             }
         }
         if (context.stage == IDX_VALUE) {
+            if (keys != null) {
+                if (destBuffer.remaining() < PbUtil.maxUnsignedIntSize()) {
+                    return false;
+                }
+                PbUtil.writeUnsignedInt32(destBuffer, IDX_KEYS_SIZE, keys.size());
+            }
+            context.stage = IDX_KEYS_SIZE;
+        }
+        if (context.stage == IDX_KEYS_SIZE) {
             if (keys != null && !EncodeUtil.encodeBytes(context, destBuffer, IDX_KEYS, keys)) {
                 return false;
             } else {
@@ -101,6 +114,15 @@ public class KvReq extends RaftReq implements Encodable {
             }
         }
         if (context.stage == IDX_KEYS) {
+            if (values != null) {
+                if (destBuffer.remaining() < PbUtil.maxUnsignedIntSize()) {
+                    return false;
+                }
+                PbUtil.writeUnsignedInt32(destBuffer, IDX_VALUES_SIZE, values.size());
+            }
+            context.stage = IDX_VALUES_SIZE;
+        }
+        if (context.stage == IDX_VALUES_SIZE) {
             if (values != null && !EncodeUtil.encodeObjs(context, destBuffer, IDX_VALUES, values)) {
                 return false;
             } else {
@@ -108,7 +130,7 @@ public class KvReq extends RaftReq implements Encodable {
             }
         }
         if (context.stage == IDX_VALUES) {
-            if (expectValue!=null && !EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
+            if (expectValue != null && !EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
                 return false;
             } else {
                 context.stage = EncodeContext.STAGE_END;
