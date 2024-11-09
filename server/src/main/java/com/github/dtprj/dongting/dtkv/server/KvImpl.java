@@ -44,6 +44,8 @@ class KvImpl {
     private static final int MAX_KEY_SIZE = 8 * 1024;
     private static final int MAX_VALUE_SIZE = 1024 * 1024;
 
+    static int GC_ITEMS = 3000;
+
     private final int groupId;
 
     // When iterating over this map, we need to divide the process into multiple steps,
@@ -342,7 +344,7 @@ class KvImpl {
             }
             writeLock.lock();
             try {
-                for (int i = 0; i < 3000; i++) {
+                for (int i = 0; i < GC_ITEMS; i++) {
                     if (!it.hasNext()) {
                         log.info("group {} gc task finished, cost {} ms", groupId, System.currentTimeMillis() - t);
                         return Boolean.FALSE;
@@ -408,7 +410,7 @@ class KvImpl {
         minOpenSnapshotIndex = min;
     }
 
-    public Snapshot takeSnapshot(SnapshotInfo si, Supplier<Boolean> cancel, Consumer<Supplier<Boolean>> gcExecutor) {
+    public KvSnapshot takeSnapshot(SnapshotInfo si, Supplier<Boolean> cancel, Consumer<Supplier<Boolean>> gcExecutor) {
         KvSnapshot snapshot = new KvSnapshot(si, this, cancel, gcExecutor);
         openSnapshots.add(snapshot);
         updateMinMax();

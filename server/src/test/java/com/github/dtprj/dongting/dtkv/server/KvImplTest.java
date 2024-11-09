@@ -20,7 +20,9 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -35,11 +37,18 @@ class KvImplTest {
 
     private KvImpl kv;
     private Timestamp ts = new Timestamp();
+    private int oldGcItems;
 
     @BeforeEach
     void setUp() {
         ts = new Timestamp();
         kv = new KvImpl(ts, 0, 16, 0.75f);
+        oldGcItems = KvImpl.GC_ITEMS;
+    }
+
+    @AfterEach
+    void tearDown() {
+        KvImpl.GC_ITEMS = oldGcItems;
     }
 
     private static ByteArray ba(String str) {
@@ -203,6 +212,47 @@ class KvImplTest {
         assertEquals(KvCodes.CODE_INVALID_KEY, kv.get(ba("a.b.")).getBizCode());
     }
 
+    private KvSnapshot takeSnapshot() {
+        long lastIndex = kv.root.latest.getUpdateIndex();
+        SnapshotInfo si = new SnapshotInfo(lastIndex, 1, null, null,
+                null, null, 0);
+        return kv.takeSnapshot(si, () -> false, gcTask -> {
+            //noinspection StatementWithEmptyBody
+            while (gcTask.get()) ;
+        });
+    }
+
+    @Test
+    void testWithSnapshot() {
+        int ver = 1;
+        kv.mkdir(ver++, ba("parent"));
+        kv.put(ver++, ba("key1"), "a".getBytes());
+        kv.put(ver++, ba("key2"), "b".getBytes());
+        kv.put(ver++, ba("parent.key1"), "c".getBytes());
+        takeSnapshot();
+        assertEquals(KvCodes.CODE_SUCCESS, kv.remove(ver++, ba("key1")).getBizCode());
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("key1")).getBizCode());
+        assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, kv.put(ver++, ba("key2"), "b2".getBytes()).getBizCode());
+        assertArrayEquals("b2".getBytes(), kv.get(ba("key2")).getNode().getData());
+        takeSnapshot();
+        assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, kv.put(ver++, ba("key2"), "b3".getBytes()).getBizCode());
+        assertArrayEquals("b3".getBytes(), kv.get(ba("key2")).getNode().getData());
+        takeSnapshot();
+        assertEquals(KvCodes.CODE_SUCCESS, kv.remove(ver++, ba("key2")).getBizCode());
+        assertEquals(KvCodes.CODE_SUCCESS, kv.remove(ver++, ba("parent.key1")).getBizCode());
+        assertEquals(KvCodes.CODE_SUCCESS, kv.remove(ver++, ba("parent")).getBizCode());
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("key2")).getBizCode());
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("parent.key1")).getBizCode());
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("parent")).getBizCode());
+        takeSnapshot();
+        // change key2 to dir
+        assertEquals(KvCodes.CODE_SUCCESS, kv.mkdir(ver++, ba("key2")).getBizCode());
+        assertEquals(KvCodes.CODE_SUCCESS, kv.put(ver++, ba("key2.key1"), "d".getBytes()).getBizCode());
+        assertEquals("d", new String(kv.get(ba("key2.key1")).getNode().getData()));
+        //change parent to string
+        assertEquals(KvCodes.CODE_SUCCESS, kv.put(ver++, ba("parent"), "e".getBytes()).getBizCode());
+        assertEquals("e", new String(kv.get(ba("parent")).getNode().getData()));
+    }
 
 }
 
