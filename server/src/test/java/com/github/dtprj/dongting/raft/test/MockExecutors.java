@@ -23,10 +23,16 @@ import java.util.concurrent.Executors;
  */
 public class MockExecutors {
     private static final ExecutorService MOCK_IO_EXECUTOR;
+    private static final ExecutorService MOCK_SINGLE_EXECUTOR;
 
     static {
         MOCK_IO_EXECUTOR = Executors.newFixedThreadPool(4, r -> {
             Thread t = new Thread(r, "MockIOExecutor");
+            t.setDaemon(true);
+            return t;
+        });
+        MOCK_SINGLE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "MockSingleExecutor");
             t.setDaemon(true);
             return t;
         });
@@ -36,8 +42,7 @@ public class MockExecutors {
         return MOCK_IO_EXECUTOR;
     }
 
-    @SuppressWarnings("unused")
-    public static void stop() {
-        MOCK_IO_EXECUTOR.shutdown();
+    public static ExecutorService singleExecutor() {
+        return MOCK_SINGLE_EXECUTOR;
     }
 }
