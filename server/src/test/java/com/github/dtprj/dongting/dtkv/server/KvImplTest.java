@@ -36,9 +36,11 @@ class KvImplTest {
 
     private KvImpl kv;
     private Timestamp ts = new Timestamp();
+    private int ver;
 
     @BeforeEach
     void setUp() {
+        ver = 1;
         ts = new Timestamp();
         kv = new KvImpl(ts, 0, 16, 0.75f);
     }
@@ -247,7 +249,6 @@ class KvImplTest {
 
     @Test
     void testWithSnapshot() {
-        int ver = 1;
         kv.mkdir(ver++, ba("parent"));
         kv.put(ver++, ba("key1"), "a".getBytes());
         kv.put(ver++, ba("key2"), "b".getBytes());
@@ -297,7 +298,6 @@ class KvImplTest {
 
     @Test
     void testGc1() {
-        int ver = 1;
         kv.put(ver++, ba("key1"), "a".getBytes());
         KvSnapshot s1 = takeSnapshot();
 
