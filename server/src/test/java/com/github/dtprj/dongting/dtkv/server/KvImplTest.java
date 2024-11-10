@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.test.TestUtil;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,18 +36,11 @@ class KvImplTest {
 
     private KvImpl kv;
     private Timestamp ts = new Timestamp();
-    private int oldGcItems;
 
     @BeforeEach
     void setUp() {
         ts = new Timestamp();
         kv = new KvImpl(ts, 0, 16, 0.75f);
-        oldGcItems = KvImpl.GC_ITEMS;
-    }
-
-    @AfterEach
-    void tearDown() {
-        KvImpl.GC_ITEMS = oldGcItems;
     }
 
     private static ByteArray ba(String str) {
@@ -93,6 +85,7 @@ class KvImplTest {
         TestUtil.updateTimestamp(ts, ts.getNanoTime() + 1, ts.getWallClockMillis() + 1);
         assertEquals(KvCodes.CODE_SUCCESS, kv.put(2, ba("parent.key1"), "value1".getBytes()).getBizCode());
         assertEquals(KvCodes.CODE_PARENT_NOT_DIR, kv.put(3, ba("parent.key1.key2"), "xxx".getBytes()).getBizCode());
+        assertEquals(KvCodes.CODE_PARENT_DIR_NOT_EXISTS, kv.put(3, ba("xxx.yyy"), "xxx".getBytes()).getBizCode());
         KvResult r = kv.get(ba("parent.key1"));
         assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
         assertArrayEquals("value1".getBytes(), r.getNode().getData());
@@ -167,6 +160,31 @@ class KvImplTest {
     }
 
     @Test
+    void testList2() {
+        assertEquals(KvCodes.CODE_INVALID_KEY, kv.list(ba("..")).getLeft());
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.list(ba("aaa")).getLeft());
+        kv.mkdir(1, ba("dir1"));
+        kv.remove(2, ba("dir1"));
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.list(ba("dir1")).getLeft());
+        kv.mkdir(3, ba("dir1"));
+        takeSnapshot();
+        kv.remove(4, ba("dir1"));
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.list(ba("dir1")).getLeft());
+        kv.put(5, ba("dir1"), "a".getBytes());
+        assertEquals(KvCodes.CODE_PARENT_NOT_DIR, kv.list(ba("dir1")).getLeft());
+    }
+
+    @Test
+    void testList3() {
+        for (int i = 0; i < 11; i++) {
+            kv.put(i, ba("key" + i), ("value" + i).getBytes());
+        }
+        Pair<Integer, List<KvResult>> list = kv.list(ba(""));
+        assertEquals(KvCodes.CODE_SUCCESS, list.getLeft());
+        assertEquals(11, list.getRight().size());
+    }
+
+    @Test
     void testListInDir() {
         kv.mkdir(1, ba("parent"));
         kv.put(2, ba("parent.key1"), "a".getBytes());
@@ -210,6 +228,11 @@ class KvImplTest {
 
         assertEquals(KvCodes.CODE_INVALID_KEY, kv.get(ba(".")).getBizCode());
         assertEquals(KvCodes.CODE_INVALID_KEY, kv.get(ba("a.b.")).getBizCode());
+
+        kv.maxKeySize = 5;
+        kv.maxValueSize = 5;
+        assertEquals(KvCodes.CODE_KEY_TOO_LONG, kv.put(1, ba("123456"), "a".getBytes()).getBizCode());
+        assertEquals(KvCodes.CODE_VALUE_TOO_LONG, kv.put(1, ba("key1"), "123456".getBytes()).getBizCode());
     }
 
     private KvSnapshot takeSnapshot() {
@@ -231,6 +254,7 @@ class KvImplTest {
         kv.put(ver++, ba("parent.key1"), "c".getBytes());
         takeSnapshot();
         assertEquals(KvCodes.CODE_SUCCESS, kv.remove(ver++, ba("key1")).getBizCode());
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.remove(ver++, ba("key1")).getBizCode());
         assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("key1")).getBizCode());
         assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, kv.put(ver++, ba("key2"), "b2".getBytes()).getBizCode());
         assertArrayEquals("b2".getBytes(), kv.get(ba("key2")).getNode().getData());
@@ -244,6 +268,7 @@ class KvImplTest {
         assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("key2")).getBizCode());
         assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("parent.key1")).getBizCode());
         assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("parent")).getBizCode());
+        assertEquals(KvCodes.CODE_PARENT_DIR_NOT_EXISTS, kv.put(ver++, ba("parent.key1"), "a".getBytes()).getBizCode());
         takeSnapshot();
         // change key2 to dir
         assertEquals(KvCodes.CODE_SUCCESS, kv.mkdir(ver++, ba("key2")).getBizCode());

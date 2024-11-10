@@ -41,10 +41,15 @@ class KvImpl {
     private static final DtLog log = DtLogs.getLogger(KvImpl.class);
 
     public static final byte SEPARATOR = '.';
+
     private static final int MAX_KEY_SIZE = 8 * 1024;
     private static final int MAX_VALUE_SIZE = 1024 * 1024;
+    private static int GC_ITEMS = 3000;
 
-    static int GC_ITEMS = 3000;
+    // only update int unit test
+    int maxKeySize = MAX_KEY_SIZE;
+    int maxValueSize = MAX_VALUE_SIZE;
+    int gcItems = GC_ITEMS;
 
     private final int groupId;
 
@@ -90,7 +95,7 @@ class KvImpl {
         if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
             return KvCodes.CODE_INVALID_KEY;
         }
-        if (bs.length > MAX_KEY_SIZE) {
+        if (bs.length > maxKeySize) {
             return KvCodes.CODE_KEY_TOO_LONG;
         }
         return KvCodes.CODE_SUCCESS;
@@ -186,7 +191,7 @@ class KvImpl {
         if (data == null || data.length == 0) {
             return new KvResult(KvCodes.CODE_INVALID_VALUE);
         }
-        if (data.length > MAX_VALUE_SIZE) {
+        if (data.length > maxValueSize) {
             return new KvResult(KvCodes.CODE_VALUE_TOO_LONG);
         }
         return doPut(index, key, data);
@@ -348,7 +353,7 @@ class KvImpl {
             }
             writeLock.lock();
             try {
-                for (int i = 0; i < GC_ITEMS; i++) {
+                for (int i = 0; i < gcItems; i++) {
                     if (!it.hasNext()) {
                         log.info("group {} gc task finished, cost {} ms", groupId, System.currentTimeMillis() - t);
                         return Boolean.FALSE;
