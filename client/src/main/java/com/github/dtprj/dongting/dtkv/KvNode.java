@@ -29,67 +29,70 @@ import java.nio.ByteBuffer;
  */
 public class KvNode implements Encodable {
 
-    private static final int IDX_DATA = 1;
-    private static final int IDX_CREATE_INDEX = 2;
-    private static final int IDX_CREATE_TIME = 3;
-    private static final int IDX_UPDATE_INDEX = 4;
-    private static final int IDX_UPDATE_TIME = 5;
+    private static final int IDX_CREATE_INDEX = 1;
+    private static final int IDX_CREATE_TIME = 2;
+    private static final int IDX_UPDATE_INDEX = 3;
+    private static final int IDX_UPDATE_TIME = 4;
+    private static final int IDX_DATA = 15;
 
     protected final long createIndex;
     protected final long createTime;
     protected final long updateIndex;
     protected final long updateTime;
 
-    private final int size_3to6;
+    private final int headerSize;
 
+    protected boolean dir;
     protected final byte[] data;
 
-    public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, byte[] data) {
+    public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
         this.createIndex = createIndex;
         this.createTime = createTime;
         this.updateIndex = updateIndex;
         this.updateTime = updateTime;
+        this.dir = dir;
         this.data = data;
 
-        this.size_3to6 = PbUtil.accurateFix64Size(IDX_CREATE_INDEX, createIndex)
+        this.headerSize = PbUtil.accurateFix64Size(IDX_CREATE_INDEX, createIndex)
                 + PbUtil.accurateFix64Size(IDX_CREATE_TIME, createTime)
                 + PbUtil.accurateFix64Size(IDX_UPDATE_INDEX, updateIndex)
                 + PbUtil.accurateFix64Size(IDX_UPDATE_TIME, updateTime);
     }
 
     public boolean isDir() {
-        return data == null || data.length == 0;
+        return dir;
     }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         int remaining = destBuffer.remaining();
-        if (context.stage < IDX_DATA) {
-            if (EncodeUtil.encode(context, destBuffer, IDX_DATA, data)) {
-                context.stage = IDX_DATA;
-            } else {
-                return false;
-            }
-        }
-        if (context.stage == IDX_DATA) {
-            if (remaining < size_3to6) {
+        if (context.stage == EncodeContext.STAGE_BEGIN) {
+            if (remaining < headerSize) {
                 return false;
             } else {
                 PbUtil.writeFix64(destBuffer, IDX_CREATE_INDEX, createIndex);
                 PbUtil.writeFix64(destBuffer, IDX_CREATE_TIME, createTime);
                 PbUtil.writeFix64(destBuffer, IDX_UPDATE_INDEX, updateIndex);
                 PbUtil.writeFix64(destBuffer, IDX_UPDATE_TIME, updateTime);
-                context.stage = EncodeContext.STAGE_END;
-                return true;
+                context.stage = IDX_UPDATE_TIME;
             }
         }
+        if (context.stage == IDX_UPDATE_TIME) {
+            if (EncodeUtil.encode(context, destBuffer, IDX_DATA, data)) {
+                context.stage = EncodeContext.STAGE_END;
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         throw new CodecException(context);
     }
 
     @Override
     public int actualSize() {
         return PbUtil.accurateLengthDelimitedSize(IDX_DATA, data == null ? 0 : data.length)
-                + size_3to6;
+                + headerSize;
     }
 
     // re-used
@@ -140,7 +143,7 @@ public class KvNode implements Encodable {
 
         @Override
         protected KvNode getResult() {
-            return new KvNode(createIndex, createTime, updateIndex, updateTime, data);
+            return new KvNode(createIndex, createTime, updateIndex, updateTime, data == null || data.length == 0, data);
         }
     }
 

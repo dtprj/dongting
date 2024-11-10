@@ -16,11 +16,11 @@
 syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.config";
 message KvNode {
-  bytes value = 1;
-  fixed64 create_index = 2;
-  fixed64 create_time = 3;
-  fixed64 update_index = 4;
-  fixed64 update_time = 5;
+  fixed64 create_index = 1;
+  fixed64 create_time = 2;
+  fixed64 update_index = 3;
+  fixed64 update_time = 4;
+  bytes value = 15;
 }
 
 message KvResult {

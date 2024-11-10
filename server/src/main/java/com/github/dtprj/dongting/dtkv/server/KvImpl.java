@@ -70,7 +70,7 @@ class KvImpl {
         this.ts = ts;
         this.groupId = groupId;
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
-        KvNodeEx n = new KvNodeEx(0, 0, 0, 0, null);
+        KvNodeEx n = new KvNodeEx(0, 0, 0, 0, true, null);
         this.root = new KvNodeHolder(ByteArray.EMPTY, ByteArray.EMPTY, n, null);
         this.map.put(ByteArray.EMPTY, root);
         ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
@@ -119,7 +119,7 @@ class KvImpl {
                 return KvResult.NOT_FOUND;
             }
             KvNodeEx kvNode = h.latest;
-            if (kvNode.removeAtIndex > 0) {
+            if (kvNode.removed) {
                 return KvResult.NOT_FOUND;
             }
             return new KvResult(KvCodes.CODE_SUCCESS, kvNode);
@@ -153,7 +153,7 @@ class KvImpl {
                 return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
             }
             KvNodeEx kvNode = h.latest;
-            if (kvNode.removeAtIndex > 0) {
+            if (kvNode.removed) {
                 return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
             }
             if (!kvNode.isDir()) {
@@ -167,7 +167,7 @@ class KvImpl {
                 list = new ArrayList<>();
             }
             for (KvNodeHolder child : kvNode.children.values()) {
-                if (child.latest.removeAtIndex == 0) {
+                if (!child.latest.removed) {
                     list.add(new KvResult(KvCodes.CODE_SUCCESS, child.latest, child.keyInDir));
                 }
             }
@@ -202,7 +202,7 @@ class KvImpl {
         if (lastIndexOfSep > 0) {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
-            if (parent == null || parent.latest.removeAtIndex > 0) {
+            if (parent == null || parent.latest.removed) {
                 return new KvResult(KvCodes.CODE_PARENT_DIR_NOT_EXISTS);
             }
             if (!parent.latest.isDir()) {
@@ -213,32 +213,35 @@ class KvImpl {
         }
         KvNodeHolder h = map.get(key);
         writeLock.lock();
+        KvResult result;
         try {
-            boolean overwrite;
             long timestamp = ts.getWallClockMillis();
+            boolean newValueIsDir = data == null || data.length == 0;
             if (h == null) {
                 ByteArray keyInDir = key.sub(lastIndexOfSep + 1);
-                KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, data);
+                KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
                 h = new KvNodeHolder(key, keyInDir, newKvNode, parent);
                 map.put(key, h);
                 parent.latest.children.put(keyInDir, h);
-                overwrite = false;
+                result = KvResult.SUCCESS;
             } else {
-                overwrite = h.latest.removeAtIndex == 0;
+                KvNodeEx oldNode = h.latest;
                 KvNodeEx newKvNode;
-                if (overwrite) {
-                    boolean newValueIsDir = data == null || data.length == 0;
-                    boolean oldValueIsDir = h.latest.isDir();
-                    if (newValueIsDir != oldValueIsDir) {
-                        return new KvResult(h.latest.isDir() ? KvCodes.CODE_DIR_EXISTS : KvCodes.CODE_VALUE_EXISTS);
-                    }
-                    newKvNode = new KvNodeEx(h.latest.getCreateIndex(), h.latest.getCreateTime(),
-                            index, timestamp, data);
+                if (oldNode.removed) {
+                    newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
+                    result = KvResult.SUCCESS;
                 } else {
-                    newKvNode = new KvNodeEx(index, timestamp, index, timestamp, data);
+                    // override
+                    boolean oldValueIsDir = oldNode.isDir();
+                    if (newValueIsDir != oldValueIsDir) {
+                        return new KvResult(oldValueIsDir ? KvCodes.CODE_DIR_EXISTS : KvCodes.CODE_VALUE_EXISTS);
+                    }
+                    newKvNode = new KvNodeEx(oldNode.getCreateIndex(), oldNode.getCreateTime(),
+                            index, timestamp, newValueIsDir, data);
+                    result = KvResult.SUCCESS_OVERWRITE;
                 }
                 if (maxOpenSnapshotIndex > 0) {
-                    newKvNode.previous = h.latest;
+                    newKvNode.previous = oldNode;
                     h.latest = newKvNode;
                     gc(h);
                 } else {
@@ -246,10 +249,10 @@ class KvImpl {
                 }
             }
             updateParent(index, timestamp, parent);
-            return overwrite ? KvResult.SUCCESS_OVERWRITE : KvResult.SUCCESS;
         } finally {
             writeLock.unlock();
         }
+        return result;
     }
 
     private void updateParent(long index, long timestamp, KvNodeHolder parent) {
@@ -267,36 +270,36 @@ class KvImpl {
     private void gc(KvNodeHolder h) {
         KvNodeEx n = h.latest;
         if (maxOpenSnapshotIndex > 0) {
-            KvNodeEx newNode = null;
+            KvNodeEx next = null;
             while (n != null) {
-                if (n.getCreateIndex() > maxOpenSnapshotIndex && (newNode != null || n.removeAtIndex > 0)) {
-                    // n is not needed
-                    if (newNode == null) {
-                        if (n.previous == null) {
-                            removeFromMap(h);
-                            return;
-                        } else {
-                            h.latest = n.previous;
-                        }
-                    } else {
-                        newNode.previous = n.previous;
-                    }
-                } else if ((newNode != null && newNode.getCreateIndex() <= minOpenSnapshotIndex
-                        && (newNode.removeAtIndex == 0 || newNode.removeAtIndex > minOpenSnapshotIndex))
-                        || (n.removeAtIndex > 0 && n.removeAtIndex <= minOpenSnapshotIndex)) {
-                    if (newNode == null) {
-                        removeFromMap(h);
-                    } else {
-                        newNode.previous = null;
-                    }
+                if (next != null && n.getUpdateIndex() > maxOpenSnapshotIndex) {
+                    next.previous = n.previous;
+                } else if (next != null && next.getUpdateIndex() <= minOpenSnapshotIndex) {
+                    next.previous = null;
                     return;
+                } else if (n.removed) {
+                    KvNodeEx p;
+                    while ((p = n.previous) != null && (p.getUpdateIndex() > maxOpenSnapshotIndex
+                            || n.getUpdateIndex() <= minOpenSnapshotIndex)) {
+                        n.previous = p.previous;
+                    }
+                    if (p == null) {
+                        if (next == null) {
+                            removeFromMap(h);
+                        } else {
+                            next.previous = null;
+                        }
+                        return;
+                    } else {
+                        next = n;
+                    }
                 } else {
-                    newNode = n;
+                    next = n;
                 }
                 n = n.previous;
             }
         } else {
-            if (n.removeAtIndex > 0) {
+            if (n.removed) {
                 removeFromMap(h);
             } else {
                 n.previous = null;
@@ -312,7 +315,8 @@ class KvImpl {
     void installSnapshotPut(EncodeStatus encodeStatus) {
         // do not need lock, no other requests during install snapshot
         KvNodeEx n = new KvNodeEx(encodeStatus.createIndex, encodeStatus.createTime, encodeStatus.createIndex,
-                encodeStatus.updateTime, encodeStatus.valueBytes);
+                encodeStatus.updateTime, encodeStatus.valueBytes == null || encodeStatus.valueBytes.length == 0,
+                encodeStatus.valueBytes);
         if (encodeStatus.keyBytes == null || encodeStatus.keyBytes.length == 0) {
             root.latest = n;
         } else {
@@ -369,21 +373,29 @@ class KvImpl {
             return KvResult.NOT_FOUND;
         }
         KvNodeEx n = h.latest;
-        if (n.removeAtIndex > 0) {
+        if (n.removed) {
             return KvResult.NOT_FOUND;
         }
         if (n.isDir() && !n.children.isEmpty()) {
             for (KvNodeHolder c : n.children.values()) {
                 KvNodeEx child = c.latest;
-                if (child.removeAtIndex == 0) {
+                if (!child.removed) {
                     return new KvResult(KvCodes.CODE_HAS_CHILDREN);
                 }
             }
         }
         writeLock.lock();
         try {
-            n.removeAtIndex = index;
-            gc(h);
+            if (maxOpenSnapshotIndex > 0) {
+                KvNodeEx newKvNode = new KvNodeEx(n.getCreateIndex(), n.getCreateTime(), index,
+                        ts.getWallClockMillis(), n.isDir(), null);
+                newKvNode.removed = true;
+                h.latest = newKvNode;
+                newKvNode.previous = n;
+                gc(h);
+            } else {
+                removeFromMap(h);
+            }
             updateParent(index, ts.getWallClockMillis(), h.parent);
         } finally {
             writeLock.unlock();

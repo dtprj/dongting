@@ -254,5 +254,103 @@ class KvImplTest {
         assertEquals("e", new String(kv.get(ba("parent")).getNode().getData()));
     }
 
+    private void assertNodeCount(int expect, String key) {
+        KvNodeHolder holder = kv.map.get(ba(key));
+        if (expect == 0) {
+            assertNull(holder);
+        } else {
+            assertNotNull(holder);
+            int count = 0;
+            KvNodeEx n = holder.latest;
+            while (n != null) {
+                count++;
+                n = n.previous;
+            }
+            assertEquals(expect, count);
+        }
+    }
+
+    @Test
+    void testGc1() {
+        int ver = 1;
+        kv.put(ver++, ba("key1"), "a".getBytes());
+        KvSnapshot s1 = takeSnapshot();
+
+        kv.put(ver++, ba("key1"), "b".getBytes());
+        assertNodeCount(2, "key1");
+        kv.put(ver++, ba("key1"), "c".getBytes());
+        assertNodeCount(2, "key1");
+        KvSnapshot s2 = takeSnapshot();
+
+        kv.put(ver++, ba("key1"), "d".getBytes());
+        assertNodeCount(3, "key1");
+        s1.close();
+        assertNodeCount(2, "key1");
+        s2.close();
+        assertNodeCount(1, "key1");
+    }
+
+    @Test
+    void testGc2() {
+        kv.put(1, ba("key1"), "a".getBytes());
+        KvSnapshot s1 = takeSnapshot();
+
+        kv.put(2, ba("key2"), "b".getBytes());
+        kv.remove(3, ba("key2"));
+        assertNodeCount(0, "key2");
+
+        kv.put(4, ba("key1"), "a2".getBytes());
+        kv.put(5, ba("key1"), "a3".getBytes());
+        kv.remove(6, ba("key1"));
+        assertNodeCount(2, "key1");
+
+        s1.close();
+        assertNodeCount(0, "key1");
+    }
+
+    @Test
+    void testGc3() {
+        kv.put(1, ba("key1"), "a".getBytes());
+        KvSnapshot s1 = takeSnapshot();
+
+        kv.remove(2, ba("key1"));
+        takeSnapshot();
+
+        kv.put(3, ba("key1"), "b".getBytes());
+        assertNodeCount(3, "key1");
+        takeSnapshot();
+
+        s1.close();
+        assertNodeCount(1, "key1");
+    }
+
+    @Test
+    void testGc4() {
+        kv.put(1, ba("key1"), "a".getBytes());
+        KvSnapshot s1 = takeSnapshot();
+
+        kv.put(2, ba("key1"), "b".getBytes());
+        assertNodeCount(2, "key1");
+        takeSnapshot();
+
+        s1.close();
+        assertNodeCount(1, "key1");
+    }
+
+    @Test
+    void testGc5() {
+        kv.put(1, ba("key1"), "a".getBytes());
+        KvSnapshot s1 = takeSnapshot();
+
+        kv.put(2, ba("key1"), "b".getBytes());
+        assertNodeCount(2, "key1");
+        takeSnapshot();
+
+        kv.remove(3, ba("key1"));
+
+        s1.close();
+        assertNodeCount(2, "key1");
+    }
+
 }
 

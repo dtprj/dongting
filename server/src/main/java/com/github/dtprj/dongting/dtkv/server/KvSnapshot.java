@@ -121,10 +121,10 @@ class KvSnapshot extends Snapshot {
 
     private KvNodeEx getNode(KvNodeHolder h) {
         KvNodeEx n = h.latest;
-        while (n != null && n.getCreateIndex() > lastIncludeRaftIndex) {
+        while (n != null && n.getUpdateIndex() > lastIncludeRaftIndex) {
             n = n.previous;
         }
-        if (n == null || n.removeAtIndex > 0) {
+        if (n == null || n.removed) {
             return null;
         }
         return n;

@@ -23,23 +23,23 @@ import java.util.HashMap;
 /**
  * @author huangli
  */
-class KvNodeEx extends KvNode {
+final class KvNodeEx extends KvNode {
     final HashMap<ByteArray, KvNodeHolder> children;
 
     KvNodeEx previous;
-    long removeAtIndex;
+    boolean removed;
 
-    public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime, byte[] data) {
-        super(createIndex, createTime, updateIndex, updateTime, data);
-        if (isDir()) {
+    public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
+        super(createIndex, createTime, updateIndex, updateTime, dir, data);
+        if (dir) {
             children = new HashMap<>();
         } else {
             children = null;
         }
     }
 
-    public KvNodeEx(KvNodeEx oldNode, long updateIndex, long updateTime) {
-        super(oldNode.createIndex, oldNode.createTime, updateIndex, updateTime, oldNode.data);
-        this.children = oldNode.children;
+    public KvNodeEx(KvNodeEx oldDirNode, long updateIndex, long updateTime) {
+        super(oldDirNode.createIndex, oldDirNode.createTime, updateIndex, updateTime, true, oldDirNode.data);
+        this.children = oldDirNode.children;
     }
 }

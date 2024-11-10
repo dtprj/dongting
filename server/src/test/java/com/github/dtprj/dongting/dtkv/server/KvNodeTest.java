@@ -34,7 +34,7 @@ public class KvNodeTest {
 
     public static KvNode buildNode() {
         Random r = new Random();
-        return new KvNode(r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong(), TestUtil.randomStr(5).getBytes());
+        return new KvNode(r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong(), false, TestUtil.randomStr(5).getBytes());
     }
 
     @Test
