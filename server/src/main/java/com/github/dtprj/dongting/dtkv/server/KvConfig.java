@@ -20,7 +20,6 @@ package com.github.dtprj.dongting.dtkv.server;
  */
 public class KvConfig {
     private boolean useSeparateExecutor = false;
-    private int maxListSize = 5000;
     private int initMapCapacity = 16 * 1024;
     private float loadFactor = 0.75f;
 
@@ -31,14 +30,6 @@ public class KvConfig {
 
     public void setUseSeparateExecutor(boolean useSeparateExecutor) {
         this.useSeparateExecutor = useSeparateExecutor;
-    }
-
-    public int getMaxListSize() {
-        return maxListSize;
-    }
-
-    public void setMaxListSize(int maxListSize) {
-        this.maxListSize = maxListSize;
     }
 
     public int getInitMapCapacity() {
