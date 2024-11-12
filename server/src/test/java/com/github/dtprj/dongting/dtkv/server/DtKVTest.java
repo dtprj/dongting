@@ -149,6 +149,24 @@ public class DtKVTest extends BaseFiberTest {
         return kv2;
     }
 
+    private long[] backupIndexAndTime(String key) {
+        long[] result = new long[4];
+        KvResult r = get(key);
+        result[0] = r.getNode().getCreateIndex();
+        result[1] = r.getNode().getCreateTime();
+        result[2] = r.getNode().getUpdateIndex();
+        result[3] = r.getNode().getUpdateTime();
+        return result;
+    }
+
+    private void checkIndexAndTime(DtKV newKv, String key, long[] indexAndTime) {
+        KvResult r = get(newKv, key);
+        assertEquals(indexAndTime[0], r.getNode().getCreateIndex());
+        assertEquals(indexAndTime[1], r.getNode().getCreateTime());
+        assertEquals(indexAndTime[2], r.getNode().getUpdateIndex());
+        assertEquals(indexAndTime[3], r.getNode().getUpdateTime());
+    }
+
     @Test
     void testSnapshot() throws Exception {
         doInFiber(() -> {
@@ -170,9 +188,17 @@ public class DtKVTest extends BaseFiberTest {
             for (int i = 0; i < 50; i++) {
                 put(ver++, "key" + i, "value" + i);
             }
+            long[] root_1 = backupIndexAndTime("");
+            long[] d1_1 = backupIndexAndTime("d1");
+            long[] d1k2_1 = backupIndexAndTime("d1.k2");
+            long[] d1dd1_1 = backupIndexAndTime("d1.dd1");
             KvSnapshot s1 = takeSnapshot();
 
             put(ver++, "d1.k2", "d1.k2_v2");
+            long[] root_2 = backupIndexAndTime("");
+            long[] d1_2 = backupIndexAndTime("d1");
+            long[] d1k2_2 = backupIndexAndTime("d1.k2");
+            long[] k1_2 = backupIndexAndTime("k1");
             KvSnapshot s2 = takeSnapshot();
 
             remove(ver++, "k1");
@@ -182,6 +208,10 @@ public class DtKVTest extends BaseFiberTest {
             remove(ver++, "d1.dd2.k2");
             remove(ver++, "d1.dd2");
             put(ver++, "d1.dd2", "d1.dd2_v");
+            long[] root_3 = backupIndexAndTime("");
+            long[] d1_3 = backupIndexAndTime("d1");
+            long[] k1_3 = backupIndexAndTime("k1");
+            long[] d1dd2_3 = backupIndexAndTime("d1.dd2");
             KvSnapshot s3 = takeSnapshot();
 
             {
@@ -199,6 +229,11 @@ public class DtKVTest extends BaseFiberTest {
                 for (int i = 0; i < 50; i++) {
                     assertEquals("value" + i, getStr(newKv, "key" + i));
                 }
+                checkIndexAndTime(newKv, "", root_1);
+                checkIndexAndTime(newKv, "d1", d1_1);
+                checkIndexAndTime(newKv, "d1.k2", d1k2_1);
+                checkIndexAndTime(newKv, "d1.dd1", d1dd1_1);
+                newKv.stop(new DtTime(1, TimeUnit.SECONDS));
             }
             {
                 DtKV newKv = copyTo(s2);
@@ -216,6 +251,11 @@ public class DtKVTest extends BaseFiberTest {
                 for (int i = 0; i < 50; i++) {
                     assertEquals("value" + i, getStr(newKv, "key" + i));
                 }
+                checkIndexAndTime(newKv, "", root_2);
+                checkIndexAndTime(newKv, "d1", d1_2);
+                checkIndexAndTime(newKv, "d1.k2", d1k2_2);
+                checkIndexAndTime(newKv, "k1", k1_2);
+                newKv.stop(new DtTime(1, TimeUnit.SECONDS));
             }
             {
                 DtKV newKv = copyTo(s3);
@@ -233,8 +273,18 @@ public class DtKVTest extends BaseFiberTest {
                 assertEquals("d1.dd1.k2_v", getStr(newKv, "d1.dd1.k2"));
                 assertEquals("d1.dd1.ddd1.k1_v", getStr(newKv, "d1.dd1.ddd1.k1"));
                 assertEquals("d1.dd1.ddd1.k2_v", getStr(newKv, "d1.dd1.ddd1.k2"));
+                for (int i = 0; i < 50; i++) {
+                    assertEquals("value" + i, getStr(newKv, "key" + i));
+                }
+                checkIndexAndTime(newKv, "", root_3);
+                checkIndexAndTime(newKv, "d1", d1_3);
+                checkIndexAndTime(newKv, "k1", k1_3);
+                checkIndexAndTime(newKv, "d1.dd2", d1dd2_3);
+                newKv.stop(new DtTime(1, TimeUnit.SECONDS));
             }
-
+            s1.close();
+            s2.close();
+            s3.close();
         });
     }
 }

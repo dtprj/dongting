@@ -319,7 +319,7 @@ class KvImpl {
 
     void installSnapshotPut(EncodeStatus encodeStatus) {
         // do not need lock, no other requests during install snapshot
-        KvNodeEx n = new KvNodeEx(encodeStatus.createIndex, encodeStatus.createTime, encodeStatus.createIndex,
+        KvNodeEx n = new KvNodeEx(encodeStatus.createIndex, encodeStatus.createTime, encodeStatus.updateIndex,
                 encodeStatus.updateTime, encodeStatus.valueBytes == null || encodeStatus.valueBytes.length == 0,
                 encodeStatus.valueBytes);
         if (encodeStatus.keyBytes == null || encodeStatus.keyBytes.length == 0) {
