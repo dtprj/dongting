@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberCancelException;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -31,6 +30,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.SnapshotReader;
@@ -286,7 +286,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            if (ex instanceof FiberCancelException) {
+            if (ex instanceof RaftCancelException) {
                 log.warn("save snapshot task is cancelled");
             } else {
                 log.error("save snapshot failed", ex);
@@ -306,7 +306,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
             if (!success) {
                 if (cancel) {
-                    complete(new RaftException("save snapshot task is cancelled"));
+                    complete(new RaftCancelException("save snapshot task is cancelled"));
                 }
                 if (newDataFile != null) {
                     deleteInIoExecutor(newDataFile.getFile());

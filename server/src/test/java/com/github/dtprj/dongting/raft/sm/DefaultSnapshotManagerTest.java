@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -48,8 +49,15 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
     private DtKV kv;
     private RaftStatusImpl raftStatus;
 
-    private void createManager(boolean separateExecutor, String dataDir) {
-        raftStatus = new RaftStatusImpl(dispatcher.getTs());
+    private void createManager(boolean separateExecutor, String dataDir, boolean mockInstall) {
+        raftStatus = new RaftStatusImpl(dispatcher.getTs()) {
+            private int count;
+
+            @Override
+            public boolean isInstallSnapshot() {
+                return mockInstall && count++ >= 2;
+            }
+        };
         raftStatus.setNodeIdOfMembers(Set.of(1));
         raftStatus.setNodeIdOfObservers(Set.of());
         raftStatus.setNodeIdOfPreparedMembers(Set.of());
@@ -76,7 +84,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
     void test(boolean separateExecutor) throws Exception {
         String dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
-        createManager(separateExecutor, dataDir);
+        createManager(separateExecutor, dataDir, false);
         doInFiber(new FiberFrame<>() {
             private long index = 1;
             private static final int LOOP = 10;
@@ -132,7 +140,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
 
-                createManager(separateExecutor, dataDir);
+                createManager(separateExecutor, dataDir, false);
                 kv.start();
                 m.startFiber();
                 return Fiber.call(m.init(), this::afterInit2);
@@ -163,6 +171,41 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             }
 
         });
+    }
+
+    @Test
+    void testCancel() throws Exception {
+        String dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
+        createManager(false, dataDir, true);
+        AtomicBoolean saveFinished = new AtomicBoolean();
+        doInFiber(new FiberFrame<>() {
+            @Override
+            protected FrameCallResult doFinally() {
+                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                m.stopFiber();
+                return super.doFinally();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                assertTrue(ex.getMessage().contains("cancel"));
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                kv.start();
+                m.startFiber();
+                FiberFuture<Long> f = m.saveSnapshot();
+                return f.await(this::afterSave);
+            }
+
+            private FrameCallResult afterSave(Long aLong) {
+                saveFinished.set(true);
+                return Fiber.frameReturn();
+            }
+        });
+        assertFalse(saveFinished.get());
     }
 
 }
