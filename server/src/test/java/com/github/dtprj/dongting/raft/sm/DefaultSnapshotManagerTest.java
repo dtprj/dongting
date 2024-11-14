@@ -32,8 +32,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.store.TestDir;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -49,19 +47,8 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
     private DefaultSnapshotManager m;
     private DtKV kv;
     private RaftStatusImpl raftStatus;
-    private String dataDir;
 
-    @BeforeEach
-    void setUp() throws Exception {
-        dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
-        createManager();
-        doInFiber(() -> {
-            kv.start();
-            m.startFiber();
-        });
-    }
-
-    private void createManager() {
+    private void createManager(boolean separateExecutor, String dataDir) {
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         raftStatus.setNodeIdOfMembers(Set.of(1));
         raftStatus.setNodeIdOfObservers(Set.of());
@@ -75,28 +62,36 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         groupConfig.setDataDir(dataDir);
         groupConfig.setBlockIoExecutor(MockExecutors.ioExecutor());
         KvConfig kvConfig = new KvConfig();
-        kvConfig.setUseSeparateExecutor(true);
+        kvConfig.setUseSeparateExecutor(separateExecutor);
         kvConfig.setInitMapCapacity(16);
         kv = new DtKV(groupConfig, kvConfig);
         m = new DefaultSnapshotManager(groupConfig, kv);
     }
 
-    @AfterEach
-    void tearDown() throws Exception {
-        doInFiber(() -> {
-            kv.stop(new DtTime(1, TimeUnit.SECONDS));
-            m.stopFiber();
-        });
-    }
-
     @Test
     void test() throws Exception {
+        test(false);
+        test(true);
+    }
+
+    void test(boolean separateExecutor) throws Exception {
+        String dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
+        createManager(separateExecutor, dataDir);
         doInFiber(new FiberFrame<>() {
             private long index = 1;
             private static final int LOOP = 10;
 
             @Override
+            protected FrameCallResult doFinally() {
+                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                m.stopFiber();
+                return super.doFinally();
+            }
+
+            @Override
             public FrameCallResult execute(Void input) {
+                kv.start();
+                m.startFiber();
                 return Fiber.call(m.init(), this::afterInit);
             }
 
@@ -137,7 +132,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
 
-                createManager();
+                createManager(separateExecutor, dataDir);
                 kv.start();
                 m.startFiber();
                 return Fiber.call(m.init(), this::afterInit2);

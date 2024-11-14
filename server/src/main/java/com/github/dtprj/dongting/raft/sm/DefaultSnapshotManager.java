@@ -136,7 +136,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 }
             }
             if (snapshotFiles.isEmpty()) {
-                log.info("no saved snapshot found");
+                log.warn("no saved snapshot found");
                 setResult(null);
                 return Fiber.frameReturn();
             }
