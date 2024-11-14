@@ -92,10 +92,10 @@ public class SnapshotReader extends FiberFrame<Void> {
                     throw firstEx;
                 } else {
                     if (readFinish) {
-                        log.info("snapshot read finished");
+                        log.info("snapshot read finished: {}", snapshot.getClass().getSimpleName());
                         return Fiber.frameReturn();
                     } else {
-                        log.info("snapshot read canceled");
+                        log.info("snapshot read canceled: {}", snapshot.getClass().getSimpleName());
                         throw new RaftCancelException("snapshot read canceled");
                     }
                 }

@@ -30,5 +30,7 @@ public interface SnapshotManager {
 
     void startFiber();
 
+    void stopFiber();
+
     FiberFuture<Long> saveSnapshot();
 }
