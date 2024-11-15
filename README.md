@@ -9,7 +9,7 @@ and low-level RPC. Features are as follows:
   removal, and updating of RAFT Groups, allowing your cluster to scale dynamically. 
   The state machine runs in the raft framework can be customized.
 * (Under testing) Low-level RPC. Used by Donging itself.
-* (Planned) Distribute configuration server with linearizability.
+* (Under testing) Distribute configuration server with linearizability.
 * (Planned) MQ (message queues) with linearizability. Use RAFT log as message queue log.
 
 ## 10X Throughput
