@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -136,8 +135,6 @@ public class DefaultRaftLog implements RaftLog {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                TailCache tailCache = raftStatus.getTailCache();
-                tailCache.truncate(index);
                 return Fiber.call(idxFiles.loadLogPos(index), this::afterPosLoad);
             }
 

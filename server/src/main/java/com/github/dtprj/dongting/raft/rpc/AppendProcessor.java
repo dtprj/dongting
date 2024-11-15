@@ -37,6 +37,7 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -413,6 +414,9 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     private FrameCallResult truncateAndAppend(long matchIndex, int matchTerm) {
         gc.getRaftStatus().setTruncating(true);
         long truncateIndex = matchIndex + 1;
+
+        TailCache tailCache = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().getTailCache();
+        tailCache.truncate(truncateIndex);
         return Fiber.call(gc.getRaftLog().truncateTail(truncateIndex), v -> afterTruncate(matchIndex, matchTerm));
     }
 
