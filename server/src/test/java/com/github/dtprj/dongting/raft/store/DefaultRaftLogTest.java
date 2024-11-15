@@ -49,7 +49,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     private DefaultRaftLog raftLog;
 
     @BeforeEach
-    public void setup() throws Exception {
+    void setup() throws Exception {
         dataDir = TestDir.testDir(DefaultRaftLogTest.class.getSimpleName());
         init();
     }
@@ -76,7 +76,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
         });
 
-        raftLog = new DefaultRaftLog(config, statusManager, null,1);
+        raftLog = new DefaultRaftLog(config, statusManager, null, 1);
         raftLog.idxItemsPerFile = 8;
         config.setIdxCacheSize(4);
         config.setIdxFlushThreshold(2);
@@ -95,7 +95,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     @AfterEach
-    public void tearDown() throws Exception {
+    void tearDown() throws Exception {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -117,7 +117,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                raftLog.logFiles.submit(list);
+                raftLog.append(list);
                 return waitWriteFinish(null);
             }
 
@@ -132,7 +132,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     @Test
-    public void testInit() throws Exception {
+    void testInit() throws Exception {
         int[] totalSizes = new int[]{400, 400, 512};
         int[] bizHeaderLen = new int[]{1, 0, 400};
         append(1, totalSizes, bizHeaderLen);
@@ -141,10 +141,10 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     @Test
-    public void testDelete() throws Exception {
+    void testDelete() throws Exception {
         int[] totalSizes = new int[]{400, 400, 512, 200, 400};
         int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
-        append( 1, totalSizes, bizHeaderLen);
+        append(1, totalSizes, bizHeaderLen);
         raftStatus.setCommitIndex(5);
         raftStatus.setLastApplied(5);
         raftStatus.setLastLogIndex(5);

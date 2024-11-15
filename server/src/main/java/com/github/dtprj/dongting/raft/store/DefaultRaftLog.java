@@ -299,7 +299,7 @@ public class DefaultRaftLog implements RaftLog {
                 if (second.firstIndex == 0) {
                     return false;
                 }
-                if (raftStatus.getCommitIndex() < second.firstIndex ||
+                if (raftStatus.getLastApplied() < second.firstIndex ||
                         raftStatus.getLastForceLogIndex() < second.firstIndex) {
                     return false;
                 }
@@ -311,7 +311,7 @@ public class DefaultRaftLog implements RaftLog {
         private FrameCallResult deleteIdx(Void unused) {
             // ex handled by deleteByPredicate method
             FiberFrame<Void> f = idxFiles.deleteByPredicate(() -> {
-                IndexedQueue<LogFile> q = logFiles.queue;
+                IndexedQueue<LogFile> q = idxFiles.queue;
                 if (q.size() <= 1) {
                     // don't delete last file
                     return false;
