@@ -335,31 +335,34 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (raftStatus.isInstallSnapshot()) {
+                return needFlushCondition.await(1000, this);
+            }
             long diff = getDiff();
+            int flushType;
             if (diff > flushThreshold) {
-                return prepareFlush(0);
+                flushType = 0;
             } else if (closed) {
                 if (diff > 0) {
-                    return prepareFlush(1);
+                    flushType = 1;
                 } else {
-                    return prepareFlush(2);
+                    flushType = 2;
                 }
             } else {
                 long restMillis = (lastFlushNanos + FLUSH_INTERVAL_NANOS - ts.getNanoTime()) / 1000 / 1000;
                 if (restMillis > 0) {
                     return needFlushCondition.await(restMillis, this);
                 } else {
-                    return prepareFlush(1);
+                    flushType = 1;
                 }
             }
-        }
 
-        private FrameCallResult prepareFlush(int type) {
+            // begin prepare flush
             lastFlushNanos = ts.getNanoTime();
             FrameCall<Void> resumePoint;
-            if (type == 0) {
+            if (flushType == 0) {
                 resumePoint = v -> afterPosReady(false);
-            } else if (type == 1) {
+            } else if (flushType == 1) {
                 resumePoint = v -> afterPosReady(true);
             } else {
                 resumePoint = v -> {
@@ -396,6 +399,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         return new FiberFrame<>() {
             final ByteBuffer buffer = ByteBuffer.allocate(8);
+
             @Override
             public FrameCallResult execute(Void v) {
                 if (itemIndex < firstIndex) {
