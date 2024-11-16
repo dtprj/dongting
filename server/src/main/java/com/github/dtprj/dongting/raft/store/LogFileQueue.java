@@ -240,10 +240,13 @@ class LogFileQueue extends FileQueue {
     }
 
     public void truncateTail(long index, long pos) {
-        logAppender.setNext(index, pos);
         if (queue.size() > 0) {
             for (int i = queue.size() - 1; i >= 0; i--) {
                 LogFile logFile = queue.get(i);
+                if (logFile.firstIndex == 0) {
+                    // tail file has no items
+                    continue;
+                }
                 if (logFile.firstIndex >= index) {
                     logFile.firstIndex = 0;
                     logFile.firstTimestamp = 0;
@@ -253,6 +256,7 @@ class LogFileQueue extends FileQueue {
                 }
             }
         }
+        logAppender.setNext(index, pos);
     }
 
     public void submit(List<LogItem> inputs) {
