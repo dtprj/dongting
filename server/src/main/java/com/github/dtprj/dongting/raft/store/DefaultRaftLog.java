@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -141,7 +142,7 @@ public class DefaultRaftLog implements RaftLog {
 
             private FrameCallResult afterPosLoad(Long pos) {
                 if (logFiles.startPosOfFile(pos) == pos && index - 1 >= logFiles.getFirstIndex()) {
-                    return Fiber.call(idxFiles.loadLogPos(index - 1), this::afterPosLoad2);
+                    return Fiber.call(loadNextItemPos(index - 1), this::afterPosLoad2);
                 }
                 idxFiles.truncateTail(index);
                 logFiles.truncateTail(index, pos);
@@ -149,17 +150,9 @@ public class DefaultRaftLog implements RaftLog {
             }
 
             private FrameCallResult afterPosLoad2(Long pos) {
-                return Fiber.call(logFiles.loadHeader(pos), h -> afterLoadHeader(h, pos));
-            }
-
-            private FrameCallResult afterLoadHeader(LogHeader h, long pos) {
-                if (h.crcMatch()) {
-                    idxFiles.truncateTail(index);
-                    logFiles.truncateTail(index, pos + h.totalLen);
-                    return Fiber.frameReturn();
-                } else {
-                    throw new ChecksumException("header checksum mismatch: " + pos);
-                }
+                idxFiles.truncateTail(index);
+                logFiles.truncateTail(index, pos);
+                return Fiber.frameReturn();
             }
         };
 
@@ -223,6 +216,12 @@ public class DefaultRaftLog implements RaftLog {
             }
 
             private FrameCallResult afterLoadHeader(LogHeader header, long pos) {
+                if (!header.crcMatch()) {
+                    throw new ChecksumException("log header crc mismatch: " + pos);
+                }
+                if (header.isEndMagic()) {
+                    throw new RaftException("unexpected end magic: " + pos);
+                }
                 long nextPos = pos + header.totalLen;
                 setResult(nextPos);
                 return Fiber.frameReturn();
