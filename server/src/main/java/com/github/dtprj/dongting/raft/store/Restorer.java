@@ -117,7 +117,7 @@ class Restorer {
             if (header.crcMatch()) {
                 if (header.isEndMagic()) {
                     log.info("first item is end magic. file={}, pos={}", lf.getFile().getPath(), firstItemPos);
-                    setResult(new Pair<>(false, lf.endPos));
+                    setResult(new Pair<>(false, lf.startPos + firstItemPos));
                     return Fiber.frameReturn();
                 } else {
                     lf.firstIndex = header.index;

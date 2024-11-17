@@ -134,12 +134,15 @@ class LogFileQueue extends FileQueue {
                 return Fiber.call(restorer.restoreFile(buffer, lf), this::afterRestoreSingleFile);
             }
 
-            private FrameCallResult afterRestoreSingleFile(Pair<Boolean, Long> singleResult) {
-                writePos = singleResult.getRight();
-                if (singleResult.getLeft()) {
+            private FrameCallResult afterRestoreSingleFile(Pair<Boolean, Long> r) {
+                if (r.getLeft()) {
+                    if (r.getRight() > startPosOfFile(r.getRight()) || writePos == 0) {
+                        writePos = r.getRight();
+                    }
                     // break for loop
                     return finish();
                 }
+                writePos = r.getRight();
                 // loop
                 i++;
                 return execute(null);
