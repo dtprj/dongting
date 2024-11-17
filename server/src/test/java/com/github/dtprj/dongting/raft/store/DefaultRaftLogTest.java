@@ -36,6 +36,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.function.Supplier;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
@@ -207,5 +208,47 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
     private void plus1Hour() throws Exception {
         doInFiber(() -> TestUtil.plus1Hour(raftStatus.getTs()));
+    }
+
+    @Test
+    void testTruncate() throws Exception {
+        int[] totalSizes = new int[]{800, 512, 256, 256, 512};
+        int[] bizHeaderLen = new int[]{10, 10, 10, 10, 10};
+        append(1, totalSizes, bizHeaderLen);
+        raftStatus.setCommitIndex(1);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                LogFile logFile = raftLog.logFiles.getLogFile(2048);
+                assertEquals(5, logFile.firstIndex);
+                return Fiber.call(raftLog.truncateTail(5), this::resume1);
+            }
+
+            private FrameCallResult resume1(Void unused) {
+                LogFile logFile = raftLog.logFiles.getLogFile(2048);
+                assertEquals(0, logFile.firstIndex);
+                logFile = raftLog.logFiles.getLogFile(1024);
+                assertEquals(2, logFile.firstIndex);
+                assertEquals(5, raftLog.logFiles.logAppender.nextPersistIndex);
+                assertEquals(2048, raftLog.logFiles.logAppender.nextPersistPos);
+                return Fiber.call(raftLog.truncateTail(3), this::resume2);
+            }
+
+            private FrameCallResult resume2(Void unused) {
+                LogFile logFile = raftLog.logFiles.getLogFile(1024);
+                assertEquals(2, logFile.firstIndex);
+                assertEquals(3, raftLog.logFiles.logAppender.nextPersistIndex);
+                assertEquals(1536, raftLog.logFiles.logAppender.nextPersistPos);
+                return Fiber.call(raftLog.truncateTail(2), this::resume3);
+            }
+
+            private FrameCallResult resume3(Void unused) {
+                LogFile logFile = raftLog.logFiles.getLogFile(1024);
+                assertEquals(0, logFile.firstIndex);
+                assertEquals(2, raftLog.logFiles.logAppender.nextPersistIndex);
+                assertEquals(800, raftLog.logFiles.logAppender.nextPersistPos);
+                return Fiber.frameReturn();
+            }
+        });
     }
 }
