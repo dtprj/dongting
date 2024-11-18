@@ -187,13 +187,7 @@ public class DefaultRaftLog implements RaftLog {
     public FiberFrame<Void> beginInstall() {
         return new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) {
-                raftStatus.setInstallSnapshot(true);
-                statusManager.persistAsync(true);
-                return statusManager.waitUpdateFinish(this::afterPersist);
-            }
-
-            private FrameCallResult afterPersist(Void unused) {
+            public FrameCallResult execute(Void unused) {
                 return Fiber.call(logFiles.beginInstall(), this::afterLogBeginInstall);
             }
 

@@ -468,7 +468,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     @Override
-    protected FrameCallResult process() throws Exception {
+    protected FrameCallResult process() {
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
         if (req.offset == 0 && req.members != null) {
@@ -477,11 +477,22 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         return doInstall(raftStatus, req);
     }
 
-    private FrameCallResult startInstall(RaftStatusImpl raftStatus) throws Exception {
+    private FrameCallResult startInstall(RaftStatusImpl raftStatus) {
         if (RaftUtil.writeNotFinished(raftStatus)) {
             return RaftUtil.waitWriteFinish(raftStatus, this);
         }
-        return Fiber.call(gc.getRaftLog().beginInstall(), this::applyConfigChange);
+        raftStatus.setInstallSnapshot(true);
+        gc.getStatusManager().persistAsync(true);
+        return gc.getStatusManager().waitUpdateFinish(this::afterStatusPersist);
+    }
+
+    private FrameCallResult afterStatusPersist(Void v) throws Exception {
+        Fiber applyFiber = gc.getApplyManager().getApplyFiber();
+        if (applyFiber.isFinished()) {
+            return Fiber.call(gc.getRaftLog().beginInstall(), this::applyConfigChange);
+        } else {
+            return applyFiber.join(this::afterStatusPersist);
+        }
     }
 
     private FrameCallResult applyConfigChange(Void unused) {
@@ -525,7 +536,10 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
         FiberFrame<Void> finishFrame = gc.getRaftLog().finishInstall(
                 req.lastIncludedIndex + 1, req.nextWritePos);
-        return Fiber.call(finishFrame, v -> writeResp(null));
+        return Fiber.call(finishFrame, v -> {
+            gc.getApplyManager().signalStartApply();
+            return writeResp(null);
+        });
     }
 
     private FrameCallResult writeResp(Throwable ex) {

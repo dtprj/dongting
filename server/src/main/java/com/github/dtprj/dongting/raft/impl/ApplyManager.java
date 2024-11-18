@@ -69,6 +69,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     private FiberCondition needApplyCond;
     private boolean waitApply;
     private FiberCondition applyFinishCond;
+    private FiberCondition applyMonitorCond;
     private final LinkedList<RaftTask> heartBeatQueue = new LinkedList<>();
 
     private long initCommitIndex;
@@ -79,6 +80,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     private int execCount = 0;
 
     private final PerfCallback perfCallback;
+
+    private Fiber applyFiber;
 
     public ApplyManager(GroupComponents gc) {
         this.ts = gc.getRaftStatus().getTs();
@@ -103,8 +106,19 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     public void init(FiberGroup fiberGroup) {
         this.needApplyCond = fiberGroup.newCondition("needApply");
         this.applyFinishCond = fiberGroup.newCondition("applyFinish");
+        this.applyMonitorCond = fiberGroup.newCondition("applyMonitor");
         this.initCommitIndex = raftStatus.getCommitIndex();
         startApplyFiber(fiberGroup);
+        new Fiber("waitGroupReadyTimeout", fiberGroup, new WaitGroupReadyTimeoutFrame(), true).start();
+        new Fiber("applyFiberMonitor", fiberGroup, new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                if (applyFiber.isFinished() && !shouldStopApply()) {
+                    startApplyFiber(fiberGroup);
+                }
+                return applyMonitorCond.await(1000, this);
+            }
+        }, true).start();
         if (raftStatus.getLastApplied() >= raftStatus.getCommitIndex()) {
             log.info("apply manager init complete");
             raftStatus.getInitFuture().complete(null);
@@ -117,10 +131,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private void startApplyFiber(FiberGroup fiberGroup) {
-        Fiber f = new Fiber("apply", fiberGroup, new ApplyFrame(), false, 50);
-        f.start();
-        Fiber f2 = new Fiber("waitGroupReadyTimeout", fiberGroup, new WaitGroupReadyTimeoutFrame(), true);
-        f2.start();
+        applyFiber = new Fiber("apply", fiberGroup, new ApplyFrame(), false, 50);
+        applyFiber.start();
     }
 
     public void apply() {
@@ -300,9 +312,17 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private boolean shouldStopApply() {
-        return fiberGroup.isShouldStop() && (raftStatus.isInstallSnapshot()
-                || fiberGroup.timeAfterRequestStop(TimeUnit.MILLISECONDS) > 300
-                        || raftStatus.getLastApplied() == raftStatus.getCommitIndex());
+        return raftStatus.isInstallSnapshot() || (fiberGroup.isShouldStop() &&
+                (fiberGroup.timeAfterRequestStop(TimeUnit.MILLISECONDS) > 300
+                        || raftStatus.getLastApplied() == raftStatus.getCommitIndex()));
+    }
+
+    public Fiber getApplyFiber() {
+        return applyFiber;
+    }
+
+    public void signalStartApply() {
+        applyMonitorCond.signal();
     }
 
     private class ApplyFrame extends FiberFrame<Void> {
@@ -314,22 +334,12 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         @Override
         protected FrameCallResult handle(Throwable ex) {
             log.error("apply failed", ex);
-            if (!shouldStopApply()) {
-                return Fiber.sleepUntilShouldStop(1000, this::restartApplyFiber);
-            } else {
-                return Fiber.frameReturn();
-            }
-        }
-
-        private FrameCallResult restartApplyFiber(Void unused) {
-            if (!shouldStopApply()) {
-                startApplyFiber(getFiberGroup());
-            }
             return Fiber.frameReturn();
         }
 
         @Override
         protected FrameCallResult doFinally() {
+            log.info("apply fiber exit: groupId={}", raftStatus.getGroupId());
             closeIterator();
             return Fiber.frameReturn();
         }
@@ -338,9 +348,6 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         public FrameCallResult execute(Void input) {
             if (shouldStopApply()) {
                 return Fiber.frameReturn();
-            }
-            if (raftStatus.isInstallSnapshot()) {
-                return Fiber.sleepUntilShouldStop(10, this);
             }
             execCount = 1;
             return execLoop(null);
@@ -406,10 +413,6 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         @Override
         public FrameCallResult execute(Void input) {
             if (shouldStopApply()) {
-                return Fiber.frameReturn();
-            }
-            if (raftStatus.isInstallSnapshot()) {
-                log.warn("install snapshot, ignore load result");
                 return Fiber.frameReturn();
             }
             if (items == null || items.isEmpty()) {
