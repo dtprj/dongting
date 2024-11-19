@@ -277,11 +277,11 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         // file 5, started from 11, total 12 items
         append(11, new int[]{100, 100}, new int[]{10, 10});
 
-        testLoader(12, () -> raftLog.openIterator(() -> false));
-        testLoader(12, () -> new FileLogLoader(raftLog.idxFiles, raftLog.logFiles, config,
+        testLoader(() -> raftLog.openIterator(() -> false));
+        testLoader(() -> new FileLogLoader(raftLog.idxFiles, raftLog.logFiles, config,
                 null, () -> false, 99));
         doInFiber(new FiberFrame<>() {
-            RaftLog.LogIterator it = raftLog.openIterator(() -> true);
+            final RaftLog.LogIterator it = raftLog.openIterator(() -> true);
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -295,13 +295,13 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
-                assertTrue(ex instanceof RaftCancelException);
+                assertInstanceOf(RaftCancelException.class, ex);
                 return Fiber.frameReturn();
             }
         });
         doInFiber(new FiberFrame<>() {
             int count;
-            RaftLog.LogIterator it = raftLog.openIterator(() -> count++ >= 1);
+            final RaftLog.LogIterator it = raftLog.openIterator(() -> count++ >= 1);
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -315,7 +315,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
-                assertTrue(ex instanceof RaftCancelException);
+                assertInstanceOf(RaftCancelException.class, ex);
                 return Fiber.frameReturn();
             }
         });
@@ -323,7 +323,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         RaftInput input = new RaftInput(0, null, null, null, false);
         raftStatus.getTailCache().put(3, new RaftTask(raftStatus.getTs(), 0, input ,null));
         doInFiber(new FiberFrame<>() {
-            RaftLog.LogIterator it = raftLog.openIterator(() -> false);
+            final RaftLog.LogIterator it = raftLog.openIterator(() -> false);
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -337,29 +337,30 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         });
     }
 
-    private void testLoader(int total, Supplier<RaftLog.LogIterator> creator) throws Exception {
+    private void testLoader(Supplier<RaftLog.LogIterator> creator) throws Exception {
+        final int total = 12;
         doInFiber(new FiberFrame<>() {
-            RaftLog.LogIterator it = creator.get();
+            final RaftLog.LogIterator it = creator.get();
 
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(it.next(1, total, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<LogItem> logItems) throws Exception {
+            private FrameCallResult afterNext(List<LogItem> logItems) {
                 assertEquals(total, logItems.size());
                 return Fiber.call(it.next(total + 1, 1, 500000), this::afterNext);
             }
 
             @Override
             protected FrameCallResult handle(Throwable ex) throws Exception {
-                assertTrue(ex instanceof ChecksumException);
+                assertInstanceOf(ChecksumException.class, ex);
                 it.close();
                 return Fiber.frameReturn();
             }
         });
         doInFiber(new FiberFrame<>() {
-            RaftLog.LogIterator it = creator.get();
+            final RaftLog.LogIterator it = creator.get();
             int index = 1;
 
             @Override
@@ -379,7 +380,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
         });
         doInFiber(new FiberFrame<>() {
-            RaftLog.LogIterator it = creator.get();
+            final RaftLog.LogIterator it = creator.get();
             int index = 1;
 
             @Override
