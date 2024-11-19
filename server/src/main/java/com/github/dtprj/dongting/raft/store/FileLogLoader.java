@@ -39,6 +39,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -182,9 +183,19 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private FrameCallResult parseContent() {
             while (true) {
-                int r = doParse(readBuffer);
+                int r;
+                int s = state;
+                if (s == STATE_ITEM_HEADER) {
+                    r = processHeader(readBuffer);
+                } else if (s == STATE_BIZ_HEADER) {
+                    r = extractBizHeader(readBuffer);
+                } else if (s == STATE_BIZ_BODY) {
+                    r = extractBizBody(readBuffer);
+                } else {
+                    throw new RaftException("error state:" + state);
+                }
                 if (r == RESULT_FINISH) {
-                    setResult(result);
+                    setResult(new ArrayList<>(result));
                     return Fiber.frameReturn();
                 } else if (r == RESULT_NEED_LOAD) {
                     return loadLogFromStore();
@@ -194,27 +205,12 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
         }
 
-        private int doParse(ByteBuffer buf) {
-            int s = state;
-            if (s == STATE_ITEM_HEADER) {
-                return processHeader(buf);
-            } else if (s == STATE_BIZ_HEADER) {
-                return extractBizHeader(buf);
-            } else if (s == STATE_BIZ_BODY) {
-                return extractBizBody(buf);
-            } else {
-                throw new RaftException("error state:" + state);
-            }
-        }
-
-
         private FrameCallResult loadLogFromStore() {
             long pos = nextPos;
             logFile = logFiles.getLogFile(pos);
             if (logFile.isDeleted()) {
                 throw new RaftException("file " + logFile.getFile().getName() + " is deleted");
             }
-            long rest = logFile.endPos - pos;
             long fileStartPos = logFiles.filePos(pos);
             ByteBuffer buf = readBuffer;
             if (fileStartPos == 0 && buf.position() > 0) {
@@ -222,9 +218,9 @@ class FileLogLoader implements RaftLog.LogIterator {
                 BugLog.log(e);
                 throw e;
             }
+            int rest = (int)(logFile.endPos - pos);
             if (rest < buf.remaining()) {
-                // not overflow
-                buf.limit((int) (buf.position() + rest));
+                buf.limit(buf.position() + rest);
             }
             bufferStartPos = pos - buf.position();
             bufferEndPos = pos + buf.remaining();
@@ -256,7 +252,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 }
                 crc32c.reset();
                 state = STATE_BIZ_HEADER;
-                if (!result.isEmpty() && header.bodyLen + totalReadBytes >= bytesLimit) {
+                if (!result.isEmpty() && header.bodyLen + totalReadBytes > bytesLimit) {
                     buf.position(buf.position() - LogHeader.ITEM_HEADER_SIZE);
                     finishRead();
                     return RESULT_FINISH;
