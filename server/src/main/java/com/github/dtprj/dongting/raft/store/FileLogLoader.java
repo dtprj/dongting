@@ -162,7 +162,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         @Override
         public FrameCallResult execute(Void input) {
             if (nextIndex == -1) {
-                return Fiber.call(idxFiles.loadLogPos(startIndex), this::afterStartIndexPosLoad);
+                return Fiber.call(idxFiles.loadLogPos(startIndex), this::resumeAfterFirstPosLoad);
             } else {
                 if (readBuffer.hasRemaining()) {
                     return parseContent();
@@ -174,7 +174,10 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
         }
 
-        private FrameCallResult afterStartIndexPosLoad(Long startIndexPos) {
+        private FrameCallResult resumeAfterFirstPosLoad(Long startIndexPos) {
+            if (cancelIndicator != null && cancelIndicator.get()) {
+                throw new RaftCancelException("canceled");
+            }
             nextPos = startIndexPos;
             nextIndex = startIndex;
             readBuffer.clear();
