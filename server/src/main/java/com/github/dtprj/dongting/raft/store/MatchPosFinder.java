@@ -122,13 +122,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     }
 
     private boolean valid(int term, long index) {
-        if (term > suggestTerm) {
-            return false;
-        } else if (term == suggestTerm) {
-            return index <= suggestIndex;
-        } else {
-            return index < suggestIndex;
-        }
+        return (term <= suggestTerm && index < suggestIndex) || (term == suggestTerm && index == suggestIndex);
     }
 
 
