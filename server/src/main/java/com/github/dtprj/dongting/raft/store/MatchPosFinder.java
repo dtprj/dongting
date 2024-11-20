@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
@@ -68,7 +69,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
 
     private void checkCancel() {
         if (cancel.get()) {
-            throw new RaftException("find match pos cancelled");
+            throw new RaftCancelException("find match pos cancelled");
         }
     }
 
@@ -80,7 +81,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
             return Fiber.frameReturn();
         }
         if (tailCache.getFirstIndex() > 0) {
-            rightIndex = tailCache.getFirstIndex() - 1;
+            rightIndex = tailCache.getFirstIndex();
         }
         logFile = findMatchLogFile(suggestTerm, suggestIndex);
         if (logFile == null) {
@@ -109,11 +110,13 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
             long mi = computeMidIndex(li, ri);
             task = tailCache.get(mi);
             if (task == null) {
+                BugLog.getLog().error("middle index not in tail cache: {}", mi);
                 break;
             }
             int mt = task.getItem().getTerm();
             if (valid(mt, mi)) {
                 li = mi;
+                lt = mt;
             } else {
                 ri = mi - 1;
             }
