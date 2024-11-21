@@ -34,7 +34,6 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -293,7 +292,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterNext(List<LogItem> logItems) {
-                Assertions.fail();
+                fail();
                 return Fiber.frameReturn();
             }
 
@@ -313,7 +312,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterNext(List<LogItem> logItems) {
-                Assertions.fail();
+                fail();
                 return Fiber.frameReturn();
             }
 
@@ -431,8 +430,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         append(list);
         raftStatus.setLastLogIndex(list.get(list.size() - 1).getIndex());
 
+        TailCache tailCache = raftStatus.getTailCache();
         for (int i = 0; i <= list.size(); i++) {
-            TailCache tailCache = raftStatus.getTailCache();
             tailCache.cleanAll();
             for (int j = list.size() - i; j < list.size(); j++) {
                 RaftInput ri = new RaftInput(0, null, null, null, false);
@@ -443,6 +442,31 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
             testMatch();
         }
+
+        tailCache.cleanAll();
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                FiberFrame<Pair<Integer, Long>> f = raftLog.tryFindMatchPos(1, 1, () -> true);
+                return Fiber.call(f, this::afterFind);
+            }
+
+            private FrameCallResult afterFind(Pair<Integer, Long> r) {
+                fail();
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                assertInstanceOf(RaftCancelException.class, ex);
+                return Fiber.frameReturn();
+            }
+        });
+
+        // mark delete
+        raftLog.logFiles.getLogFile(0).deleteTimestamp = 100;
+        testMatch(2, 5, 2, 5);
+        testMatch(1, 4, -1, -1);
     }
 
     private void testMatch() throws Exception {
