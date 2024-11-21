@@ -183,8 +183,11 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private FrameCallResult posLoadComplete(Long pos) {
         checkCancel();
         if (pos >= logFile.endPos) {
-            BugLog.getLog().error("pos >= logFile.endPos, pos={}, logFile={}", pos, logFile);
-            throw new RaftException(new RaftException("pos >= logFile.endPos"));
+            // the right index may not in the current logFile, because:
+            // 1, the first index of tail cache is not in the current logFile
+            // 2, the suggest index is not in the current logFile, and tail cache is empty
+            rightIndex = midIndex - 1;
+            return Fiber.resume(null, this::loop);
         }
 
         AsyncIoTask task = new AsyncIoTask(groupConfig.getFiberGroup(), logFile);
