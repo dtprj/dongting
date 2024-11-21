@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static com.github.dtprj.dongting.raft.store.LogFileQueueTest.createItem;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -116,11 +117,14 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     private void append(long index, int[] totalSizes, int[] bizHeaderLen) throws Exception {
         ArrayList<LogItem> list = new ArrayList<>();
         for (int i = 0; i < totalSizes.length; i++) {
-            LogItem li = LogFileQueueTest.createItem(config, 100, 100, index++, totalSizes[i], bizHeaderLen[i]);
+            LogItem li = createItem(config, 100, 100, index++, totalSizes[i], bizHeaderLen[i]);
             list.add(li);
         }
+        append(list);
+    }
 
-        long lastIdx = index - 1;
+    private void append(List<LogItem> list) throws Exception {
+        long lastIdx = list.get(list.size() - 1).getIndex();
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -321,7 +325,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         });
 
         RaftInput input = new RaftInput(0, null, null, null, false);
-        raftStatus.getTailCache().put(3, new RaftTask(raftStatus.getTs(), 0, input ,null));
+        raftStatus.getTailCache().put(3, new RaftTask(raftStatus.getTs(), 0, input, null));
         doInFiber(new FiberFrame<>() {
             final RaftLog.LogIterator it = raftLog.openIterator(() -> false);
 
@@ -402,6 +406,97 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             @Override
             protected FrameCallResult handle(Throwable ex) throws Throwable {
                 return super.handle(ex);
+            }
+        });
+    }
+
+    @Test
+    void testTryFindMatchPos() throws Exception {
+        ArrayList<LogItem> list = new ArrayList<>();
+        // file 1
+        list.add(createItem(config, 1, 0, 1, 256, 50));
+        list.add(createItem(config, 1, 1, 2, 256, 50));
+        list.add(createItem(config, 1, 1, 3, 256, 50));
+        list.add(createItem(config, 1, 1, 4, 256, 50));
+        // file 2
+        list.add(createItem(config, 2, 1, 5, 256, 50));// change term
+        list.add(createItem(config, 2, 2, 6, 256, 50));
+        list.add(createItem(config, 2, 2, 7, 256, 50));
+        list.add(createItem(config, 4, 2, 8, 256, 50));// change term
+        // file 3
+        list.add(createItem(config, 4, 4, 9, 256, 50));
+        list.add(createItem(config, 4, 4, 10, 256, 50));
+        list.add(createItem(config, 5, 4, 11, 256, 50));// change term
+        list.add(createItem(config, 5, 5, 12, 256, 50));
+        append(list);
+        raftStatus.setLastLogIndex(list.get(list.size() - 1).getIndex());
+
+        for (int i = 0; i <= list.size(); i++) {
+            TailCache tailCache = raftStatus.getTailCache();
+            tailCache.cleanAll();
+            for (int j = list.size() - i; j < list.size(); j++) {
+                RaftInput ri = new RaftInput(0, null, null, null, false);
+                RaftTask t = new RaftTask(raftStatus.getTs(), 0, ri, null);
+                LogItem li = list.get(j);
+                t.setItem(li);
+                tailCache.put(li.getIndex(), t);
+            }
+            testMatch();
+        }
+    }
+
+    private void testMatch() throws Exception {
+        testMatch(1, 1, 1, 1);
+        testMatch(2, 1, -1, -1);
+        testMatch(2, 2, 1, 1);
+
+        testMatch(1, 2, 1, 2);
+
+        testMatch(1, 4, 1, 4);
+        testMatch(1, 5, 1, 4);
+        testMatch(3, 5, 1, 4);
+
+        testMatch(2, 5, 2, 5);
+        testMatch(3, 6, 2, 5);
+
+        testMatch(2, 7, 2, 7);
+        testMatch(2, 8, 2, 7);
+        testMatch(3, 8, 2, 7);
+        testMatch(5, 8, 2, 7);
+
+        testMatch(4, 8, 4, 8);
+        testMatch(5, 9, 4, 8);
+
+        testMatch(4, 9, 4, 9);
+        testMatch(5, 10, 4, 9);
+
+        testMatch(5, 11, 5, 11);
+        testMatch(6, 12, 5, 11);
+
+        testMatch(5, 12, 5, 12);
+        testMatch(5, 13, 5, 12);
+        testMatch(6, 13, 5, 12);
+    }
+
+    private void testMatch(int suggestTerm, long suggestIndex, int expectTerm, long expectIndex) throws Exception {
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                FiberFrame<Pair<Integer, Long>> f = raftLog.tryFindMatchPos(suggestTerm, suggestIndex, () -> false);
+                return Fiber.call(f, this::afterFind);
+            }
+
+            private FrameCallResult afterFind(Pair<Integer, Long> r) {
+                if (r == null) {
+                    //noinspection MisorderedAssertEqualsArguments
+                    assertEquals(expectTerm, -1);
+                    //noinspection MisorderedAssertEqualsArguments
+                    assertEquals(expectIndex, -1);
+                } else {
+                    assertEquals(expectTerm, r.getLeft());
+                    assertEquals(expectIndex, r.getRight());
+                }
+                return Fiber.frameReturn();
             }
         });
     }
