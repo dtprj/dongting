@@ -16,16 +16,41 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.codec.SimpleEncodable;
+
+import java.nio.ByteBuffer;
+import java.util.UUID;
 
 /**
  * @author huangli
  */
-public class NodePingCallback extends PbCallback<NodePingCallback> {
+public class NodePing extends PbCallback<NodePing> implements SimpleEncodable {
     public int nodeId;
     public long uuidHigh;
     public long uuidLow;
 
-    public NodePingCallback() {
+    public NodePing() {
+    }
+
+    public NodePing(int nodeId, UUID uuid) {
+        this.nodeId = nodeId;
+        this.uuidHigh = uuid.getMostSignificantBits();
+        this.uuidLow = uuid.getLeastSignificantBits();
+    }
+
+    @Override
+    public int actualSize() {
+        return PbUtil.accurateFix32Size(1, nodeId)
+                + PbUtil.accurateFix64Size(2, uuidHigh)
+                + PbUtil.accurateFix64Size(3, uuidLow);
+    }
+
+    @Override
+    public void encode(ByteBuffer buf) {
+        PbUtil.writeFix32(buf, 1, nodeId);
+        PbUtil.writeFix64(buf, 2, uuidHigh);
+        PbUtil.writeFix64(buf, 3, uuidLow);
     }
 
     @Override
@@ -47,7 +72,7 @@ public class NodePingCallback extends PbCallback<NodePingCallback> {
     }
 
     @Override
-    public NodePingCallback getResult() {
+    public NodePing getResult() {
         return this;
     }
 }

@@ -17,9 +17,11 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.net.WritePacket;
 
 import java.util.UUID;
@@ -27,7 +29,7 @@ import java.util.UUID;
 /**
  * @author huangli
  */
-public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
+public class NodePingProcessor extends ReqProcessor<NodePing> {
 
     private final int selfNodeId;
     private final UUID uuid;
@@ -38,12 +40,14 @@ public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
     }
 
     @Override
-    public WritePacket process(ReadPacket<NodePingCallback> packet, ReqContext reqContext) {
-        return new NodePingWritePacket(selfNodeId, uuid);
+    public WritePacket process(ReadPacket<NodePing> packet, ReqContext reqContext) {
+        SimpleWritePacket r = new SimpleWritePacket(new NodePing(selfNodeId, uuid));
+        r.setCommand(Commands.NODE_PING);
+        return r;
     }
 
     @Override
-    public DecoderCallback<NodePingCallback> createDecoderCallback(int command, DecodeContext context) {
-        return context.toDecoderCallback(new NodePingCallback());
+    public DecoderCallback<NodePing> createDecoderCallback(int command, DecodeContext context) {
+        return context.toDecoderCallback(new NodePing());
     }
 }

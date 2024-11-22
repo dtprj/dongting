@@ -23,13 +23,14 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
-import com.github.dtprj.dongting.raft.rpc.NodePingCallback;
-import com.github.dtprj.dongting.raft.rpc.NodePingWritePacket;
+import com.github.dtprj.dongting.raft.rpc.NodePing;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
@@ -195,14 +196,16 @@ public class NodeManager extends AbstractLifeCircle {
 
     private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadPacket<NodePingCallback>> f = client.sendRequest(nodeEx.getPeer(),
-                new NodePingWritePacket(selfNodeId, uuid), ctx -> ctx.toDecoderCallback(new NodePingCallback()), timeout);
+        SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, uuid));
+        packet.setCommand(Commands.NODE_PING);
+        CompletableFuture<ReadPacket<NodePing>> f = client.sendRequest(nodeEx.getPeer(),
+                packet,ctx -> ctx.toDecoderCallback(new NodePing()), timeout);
         return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
     }
 
     // run in io thread
-    private void whenRpcFinish(ReadPacket<NodePingCallback> rf, RaftNodeEx nodeEx) {
-        NodePingCallback callback = rf.getBody();
+    private void whenRpcFinish(ReadPacket<NodePing> rf, RaftNodeEx nodeEx) {
+        NodePing callback = rf.getBody();
         if (nodeEx.getNodeId() != callback.nodeId) {
             String msg = "config fail: node id not match. expect " + nodeEx.getNodeId() + ", but " + callback.nodeId;
             log.error(msg);
