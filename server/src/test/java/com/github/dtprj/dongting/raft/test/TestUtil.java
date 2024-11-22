@@ -46,41 +46,39 @@ public class TestUtil {
     }
 
     public static void waitUtil(Object expectValue, Supplier<Object> actual, long timeoutMillis) {
-        waitUtilInExecutor(null, expectValue, actual, timeoutMillis);
+        waitUtil(expectValue, actual, timeoutMillis, null);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static void waitUtilInExecutor(Executor executor, Supplier<Boolean> actual) {
-        waitUtilInExecutor(executor, Boolean.TRUE, (Supplier) actual, 5000);
+    public static void waitUtil(Supplier<Boolean> actual, Executor executor) {
+        waitUtil(Boolean.TRUE, (Supplier) actual, 5000, executor);
     }
 
-    public static void waitUtilInExecutor(Executor executor, Object expectValue, Supplier<Object> actual) {
-        waitUtilInExecutor(executor, expectValue, actual, 5000);
+    public static void waitUtil(Object expectValue, Supplier<Object> actual, Executor executor) {
+        waitUtil(expectValue, actual, 5000, executor);
     }
 
-    public static void waitUtilInExecutor(Executor executor, Object expectValue, Supplier<Object> actual, long timeoutMillis) {
+    public static void waitUtil(Object expectValue, Supplier<Object> actual, long timeoutMillis, Executor executor) {
         long start = System.nanoTime();
         long deadline = start + timeoutMillis * 1000 * 1000;
         Object obj = getResultInExecutor(executor, actual);
         if (Objects.equals(expectValue, obj)) {
             return;
         }
-        int waitCount = 0;
         while (deadline - System.nanoTime() > 0) {
+            obj = getResultInExecutor(executor, actual);
+            if (Objects.equals(expectValue, obj)) {
+                return;
+            }
             try {
                 //noinspection BusyWait
                 Thread.sleep(1);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            waitCount++;
-            obj = getResultInExecutor(executor, actual);
-            if (Objects.equals(expectValue, obj)) {
-                return;
-            }
         }
         throw new AssertionFailedError("expect: " + expectValue + ", actual:" + obj + ", timeout="
-                + timeoutMillis + "ms, cost=" + (System.nanoTime() - start) / 1000 / 1000 + "ms, waitCount=" + waitCount);
+                + timeoutMillis + "ms, cost=" + (System.nanoTime() - start) / 1000 / 1000 + "ms");
     }
 
     public static Object getResultInExecutor(Executor executor, Supplier<Object> actual) {
@@ -88,7 +86,13 @@ public class TestUtil {
             return actual.get();
         }
         CompletableFuture<Object> f = new CompletableFuture<>();
-        executor.execute(() -> f.complete(actual.get()));
+        executor.execute(() -> {
+            try {
+                f.complete(actual.get());
+            } catch (Throwable e) {
+                f.completeExceptionally(e);
+            }
+        });
         try {
             return f.get(5, TimeUnit.SECONDS);
         } catch (Exception e) {

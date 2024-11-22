@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import org.opentest4j.AssertionFailedError;
 
 import java.util.Objects;
@@ -25,6 +27,8 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class TestUtil {
+    private static final DtLog log = DtLogs.getLogger(TestUtil.class);
+
     @SuppressWarnings({"unchecked", "unused", "rawtypes"})
     public static void waitUtil(Supplier<Boolean> condition) {
         waitUtil(Boolean.TRUE, (Supplier) condition, 5000);
@@ -42,22 +46,20 @@ public class TestUtil {
         if (Objects.equals(expectValue, obj)) {
             return;
         }
-        int waitCount = 0;
         while (deadline - System.nanoTime() > 0) {
-            try {
-                //noinspection BusyWait
-                Thread.sleep(2);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            waitCount++;
             obj = actual.get();
             if (Objects.equals(expectValue, obj)) {
                 return;
             }
+            try {
+                //noinspection BusyWait
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
         throw new AssertionFailedError("expect: " + expectValue + ", actual:" + obj + ", timeout="
-                + timeoutMillis + "ms, cost=" + (System.nanoTime() - start) / 1000 / 1000 + "ms, waitCount=" + waitCount);
+                + timeoutMillis + "ms, cost=" + (System.nanoTime() - start) / 1000 / 1000 + "ms");
     }
 
     public static void stop(LifeCircle... lifeCircle) {
@@ -67,7 +69,7 @@ public class TestUtil {
                     lc.stop(new DtTime(5, TimeUnit.SECONDS));
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error("stop fail", e);
             }
         }
     }
