@@ -287,7 +287,7 @@ public class RaftServer extends AbstractLifeCircle {
         RaftGroupConfigEx rgcEx = (RaftGroupConfigEx) rgc;
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setRaftStatus(raftStatus);
-        rgcEx.setBlockIoExecutor(raftFactory.createBlockIoExecutor());
+        rgcEx.setBlockIoExecutor(raftFactory.createBlockIoExecutor(serverConfig));
         rgcEx.setFiberGroup(fiberGroup);
         return rgcEx;
     }
@@ -481,6 +481,7 @@ public class RaftServer extends AbstractLifeCircle {
                 if (replicateNioClient != null) {
                     replicateNioClient.stop(timeout);
                 }
+                raftFactory.shutdownBlockIoExecutor();
             }
         } catch (RuntimeException | Error e) {
             log.error("stop raft server failed", e);

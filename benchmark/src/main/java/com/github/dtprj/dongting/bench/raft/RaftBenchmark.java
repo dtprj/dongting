@@ -69,7 +69,6 @@ public class RaftBenchmark extends BenchBase {
     private static final byte[] DATA = new byte[DATA_LEN];
     private final List<RaftServer> raftServers = new ArrayList<>();
     private final List<RaftGroupConfig> groupConfigs = new ArrayList<>();
-    private final List<DefaultRaftFactory> raftFactories = new ArrayList<>();
     private KvClient[] clients;
 
     public static void main(String[] args) throws Exception {
@@ -98,7 +97,7 @@ public class RaftBenchmark extends BenchBase {
             groupConfig.setPerfCallback(new RaftPerfCallback(true, "node" + nodeId + "_"));
         }
 
-        DefaultRaftFactory raftFactory = createRaftFactory(nodeId, serverConfig);
+        DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
 
         RaftServer raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig), raftFactory);
         KvServerUtil.initKvServer(raftServer);
@@ -106,11 +105,10 @@ public class RaftBenchmark extends BenchBase {
 
         groupConfigs.add(groupConfig);
         raftServers.add(raftServer);
-        raftFactories.add(raftFactory);
     }
 
-    private DefaultRaftFactory createRaftFactory(int nodeId, RaftServerConfig serverConfig) {
-        DefaultRaftFactory raftFactory = new DefaultRaftFactory(serverConfig) {
+    private DefaultRaftFactory createRaftFactory(int nodeId) {
+        return new DefaultRaftFactory() {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 KvConfig kvConfig = new KvConfig();
@@ -125,8 +123,6 @@ public class RaftBenchmark extends BenchBase {
                         groupConfig.getPerfCallback());
             }
         };
-        raftFactory.start();
-        return raftFactory;
     }
 
     @Override
@@ -186,7 +182,6 @@ public class RaftBenchmark extends BenchBase {
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         DtUtil.stop(timeout, clients);
         DtUtil.stop(timeout, raftServers.toArray(new RaftServer[0]));
-        DtUtil.stop(timeout, raftFactories.toArray(new DefaultRaftFactory[0]));
 
         for (RaftGroupConfig config : groupConfigs) {
             if (config.getPerfCallback() instanceof RaftPerfCallback) {

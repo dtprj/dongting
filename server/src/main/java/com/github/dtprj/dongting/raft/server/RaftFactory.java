@@ -11,7 +11,9 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 import java.util.concurrent.ExecutorService;
 
 public interface RaftFactory {
-    ExecutorService createBlockIoExecutor();
+    ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig);
+
+    void shutdownBlockIoExecutor();
 
     StateMachine createStateMachine(RaftGroupConfigEx groupConfig);
 

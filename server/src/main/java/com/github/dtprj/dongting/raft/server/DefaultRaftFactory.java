@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
-import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
@@ -35,14 +34,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * @author huangli
  */
-public abstract class DefaultRaftFactory extends AbstractLifeCircle implements RaftFactory {
+public abstract class DefaultRaftFactory implements RaftFactory {
 
-    private final RaftServerConfig serverConfig;
     private ExecutorService ioExecutor;
     protected PoolFactory poolFactory;
 
-    public DefaultRaftFactory(RaftServerConfig serverConfig) {
-        this.serverConfig = serverConfig;
+    public DefaultRaftFactory() {
         this.poolFactory = createPoolFactory();
     }
 
@@ -51,19 +48,15 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
     }
 
     @Override
-    protected void doStart() {
+    public ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig) {
         AtomicInteger count = new AtomicInteger();
         ioExecutor = Executors.newFixedThreadPool(serverConfig.getBlockIoThreads(),
                 r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
-    }
-
-    @Override
-    public ExecutorService createBlockIoExecutor() {
         return ioExecutor;
     }
 
     @Override
-    protected void doStop(DtTime timeout, boolean force) {
+    public void shutdownBlockIoExecutor() {
         if (ioExecutor != null) {
             ioExecutor.shutdown();
         }
