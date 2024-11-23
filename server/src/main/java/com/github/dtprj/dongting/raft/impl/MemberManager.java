@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -98,17 +97,17 @@ public class MemberManager {
     /**
      * invoke by RaftServer init thread or schedule thread
      */
-    public void init(IntObjMap<RaftNodeEx> allNodes) {
+    public void init() {
         raftStatus.setMembers(new ArrayList<>());
         for (int nodeId : raftStatus.getNodeIdOfMembers()) {
-            RaftNodeEx node = allNodes.get(nodeId);
+            RaftNodeEx node = nodeManager.allNodesEx.get(nodeId);
             RaftMember m = createMember(node, RaftRole.follower);
             raftStatus.getMembers().add(m);
         }
         if (!raftStatus.getNodeIdOfObservers().isEmpty()) {
             List<RaftMember> observers = new ArrayList<>();
             for (int nodeId : raftStatus.getNodeIdOfObservers()) {
-                RaftNodeEx node = allNodes.get(nodeId);
+                RaftNodeEx node = nodeManager.allNodesEx.get(nodeId);
                 RaftMember m = createMember(node, RaftRole.observer);
                 observers.add(m);
             }

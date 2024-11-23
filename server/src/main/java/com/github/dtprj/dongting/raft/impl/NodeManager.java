@@ -57,16 +57,18 @@ public class NodeManager extends AbstractLifeCircle {
     private final RaftServerConfig config;
 
     // update by RaftServer init thread and schedule thread
-    private final IntObjMap<RaftNodeEx> allNodesEx;
+    final IntObjMap<RaftNodeEx> allNodesEx;
 
     private List<RaftNode> allRaftNodesOnlyForInit;
 
     private ScheduledFuture<?> scheduledFuture;
 
-    private int currentReadyNodes;
+    int currentReadyNodes;
 
     private final CompletableFuture<Void> nodePingReadyFuture = new CompletableFuture<>();
     private final int startReadyQuorum;
+
+    int pingIntervalMillis = 2000;
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client, int startReadyQuorum) {
         this.selfNodeId = config.getNodeId();
@@ -87,7 +89,7 @@ public class NodeManager extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         this.scheduledFuture = DtUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(
-                this::tryNodePingAll, 0, 2, TimeUnit.SECONDS);
+                this::tryNodePingAll, 0, pingIntervalMillis, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -352,11 +354,7 @@ public class NodeManager extends AbstractLifeCircle {
         return uuid;
     }
 
-    public IntObjMap<RaftNodeEx> getAllNodesEx() {
-        return allNodesEx;
-    }
-
-    // create new set since this method invoke occasionally
+    // should access in schedule thread, create new set since this method invoke occasionally
     public Set<Integer> getAllNodeIds() {
         HashSet<Integer> ids = new HashSet<>();
         allNodesEx.forEach((nodeId, nodeEx) -> {

@@ -323,7 +323,7 @@ public class RaftServer extends AbstractLifeCircle {
             raftGroups.forEach((groupId, g) -> {
                 GroupComponents gc = g.getGroupComponents();
                 // nodeManager.getAllNodesEx() is not thread safe
-                gc.getMemberManager().init(nodeManager.getAllNodesEx());
+                gc.getMemberManager().init();
 
                 FiberGroup fg = gc.getFiberGroup();
                 raftFactory.startDispatcher(fg.getDispatcher());
@@ -608,7 +608,7 @@ public class RaftServer extends AbstractLifeCircle {
                 DtUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
                         RaftGroupImpl g = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
-                        g.getGroupComponents().getMemberManager().init(nodeManager.getAllNodesEx());
+                        g.getGroupComponents().getMemberManager().init();
                         f.complete(g);
                     } catch (Exception e) {
                         f.completeExceptionally(e);
