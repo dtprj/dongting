@@ -72,6 +72,8 @@ public class MemberManager {
     private final CompletableFuture<Void> pingReadyFuture;
     private final int startReadyQuorum;
 
+    int daemonSleepInterval = 1000;
+
     public MemberManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
@@ -166,7 +168,7 @@ public class MemberManager {
                 try {
                     ensureRaftMemberStatus();
                     replicateManager.tryStartReplicateFibers();
-                    return Fiber.sleep(1000, this);
+                    return Fiber.sleep(daemonSleepInterval, this);
                 } catch (Throwable e) {
                     throw Fiber.fatal(e);
                 }

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -60,6 +61,11 @@ public class VoteManager {
     private boolean voting;
     private HashSet<Integer> votes;
     private int currentVoteId;
+
+    int firstDelayMin = 1;
+    int firstDelayMax = 30;
+    int checkIntervalMin = 30;
+    int checkIntervalMax = 300;
 
     public VoteManager(NioClient client, GroupComponents gc) {
         this.gc = gc;
@@ -234,10 +240,18 @@ public class VoteManager {
 
         private final Random r = new Random();
 
+        private FrameCallResult randomSleep(int min, int max, FrameCall<Void> resumePoint) {
+            int t = r.nextInt(max - min + 1) + min;
+            if (t <= 0) {
+                return Fiber.resume(null, resumePoint);
+            }
+            return Fiber.sleep(t, resumePoint);
+        }
+
         @Override
         public FrameCallResult execute(Void input) {
             // sleep a random time to avoid multi nodes in same JVM start pre vote at almost same time (in tests)
-            return Fiber.sleep(r.nextInt(30) + 1, this::loop);
+            return randomSleep(firstDelayMin, firstDelayMax, this::loop);
         }
 
         private FrameCallResult loop(Void input) {
@@ -275,9 +289,7 @@ public class VoteManager {
         }
 
         private FrameCallResult sleepAwhile() {
-            // 30~300ms
-            int t = r.nextInt(270) + 30;
-            return Fiber.sleep(t, this::loop);
+            return randomSleep(checkIntervalMin, checkIntervalMax, this::loop);
         }
     }
 

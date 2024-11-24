@@ -20,6 +20,9 @@ import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.ImplAccessor;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.TestDir;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
@@ -37,29 +40,42 @@ public class ServerTestBase {
     protected static class ServerInfo {
         public RaftServer raftServer;
         public int nodeId;
+        public RaftGroupImpl group;
+        public GroupComponents gc;
     }
 
     protected ServerInfo createServer(int nodeId, String servers, String nodeIdOfMembers) {
         int replicatePort = 4000 + nodeId;
         int servicePort = 5000 + nodeId;
+        int groupId = 1;
         RaftServerConfig serverConfig = new RaftServerConfig();
         serverConfig.setServers(servers);
         serverConfig.setNodeId(nodeId);
         serverConfig.setReplicatePort(replicatePort);
         serverConfig.setServicePort(servicePort);
 
-        RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(1, nodeIdOfMembers, "");
+        RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, "");
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
 
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
 
         RaftServer raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig), raftFactory);
         KvServerUtil.initKvServer(raftServer);
+
+        RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
+        GroupComponents gc = g.getGroupComponents();
+        ImplAccessor.updateNodeManager(gc.getNodeManager());
+        ImplAccessor.updateMemberManager(gc.getMemberManager());
+        ImplAccessor.updateVoteManager(gc.getVoteManager());
+
         raftServer.start();
 
         ServerInfo serverInfo = new ServerInfo();
         serverInfo.raftServer = raftServer;
         serverInfo.nodeId = nodeId;
+        serverInfo.group = g;
+        serverInfo.gc = gc;
+
         return serverInfo;
     }
 
