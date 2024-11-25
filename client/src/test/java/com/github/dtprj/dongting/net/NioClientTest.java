@@ -399,6 +399,9 @@ public class NioClientTest {
             sendSync(5000, client, tick(500));
         }
         DtUtil.close(server1);
+        Peer p1 = client.getPeers().get(0);
+        Peer p2 = client.getPeers().get(1);
+        TestUtil.waitUtil(() -> p1.status.ordinal() < PeerStatus.connected.ordinal());
         int success = 0;
         for (int i = 0; i < 10; i++) {
             try {
@@ -408,19 +411,7 @@ public class NioClientTest {
                 // ignore
             }
         }
-        assertTrue(success >= 9);
-
-        Peer p1 = null;
-        Peer p2 = null;
-        for (Peer peer : client.getPeers()) {
-            if (hp1.equals(peer.getEndPoint())) {
-                assertNull(peer.dtChannel);
-                p1 = peer;
-            } else {
-                assertNotNull(peer.dtChannel);
-                p2 = peer;
-            }
-        }
+        assertEquals(10, success);
 
         try {
             sendSyncByPeer(5000, client, p1, tick(500));
@@ -436,8 +427,6 @@ public class NioClientTest {
             // ignore
         }
         server1 = new BioServer(9000);
-        client.connect(p1, new DtTime(1, TimeUnit.SECONDS));
-        // connect is idempotent
         client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
         sendSyncByPeer(5000, client, p1, 500);
 
@@ -480,9 +469,34 @@ public class NioClientTest {
 
         server1 = new BioServer(9000);
 
-        // auto connect
+        // auto connect by rpc request
         sendSyncByPeer(5000, client, p1, 500);
+    }
 
+    @Test
+    public void reconnectTest3() throws Exception {
+        NioClientConfig c = new NioClientConfig();
+        c.setWaitStartTimeout(tick(100));
+        HostPort hp1 = new HostPort("127.0.0.1", 9000);
+        c.setHostPorts(List.of(hp1));
+        c.setConnectRetryIntervals(new int[1]);
+        client = new NioClient(c);
+
+        server1 = new BioServer(9000);
+
+        client.start();
+        client.waitStart();
+
+        DtUtil.close(server1);
+        Peer p1 = client.getPeers().get(0);
+        TestUtil.waitUtil(() -> p1.status.ordinal() < PeerStatus.connected.ordinal());
+        TestUtil.waitUtil(() -> client.worker.workerStatus.retryConnect > 0);
+        TestUtil.waitUtil(() -> p1.retry > 1);
+
+
+        server1 = new BioServer(9000);
+        TestUtil.waitUtil(() -> p1.status == PeerStatus.connected);
+        assertEquals(0, client.worker.workerStatus.retryConnect);
     }
 
     @Test

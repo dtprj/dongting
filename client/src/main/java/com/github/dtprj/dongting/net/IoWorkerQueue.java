@@ -79,7 +79,7 @@ class IoWorkerQueue {
                 peer.addToWaitConnectList(wo);
                 if (peer.getStatus() == PeerStatus.not_connect) {
                     CompletableFuture<Void> f = new CompletableFuture<>();
-                    worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS));
+                    worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS), false);
                 }
             }
         } else {

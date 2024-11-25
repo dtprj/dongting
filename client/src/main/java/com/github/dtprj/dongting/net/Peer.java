@@ -38,9 +38,9 @@ public class Peer {
     int connectionId;
     NioWorker.ConnectInfo connectInfo;
 
-    boolean needConnect;
+    boolean autoReconnect;
     int retry;
-    long lastConnectFailNanos;
+    long lastRetryNanos;
 
     private LinkedList<WriteData> waitConnectList;
 
@@ -99,9 +99,9 @@ public class Peer {
         waitConnectList = null;
     }
 
-    void markNotConnect(NioConfig config, WorkerStatus workerStatus) {
+    void markNotConnect(NioConfig config, WorkerStatus workerStatus, boolean byAutoRetry) {
         NioClientConfig c = (NioClientConfig) config;
-        if (needConnect) {
+        if (autoReconnect && c.getConnectRetryIntervals() != null) {
             long base;
             int index;
             if (retry == 0) {
@@ -109,13 +109,20 @@ public class Peer {
                 index = 0;
                 workerStatus.retryConnect++;
             } else {
-                base = lastConnectFailNanos;
-                index = Math.min(retry, c.getConnectRetryIntervals().length - 1);
+                if (byAutoRetry) {
+                    base = lastRetryNanos;
+                    index = Math.min(retry, c.getConnectRetryIntervals().length - 1);
+                } else {
+                    base = 0;
+                    index = -1;
+                }
             }
-            long millis = c.getConnectRetryIntervals()[index];
-            lastConnectFailNanos = base + millis * 1_000_000;
-            retry = retry + 1 > 0 ? retry + 1 : Integer.MAX_VALUE;
-            log.info("peer {} connect fail, {}th retry after {}ms", endPoint, retry, millis);
+            if (index != -1) {
+                long millis = c.getConnectRetryIntervals()[index];
+                lastRetryNanos = base + millis * 1_000_000;
+                retry = retry + 1 > 0 ? retry + 1 : Integer.MAX_VALUE;
+                log.info("peer {} connect fail, {}th retry after {}ms", endPoint, retry, millis);
+            }
         } else {
             resetConnectRetry(workerStatus);
         }
@@ -127,6 +134,6 @@ public class Peer {
             workerStatus.retryConnect--;
         }
         retry = 0;
-        lastConnectFailNanos = 0;
+        lastRetryNanos = 0;
     }
 }
