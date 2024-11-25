@@ -133,6 +133,7 @@ public class RaftServer extends AbstractLifeCircle {
         NioClientConfig repClientConfig = new NioClientConfig();
         repClientConfig.setName("RaftRepClient" + serverConfig.getNodeId());
         setupNioConfig(repClientConfig);
+        repClientConfig.setConnectRetryIntervals(null); //use node ping
         replicateNioClient = new NioClient(repClientConfig);
 
         nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient,
