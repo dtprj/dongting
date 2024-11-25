@@ -13,24 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.impl;
+package com.github.dtprj.dongting.util;
 
 /**
  * @author huangli
  */
-public class ImplAccessor {
-    public static void updateNodeManager(NodeManager nodeManager) {
-        nodeManager.pingIntervalMillis = 1;
+public class Tick {
+    private static final int TICK = Integer.parseInt(System.getProperty("tick", "1"));
+
+    public static int tick(int value) {
+        return value * TICK;
     }
 
-    public static void updateMemberManager(MemberManager memberManager) {
-        memberManager.daemonSleepInterval = 1;
-    }
-
-    public static void updateVoteManager(VoteManager voteManager) {
-        voteManager.firstDelayMin = 0;
-        voteManager.firstDelayMax = 1;
-        voteManager.checkIntervalMin = 1;
-        voteManager.checkIntervalMax = 10;
+    public static long tick(long value) {
+        return value * TICK;
     }
 }

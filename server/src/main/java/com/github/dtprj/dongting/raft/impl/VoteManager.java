@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -102,9 +101,10 @@ public class VoteManager {
         votes = new HashSet<>();
     }
 
-    private int readyCount(Collection<RaftMember> list) {
+    private int readyCount(List<RaftMember> list) {
         int count = 0;
-        for (RaftMember member : list) {
+        for (int s = list.size(), i = 0; i < s; i++) {
+            RaftMember member = list.get(i);
             if (member.isReady()) {
                 // include self
                 count++;
@@ -136,11 +136,6 @@ public class VoteManager {
     }
 
     private void tryStartPreVote() {
-        // move last elect time 1 seconds, prevent readyNodesNotEnough check too frequently if failed
-        long newLastElectTime = raftStatus.getTs().getNanoTime() - raftStatus.getElectTimeoutNanos()
-                + TimeUnit.SECONDS.toNanos(1);
-        raftStatus.setLastElectTime(newLastElectTime);
-
         if (!MemberManager.validCandidate(raftStatus, config.getNodeId())) {
             log.info("not valid candidate, can't start pre vote. groupId={}, term={}",
                     groupId, raftStatus.getCurrentTerm());
@@ -258,6 +253,9 @@ public class VoteManager {
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
+            if (raftStatus.getRole() == RaftRole.observer) {
+                return sleepAwhile();
+            }
             RaftStatusImpl raftStatus = VoteManager.this.raftStatus;
             boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > raftStatus.getElectTimeoutNanos();
             if (voting) {
@@ -282,10 +280,8 @@ public class VoteManager {
                 }
                 log.info("elect timer timeout, groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                 tryStartPreVote();
-                return Fiber.resume(null, this::loop);
-            } else {
-                return sleepAwhile();
             }
+            return sleepAwhile();
         }
 
         private FrameCallResult sleepAwhile() {

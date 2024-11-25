@@ -30,6 +30,8 @@ import com.github.dtprj.dongting.raft.test.MockExecutors;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 
+import static com.github.dtprj.dongting.util.Tick.tick;
+
 /**
  * @author huangli
  */
@@ -53,6 +55,7 @@ public class ServerTestBase {
         serverConfig.setNodeId(nodeId);
         serverConfig.setReplicatePort(replicatePort);
         serverConfig.setServicePort(servicePort);
+        serverConfig.setElectTimeout(tick(10));
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, "");
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
