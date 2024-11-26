@@ -72,8 +72,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                             voteReq.getCandidateId(), voteReq.getGroupId());
                 } else if (voteReq.isPreVote()) {
                     processPreVote();
-                    log.info("receive pre-vote request. granted={}. reqTerm={}, localTerm={}",
-                            resp.isVoteGranted(), voteReq.getTerm(), raftStatus.getCurrentTerm());
+                    log.info("receive pre-vote request from node {}, granted={}.",
+                            voteReq.getCandidateId(), resp.isVoteGranted());
                 } else {
                     if (RaftUtil.writeNotFinished(raftStatus)) {
                         return RaftUtil.waitWriteFinish(raftStatus, this);

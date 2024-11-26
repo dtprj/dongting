@@ -182,16 +182,16 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
             int localTerm = raftStatus.getCurrentTerm();
             if (remoteTerm == localTerm) {
                 if (raftStatus.getRole() == RaftRole.follower) {
-                    gc.getVoteManager().cancelVote();
+                    gc.getVoteManager().cancelVote("receive append request from leader");
                     RaftUtil.resetElectTimer(raftStatus);
                     RaftUtil.updateLeader(raftStatus, leaderId);
                     return process();
                 } else if (raftStatus.getRole() == RaftRole.observer) {
-                    gc.getVoteManager().cancelVote();
+                    gc.getVoteManager().cancelVote("receive append request from leader");
                     RaftUtil.updateLeader(raftStatus, leaderId);
                     return process();
                 } else if (raftStatus.getRole() == RaftRole.candidate) {
-                    gc.getVoteManager().cancelVote();
+                    gc.getVoteManager().cancelVote("candidate receive append request from leader");
                     RaftUtil.changeToFollower(raftStatus, leaderId);
                     return process();
                 } else {
@@ -200,7 +200,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                     return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "leader receive raft install snapshot request");
                 }
             } else if (remoteTerm > localTerm) {
-                gc.getVoteManager().cancelVote();
+                gc.getVoteManager().cancelVote("receive append request with larger term");
                 RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId);
                 gc.getStatusManager().persistAsync(true);
                 return gc.getStatusManager().waitUpdateFinish(this);

@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -85,9 +84,9 @@ public class VoteManager {
         f.start();
     }
 
-    public void cancelVote() {
+    public void cancelVote(String reason) {
         if (voting) {
-            log.info("cancel current voting: groupId={}, voteId={}", groupId, currentVoteId);
+            log.info("cancel current voting. groupId={}, voteId={}, reason: {}", groupId, currentVoteId, reason);
             voting = false;
             votes = null;
             currentVoteId++;
@@ -251,7 +250,7 @@ public class VoteManager {
             boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > raftStatus.getElectTimeoutNanos();
             if (voting) {
                 if (timeout) {
-                    cancelVote();
+                    cancelVote("vote timeout");
                 } else {
                     return sleepToNextElectTime();
                 }
@@ -320,7 +319,7 @@ public class VoteManager {
         @Override
         public FrameCallResult execute(Void input) {
             if (isGroupShouldStopPlain()) {
-                cancelVote();
+                cancelVote("stop");
                 return Fiber.frameReturn();
             }
             if (req.isPreVote()) {
@@ -340,9 +339,9 @@ public class VoteManager {
             if (MemberManager.validCandidate(raftStatus, config.getNodeId())) {
                 return false;
             } else {
-                BugLog.getLog().error("not valid candidate, cancel vote. groupId={}, term={}",
+                log.error("not valid candidate, cancel vote. groupId={}, term={}",
                         groupId, raftStatus.getCurrentTerm());
-                cancelVote();
+                cancelVote("not valid candidate");
                 return true;
             }
         }
@@ -375,7 +374,7 @@ public class VoteManager {
 
         private FrameCallResult startVote() {
             if (readyNodesNotEnough(false)) {
-                cancelVote();
+                cancelVote("ready nodes not enough");
                 return Fiber.frameReturn();
             }
 
@@ -404,7 +403,7 @@ public class VoteManager {
                 return Fiber.frameReturn();
             }
             if (readyNodesNotEnough(false)) {
-                cancelVote();
+                cancelVote("ready nodes not enough after vote status persist");
                 return Fiber.frameReturn();
             }
             log.info("start vote. groupId={}, newTerm={}, voteId={}, lastIndex={}", groupId,
@@ -449,7 +448,7 @@ public class VoteManager {
                         if (isElected(remoteMember.getNode().getNodeId(), false)) {
                             log.info("successfully elected, change to leader. groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                             RaftUtil.changeToLeader(raftStatus);
-                            cancelVote();
+                            cancelVote("successfully elected");
                             linearTaskRunner.sendHeartBeat();
                         }
                     }

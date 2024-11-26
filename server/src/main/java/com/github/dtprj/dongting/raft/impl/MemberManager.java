@@ -648,7 +648,7 @@ public class MemberManager {
             } else if (raftStatus.getRole() == RaftRole.follower && selfIsObserver) {
                 RaftUtil.changeToObserver(raftStatus, currentLeaderId);
             }
-            gc.getVoteManager().cancelVote();
+            gc.getVoteManager().cancelVote("config change");
             log.info("{} success, groupId={}", msg, groupId);
             return Fiber.frameReturn();
         }
