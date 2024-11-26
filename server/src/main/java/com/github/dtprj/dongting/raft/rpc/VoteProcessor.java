@@ -101,6 +101,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private void processPreVote() {
             if (shouldGrant()) {
+                RaftUtil.resetElectTimer(raftStatus);
                 resp.setVoteGranted(true);
             }
         }

@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -63,8 +62,8 @@ public class VoteManager {
 
     int firstDelayMin = 1;
     int firstDelayMax = 30;
-    int checkIntervalMin = 30;
-    int checkIntervalMax = 300;
+    int checkIntervalMin = 10;
+    int checkIntervalMax = 700;
 
     public VoteManager(NioClient client, GroupComponents gc) {
         this.gc = gc;
@@ -235,34 +234,26 @@ public class VoteManager {
 
         private final Random r = new Random();
 
-        private FrameCallResult randomSleep(int min, int max, FrameCall<Void> resumePoint) {
-            int t = r.nextInt(max - min + 1) + min;
-            if (t <= 0) {
-                return Fiber.resume(null, resumePoint);
-            }
-            return Fiber.sleep(t, resumePoint);
-        }
-
         @Override
         public FrameCallResult execute(Void input) {
             // sleep a random time to avoid multi nodes in same JVM start pre vote at almost same time (in tests)
-            return randomSleep(firstDelayMin, firstDelayMax, this::loop);
+            return randomSleep(raftStatus.getTs().getNanoTime(), firstDelayMin, firstDelayMax);
         }
 
         private FrameCallResult loop(Void input) {
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
-            if (raftStatus.getRole() == RaftRole.observer) {
-                return sleepAwhile();
-            }
             RaftStatusImpl raftStatus = VoteManager.this.raftStatus;
+            if (raftStatus.getRole() == RaftRole.observer) {
+                return sleepToNextElectTime();
+            }
             boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > raftStatus.getElectTimeoutNanos();
             if (voting) {
                 if (timeout) {
                     cancelVote();
                 } else {
-                    return sleepAwhile();
+                    return sleepToNextElectTime();
                 }
             }
             if (raftStatus.isInstallSnapshot()) {
@@ -281,11 +272,31 @@ public class VoteManager {
                 log.info("elect timer timeout, groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                 tryStartPreVote();
             }
-            return sleepAwhile();
+            return sleepToNextElectTime();
+        }
+
+        private FrameCallResult randomSleep(long baseNanos, int min, int max) {
+            long base = baseNanos - raftStatus.getTs().getNanoTime();
+            if (base < 0) {
+                base = 0;
+            } else {
+                // convert to millis
+                base = base / 1000000;
+            }
+            long t = base + r.nextInt(max - min + 1) + min;
+            if (t <= 0) {
+                return Fiber.resume(null, this::loop);
+            }
+            return Fiber.sleep(t, this::loop);
         }
 
         private FrameCallResult sleepAwhile() {
-            return randomSleep(checkIntervalMin, checkIntervalMax, this::loop);
+            return randomSleep(raftStatus.getTs().getNanoTime(), checkIntervalMin, checkIntervalMax);
+        }
+
+        private FrameCallResult sleepToNextElectTime() {
+            long base = raftStatus.getLastElectTime() + raftStatus.getElectTimeoutNanos();
+            return randomSleep(base, checkIntervalMin, checkIntervalMax);
         }
     }
 
