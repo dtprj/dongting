@@ -31,6 +31,6 @@ public class ImplAccessor {
         voteManager.firstDelayMin = 0;
         voteManager.firstDelayMax = 1;
         voteManager.checkIntervalMin = 1;
-        voteManager.checkIntervalMax = 10;
+        voteManager.checkIntervalMax = 5;
     }
 }

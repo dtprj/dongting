@@ -208,7 +208,7 @@ public class VoteManager {
         return count;
     }
 
-    private boolean isElected(int nodeId, boolean preVote) {
+    private boolean isElectedAfterVote(int nodeId, boolean preVote) {
         if (!votes.add(nodeId)) {
             return false;
         }
@@ -322,11 +322,55 @@ public class VoteManager {
                 cancelVote("stop");
                 return Fiber.frameReturn();
             }
-            if (req.isPreVote()) {
-                return processPreVoteResp();
-            } else {
-                return processVoteResp();
+            if (voteCheckFail(voteIdOfRequest)) {
+                return Fiber.frameReturn();
             }
+            String voteType = req.isPreVote() ? "pre-vote" : "vote";
+            int remoteId = remoteMember.getNode().getNodeId();
+            if (ex != null) {
+                log.warn("{} rpc fail. groupId={}, term={}, remote={}, error={}", voteType,
+                        groupId, req.getTerm(), remoteId, ex.toString());
+                // don't send more request for simplification
+                return Fiber.frameReturn();
+            }
+            int remoteTerm = resp.getTerm();
+            if (remoteTerm < raftStatus.getCurrentTerm()) {
+                log.warn("receive outdated {} resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
+                        voteType, resp.getTerm(), req.getTerm(), remoteId, groupId);
+                return Fiber.frameReturn();
+            }
+            if (remoteTerm > raftStatus.getCurrentTerm()) {
+                RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
+                statusManager.persistAsync(true);
+                // no rest action, so not call statusManager.waitSync
+                return Fiber.frameReturn();
+            }
+            RaftRole r = raftStatus.getRole();
+            if ((req.isPreVote() && r != RaftRole.follower && r != RaftRole.candidate) ||
+                    (!req.isPreVote()) && r != RaftRole.candidate) {
+                log.warn("{} receive {} resp, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
+                        r, voteType, resp.getTerm(), req.getTerm(), remoteId, groupId);
+                return Fiber.frameReturn();
+            }
+            if (remoteId != config.getNodeId()) {
+                log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
+                        resp.isVoteGranted(), resp.getTerm(), req.getTerm(), remoteId, groupId);
+            }
+            if (resp.isVoteGranted()) {
+                if (isElectedAfterVote(remoteId, req.isPreVote())) {
+                    if (req.isPreVote()) {
+                        log.info("pre-vote success. groupId={}. term={}", groupId, raftStatus.getCurrentTerm());
+                        return startVote();
+                    } else {
+                        log.info("successfully elected, change to leader. groupId={}, term={}",
+                                groupId, raftStatus.getCurrentTerm());
+                        RaftUtil.changeToLeader(raftStatus);
+                        cancelVote("successfully elected");
+                        linearTaskRunner.sendHeartBeat();
+                    }
+                }
+            }
+            return Fiber.frameReturn();
         }
 
         private boolean voteCheckFail(long oldVoteId) {
@@ -346,33 +390,11 @@ public class VoteManager {
             }
         }
 
-        private FrameCallResult processPreVoteResp() {
-            if (voteCheckFail(voteIdOfRequest)) {
+        private FrameCallResult startVote() {
+            if (isGroupShouldStopPlain()) {
+                cancelVote("stop");
                 return Fiber.frameReturn();
             }
-            int currentTerm = raftStatus.getCurrentTerm();
-            if (ex == null) {
-                if (resp.isVoteGranted() && raftStatus.getRole() == RaftRole.follower
-                        && resp.getTerm() == req.getTerm()) {
-                    log.info("receive pre-vote grant true. term={}, remoteNode={}, groupId={}",
-                            currentTerm, remoteMember.getNode().getNodeId(), groupId);
-                    if (isElected(remoteMember.getNode().getNodeId(), true)) {
-                        log.info("pre-vote success. groupId={}. term={}", groupId, currentTerm);
-                        return startVote();
-                    }
-                } else {
-                    log.info("receive pre-vote grant false. term={}, remoteNode={}, groupId={}",
-                            currentTerm, remoteMember.getNode().getNodeId(), groupId);
-                }
-            } else {
-                log.warn("pre-vote rpc fail. term={}, remoteNode={}, groupId={}, error={}",
-                        currentTerm, remoteMember.getNode().getNodeId(), groupId, ex.toString());
-                // don't send more request for simplification
-            }
-            return Fiber.frameReturn();
-        }
-
-        private FrameCallResult startVote() {
             if (readyNodesNotEnough(false)) {
                 cancelVote("ready nodes not enough");
                 return Fiber.frameReturn();
@@ -399,6 +421,10 @@ public class VoteManager {
         }
 
         private FrameCallResult afterStartVotePersist(Set<RaftMember> voter, int oldVoteId) {
+            if (isGroupShouldStopPlain()) {
+                cancelVote("stop");
+                return Fiber.frameReturn();
+            }
             if (voteCheckFail(oldVoteId)) {
                 return Fiber.frameReturn();
             }
@@ -415,50 +441,6 @@ public class VoteManager {
             return Fiber.frameReturn();
         }
 
-        private FrameCallResult processVoteResp() {
-            if (voteCheckFail(voteIdOfRequest)) {
-                return Fiber.frameReturn();
-            }
-            if (ex == null) {
-                processVoteResp(remoteMember, req);
-            } else {
-                log.warn("vote rpc fail. groupId={}, term={}, remote={}, error={}",
-                        groupId, req.getTerm(), remoteMember.getNode().getHostPort(), ex.toString());
-                // don't send more request for simplification
-            }
-            return Fiber.frameReturn();
-        }
-
-        private void processVoteResp(RaftMember remoteMember, VoteReq voteReq) {
-            int remoteTerm = resp.getTerm();
-            if (remoteTerm < raftStatus.getCurrentTerm()) {
-                log.warn("receive outdated vote resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                        resp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
-            } else if (remoteTerm == raftStatus.getCurrentTerm()) {
-                if (raftStatus.getRole() != RaftRole.candidate) {
-                    log.warn("receive vote resp, not candidate, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                            resp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
-                } else {
-                    if (remoteMember.getNode().getNodeId() != config.getNodeId()) {
-                        log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                                resp.isVoteGranted(), resp.getTerm(), voteReq.getTerm(),
-                                remoteMember.getNode().getNodeId(), groupId);
-                    }
-                    if (resp.isVoteGranted()) {
-                        if (isElected(remoteMember.getNode().getNodeId(), false)) {
-                            log.info("successfully elected, change to leader. groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
-                            RaftUtil.changeToLeader(raftStatus);
-                            cancelVote("successfully elected");
-                            linearTaskRunner.sendHeartBeat();
-                        }
-                    }
-                }
-            } else {
-                RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
-                statusManager.persistAsync(true);
-                // no rest action, so not call statusManager.waitSync
-            }
-        }
     }
 
 }
