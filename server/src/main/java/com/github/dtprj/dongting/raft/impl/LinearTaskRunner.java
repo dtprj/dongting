@@ -100,7 +100,7 @@ public class LinearTaskRunner {
             if (!list.isEmpty()) {
                 raftExec(list);
                 list.clear();
-            } else {
+            } else if (raftStatus.getRole() == RaftRole.leader) {
                 sendHeartBeat();
             }
             // loop
