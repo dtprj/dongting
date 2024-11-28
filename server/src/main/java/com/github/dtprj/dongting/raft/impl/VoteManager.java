@@ -247,6 +247,10 @@ public class VoteManager {
             if (raftStatus.getRole() == RaftRole.observer) {
                 return sleepToNextElectTime();
             }
+            if (raftStatus.getRole() == RaftRole.leader && raftStatus.getLeaseStartNanos()
+                    + raftStatus.getElectTimeoutNanos() - raftStatus.getTs().getNanoTime() > 0) {
+                RaftUtil.changeToFollower(raftStatus, -1);
+            }
             boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > raftStatus.getElectTimeoutNanos();
             if (voting) {
                 if (timeout) {
