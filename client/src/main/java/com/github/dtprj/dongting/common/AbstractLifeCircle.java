@@ -68,11 +68,11 @@ public abstract class AbstractLifeCircle implements LifeCircle {
         try {
             switch (status) {
                 case STATUS_NOT_START:
-                    log.error("status is not_start, skip stop");
+                    log.error("status is not_start, skip stop: {}", this.getClass());
                     status = STATUS_STOPPED;
                     return;
                 case STATUS_STARTING:
-                    log.error("status is starting, try force stop");
+                    log.error("status is starting, try force stop: {}", this.getClass());
                     status = STATUS_STOPPING;
                     doStop(timeout, true);
                     status = STATUS_STOPPED;
@@ -84,7 +84,7 @@ public abstract class AbstractLifeCircle implements LifeCircle {
                     status = STATUS_STOPPED;
                     return;
                 case STATUS_STOPPING:
-                    log.error("last stop failed, skip stop");
+                    log.error("last stop failed, skip stop: {}", this.getClass());
                     return;
                 case STATUS_STOPPED:
                     // no op
@@ -104,19 +104,19 @@ public abstract class AbstractLifeCircle implements LifeCircle {
         try {
             switch (status) {
                 case STATUS_NOT_START:
-                    log.error("status is not_start");
+                    log.error("status is not_start: {}", this.getClass());
                     return CompletableFuture.completedFuture(null);
                 case STATUS_STARTING:
-                    log.error("status is starting");
+                    log.error("status is starting: {}", this.getClass());
                 case STATUS_RUNNING:
                 case STATUS_PREPARE_STOP:
                     this.status = STATUS_PREPARE_STOP;
                     return prepareStopFuture;
                 case STATUS_STOPPING:
-                    log.error("status is stopping");
+                    log.error("status is stopping: {}", this.getClass());
                     return CompletableFuture.completedFuture(null);
                 case STATUS_STOPPED:
-                    log.error("status is stopped");
+                    log.error("status is stopped: {}", this.getClass());
                     return CompletableFuture.completedFuture(null);
                 default:
                     throw new IllegalStateException("error state: " + status);

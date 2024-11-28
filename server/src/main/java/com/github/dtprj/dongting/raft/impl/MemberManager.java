@@ -644,7 +644,7 @@ public class MemberManager {
             int currentLeaderId = raftStatus.getCurrentLeader() == null ? -1 :
                     raftStatus.getCurrentLeader().getNode().getNodeId();
             if (raftStatus.getRole() == RaftRole.observer && selfIsMember) {
-                RaftUtil.changeToFollower(raftStatus, currentLeaderId);
+                RaftUtil.changeToFollower(raftStatus, currentLeaderId, "apply config change");
             } else if (raftStatus.getRole() == RaftRole.follower && selfIsObserver) {
                 RaftUtil.changeToObserver(raftStatus, currentLeaderId);
             }
@@ -749,7 +749,7 @@ public class MemberManager {
 
             if (newLeader.isReady() && lastLogCommit && newLeaderHasLastLog) {
                 RaftUtil.clearTransferLeaderCondition(raftStatus);
-                RaftUtil.changeToFollower(raftStatus, newLeader.getNode().getNodeId());
+                RaftUtil.changeToFollower(raftStatus, newLeader.getNode().getNodeId(), "transfer leader");
                 TransferLeaderReq req = new TransferLeaderReq();
                 req.term = raftStatus.getCurrentTerm();
                 req.logIndex = raftStatus.getLastLogIndex();

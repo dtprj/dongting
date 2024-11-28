@@ -191,8 +191,9 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                     RaftUtil.updateLeader(raftStatus, leaderId);
                     return process();
                 } else if (raftStatus.getRole() == RaftRole.candidate) {
-                    gc.getVoteManager().cancelVote("candidate receive append request from leader");
-                    RaftUtil.changeToFollower(raftStatus, leaderId);
+                    String r = "candidate receive append request from leader";
+                    gc.getVoteManager().cancelVote(r);
+                    RaftUtil.changeToFollower(raftStatus, leaderId, r);
                     return process();
                 } else {
                     BugLog.getLog().error("leader receive {} request. term={}, remote={}", appendType,

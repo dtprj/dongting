@@ -272,8 +272,9 @@ public final class RaftUtil {
         return dest;
     }
 
-    public static void changeToFollower(RaftStatusImpl raftStatus, int leaderId) {
-        log.info("change to follower. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
+    public static void changeToFollower(RaftStatusImpl raftStatus, int leaderId, String reason) {
+        log.info("change to follower. term={}, oldRole={}, reason: {}", raftStatus.getCurrentTerm(),
+                raftStatus.getRole(), reason);
         resetStatus(raftStatus);
         if (leaderId > 0) {
             updateLeader(raftStatus, leaderId);
