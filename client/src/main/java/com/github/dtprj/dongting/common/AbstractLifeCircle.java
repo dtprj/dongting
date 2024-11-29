@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -37,7 +36,6 @@ public abstract class AbstractLifeCircle implements LifeCircle {
 
     protected volatile int status = STATUS_NOT_START;
     private final ReentrantLock lock = new ReentrantLock();
-    protected final CompletableFuture<Void> prepareStopFuture = new CompletableFuture<>();
 
     public int getStatus() {
         return status;
@@ -99,25 +97,29 @@ public abstract class AbstractLifeCircle implements LifeCircle {
 
     protected abstract void doStop(DtTime timeout, boolean force);
 
-    protected CompletableFuture<Void> prepareStop() {
+    protected void doPrepareStop(DtTime timeout) {
+    }
+
+    public final void prepareStop(DtTime timeout) {
         lock.lock();
         try {
             switch (status) {
                 case STATUS_NOT_START:
                     log.error("status is not_start: {}", this.getClass());
-                    return CompletableFuture.completedFuture(null);
+                    return;
                 case STATUS_STARTING:
                     log.error("status is starting: {}", this.getClass());
                 case STATUS_RUNNING:
                 case STATUS_PREPARE_STOP:
                     this.status = STATUS_PREPARE_STOP;
-                    return prepareStopFuture;
+                    doPrepareStop(timeout);
+                    return;
                 case STATUS_STOPPING:
                     log.error("status is stopping: {}", this.getClass());
-                    return CompletableFuture.completedFuture(null);
+                    return;
                 case STATUS_STOPPED:
                     log.error("status is stopped: {}", this.getClass());
-                    return CompletableFuture.completedFuture(null);
+                    return;
                 default:
                     throw new IllegalStateException("error state: " + status);
             }

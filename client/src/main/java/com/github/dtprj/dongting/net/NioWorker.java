@@ -66,6 +66,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private Selector selector;
     private final AtomicInteger notified = new AtomicInteger(0);
 
+    protected final CompletableFuture<Void> prepareStopFuture = new CompletableFuture<>();
+
     private int channelIndex;
     private final ArrayList<DtChannelImpl> channelsList;// client side only
     private final IntObjMap<DtChannelImpl> channels;
@@ -832,10 +834,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     @Override
-    protected CompletableFuture<Void> prepareStop() {
-        CompletableFuture<Void> f = super.prepareStop();
+    public void doPrepareStop(DtTime timeout) {
         wakeup();
-        return f;
     }
 
     @Override
