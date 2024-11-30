@@ -496,11 +496,14 @@ public class RaftServer extends AbstractLifeCircle {
                 return g.getShutdownFuture();
             }
             FiberGroup fiberGroup = g.getFiberGroup();
-            fiberGroup.requestShutdown();
             GroupComponents gc = g.getGroupComponents();
             fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
+                    fiberGroup.requestShutdown();
+                    return fiberGroup.getShouldStopCondition().await(this::afterShouldShutdown);
+                }
+                private FrameCallResult afterShouldShutdown(Void v) {
                     FiberFuture<Long> f;
                     if (saveSnapshot) {
                         f = gc.getSnapshotManager().saveSnapshot();
@@ -509,12 +512,10 @@ public class RaftServer extends AbstractLifeCircle {
                     }
                     return f.await(this::afterSaveSnapshot);
                 }
-
                 private FrameCallResult afterSaveSnapshot(Long notUsed) {
                     gc.getApplyManager().shutdown(timeout);
                     return gc.getRaftLog().close().await(this::afterRaftLogClose);
                 }
-
                 private FrameCallResult afterRaftLogClose(Void unused) {
                     return g.getGroupComponents().getStatusManager().close().await(this::justReturn);
                 }

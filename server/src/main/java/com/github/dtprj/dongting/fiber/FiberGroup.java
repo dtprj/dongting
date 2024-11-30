@@ -369,6 +369,10 @@ public class FiberGroup {
         }
         return unit.convert(dispatcher.ts.getNanoTime() - markStopNanos, TimeUnit.NANOSECONDS);
     }
+
+    public FiberCondition getShouldStopCondition() {
+        return shouldStopCondition;
+    }
 }
 
 class GroupRunnerFiberFrame extends FiberFrame<Void> {
