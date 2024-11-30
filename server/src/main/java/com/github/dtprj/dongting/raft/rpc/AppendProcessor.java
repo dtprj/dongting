@@ -88,8 +88,8 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     }
 
     @Override
-    protected void cleanReqInProcessorThread(ReqInfo<Object> reqInfo) {
-        // if no error occurs in io thread, this method will not be called.
+    protected void cleanReq(ReqInfo<Object> reqInfo) {
+        // if no error occurs, this method will not be called.
         // AppendProcessor do not call invokeCleanUp()
         ReadPacket<Object> f = reqInfo.getReqFrame();
         if (f.getBody() == null) {

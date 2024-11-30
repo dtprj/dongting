@@ -63,7 +63,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         if (g == null) {
-            invokeCleanReqInProcessorThread(reqInfo);
+            invokeCleanReq(reqInfo);
             EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_FOUND);
             errorResp.setMsg("raft group not found: " + groupId);
             log.error(errorResp.getMsg());
@@ -71,13 +71,13 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
         GroupComponents gc = g.getGroupComponents();
         if (!gc.getRaftStatus().isInitialized()) {
-            invokeCleanReqInProcessorThread(reqInfo);
+            invokeCleanReq(reqInfo);
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
             wf.setMsg("raft group not initialized: " + groupId);
             return wf;
         }
         if (gc.getFiberGroup().isShouldStop()) {
-            invokeCleanReqInProcessorThread(reqInfo);
+            invokeCleanReq(reqInfo);
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
             wf.setMsg("raft group is stopped: " + groupId);
             return wf;
@@ -87,11 +87,12 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
     }
 
-    protected final void invokeCleanReqInProcessorThread(ReqInfo<T> reqInfo) {
+    // may be invoked in different threads
+    protected final void invokeCleanReq(ReqInfo<T> reqInfo) {
         try {
             if (!reqInfo.invokeCleanUp) {
                 reqInfo.invokeCleanUp = true;
-                cleanReqInProcessorThread(reqInfo);
+                cleanReq(reqInfo);
             } else {
                 BugLog.log(new Exception("invokeCleanUp already invoked"));
             }
@@ -102,6 +103,6 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
 
     protected abstract WritePacket doProcess(ReqInfo<T> reqInfo);
 
-    protected void cleanReqInProcessorThread(ReqInfo<T> reqInfo) {
+    protected void cleanReq(ReqInfo<T> reqInfo) {
     }
 }

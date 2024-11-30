@@ -76,6 +76,15 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             if (o == null) {
                 return Fiber.resume(null, this);
             }
+            if (isGroupShouldStopPlain()) {
+                invokeCleanReq(o);
+                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
+                wf.setMsg("raft group is stopped: " + o.getRaftGroup().getGroupId());
+                o.getReqContext().getDtChannel().getRespWriter().writeRespInBizThreads(
+                        o.getReqFrame(), wf, o.getReqContext().getTimeout());
+                // should continue loop to take all pending tasks and release them
+                return Fiber.resume(null, this);
+            }
             current = o;
             return Fiber.call(processInFiberGroup(o), this);
         }
@@ -102,7 +111,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
         FiberChannel<Object> c = rix.getRaftGroup().getGroupComponents().getProcessorChannels().get(typeId);
         if (!c.fireOffer(reqInfo)) {
-            invokeCleanReqInProcessorThread(reqInfo);
+            invokeCleanReq(reqInfo);
             log.error("fire task failed , maybe group is stopped: {}", reqInfo.getRaftGroup().getGroupId());
         }
         return null;
