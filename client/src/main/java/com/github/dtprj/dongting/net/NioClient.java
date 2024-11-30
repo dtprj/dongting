@@ -196,11 +196,11 @@ public class NioClient extends NioNet {
     @Override
     protected void doStop(DtTime timeout, boolean force) {
         if (!force) {
-            worker.prepareStop(timeout);
+            CompletableFuture<Void> pf = worker.prepareStop(timeout);
             try {
                 long rest = timeout.rest(TimeUnit.MILLISECONDS);
                 if (rest > 0) {
-                    worker.prepareStopFuture.get(rest, TimeUnit.MILLISECONDS);
+                    pf.get(rest, TimeUnit.MILLISECONDS);
                     log.info("client {} pre-stop done", config.getName());
                 } else {
                     log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));

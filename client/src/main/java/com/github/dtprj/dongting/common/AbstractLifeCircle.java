@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -36,6 +37,8 @@ public abstract class AbstractLifeCircle implements LifeCircle {
 
     protected volatile int status = STATUS_NOT_START;
     private final ReentrantLock lock = new ReentrantLock();
+
+    private static final CompletableFuture<Void> COMPLETED_FUTURE = CompletableFuture.completedFuture(null);
 
     public int getStatus() {
         return status;
@@ -97,29 +100,30 @@ public abstract class AbstractLifeCircle implements LifeCircle {
 
     protected abstract void doStop(DtTime timeout, boolean force);
 
-    protected void doPrepareStop(DtTime timeout) {
+    protected CompletableFuture<Void> doPrepareStop(DtTime timeout) {
+        return COMPLETED_FUTURE;
     }
 
-    public final void prepareStop(DtTime timeout) {
+    public final CompletableFuture<Void> prepareStop(DtTime timeout) {
         lock.lock();
         try {
             switch (status) {
                 case STATUS_NOT_START:
-                    log.error("status is not_start: {}", this.getClass());
-                    return;
+                    log.warn("status is not_start: {}", this.getClass());
+                    return COMPLETED_FUTURE;
                 case STATUS_STARTING:
                     log.error("status is starting: {}", this.getClass());
+                    return COMPLETED_FUTURE;
                 case STATUS_RUNNING:
                 case STATUS_PREPARE_STOP:
                     this.status = STATUS_PREPARE_STOP;
-                    doPrepareStop(timeout);
-                    return;
+                    return doPrepareStop(timeout);
                 case STATUS_STOPPING:
                     log.error("status is stopping: {}", this.getClass());
-                    return;
+                    return COMPLETED_FUTURE;
                 case STATUS_STOPPED:
                     log.error("status is stopped: {}", this.getClass());
-                    return;
+                    return COMPLETED_FUTURE;
                 default:
                     throw new IllegalStateException("error state: " + status);
             }
