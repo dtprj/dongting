@@ -64,12 +64,18 @@ public abstract class AbstractLifeCircle implements LifeCircle {
 
     @Override
     public final void stop(DtTime timeout) {
+        stop(timeout, false);
+    }
+
+    public final void stop(DtTime timeout, boolean mayNotStart) {
         Objects.requireNonNull(timeout);
         lock.lock();
         try {
             switch (status) {
                 case STATUS_NOT_START:
-                    log.error("status is not_start, skip stop: {}", this.getClass());
+                    if (!mayNotStart) {
+                        log.error("status is not_start, skip stop: {}", this.getClass());
+                    }
                     status = STATUS_STOPPED;
                     return;
                 case STATUS_STARTING:
@@ -105,11 +111,17 @@ public abstract class AbstractLifeCircle implements LifeCircle {
     }
 
     public final CompletableFuture<Void> prepareStop(DtTime timeout) {
+        return prepareStop(timeout, false);
+    }
+
+    public final CompletableFuture<Void> prepareStop(DtTime timeout, boolean mayNotStart) {
         lock.lock();
         try {
             switch (status) {
                 case STATUS_NOT_START:
-                    log.warn("status is not_start: {}", this.getClass());
+                    if (!mayNotStart) {
+                        log.error("status is not_start: {}", this.getClass());
+                    }
                     return COMPLETED_FUTURE;
                 case STATUS_STARTING:
                     log.error("status is starting: {}", this.getClass());

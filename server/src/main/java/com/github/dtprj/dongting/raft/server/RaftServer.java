@@ -460,12 +460,12 @@ public class RaftServer extends AbstractLifeCircle {
     protected void doStop(DtTime timeout, boolean force) {
         try {
             if (serviceNioServer != null) {
-                serviceNioServer.stop(timeout);
+                serviceNioServer.stop(timeout, true);
             }
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout,
                     g.getGroupComponents().getGroupConfig().isSaveSnapshotWhenClose())));
-            nodeManager.stop(timeout);
+            nodeManager.stop(timeout, true);
 
             try {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
@@ -480,7 +480,7 @@ public class RaftServer extends AbstractLifeCircle {
                     replicateNioServer.stop(timeout);
                 }
                 if (replicateNioClient != null) {
-                    replicateNioClient.stop(timeout);
+                    replicateNioClient.stop(timeout, true);
                 }
                 raftFactory.shutdownBlockIoExecutor();
             }

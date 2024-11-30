@@ -232,8 +232,8 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     void stopWorker(NioWorker worker, DtTime timeout) {
         try {
-            if (worker != null && worker.getStatus() != STATUS_NOT_START) {
-                worker.stop(timeout);
+            if (worker != null) {
+                worker.stop(timeout, true);
             }
         } catch (Exception e) {
             log.error("stop worker fail: worker={}, error={}", worker.getThread().getName(), e.toString());

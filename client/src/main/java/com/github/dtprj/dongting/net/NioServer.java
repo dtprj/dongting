@@ -140,7 +140,7 @@ public class NioServer extends NioNet implements Runnable {
         stopAcceptThread();
         ArrayList<CompletableFuture<Void>> prepareFutures = new ArrayList<>();
         for (NioWorker worker : workers) {
-            prepareFutures.add(worker.prepareStop(timeout));
+            prepareFutures.add(worker.prepareStop(timeout, true));
         }
         CompletableFuture<Void> f = CompletableFuture.allOf(prepareFutures.toArray(new CompletableFuture[0]));
         try {
