@@ -75,6 +75,8 @@ public abstract class AbstractLifeCircle implements LifeCircle {
                 case STATUS_NOT_START:
                     if (!mayNotStart) {
                         log.error("status is not_start, skip stop: {}", this.getClass());
+                    } else {
+                        log.info("status is not_start, skip stop: {}", this.getClass());
                     }
                     status = STATUS_STOPPED;
                     return;
@@ -121,6 +123,8 @@ public abstract class AbstractLifeCircle implements LifeCircle {
                 case STATUS_NOT_START:
                     if (!mayNotStart) {
                         log.error("status is not_start: {}", this.getClass());
+                    } else {
+                        log.info("status is not_start: {}", this.getClass());
                     }
                     return COMPLETED_FUTURE;
                 case STATUS_STARTING:
