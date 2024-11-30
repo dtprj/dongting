@@ -285,6 +285,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         AppendReq req = reqInfo.getReqFrame().getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (reqInfo.getReqContext().getTimeout().isTimeout(raftStatus.getTs())) {
+            log.info("append request timeout, ignore. groupId={}", raftStatus.getGroupId());
             // not generate response
             return Fiber.frameReturn();
         }

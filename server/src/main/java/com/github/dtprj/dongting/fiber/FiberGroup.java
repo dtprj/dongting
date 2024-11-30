@@ -112,6 +112,7 @@ public class FiberGroup {
                 if ((boolean) SHOULD_STOP.get(FiberGroup.this)) {
                     return Fiber.frameReturn();
                 }
+                log.info("request shutdown group: {}", name);
                 markStopNanos = dispatcher.ts.getNanoTime();
                 SHOULD_STOP.setVolatile(FiberGroup.this, true);
                 shouldStopCondition.signalAll();
