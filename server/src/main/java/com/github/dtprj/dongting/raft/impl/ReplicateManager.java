@@ -159,6 +159,10 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
     }
 
     protected boolean shouldStopReplicate() {
+        if (isGroupShouldStopPlain()) {
+            log.debug("group should stop, stop replicate fiber. group={}", groupId);
+            return true;
+        }
         if (raftStatus.getRole() != RaftRole.leader) {
             log.info("not leader, stop replicate fiber. group={}", groupId);
             return true;
