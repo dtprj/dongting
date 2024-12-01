@@ -62,7 +62,6 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class ReplicateManager {
-    private static final DtLog log = DtLogs.getLogger(ReplicateManager.class);
 
     final NioClient client;
     private final GroupComponents gc;
@@ -120,11 +119,10 @@ public class ReplicateManager {
         }
     }
 
-    boolean checkTermFailed(int remoteTerm) {
+    boolean checkTermFailed(int remoteTerm, boolean append) {
         if (remoteTerm > raftStatus.getCurrentTerm()) {
-            log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
-                    remoteTerm, raftStatus.getCurrentTerm());
-            RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
+            String msg = (append ? "append" : "install") + " response term greater than local";
+            RaftUtil.incrTerm(remoteTerm, raftStatus, -1, msg);
             statusManager.persistAsync(true);
             return true;
         }
@@ -428,7 +426,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         AppendResp body = rf.getBody();
         RaftStatusImpl raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
-        if (replicateManager.checkTermFailed(remoteTerm)) {
+        if (replicateManager.checkTermFailed(remoteTerm, true)) {
             return;
         }
         if (member.isInstallSnapshot()) {
@@ -719,7 +717,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
                     + member.getNode().getNodeId() + ", groupId=" + groupId));
             return;
         }
-        if (replicateManager.checkTermFailed(respBody.getTerm())) {
+        if (replicateManager.checkTermFailed(respBody.getTerm(), false)) {
             incrementEpoch();
             f.completeExceptionally(new RaftException("remote node has larger term. remoteNode="
                     + member.getNode().getNodeId() + ", groupId=" + groupId));

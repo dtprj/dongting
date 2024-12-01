@@ -107,9 +107,13 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
         }
 
         private FrameCallResult processVote() {
+            log.info("receive vote request from node {}. groupId={}, reqTerm={}, currentTerm={}, reqIndex={}, localLastIndex={}",
+                    voteReq.getGroupId(), voteReq.getCandidateId(), voteReq.getTerm(), raftStatus.getCurrentTerm(),
+                    voteReq.getLastLogIndex(), raftStatus.getLastLogIndex());
             boolean needPersist = false;
             if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
-                RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1);
+                String msg = (voteReq.isPreVote() ? "pre-vote" : "vote") + " request term greater than local";
+                RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1, msg);
                 needPersist = true;
             }
 

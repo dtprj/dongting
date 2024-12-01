@@ -120,15 +120,15 @@ public final class RaftUtil {
         }
     }
 
-    public static void incrTerm(int remoteTerm, RaftStatusImpl raftStatus, int newLeaderId) {
+    public static void incrTerm(int remoteTerm, RaftStatusImpl raftStatus, int newLeaderId, String reason) {
         RaftRole oldRole = raftStatus.getRole();
         if (newLeaderId > 0) {
             updateLeader(raftStatus, newLeaderId);
         }
         LinkedList<Pair<RaftCallback, NotLeaderException>> failList = new LinkedList<>();
         if (oldRole != RaftRole.observer) {
-            log.info("update term from {} to {}, change to follower, oldRole={}",
-                    raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
+            log.info("update term from {} to {}, change to follower, oldRole={}, reason: {}",
+                    raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole(), reason);
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
                 TailCache oldPending = raftStatus.getTailCache();
@@ -140,7 +140,7 @@ public final class RaftUtil {
                 });
             }
         } else {
-            log.info("update term from {} to {}", raftStatus.getCurrentTerm(), remoteTerm);
+            log.info("update term from {} to {}, reason: {}", raftStatus.getCurrentTerm(), remoteTerm, reason);
         }
         resetStatus(raftStatus);
         raftStatus.setCurrentTerm(remoteTerm);

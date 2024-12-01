@@ -202,7 +202,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                 }
             } else if (remoteTerm > localTerm) {
                 gc.getVoteManager().cancelVote("receive append request with larger term");
-                RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId);
+                RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId, "receive append request with larger term");
                 gc.getStatusManager().persistAsync(true);
                 return gc.getStatusManager().waitUpdateFinish(this);
             } else {
