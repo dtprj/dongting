@@ -305,7 +305,6 @@ public class Dispatcher extends AbstractLifeCircle {
                     fiber.inputObj = currentFrame.frameResult;
                     fiber.inputEx = currentFrame.frameEx;
                     fiber.popFrame(); // remove self
-                    currentFrame.finish();
                 } else {
                     // call new frame
                 }

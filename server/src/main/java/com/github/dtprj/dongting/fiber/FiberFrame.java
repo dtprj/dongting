@@ -21,7 +21,6 @@ package com.github.dtprj.dongting.fiber;
 @SuppressWarnings("rawtypes")
 public abstract class FiberFrame<O> implements FrameCall<Void> {
     Fiber fiber;
-    FiberGroup fiberGroup;
 
     FiberFrame prev;
     boolean catchCalled;
@@ -41,23 +40,21 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     }
 
     void init(Fiber f) {
-        if (fiber != null) {
-            throw new FiberException("the fiber frame is in use");
-        }
-        if (fiberGroup != null) {
+        if (fiber == null) {
+            this.fiber = f;
+        } else {
             // this frame is reused
+            if (fiber != f) {
+                throw new FiberException("the frame not belongs to the fiber");
+            }
+            if (!finallyCalled) {
+                throw new FiberException("the fiber frame is in use");
+            }
             reset();
         }
-        this.fiber = f;
-        this.fiberGroup = f.fiberGroup;
     }
 
-    void finish() {
-        fiber = null;
-    }
-
-    protected void reset() {
-        fiberGroup = null;
+    private void reset() {
         prev = null;
         catchCalled = false;
         finallyCalled = false;
@@ -67,7 +64,7 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     }
 
     protected boolean isGroupShouldStopPlain() {
-        return fiberGroup.isShouldStopPlain();
+        return fiber.fiberGroup.isShouldStopPlain();
     }
 
     protected void setResult(O result) {
@@ -79,7 +76,7 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     }
 
     protected FiberGroup getFiberGroup() {
-        return fiberGroup;
+        return fiber.fiberGroup;
     }
 
     protected FrameCallResult justReturn(O result) {
