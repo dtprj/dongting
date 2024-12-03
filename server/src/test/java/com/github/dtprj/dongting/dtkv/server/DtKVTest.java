@@ -127,26 +127,35 @@ public class DtKVTest extends BaseFiberTest {
 
     private DtKV copyTo(KvSnapshot s) {
         DtKV kv2 = createAndStart();
+        copyTo(s, kv2);
+        return kv2;
+    }
+
+    private void copyTo(KvSnapshot s, DtKV dest) {
         long offset = 0;
         long lastIndex = s.getSnapshotInfo().getLastIncludedIndex();
         int lastTerm = s.getSnapshotInfo().getLastIncludedTerm();
         ByteBuffer buf = ByteBuffer.allocate(64);
+        FiberFuture<Void> first = dest.installSnapshot(lastIndex, lastTerm, offset, false, null);
+        assertTrue(first.isDone());
+        assertNull(first.getEx());
         while (true) {
             buf.clear();
             FiberFuture<Integer> f1 = s.readNext(buf);
             assertTrue(f1.isDone());
             buf.flip();
             assertEquals(f1.getResult(), buf.remaining());
-            boolean done = f1.getResult() == 0;
-            FiberFuture<Void> f2 = kv2.installSnapshot(lastIndex, lastTerm, offset, done, done ? null : buf);
+            FiberFuture<Void> f2 = dest.installSnapshot(lastIndex, lastTerm, offset, false, buf);
             offset += f1.getResult();
             assertTrue(f2.isDone());
             assertNull(f2.getEx());
-            if (done) {
+            if (f1.getResult() == 0) {
                 break;
             }
         }
-        return kv2;
+        FiberFuture<Void> last = dest.installSnapshot(lastIndex, lastTerm, offset, true, null);
+        assertTrue(last.isDone());
+        assertNull(last.getEx());
     }
 
     private long[] backupIndexAndTime(String key) {
@@ -285,6 +294,15 @@ public class DtKVTest extends BaseFiberTest {
             s1.close();
             s2.close();
             s3.close();
+            {
+                DtKV newKv = createAndStart();
+                SnapshotInfo si = new SnapshotInfo(0, 0, null, null, null, null, 0);
+                KvSnapshot s = (KvSnapshot) newKv.takeSnapshot(si);
+                copyTo(s, kv);
+                // only root dir
+                assertEquals(1, kv.kvStatus.kvImpl.map.size());
+                newKv.stop(new DtTime(1, TimeUnit.SECONDS));
+            }
         });
     }
 }

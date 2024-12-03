@@ -61,7 +61,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private final KvConfig kvConfig;
     private final boolean useSeparateExecutor;
 
-    private volatile KvStatus kvStatus;
+    volatile KvStatus kvStatus;
     private EncodeStatus encodeStatus;
 
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
