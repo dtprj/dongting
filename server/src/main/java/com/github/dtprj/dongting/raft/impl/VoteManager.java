@@ -149,8 +149,9 @@ public class VoteManager {
         Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getPreparedMembers());
         initStatusForVoting();
 
-        log.info("node ready, start pre vote. groupId={}, term={}, voteId={}, lastIndex={}",
-                groupId, raftStatus.getCurrentTerm(), currentVoteId, raftStatus.getLastLogIndex());
+        log.info("node ready, start pre vote. groupId={}, term={}, voteId={}, lastLogTerm={}, lastLogIndex={}",
+                groupId, raftStatus.getCurrentTerm(), currentVoteId, raftStatus.getLastLogTerm(),
+                raftStatus.getLastLogIndex());
         startPreVote(voter);
     }
 
@@ -272,7 +273,8 @@ public class VoteManager {
                             groupId, raftStatus.getCurrentTerm(), raftStatus.getLastApplied(), raftStatus.getCommitIndex());
                     return sleepAwhile();
                 }
-                log.info("elect timer timeout, groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
+                log.info("elect timer timeout, groupId={}, term={}, lastLogTerm={}, lastLogIndex={}",
+                        groupId, raftStatus.getCurrentTerm(), raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
                 tryStartPreVote();
             }
             return sleepToNextElectTime();
@@ -363,11 +365,12 @@ public class VoteManager {
             if (resp.isVoteGranted()) {
                 if (isElectedAfterVote(remoteId, req.isPreVote())) {
                     if (req.isPreVote()) {
-                        log.info("pre-vote success. groupId={}. term={}", groupId, raftStatus.getCurrentTerm());
+                        log.info("pre-vote success. groupId={}, term={}, lastLogTerm={}, lastLogIndex={}", groupId,
+                                raftStatus.getCurrentTerm(), raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
                         return startVote();
                     } else {
-                        log.info("successfully elected, change to leader. groupId={}, term={}",
-                                groupId, raftStatus.getCurrentTerm());
+                        log.info("successfully elected, change to leader. groupId={}, term={}, lastLogTerm={}, lastLogIndex={}",
+                                groupId, raftStatus.getCurrentTerm(), raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
                         RaftUtil.changeToLeader(raftStatus);
                         cancelVote("successfully elected");
                         linearTaskRunner.sendHeartBeat();
@@ -411,7 +414,8 @@ public class VoteManager {
 
             RaftUtil.resetStatus(raftStatus);
             if (raftStatus.getRole() != RaftRole.candidate) {
-                log.info("change to candidate. groupId={}, oldTerm={}", groupId, raftStatus.getCurrentTerm());
+                log.info("change to candidate. groupId={}, oldTerm={}, lastLogTerm={}, lastLogIndex={}",
+                        groupId, raftStatus.getCurrentTerm(), raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
                 raftStatus.setRole(RaftRole.candidate);
             }
 

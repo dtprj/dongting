@@ -58,6 +58,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
         private final RaftStatusImpl raftStatus;
         private boolean logReceiveInfo;
 
+        private boolean termUpdated;
+
         private VoteFiberFrame(ReqInfoEx<VoteReq> reqInfo) {
             this.reqInfo = reqInfo;
             this.raftStatus = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus();
@@ -84,52 +86,51 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
                 String msg = (voteReq.isPreVote() ? "pre-vote" : "vote") + " request term greater than local";
                 RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1, msg);
-                return grantAndUpdateStatusFile();
+                termUpdated = true;
             }
+            RaftUtil.resetElectTimer(raftStatus);
             if (raftStatus.isInstallSnapshot()) {
                 log.info("receive vote/preVote request during install snapshot. remoteId={}, group={}",
                         voteReq.getCandidateId(), voteReq.getGroupId());
-                return writeVoteResp(false);
+                return updateStatusFile(false);
             } else {
                 if (!voteReq.isPreVote() && RaftUtil.writeNotFinished(raftStatus)) {
                     return RaftUtil.waitWriteFinish(raftStatus, this);
                 }
                 if (shouldGrant()) {
-                    return grantAndUpdateStatusFile();
+                    return updateStatusFile(true);
                 } else {
-                    return writeVoteResp(false);
+                    return updateStatusFile(false);
                 }
             }
         }
 
-        private FrameCallResult grantAndUpdateStatusFile() {
+        private FrameCallResult updateStatusFile(boolean grant) {
             StatusManager statusManager = reqInfo.getRaftGroup().getGroupComponents().getStatusManager();
             int expectTerm = raftStatus.getCurrentTerm();
-            RaftUtil.resetElectTimer(raftStatus);
-            if (voteReq.isPreVote()) {
-                statusManager.persistAsync(false);
-                return afterStatusFileUpdated(expectTerm);
-            } else {
+
+            boolean notPreVoteAndGrant = !voteReq.isPreVote() && grant;
+            if (notPreVoteAndGrant) {
                 raftStatus.setVotedFor(voteReq.getCandidateId());
-                statusManager.persistAsync(true);
-                return statusManager.waitUpdateFinish(v -> afterStatusFileUpdated(expectTerm));
+            }
+            if (termUpdated || notPreVoteAndGrant) {
+                statusManager.persistAsync(notPreVoteAndGrant);
+            }
+            if (notPreVoteAndGrant) {
+                return statusManager.waitUpdateFinish(v -> afterStatusFileUpdated(expectTerm, grant));
+            } else {
+                return afterStatusFileUpdated(expectTerm, grant);
             }
         }
 
-        private FrameCallResult afterStatusFileUpdated(int expectTerm) {
+        private FrameCallResult afterStatusFileUpdated(int expectTerm, boolean grant) {
             if (expectTerm != raftStatus.getCurrentTerm()) {
                 log.warn("localTerm changed, ignore vote response. expectTerm={}, currentTerm={}",
                         expectTerm, raftStatus.getCurrentTerm());
                 return Fiber.frameReturn();
             }
-            if (!voteReq.isPreVote()) {
-                RaftUtil.updateLeader(raftStatus, voteReq.getCandidateId());
-            }
             RaftUtil.resetElectTimer(raftStatus);
-            return writeVoteResp(true);
-        }
 
-        private FrameCallResult writeVoteResp(boolean grant) {
             VoteResp resp = new VoteResp();
             resp.setVoteGranted(grant);
             resp.setTerm(raftStatus.getCurrentTerm());
