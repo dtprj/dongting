@@ -164,8 +164,6 @@ public final class RaftUtil {
         raftStatus.setCurrentLeader(null);
         raftStatus.setLeaderCommit(0);
 
-        raftStatus.getTailCache().cleanAll();
-
         // wake up replicate fiber if it is waiting on this condition
         raftStatus.getDataArrivedCondition().signalAll();
 

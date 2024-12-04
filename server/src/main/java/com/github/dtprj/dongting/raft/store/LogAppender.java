@@ -120,8 +120,7 @@ class LogAppender {
     }
 
     public void submit(List<LogItem> taskList) {
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0, len = taskList.size(); i < len; i++) {
+        for (int len = taskList.size(), i = 0; i < len; i++) {
             taskChannel.offer(taskList.get(i));
         }
     }
