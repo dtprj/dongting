@@ -202,6 +202,10 @@ public class DefaultRaftLog implements RaftLog {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
+                if (index == 0) {
+                    setResult(0L);
+                    return Fiber.frameReturn();
+                }
                 return Fiber.call(idxFiles.loadLogPos(index), this::afterLoadPos);
             }
 
