@@ -268,18 +268,6 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
         }
 
-        if (multiAppend) {
-            return doReplicate(member);
-        } else {
-            if (pendingItems == 0) {
-                return doReplicate(member);
-            } else {
-                return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
-            }
-        }
-    }
-
-    private FrameCallResult doReplicate(RaftMember member) {
         long nextIndex = member.getNextIndex();
         long diff = raftStatus.getLastLogIndex() - nextIndex + 1;
         if (diff <= 0) {
@@ -287,9 +275,21 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return raftStatus.getDataArrivedCondition().await(WAIT_CONDITION_TIMEOUT, this);
         }
 
+        if (multiAppend) {
+            return doReplicate(member, diff, nextIndex);
+        } else {
+            if (pendingItems == 0) {
+                return doReplicate(member, diff, nextIndex);
+            } else {
+                return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
+            }
+        }
+    }
+
+    private FrameCallResult doReplicate(RaftMember member, long diff, long nextIndex) {
         // flow control
         int rest = maxReplicateItems - pendingItems;
-        if (pendingItems == 0 && rest <= restItemsToStartReplicate) {
+        if (pendingItems > 0 && rest <= restItemsToStartReplicate) {
             // avoid silly window syndrome
             return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
         }
@@ -441,9 +441,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 member.setMatchIndex(expectNewMatchIndex);
                 multiAppend = true;
                 commitManager.tryCommit(expectNewMatchIndex);
-                if (raftStatus.getLastLogIndex() >= member.getNextIndex()) {
-                    repCondition.signalAll();
-                }
+                repCondition.signalAll();
             } else {
                 BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}," +
                                 " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
