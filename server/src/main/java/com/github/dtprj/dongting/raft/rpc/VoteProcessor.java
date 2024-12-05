@@ -112,6 +112,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             boolean notPreVoteAndGrant = !voteReq.isPreVote() && grant;
             if (notPreVoteAndGrant) {
                 raftStatus.setVotedFor(voteReq.getCandidateId());
+                reqInfo.getRaftGroup().getGroupComponents().getVoteManager().cancelVote(
+                        "vote for node " + voteReq.getCandidateId());
             }
             if (termUpdated || notPreVoteAndGrant) {
                 statusManager.persistAsync(notPreVoteAndGrant);
