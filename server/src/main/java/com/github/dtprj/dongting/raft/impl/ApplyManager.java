@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -292,10 +291,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             raftStatus.getInitFuture().complete(null);
         }
         if (execEx == null) {
-            RaftCallback.callSuccess(rt.getCallback(), index, execResult);
+            rt.callSuccess(execResult);
         } else {
             // assert read only
-            RaftCallback.callFail(rt.getCallback(), execEx);
+            rt.callFail(execEx);
         }
         if (waitApply) {
             applyFinishCond.signal();

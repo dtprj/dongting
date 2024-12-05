@@ -32,6 +32,8 @@ public class RaftTask {
 
     private LogItem item;
 
+    private boolean invokeCallback;
+
     public RaftTask(Timestamp ts, int type, RaftInput input, RaftCallback callback) {
         this.createTimeNanos = ts.getNanoTime();
         this.type = type;
@@ -61,5 +63,20 @@ public class RaftTask {
 
     public int getType() {
         return type;
+    }
+
+
+    public void callSuccess(Object r) {
+        if (!invokeCallback) {
+            RaftCallback.callSuccess(callback, item.getIndex(), r);
+        }
+        invokeCallback = true;
+    }
+
+    public void callFail(Throwable ex) {
+        if (!invokeCallback) {
+            RaftCallback.callFail(callback, ex);
+        }
+        invokeCallback = true;
     }
 }

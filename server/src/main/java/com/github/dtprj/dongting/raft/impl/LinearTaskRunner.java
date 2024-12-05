@@ -114,7 +114,7 @@ public class LinearTaskRunner {
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
         if (!taskChannel.fireOffer(t)) {
             RaftUtil.release(input);
-            RaftCallback.callFail(callback, new RaftException("submit raft task failed"));
+            t.callFail(new RaftException("submit raft task failed"));
         }
     }
 
@@ -133,7 +133,7 @@ public class LinearTaskRunner {
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
                 RaftUtil.release(t.getInput());
-                RaftCallback.callFail(t.getCallback(), new NotLeaderException(raftStatus.getCurrentLeaderNode()));
+                t.callFail(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
             }
             return;
         }
@@ -150,7 +150,7 @@ public class LinearTaskRunner {
 
             if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
                 RaftUtil.release(input);
-                RaftCallback.callFail(rt.getCallback(), new RaftExecTimeoutException("timeout "
+                rt.callFail(new RaftExecTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
                 // not removed from list, filter in submitTasks()
                 continue;
@@ -184,7 +184,7 @@ public class LinearTaskRunner {
             RaftTask rt = inputs.get(i);
             LogItem li = rt.getItem();
             if (li == null) {
-                // timeout, see raftExec()
+                // filer timeout items, released, see raftExec()
                 continue;
             }
             long index = li.getIndex();

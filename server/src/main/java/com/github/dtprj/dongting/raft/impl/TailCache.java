@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.util.concurrent.TimeUnit;
@@ -67,7 +68,7 @@ public class TailCache {
         pending++;
         pendingBytes += value.getInput().getFlowControlSize();
         if ((index & 0x0F) == 0) { // call cleanPending 1/16
-            cleanPending();
+            cleanOld();
         }
     }
 
@@ -90,12 +91,17 @@ public class TailCache {
         }
 
         log.info("truncate tail cache to {}, old nextWriteIndex={}", index, nextWriteIndex);
+        Throwable ex = null;
         while (size() > 0 && index < nextWriteIndex()) {
             RaftTask raftTask = cache.removeLast();
             if (cache.size() == 0) {
                 firstIndex = -1;
             }
             release(raftTask);
+            if (ex == null) {
+                ex = new RaftException("raft log truncated");
+            }
+            raftTask.callFail(ex);
         }
     }
 
@@ -141,7 +147,7 @@ public class TailCache {
         }
     }
 
-    private void cleanPending() {
+    private void cleanOld() {
         if (firstIndex <= 0) {
             return;
         }

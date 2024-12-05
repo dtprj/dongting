@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
-import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.nio.ByteBuffer;
@@ -125,7 +124,7 @@ public final class RaftUtil {
         if (newLeaderId > 0) {
             updateLeader(raftStatus, newLeaderId);
         }
-        LinkedList<Pair<RaftCallback, NotLeaderException>> failList = new LinkedList<>();
+        LinkedList<Pair<RaftTask, NotLeaderException>> failList = new LinkedList<>();
         if (oldRole != RaftRole.observer) {
             log.info("update term from {} to {}, change to follower, oldRole={}, reason: {}",
                     raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole(), reason);
@@ -133,11 +132,7 @@ public final class RaftUtil {
             if (oldRole == RaftRole.leader) {
                 TailCache oldPending = raftStatus.getTailCache();
                 NotLeaderException e = new NotLeaderException(raftStatus.getCurrentLeaderNode());
-                oldPending.forEach((idx, task) -> {
-                    if (task.getCallback() != null) {
-                        failList.add(new Pair<>(task.getCallback(), e));
-                    }
-                });
+                oldPending.forEach((idx, task) -> failList.add(new Pair<>(task, e)));
             }
         } else {
             log.info("update term from {} to {}, reason: {}", raftStatus.getCurrentTerm(), remoteTerm, reason);
@@ -147,8 +142,8 @@ public final class RaftUtil {
         raftStatus.setVotedFor(0);
         raftStatus.copyShareStatus();
         // copy share status should happen before callback invocation
-        for (Pair<RaftCallback, NotLeaderException> pair : failList) {
-            RaftCallback.callFail(pair.getLeft(), pair.getRight());
+        for (Pair<RaftTask, NotLeaderException> pair : failList) {
+            pair.getLeft().callFail(pair.getRight());
         }
     }
 
@@ -251,7 +246,7 @@ public final class RaftUtil {
         for (int i = 0; i < quorum; i++) {
             // sort desc
             for (int j = len - 1; j > 0; j--) {
-                if (arr[j - 1] - arr[j]  < 0) {
+                if (arr[j - 1] - arr[j] < 0) {
                     long tmp = arr[j];
                     arr[j] = arr[j - 1];
                     arr[j - 1] = tmp;
