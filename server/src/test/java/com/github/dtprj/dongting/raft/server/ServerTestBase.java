@@ -62,6 +62,7 @@ public class ServerTestBase {
         serverConfig.setServicePort(servicePort);
         serverConfig.setElectTimeout(tick(10));
         serverConfig.setHeartbeatInterval(tick(4));
+        serverConfig.setRpcTimeout(tick(100));
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
