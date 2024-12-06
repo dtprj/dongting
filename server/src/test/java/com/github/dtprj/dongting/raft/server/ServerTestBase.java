@@ -46,7 +46,7 @@ public class ServerTestBase {
         public GroupComponents gc;
     }
 
-    protected ServerInfo createServer(int nodeId, String servers, String nodeIdOfMembers) {
+    protected ServerInfo createServer(int nodeId, String servers, String nodeIdOfMembers, String nodeIdOfObservers) {
         int replicatePort = 4000 + nodeId;
         int servicePort = 5000 + nodeId;
         int groupId = 1;
@@ -56,8 +56,9 @@ public class ServerTestBase {
         serverConfig.setReplicatePort(replicatePort);
         serverConfig.setServicePort(servicePort);
         serverConfig.setElectTimeout(tick(10));
+        serverConfig.setHeartbeatInterval(tick(4));
 
-        RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, "");
+        RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
 
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);

@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import static com.github.dtprj.dongting.util.Tick.tick;
+
 /**
  * @author huangli
  */
@@ -24,13 +26,13 @@ public class ImplAccessor {
     }
 
     public static void updateMemberManager(MemberManager memberManager) {
-        memberManager.daemonSleepInterval = 1;
+        memberManager.daemonSleepInterval = 11;
     }
 
     public static void updateVoteManager(VoteManager voteManager) {
         voteManager.firstDelayMin = 0;
-        voteManager.firstDelayMax = 1;
+        voteManager.firstDelayMax = 3;
         voteManager.checkIntervalMin = 1;
-        voteManager.checkIntervalMax = 5;
+        voteManager.checkIntervalMax = tick(3);
     }
 }

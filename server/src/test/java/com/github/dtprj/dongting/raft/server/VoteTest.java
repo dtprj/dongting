@@ -15,46 +15,51 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
  */
 public class VoteTest extends ServerTestBase {
 
-    @Test
-    void test() throws Exception {
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
-        String members = "1,2,3";
-        ServerInfo s1 = createServer(1, servers, members);
-        ServerInfo s2 = createServer(2, servers, members);
-        ServerInfo s3 = createServer(3, servers, members);
-
-        s1.raftServer.getAllMemberReadyFuture().get();
-        s2.raftServer.getAllMemberReadyFuture().get();
-        s3.raftServer.getAllMemberReadyFuture().get();
-
+    private int waitLeaderElectAndGetLeaderId(ServerInfo... servers) {
+        AtomicInteger leaderId = new AtomicInteger();
         TestUtil.waitUtil(() -> {
             int leader = 0;
-            if (s1.raftServer.getRaftGroup(1).isLeader()) {
-                leader++;
-            }
-            if (s2.raftServer.getRaftGroup(1).isLeader()) {
-                leader++;
-            }
-            if (s3.raftServer.getRaftGroup(1).isLeader()) {
-                leader++;
+            for (ServerInfo server : servers) {
+                if (server.raftServer.getRaftGroup(1).isLeader()) {
+                    leader++;
+                    leaderId.set(server.nodeId);
+                }
             }
             return leader == 1;
         });
+        return leaderId.get();
+    }
 
-        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        s1.raftServer.stop(timeout);
-        s2.raftServer.stop(timeout);
-        s3.raftServer.stop(timeout);
+    @Test
+    void test() throws Exception {
+        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
+        String members = "1,2,3";
+        String observers = "4";
+        ServerInfo[] sis = new ServerInfo[4];
+        sis[0] = createServer(1, servers, members, observers);
+        sis[1] = createServer(2, servers, members, observers);
+        sis[2] = createServer(3, servers, members, observers);
+        sis[3] = createServer(4, servers, members, observers);
+
+        for (ServerInfo si : sis) {
+            si.raftServer.getAllMemberReadyFuture().get();
+        }
+
+        int leader = waitLeaderElectAndGetLeaderId(sis);
+        assertTrue(leader != 4);
+        // DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+        // sis[leader-1].raftServer.stop(timeout);
     }
 }
