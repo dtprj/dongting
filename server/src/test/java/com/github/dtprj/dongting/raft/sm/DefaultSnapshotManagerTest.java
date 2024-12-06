@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
@@ -148,13 +147,13 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
             private FrameCallResult afterInit2(Snapshot snapshot) {
                 assertNotNull(snapshot);
-                FiberFrame<Pair<Integer, Long>> f = m.recover(snapshot);
+                assertEquals(1, snapshot.getSnapshotInfo().getLastIncludedTerm());
+                assertEquals(LOOP, snapshot.getSnapshotInfo().getLastIncludedIndex());
+                FiberFrame<Void> f = m.recover(snapshot);
                 return Fiber.call(f, this::afterRecover);
             }
 
-            private FrameCallResult afterRecover(Pair<Integer, Long> p) {
-                assertEquals(1, p.getLeft());
-                assertEquals(LOOP, p.getRight().longValue());
+            private FrameCallResult afterRecover(Void v) {
                 for (index = 1; index <= LOOP; index++) {
                     ByteArray key = new ByteArray(("key" + index).getBytes());
                     KvResult r = kv.get(key);

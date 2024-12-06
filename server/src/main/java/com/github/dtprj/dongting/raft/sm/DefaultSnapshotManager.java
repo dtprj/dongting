@@ -171,7 +171,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     @Override
-    public FiberFrame<Pair<Integer, Long>> recover(Snapshot snapshot) {
+    public FiberFrame<Void> recover(Snapshot snapshot) {
         return new RecoverFiberFrame(groupConfig, stateMachine, (FileSnapshot) snapshot);
     }
 
@@ -453,7 +453,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
 }
 
-class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
+class RecoverFiberFrame extends FiberFrame<Void> {
 
     private final StateMachine stateMachine;
     private final RaftGroupConfigEx groupConfig;
@@ -488,7 +488,7 @@ class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
         int writeConcurrency = groupConfig.getSnapshotConcurrency();
         SnapshotReader reader = new SnapshotReader(snapshot, readConcurrency, writeConcurrency, this::apply,
                 this::isGroupShouldStopPlain, bufferCreator);
-        return Fiber.call(reader, this::finish1);
+        return Fiber.call(reader, this::finish);
     }
 
     private FiberFuture<Void> apply(RefBuffer rb, Integer notUsed) {
@@ -515,16 +515,11 @@ class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
         return f;
     }
 
-    private FrameCallResult finish1(Void v) {
+    private FrameCallResult finish(Void v) {
         SnapshotInfo si = snapshot.getSnapshotInfo();
         FiberFuture<Void> f = stateMachine.installSnapshot(si.getLastIncludedIndex(), si.getLastIncludedTerm(),
                 offset, true, SimpleByteBufferPool.EMPTY_BUFFER);
-        return f.await(this::finish2);
+        return f.await(this::justReturn);
     }
 
-    private FrameCallResult finish2(Void v) {
-        SnapshotInfo si = snapshot.getSnapshotInfo();
-        setResult(new Pair<>(si.getLastIncludedTerm(), si.getLastIncludedIndex()));
-        return Fiber.frameReturn();
-    }
 }

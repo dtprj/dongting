@@ -117,18 +117,18 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterApplyConfigChange(Snapshot snapshot) {
-        FiberFrame<Pair<Integer, Long>> f = gc.getSnapshotManager().recover(snapshot);
-        return Fiber.call(f, this::afterRecoverStateMachine);
+        FiberFrame<Void> f = gc.getSnapshotManager().recover(snapshot);
+        return Fiber.call(f, v -> afterRecoverStateMachine(snapshot));
     }
 
-    private FrameCallResult afterRecoverStateMachine(Pair<Integer, Long> snapshotResult) {
+    private FrameCallResult afterRecoverStateMachine(Snapshot snapshot) {
         if (isGroupShouldStopPlain()) {
             raftStatus.getInitFuture().completeExceptionally(new RaftException("group should stop"));
             return Fiber.frameReturn();
         }
 
-        int snapshotTerm = snapshotResult == null ? 0 : snapshotResult.getLeft();
-        long snapshotIndex = snapshotResult == null ? 0 : snapshotResult.getRight();
+        int snapshotTerm = snapshot == null ? 0 : snapshot.getSnapshotInfo().getLastIncludedTerm();
+        long snapshotIndex = snapshot == null ? 0 : snapshot.getSnapshotInfo().getLastIncludedIndex();
         log.info("load snapshot to term={}, index={}, groupId={}", snapshotTerm, snapshotIndex, groupConfig.getGroupId());
         raftStatus.setLastApplied(snapshotIndex);
         raftStatus.setLastAppliedTerm(snapshotTerm);
