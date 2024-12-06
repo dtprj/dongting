@@ -188,11 +188,13 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                     return process();
                 } else if (raftStatus.getRole() == RaftRole.observer) {
                     gc.getVoteManager().cancelVote("receive append request from leader");
+                    RaftUtil.resetElectTimer(raftStatus);
                     RaftUtil.updateLeader(raftStatus, leaderId);
                     return process();
                 } else if (raftStatus.getRole() == RaftRole.candidate) {
                     String r = "candidate receive append request from leader";
                     gc.getVoteManager().cancelVote(r);
+                    RaftUtil.resetElectTimer(raftStatus);
                     RaftUtil.changeToFollower(raftStatus, leaderId, r);
                     return process();
                 } else {
@@ -203,6 +205,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
             } else if (remoteTerm > localTerm) {
                 gc.getVoteManager().cancelVote("receive append request with larger term");
                 RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId, "receive append request with larger term");
+                RaftUtil.resetElectTimer(raftStatus);
                 gc.getStatusManager().persistAsync(true);
                 return gc.getStatusManager().waitUpdateFinish(this);
             } else {
