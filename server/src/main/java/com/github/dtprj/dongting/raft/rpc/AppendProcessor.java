@@ -443,6 +443,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
 class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private static final DtLog log = DtLogs.getLogger(InstallFiberFrame.class);
+    private final int groupId = gc.getRaftStatus().getGroupId();
 
     public InstallFiberFrame(ReqInfoEx<InstallSnapshotReq> reqInfo, AppendProcessor processor) {
         super("install snapshot", processor, reqInfo);
@@ -484,8 +485,10 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
     private FrameCallResult startInstall(RaftStatusImpl raftStatus) {
         if (RaftUtil.writeNotFinished(raftStatus)) {
+            log.info("wait write finish before install snapshot, groupId={}", groupId);
             return RaftUtil.waitWriteFinish(raftStatus, this);
         }
+        log.info("start install snapshot, groupId={}", groupId);
         raftStatus.setInstallSnapshot(true);
         gc.getStatusManager().persistAsync(true);
         return gc.getStatusManager().waitUpdateFinish(this::afterStatusPersist);
@@ -514,6 +517,8 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
         boolean finish = req.done;
         ByteBuffer buf = req.data == null ? null : req.data.getBuffer();
+        log.debug("install snapshot, groupId={}, offset={}, dataSize={}, finish={}", groupId,
+                req.offset, buf == null ? 0 : buf.remaining(), finish);
         FiberFuture<Void> f = gc.getStateMachine().installSnapshot(req.lastIncludedIndex,
                 req.lastIncludedTerm, req.offset, finish, buf);
         if (finish) {
@@ -543,6 +548,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
                 req.lastIncludedIndex + 1, req.nextWritePos);
         return Fiber.call(finishFrame, v -> {
             gc.getApplyManager().signalStartApply();
+            log.info("install snapshot finish, groupId={}", groupId);
             return writeResp(null);
         });
     }
