@@ -73,6 +73,9 @@ abstract class FileQueue {
     protected boolean initialized;
 
     public FileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize, boolean mainLogFile) {
+        if (BitUtil.nextHighestPowerOfTwo(fileSize) != fileSize) {
+            throw new IllegalArgumentException("fileSize not power of 2: " + fileSize);
+        }
         this.dir = dir;
         this.ioExecutor = groupConfig.getBlockIoExecutor();
         this.groupConfig = groupConfig;
