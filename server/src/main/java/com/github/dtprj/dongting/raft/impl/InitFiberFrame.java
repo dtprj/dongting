@@ -94,15 +94,20 @@ public class InitFiberFrame extends FiberFrame<Void> {
                 return afterRecoverStateMachine(null);
             }
             FiberFrame<Snapshot> f = gc.getSnapshotManager().init();
-            return Fiber.call(f, this::afterSnapshotInit);
+            return Fiber.call(f, this::afterSnapshotManagerInit);
         }
     }
 
-    private FrameCallResult afterSnapshotInit(Snapshot snapshot) {
+    private FrameCallResult afterSnapshotManagerInit(Snapshot snapshot) {
         if (snapshot == null) {
             return afterRecoverStateMachine(null);
         }
         SnapshotInfo si = snapshot.getSnapshotInfo();
+        if (si.getLastIncludedTerm() > raftStatus.getCurrentTerm()) {
+            log.error("snapshot term greater than current term, snapshot={}, current={}",
+                    si.getLastIncludedTerm(), raftStatus.getCurrentTerm());
+            throw new RaftException("snapshot term greater than current term");
+        }
         gc.getRaftStatus().setLastConfigChangeIndex(si.getLastConfigChangeIndex());
 
         FiberFrame<Void> f = gc.getMemberManager().applyConfigFrame(
@@ -136,30 +141,35 @@ public class InitFiberFrame extends FiberFrame<Void> {
                 initResult -> afterRaftLogInit(initResult, snapshotTerm, snapshotIndex));
     }
 
-    private FrameCallResult afterRaftLogInit(Pair<Integer, Long> initResult, int snapshotTerm, long snapshotIndex) {
+    private FrameCallResult afterRaftLogInit(Pair<Integer, Long> logInitResult, int snapshotTerm, long snapshotIndex) {
         if (isGroupShouldStopPlain()) {
             raftStatus.getInitFuture().completeExceptionally(new RaftException("group should stop"));
             return Fiber.frameReturn();
         }
-        int initResultTerm = initResult.getLeft();
-        long initResultIndex = initResult.getRight();
-        if (initResultIndex < snapshotIndex || initResultIndex < raftStatus.getCommitIndex()) {
-            log.error("raft log last index invalid, {}, {}, {}", initResultIndex, snapshotIndex, raftStatus.getCommitIndex());
+        int logInitResultTerm = logInitResult.getLeft();
+        long logInitResultIndex = logInitResult.getRight();
+        if (logInitResultIndex < snapshotIndex || logInitResultIndex < raftStatus.getCommitIndex()) {
+            log.error("raft log last index invalid, {}, {}, {}", logInitResultIndex, snapshotIndex, raftStatus.getCommitIndex());
             throw new RaftException("raft log last index invalid");
         }
-        if (initResultTerm < snapshotTerm) {
-            log.error("raft log last term invalid, {}, {}", initResultTerm, snapshotTerm);
+        if (logInitResultTerm < snapshotTerm) {
+            log.error("raft log last term invalid, {}, {}", logInitResultTerm, snapshotTerm);
             throw new RaftException("raft log last term invalid");
         }
+        if(logInitResultTerm > raftStatus.getCurrentTerm()) {
+            log.error("raft log last term({}) greater than current term({})",
+                    logInitResultTerm, raftStatus.getCurrentTerm());
+            throw new RaftException("raft log last term greater than current term");
+        }
 
-        raftStatus.setLastLogTerm(initResultTerm);
+        raftStatus.setLastLogTerm(logInitResultTerm);
 
-        raftStatus.setLastLogIndex(initResultIndex);
-        raftStatus.setLastWriteLogIndex(initResultIndex);
-        raftStatus.setLastForceLogIndex(initResultIndex);
+        raftStatus.setLastLogIndex(logInitResultIndex);
+        raftStatus.setLastWriteLogIndex(logInitResultIndex);
+        raftStatus.setLastForceLogIndex(logInitResultIndex);
 
         log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
-                initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
+                logInitResult.getLeft(), logInitResult.getRight(), groupConfig.getGroupId());
 
         return initRaftFibers();
     }
