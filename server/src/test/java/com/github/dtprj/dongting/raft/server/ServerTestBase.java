@@ -23,7 +23,12 @@ import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.ImplAccessor;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
+import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
+import com.github.dtprj.dongting.raft.store.RaftLog;
+import com.github.dtprj.dongting.raft.store.StatusManager;
+import com.github.dtprj.dongting.raft.store.StoreAccessor;
 import com.github.dtprj.dongting.raft.store.TestDir;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 
@@ -100,6 +105,15 @@ public class ServerTestBase {
             @Override
             public ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig) {
                 return MockExecutors.ioExecutor();
+            }
+
+            @Override
+            public RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory codecFactory) {
+                groupConfig.setIdxCacheSize(128);
+                groupConfig.setIdxFlushThreshold(64);
+                DefaultRaftLog raftLog = new DefaultRaftLog(groupConfig, statusManager, codecFactory);
+                StoreAccessor.updateRaftLog(raftLog, 1024, 512 * 1024);
+                return raftLog;
             }
         };
     }
