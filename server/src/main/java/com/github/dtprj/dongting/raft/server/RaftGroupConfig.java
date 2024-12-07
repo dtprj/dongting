@@ -46,7 +46,7 @@ public class RaftGroupConfig {
 
     private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
 
-    private long saveSnapshotMillis = 60 * 1000;
+    private long saveSnapshotMillis = 60 * 60 * 1000;
     // greater than 1 require state machine support
     private int snapshotConcurrency = 1;
     private int diskSnapshotConcurrency = 4;
