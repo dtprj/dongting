@@ -426,7 +426,9 @@ public class RaftServer extends AbstractLifeCircle {
                     allGroupReadyFuture.completeExceptionally(ex);
                 } else if (checkStartStatus(allGroupReadyFuture)) {
                     try {
-                        serviceNioServer.start();
+                        if (serviceNioServer != null) {
+                            serviceNioServer.start();
+                        }
                         allGroupReadyFuture.complete(null);
                     } catch (Exception serviceNioServerStartEx) {
                         allGroupReadyFuture.completeExceptionally(serviceNioServerStartEx);
@@ -503,6 +505,7 @@ public class RaftServer extends AbstractLifeCircle {
                     fiberGroup.requestShutdown();
                     return fiberGroup.getShouldStopCondition().await(this::afterShouldShutdown);
                 }
+
                 private FrameCallResult afterShouldShutdown(Void v) {
                     FiberFuture<Long> f;
                     if (saveSnapshot) {
@@ -512,10 +515,12 @@ public class RaftServer extends AbstractLifeCircle {
                     }
                     return f.await(this::afterSaveSnapshot);
                 }
+
                 private FrameCallResult afterSaveSnapshot(Long notUsed) {
                     gc.getApplyManager().shutdown(timeout);
                     return gc.getRaftLog().close().await(this::afterRaftLogClose);
                 }
+
                 private FrameCallResult afterRaftLogClose(Void unused) {
                     return g.getGroupComponents().getStatusManager().close().await(this::justReturn);
                 }
