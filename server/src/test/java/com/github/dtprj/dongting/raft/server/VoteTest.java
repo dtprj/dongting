@@ -52,14 +52,17 @@ public class VoteTest extends ServerTestBase {
         sis[1] = createServer(2, servers, members, observers);
         sis[2] = createServer(3, servers, members, observers);
         sis[3] = createServer(4, servers, members, observers);
-
         for (ServerInfo si : sis) {
-            si.raftServer.getAllMemberReadyFuture().get();
+            waitStart(si);
         }
 
         int leader = waitLeaderElectAndGetLeaderId(sis);
         assertTrue(leader != 4);
         // DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
         // sis[leader-1].raftServer.stop(timeout);
+
+        for (ServerInfo si : sis) {
+            waitStop(si);
+        }
     }
 }

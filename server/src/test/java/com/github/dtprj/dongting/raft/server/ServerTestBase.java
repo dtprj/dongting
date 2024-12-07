@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
@@ -34,6 +35,7 @@ import com.github.dtprj.dongting.raft.test.MockExecutors;
 
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static com.github.dtprj.dongting.util.Tick.tick;
 
@@ -44,6 +46,10 @@ public class ServerTestBase {
 
     protected static final String DATA_DIR = TestDir.testDir("raftlog");
 
+    protected int servicePortBase = 0;
+    protected boolean startAfterCreate = true;
+    protected int initTerm = 0;
+
     protected static class ServerInfo {
         public RaftServer raftServer;
         public int nodeId;
@@ -53,24 +59,28 @@ public class ServerTestBase {
 
     protected ServerInfo createServer(int nodeId, String servers, String nodeIdOfMembers, String nodeIdOfObservers) {
         int replicatePort = 4000 + nodeId;
-        int servicePort = 5000 + nodeId;
         int groupId = 1;
         RaftServerConfig serverConfig = new RaftServerConfig();
         serverConfig.setServers(servers);
         serverConfig.setNodeId(nodeId);
         serverConfig.setReplicatePort(replicatePort);
-        serverConfig.setServicePort(servicePort);
+        if (servicePortBase > 0) {
+            serverConfig.setServicePort(servicePortBase + nodeId);
+        }
         serverConfig.setElectTimeout(tick(10));
         serverConfig.setHeartbeatInterval(tick(4));
         serverConfig.setRpcTimeout(tick(100));
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
+        groupConfig.setSaveSnapshotWhenClose(false);
 
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
 
         RaftServer raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig), raftFactory);
-        KvServerUtil.initKvServer(raftServer);
+        if (servicePortBase > 0) {
+            KvServerUtil.initKvServer(raftServer);
+        }
 
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         GroupComponents gc = g.getGroupComponents();
@@ -78,7 +88,13 @@ public class ServerTestBase {
         ImplAccessor.updateMemberManager(gc.getMemberManager());
         ImplAccessor.updateVoteManager(gc.getVoteManager());
 
-        raftServer.start();
+        if (initTerm > 0) {
+            gc.getRaftStatus().setCurrentTerm(initTerm);
+        }
+
+        if (startAfterCreate) {
+            raftServer.start();
+        }
 
         ServerInfo serverInfo = new ServerInfo();
         serverInfo.raftServer = raftServer;
@@ -117,5 +133,13 @@ public class ServerTestBase {
                 return raftLog;
             }
         };
+    }
+
+    protected void waitStart(ServerInfo si) throws Exception {
+        si.raftServer.getAllGroupReadyFuture().get(5, TimeUnit.SECONDS);
+    }
+
+    protected void waitStop(ServerInfo si) {
+        si.raftServer.stop(new DtTime(5, TimeUnit.SECONDS));
     }
 }
