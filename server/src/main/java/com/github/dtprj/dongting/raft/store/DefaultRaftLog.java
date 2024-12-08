@@ -188,6 +188,9 @@ public class DefaultRaftLog implements RaftLog {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void unused) {
+                if (idxFiles.chainWriter.hasTask()) {
+                    return idxFiles.flushDoneCondition.await(100, this);
+                }
                 log.info("log files begin install snapshot");
                 return Fiber.call(logFiles.beginInstall(), this::afterLogBeginInstall);
             }

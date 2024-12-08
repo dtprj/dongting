@@ -73,9 +73,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private final Fiber flushFiber;
     private final FiberCondition needFlushCondition;
-    private final FiberCondition flushDoneCondition;
+    final FiberCondition flushDoneCondition;
 
-    private final IdxChainWriter chainWriter;
+    final IdxChainWriter chainWriter;
 
     private boolean closed;
 
@@ -169,7 +169,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
-    private class IdxChainWriter extends ChainWriter {
+    class IdxChainWriter extends ChainWriter {
 
         public IdxChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
             super(config, "IdxForce", writePerfType1, writePerfType2, forcePerfType);
@@ -184,7 +184,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         protected void forceFinish(WriteTask writeTask) {
             // if we set syncForce to false, lastRaftIndex(committed) may less than lastForceLogIndex
             long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.getLastForceLogIndex());
-            if (idx > persistedIndexInStatusFile) {
+            if (idx > persistedIndexInStatusFile && !raftStatus.isInstallSnapshot()) {
                 statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(idx));
                 statusManager.persistAsync(true);
             }
