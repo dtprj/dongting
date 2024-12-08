@@ -339,9 +339,7 @@ abstract class FileQueue {
         }
 
         private FrameCallResult doAfterDelete(Void unused) {
-            if (queue.size() > 1) {
-                queue.removeFirst();
-            }
+            queue.removeFirst();
             if (queue.size() >= 1) {
                 queueStartPosition = queue.get(0).startPos;
             } else {
