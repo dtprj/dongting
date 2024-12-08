@@ -53,15 +53,15 @@ public class InstallSnapshotReq {
     public boolean done;
 
     public long nextWritePos;
-    public Set<Integer> members;
-    public Set<Integer> observers;
-    public Set<Integer> preparedMembers;
-    public Set<Integer> preparedObservers;
+    public final Set<Integer> members = new HashSet<>();
+    public final Set<Integer> observers = new HashSet<>();
+    public final Set<Integer> preparedMembers = new HashSet<>();
+    public final Set<Integer> preparedObservers = new HashSet<>();
     public long lastConfigChangeIndex;
 
     public RefBuffer data;
 
-    public void release(){
+    public void release() {
         if (data != null) {
             data.release();
             data = null;
@@ -112,27 +112,19 @@ public class InstallSnapshotReq {
             return true;
         }
 
-        private Set<Integer> addToSet(Set<Integer> s, int value) {
-            if (s == null) {
-                s = new HashSet<>();
-            }
-            s.add(value);
-            return s;
-        }
-
         public boolean readFix32(int index, int value) {
             switch (index) {
                 case 9:
-                    result.members = addToSet(result.members, value);
+                    result.members.add(value);
                     break;
                 case 10:
-                    result.observers = addToSet(result.observers, value);
+                    result.observers.add(value);
                     break;
                 case 11:
-                    result.preparedMembers = addToSet(result.preparedMembers, value);
+                    result.preparedMembers.add(value);
                     break;
                 case 12:
-                    result.preparedObservers = addToSet(result.preparedObservers, value);
+                    result.preparedObservers.add(value);
                     break;
             }
             return true;
@@ -193,9 +185,6 @@ public class InstallSnapshotReq {
         }
 
         private int calcFix32SetSize(int index, Set<Integer> s) {
-            if (s == null) {
-                return 0;
-            }
             int x = 0;
             for (int id : s) {
                 x += PbUtil.accurateFix32Size(index, id);
@@ -241,10 +230,8 @@ public class InstallSnapshotReq {
         }
 
         private void writeSet(ByteBuffer buf, int index, Set<Integer> s) {
-            if (s != null) {
-                for (int id : s) {
-                    PbUtil.writeFix32(buf, index, id);
-                }
+            for (int id : s) {
+                PbUtil.writeFix32(buf, index, id);
             }
         }
 

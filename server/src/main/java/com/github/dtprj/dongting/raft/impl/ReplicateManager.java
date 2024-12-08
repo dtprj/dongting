@@ -672,10 +672,10 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         req.offset = snapshotOffset;
 
         if (start) {
-            req.members = si.getMembers();
-            req.observers = si.getObservers();
-            req.preparedMembers = si.getPreparedMembers();
-            req.preparedObservers = si.getPreparedObservers();
+            req.members.addAll(si.getMembers());
+            req.observers.addAll(si.getObservers());
+            req.preparedMembers.addAll(si.getPreparedMembers());
+            req.preparedObservers.addAll(si.getPreparedObservers());
             req.lastConfigChangeIndex = si.getLastConfigChangeIndex();
         }
         if (finish) {
