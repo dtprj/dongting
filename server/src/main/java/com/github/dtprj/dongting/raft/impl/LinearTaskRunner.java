@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
@@ -95,7 +96,15 @@ public class LinearTaskRunner {
 
         private FrameCallResult afterTakeAll(Void unused) {
             if (raftStatus.getTransferLeaderCondition() != null) {
-                raftStatus.getTransferLeaderCondition().await(this::afterTakeAll);
+                FiberFrame<Void> f = new FiberFrame<>() {
+                    @Override
+                    public FrameCallResult execute(Void input) {
+                        return raftStatus.getTransferLeaderCondition().await(this::justReturn);
+                    }
+                };
+                // transfer leader future may complete exceptionally.
+                // use HandlerFrame to catch it, but no need to handle it
+                return Fiber.call(new HandlerFrame<>(f), p -> afterTakeAll(null));
             }
             if (!list.isEmpty()) {
                 raftExec(list);
