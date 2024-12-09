@@ -477,7 +477,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     protected FrameCallResult process() {
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
-        if (req.members != null) {
+        if (!req.members.isEmpty()) {
             return startInstall(raftStatus);
         } else {
             return doInstall(raftStatus, req);
@@ -550,7 +550,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
                 req.lastIncludedIndex + 1, req.nextWritePos);
         return Fiber.call(finishFrame, v -> {
             gc.getApplyManager().signalStartApply();
-            log.info("install snapshot finish, groupId={}", groupId);
+            log.info("apply snapshot finish, groupId={}", groupId);
             return writeResp(null);
         });
     }

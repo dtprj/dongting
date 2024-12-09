@@ -26,13 +26,13 @@ public class ImplAccessor {
     }
 
     public static void updateMemberManager(MemberManager memberManager) {
-        memberManager.daemonSleepInterval = 11;
+        memberManager.daemonSleepInterval = 1;
     }
 
     public static void updateVoteManager(VoteManager voteManager) {
         voteManager.firstDelayMin = 0;
-        voteManager.firstDelayMax = 3;
+        voteManager.firstDelayMax = 5;
         voteManager.checkIntervalMin = 1;
-        voteManager.checkIntervalMax = tick(3);
+        voteManager.checkIntervalMax = tick(5);
     }
 }

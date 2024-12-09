@@ -67,8 +67,8 @@ public class ServerTestBase {
         if (servicePortBase > 0) {
             serverConfig.setServicePort(servicePortBase + nodeId);
         }
-        serverConfig.setElectTimeout(tick(10));
-        serverConfig.setHeartbeatInterval(tick(4));
+        serverConfig.setElectTimeout(tick(25));
+        serverConfig.setHeartbeatInterval(tick(12));
         serverConfig.setRpcTimeout(tick(100));
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
