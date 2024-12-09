@@ -692,6 +692,8 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
                 member.getNode().getPeer(), wf, APPEND_RESP_DECODER_CALLBACK_CREATOR, timeout);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
+        log.info("transfer snapshot data to member {}. groupId={}, offset={}, bytes={}, done={}",
+                member.getNode().getNodeId(), groupId, req.offset, bytes, req.done);
         FiberFuture<Void> f = getFiberGroup().newFuture("install-" + groupId + "-" + req.offset);
         future.whenCompleteAsync((rf, ex) -> afterInstallRpc(rf, ex, req, f), getFiberGroup().getExecutor());
         return f;
@@ -721,8 +723,6 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
                     + member.getNode().getNodeId() + ", groupId=" + groupId));
             return;
         }
-        log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}",
-                member.getNode().getNodeId(), groupId, req.offset);
         if (req.done) {
             log.info("install snapshot for member finished success. nodeId={}, groupId={}",
                     member.getNode().getNodeId(), groupId);

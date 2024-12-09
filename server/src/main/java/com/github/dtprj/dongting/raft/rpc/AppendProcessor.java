@@ -517,13 +517,13 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
-        boolean finish = req.done;
+        boolean done = req.done;
         ByteBuffer buf = req.data == null ? null : req.data.getBuffer();
-        log.debug("install snapshot, groupId={}, offset={}, dataSize={}, finish={}", groupId,
-                req.offset, buf == null ? 0 : buf.remaining(), finish);
+        log.info("apply snapshot, groupId={}, offset={}, bytes={}, done={}", groupId,
+                req.offset, buf == null ? 0 : buf.remaining(), done);
         FiberFuture<Void> f = gc.getStateMachine().installSnapshot(req.lastIncludedIndex,
-                req.lastIncludedTerm, req.offset, finish, buf);
-        if (finish) {
+                req.lastIncludedTerm, req.offset, done, buf);
+        if (done) {
             return f.await(v -> finishInstall(req, raftStatus));
         } else {
             f.registerCallback((v, ex) -> writeResp(ex));
