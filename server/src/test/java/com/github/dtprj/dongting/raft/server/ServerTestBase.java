@@ -28,14 +28,21 @@ import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
 import com.github.dtprj.dongting.raft.store.RaftLog;
+import com.github.dtprj.dongting.raft.store.StatusFile;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 import com.github.dtprj.dongting.raft.store.StoreAccessor;
 import com.github.dtprj.dongting.raft.store.TestDir;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 
+import java.io.File;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.CRC32C;
 
 import static com.github.dtprj.dongting.util.Tick.tick;
 
@@ -49,6 +56,9 @@ public class ServerTestBase {
     protected int servicePortBase = 0;
     protected boolean startAfterCreate = true;
     protected int initTerm = 0;
+    protected int initVoteFor = 0;
+    protected long initCommitIndex = 0;
+    protected boolean initSnapshot = false;
 
     protected static class ServerInfo {
         public RaftServer raftServer;
@@ -57,7 +67,8 @@ public class ServerTestBase {
         public GroupComponents gc;
     }
 
-    protected ServerInfo createServer(int nodeId, String servers, String nodeIdOfMembers, String nodeIdOfObservers) {
+    protected ServerInfo createServer(int nodeId, String servers, String nodeIdOfMembers,
+                                      String nodeIdOfObservers) throws Exception {
         int replicatePort = 4000 + nodeId;
         int groupId = 1;
         RaftServerConfig serverConfig = new RaftServerConfig();
@@ -88,8 +99,21 @@ public class ServerTestBase {
         ImplAccessor.updateMemberManager(gc.getMemberManager());
         ImplAccessor.updateVoteManager(gc.getVoteManager());
 
-        if (initTerm > 0) {
-            gc.getRaftStatus().setCurrentTerm(initTerm);
+        if (initTerm > 0 || initVoteFor > 0 || initCommitIndex > 0 || initSnapshot) {
+            File dir = new File(groupConfig.getDataDir());
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            File file = new File(dir, groupConfig.getStatusFile());
+            ByteBuffer buf = ByteBuffer.allocate(StatusFile.FILE_LENGTH);
+            Map<String, String> props = new HashMap<>();
+            props.put(StatusManager.CURRENT_TERM_KEY, String.valueOf(initTerm));
+            props.put(StatusManager.VOTED_FOR_KEY, String.valueOf(initVoteFor));
+            props.put(StatusManager.COMMIT_INDEX_KEY, String.valueOf(initCommitIndex));
+            props.put(StatusManager.KEY_INSTALL_SNAPSHOT, String.valueOf(initSnapshot));
+            StatusFile.writeToBuffer(props, buf, new CRC32C());
+            RandomAccessFile raf = new RandomAccessFile(file, "rw");
+            raf.write(buf.array());
+            raf.close();
         }
 
         if (startAfterCreate) {

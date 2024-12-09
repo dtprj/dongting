@@ -40,10 +40,10 @@ import java.util.Map;
 public class StatusManager {
     private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
-    static final String CURRENT_TERM_KEY = "currentTerm";
-    static final String VOTED_FOR_KEY = "votedFor";
-    static final String COMMIT_INDEX_KEY = "commitIndex";
-    static final String KEY_INSTALL_SNAPSHOT = "installSnapshot";
+    public static final String CURRENT_TERM_KEY = "currentTerm";
+    public static final String VOTED_FOR_KEY = "votedFor";
+    public static final String COMMIT_INDEX_KEY = "commitIndex";
+    public static final String KEY_INSTALL_SNAPSHOT = "installSnapshot";
 
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatusImpl raftStatus;

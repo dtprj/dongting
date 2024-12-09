@@ -48,7 +48,7 @@ public class StatusFile implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(StatusFile.class);
 
     // we think the minimum storage write unit is 4k
-    private static final int FILE_LENGTH = 4096;
+    public static final int FILE_LENGTH = 4096;
     private static final int CRC_HEX_LENGTH = 8;
 
     private final File file;
@@ -145,36 +145,40 @@ public class StatusFile implements AutoCloseable {
         };
     }
 
+    public static void writeToBuffer(Map<String,String> properties, ByteBuffer buf, CRC32C crc32c) {
+        buf.position(CRC_HEX_LENGTH);
+        buf.put((byte) '\n');
+        for (Map.Entry<String, String> entry : properties.entrySet()) {
+            byte[] key = entry.getKey().getBytes(StandardCharsets.UTF_8);
+            byte[] value = entry.getValue().getBytes(StandardCharsets.UTF_8);
+            buf.put(key);
+            buf.put((byte) '=');
+            buf.put(value);
+            buf.put((byte) '\n');
+        }
+        while (buf.hasRemaining()) {
+            buf.put((byte) '\n');
+        }
+
+        crc32c.reset();
+        RaftUtil.updateCrc(crc32c, buf, CRC_HEX_LENGTH, FILE_LENGTH - CRC_HEX_LENGTH);
+        int crc = (int) crc32c.getValue();
+        buf.clear();
+        String crcHex = Integer.toHexString(crc);
+        for (int i = 0, len = crcHex.length(); i < CRC_HEX_LENGTH - len; i++) {
+            buf.put((byte) '0');
+        }
+        for (int i = 0, len = crcHex.length(); i < len; i++) {
+            buf.put((byte) crcHex.charAt(i));
+        }
+        buf.clear();
+    }
+
     public FiberFuture<Void> update(boolean sync) {
         try {
             ByteBufferPool directPool = fiberGroup.getThread().getDirectPool();
             ByteBuffer buf = directPool.borrow(FILE_LENGTH);
-            buf.position(CRC_HEX_LENGTH);
-            buf.put((byte) '\n');
-            for (Map.Entry<String, String> entry : properties.entrySet()) {
-                byte[] key = entry.getKey().getBytes(StandardCharsets.UTF_8);
-                byte[] value = entry.getValue().getBytes(StandardCharsets.UTF_8);
-                buf.put(key);
-                buf.put((byte) '=');
-                buf.put(value);
-                buf.put((byte) '\n');
-            }
-            while (buf.hasRemaining()) {
-                buf.put((byte) '\n');
-            }
-
-            crc32c.reset();
-            RaftUtil.updateCrc(crc32c, buf, CRC_HEX_LENGTH, FILE_LENGTH - CRC_HEX_LENGTH);
-            int crc = (int) crc32c.getValue();
-            buf.clear();
-            String crcHex = Integer.toHexString(crc);
-            for (int i = 0, len = crcHex.length(); i < CRC_HEX_LENGTH - len; i++) {
-                buf.put((byte) '0');
-            }
-            for (int i = 0, len = crcHex.length(); i < len; i++) {
-                buf.put((byte) crcHex.charAt(i));
-            }
-            buf.clear();
+            writeToBuffer(properties, buf, crc32c);
 
             // retry in status manager
             AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
