@@ -477,10 +477,11 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     protected FrameCallResult process() {
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
-        if (req.offset == 0 && req.members != null) {
+        if (req.members != null) {
             return startInstall(raftStatus);
+        } else {
+            return doInstall(raftStatus, req);
         }
-        return doInstall(raftStatus, req);
     }
 
     private FrameCallResult startInstall(RaftStatusImpl raftStatus) {
