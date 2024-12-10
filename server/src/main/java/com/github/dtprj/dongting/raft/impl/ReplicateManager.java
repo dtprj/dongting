@@ -660,8 +660,19 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     }
 
     private FrameCallResult afterReaderFinish(Void unused) {
+        if (shouldStopReplicate()) {
+            return Fiber.frameReturn();
+        }
         return sendInstallSnapshotReq(null, false, true)
-                .await(this::justReturn);
+                .await(this::afterInstallFinish);
+    }
+
+    private FrameCallResult afterInstallFinish(Void unused) {
+        if (shouldStopReplicate()) {
+            return Fiber.frameReturn();
+        }
+        replicateManager.tryStartReplicateFibers();
+        return Fiber.frameReturn();
     }
 
     private FiberFuture<Void> sendInstallSnapshotReq(RefBuffer data, boolean start, boolean finish) {
