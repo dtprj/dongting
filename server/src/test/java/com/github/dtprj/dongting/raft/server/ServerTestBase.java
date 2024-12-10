@@ -51,7 +51,7 @@ import static com.github.dtprj.dongting.util.Tick.tick;
  */
 public class ServerTestBase {
 
-    protected static final String DATA_DIR = TestDir.testDir("raftlog");
+    protected final String DATA_DIR = TestDir.testDir("raftlog");
 
     protected int servicePortBase = 0;
     protected boolean startAfterCreate = true;
