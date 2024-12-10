@@ -15,7 +15,13 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftRole;
+import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
@@ -42,5 +48,14 @@ public class InstallTest extends ServerTestBase {
         initTerm = 0;
         s1 = createServer(1, servers, members, observers);
         waitStart(s1);
+        RaftGroupImpl g = (RaftGroupImpl) s1.raftServer.getRaftGroup(1);
+        ShareStatus ss = g.getGroupComponents().getRaftStatus().getShareStatus();
+        assertEquals(RaftRole.follower, ss.role);
+        assertTrue(ss.lastApplied >= 1);
+        assertTrue(g.getGroupComponents().getRaftStatus().getCurrentTerm() > 2);
+
+        waitStop(s1);
+        waitStop(s2);
+        waitStop(s3);
     }
 }
