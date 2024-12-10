@@ -41,6 +41,7 @@ import java.util.Set;
 //  repeated fixed32 observers = 10[packed = false];
 //  repeated fixed32 prepared_members = 11[packed = false];
 //  repeated fixed32 prepared_observers = 12[packed = false];
+//  fixed64 last_config_change_index = 13;
 
 //  bytes data = 15;
 public class InstallSnapshotReq {
@@ -83,7 +84,7 @@ public class InstallSnapshotReq {
                 case 3:
                     result.leaderId = (int) value;
                     break;
-                case 4:
+                case 5:
                     result.lastIncludedTerm = (int) value;
                     break;
                 case 7:
