@@ -71,7 +71,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             throw new RaftException("transfer leader fail, logIndex check fail");
         }
         raftStatus.setCommitIndex(req.logIndex);
-        gc.getApplyManager().apply();
+        gc.getApplyManager().wakeupApply();
 
         RaftUtil.changeToLeader(raftStatus);
         gc.getVoteManager().cancelVote("transfer leader");

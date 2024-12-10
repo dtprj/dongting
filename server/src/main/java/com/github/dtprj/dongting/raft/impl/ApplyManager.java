@@ -130,11 +130,11 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private void startApplyFiber(FiberGroup fiberGroup) {
-        applyFiber = new Fiber("apply", fiberGroup, new ApplyFrame(), false, 50);
+        applyFiber = new Fiber("apply", fiberGroup, new ApplyFrame(), true, 50);
         applyFiber.start();
     }
 
-    public void apply() {
+    public void wakeupApply() {
         needApplyCond.signal();
     }
 
@@ -311,9 +311,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private boolean shouldStopApply() {
-        return raftStatus.isInstallSnapshot() || (fiberGroup.isShouldStop() &&
-                (fiberGroup.timeAfterRequestStop(TimeUnit.MILLISECONDS) > 300
-                        || raftStatus.getLastApplied() == raftStatus.getCommitIndex()));
+        return raftStatus.isInstallSnapshot() || fiberGroup.isShouldStop();
     }
 
     public Fiber getApplyFiber() {

@@ -108,7 +108,7 @@ public class CommitManager {
                 long newCommitIndex = Math.min(lastPersistIndex, raftStatus.getLeaderCommit());
                 if (newCommitIndex > raftStatus.getCommitIndex()) {
                     raftStatus.setCommitIndex(newCommitIndex);
-                    applyManager.apply();
+                    applyManager.wakeupApply();
                 }
             }
         }
@@ -125,7 +125,7 @@ public class CommitManager {
             return;
         }
         raftStatus.setCommitIndex(recentMatchIndex);
-        applyManager.apply();
+        applyManager.wakeupApply();
     }
 
     private static boolean needCommit(long recentMatchIndex, RaftStatusImpl raftStatus) {

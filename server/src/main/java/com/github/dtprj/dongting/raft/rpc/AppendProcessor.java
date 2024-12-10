@@ -491,7 +491,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         }
         log.info("start install snapshot, groupId={}", groupId);
         raftStatus.setInstallSnapshot(true);
-        gc.getApplyManager().apply(); // signal apply fiber to exit
+        gc.getApplyManager().wakeupApply(); // wakeup apply fiber to exit
         gc.getStatusManager().persistAsync(true);
         return gc.getStatusManager().waitUpdateFinish(this::afterStatusPersist);
     }

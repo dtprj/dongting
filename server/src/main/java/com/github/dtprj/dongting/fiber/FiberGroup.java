@@ -48,7 +48,6 @@ public class FiberGroup {
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
-    private long markStopNanos;
 
     final FiberChannel<Runnable> sysChannel;
 
@@ -113,7 +112,6 @@ public class FiberGroup {
                     return Fiber.frameReturn();
                 }
                 log.info("request shutdown group: {}", name);
-                markStopNanos = dispatcher.ts.getNanoTime();
                 SHOULD_STOP.setVolatile(FiberGroup.this, true);
                 shouldStopCondition.signalAll();
                 return Fiber.frameReturn();
@@ -357,17 +355,6 @@ public class FiberGroup {
 
     public ExecutorService getExecutor() {
         return executor;
-    }
-
-    /**
-     * should call in dispatcher thread.
-     */
-    public long timeAfterRequestStop(TimeUnit unit) {
-        checkGroup();
-        if (!isShouldStopPlain()) {
-            return -1;
-        }
-        return unit.convert(dispatcher.ts.getNanoTime() - markStopNanos, TimeUnit.NANOSECONDS);
     }
 
     public FiberCondition getShouldStopCondition() {
