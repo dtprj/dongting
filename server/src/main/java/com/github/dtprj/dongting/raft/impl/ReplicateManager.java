@@ -136,7 +136,6 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
     private static final DtLog log = DtLogs.getLogger(AbstractLeaderRepFrame.class);
     private final int replicateEpoch;
     protected final RaftStatusImpl raftStatus;
-    protected final FiberCondition repCondition;
     protected final int term;
     protected final int groupId;
     protected final RaftMember member;
@@ -153,7 +152,6 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.replicateEpoch = member.getReplicateEpoch();
         this.term = raftStatus.getCurrentTerm();
-        this.repCondition = member.getRepCondition();
     }
 
     protected boolean shouldStopReplicate() {
@@ -185,11 +183,11 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
         return false;
     }
 
-    public boolean epochChange() {
+    protected boolean epochChange() {
         return member.getReplicateEpoch() != replicateEpoch;
     }
 
-    public void incrementEpoch() {
+    protected void incrementEpoch() {
         member.incrementReplicateEpoch(replicateEpoch);
     }
 
@@ -205,6 +203,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     private final ReplicateManager replicateManager;
     private final CommitManager commitManager;
     private final RaftLog raftLog;
+    private final FiberCondition repCondition;
 
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
@@ -224,6 +223,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.ts = groupConfig.getTs();
         this.perfCallback = groupConfig.getPerfCallback();
+        this.repCondition = member.getRepCondition();
 
         this.raftLog = replicateManager.raftLog;
         this.client = replicateManager.client;
