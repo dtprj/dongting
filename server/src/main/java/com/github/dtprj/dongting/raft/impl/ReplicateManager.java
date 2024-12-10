@@ -204,6 +204,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     private final CommitManager commitManager;
     private final RaftLog raftLog;
     private final FiberCondition repCondition;
+    private final FiberCondition dataArrivedCondition;
 
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
@@ -224,6 +225,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         this.ts = groupConfig.getTs();
         this.perfCallback = groupConfig.getPerfCallback();
         this.repCondition = member.getRepCondition();
+        this.dataArrivedCondition = raftStatus.getDataArrivedCondition();
 
         this.raftLog = replicateManager.raftLog;
         this.client = replicateManager.client;
@@ -272,7 +274,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         long diff = raftStatus.getLastLogIndex() - nextIndex + 1;
         if (diff <= 0) {
             // no data to replicate
-            return raftStatus.getDataArrivedCondition().await(WAIT_CONDITION_TIMEOUT, this);
+            return dataArrivedCondition.await(WAIT_CONDITION_TIMEOUT, this);
         }
 
         if (multiAppend) {
@@ -390,6 +392,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     void afterAppendRpc(ReadPacket<AppendResp> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
                         long leaseStartNanos, int itemCount, long bytes, long perfStartTime) {
         perfCallback.fireTime(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes);
+        repCondition.signalAll();
         if (epochChange()) {
             log.info("receive outdated append result, replicateEpoch not match. ignore.");
             return;
@@ -401,7 +404,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             processAppendResult(rf, prevLogIndex, prevLogTerm, leaseStartNanos, itemCount);
         } else {
             incrementEpoch();
-            repCondition.signalAll();
+            dataArrivedCondition.signal(this.getFiber());
 
             ex = DtUtil.rootCause(ex);
             boolean warn = false;
@@ -441,7 +444,6 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 member.setMatchIndex(expectNewMatchIndex);
                 multiAppend = true;
                 commitManager.tryCommit(expectNewMatchIndex);
-                repCondition.signalAll();
             } else {
                 BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}," +
                                 " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
@@ -453,6 +455,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         } else {
             closeIterator();
             incrementEpoch();
+            dataArrivedCondition.signal(this.getFiber());
             int appendCode = body.getAppendCode();
             if (appendCode == AppendProcessor.APPEND_LOG_NOT_MATCH) {
                 updateLease(member, leaseStartNanos, raftStatus);
