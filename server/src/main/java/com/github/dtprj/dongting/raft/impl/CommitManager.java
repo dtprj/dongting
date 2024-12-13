@@ -69,7 +69,7 @@ public class CommitManager {
             RaftStatusImpl raftStatus = CommitManager.this.raftStatus;
             long idx = syncForce ? raftStatus.getLastForceLogIndex() : raftStatus.getLastWriteLogIndex();
             if (idx > raftStatus.getCommitIndex()) {
-                CommitManager.this.finish(idx);
+                CommitManager.this.logFinish(idx);
             }
             FiberCondition c = syncForce ? raftStatus.getLogForceFinishCondition()
                     : raftStatus.getLogWriteFinishCondition();
@@ -77,7 +77,7 @@ public class CommitManager {
         }
     }
 
-    public void finish(long lastPersistIndex) {
+    private void logFinish(long lastPersistIndex) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (lastPersistIndex > raftStatus.getLastLogIndex()) {
             throw Fiber.fatal(new RaftException("lastPersistIndex > lastLogIndex. lastPersistIndex="
@@ -140,7 +140,7 @@ public class CommitManager {
 
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    public static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
+    private static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
                                      List<RaftMember> servers, int rwQuorum) {
         if (recentMatchIndex < currentCommitIndex) {
             return false;
