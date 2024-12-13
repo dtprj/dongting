@@ -186,10 +186,16 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public FiberFrame<Void> beginInstall() {
         return new FiberFrame<>() {
+
             @Override
             public FrameCallResult execute(Void unused) {
                 if (idxFiles.chainWriter.hasTask()) {
-                    return idxFiles.flushDoneCondition.await(100, this);
+                    log.info("idx files wait for flush done");
+                    return idxFiles.flushDoneCondition.await(1000, this);
+                }
+                if (logFiles.logAppender.chainWriter.hasTask()) {
+                    log.info("log files wait for flush done");
+                    return raftStatus.getLogForceFinishCondition().await(1000, this);
                 }
                 log.info("log files begin install snapshot");
                 return Fiber.call(logFiles.beginInstall(), this::afterLogBeginInstall);

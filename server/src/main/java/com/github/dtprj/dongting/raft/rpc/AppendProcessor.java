@@ -444,6 +444,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private static final DtLog log = DtLogs.getLogger(InstallFiberFrame.class);
     private final int groupId = gc.getRaftStatus().getGroupId();
+    private boolean markInstall = false;
 
     public InstallFiberFrame(ReqInfoEx<InstallSnapshotReq> reqInfo, AppendProcessor processor) {
         super("install snapshot", processor, reqInfo);
@@ -485,24 +486,26 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult startInstall(RaftStatusImpl raftStatus) {
-        if (RaftUtil.writeNotFinished(raftStatus)) {
-            log.info("wait write finish before install snapshot, groupId={}", groupId);
-            return RaftUtil.waitWriteFinish(raftStatus, this);
+        if (!markInstall) {
+            log.info("start install snapshot, groupId={}", groupId);
+            raftStatus.setInstallSnapshot(true);
+            gc.getApplyManager().wakeupApply(); // wakeup apply fiber to exit
+            gc.getStatusManager().persistAsync(true);
+            markInstall = true;
         }
-        log.info("start install snapshot, groupId={}", groupId);
-        raftStatus.setInstallSnapshot(true);
-        gc.getApplyManager().wakeupApply(); // wakeup apply fiber to exit
-        gc.getStatusManager().persistAsync(true);
+        Fiber applyFiber = gc.getApplyManager().getApplyFiber();
+        if (!applyFiber.isFinished()) {
+            return applyFiber.join(this::afterApplyExit);
+        }
+        return afterApplyExit(null);
+    }
+
+    private FrameCallResult afterApplyExit(Void v) {
         return gc.getStatusManager().waitUpdateFinish(this::afterStatusPersist);
     }
 
     private FrameCallResult afterStatusPersist(Void v) throws Exception {
-        Fiber applyFiber = gc.getApplyManager().getApplyFiber();
-        if (applyFiber.isFinished()) {
-            return Fiber.call(gc.getRaftLog().beginInstall(), this::applyConfigChange);
-        } else {
-            return applyFiber.join(this::afterStatusPersist);
-        }
+        return Fiber.call(gc.getRaftLog().beginInstall(), this::applyConfigChange);
     }
 
     private FrameCallResult applyConfigChange(Void unused) {
