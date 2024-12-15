@@ -36,7 +36,7 @@ public class DtFile {
     public DtFile(File file, AsynchronousFileChannel channel, FiberGroup fiberGroup) {
         this.file = file;
         this.channel = channel;
-        this.noRwCond = new FiberCondition("noRw-" + file.getName(), fiberGroup);
+        this.noRwCond = fiberGroup.newCondition("noRw-" + file.getName());
     }
 
     public File getFile() {

@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.common.DtUtil;
  */
 public class FiberCondition extends WaitSource {
 
-    public FiberCondition(String name, FiberGroup group) {
+    FiberCondition(String name, FiberGroup group) {
         super(name, group);
     }
 

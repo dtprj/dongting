@@ -69,7 +69,7 @@ public abstract class ChainWriter {
         this.forcePerfType = forcePerfType;
         DispatcherThread t = config.getFiberGroup().getThread();
         this.directPool = t.getDirectPool();
-        this.needForceCondition = new FiberCondition("needForceCond", config.getFiberGroup());
+        this.needForceCondition = config.getFiberGroup().newCondition("needForceCond");
         this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.getGroupId(), config.getFiberGroup(),
                 new ForceLoopFrame());
     }
