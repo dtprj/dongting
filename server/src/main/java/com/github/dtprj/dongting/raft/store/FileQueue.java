@@ -194,69 +194,6 @@ abstract class FileQueue {
         };
     }
 
-    private class AllocateFrame extends FiberFrame<Void> {
-        private long fileStartPos;
-
-        private File file;
-        private AsynchronousFileChannel channel;
-        private final int perfType;
-        private final long perfStartTime;
-        private boolean result;
-
-        public AllocateFrame() {
-            this.perfType = mainLogFile ? PerfConsts.RAFT_D_LOG_FILE_ALLOC : PerfConsts.RAFT_D_IDX_FILE_ALLOC;
-            this.perfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
-        }
-
-        @Override
-        public FrameCallResult execute(Void v) {
-            fileStartPos = queueEndPosition;
-            String fileName = String.format("%020d", fileStartPos);
-            file = new File(dir, fileName);
-            FiberFuture<Void> createFileFuture = getFiberGroup().newFuture("createFile");
-            ioExecutor.execute(() -> {
-                long startTime = System.currentTimeMillis();
-                try {
-                    RandomAccessFile raf = new RandomAccessFile(file, "rw");
-                    raf.setLength(getFileSize());
-                    raf.getFD().sync();
-                    raf.close();
-                    HashSet<OpenOption> openOptions = new HashSet<>();
-                    openOptions.add(StandardOpenOption.READ);
-                    openOptions.add(StandardOpenOption.WRITE);
-                    openOptions.add(StandardOpenOption.CREATE);
-                    ExecutorService executor = groupConfig.isIoCallbackUseGroupExecutor() ?
-                            groupConfig.getFiberGroup().getExecutor() : ioExecutor;
-                    channel = AsynchronousFileChannel.open(file.toPath(), openOptions, executor);
-                    long time = System.currentTimeMillis() - startTime;
-                    createFileFuture.fireComplete(null);
-                    log.info("allocate file done, cost {} ms: {}", time, file.getPath());
-                } catch (Throwable e) {
-                    long time = System.currentTimeMillis() - startTime;
-                    createFileFuture.fireCompleteExceptionally(e);
-                    log.info("allocate file failed, cost {} ms: {}", time, file, e);
-                }
-            });
-            return createFileFuture.await(this::afterCreateFile);
-        }
-
-        private FrameCallResult afterCreateFile(Void unused) {
-            result = true;
-            groupConfig.getPerfCallback().fireTime(perfType, perfStartTime);
-            return Fiber.frameReturn();
-        }
-
-        @Override
-        protected FrameCallResult handle(Throwable ex) {
-            log.error("allocate file fail: ", ex);
-            if (channel != null) {
-                DtUtil.close(channel);
-                channel = null;
-            }
-            return Fiber.frameReturn();
-        }
-    }
-
     protected void closeChannel() {
         for (int i = 0; i < queue.size(); i++) {
             DtUtil.close(queue.get(i).getChannel());
@@ -363,14 +300,14 @@ abstract class FileQueue {
                 return Fiber.frameReturn();
             }
             if (allocPos >= queueEndPosition) {
-                AllocateFrame f = new AllocateFrame();
+                FileAllocFrame f = new FileAllocFrame();
                 return Fiber.call(f, v -> afterAlloc(f));
             } else {
                 return needAllocCond.await(1000, this);
             }
         }
 
-        private FrameCallResult afterAlloc(AllocateFrame f) {
+        private FrameCallResult afterAlloc(FileAllocFrame f) {
             if (!f.result) {
                 return Fiber.sleep(1000, this);
             }
@@ -380,6 +317,69 @@ abstract class FileQueue {
             queueEndPosition = logFile.endPos;
             allocDoneCond.signalAll();
             return Fiber.resume(null, this);
+        }
+    }
+
+    private class FileAllocFrame extends FiberFrame<Void> {
+        private long fileStartPos;
+
+        private File file;
+        private AsynchronousFileChannel channel;
+        private final int perfType;
+        private final long perfStartTime;
+        private boolean result;
+
+        public FileAllocFrame() {
+            this.perfType = mainLogFile ? PerfConsts.RAFT_D_LOG_FILE_ALLOC : PerfConsts.RAFT_D_IDX_FILE_ALLOC;
+            this.perfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
+        }
+
+        @Override
+        public FrameCallResult execute(Void v) {
+            fileStartPos = queueEndPosition;
+            String fileName = String.format("%020d", fileStartPos);
+            file = new File(dir, fileName);
+            FiberFuture<Void> createFileFuture = getFiberGroup().newFuture("createFile");
+            ioExecutor.execute(() -> {
+                long startTime = System.currentTimeMillis();
+                try {
+                    RandomAccessFile raf = new RandomAccessFile(file, "rw");
+                    raf.setLength(getFileSize());
+                    raf.getFD().sync();
+                    raf.close();
+                    HashSet<OpenOption> openOptions = new HashSet<>();
+                    openOptions.add(StandardOpenOption.READ);
+                    openOptions.add(StandardOpenOption.WRITE);
+                    openOptions.add(StandardOpenOption.CREATE);
+                    ExecutorService executor = groupConfig.isIoCallbackUseGroupExecutor() ?
+                            groupConfig.getFiberGroup().getExecutor() : ioExecutor;
+                    channel = AsynchronousFileChannel.open(file.toPath(), openOptions, executor);
+                    long time = System.currentTimeMillis() - startTime;
+                    createFileFuture.fireComplete(null);
+                    log.info("allocate file done, cost {} ms: {}", time, file.getPath());
+                } catch (Throwable e) {
+                    long time = System.currentTimeMillis() - startTime;
+                    createFileFuture.fireCompleteExceptionally(e);
+                    log.info("allocate file failed, cost {} ms: {}", time, file, e);
+                }
+            });
+            return createFileFuture.await(this::afterCreateFile);
+        }
+
+        private FrameCallResult afterCreateFile(Void unused) {
+            result = true;
+            groupConfig.getPerfCallback().fireTime(perfType, perfStartTime);
+            return Fiber.frameReturn();
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            log.error("allocate file fail: ", ex);
+            if (channel != null) {
+                DtUtil.close(channel);
+                channel = null;
+            }
+            return Fiber.frameReturn();
         }
     }
 }
