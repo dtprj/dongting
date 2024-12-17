@@ -116,7 +116,12 @@ public class LogFileQueueTest extends BaseFiberTest {
                 InitFiberFrame.initRaftStatus(raftStatus, fiberGroup, serverConfig);
                 logFileQueue.initQueue();
                 FiberFrame<Integer> f = logFileQueue.restore(1, 0, 0);
-                return Fiber.call(f, i -> Fiber.frameReturn());
+                return Fiber.call(f, this::afterRestore);
+            }
+
+            private FrameCallResult afterRestore(Integer i) {
+                logFileQueue.startQueueAllocFiber();
+                return Fiber.frameReturn();
             }
         });
     }

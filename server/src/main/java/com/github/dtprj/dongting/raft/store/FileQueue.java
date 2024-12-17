@@ -18,12 +18,11 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
-import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FiberLock;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -67,10 +66,13 @@ abstract class FileQueue {
     protected long queueStartPosition;
     protected long queueEndPosition;
 
-    private FiberFuture<Void> allocateFuture;
-    protected final FiberLock allocateLock;
-
     protected boolean initialized;
+
+    private long allocPos = -1;
+    private Fiber queueAllocFiber;
+    private final FiberCondition needAllocCond;
+    private final FiberCondition allocDoneCond;
+
 
     public FileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize, boolean mainLogFile) {
         if (BitUtil.nextHighestPowerOfTwo(fileSize) != fileSize) {
@@ -86,8 +88,8 @@ abstract class FileQueue {
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(fileSize);
         this.mainLogFile = mainLogFile;
 
-        FiberGroup g = groupConfig.getFiberGroup();
-        this.allocateLock = g.newLock("allocFile");
+        this.needAllocCond = groupConfig.getFiberGroup().newCondition("needAllocCond");
+        this.allocDoneCond = groupConfig.getFiberGroup().newCondition("allocDoneCond");
     }
 
     protected final long getFileSize() {
@@ -144,6 +146,12 @@ abstract class FileQueue {
         }
     }
 
+    public void startQueueAllocFiber() {
+        queueAllocFiber = new Fiber("queueAlloc" + groupConfig.getGroupId(), groupConfig.getFiberGroup(),
+                new QueueAllocFrame(), true);
+        queueAllocFiber.start();
+    }
+
     protected LogFile getLogFile(long filePos) {
         if (filePos < queueStartPosition || filePos >= queueEndPosition) {
             return null;
@@ -153,10 +161,10 @@ abstract class FileQueue {
     }
 
     protected void tryAllocateAsync(long pos) {
-        if (allocateFuture == null) {
+        if (pos > allocPos) {
+            allocPos = pos;
             if (pos >= queueEndPosition - fileSize) {
-                // maybe pre allocate next file
-                allocateAsync();
+                needAllocCond.signalAll();
             }
         }
     }
@@ -168,81 +176,40 @@ abstract class FileQueue {
 
             @Override
             public FrameCallResult execute(Void input) {
+                tryAllocateAsync(pos);
+                int perfType = mainLogFile ? PerfConsts.RAFT_D_LOG_POS_NOT_READY : PerfConsts.RAFT_D_IDX_POS_NOT_READY;
                 if (pos >= queueEndPosition) {
-                    if (allocateFuture != null) {
-                        // resume on this method
-                        return allocateFuture.await(this);
-                    } else {
+                    if (!block) {
                         block = true;
-                        blockPerfStartTime = groupConfig.getPerfCallback().takeTime(getPerfType());
-                        boolean retry = initialized && !isGroupShouldStopPlain();
-                        return Fiber.call(allocateSync(retry), this);
+                        blockPerfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
                     }
+                    return allocDoneCond.await(this);
                 } else {
                     if (block) {
-                        groupConfig.getPerfCallback().fireTime(getPerfType(), blockPerfStartTime);
+                        groupConfig.getPerfCallback().fireTime(perfType, blockPerfStartTime);
                     }
-                    tryAllocateAsync(pos);
                     return Fiber.frameReturn();
                 }
             }
-
-            private int getPerfType() {
-                return mainLogFile ? PerfConsts.RAFT_D_LOG_POS_NOT_READY : PerfConsts.RAFT_D_IDX_POS_NOT_READY;
-            }
         };
     }
 
-    private FiberFrame<Void> allocateSync(boolean retry) {
-        int[] retryInterval = retry ? groupConfig.getIoRetryInterval() : null;
-        allocateFuture = groupConfig.getFiberGroup().newFuture("allocFileSync");
-        return new RetryFrame<>(new AllocateFrame(), retryInterval, true) {
-            @Override
-            protected FrameCallResult doFinally() {
-                allocateFuture.complete(null);
-                allocateFuture = null;
-                return super.doFinally();
-            }
-        };
-    }
-
-    private void allocateAsync() {
-        allocateFuture = groupConfig.getFiberGroup().newFuture("allocFileAsync");
-        Fiber f = new Fiber("allocateFile", groupConfig.getFiberGroup(), new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                return Fiber.call(new AllocateFrame(), this::justReturn);
-            }
-
-            @Override
-            protected FrameCallResult doFinally() {
-                allocateFuture.complete(null);
-                allocateFuture = null;
-                return Fiber.frameReturn();
-            }
-        });
-        f.start();
-    }
-
-    private class AllocateFrame extends DoInLockFrame<Void> {
+    private class AllocateFrame extends FiberFrame<Void> {
         private long fileStartPos;
 
         private File file;
         private AsynchronousFileChannel channel;
         private final int perfType;
         private final long perfStartTime;
+        private boolean result;
 
         public AllocateFrame() {
-            super(allocateLock);
             this.perfType = mainLogFile ? PerfConsts.RAFT_D_LOG_FILE_ALLOC : PerfConsts.RAFT_D_IDX_FILE_ALLOC;
             this.perfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
         }
 
         @Override
-        protected FrameCallResult afterGetLock() {
-            if (raftStatus.isInstallSnapshot()) {
-                return Fiber.frameReturn();
-            }
+        public FrameCallResult execute(Void v) {
             fileStartPos = queueEndPosition;
             String fileName = String.format("%020d", fileStartPos);
             file = new File(dir, fileName);
@@ -273,21 +240,20 @@ abstract class FileQueue {
             return createFileFuture.await(this::afterCreateFile);
         }
 
-        private FrameCallResult afterCreateFile(Void v) {
+        private FrameCallResult afterCreateFile(Void unused) {
+            result = true;
             groupConfig.getPerfCallback().fireTime(perfType, perfStartTime);
-            LogFile logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
-                    file, FiberGroup.currentGroup());
-            queue.addLast(logFile);
-            queueEndPosition = logFile.endPos;
             return Fiber.frameReturn();
         }
 
         @Override
-        protected FrameCallResult handle(Throwable ex) throws Throwable {
+        protected FrameCallResult handle(Throwable ex) {
+            log.error("allocate file fail: ", ex);
             if (channel != null) {
                 DtUtil.close(channel);
+                channel = null;
             }
-            throw ex;
+            return Fiber.frameReturn();
         }
     }
 
@@ -380,12 +346,40 @@ abstract class FileQueue {
     }
 
     public FiberFrame<Void> beginInstall() {
-        return new DoInLockFrame<>(allocateLock) {
+        return new FiberFrame<>() {
             @Override
-            protected FrameCallResult afterGetLock() {
-                return Fiber.call(deleteByPredicate(() -> true), this::justReturn);
+            public FrameCallResult execute(Void input){
+                needAllocCond.signal();
+                return queueAllocFiber.join(this::justReturn);
             }
         };
     }
 
+    private class QueueAllocFrame extends FiberFrame<Void> {
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (raftStatus.isInstallSnapshot()) {
+                return Fiber.frameReturn();
+            }
+            if (allocPos >= queueEndPosition) {
+                AllocateFrame f = new AllocateFrame();
+                return Fiber.call(f, v -> afterAlloc(f));
+            } else {
+                return needAllocCond.await(1000, this);
+            }
+        }
+
+        private FrameCallResult afterAlloc(AllocateFrame f) {
+            if (!f.result) {
+                return Fiber.sleep(1000, this);
+            }
+            LogFile logFile = new LogFile(f.fileStartPos, f.fileStartPos + getFileSize(), f.channel,
+                    f.file, FiberGroup.currentGroup());
+            queue.addLast(logFile);
+            queueEndPosition = logFile.endPos;
+            allocDoneCond.signalAll();
+            return Fiber.resume(null, this);
+        }
+    }
 }

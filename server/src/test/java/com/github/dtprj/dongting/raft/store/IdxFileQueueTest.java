@@ -30,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -63,13 +64,20 @@ public class IdxFileQueueTest extends BaseFiberTest {
         c.setFiberGroup(fiberGroup);
         c.setDataDir(dir.getAbsolutePath());
         statusManager = new StatusManager(c);
+        AtomicReference<IdxFileQueue> result = new AtomicReference<>();
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return Fiber.call(statusManager.initStatusFile(), this::justReturn);
+                return Fiber.call(statusManager.initStatusFile(), this::afterStatusInit);
+            }
+
+            private FrameCallResult afterStatusInit(Void unused) {
+                result.set(new IdxFileQueue(dir, statusManager, c, 8));
+                result.get().startQueueAllocFiber();
+                return Fiber.frameReturn();
             }
         });
-        return new IdxFileQueue(dir, statusManager, c, 8);
+        return result.get();
     }
 
     @AfterEach

@@ -115,6 +115,8 @@ public class DefaultRaftLog implements RaftLog {
                     long lastIndex = idxFiles.getNextIndex() - 1;
                     setResult(new Pair<>(lastTerm, lastIndex));
                 }
+                idxFiles.startQueueAllocFiber();
+                logFiles.startQueueAllocFiber();
                 deleteFiber.start();
                 return Fiber.frameReturn();
             }
@@ -244,6 +246,8 @@ public class DefaultRaftLog implements RaftLog {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
+                idxFiles.startQueueAllocFiber();
+                logFiles.startQueueAllocFiber();
                 return Fiber.call(idxFiles.finishInstall(nextLogIndex), this::afterIdxFinishInstall);
             }
 
