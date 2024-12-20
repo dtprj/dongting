@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
@@ -41,7 +42,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,8 +69,8 @@ abstract class FileQueue {
     protected boolean initialized;
 
     private long allocPos = -1;
-    private Fiber queueAllocFiber;
-    private final FiberCondition needAllocCond;
+    Fiber queueAllocFiber;
+    final FiberCondition needAllocCond;
     private final FiberCondition allocDoneCond;
 
 
@@ -99,7 +99,6 @@ abstract class FileQueue {
     protected final long startPosOfFile(long pos) {
         return pos & (~fileLenMask);
     }
-
 
     protected void initQueue() throws IOException {
         File[] files = dir.listFiles();
@@ -200,7 +199,7 @@ abstract class FileQueue {
         }
     }
 
-    class DeleteFrame extends FiberFrame<Void> {
+    private class DeleteFrame extends FiberFrame<Void> {
 
         private final LogFile logFile;
 
@@ -213,11 +212,6 @@ abstract class FileQueue {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (logFile.getReaders() > 0 || logFile.getWriters() > 0) {
-                log.warn("file {} is in use, reader={},writer={}", logFile.getFile().getPath(),
-                        logFile.getReaders(), logFile.getWriters());
-                logFile.getNoRwCond().await(this);
-            }
             logFile.deleted = true;
             FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture("deleteFile");
             try {
@@ -230,7 +224,7 @@ abstract class FileQueue {
 
                         deleteFuture.fireComplete(null);
                     } catch (Throwable e) {
-                        log.error("delete file fail: ", logFile.getFile().getPath(), e);
+                        log.error("delete file fail: ", logFile.getFile().getPath());
                         deleteFuture.fireCompleteExceptionally(e);
                     }
                 });
@@ -238,58 +232,49 @@ abstract class FileQueue {
                 log.error("submit delete task fail: ", e);
                 deleteFuture.completeExceptionally(e);
             }
-            return deleteFuture.await(this::doAfterDelete);
-        }
-
-        private FrameCallResult doAfterDelete(Void unused) {
-            queue.removeFirst();
-            if (queue.size() >= 1) {
-                queueStartPosition = queue.get(0).startPos;
-            } else {
-                queueStartPosition = 0;
-                queueEndPosition = 0;
-            }
-            FileQueue.this.afterDelete();
-            return Fiber.frameReturn();
+            return deleteFuture.await(this::justReturn);
         }
     }
 
     protected void afterDelete() {
     }
 
-    public FiberFrame<Void> deleteByPredicate(Supplier<Boolean> shouldDeleteFirstFile) {
-        return new FiberFrame<>() {
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                log.error("delete log file fail: ", ex);
-                return Fiber.frameReturn();
-            }
-
+    public FiberFrame<Void> deleteFirstFile() {
+        FiberFrame<Void> f = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                if (queue.size() > 0) {
-                    if (shouldDeleteFirstFile.get()) {
-                        LogFile first = queue.get(0);
-                        return Fiber.call(new DeleteFrame(first), this);
-                    }
+                LogFile first = queue.get(0);
+                if (first.inUse()) {
+                    log.warn("file in use, wait. reader={}, writer={}, file={}", first.getReaders(),
+                            first.getWriters(), first.getFile().getPath());
+                    return first.getNoRwCond().await(this);
                 }
+                return Fiber.call(new DeleteFrame(first), this::justReturn);
+            }
+        };
+        if (initialized) {
+            int[] retryInterval = groupConfig.getIoRetryInterval();
+            f = new RetryFrame<>(f, retryInterval, true);
+        }
+        f = new PostFiberFrame<>(f) {
+            @Override
+            protected FrameCallResult postProcess(Void v) {
+                queue.removeFirst();
+                if (queue.size() >= 1) {
+                    queueStartPosition = queue.get(0).startPos;
+                } else {
+                    queueStartPosition = 0;
+                    queueEndPosition = 0;
+                }
+                FileQueue.this.afterDelete();
                 return Fiber.frameReturn();
             }
         };
+        return f;
     }
 
     public void setInitialized(boolean initialized) {
         this.initialized = initialized;
-    }
-
-    public FiberFrame<Void> beginInstall() {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input){
-                needAllocCond.signal();
-                return queueAllocFiber.join(this::justReturn);
-            }
-        };
     }
 
     private class QueueAllocFrame extends FiberFrame<Void> {

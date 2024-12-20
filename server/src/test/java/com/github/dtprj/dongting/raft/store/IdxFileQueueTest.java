@@ -284,8 +284,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             private FrameCallResult checkPos(Void v) {
                 if (checkIndex >= 30) {
                     // delete a file
-                    FileQueue.DeleteFrame f = idxFileQueue.new DeleteFrame(idxFileQueue.getLogFile(0));
-                    return Fiber.call(f, this::afterDelete);
+                    return Fiber.call(idxFileQueue.deleteFirstFile(), this::afterDelete);
                 }
                 FiberFrame<Void> f = new LoadLogPosFrame(checkIndex, checkIndex * 100);
                 checkIndex++;
@@ -374,8 +373,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                     return Fiber.call(idxFileQueue.waitFlush(), this::waitFlush);
                 }
                 // delete a file
-                FileQueue.DeleteFrame f = idxFileQueue.new DeleteFrame(idxFileQueue.getLogFile(0));
-                return Fiber.call(f, this::afterDelete);
+                return Fiber.call(idxFileQueue.deleteFirstFile(), this::afterDelete);
             }
 
             private FrameCallResult afterDelete(Void unused) {

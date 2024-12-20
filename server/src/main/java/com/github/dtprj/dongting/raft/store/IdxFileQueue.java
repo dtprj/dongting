@@ -501,11 +501,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return closeFuture;
     }
 
-    public FiberFrame<Void> beginInstall() {
+    public void removeAllCache() {
         while (cache.size() > 0) {
             cache.remove();
         }
-        return super.beginInstall();
     }
 
     public FiberFrame<Void> finishInstall(long nextLogIndex) {

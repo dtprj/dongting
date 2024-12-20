@@ -29,7 +29,6 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -159,13 +158,28 @@ public class FileQueueTest extends BaseFiberTest {
                 assertNotNull(fileQueue.getLogFile(0));
                 assertNotNull(fileQueue.getLogFile(1024));
                 assertNotNull(fileQueue.getLogFile(2048));
-                // delete 2 files
-                AtomicInteger count = new AtomicInteger();
-                return Fiber.call(fileQueue.deleteByPredicate(() -> count.incrementAndGet() <= 2), this::resume2);
+                // delete 1 file
+                return Fiber.call(fileQueue.deleteFirstFile(), this::resume2);
             }
 
             private FrameCallResult resume2(Void unused) {
                 assertNull(fileQueue.getLogFile(0));
+                assertNotNull(fileQueue.getLogFile(1024));
+                assertNotNull(fileQueue.getLogFile(2048));
+                LogFile logFile = fileQueue.getLogFile(1024);
+                logFile.incWriters();
+                Fiber f = new Fiber("f", getFiberGroup(), new FiberFrame<>() {
+                    @Override
+                    public FrameCallResult execute(Void input) {
+                        logFile.decWriters();
+                        return Fiber.frameReturn();
+                    }
+                });
+                f.start();
+                return Fiber.call(fileQueue.deleteFirstFile(), this::resume3);
+            }
+
+            private FrameCallResult resume3(Void unused) {
                 assertNull(fileQueue.getLogFile(1024));
                 assertNotNull(fileQueue.getLogFile(2048));
                 return Fiber.frameReturn();

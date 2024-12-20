@@ -80,4 +80,8 @@ public class DtFile {
     public int getWriters() {
         return writers;
     }
+
+    public boolean inUse(){
+        return readers > 0 || writers > 0;
+    }
 }

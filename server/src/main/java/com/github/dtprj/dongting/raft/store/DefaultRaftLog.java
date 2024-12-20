@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -52,6 +53,7 @@ public class DefaultRaftLog implements RaftLog {
     private final StatusManager statusManager;
     private final FiberGroup fiberGroup;
     private final RaftCodecFactory raftCodecFactory;
+    private final long deleteIntervalMillis;
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
@@ -60,7 +62,7 @@ public class DefaultRaftLog implements RaftLog {
     int idxItemsPerFile = IdxFileQueue.DEFAULT_ITEMS_PER_FILE;
     long logFileSize = LogFileQueue.DEFAULT_LOG_FILE_SIZE;
 
-    private final Fiber deleteFiber;
+    private QueueDeleteFiberFrame deleteFrame;
 
     DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory raftCodecFactory,
                    long deleteIntervalMillis) {
@@ -70,9 +72,7 @@ public class DefaultRaftLog implements RaftLog {
         this.statusManager = statusManager;
         this.fiberGroup = groupConfig.getFiberGroup();
         this.raftCodecFactory = raftCodecFactory;
-
-        this.deleteFiber = new Fiber("delete-" + groupConfig.getGroupId(),
-                fiberGroup, new QueueDeleteFiberFrame(deleteIntervalMillis), true);
+        this.deleteIntervalMillis = deleteIntervalMillis;
     }
 
     public DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory raftCodecFactory) {
@@ -117,7 +117,7 @@ public class DefaultRaftLog implements RaftLog {
                 }
                 idxFiles.startQueueAllocFiber();
                 logFiles.startQueueAllocFiber();
-                deleteFiber.start();
+                startQueueDeleteFiber();
                 return Fiber.frameReturn();
             }
 
@@ -127,6 +127,13 @@ public class DefaultRaftLog implements RaftLog {
                 throw ex;
             }
         };
+    }
+
+    private void startQueueDeleteFiber() {
+        deleteFrame = new QueueDeleteFiberFrame();
+        Fiber deleteFiber = new Fiber("delete-" + groupConfig.getGroupId(),
+                fiberGroup, deleteFrame, true);
+        deleteFiber.start();
     }
 
     @Override
@@ -188,7 +195,6 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public FiberFrame<Void> beginInstall() {
         return new FiberFrame<>() {
-
             @Override
             public FrameCallResult execute(Void unused) {
                 if (idxFiles.chainWriter.hasTask()) {
@@ -199,13 +205,18 @@ public class DefaultRaftLog implements RaftLog {
                     log.info("log files wait for flush done");
                     return raftStatus.getLogForceFinishCondition().await(1000, this);
                 }
-                log.info("log files begin install snapshot");
-                return Fiber.call(logFiles.beginInstall(), this::afterLogBeginInstall);
-            }
-
-            private FrameCallResult afterLogBeginInstall(Void unused) {
-                log.info("idx files begin install snapshot");
-                return Fiber.call(idxFiles.beginInstall(), this::justReturn);
+                idxFiles.needAllocCond.signal();
+                logFiles.needAllocCond.signal();
+                if (!idxFiles.queueAllocFiber.isFinished()) {
+                    return idxFiles.queueAllocFiber.join(this);
+                }
+                if (!logFiles.queueAllocFiber.isFinished()) {
+                    return logFiles.queueAllocFiber.join(this);
+                }
+                idxFiles.removeAllCache();
+                deleteFrame.requestDeleteAllAndExit = true;
+                deleteFrame.delCond.signal();
+                return deleteFrame.getFiber().join(this::justReturn);
             }
         };
     }
@@ -248,6 +259,7 @@ public class DefaultRaftLog implements RaftLog {
             public FrameCallResult execute(Void input) {
                 idxFiles.startQueueAllocFiber();
                 logFiles.startQueueAllocFiber();
+                startQueueDeleteFiber();
                 return Fiber.call(idxFiles.finishInstall(nextLogIndex), this::afterIdxFinishInstall);
             }
 
@@ -282,10 +294,16 @@ public class DefaultRaftLog implements RaftLog {
 
     private class QueueDeleteFiberFrame extends FiberFrame<Void> {
 
-        private final long deleteIntervalMillis;
+        boolean requestDeleteAllAndExit;
+        boolean deleteAndExit;
+        final FiberCondition delCond = FiberGroup.currentGroup().newCondition("delCond");
 
-        public QueueDeleteFiberFrame(long deleteIntervalMillis) {
-            this.deleteIntervalMillis = deleteIntervalMillis;
+        public QueueDeleteFiberFrame() {
+        }
+
+        @Override
+        public Fiber getFiber() {
+            return super.getFiber();
         }
 
         @Override
@@ -295,66 +313,86 @@ public class DefaultRaftLog implements RaftLog {
 
         @Override
         public FrameCallResult execute(Void input) {
-            return Fiber.sleep(deleteIntervalMillis, this::deleteLogs);
+            if (requestDeleteAllAndExit) {
+                deleteAndExit = true;
+                return deleteLogs(null);
+            }
+            return delCond.await(deleteIntervalMillis, this::deleteLogs);
         }
 
-        @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-        private boolean inUse(LogFile logFile) {
-            if (logFile.getReaders() > 0 || logFile.getWriters() > 0) {
-                log.info("file still in use: {}, readers={}, writes={}",
-                        logFile.getFile().getPath(), logFile.getReaders(), logFile.getWriters());
-                return true;
+        private boolean shouldDeleteFirstLog() {
+            long taskStartTimestamp = ts.getWallClockMillis();
+            IndexedQueue<LogFile> q = logFiles.queue;
+            if (q.size() <= 1) {
+                return false;
             }
-            return false;
+            LogFile first = q.get(0);
+            long deleteTimestamp = first.deleteTimestamp;
+            if (deleteTimestamp <= 0 || deleteTimestamp >= taskStartTimestamp) {
+                return false;
+            }
+            LogFile second = q.get(1);
+            if (second.firstIndex == 0) {
+                return false;
+            }
+            if (raftStatus.getLastApplied() < second.firstIndex ||
+                    raftStatus.getLastForceLogIndex() < second.firstIndex) {
+                return false;
+            }
+            return !first.inUse();
         }
 
         private FrameCallResult deleteLogs(Void unused) {
-            long taskStartTimestamp = ts.getWallClockMillis();
-            // ex handled by deleteByPredicate method
-            FiberFrame<Void> f = logFiles.deleteByPredicate(() -> {
-                IndexedQueue<LogFile> q = logFiles.queue;
-                if (q.size() <= 1) {
-                    // don't delete last file
-                    return false;
+            if (deleteAndExit) {
+                if (logFiles.queue.size() > 0) {
+                    return Fiber.call(logFiles.deleteFirstFile(), this::deleteLogs);
+                } else {
+                    log.info("delete all log files done");
+                    return deleteIdx(null);
                 }
-                LogFile first = q.get(0);
-                long deleteTimestamp = first.deleteTimestamp;
-                if (deleteTimestamp <= 0 || deleteTimestamp >= taskStartTimestamp) {
-                    return false;
+            } else {
+                if (shouldDeleteFirstLog()) {
+                    return Fiber.call(logFiles.deleteFirstFile(), this::deleteLogs);
+                } else {
+                    return deleteIdx(null);
                 }
-                LogFile second = q.get(1);
-                if (second.firstIndex == 0) {
-                    return false;
-                }
-                if (raftStatus.getLastApplied() < second.firstIndex ||
-                        raftStatus.getLastForceLogIndex() < second.firstIndex) {
-                    return false;
-                }
-                return !inUse(first);
-            });
-            return Fiber.call(f, this::deleteIdx);
+            }
+        }
+
+        private boolean shouldDeleteFirstIdx() {
+            IndexedQueue<LogFile> q = idxFiles.queue;
+            if (q.size() <= 1) {
+                // don't delete last file
+                return false;
+            }
+            LogFile first = q.get(0);
+            long firstIndexOfNextFile = idxFiles.posToIndex(first.endPos);
+            if (logFiles.getFirstIndex() < firstIndexOfNextFile) {
+                return false;
+            }
+            if (idxFiles.getPersistedIndex() < firstIndexOfNextFile) {
+                return false;
+            }
+            return !first.inUse();
         }
 
         private FrameCallResult deleteIdx(Void unused) {
-            // ex handled by deleteByPredicate method
-            FiberFrame<Void> f = idxFiles.deleteByPredicate(() -> {
-                IndexedQueue<LogFile> q = idxFiles.queue;
-                if (q.size() <= 1) {
-                    // don't delete last file
-                    return false;
+            if (deleteAndExit) {
+                if (idxFiles.queue.size() > 0) {
+                    return Fiber.call(idxFiles.deleteFirstFile(), this::deleteIdx);
+                } else {
+                    log.info("delete all idx files done");
+                    // fiber exit
+                    return Fiber.frameReturn();
                 }
-                LogFile first = q.get(0);
-                long firstIndexOfNextFile = idxFiles.posToIndex(first.endPos);
-                if (logFiles.getFirstIndex() < firstIndexOfNextFile) {
-                    return false;
+            } else {
+                if (shouldDeleteFirstIdx()) {
+                    return Fiber.call(idxFiles.deleteFirstFile(), this::deleteIdx);
+                } else {
+                    // loop
+                    return Fiber.resume(null, this);
                 }
-                if (idxFiles.getPersistedIndex() < firstIndexOfNextFile) {
-                    return false;
-                }
-                return !inUse(first);
-            });
-            // loop
-            return Fiber.call(f, this);
+            }
         }
     }
 }
