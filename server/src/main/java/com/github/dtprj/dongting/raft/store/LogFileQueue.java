@@ -73,15 +73,17 @@ class LogFileQueue extends FileQueue {
         this.heapPool = t.getHeapPool();
         this.directPool = t.getDirectPool();
 
-        LogChainWriter chainWriter = new LogChainWriter(groupConfig, PerfConsts.RAFT_D_LOG_WRITE1,
-                PerfConsts.RAFT_D_LOG_WRITE2, PerfConsts.RAFT_D_LOG_SYNC);
+        LogChainWriter chainWriter = new LogChainWriter(groupConfig);
+        chainWriter.setWritePerfType1(PerfConsts.RAFT_D_LOG_WRITE1);
+        chainWriter.setWritePerfType2(PerfConsts.RAFT_D_LOG_WRITE2);
+        chainWriter.setForcePerfType(PerfConsts.RAFT_D_LOG_SYNC);
         this.logAppender = new LogAppender(idxOps, this, groupConfig, chainWriter);
     }
 
     private class LogChainWriter extends ChainWriter {
 
-        public LogChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
-            super(config, "LogForce", writePerfType1, writePerfType2, forcePerfType);
+        public LogChainWriter(RaftGroupConfigEx config) {
+            super("LogForce", config);
         }
 
         @Override

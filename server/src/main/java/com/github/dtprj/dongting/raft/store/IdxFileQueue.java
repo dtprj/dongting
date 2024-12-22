@@ -99,8 +99,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.needFlushCondition = groupConfig.getFiberGroup().newCondition("IdxNeedFlush-" + groupConfig.getGroupId());
         this.flushDoneCondition = groupConfig.getFiberGroup().newCondition("IdxFlushDone-" + groupConfig.getGroupId());
 
-        this.chainWriter = new IdxChainWriter(groupConfig, 0, PerfConsts.RAFT_D_IDX_WRITE,
-                PerfConsts.RAFT_D_IDX_FORCE);
+        this.chainWriter = new IdxChainWriter(groupConfig);
+        chainWriter.setWritePerfType1(0);
+        chainWriter.setWritePerfType2(PerfConsts.RAFT_D_IDX_WRITE);
+        chainWriter.setForcePerfType(PerfConsts.RAFT_D_IDX_FORCE);
     }
 
     public FiberFrame<Pair<Long, Long>> initRestorePos() throws Exception {
@@ -171,8 +173,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     class IdxChainWriter extends ChainWriter {
 
-        public IdxChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
-            super(config, "IdxForce", writePerfType1, writePerfType2, forcePerfType);
+        public IdxChainWriter(RaftGroupConfigEx config) {
+            super("IdxForce", config);
         }
 
         @Override

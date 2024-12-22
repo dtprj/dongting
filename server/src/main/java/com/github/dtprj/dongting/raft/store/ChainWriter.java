@@ -42,9 +42,11 @@ public abstract class ChainWriter {
 
     private final PerfCallback perfCallback;
     private final RaftGroupConfigEx config;
-    private final int writePerfType1;
-    private final int writePerfType2;
-    private final int forcePerfType;
+
+    private int writePerfType1;
+    private int writePerfType2;
+    private int forcePerfType;
+
     private final ByteBufferPool directPool;
     private final LinkedList<WriteTask> writeTasks = new LinkedList<>();
     private final LinkedList<WriteTask> forceTasks = new LinkedList<>();
@@ -60,13 +62,9 @@ public abstract class ChainWriter {
 
     private boolean close;
 
-    public ChainWriter(RaftGroupConfigEx config, String fiberNamePrefix, int writePerfType1, int writePerfType2,
-                       int forcePerfType) {
+    public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config) {
         this.config = config;
         this.perfCallback = config.getPerfCallback();
-        this.writePerfType1 = writePerfType1;
-        this.writePerfType2 = writePerfType2;
-        this.forcePerfType = forcePerfType;
         DispatcherThread t = config.getFiberGroup().getThread();
         this.directPool = t.getDirectPool();
         this.needForceCondition = config.getFiberGroup().newCondition("needForceCond");
@@ -267,4 +265,15 @@ public abstract class ChainWriter {
         return writeTaskCount > 0 || forceTaskCount > 0;
     }
 
+    public void setWritePerfType1(int writePerfType1) {
+        this.writePerfType1 = writePerfType1;
+    }
+
+    public void setWritePerfType2(int writePerfType2) {
+        this.writePerfType2 = writePerfType2;
+    }
+
+    public void setForcePerfType(int forcePerfType) {
+        this.forcePerfType = forcePerfType;
+    }
 }
