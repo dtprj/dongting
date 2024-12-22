@@ -91,7 +91,7 @@ class LogAppender {
 
     public void startFiber() {
         appendFiber.start();
-        chainWriter.startForceFiber();
+        chainWriter.start();
     }
 
     public FiberFuture<Void> close() {
@@ -107,7 +107,7 @@ class LogAppender {
             if (ex != null) {
                 closeFuture.completeExceptionally(ex);
             } else {
-                chainWriter.shutdownForceFiber().registerCallback((v2, ex2) -> {
+                chainWriter.stop().registerCallback((v2, ex2) -> {
                     if (ex2 != null) {
                         closeFuture.completeExceptionally(ex2);
                     } else {

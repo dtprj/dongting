@@ -78,11 +78,11 @@ public abstract class ChainWriter {
 
     protected abstract void forceFinish(WriteTask writeTask);
 
-    public void startForceFiber() {
+    public void start() {
         forceFiber.start();
     }
 
-    public FiberFuture<Void> shutdownForceFiber() {
+    public FiberFuture<Void> stop() {
         this.close = true;
         needForceCondition.signal();
         if (forceFiber.isStarted()) {

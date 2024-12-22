@@ -129,7 +129,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             }
             log.info("restore from index: {}, pos: {}", restoreIndex, restoreStartPos);
             flushFiber.start();
-            chainWriter.startForceFiber();
+            chainWriter.start();
             return FiberFrame.completedFrame(new Pair<>(restoreIndex, restoreStartPos));
         } else {
             nextIndex = restoreIndex + 1;
@@ -150,7 +150,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     log.info("restore from index: {}, pos: {}", finalRestoreIndex, restoreIndexPos);
                     setResult(new Pair<>(finalRestoreIndex, restoreIndexPos));
                     flushFiber.start();
-                    chainWriter.startForceFiber();
+                    chainWriter.start();
                     return Fiber.frameReturn();
                 }
 
@@ -488,7 +488,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             if (ex != null) {
                 closeFuture.completeExceptionally(ex);
             } else {
-                chainWriter.shutdownForceFiber().registerCallback((v2, ex2) -> {
+                chainWriter.stop().registerCallback((v2, ex2) -> {
                     if (ex2 != null) {
                         closeFuture.completeExceptionally(ex2);
                     } else {
