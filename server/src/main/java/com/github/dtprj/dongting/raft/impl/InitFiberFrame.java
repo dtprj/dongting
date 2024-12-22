@@ -59,6 +59,14 @@ public class InitFiberFrame extends FiberFrame<Void> {
         return Fiber.frameReturn();
     }
 
+    private boolean cancelInit() {
+        if (isGroupShouldStopPlain()) {
+            raftStatus.getInitFuture().completeExceptionally(new RaftException("group should stop"));
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
         gc.getStateMachine().start(); // stop in apply manager
@@ -86,6 +94,9 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterInitStatusFile(Void unused) {
+        if (cancelInit()) {
+            return Fiber.frameReturn();
+        }
         if (raftStatus.isInstallSnapshot()) {
             log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
             return initRaftFibers();
@@ -99,6 +110,13 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterSnapshotManagerInit(Snapshot snapshot) {
+        if (cancelInit()) {
+            return Fiber.frameReturn();
+        }
+        if (raftStatus.isInstallSnapshot()) {
+            log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
+            return Fiber.call(gc.getRaftLog().init(), r -> initRaftFibers());
+        }
         if (snapshot == null) {
             return afterRecoverStateMachine(null);
         }
@@ -117,13 +135,15 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterApplyConfigChange(Snapshot snapshot) {
+        if (cancelInit()) {
+            return Fiber.frameReturn();
+        }
         FiberFrame<Void> f = gc.getSnapshotManager().recover(snapshot);
         return Fiber.call(f, v -> afterRecoverStateMachine(snapshot));
     }
 
     private FrameCallResult afterRecoverStateMachine(Snapshot snapshot) {
-        if (isGroupShouldStopPlain()) {
-            raftStatus.getInitFuture().completeExceptionally(new RaftException("group should stop"));
+        if (cancelInit()) {
             return Fiber.frameReturn();
         }
 
@@ -142,8 +162,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterRaftLogInit(Pair<Integer, Long> logInitResult, int snapshotTerm, long snapshotIndex) {
-        if (isGroupShouldStopPlain()) {
-            raftStatus.getInitFuture().completeExceptionally(new RaftException("group should stop"));
+        if (cancelInit()) {
             return Fiber.frameReturn();
         }
         int logInitResultTerm = logInitResult.getLeft();
@@ -156,7 +175,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
             log.error("raft log last term invalid, {}, {}", logInitResultTerm, snapshotTerm);
             throw new RaftException("raft log last term invalid");
         }
-        if(logInitResultTerm > raftStatus.getCurrentTerm()) {
+        if (logInitResultTerm > raftStatus.getCurrentTerm()) {
             log.error("raft log last term({}) greater than current term({})",
                     logInitResultTerm, raftStatus.getCurrentTerm());
             throw new RaftException("raft log last term greater than current term");

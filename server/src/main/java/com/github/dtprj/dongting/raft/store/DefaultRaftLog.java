@@ -92,6 +92,17 @@ public class DefaultRaftLog implements RaftLog {
                         groupConfig, idxFiles, logFileSize);
                 logFiles.initQueue();
                 RaftUtil.checkStop(fiberGroup);
+
+                if (raftStatus.isInstallSnapshot()) {
+                    idxFiles.initQueue();
+                    idxFiles.setInitialized(true);
+                    logFiles.setInitialized(true);
+                    startQueueDeleteFiber();
+                    deleteFrame.requestDeleteAllAndExit = true;
+                    deleteFrame.delCond.signal();
+                    return Fiber.frameReturn();
+                }
+
                 return Fiber.call(idxFiles.initRestorePos(), this::afterIdxFileQueueInit);
             }
 
