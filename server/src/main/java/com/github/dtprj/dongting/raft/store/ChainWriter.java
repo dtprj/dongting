@@ -32,16 +32,19 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
-public abstract class ChainWriter {
+public class ChainWriter {
     private static final DtLog log = DtLogs.getLogger(ChainWriter.class);
 
     private final PerfCallback perfCallback;
     private final RaftGroupConfigEx config;
+    private final Consumer<WriteTask> writeCallback;
+    private final Consumer<WriteTask> forceCallback;
 
     private int writePerfType1;
     private int writePerfType2;
@@ -62,19 +65,19 @@ public abstract class ChainWriter {
 
     private boolean close;
 
-    public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config) {
+    public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config, Consumer<WriteTask> writeCallback,
+                       Consumer<WriteTask> forceCallback) {
         this.config = config;
         this.perfCallback = config.getPerfCallback();
+        this.writeCallback = writeCallback;
+        this.forceCallback = forceCallback;
+
         DispatcherThread t = config.getFiberGroup().getThread();
         this.directPool = t.getDirectPool();
         this.needForceCondition = config.getFiberGroup().newCondition("needForceCond");
         this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.getGroupId(), config.getFiberGroup(),
                 new ForceLoopFrame());
     }
-
-    protected abstract void writeFinish(WriteTask writeTask);
-
-    protected abstract void forceFinish(WriteTask writeTask);
 
     public void start() {
         forceFiber.start();
@@ -187,7 +190,9 @@ public abstract class ChainWriter {
         }
         if (lastTaskNeedCallback != null) {
             needForceCondition.signal();
-            writeFinish(lastTaskNeedCallback);
+            if (writeCallback != null) {
+                writeCallback.accept(lastTaskNeedCallback);
+            }
         }
     }
 
@@ -256,7 +261,7 @@ public abstract class ChainWriter {
                 return Fiber.frameReturn();
             }
 
-            forceFinish(task);
+            forceCallback.accept(task);
             return Fiber.resume(null, this);
         }
     }

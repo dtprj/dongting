@@ -75,7 +75,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private final FiberCondition needFlushCondition;
     final FiberCondition flushDoneCondition;
 
-    final IdxChainWriter chainWriter;
+    final ChainWriter chainWriter;
 
     private boolean closed;
 
@@ -99,7 +99,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.needFlushCondition = groupConfig.getFiberGroup().newCondition("IdxNeedFlush-" + groupConfig.getGroupId());
         this.flushDoneCondition = groupConfig.getFiberGroup().newCondition("IdxFlushDone-" + groupConfig.getGroupId());
 
-        this.chainWriter = new IdxChainWriter(groupConfig);
+        this.chainWriter = new ChainWriter("IdxForce", groupConfig, null, this::forceFinish);
         chainWriter.setWritePerfType1(0);
         chainWriter.setWritePerfType2(PerfConsts.RAFT_D_IDX_WRITE);
         chainWriter.setForcePerfType(PerfConsts.RAFT_D_IDX_FORCE);
@@ -171,28 +171,15 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
-    class IdxChainWriter extends ChainWriter {
-
-        public IdxChainWriter(RaftGroupConfigEx config) {
-            super("IdxForce", config);
+    private void forceFinish(ChainWriter.WriteTask writeTask) {
+        // if we set syncForce to false, lastRaftIndex(committed) may less than lastForceLogIndex
+        long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.getLastForceLogIndex());
+        if (idx > persistedIndexInStatusFile && !raftStatus.isInstallSnapshot()) {
+            statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(idx));
+            statusManager.persistAsync(true);
         }
-
-        @Override
-        protected void writeFinish(WriteTask writeTask) {
-            // nothing to do
-        }
-
-        @Override
-        protected void forceFinish(WriteTask writeTask) {
-            // if we set syncForce to false, lastRaftIndex(committed) may less than lastForceLogIndex
-            long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.getLastForceLogIndex());
-            if (idx > persistedIndexInStatusFile && !raftStatus.isInstallSnapshot()) {
-                statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(idx));
-                statusManager.persistAsync(true);
-            }
-            persistedIndex = writeTask.getLastRaftIndex();
-            flushDoneCondition.signalAll();
-        }
+        persistedIndex = writeTask.getLastRaftIndex();
+        flushDoneCondition.signalAll();
     }
 
     public long indexToPos(long index) {

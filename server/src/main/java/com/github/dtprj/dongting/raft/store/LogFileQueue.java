@@ -73,33 +73,24 @@ class LogFileQueue extends FileQueue {
         this.heapPool = t.getHeapPool();
         this.directPool = t.getDirectPool();
 
-        LogChainWriter chainWriter = new LogChainWriter(groupConfig);
+        ChainWriter chainWriter = new ChainWriter("LogForce", groupConfig, this::writeFinish, this::forceFinish);
         chainWriter.setWritePerfType1(PerfConsts.RAFT_D_LOG_WRITE1);
         chainWriter.setWritePerfType2(PerfConsts.RAFT_D_LOG_WRITE2);
         chainWriter.setForcePerfType(PerfConsts.RAFT_D_LOG_SYNC);
         this.logAppender = new LogAppender(idxOps, this, groupConfig, chainWriter);
     }
 
-    private class LogChainWriter extends ChainWriter {
-
-        public LogChainWriter(RaftGroupConfigEx config) {
-            super("LogForce", config);
+    private void writeFinish(ChainWriter.WriteTask writeTask) {
+        if (writeTask.getLastRaftIndex() > 0) {
+            raftStatus.getLogWriteFinishCondition().signalAll();
+            raftStatus.setLastWriteLogIndex(writeTask.getLastRaftIndex());
         }
+    }
 
-        @Override
-        protected void writeFinish(WriteTask writeTask) {
-            if (writeTask.getLastRaftIndex() > 0) {
-                raftStatus.getLogWriteFinishCondition().signalAll();
-                raftStatus.setLastWriteLogIndex(writeTask.getLastRaftIndex());
-            }
-        }
-
-        @Override
-        protected void forceFinish(WriteTask writeTask) {
-            // assert lastRaftIndex > 0
-            raftStatus.setLastForceLogIndex(writeTask.getLastRaftIndex());
-            raftStatus.getLogForceFinishCondition().signalAll();
-        }
+    private void forceFinish(ChainWriter.WriteTask writeTask) {
+        // assert lastRaftIndex > 0
+        raftStatus.setLastForceLogIndex(writeTask.getLastRaftIndex());
+        raftStatus.getLogForceFinishCondition().signalAll();
     }
 
     public long fileLength() {
