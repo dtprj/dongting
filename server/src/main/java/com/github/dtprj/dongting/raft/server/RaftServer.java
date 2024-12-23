@@ -522,6 +522,7 @@ public class RaftServer extends AbstractLifeCircle {
                 }
 
                 private FrameCallResult afterRaftLogClose(Void unused) {
+                    g.getGroupComponents().getRaftStatus().getTailCache().cleanAll();
                     return g.getGroupComponents().getStatusManager().close().await(this::justReturn);
                 }
             });
