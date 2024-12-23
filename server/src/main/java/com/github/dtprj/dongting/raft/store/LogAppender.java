@@ -61,7 +61,7 @@ class LogAppender {
     long nextPersistIndex = -1;
     long nextPersistPos = -1;
 
-    private final Fiber appendFiber;
+    private final Fiber writeFiber;
 
     private final PerfCallback perfCallback;
     final ChainWriter chainWriter;
@@ -80,22 +80,22 @@ class LogAppender {
         this.fileLenMask = logFileQueue.fileLength() - 1;
         FiberGroup fiberGroup = groupConfig.getFiberGroup();
         WriteFiberFrame writeFiberFrame = new WriteFiberFrame();
-        this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, writeFiberFrame);
+        this.writeFiber = new Fiber("write-" + groupConfig.getGroupId(), fiberGroup, writeFiberFrame);
         this.perfCallback = groupConfig.getPerfCallback();
         this.taskChannel = fiberGroup.newChannel();
     }
 
     public void startFiber() {
-        appendFiber.start();
+        writeFiber.start();
         chainWriter.start();
     }
 
     public FiberFuture<Void> close() {
-        appendFiber.interrupt();
+        writeFiber.interrupt();
         FiberFuture<Void> closeFuture = groupConfig.getFiberGroup().newFuture("appenderClose");
         FiberFuture<Void> f1;
-        if (appendFiber.isStarted()) {
-            f1 = appendFiber.join();
+        if (writeFiber.isStarted()) {
+            f1 = writeFiber.join();
         } else {
             f1 = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
         }
