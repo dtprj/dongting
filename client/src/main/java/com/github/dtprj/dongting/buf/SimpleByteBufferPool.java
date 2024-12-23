@@ -191,7 +191,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     private void release0(ByteBuffer buf) {
         if (buf.isDirect() != direct) {
-            throw new DtException("buffer released to wrong pool");
+            throw new DtException("the buffer not belong to this pool, direct=" + buf.isDirect());
         }
         int capacity = buf.capacity();
         if (capacity <= threshold) {
@@ -209,6 +209,9 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             }
         }
         if (poolIndex >= poolCount) {
+            if (buf.capacity() < bufSizes[bufSizes.length - 1]) {
+                throw new DtException("the buffer not belong to this pool, capacity=" + buf.capacity());
+            }
             // buffer too large, release it without pool
             if (direct) {
                 VF.releaseDirectBuffer(buf);
