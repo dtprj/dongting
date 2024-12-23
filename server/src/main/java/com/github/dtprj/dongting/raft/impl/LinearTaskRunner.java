@@ -107,7 +107,14 @@ public class LinearTaskRunner {
                 return Fiber.call(new HandlerFrame<>(f), p -> afterTakeAll(null));
             }
             if (!list.isEmpty()) {
-                raftExec(list);
+                if (isGroupShouldStopPlain()) {
+                    for(RaftTask rt: list) {
+                        RaftUtil.release(rt.getInput());
+                        rt.callFail(new RaftException("raft group is stopping"));
+                    }
+                } else {
+                    raftExec(list);
+                }
                 list.clear();
             } else if (raftStatus.getRole() == RaftRole.leader) {
                 sendHeartBeat();
