@@ -39,7 +39,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 /**
@@ -64,8 +63,6 @@ class LogAppender {
 
     private final Fiber appendFiber;
 
-    private final Supplier<Boolean> writeStopIndicator;
-
     private final PerfCallback perfCallback;
     final ChainWriter chainWriter;
 
@@ -84,7 +81,6 @@ class LogAppender {
         FiberGroup fiberGroup = groupConfig.getFiberGroup();
         WriteFiberFrame writeFiberFrame = new WriteFiberFrame();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, writeFiberFrame);
-        this.writeStopIndicator = logFileQueue::isClosed;
         this.perfCallback = groupConfig.getPerfCallback();
         this.taskChannel = fiberGroup.newChannel();
     }
@@ -327,10 +323,8 @@ class LogAppender {
 
             long lastIndex = lastItem != null ? lastItem.getIndex() : -1;
             long writeStartPosInFile = nextPersistPos & fileLenMask;
-            int[] retryInterval = logFileQueue.initialized ? groupConfig.getIoRetryInterval() : null;
-            ChainWriter.WriteTask task = new ChainWriter.WriteTask(groupConfig.getFiberGroup(), file, retryInterval, true,
-                    writeStopIndicator, buffer, writeStartPosInFile, lastItem != null, writeCount, lastIndex);
-            chainWriter.submitWrite(task);
+            chainWriter.submitWrite(file, logFileQueue.initialized, buffer, writeStartPosInFile,
+                    lastItem != null, writeCount, lastIndex);
 
             nextPersistPos += bytes;
             nextPersistIndex += writeCount;

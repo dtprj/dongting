@@ -63,7 +63,7 @@ public class ChainWriter {
     private int writeTaskCount;
     private int forceTaskCount;
 
-    private boolean close;
+    private boolean markStop;
 
     public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config, Consumer<WriteTask> writeCallback,
                        Consumer<WriteTask> forceCallback) {
@@ -84,7 +84,7 @@ public class ChainWriter {
     }
 
     public FiberFuture<Void> stop() {
-        this.close = true;
+        this.markStop = true;
         needForceCondition.signal();
         if (forceFiber.isStarted()) {
             return forceFiber.join();
@@ -126,10 +126,14 @@ public class ChainWriter {
         }
     }
 
-    public void submitWrite(WriteTask task) {
+    public void submitWrite(DtFile dtFile, boolean initialized, ByteBuffer buf, long posInFile, boolean force,
+                            int perfItemCount, long lastRaftIndex) {
         if (error) {
             return;
         }
+        int[] retryInterval = initialized ? config.getIoRetryInterval() : null;
+        WriteTask task = new WriteTask(config.getFiberGroup(), dtFile, retryInterval, true,
+                () -> markStop, buf, posInFile, force, perfItemCount, lastRaftIndex);
         // inc use count for force task
         task.getDtFile().incWriters();
         if (!writeTasks.isEmpty()) {
@@ -216,7 +220,7 @@ public class ChainWriter {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (close && !hasTask()) {
+            if (markStop && !hasTask()) {
                 return Fiber.frameReturn();
             }
             if (error) {

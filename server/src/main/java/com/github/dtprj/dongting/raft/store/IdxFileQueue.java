@@ -242,10 +242,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
         long filePos = indexToPos(nextPersistIndex) & fileLenMask;
         ByteBuffer buf = SimpleByteBufferPool.EMPTY_BUFFER;
-        int[] retryInterval = initialized ? groupConfig.getIoRetryInterval() : null;
-        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig.getFiberGroup(), logFile, retryInterval, true,
-                () -> closed, buf, filePos, true, 0, nextPersistIndex - 1);
-        chainWriter.submitWrite(wt);
+        chainWriter.submitWrite(logFile, initialized, buf, filePos, true, 0, nextPersistIndex - 1);
     }
 
     private void fillAndSubmit(ByteBuffer buf, long startIndex, LogFile logFile, boolean suggestForce) {
@@ -263,10 +260,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         boolean fileEnd = filePos + buf.remaining() == fileSize;
         boolean force = fileEnd || suggestForce;
         int items = (int) (index - startIndex);
-        int[] retryInterval = initialized ? groupConfig.getIoRetryInterval() : null;
-        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig.getFiberGroup(), logFile, retryInterval, true,
-                () -> closed, buf, filePos, force, items, index - 1);
-        chainWriter.submitWrite(wt);
+        chainWriter.submitWrite(logFile, initialized, buf, filePos, force, items, index - 1);
         removeHead();
     }
 
