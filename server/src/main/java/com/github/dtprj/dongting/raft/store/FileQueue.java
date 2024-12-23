@@ -73,6 +73,8 @@ abstract class FileQueue {
     final FiberCondition needAllocCond;
     private final FiberCondition allocDoneCond;
 
+    // read in io thread
+    protected volatile boolean closed;
 
     public FileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize, boolean mainLogFile) {
         if (BitUtil.nextHighestPowerOfTwo(fileSize) != fileSize) {
@@ -366,5 +368,9 @@ abstract class FileQueue {
             }
             return Fiber.frameReturn();
         }
+    }
+
+    protected boolean isClosed() {
+        return closed;
     }
 }

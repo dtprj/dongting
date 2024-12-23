@@ -77,8 +77,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     final ChainWriter chainWriter;
 
-    private boolean closed;
-
     public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig, int itemsPerFile) {
         super(dir, groupConfig, (long) ITEM_LEN * itemsPerFile, false);
         if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {

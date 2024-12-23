@@ -58,9 +58,6 @@ class LogFileQueue extends FileQueue {
 
     final LogAppender logAppender;
 
-    // read in io thread
-    private volatile boolean closed;
-
     int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
 
     public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long fileSize) {
@@ -228,10 +225,6 @@ class LogFileQueue extends FileQueue {
             closeChannel();
             return null;
         });
-    }
-
-    public boolean isClosed() {
-        return closed;
     }
 
     public void truncateTail(long index, long pos) {
