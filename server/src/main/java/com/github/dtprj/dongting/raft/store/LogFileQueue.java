@@ -247,8 +247,8 @@ class LogFileQueue extends FileQueue {
         logAppender.setNext(index, pos);
     }
 
-    public void submit(List<LogItem> inputs) {
-        logAppender.submit(inputs);
+    public FiberFrame<Void> submit(List<LogItem> inputs) {
+        return logAppender.submit(inputs);
     }
 
     public FiberFrame<LogHeader> loadHeader(long pos) {

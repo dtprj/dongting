@@ -91,6 +91,7 @@ public class LinearTaskRunner {
 
         @Override
         public FrameCallResult execute(Void input) {
+            list.clear();
             return taskChannel.takeAll(serverConfig.getHeartbeatInterval(), list, this::afterTakeAll);
         }
 
@@ -113,11 +114,10 @@ public class LinearTaskRunner {
                         rt.callFail(new RaftException("raft group is stopping"));
                     }
                 } else {
-                    raftExec(list);
+                    return Fiber.call(raftExec(list), this);
                 }
-                list.clear();
             } else if (raftStatus.getRole() == RaftRole.leader) {
-                sendHeartBeat();
+                return Fiber.call(sendHeartBeat(), this);
             }
             // loop
             return Fiber.resume(null, this);
@@ -144,14 +144,14 @@ public class LinearTaskRunner {
         }
     }
 
-    public void raftExec(List<RaftTask> inputs) {
+    public FiberFrame<Void> raftExec(List<RaftTask> inputs) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
                 RaftUtil.release(t.getInput());
                 t.callFail(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
             }
-            return;
+            return FiberFrame.voidCompletedFrame();
         }
         long newIndex = lastIndex(raftStatus);
 
@@ -190,10 +190,10 @@ public class LinearTaskRunner {
 
         RaftUtil.resetElectTimer(raftStatus);
 
-        submitTasks(raftStatus, inputs);
+        return submitTasks(raftStatus, inputs);
     }
 
-    public void submitTasks(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
+    public FiberFrame<Void> submitTasks(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
         TailCache tailCache = raftStatus.getTailCache();
         ArrayList<LogItem> logItems = new ArrayList<>(inputs.size());
         for (int len = inputs.size(), i = 0; i < len; i++) {
@@ -215,14 +215,14 @@ public class LinearTaskRunner {
                 raftStatus.setLastLogTerm(li.getTerm());
             }
         }
-        raftLog.append(logItems);
         raftStatus.getDataArrivedCondition().signalAll();
+        return raftLog.append(logItems);
     }
 
-    public void sendHeartBeat() {
+    public FiberFrame<Void> sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
         RaftInput input = new RaftInput(0, null, null, deadline, false);
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
-        raftExec(Collections.singletonList(rt));
+        return raftExec(Collections.singletonList(rt));
     }
 }

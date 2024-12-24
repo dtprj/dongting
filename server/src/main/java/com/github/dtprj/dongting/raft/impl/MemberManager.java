@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -301,20 +302,14 @@ public class MemberManager {
             }
 
             private FrameCallResult afterCheck(Void unused) {
-                leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes))
-                        .whenComplete((raftIndex, ex) -> {
-                            if (ex != null) {
-                                f.completeExceptionally(ex);
-                            } else {
-                                f.complete(raftIndex);
-                            }
-                        });
-                return Fiber.frameReturn();
+                FiberFrame<Void> ff = leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE,
+                        getInputData(newMemberNodes, newObserverNodes), f);
+                return Fiber.call(ff, this::justReturn);
             }
         };
     }
 
-    public FiberFrame<Void> leaderAbortJointConsensus(CompletableFuture<Void> f) {
+    public FiberFrame<Void> leaderAbortJointConsensus(CompletableFuture<Long> f) {
         return new FiberFrame<>() {
             @Override
             protected FrameCallResult handle(Throwable ex) {
@@ -325,19 +320,13 @@ public class MemberManager {
 
             @Override
             public FrameCallResult execute(Void input) {
-                leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
-                    if (ex != null) {
-                        f.completeExceptionally(ex);
-                    } else {
-                        f.complete(null);
-                    }
-                });
-                return Fiber.frameReturn();
+                FiberFrame<Void> ff = leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null, f);
+                return Fiber.call(ff, this::justReturn);
             }
         };
     }
 
-    public FiberFrame<Void> leaderCommitJointConsensus(CompletableFuture<Void> finalFuture, long prepareIndex) {
+    public FiberFrame<Void> leaderCommitJointConsensus(CompletableFuture<Long> finalFuture, long prepareIndex) {
         return new FiberFrame<>() {
             @Override
             protected FrameCallResult handle(Throwable ex) {
@@ -401,7 +390,7 @@ public class MemberManager {
         }
     }
 
-    private boolean lastConfigIndexNotMatch(long prepareIndex, CompletableFuture<Void> finalFuture) {
+    private boolean lastConfigIndexNotMatch(long prepareIndex, CompletableFuture<Long> finalFuture) {
         if (prepareIndex != raftStatus.getLastConfigChangeIndex()) {
             log.error("prepareIndex not match. prepareIndex={}, lastConfigChangeIndex={}",
                     prepareIndex, raftStatus.getLastConfigChangeIndex());
@@ -413,7 +402,7 @@ public class MemberManager {
     }
 
     private void checkPrepareStatus(HashMap<Integer, CompletableFuture<Boolean>> resultMap, long prepareIndex,
-                                    CompletableFuture<Void> finalFuture) {
+                                    CompletableFuture<Long> finalFuture) {
         try {
             if (resultMap.isEmpty()) {
                 // prevent duplicate change
@@ -444,13 +433,9 @@ public class MemberManager {
                 // prevent duplicate change
                 resultMap.clear();
 
-                leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
-                    if (ex != null) {
-                        finalFuture.completeExceptionally(ex);
-                    } else {
-                        finalFuture.complete(null);
-                    }
-                });
+                FiberFrame<Void> f = leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
+                Fiber configChangeCommitFiber = new Fiber("configChangeCommitFiber", FiberGroup.currentGroup(), f);
+                configChangeCommitFiber.start();
             }
         } catch (Throwable e) {
             log.error("check prepare status error", e);
@@ -478,7 +463,7 @@ public class MemberManager {
         sb.append(';');
     }
 
-    private CompletableFuture<Long> leaderConfigChange(int type, byte[] data) {
+    private FiberFrame<Void> leaderConfigChange(int type, byte[] data, CompletableFuture<Long> f) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
@@ -496,25 +481,23 @@ public class MemberManager {
             }
             log.error("leader config change {}, not leader, role={}, groupId={}",
                     stageStr, raftStatus.getRole(), groupId);
-            return CompletableFuture.failedFuture(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
+            f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
+            return FiberFrame.voidCompletedFrame();
         }
-        CompletableFuture<Long> outputFuture = new CompletableFuture<>();
         RaftInput input = new RaftInput(0, null, new ByteArray(data), null, false);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {
-                outputFuture.complete(raftIndex);
+                f.complete(raftIndex);
             }
 
             @Override
             public void fail(Throwable ex) {
-                outputFuture.completeExceptionally(ex);
+                f.completeExceptionally(ex);
             }
         });
 
-        gc.getLinearTaskRunner().raftExec(Collections.singletonList(rt));
-
-        return outputFuture;
+        return gc.getLinearTaskRunner().raftExec(Collections.singletonList(rt));
     }
 
     private RaftMember findExistMember(int nodeId) {

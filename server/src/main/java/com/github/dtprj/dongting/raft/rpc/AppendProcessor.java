@@ -359,10 +359,9 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
                 registerRespWriter(raftStatus, index);
             }
         }
-        gc.getLinearTaskRunner().submitTasks(raftStatus, list);
-
+        FiberFrame<Void> f = gc.getLinearTaskRunner().submitTasks(raftStatus, list);
         // success response write in CommitManager fiber
-        return Fiber.frameReturn();
+        return Fiber.call(f, this::justReturn);
     }
 
     private void registerRespWriter(RaftStatusImpl raftStatus, long index) {

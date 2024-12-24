@@ -76,8 +76,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
         RaftUtil.changeToLeader(raftStatus);
         gc.getVoteManager().cancelVote("transfer leader");
         writeResp(reqInfo, new EmptyBodyRespPacket(CmdCodes.SUCCESS));
-        gc.getLinearTaskRunner().sendHeartBeat();
-        return FiberFrame.voidCompletedFrame();
+        return gc.getLinearTaskRunner().sendHeartBeat();
     }
 
     @Override

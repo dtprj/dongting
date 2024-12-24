@@ -373,7 +373,7 @@ public class VoteManager {
                                 groupId, raftStatus.getCurrentTerm(), raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
                         RaftUtil.changeToLeader(raftStatus);
                         cancelVote("successfully elected");
-                        linearTaskRunner.sendHeartBeat();
+                        return Fiber.call(linearTaskRunner.sendHeartBeat(), this::justReturn);
                     }
                 }
             }

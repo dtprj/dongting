@@ -221,18 +221,18 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Void> leaderAbortJointConsensus() {
+    public CompletableFuture<Long> leaderAbortJointConsensus() {
         checkStatus();
-        CompletableFuture<Void> f = new CompletableFuture<>();
+        CompletableFuture<Long> f = new CompletableFuture<>();
         FiberFrame<Void> ff = gc.getMemberManager().leaderAbortJointConsensus(f);
         gc.getFiberGroup().fireFiber("leaderAbortJointConsensus", ff);
         return f;
     }
 
     @Override
-    public CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex) {
+    public CompletableFuture<Long> leaderCommitJointConsensus(long prepareIndex) {
         checkStatus();
-        CompletableFuture<Void> f = new CompletableFuture<>();
+        CompletableFuture<Long> f = new CompletableFuture<>();
         FiberFrame<Void> ff = gc.getMemberManager().leaderCommitJointConsensus(f, prepareIndex);
         gc.getFiberGroup().fireFiber("leaderCommitJointConsensus", ff);
         return f;

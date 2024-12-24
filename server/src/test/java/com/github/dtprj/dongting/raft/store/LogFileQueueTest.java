@@ -195,8 +195,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                logFileQueue.submit(list);
-                return waitWriteFinish(null);
+                return Fiber.call(logFileQueue.submit(list), v -> waitWriteFinish(null));
             }
 
             private FrameCallResult waitWriteFinish(Void v) {

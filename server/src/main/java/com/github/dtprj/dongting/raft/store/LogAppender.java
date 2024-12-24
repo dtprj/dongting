@@ -21,10 +21,8 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FiberInterruptException;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
@@ -37,7 +35,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.CRC32C;
 
@@ -61,12 +58,8 @@ class LogAppender {
     long nextPersistIndex = -1;
     long nextPersistPos = -1;
 
-    private final Fiber writeFiber;
-
     private final PerfCallback perfCallback;
     final ChainWriter chainWriter;
-
-    private final FiberChannel<LogItem> taskChannel;
 
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig, ChainWriter chainWriter) {
         this.idxOps = idxOps;
@@ -78,47 +71,27 @@ class LogAppender {
         this.directPool = thread.getDirectPool();
         this.encodeContext = new EncodeContext(thread.getHeapPool());
         this.fileLenMask = logFileQueue.fileLength() - 1;
-        FiberGroup fiberGroup = groupConfig.getFiberGroup();
-        WriteFiberFrame writeFiberFrame = new WriteFiberFrame();
-        this.writeFiber = new Fiber("write-" + groupConfig.getGroupId(), fiberGroup, writeFiberFrame);
         this.perfCallback = groupConfig.getPerfCallback();
-        this.taskChannel = fiberGroup.newChannel();
     }
 
     public void startFiber() {
-        writeFiber.start();
         chainWriter.start();
     }
 
     public FiberFuture<Void> close() {
-        writeFiber.interrupt();
         FiberFuture<Void> closeFuture = groupConfig.getFiberGroup().newFuture("appenderClose");
-        FiberFuture<Void> f1;
-        if (writeFiber.isStarted()) {
-            f1 = writeFiber.join();
-        } else {
-            f1 = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
-        }
-        f1.registerCallback((v, ex) -> {
-            if (ex != null) {
-                closeFuture.completeExceptionally(ex);
+        chainWriter.stop().registerCallback((v2, ex2) -> {
+            if (ex2 != null) {
+                closeFuture.completeExceptionally(ex2);
             } else {
-                chainWriter.stop().registerCallback((v2, ex2) -> {
-                    if (ex2 != null) {
-                        closeFuture.completeExceptionally(ex2);
-                    } else {
-                        closeFuture.complete(null);
-                    }
-                });
+                closeFuture.complete(null);
             }
         });
         return closeFuture;
     }
 
-    public void submit(List<LogItem> taskList) {
-        for (int len = taskList.size(), i = 0; i < len; i++) {
-            taskChannel.offer(taskList.get(i));
-        }
+    public FiberFrame<Void> submit(List<LogItem> taskList) {
+        return new WriteFiberFrame(taskList);
     }
 
     private class WriteFiberFrame extends FiberFrame<Void> {
@@ -128,7 +101,11 @@ class LogAppender {
         private int writeCount;
         private int bytesToWrite;
 
-        private final ArrayList<LogItem> taskList = new ArrayList<>(64);
+        private final List<LogItem> taskList;
+
+        private WriteFiberFrame(List<LogItem> taskList) {
+            this.taskList = taskList;
+        }
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -140,26 +117,19 @@ class LogAppender {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (logFileQueue.isClosed()) {
+            if (logFileQueue.isClosed() || taskList.isEmpty()) {
                 return Fiber.frameReturn();
             }
             if (idxOps.needWaitFlush()) {
                 long start = perfCallback.takeTime(PerfConsts.RAFT_D_IDX_BLOCK);
                 return Fiber.call(idxOps.waitFlush(), v -> afterIdxReady(start));
             }
-            return taskChannel.takeAll(taskList, this::afterTakeAll);
+            return ensureWritePosReady(0);
         }
 
         private FrameCallResult afterIdxReady(long perfStartTime) {
             perfCallback.fireTime(PerfConsts.RAFT_D_IDX_BLOCK, perfStartTime);
             return Fiber.resume(null, this);
-        }
-
-        private FrameCallResult afterTakeAll(Void unused) {
-            if (taskList.isEmpty()) {
-                return Fiber.resume(null, this);
-            }
-            return ensureWritePosReady(0);
         }
 
         private FrameCallResult ensureWritePosReady(int taskIndex) {
@@ -243,11 +213,10 @@ class LogAppender {
             }
             perfCallback.fireTime(PerfConsts.RAFT_D_ENCODE_AND_WRITE, roundStartTime);
 
-            // continue loop
             if (taskIndex + count == taskList.size()) {
-                taskList.clear();
-                return Fiber.resume(null, this);
+                return Fiber.frameReturn();
             } else {
+                // continue loop
                 int newTaskIndex = taskIndex + count;
                 return Fiber.resume(null, v -> ensureWritePosReady(newTaskIndex));
             }

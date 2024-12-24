@@ -89,13 +89,13 @@ public abstract class RaftGroup {
      * ADMIN API. This method is idempotent. This method should be called on the leader; otherwise, it will throw a NotLeaderException.
      */
     @SuppressWarnings("unused")
-    public abstract CompletableFuture<Void> leaderAbortJointConsensus();
+    public abstract CompletableFuture<Long> leaderAbortJointConsensus();
 
     /**
      * ADMIN API. This method is idempotent. This method should be called on the leader; otherwise, it will throw a NotLeaderException.
      */
     @SuppressWarnings("unused")
-    public abstract CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex);
+    public abstract CompletableFuture<Long> leaderCommitJointConsensus(long prepareIndex);
 
     public abstract boolean isLeader();
 
