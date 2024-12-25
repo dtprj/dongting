@@ -43,7 +43,7 @@ public class FiberCondition extends WaitSource {
 
     public void signal(Fiber targetFiber) {
         Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-        signal0(targetFiber, true);
+        signal0(targetFiber);
     }
 
     public void signalAll() {

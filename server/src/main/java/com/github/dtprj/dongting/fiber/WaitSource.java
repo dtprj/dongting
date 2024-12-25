@@ -93,7 +93,7 @@ abstract class WaitSource {
         return result;
     }
 
-    void signal0(Fiber f, boolean addFirst) {
+    void signal0(Fiber f) {
         if (fiberGroup.finished) {
             return;
         }
@@ -101,7 +101,7 @@ abstract class WaitSource {
             return;
         }
         removeWaiter(f);
-        signalFiber(f, addFirst);
+        signalFiber(f, true);
     }
 
     void signal0(boolean addFirst) {
@@ -129,8 +129,14 @@ abstract class WaitSource {
             return;
         }
         Fiber f;
-        while ((f = popTailWaiter()) != null) {
-            signalFiber(f, addFirst);
+        if (addFirst) {
+            while ((f = popTailWaiter()) != null) {
+                signalFiber(f, true);
+            }
+        } else {
+            while ((f = popHeadWaiter()) != null) {
+                signalFiber(f, false);
+            }
         }
     }
 
