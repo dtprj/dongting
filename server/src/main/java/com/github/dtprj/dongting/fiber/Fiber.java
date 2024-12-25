@@ -29,9 +29,6 @@ public class Fiber extends WaitSource {
     long scheduleTimeoutMillis;
     long scheduleNanoTime;
 
-    Fiber previousWaiter;
-    Fiber nextWaiter;
-
     boolean started;
     boolean ready;
     boolean finished;

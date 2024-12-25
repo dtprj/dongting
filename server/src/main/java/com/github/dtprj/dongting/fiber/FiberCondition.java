@@ -54,7 +54,8 @@ public class FiberCondition extends WaitSource {
         if (targetFiber.source != this) {
             return;
         }
-        removeWaiter(targetFiber);
+        // assert waiters not null
+        waiters.remove(targetFiber);
         signalFiber(targetFiber, true);
     }
 

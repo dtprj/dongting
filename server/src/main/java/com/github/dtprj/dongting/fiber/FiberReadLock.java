@@ -85,9 +85,7 @@ public class FiberReadLock extends Lock {
         // check fiber held this read lock?
         heldCount--;
         if (heldCount <= 0) {
-            if (writeLock.firstWaiter != null) {
-                writeLock.signal0(true);
-            }
+            writeLock.signal0(true);
         }
     }
 }

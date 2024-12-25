@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.net.PerfConsts;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -224,7 +225,8 @@ public class Dispatcher extends AbstractLifeCircle {
                 continue;
             }
             if (f.source != null) {
-                f.source.removeWaiter(f);
+                // assert waiters must not null, because source is not null
+                f.source.waiters.remove(f);
                 f.source.prepare(f, true);
             }
             f.cleanSchedule();
@@ -424,13 +426,20 @@ public class Dispatcher extends AbstractLifeCircle {
     static FrameCallResult awaitOn(Fiber fiber, WaitSource c, long millis, FrameCall resumePoint) {
         checkInterrupt(fiber);
         checkReentry(fiber);
+        return awaitOn0(fiber, c, millis, resumePoint);
+    }
+
+    private static FrameCallResult awaitOn0(Fiber fiber, WaitSource c, long millis, FrameCall resumePoint) {
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
         fiber.source = c;
         fiber.scheduleTimeoutMillis = millis;
         fiber.ready = false;
         fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
-        c.addWaiter(fiber);
+        if (c.waiters == null) {
+            c.waiters = new LinkedList<>();
+        }
+        c.waiters.addLast(fiber);
         return FrameCallResult.SUSPEND;
     }
 
@@ -455,15 +464,9 @@ public class Dispatcher extends AbstractLifeCircle {
             FiberFrame currentFrame = fiber.stackTop;
             currentFrame.resumePoint = resumePoint;
             fiber.ready = false;
-            return;
+        } else {
+            awaitOn0(fiber, g.shouldStopCondition, millis, resumePoint);
         }
-        FiberFrame currentFrame = fiber.stackTop;
-        currentFrame.resumePoint = resumePoint;
-        fiber.scheduleTimeoutMillis = millis;
-        fiber.source = g.shouldStopCondition;
-        g.shouldStopCondition.addWaiter(fiber);
-        fiber.ready = false;
-        fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
     }
 
     static void yield(FrameCall<Void> resumePoint) {
@@ -534,7 +537,8 @@ public class Dispatcher extends AbstractLifeCircle {
             String str;
             if (fiber.source != null) {
                 WaitSource s = fiber.source;
-                s.removeWaiter(fiber);
+                // assert waiters is not null
+                s.waiters.remove(fiber);
                 fiber.source = null;
                 str = s.toString();
             } else {

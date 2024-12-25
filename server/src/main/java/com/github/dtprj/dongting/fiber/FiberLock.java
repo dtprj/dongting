@@ -103,9 +103,7 @@ public class FiberLock extends Lock {
             heldCount--;
             if (heldCount <= 0) {
                 owner = null;
-                if (firstWaiter != null) {
-                    signal0(true);
-                } else if (readLock.firstWaiter != null) {
+                if (!signal0(true)) {
                     readLock.signalAll0(true);
                 }
             }
