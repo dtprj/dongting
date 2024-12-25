@@ -226,7 +226,6 @@ public class Dispatcher extends AbstractLifeCircle {
             if (f.source != null) {
                 f.source.removeWaiter(f);
                 f.source.prepare(f, true);
-                f.source = null;
             }
             f.cleanSchedule();
             f.fiberGroup.tryMakeFiberReady(f, false);

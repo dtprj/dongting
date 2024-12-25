@@ -42,6 +42,7 @@ public class FiberLock extends Lock {
             fiber.inputObj = null;
         }
         updateOwnerAndHeldCount(fiber);
+        fiber.source = null;
     }
 
     private void updateOwnerAndHeldCount(Fiber fiber) {

@@ -31,6 +31,11 @@ public class FiberCondition extends WaitSource {
         return "Condition:" + name + "@" + Integer.toHexString(hashCode());
     }
 
+    @Override
+    protected void prepare(Fiber waitFiber, boolean timeout) {
+        waitFiber.source = null;
+    }
+
     public void signal() {
         Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         signal0(true);
@@ -43,7 +48,14 @@ public class FiberCondition extends WaitSource {
 
     public void signal(Fiber targetFiber) {
         Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-        signal0(targetFiber);
+        if (fiberGroup.finished) {
+            return;
+        }
+        if (targetFiber.source != this) {
+            return;
+        }
+        removeWaiter(targetFiber);
+        signalFiber(targetFiber, true);
     }
 
     public void signalAll() {

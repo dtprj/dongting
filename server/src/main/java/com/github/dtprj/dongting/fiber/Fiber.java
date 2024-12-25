@@ -145,6 +145,7 @@ public class Fiber extends WaitSource {
         } else {
             waitFiber.inputObj = null;
         }
+        waitFiber.source = null;
     }
 
     public FrameCallResult join(FrameCall<Void> resumePoint) {

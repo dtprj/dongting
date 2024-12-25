@@ -60,6 +60,7 @@ public class FiberFuture<T> extends WaitSource {
                 currentFiber.inputObj = execResult;
             }
         }
+        currentFiber.source = null;
     }
 
     public T getResult() {

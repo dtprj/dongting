@@ -42,6 +42,7 @@ public class FiberReadLock extends Lock {
             fiber.inputObj = null;
         }
         heldCount++;
+        fiber.source = null;
     }
 
     @Override

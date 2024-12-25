@@ -29,8 +29,7 @@ abstract class WaitSource {
         this.name = name;
     }
 
-    protected void prepare(Fiber waitFiber, boolean timeout){
-    }
+    protected abstract void prepare(Fiber waitFiber, boolean timeout);
 
 
     void addWaiter(Fiber f) {
@@ -93,17 +92,6 @@ abstract class WaitSource {
         return result;
     }
 
-    void signal0(Fiber f) {
-        if (fiberGroup.finished) {
-            return;
-        }
-        if (f.source != this) {
-            return;
-        }
-        removeWaiter(f);
-        signalFiber(f, true);
-    }
-
     void signal0(boolean addFirst) {
         if (fiberGroup.finished) {
             return;
@@ -114,12 +102,11 @@ abstract class WaitSource {
         }
     }
 
-    private void signalFiber(Fiber f, boolean addFirst) {
+    void signalFiber(Fiber f, boolean addFirst) {
         if (f.scheduleTimeoutMillis > 0) {
             fiberGroup.dispatcher.removeFromScheduleQueue(f);
         }
         prepare(f, false);
-        f.source = null;
         f.cleanSchedule();
         fiberGroup.tryMakeFiberReady(f, addFirst);
     }
