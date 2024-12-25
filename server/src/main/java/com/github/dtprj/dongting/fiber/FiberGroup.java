@@ -199,11 +199,10 @@ public class FiberGroup {
         }
         if (!f.ready) {
             f.ready = true;
-            if (f.round != dispatcher.round) {
-                f.round = dispatcher.round;
-                f.signalCountInCurrentRound = f.signalCountInEachRound;
+            if ((f.roundInfo >>> 16) != dispatcher.round) {
+                f.roundInfo = (dispatcher.round << 16) | f.signalCountInEachRound;
             }
-            if (f.signalCountInCurrentRound <= 0) {
+            if ((f.roundInfo & 0xFFFF) == 0) {
                 if (addFirst) {
                     readyFibersNextRound1.addLast(f);
                 } else {
@@ -215,8 +214,8 @@ public class FiberGroup {
                 } else {
                     readyFibers.addLast(f);
                 }
+                f.roundInfo--;
             }
-            f.signalCountInCurrentRound--;
             makeGroupReady();
         }
     }
