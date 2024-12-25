@@ -26,8 +26,6 @@ public class Fiber extends WaitSource {
     private static final DtLog log = DtLogs.getLogger(Fiber.class);
     protected final boolean daemon;
 
-    long id;
-
     long scheduleTimeoutMillis;
     long scheduleNanoTime;
 

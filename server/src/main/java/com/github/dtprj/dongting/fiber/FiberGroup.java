@@ -17,13 +17,13 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.IndexedQueue;
-import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.IdentityHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -42,8 +42,8 @@ public class FiberGroup {
     final IndexedQueue<Fiber> readyFibers = new IndexedQueue<>(64);
     final IndexedQueue<Fiber> readyFibersNextRound1 = new IndexedQueue<>(16);
     final IndexedQueue<Fiber> readyFibersNextRound2 = new IndexedQueue<>(16);
-    private final LongObjMap<Fiber> normalFibers = new LongObjMap<>(32, 0.6f);
-    private final LongObjMap<Fiber> daemonFibers = new LongObjMap<>(32, 0.6f);
+    private final IdentityHashMap<Fiber, Fiber> normalFibers = new IdentityHashMap<>(128);
+    private final IdentityHashMap<Fiber, Fiber> daemonFibers = new IdentityHashMap<>(128);
 
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean shouldStop = false;
@@ -59,8 +59,6 @@ public class FiberGroup {
             throw new Error(e);
         }
     }
-
-    private long nextId;
 
     boolean finished;
     boolean ready;
@@ -166,12 +164,10 @@ public class FiberGroup {
             return;
         }
         f.started = true;
-        long id = nextId++;
-        f.id = id;
         if (f.daemon) {
-            daemonFibers.put(id, f);
+            daemonFibers.put(f, f);
         } else {
-            normalFibers.put(id, f);
+            normalFibers.put(f, f);
         }
         tryMakeFiberReady(f, addFirst);
     }
@@ -179,9 +175,9 @@ public class FiberGroup {
     void removeFiber(Fiber f) {
         boolean removed;
         if (f.daemon) {
-            removed = daemonFibers.remove(f.id) != null;
+            removed = daemonFibers.remove(f) != null;
         } else {
-            removed = normalFibers.remove(f.id) != null;
+            removed = normalFibers.remove(f) != null;
         }
         if (!removed) {
             BugLog.getLog().error("fiber is not in set: {}", f.getName());
@@ -231,7 +227,7 @@ public class FiberGroup {
     void updateFinishStatus() {
         boolean ss = (boolean) SHOULD_STOP.get(this);
         if (ss && !finished) {
-            if (normalFibers.size() > 0) {
+            if (!normalFibers.isEmpty()) {
                 return;
             }
             if (sysChannel.queue.size() > 0) {
