@@ -36,6 +36,7 @@ public class Fiber extends WaitSource {
     boolean interrupted;
 
     WaitSource source;
+    FiberCondition[] sourceConditions;
 
     @SuppressWarnings("rawtypes")
     FiberFrame stackTop;

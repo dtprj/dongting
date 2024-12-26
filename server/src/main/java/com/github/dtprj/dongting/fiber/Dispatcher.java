@@ -430,8 +430,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private static FrameCallResult awaitOn0(Fiber fiber, WaitSource c, long millis, FrameCall resumePoint) {
-        FiberFrame currentFrame = fiber.stackTop;
-        currentFrame.resumePoint = resumePoint;
+        fiber.stackTop.resumePoint = resumePoint;
         fiber.source = c;
         fiber.scheduleTimeoutMillis = millis;
         fiber.ready = false;
@@ -440,6 +439,25 @@ public class Dispatcher extends AbstractLifeCircle {
             c.waiters = new LinkedList<>();
         }
         c.waiters.addLast(fiber);
+        return FrameCallResult.SUSPEND;
+    }
+
+    static FrameCallResult awaitOn(FiberCondition[] cs, long millis, FrameCall resumePoint) {
+        Fiber fiber = getCurrentFiberAndCheck(cs[0].fiberGroup);
+        checkInterrupt(fiber);
+        checkReentry(fiber);
+        fiber.stackTop.resumePoint = resumePoint;
+        fiber.source = cs[0];
+        fiber.sourceConditions = cs;
+        fiber.scheduleTimeoutMillis = millis;
+        fiber.ready = false;
+        fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
+        for (FiberCondition c : cs) {
+            if (c.waiters == null) {
+                c.waiters = new LinkedList<>();
+            }
+            c.waiters.addLast(fiber);
+        }
         return FrameCallResult.SUSPEND;
     }
 
@@ -540,7 +558,16 @@ public class Dispatcher extends AbstractLifeCircle {
                 // assert waiters is not null
                 s.waiters.remove(fiber);
                 fiber.source = null;
-                str = s.toString();
+                if (fiber.sourceConditions != null) {
+                    for (FiberCondition c : fiber.sourceConditions) {
+                        // assert waiters is not null
+                        c.waiters.remove(fiber);
+                    }
+                    str = s + " and other " + (fiber.sourceConditions.length - 1) + " conditions";
+                    fiber.sourceConditions = null;
+                } else {
+                    str = s.toString();
+                }
             } else {
                 str = "sleep";
             }

@@ -33,7 +33,16 @@ public class FiberCondition extends WaitSource {
 
     @Override
     protected void prepare(Fiber waitFiber, boolean timeout) {
+        FiberCondition[] cs = waitFiber.sourceConditions;
+        if (cs != null) {
+            for (FiberCondition c : cs) {
+                if (c != this) {
+                    c.waiters.remove(waitFiber);
+                }
+            }
+        }
         waitFiber.source = null;
+        waitFiber.sourceConditions = null;
     }
 
     public void signal() {
@@ -71,5 +80,19 @@ public class FiberCondition extends WaitSource {
     public FrameCallResult await(long millis, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
         return Dispatcher.awaitOn(this, millis, resumePoint);
+    }
+
+    public FrameCallResult await(FiberCondition another, FrameCall<Void> resumePoint) {
+        return await(-1, another, resumePoint);
+    }
+
+    public FrameCallResult await(long millis, FiberCondition another, FrameCall<Void> resumePoint) {
+        if (another == this) {
+            throw new IllegalArgumentException("same condition");
+        }
+        if (another.fiberGroup != this.fiberGroup) {
+            throw new IllegalArgumentException("not in same group");
+        }
+        return Dispatcher.awaitOn(new FiberCondition[]{this, another}, millis, resumePoint);
     }
 }
