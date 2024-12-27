@@ -52,7 +52,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
     private final ArrayList<FiberGroup> finishedGroups = new ArrayList<>();
     final IndexedQueue<FiberGroup> readyGroups = new IndexedQueue<>(8);
-    private final PriorityQueue<Fiber> scheduleQueue = new PriorityQueue<>(this::compareFiberByScheduleTime);
+    final PriorityQueue<Fiber> scheduleQueue = new PriorityQueue<>(this::compareFiberByScheduleTime);
 
     final Timestamp ts = new Timestamp();
 

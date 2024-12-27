@@ -19,9 +19,12 @@ import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -80,7 +83,7 @@ public class ConditionTest extends AbstractFiberTest {
             }
         });
         fiberGroup.fireFiber(f);
-        Assertions.assertTrue(latch.await(1 , TimeUnit.SECONDS));
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
         Fiber f2 = new Fiber("f2", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -121,7 +124,7 @@ public class ConditionTest extends AbstractFiberTest {
             }
         });
         fiberGroup.fireFiber(f);
-        Assertions.assertTrue(latch.await(1 , TimeUnit.SECONDS));
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
         Fiber f2 = new Fiber("f2", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -164,11 +167,11 @@ public class ConditionTest extends AbstractFiberTest {
         CountDownLatch finishLatch = new CountDownLatch(2);
         FiberCondition c = fiberGroup.newCondition("testCondition");
 
-        Fiber f1 = new Fiber("f1", fiberGroup,new F(startLatch, finishLatch, c));
-        Fiber f2 = new Fiber("f2", fiberGroup,new F(startLatch, finishLatch, c));
+        Fiber f1 = new Fiber("f1", fiberGroup, new F(startLatch, finishLatch, c));
+        Fiber f2 = new Fiber("f2", fiberGroup, new F(startLatch, finishLatch, c));
         fiberGroup.fireFiber(f1);
         fiberGroup.fireFiber(f2);
-        Assertions.assertTrue(startLatch.await(1, TimeUnit.SECONDS));
+        assertTrue(startLatch.await(1, TimeUnit.SECONDS));
         Fiber f3 = new Fiber("f3", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -178,6 +181,80 @@ public class ConditionTest extends AbstractFiberTest {
         });
         fiberGroup.fireFiber(f3);
 
-        Assertions.assertTrue(finishLatch.await(1, TimeUnit.SECONDS));
+        assertTrue(finishLatch.await(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    public void testWaitMultiConditions() throws Exception {
+        FiberCondition c1 = fiberGroup.newCondition("c1");
+        FiberCondition c2 = fiberGroup.newCondition("c2");
+        FiberCondition c3 = fiberGroup.newCondition("c3");
+
+        CompletableFuture<Void> f1 = new CompletableFuture<>();
+        CompletableFuture<Void> f2 = new CompletableFuture<>();
+        CompletableFuture<Void> f3 = new CompletableFuture<>();
+        CompletableFuture<Void> f4 = new CompletableFuture<>();
+        Fiber fiber = new Fiber("waiter", fiberGroup, new FiberFrame<Void>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return c1.await(c2, this::resume1);
+            }
+
+            private FrameCallResult resume1(Void v) {
+                f1.complete(null);
+                return c3.await(vv -> c1.await(c2, this::resume2));
+            }
+
+            private FrameCallResult resume2(Void v) {
+                f2.complete(null);
+                return c3.await(vv -> c1.await(1000, c2, this::resume3));
+            }
+
+            private FrameCallResult resume3(Void v) {
+                f3.complete(null);
+                return c3.await(vv -> c1.await(1000, c2, this::resume4));
+            }
+
+            private FrameCallResult resume4(Void v) {
+                f4.complete(null);
+                return Fiber.frameReturn();
+            }
+        });
+        fiberGroup.fireFiber(fiber);
+        fireSignal(c1);
+        check(f1, c1, c2, c3, fiber);
+        fireSignal(c2);
+        check(f2, c1, c2, c3, fiber);
+        fireSignal(c1);
+        check(f3, c1, c2, c3, fiber);
+        fireSignal(c2);
+        check(f4, c1, c2, c3, fiber);
+    }
+
+    private void fireSignal(FiberCondition c) {
+        fiberGroup.fireFiber("fire", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                c.signal();
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    private void check(CompletableFuture<Void> f, FiberCondition c1, FiberCondition c2,
+                       FiberCondition c3, Fiber fiber) throws Exception {
+        f.get(3, TimeUnit.SECONDS);
+        doInFiber(() -> {
+            assertTrue(c1.waiters.isEmpty());
+            assertTrue(c2.waiters.isEmpty());
+            if (fiber.isFinished()) {
+                assertNull(fiber.source);
+            } else {
+                assertSame(c3, fiber.source);
+            }
+            assertNull(fiber.sourceConditions);
+            assertFalse(dispatcher.scheduleQueue.contains(fiber));
+            c3.signal();
+        });
     }
 }
