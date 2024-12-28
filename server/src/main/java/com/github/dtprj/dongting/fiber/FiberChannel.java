@@ -79,8 +79,8 @@ public class FiberChannel<T> {
     /**
      * take from channel, may invoke resumePoint with null value.
      */
-    public FrameCallResult take(boolean returnOnStop, FrameCall<T> resumePoint) {
-        return take(-1, returnOnStop, resumePoint);
+    public FrameCallResult take(boolean returnOnShouldStop, FrameCall<T> resumePoint) {
+        return take(-1, returnOnShouldStop, resumePoint);
     }
 
     /**
@@ -101,7 +101,7 @@ public class FiberChannel<T> {
     public FrameCallResult take(long millis, boolean returnOnShouldStop, FrameCall<T> resumePoint) {
         groupOfConsumer.checkGroup();
         T data = queue.removeFirst();
-        if (data != null || returnOnShouldStop) {
+        if (data != null || (returnOnShouldStop && groupOfConsumer.isShouldStopPlain())) {
             return Fiber.resume(data, resumePoint);
         } else {
             if (returnOnShouldStop) {
@@ -129,8 +129,8 @@ public class FiberChannel<T> {
     /**
      * take all elements from channel into given collection, may invoke resumePoint with empty collection.
      */
-    public FrameCallResult takeAll(Collection<T> c, boolean returnOnStop, FrameCall<Void> resumePoint) {
-        return takeAll(c, -1, returnOnStop, resumePoint);
+    public FrameCallResult takeAll(Collection<T> c, boolean returnOnShouldStop, FrameCall<Void> resumePoint) {
+        return takeAll(c, -1, returnOnShouldStop, resumePoint);
     }
 
     /**
@@ -150,7 +150,7 @@ public class FiberChannel<T> {
      */
     public FrameCallResult takeAll(Collection<T> c, long millis, boolean returnOnShouldStop, FrameCall<Void> resumePoint) {
         groupOfConsumer.checkGroup();
-        if (queue.size() > 0 || returnOnShouldStop) {
+        if (queue.size() > 0 || (returnOnShouldStop && groupOfConsumer.isShouldStopPlain())) {
             return afterTakeAll(c, resumePoint);
         } else {
             if (returnOnShouldStop) {
