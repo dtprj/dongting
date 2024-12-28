@@ -76,7 +76,7 @@ public class LinearTaskRunner {
     public void init(FiberChannel<RaftTask> taskChannel) {
         this.taskChannel = taskChannel;
         Fiber f = new Fiber("linearTaskRunner", groupConfig.getFiberGroup(),
-                new RunnerFrame(), true, 50);
+                new RunnerFrame(), false, 50);
         f.start();
     }
 
@@ -92,10 +92,19 @@ public class LinearTaskRunner {
         @Override
         public FrameCallResult execute(Void input) {
             list.clear();
-            return taskChannel.takeAll(list, serverConfig.getHeartbeatInterval(), this::afterTakeAll);
+            return taskChannel.takeAll(list, serverConfig.getHeartbeatInterval(),
+                    true, this::afterTakeAll);
         }
 
         private FrameCallResult afterTakeAll(Void unused) {
+            if (isGroupShouldStopPlain()) {
+                for (RaftTask rt : list) {
+                    RaftUtil.release(rt.getInput());
+                    rt.callFail(new RaftException("raft group is stopping"));
+                }
+                // fiber exit
+                return Fiber.frameReturn();
+            }
             if (raftStatus.getTransferLeaderCondition() != null) {
                 FiberFrame<Void> f = new FiberFrame<>() {
                     @Override
@@ -108,14 +117,7 @@ public class LinearTaskRunner {
                 return Fiber.call(new HandlerFrame<>(f), p -> afterTakeAll(null));
             }
             if (!list.isEmpty()) {
-                if (isGroupShouldStopPlain()) {
-                    for(RaftTask rt: list) {
-                        RaftUtil.release(rt.getInput());
-                        rt.callFail(new RaftException("raft group is stopping"));
-                    }
-                } else {
-                    return Fiber.call(raftExec(list), this);
-                }
+                return Fiber.call(raftExec(list), this);
             } else if (raftStatus.getRole() == RaftRole.leader) {
                 return Fiber.call(sendHeartBeat(), this);
             }
@@ -128,7 +130,7 @@ public class LinearTaskRunner {
         int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
         RaftTask t = new RaftTask(raftStatus.getTs(), type, input, callback);
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
-        if (!taskChannel.fireOffer(t)) {
+        if (!taskChannel.fireOffer(t, true)) {
             RaftUtil.release(input);
             t.callFail(new RaftException("submit raft task failed"));
         }
