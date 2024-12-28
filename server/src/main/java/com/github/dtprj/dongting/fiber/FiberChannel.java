@@ -43,12 +43,18 @@ public class FiberChannel<T> {
     }
 
     public boolean fireOffer(T data) {
-        return dispatcherOfConsumer.doInDispatcherThread(new FiberQueueTask(groupOfConsumer) {
+        return fireOffer(data, false);
+    }
+
+    public boolean fireOffer(T data, boolean failIfGroupShouldStop) {
+        FiberQueueTask t = new FiberQueueTask(groupOfConsumer) {
             @Override
             protected void run() {
                 offer0(data);
             }
-        });
+        };
+        t.failIfGroupShouldStop = failIfGroupShouldStop;
+        return dispatcherOfConsumer.doInDispatcherThread(t);
     }
 
     public void offer(T data) {

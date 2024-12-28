@@ -20,6 +20,8 @@ package com.github.dtprj.dongting.fiber;
  */
 abstract class FiberQueueTask {
 
+    boolean failIfGroupShouldStop;
+
     final FiberGroup ownerGroup;
 
     FiberQueueTask next;

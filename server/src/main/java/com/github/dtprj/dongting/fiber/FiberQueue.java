@@ -55,9 +55,15 @@ class FiberQueue {
             if (task.next != null) {
                 throw new FiberException("FiberQueueTask is already in queue");
             }
-            if (task.ownerGroup != null && task.ownerGroup.finished) {
-                log.warn("task is not accepted because its group is finished: {}", task);
-                return false;
+            FiberGroup g = task.ownerGroup;
+            if (g != null) {
+                if (g.finished) {
+                    log.warn("task is not accepted because its group is finished: {}", task);
+                    return false;
+                } else if (task.failIfGroupShouldStop && g.isShouldStopPlain()) {
+                    log.warn("task is not accepted because its group is shouldStop: {}", task);
+                    return false;
+                }
             }
             if (head == TAIL) {
                 head = tail = task;

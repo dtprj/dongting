@@ -625,13 +625,18 @@ public class Dispatcher extends AbstractLifeCircle {
 
     boolean doInDispatcherThread(FiberQueueTask r) {
         if (Thread.currentThread() == thread) {
-            if (r.ownerGroup != null && r.ownerGroup.finished) {
-                log.warn("task is not accepted because its group is finished: {}", r);
-                return false;
-            } else {
-                r.run();
-                return true;
+            FiberGroup g = thread.currentGroup;
+            if (g != null) {
+                if (g.finished) {
+                    log.warn("task is not accepted because its group is finished: {}", r);
+                    return false;
+                } else if (r.failIfGroupShouldStop && g.isShouldStopPlain()) {
+                    log.warn("task is not accepted because its group is shouldStop: {}", r);
+                    return false;
+                }
             }
+            r.run();
+            return true;
         } else {
             return shareQueue.offer(r);
         }
