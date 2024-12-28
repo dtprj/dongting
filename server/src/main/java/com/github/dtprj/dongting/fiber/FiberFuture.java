@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -171,18 +170,10 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FrameCallResult await(FrameCall<T> resumePoint) {
-        if (done) {
-            if (execEx == null) {
-                return Fiber.resume(execResult, resumePoint);
-            } else {
-                return Fiber.resumeEx(execEx);
-            }
-        }
-        return Dispatcher.awaitOn(this, -1, resumePoint);
+        return await(-1, resumePoint);
     }
 
     public FrameCallResult await(long millis, FrameCall<T> resumePoint) {
-        DtUtil.checkPositive(millis, "millis");
         if (done) {
             if (execEx == null) {
                 return Fiber.resume(execResult, resumePoint);

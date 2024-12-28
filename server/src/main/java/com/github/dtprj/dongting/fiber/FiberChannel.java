@@ -29,6 +29,7 @@ public class FiberChannel<T> {
     private final Dispatcher dispatcherOfConsumer;
     final IndexedQueue<T> queue;
     private final FiberCondition notEmptyCondition;
+    private FiberCondition[] notEmptyAndShouldStop;
 
     FiberChannel(FiberGroup groupOfConsumer) {
         this(groupOfConsumer, 64);
@@ -66,23 +67,44 @@ public class FiberChannel<T> {
      * take from channel, may invoke resumePoint with null value.
      */
     public FrameCallResult take(FrameCall<T> resumePoint) {
-        return take(-1, resumePoint);
+        return take(-1, false, resumePoint);
     }
 
     /**
      * take from channel, may invoke resumePoint with null value.
+     */
+    public FrameCallResult take(boolean returnOnStop, FrameCall<T> resumePoint) {
+        return take(-1, returnOnStop, resumePoint);
+    }
+
+    /**
+     * take from channel, may invoke resumePoint with null value.
+     *
      * @param millis timeout in milliseconds
      */
     public FrameCallResult take(long millis, FrameCall<T> resumePoint) {
+        return take(millis, false, resumePoint);
+    }
+
+    /**
+     * take from channel, may invoke resumePoint with null value.
+     *
+     * @param millis       timeout in milliseconds
+     * @param returnOnShouldStop await should return immediately if group is stopping
+     */
+    public FrameCallResult take(long millis, boolean returnOnShouldStop, FrameCall<T> resumePoint) {
         groupOfConsumer.checkGroup();
         T data = queue.removeFirst();
-        if (data != null) {
+        if (data != null || returnOnShouldStop) {
             return Fiber.resume(data, resumePoint);
         } else {
-            if (millis > 0) {
-                return notEmptyCondition.await(millis, noUseVoid -> afterTake(resumePoint));
+            if (returnOnShouldStop) {
+                if (notEmptyAndShouldStop == null) {
+                    notEmptyAndShouldStop = new FiberCondition[]{notEmptyCondition, groupOfConsumer.getShouldStopCondition()};
+                }
+                return Dispatcher.awaitOn(notEmptyAndShouldStop, millis, noUseVoid -> afterTake(resumePoint));
             } else {
-                return notEmptyCondition.await(noUseVoid -> afterTake(resumePoint));
+                return notEmptyCondition.await(millis, noUseVoid -> afterTake(resumePoint));
             }
         }
     }
@@ -95,22 +117,43 @@ public class FiberChannel<T> {
      * take all elements from channel into given collection, may invoke resumePoint with empty collection.
      */
     public FrameCallResult takeAll(Collection<T> c, FrameCall<Void> resumePoint) {
-        return takeAll(-1, c, resumePoint);
+        return takeAll(c, -1, false, resumePoint);
     }
 
     /**
      * take all elements from channel into given collection, may invoke resumePoint with empty collection.
+     */
+    public FrameCallResult takeAll(Collection<T> c, boolean returnOnStop, FrameCall<Void> resumePoint) {
+        return takeAll(c, -1, returnOnStop, resumePoint);
+    }
+
+    /**
+     * take all elements from channel into given collection, may invoke resumePoint with empty collection.
+     *
      * @param millis timeout in milliseconds
      */
-    public FrameCallResult takeAll(long millis, Collection<T> c, FrameCall<Void> resumePoint) {
+    public FrameCallResult takeAll(Collection<T> c, long millis, FrameCall<Void> resumePoint) {
+        return takeAll(c, millis, false, resumePoint);
+    }
+
+    /**
+     * take all elements from channel into given collection, may invoke resumePoint with empty collection.
+     *
+     * @param millis       timeout in milliseconds
+     * @param returnOnShouldStop await should return immediately if group is stopping
+     */
+    public FrameCallResult takeAll(Collection<T> c, long millis, boolean returnOnShouldStop, FrameCall<Void> resumePoint) {
         groupOfConsumer.checkGroup();
-        if (queue.size() > 0) {
+        if (queue.size() > 0 || returnOnShouldStop) {
             return afterTakeAll(c, resumePoint);
         } else {
-            if (millis > 0) {
-                return notEmptyCondition.await(millis, noUseVoid -> afterTakeAll(c, resumePoint));
+            if (returnOnShouldStop) {
+                if (notEmptyAndShouldStop == null) {
+                    notEmptyAndShouldStop = new FiberCondition[]{notEmptyCondition, groupOfConsumer.getShouldStopCondition()};
+                }
+                return Dispatcher.awaitOn(notEmptyAndShouldStop, millis, noUseVoid -> afterTakeAll(c, resumePoint));
             } else {
-                return notEmptyCondition.await(noUseVoid -> afterTakeAll(c, resumePoint));
+                return notEmptyCondition.await(millis, noUseVoid -> afterTakeAll(c, resumePoint));
             }
         }
     }

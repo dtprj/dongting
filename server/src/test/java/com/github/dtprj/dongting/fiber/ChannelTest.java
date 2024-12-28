@@ -89,7 +89,7 @@ public class ChannelTest extends AbstractFiberTest {
             }
 
             private FrameCallResult resume1(Void v) {
-                return channel.takeAll(1, r2, this::resume2);
+                return channel.takeAll(r2, 1, this::resume2);
             }
 
             private FrameCallResult resume2(Void v) {

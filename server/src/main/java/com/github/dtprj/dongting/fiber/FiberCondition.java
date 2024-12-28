@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.common.DtUtil;
-
 /**
  * @author huangli
  */
@@ -78,7 +76,6 @@ public class FiberCondition extends WaitSource {
     }
 
     public FrameCallResult await(long millis, FrameCall<Void> resumePoint) {
-        DtUtil.checkPositive(millis, "millis");
         return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 
