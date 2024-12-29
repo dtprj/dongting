@@ -317,7 +317,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         @Override
         public FrameCallResult execute(Void input) {
             if (raftStatus.isInstallSnapshot()) {
-                return needFlushCondition.await(1000, this);
+                return processInstallSnapshot();
             }
             long diff = getDiff();
             int flushType;
@@ -357,7 +357,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         private FrameCallResult afterPosReady(boolean suggestForce) {
             if (raftStatus.isInstallSnapshot()) {
-                return needFlushCondition.await(1000, this);
+                return processInstallSnapshot();
             }
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
             if (logFile.shouldDelete()) {
@@ -366,6 +366,14 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             }
             flush(logFile, suggestForce);
             return Fiber.resume(null, this);
+        }
+
+        private FrameCallResult processInstallSnapshot() {
+            if (isGroupShouldStopPlain()) {
+                return Fiber.frameReturn();
+            } else {
+                return needFlushCondition.await(500, this);
+            }
         }
 
         @Override
