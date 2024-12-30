@@ -117,7 +117,7 @@ class LogAppender {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (logFileQueue.isClosed() || taskList.isEmpty()) {
+            if (logFileQueue.isMarkClose() || taskList.isEmpty()) {
                 return Fiber.frameReturn();
             }
             if (idxOps.needWaitFlush()) {
@@ -133,14 +133,14 @@ class LogAppender {
         }
 
         private FrameCallResult ensureWritePosReady(int taskIndex) {
-            if (logFileQueue.isClosed()) {
+            if (logFileQueue.isMarkClose()) {
                 return Fiber.frameReturn();
             }
             return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), v -> afterWritePosReady(taskIndex));
         }
 
         private FrameCallResult afterWritePosReady(int taskIndex) {
-            if (logFileQueue.isClosed()) {
+            if (logFileQueue.isMarkClose()) {
                 return Fiber.frameReturn();
             }
             LogFile lf = logFileQueue.getLogFile(nextPersistPos);

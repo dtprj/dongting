@@ -323,7 +323,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             int flushType;
             if (diff > flushThreshold) {
                 flushType = 0;
-            } else if (closed) {
+            } else if (markClose) {
                 if (diff > 0) {
                     flushType = 1;
                 } else {
@@ -464,7 +464,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     public FiberFuture<Void> close() {
-        closed = true;
+        markClose = true;
         needFlushCondition.signal();
         FiberFuture<Void> closeFuture = groupConfig.getFiberGroup().newFuture("idxClose");
         FiberFuture<Void> f1;

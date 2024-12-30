@@ -215,7 +215,7 @@ class LogFileQueue extends FileQueue {
     }
 
     public FiberFuture<Void> close() {
-        closed = true;
+        markClose = true;
         raftStatus.getLogWriteFinishCondition().signalAll();
         raftStatus.getLogForceFinishCondition().signalAll();
         return logAppender.close().convertWithHandle("closeLogFileQueue", (v, ex) -> {
