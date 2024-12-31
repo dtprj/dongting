@@ -83,6 +83,12 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         raftStatus.getLastLogTerm(), voteReq.getLastLogIndex(), raftStatus.getLastLogIndex());
                 logReceiveInfo = true;
             }
+            if (isGroupShouldStopPlain()) {
+                // RaftSequenceProcessor checked, however the fiber may suspend to for wait write finish,
+                // the stop flag may be changed, so we should re-check it
+                log.warn("raft group is stopping. ignore vote/pre-vote request");
+                return Fiber.frameReturn();
+            }
             if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
                 String msg = (voteReq.isPreVote() ? "pre-vote" : "vote") + " request term greater than local";
                 RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1, msg);

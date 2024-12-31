@@ -176,6 +176,12 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
+        if (isGroupShouldStopPlain()) {
+            // RaftSequenceProcessor checked, however the fiber may suspend to for wait write finish,
+            // the stop flag may be changed, so we should re-check it
+            log.warn("raft group is stopping. ignore {} request", appendType);
+            return Fiber.frameReturn();
+        }
         int remoteTerm = getRemoteTerm();
         int leaderId = getLeaderId();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
