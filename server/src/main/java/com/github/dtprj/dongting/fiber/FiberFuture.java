@@ -251,7 +251,13 @@ public class FiberFuture<T> extends WaitSource {
             if (ex != null) {
                 newFuture.complete0(null, ex);
             } else {
-                newFuture.complete0(converter.apply(r), null);
+                try {
+                    newFuture.complete0(converter.apply(r), null);
+                } catch (Throwable e) {
+                    if (!newFuture.isDone()) {
+                        newFuture.complete0(null, e);
+                    }
+                }
             }
         });
         return newFuture;
@@ -265,9 +271,36 @@ public class FiberFuture<T> extends WaitSource {
         registerCallback((r, ex) -> {
             try {
                 T2 t2 = converter.apply(r, ex);
-                newFuture.complete(t2);
+                newFuture.complete0(t2, null);
             } catch (Throwable newEx) {
-                newFuture.completeExceptionally(newEx);
+                if (!newFuture.isDone()) {
+                    newFuture.complete0(null, newEx);
+                }
+            }
+        });
+        return newFuture;
+    }
+
+    public <T2> FiberFuture<T2> compose(String name, Function<T, FiberFuture<T2>> fn) {
+        FiberFuture<T2> newFuture = new FiberFuture<>(name, fiberGroup);
+        registerCallback((r, ex) -> {
+            if (ex != null) {
+                newFuture.complete0(null, ex);
+            } else {
+                try {
+                    FiberFuture<T2> f2 = fn.apply(r);
+                    f2.registerCallback((r2, ex2) -> {
+                        if (ex2 != null) {
+                            newFuture.complete0(null, ex2);
+                        } else {
+                            newFuture.complete0(r2, null);
+                        }
+                    });
+                } catch (Throwable e) {
+                    if (!newFuture.isDone()) {
+                        newFuture.complete0(null, e);
+                    }
+                }
             }
         });
         return newFuture;
