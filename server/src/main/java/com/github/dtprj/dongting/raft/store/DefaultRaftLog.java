@@ -79,24 +79,28 @@ public class DefaultRaftLog implements RaftLog {
         this(groupConfig, statusManager, raftCodecFactory, DEFAULT_DELETE_INTERVAL_MILLIS);
     }
 
+    private void createFiles(){
+        File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
+
+        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
+                statusManager, groupConfig, idxItemsPerFile);
+        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
+                groupConfig, idxFiles, logFileSize);
+    }
+
     @Override
     public FiberFrame<Pair<Integer, Long>> init() {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
-                File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
-
-                idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
-                        statusManager, groupConfig, idxItemsPerFile);
-                logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
-                        groupConfig, idxFiles, logFileSize);
+                createFiles();
                 logFiles.initQueue();
+                idxFiles.initQueue();
                 RaftUtil.checkStop(fiberGroup);
 
                 if (raftStatus.isInstallSnapshot()) {
-                    idxFiles.initQueue();
-                    idxFiles.setInitialized(true);
-                    logFiles.setInitialized(true);
+                    idxFiles.initialized = true;
+                    logFiles.initialized = true;
                     startQueueDeleteFiber();
                     deleteFrame.requestDeleteAllAndExit = true;
                     deleteFrame.delCond.signal();
@@ -118,17 +122,13 @@ public class DefaultRaftLog implements RaftLog {
 
             private FrameCallResult afterLogRestore(int lastTerm) {
                 RaftUtil.checkStop(fiberGroup);
-                idxFiles.setInitialized(true);
-                logFiles.setInitialized(true);
+                startFibersAndMarkInit();
                 if (idxFiles.getNextIndex() == 1) {
                     setResult(new Pair<>(0, 0L));
                 } else {
                     long lastIndex = idxFiles.getNextIndex() - 1;
                     setResult(new Pair<>(lastTerm, lastIndex));
                 }
-                idxFiles.startQueueAllocFiber();
-                logFiles.startQueueAllocFiber();
-                startQueueDeleteFiber();
                 return Fiber.frameReturn();
             }
 
@@ -138,6 +138,14 @@ public class DefaultRaftLog implements RaftLog {
                 throw ex;
             }
         };
+    }
+
+    private void startFibersAndMarkInit() {
+        idxFiles.startFibers();
+        logFiles.startFibers();
+        idxFiles.initialized = true;
+        logFiles.initialized = true;
+        startQueueDeleteFiber();
     }
 
     private void startQueueDeleteFiber() {
@@ -208,26 +216,20 @@ public class DefaultRaftLog implements RaftLog {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void unused) {
-                if (idxFiles.chainWriter.hasTask()) {
-                    log.info("idx files wait for flush done");
-                    return idxFiles.flushDoneCondition.await(1000, this);
-                }
-                if (logFiles.logAppender.chainWriter.hasTask()) {
-                    log.info("log files wait for flush done");
-                    return raftStatus.getLogForceFinishCondition().await(1000, this);
-                }
-                idxFiles.needAllocCond.signal();
-                logFiles.needAllocCond.signal();
-                if (!idxFiles.queueAllocFiber.isFinished()) {
-                    return idxFiles.queueAllocFiber.join(this);
-                }
-                if (!logFiles.queueAllocFiber.isFinished()) {
-                    return logFiles.queueAllocFiber.join(this);
-                }
-                idxFiles.removeAllCache();
+                FiberFuture<Void> f1 = idxFiles.close();
+                FiberFuture<Void> f2 = logFiles.close();
+                return FiberFuture.allOf("idxAndLogClose", f1 ,f2).await(this::afterIdxAndLogClose);
+            }
+            private FrameCallResult afterIdxAndLogClose(Void unused) {
                 deleteFrame.requestDeleteAllAndExit = true;
                 deleteFrame.delCond.signal();
-                return deleteFrame.getFiber().join(this::justReturn);
+                return deleteFrame.getFiber().join(this::afterDeleteFiberExit);
+            }
+            private FrameCallResult afterDeleteFiberExit(Void unused) {
+                return Fiber.call(idxFiles.forceDeleteAll(), this::afterForceDeleteIdxFiles);
+            }
+            private FrameCallResult afterForceDeleteIdxFiles(Void unused) {
+                return Fiber.call(logFiles.forceDeleteAll(), this::justReturn);
             }
         };
     }
@@ -264,17 +266,19 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) {
-        logFiles.finishInstall(nextLogIndex, nextLogPos);
+        createFiles();
         return new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) {
-                idxFiles.startQueueAllocFiber();
-                logFiles.startQueueAllocFiber();
-                startQueueDeleteFiber();
-                return Fiber.call(idxFiles.finishInstall(nextLogIndex), this::afterIdxFinishInstall);
+            public FrameCallResult execute(Void input) throws Exception {
+                return Fiber.call(idxFiles.initForInstall(nextLogIndex), this::afterIdxFinishInstall);
             }
 
-            private FrameCallResult afterIdxFinishInstall(Void unused) {
+            private FrameCallResult afterIdxFinishInstall(Void unused) throws Exception {
+                return Fiber.call(logFiles.finishInstall(nextLogIndex, nextLogPos), this::afterLogFinishInstall);
+            }
+
+            private FrameCallResult afterLogFinishInstall(Void unused) {
+                startFibersAndMarkInit();
                 statusManager.getProperties().put(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
                 statusManager.getProperties().put(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
                 statusManager.persistAsync(true);

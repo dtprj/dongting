@@ -99,7 +99,7 @@ class LogFileQueue extends FileQueue {
         Restorer restorer = new Restorer(groupConfig, idxOps, this, restoreIndex, restoreStartPos, firstValidPos);
         if (queue.size() == 0) {
             tryAllocateAsync(0);
-            initLogAppender(1, 0);
+            logAppender.setNext(1, 0);
             return FiberFrame.completedFrame(0);
         }
         if (restoreStartPos < queue.get(0).startPos) {
@@ -156,7 +156,7 @@ class LogFileQueue extends FileQueue {
                 log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}, totalRead={}",
                         restorer.previousTerm, restorer.previousIndex, writePos,
                         queue.get(queue.size() - 1).getFile().getPath(), restorer.restoreCount);
-                initLogAppender(restorer.previousIndex + 1, writePos);
+                logAppender.setNext(restorer.previousIndex + 1, writePos);
                 setResult(restorer.previousTerm);
                 return Fiber.frameReturn();
             }
@@ -169,9 +169,9 @@ class LogFileQueue extends FileQueue {
         };
     }
 
-    private void initLogAppender(long nextPersistIndex, long nextPersistPos) {
-        logAppender.setNext(nextPersistIndex, nextPersistPos);
+    public void startFibers(){
         logAppender.startFiber();
+        startQueueAllocFiber();
     }
 
     public long nextFilePos(long absolutePos) {
@@ -218,13 +218,8 @@ class LogFileQueue extends FileQueue {
         markClose = true;
         raftStatus.getLogWriteFinishCondition().signalAll();
         raftStatus.getLogForceFinishCondition().signalAll();
-        return logAppender.close().convertWithHandle("closeLogFileQueue", (v, ex) -> {
-            if (ex != null) {
-                log.error("close log file queue failed", ex);
-            }
-            closeChannel();
-            return null;
-        });
+        FiberFuture<Void> f = logAppender.close();
+        return f.compose("logAllocStop", v -> stopFileQueue());
     }
 
     public void truncateTail(long index, long pos) {
@@ -285,11 +280,14 @@ class LogFileQueue extends FileQueue {
         };
     }
 
-    public void finishInstall(long nextLogIndex, long nextLogPos) {
+    public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) throws Exception {
         long start = startPosOfFile(nextLogPos);
         queueStartPosition = start;
         queueEndPosition = start;
         logAppender.setNext(nextLogIndex, nextLogPos);
+        initQueue();
+        startFibers();
+        return FiberFrame.voidCompletedFrame();
     }
 
 }

@@ -149,7 +149,7 @@ public class FileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                fileQueue.setInitialized(true);
+                fileQueue.initialized = true;
                 fileQueue.startQueueAllocFiber();
                 return Fiber.call(fileQueue.ensureWritePosReady(2048), this::resume);
             }

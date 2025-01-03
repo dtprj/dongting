@@ -47,7 +47,6 @@ class LogAppender {
 
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
-    private final RaftGroupConfigEx groupConfig;
     private final CRC32C crc32c = new CRC32C();
     private final EncodeContext encodeContext;
     private final long fileLenMask;
@@ -65,7 +64,6 @@ class LogAppender {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
         this.chainWriter = chainWriter;
-        this.groupConfig = groupConfig;
 
         DispatcherThread thread = groupConfig.getFiberGroup().getThread();
         this.directPool = thread.getDirectPool();
@@ -79,15 +77,7 @@ class LogAppender {
     }
 
     public FiberFuture<Void> close() {
-        FiberFuture<Void> closeFuture = groupConfig.getFiberGroup().newFuture("appenderClose");
-        chainWriter.stop().registerCallback((v2, ex2) -> {
-            if (ex2 != null) {
-                closeFuture.completeExceptionally(ex2);
-            } else {
-                closeFuture.complete(null);
-            }
-        });
-        return closeFuture;
+        return chainWriter.stop();
     }
 
     public FiberFrame<Void> submit(List<LogItem> taskList) {

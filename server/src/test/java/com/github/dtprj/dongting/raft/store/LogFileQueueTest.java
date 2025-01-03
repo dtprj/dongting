@@ -120,7 +120,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterRestore(Integer i) {
-                logFileQueue.startQueueAllocFiber();
+                logFileQueue.startFibers();
                 return Fiber.frameReturn();
             }
         });
