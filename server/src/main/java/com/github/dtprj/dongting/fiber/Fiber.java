@@ -165,7 +165,7 @@ public class Fiber extends WaitSource {
 
     public FiberFuture<Void> join() {
         check();
-        if (finished) {
+        if (!started || finished) {
             return FiberFuture.completedFuture(fiberGroup, null);
         }
         Fiber waitSource = this;
@@ -197,9 +197,6 @@ public class Fiber extends WaitSource {
     }
 
     private Fiber check() {
-        if (!started) {
-            throw new FiberException("fiber not started");
-        }
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         if (fiber == this) {
             throw new FiberException("can't join self");
