@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -28,6 +27,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.nio.ByteBuffer;
@@ -45,6 +45,7 @@ public class ChainWriter {
     private final RaftGroupConfigEx config;
     private final Consumer<WriteTask> writeCallback;
     private final Consumer<WriteTask> forceCallback;
+    private final RaftStatusImpl raftStatus;
 
     private int writePerfType1;
     private int writePerfType2;
@@ -57,7 +58,6 @@ public class ChainWriter {
     private final FiberCondition needForceCondition;
     private final Fiber forceFiber;
 
-    private WriteTask currentForceTask;
     private boolean error;
 
     private int writeTaskCount;
@@ -71,6 +71,7 @@ public class ChainWriter {
         this.perfCallback = config.getPerfCallback();
         this.writeCallback = writeCallback;
         this.forceCallback = forceCallback;
+        this.raftStatus = (RaftStatusImpl) config.getRaftStatus();
 
         DispatcherThread t = config.getFiberGroup().getThread();
         this.directPool = t.getDirectPool();
@@ -115,7 +116,7 @@ public class ChainWriter {
             this.force = force;
             this.buf = buf;
             this.perfWriteItemCount = perfItemCount;
-            int remaining = buf.remaining();
+            int remaining = buf == null ? 0 : buf.remaining();
             this.perfWriteBytes = remaining;
             this.expectNextPos = posInFile + remaining;
             this.lastRaftIndex = lastRaftIndex;
@@ -129,13 +130,12 @@ public class ChainWriter {
     public void submitWrite(DtFile dtFile, boolean initialized, ByteBuffer buf, long posInFile, boolean force,
                             int perfItemCount, long lastRaftIndex) {
         if (error) {
+            log.warn("in error state, ignore write");
             return;
         }
         int[] retryInterval = initialized ? config.getIoRetryInterval() : null;
         WriteTask task = new WriteTask(config.getFiberGroup(), dtFile, retryInterval, true,
                 () -> markStop, buf, posInFile, force, perfItemCount, lastRaftIndex);
-        // inc use count for force task
-        task.getDtFile().incWriters();
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
             if (lastTask.getDtFile() == task.getDtFile()) {
@@ -146,8 +146,8 @@ public class ChainWriter {
         }
         long startTime = perfCallback.takeTime(writePerfType2);
         FiberFuture<Void> f = task.getFuture();
-        if (task.buf.remaining() > 0) {
-            task.write(task.buf, task.posInFile);
+        if (buf != null && buf.remaining() > 0) {
+            task.write(buf, task.posInFile);
         } else {
             f.complete(null);
         }
@@ -161,11 +161,11 @@ public class ChainWriter {
 
     private void afterWrite(Throwable ioEx, WriteTask task, long startTime) {
         perfCallback.fireTime(writePerfType2, startTime, task.perfWriteItemCount, task.perfWriteBytes);
-        if (task.buf != SimpleByteBufferPool.EMPTY_BUFFER) {
+        if (task.buf != null) {
             directPool.release(task.buf);
         }
         writeTaskCount--;
-        if (error) {
+        if (error || raftStatus.isInstallSnapshot()) {
             return;
         }
         if (ioEx != null) {
@@ -185,8 +185,6 @@ public class ChainWriter {
                     lastTaskNeedCallback = t;
                     forceTasks.add(t);
                     forceTaskCount++;
-                } else {
-                    t.getDtFile().decWriters();
                 }
             } else {
                 break;
@@ -203,28 +201,24 @@ public class ChainWriter {
     private class ForceLoopFrame extends FiberFrame<Void> {
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            if (currentForceTask != null) {
-                currentForceTask.getDtFile().decWriters();
-            }
             error = true;
-            throw Fiber.fatal(ex);
-        }
-
-        private FrameCallResult releaseAll() {
-            while (!forceTasks.isEmpty()) {
-                WriteTask task = forceTasks.removeFirst();
-                task.getDtFile().decWriters();
+            if (raftStatus.isInstallSnapshot()) {
+                log.info("install snapshot, force fiber exit: {}", forceFiber.getName(), ex);
+                return Fiber.frameReturn();
+            } else {
+                throw Fiber.fatal(ex);
             }
-            return Fiber.frameReturn();
         }
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (markStop && !hasTask()) {
+            if (error || raftStatus.isInstallSnapshot()) {
+                log.info("force fiber exit: {}", forceFiber.getName());
                 return Fiber.frameReturn();
             }
-            if (error) {
-                return releaseAll();
+            if (markStop && writeTaskCount <= 0 && forceTaskCount <= 0) {
+                log.debug("force fiber exit normally: {}", forceFiber.getName());
+                return Fiber.frameReturn();
             }
             LinkedList<WriteTask> forceTasks = ChainWriter.this.forceTasks;
             if (forceTasks.isEmpty()) {
@@ -238,7 +232,6 @@ public class ChainWriter {
                     if (task.getDtFile() == nextTask.getDtFile()) {
                         nextTask.perfForceItemCount = nextTask.perfWriteItemCount + task.perfForceItemCount;
                         nextTask.perfForceBytes = nextTask.perfWriteBytes + task.perfForceBytes;
-                        task.getDtFile().decWriters();
                         task = nextTask;
                         forceTasks.removeFirst();
                         forceTaskCount--;
@@ -250,28 +243,21 @@ public class ChainWriter {
                 RetryFrame<Void> rf = new RetryFrame<>(ff, config.getIoRetryInterval(), true);
                 WriteTask finalTask = task;
                 long perfStartTime = perfCallback.takeTime(forcePerfType);
-                currentForceTask = task;
                 return Fiber.call(rf, v -> afterForce(finalTask, perfStartTime));
             }
         }
 
         private FrameCallResult afterForce(WriteTask task, long perfStartTime) {
             perfCallback.fireTime(forcePerfType, perfStartTime, task.perfForceItemCount, task.perfForceBytes);
-            task.getDtFile().decWriters();
             forceTaskCount--;
-            currentForceTask = null;
 
-            if (error) {
+            if (error || raftStatus.isInstallSnapshot()) {
                 return Fiber.frameReturn();
             }
 
             forceCallback.accept(task);
             return Fiber.resume(null, this);
         }
-    }
-
-    public boolean hasTask() {
-        return writeTaskCount > 0 || forceTaskCount > 0;
     }
 
     public void setWritePerfType1(int writePerfType1) {

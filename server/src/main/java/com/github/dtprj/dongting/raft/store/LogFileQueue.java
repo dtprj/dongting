@@ -169,7 +169,7 @@ class LogFileQueue extends FileQueue {
         };
     }
 
-    public void startFibers(){
+    public void startFibers() {
         logAppender.startFiber();
         startQueueAllocFiber();
     }

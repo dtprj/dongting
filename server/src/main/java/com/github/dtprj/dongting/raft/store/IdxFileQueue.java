@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
@@ -173,9 +172,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     // run in Future callback
     private void forceFinish(ChainWriter.WriteTask writeTask) {
         flushDoneCondition.signalAll();
-        if (raftStatus.isInstallSnapshot()) {
-            return;
-        }
         // if we set syncForce to false, lastRaftIndex(committed) may less than lastForceLogIndex
         long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.getLastForceLogIndex());
         if (idx > persistedIndexInStatusFile) {
@@ -246,8 +242,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private void submitForceOnlyTask() {
         LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
         long filePos = indexToPos(nextPersistIndex) & fileLenMask;
-        ByteBuffer buf = SimpleByteBufferPool.EMPTY_BUFFER;
-        chainWriter.submitWrite(logFile, initialized, buf, filePos, true, 0, nextPersistIndex - 1);
+        chainWriter.submitWrite(logFile, initialized, null, filePos, true, 0, nextPersistIndex - 1);
     }
 
     private void fillAndSubmit(ByteBuffer buf, long startIndex, LogFile logFile, boolean suggestForce) {
