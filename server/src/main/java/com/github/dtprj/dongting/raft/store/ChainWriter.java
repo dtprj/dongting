@@ -239,6 +239,11 @@ public class ChainWriter {
                         break;
                     }
                 }
+                LogFile logFile = (LogFile) task.getDtFile();
+                if (logFile.shouldDelete() || logFile.deleted) {
+                    log.warn("file {} should delete or deleted, ignore force", logFile.getFile());
+                    return Fiber.resume(null, this);
+                }
                 ForceFrame ff = new ForceFrame(task.getDtFile().getChannel(), config.getBlockIoExecutor(), false);
                 RetryFrame<Void> rf = new RetryFrame<>(ff, config.getIoRetryInterval(), true);
                 WriteTask finalTask = task;
