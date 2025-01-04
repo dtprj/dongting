@@ -375,7 +375,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            throw Fiber.fatal(ex);
+            if (raftStatus.isInstallSnapshot()) {
+                log.error("install snapshot and idx flush fiber exit, groupId={}", groupConfig.getGroupId(), ex);
+                return Fiber.frameReturn();
+            } else {
+                throw Fiber.fatal(ex);
+            }
         }
     }
 

@@ -225,6 +225,9 @@ abstract class FileQueue {
                         block = true;
                         blockPerfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
                     }
+                    if (queueAllocFiber.isFinished()) {
+                        throw new RaftException("ensureWritePosReady " + pos + " failed because queueAllocFiber is finished");
+                    }
                     return allocDoneCond.await(this);
                 } else {
                     if (block) {
@@ -339,8 +342,8 @@ abstract class FileQueue {
         private FrameCallResult afterAlloc(FileAllocFrame f) {
             if (!f.result) {
                 if (raftStatus.isInstallSnapshot() || stopAlloc) {
-                    log.warn("install snapshot or mark close, ignore alloc file");
-                    return Fiber.frameReturn();
+                    allocDoneCond.signalAll();
+                    return Fiber.resume(null, this);
                 } else {
                     return Fiber.sleep(1000, this);
                 }

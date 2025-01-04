@@ -156,7 +156,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public FiberFrame<Void> append(List<LogItem> inputs) {
+    public FiberFrame<Void> submitAppend(List<LogItem> inputs) {
         return logFiles.submit(inputs);
     }
 

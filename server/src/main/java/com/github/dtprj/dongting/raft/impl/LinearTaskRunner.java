@@ -218,7 +218,7 @@ public class LinearTaskRunner {
             }
         }
         raftStatus.getDataArrivedCondition().signalAll();
-        return raftLog.append(logItems);
+        return raftLog.submitAppend(logItems);
     }
 
     public FiberFrame<Void> sendHeartBeat() {

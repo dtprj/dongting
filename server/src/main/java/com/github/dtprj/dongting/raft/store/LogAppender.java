@@ -23,13 +23,13 @@ import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberInterruptException;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -50,6 +50,7 @@ class LogAppender {
     private final CRC32C crc32c = new CRC32C();
     private final EncodeContext encodeContext;
     private final long fileLenMask;
+    private final RaftStatusImpl raftStatus;
 
     private final ByteBufferPool directPool;
 
@@ -63,6 +64,7 @@ class LogAppender {
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig, ChainWriter chainWriter) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
+        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.chainWriter = chainWriter;
 
         DispatcherThread thread = groupConfig.getFiberGroup().getThread();
@@ -80,11 +82,7 @@ class LogAppender {
         return chainWriter.stop();
     }
 
-    public FiberFrame<Void> submit(List<LogItem> taskList) {
-        return new WriteFiberFrame(taskList);
-    }
-
-    private class WriteFiberFrame extends FiberFrame<Void> {
+    class WriteFiberFrame extends FiberFrame<Void> {
 
         // 3 temp status fields, should reset in encodeAndWriteItems()
         private LogItem lastItem;
@@ -93,21 +91,27 @@ class LogAppender {
 
         private final List<LogItem> taskList;
 
-        private WriteFiberFrame(List<LogItem> taskList) {
+        WriteFiberFrame(List<LogItem> taskList) {
             this.taskList = taskList;
         }
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            if (ex instanceof FiberInterruptException) {
+            if (raftStatus.isInstallSnapshot()) {
+                log.error("log writer error, ignore it since install snapshot is true", ex);
                 return Fiber.frameReturn();
+            } else {
+                throw Fiber.fatal(ex);
             }
-            throw Fiber.fatal(ex);
+        }
+
+        private boolean shouldReturn() {
+            return logFileQueue.isMarkClose() || raftStatus.isInstallSnapshot();
         }
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (logFileQueue.isMarkClose() || taskList.isEmpty()) {
+            if (taskList.isEmpty() || shouldReturn()) {
                 return Fiber.frameReturn();
             }
             if (idxOps.needWaitFlush()) {
@@ -123,14 +127,14 @@ class LogAppender {
         }
 
         private FrameCallResult ensureWritePosReady(int taskIndex) {
-            if (logFileQueue.isMarkClose()) {
+            if (shouldReturn()) {
                 return Fiber.frameReturn();
             }
             return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), v -> afterWritePosReady(taskIndex));
         }
 
         private FrameCallResult afterWritePosReady(int taskIndex) {
-            if (logFileQueue.isMarkClose()) {
+            if (shouldReturn()) {
                 return Fiber.frameReturn();
             }
             LogFile lf = logFileQueue.getLogFile(nextPersistPos);

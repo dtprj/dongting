@@ -243,7 +243,7 @@ class LogFileQueue extends FileQueue {
     }
 
     public FiberFrame<Void> submit(List<LogItem> inputs) {
-        return logAppender.submit(inputs);
+        return logAppender.new WriteFiberFrame(inputs);
     }
 
     public FiberFrame<LogHeader> loadHeader(long pos) {
