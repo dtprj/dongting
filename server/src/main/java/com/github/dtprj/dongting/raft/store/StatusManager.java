@@ -121,7 +121,7 @@ public class StatusManager {
         }
 
         private FrameCallResult doUpdate(Void v) {
-            FiberFrame<Void> updateFrame = new FiberFrame<>(){
+            FiberFrame<Void> updateFrame = new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
                     copyWriteData();
@@ -131,8 +131,8 @@ public class StatusManager {
                     return f.await(this::justReturn);
                 }
             };
-            RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame,
-                    groupConfig.getIoRetryInterval(), true);
+            RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame, groupConfig.getIoRetryInterval(),
+                    true, raftStatus::isInstallSnapshot);
             return Fiber.call(retryFrame, this::resumeOnUpdateDone);
         }
 

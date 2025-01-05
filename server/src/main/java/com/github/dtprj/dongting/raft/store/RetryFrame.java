@@ -26,6 +26,8 @@ import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.function.Supplier;
+
 /**
  * @author huangli
  */
@@ -33,16 +35,18 @@ public class RetryFrame<O> extends FiberFrame<O> {
 
     private static final DtLog log = DtLogs.getLogger(RetryFrame.class);
 
-    private final int[] retryInterval;
     private final FiberFrame<O> subFrame;
+    private final int[] retryIntervals;
     private final boolean retryForever;
+    private final Supplier<Boolean> cancelRetry;
     private int retryCount;
     private Throwable lastSubFrameEx;
 
-    public RetryFrame(FiberFrame<O> subFrame, int[] retryInterval, boolean retryForever) {
-        this.retryInterval = retryInterval;
+    public RetryFrame(FiberFrame<O> subFrame, int[] retryIntervals, boolean retryForever, Supplier<Boolean> cancelRetry) {
         this.subFrame = subFrame;
+        this.retryIntervals = retryIntervals;
         this.retryForever = retryForever;
+        this.cancelRetry = cancelRetry;
     }
 
     @Override
@@ -56,17 +60,45 @@ public class RetryFrame<O> extends FiberFrame<O> {
             setResult(result.getLeft());
             return Fiber.frameReturn();
         } else {
-            long sleepTime = calcSleepTime(subFrameEx);
-            this.lastSubFrameEx = subFrameEx;
-            return Fiber.sleepUntilShouldStop(sleepTime, this::retry);
+            Throwable root = DtUtil.rootCause(subFrameEx);
+            if (root instanceof FiberInterruptException || root instanceof FiberCancelException
+                    || root instanceof InterruptedException) {
+                throw subFrameEx;
+            }
+            if (retryIntervals == null) {
+                throw subFrameEx;
+            }
+            if (shouldCancelRetry()) {
+                throw subFrameEx;
+            }
+            long sleepTime = StoreUtil.calcRetryInterval(retryCount, retryIntervals);
+            if (sleepTime > 0) {
+                log.error("io error, {}th retry scheduled after {} ms", retryCount + 1, sleepTime, subFrameEx);
+                this.lastSubFrameEx = subFrameEx;
+                return Fiber.sleepUntilShouldStop(sleepTime, this::retry);
+            } else {
+                log.error("io error, retryCount={}", retryCount, subFrameEx);
+                throw subFrameEx;
+            }
         }
     }
 
-    private FrameCallResult retry(Void unused) throws Throwable {
+    private boolean shouldCancelRetry() {
         if (isGroupShouldStopPlain()) {
             log.warn("retry canceled because of fiber group should stop");
+            return true;
+        }
+        if (retryCount >= retryIntervals.length && !retryForever) {
+            return true;
+        }
+        return cancelRetry != null && cancelRetry.get();
+    }
+
+    private FrameCallResult retry(Void unused) throws Throwable {
+        if (shouldCancelRetry()) {
             throw lastSubFrameEx;
         }
+        retryCount++;
         return execute(null);
     }
 
@@ -83,31 +115,4 @@ public class RetryFrame<O> extends FiberFrame<O> {
         throw ex;
     }
 
-    private long calcSleepTime(Throwable subFrameEx) throws Throwable {
-        Throwable root = DtUtil.rootCause(subFrameEx);
-        if (root instanceof FiberInterruptException || root instanceof FiberCancelException
-                || root instanceof InterruptedException) {
-            throw subFrameEx;
-        }
-        if (retryInterval == null || retryInterval.length == 0) {
-            throw subFrameEx;
-        }
-        long sleepTime;
-        if (retryCount >= retryInterval.length) {
-            if (!retryForever) {
-                log.error("io error, retry count exceed limit: {}", retryCount, subFrameEx);
-                throw subFrameEx;
-            }
-            sleepTime = retryInterval[retryInterval.length - 1];
-            retryCount++;
-        } else {
-            sleepTime = retryInterval[retryCount++];
-        }
-        if (isGroupShouldStopPlain()) {
-            log.warn("retry canceled because of fiber group should stop");
-            throw subFrameEx;
-        }
-        log.error("io error, retry after {} ms", sleepTime, subFrameEx);
-        return sleepTime;
-    }
 }

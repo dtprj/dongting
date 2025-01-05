@@ -30,4 +30,14 @@ class StoreUtil {
             buf.clear();
         }
     }
+
+    static int calcRetryInterval(int currentRetryCount, int[] retryIntervals) {
+        if (retryIntervals == null) {
+            return -1;
+        }
+        if (currentRetryCount >= retryIntervals.length) {
+            return retryIntervals[retryIntervals.length - 1];
+        }
+        return retryIntervals[currentRetryCount];
+    }
 }

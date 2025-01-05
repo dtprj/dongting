@@ -299,10 +299,8 @@ abstract class FileQueue {
                 return Fiber.call(new DeleteFrame(first.getFile(), first.getChannel()), this::justReturn);
             }
         };
-        if (initialized) {
-            int[] retryInterval = groupConfig.getIoRetryInterval();
-            f = new RetryFrame<>(f, retryInterval, true);
-        }
+        f = new RetryFrame<>(f, groupConfig.getIoRetryInterval(), true,
+                () -> !initialized || raftStatus.isInstallSnapshot());
         f = new PostFiberFrame<>(f) {
             @Override
             protected FrameCallResult postProcess(Void v) {

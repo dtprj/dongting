@@ -146,7 +146,8 @@ public class RetryFrameTest extends BaseFiberTest {
 
         @Override
         public FrameCallResult execute(Void input) {
-            RetryFrame<Void> f = new RetryFrame<>(new MockFailFrame(mockFailCount, mockEx), retryInterval, retryForever);
+            RetryFrame<Void> f = new RetryFrame<>(new MockFailFrame(mockFailCount, mockEx), retryInterval,
+                    retryForever, () -> false);
             return Fiber.call(f, this::resume);
         }
 

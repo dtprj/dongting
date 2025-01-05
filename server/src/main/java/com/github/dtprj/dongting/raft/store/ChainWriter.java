@@ -84,6 +84,10 @@ public class ChainWriter {
         forceFiber.start();
     }
 
+    private boolean shouldCancelRetry() {
+        return error || raftStatus.isInstallSnapshot();
+    }
+
     public FiberFuture<Void> stop() {
         this.markStop = true;
         needForceCondition.signal();
@@ -135,7 +139,7 @@ public class ChainWriter {
         }
         int[] retryInterval = initialized ? config.getIoRetryInterval() : null;
         WriteTask task = new WriteTask(config.getFiberGroup(), dtFile, retryInterval, true,
-                () -> markStop, buf, posInFile, force, perfItemCount, lastRaftIndex);
+                this::shouldCancelRetry, buf, posInFile, force, perfItemCount, lastRaftIndex);
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
             if (lastTask.getDtFile() == task.getDtFile()) {
@@ -245,7 +249,8 @@ public class ChainWriter {
                     return Fiber.resume(null, this);
                 }
                 ForceFrame ff = new ForceFrame(task.getDtFile().getChannel(), config.getBlockIoExecutor(), false);
-                RetryFrame<Void> rf = new RetryFrame<>(ff, config.getIoRetryInterval(), true);
+                RetryFrame<Void> rf = new RetryFrame<>(ff, config.getIoRetryInterval(),
+                        true, ChainWriter.this::shouldCancelRetry);
                 WriteTask finalTask = task;
                 long perfStartTime = perfCallback.takeTime(forcePerfType);
                 return Fiber.call(rf, v -> afterForce(finalTask, perfStartTime));
