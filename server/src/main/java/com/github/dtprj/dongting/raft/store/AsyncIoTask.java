@@ -63,10 +63,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         this(fiberGroup, dtFile, null, false, null);
     }
 
-    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval, boolean retryForever) {
-        this(fiberGroup, dtFile, retryInterval, retryForever, null);
-    }
-
     public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval, boolean retryForever,
                        Supplier<Boolean> cancelRetryIndicator) {
         this.fiberGroup = fiberGroup;
@@ -140,25 +136,15 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
     }
 
     private void retry(Throwable ioEx) {
-        if (retryInterval == null) {
+        long sleepTime = StoreUtil.calcRetryInterval(retryCount, retryInterval);
+        if(sleepTime <= 0) {
             fireComplete(ioEx);
             return;
         }
-        if (shouldCancelRetry()) {
+        // assert retryInterval is not null since StoreUtil.calcRetryInterval checked it
+        if (retryCount >= retryInterval.length && !retryForever) {
             fireComplete(ioEx);
             return;
-        }
-        long sleepTime;
-        if (retryCount >= retryInterval.length) {
-            if (retryForever) {
-                sleepTime = retryInterval[retryInterval.length - 1];
-                retryCount++;
-            } else {
-                fireComplete(ioEx);
-                return;
-            }
-        } else {
-            sleepTime = retryInterval[retryCount++];
         }
 
         Fiber retryFiber = new Fiber("io-retry-fiber", fiberGroup, new FiberFrame<>() {
@@ -173,6 +159,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
                     fireComplete(ioEx);
                     return Fiber.frameReturn();
                 }
+                retryCount++;
                 if (ioBuffer == null) {
                     submitForceTask();
                 } else {
@@ -188,20 +175,20 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
                 fireComplete(ex);
                 return Fiber.frameReturn();
             }
+
+            private boolean shouldCancelRetry() {
+                if (isGroupShouldStopPlain()) {
+                    // if fiber group is stopped, ignore cancelIndicator and retryForever
+                    return true;
+                }
+                if (cancelRetryIndicator != null && cancelRetryIndicator.get()) {
+                    log.warn("retry canceled by cancelIndicator");
+                    return true;
+                }
+                return false;
+            }
         });
         fiberGroup.fireFiber(retryFiber);
-    }
-
-    private boolean shouldCancelRetry() {
-        if (fiberGroup.isShouldStop()) {
-            // if fiber group is stopped, ignore cancelIndicator and retryForever
-            return true;
-        }
-        if (cancelRetryIndicator != null && cancelRetryIndicator.get()) {
-            log.warn("retry canceled by cancelIndicator");
-            return true;
-        }
-        return false;
     }
 
     // this method set to protected for mock error in unit test
