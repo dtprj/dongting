@@ -100,11 +100,15 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
         ReqContext reqContext = reqInfo.getReqContext();
         RaftGroup group = reqInfo.getRaftGroup();
         group.getLeaseReadIndex(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {
-            if (ex != null) {
-                writeErrorResp(reqInfo, ex);
-            } else {
-                DtKV dtKV = (DtKV) reqInfo.getRaftGroup().getStateMachine();
-                writeResp(reqInfo, callback.apply(dtKV, logIndex));
+            try {
+                if (ex != null) {
+                    writeErrorResp(reqInfo, ex);
+                } else {
+                    DtKV dtKV = (DtKV) reqInfo.getRaftGroup().getStateMachine();
+                    writeResp(reqInfo, callback.apply(dtKV, logIndex));
+                }
+            } catch (Exception callbackEx) {
+                writeErrorResp(reqInfo, callbackEx);
             }
         });
     }
@@ -122,7 +126,7 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
 
     private void doList(ReqInfo<KvReq> reqInfo, KvReq req) {
         leaseRead(reqInfo, (dtKV, logIndex) -> {
-            Pair<Integer, List<KvResult>> p = dtKV.list(new ByteArray(req.getKey()));
+            Pair<Integer, List<KvResult>> p = dtKV.list(req.getKey() == null ? null : new ByteArray(req.getKey()));
             KvResp resp = new KvResp(p.getRight());
             EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);

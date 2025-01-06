@@ -95,8 +95,8 @@ public class KvResult implements Encodable {
         throw new CodecException(c);
     }
 
+    // re-used
     public static class Callback extends PbCallback<KvResult> {
-        // re-used
         private final KvNode.Callback nodeCallback = new KvNode.Callback();
         private int bizCode;
         private KvNode data;

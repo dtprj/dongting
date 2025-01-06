@@ -115,7 +115,7 @@ public class RaftServer extends AbstractLifeCircle {
         DtUtil.checkPositive(serverConfig.getNodeId(), "id");
         DtUtil.checkPositive(serverConfig.getReplicatePort(), "replicatePort");
 
-        List<RaftNode> allRaftServers = RaftUtil.parseServers(serverConfig.getServers());
+        List<RaftNode> allRaftServers = RaftNode.parseServers(serverConfig.getServers());
         HashSet<Integer> allNodeIds = new HashSet<>();
         HashSet<HostPort> allNodeHosts = new HashSet<>();
         for (RaftNode rn : allRaftServers) {

@@ -47,6 +47,19 @@ public class KvReqCallback extends PbCallback<KvReq> {
     ByteArray expectValue;
 
     @Override
+    protected boolean end(boolean success) {
+        groupId = 0;
+        key = null;
+        value = null;
+        keysSize = 0;
+        keys = null;
+        valuesSize = 0;
+        values = null;
+        expectValue = null;
+        return success;
+    }
+
+    @Override
     public boolean readVarNumber(int index, long value) {
         if (index == IDX_GROUP_ID) {
             groupId = (int) value;

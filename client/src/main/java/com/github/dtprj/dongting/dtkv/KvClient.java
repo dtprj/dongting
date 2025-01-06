@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.NetBizCodeException;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
+import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -34,12 +35,21 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
 public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
+    private List<RaftNode> initServers;
+    private int initGroupId;
 
-    public KvClient(NioClientConfig nioClientConfig) {
+    public KvClient() {
+        NioClientConfig nioClientConfig = new NioClientConfig();
         this.raftClient = new RaftClient(nioClientConfig);
+    }
+
+    public KvClient(int initGroupId, String initServers) {
+        this.initGroupId = initGroupId;
+        NioClientConfig nioClientConfig = new NioClientConfig();
+        this.raftClient = new RaftClient(nioClientConfig);
+        this.initServers = RaftNode.parseServers(initServers);
     }
 
     private RpcCallback<Void> voidCallback(CompletableFuture<Void> f, int anotherSuccessCode) {
@@ -133,6 +143,9 @@ public class KvClient extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         raftClient.start();
+        if (initServers != null) {
+            raftClient.addOrUpdateGroup(initGroupId, initServers);
+        }
     }
 
     protected void doStop(DtTime timeout, boolean force) {

@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -32,24 +33,31 @@ public class KvResp implements Encodable {
     private static final int IDX_RESULTS = 2;
 
     private final List<KvResult> results;
+    private final int listCount;
     private int size;
 
     public KvResp(List<KvResult> results) {
         this.results = results;
+        this.listCount = results == null ? 0 : results.size();
     }
 
     @Override
     public int actualSize() {
         if (size == 0) {
-            this.size = EncodeUtil.actualSizeOfObjs(IDX_RESULTS, results);
+            this.size = PbUtil.accurateUnsignedIntSize(IDX_SIZE, listCount)
+                    + EncodeUtil.actualSizeOfObjs(IDX_RESULTS, results);
         }
         return size;
     }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        if (destBuffer.remaining() >= PbUtil.accurateUnsignedIntSize(IDX_SIZE, listCount)) {
+            PbUtil.writeUnsignedInt32(destBuffer, 1, listCount);
+        } else {
+            return false;
+        }
         return EncodeUtil.encodeObjs(context, destBuffer, IDX_RESULTS, results);
-
     }
 
     // re-used

@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
-import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
@@ -72,7 +71,7 @@ public class RaftBenchmark extends BenchBase {
     private KvClient[] clients;
 
     public static void main(String[] args) throws Exception {
-        RaftBenchmark benchmark = new RaftBenchmark(CLIENT_COUNT, 5000, 200);
+        RaftBenchmark benchmark = new RaftBenchmark(CLIENT_COUNT, 100, 100);
         benchmark.setLogRt(true);
         benchmark.start();
     }
@@ -150,9 +149,8 @@ public class RaftBenchmark extends BenchBase {
 
         clients = new KvClient[threadCount];
         for (int i = 0; i < threadCount; i++) {
-            NioClientConfig nioClientConfig = new NioClientConfig();
-            nioClientConfig.setMaxOutRequests(CLIENT_MAX_OUT_REQUESTS / threadCount);
-            KvClient c = new KvClient(nioClientConfig);
+            KvClient c = new KvClient();
+            c.getRaftClient().getNioClient().getConfig().setMaxOutRequests(CLIENT_MAX_OUT_REQUESTS / threadCount);
             c.start();
             c.getRaftClient().addOrUpdateGroup(GROUP_ID, serverNodes);
             clients[i] = c;

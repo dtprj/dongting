@@ -16,6 +16,10 @@
 package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.NioNet;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author huangli
@@ -45,5 +49,27 @@ public class RaftNode {
             str = nodeId + "@" + hostPort;
         }
         return str;
+    }
+
+    public static List<RaftNode> parseServers(String serversStr) {
+        String[] servers = serversStr.split(";");
+        if (servers.length == 0) {
+            throw new RaftException("servers list is empty");
+        }
+        try {
+            List<RaftNode> list = new ArrayList<>();
+            for (String server : servers) {
+                String[] arr = server.split(",");
+                if (arr.length != 2) {
+                    throw new IllegalArgumentException("not 'id,host:port' format:" + server);
+                }
+                int id = Integer.parseInt(arr[0].trim());
+                String hostPortStr = arr[1];
+                list.add(new RaftNode(id, NioNet.parseHostPort(hostPortStr)));
+            }
+            return list;
+        } catch (NumberFormatException e) {
+            throw new RaftException("bad servers list: " + serversStr);
+        }
     }
 }

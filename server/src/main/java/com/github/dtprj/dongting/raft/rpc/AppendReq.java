@@ -81,6 +81,7 @@ public class AppendReq {
         return logs;
     }
 
+    // re-used
     public static class Callback extends PbCallback<AppendReq> {
 
         private final Function<Integer, RaftCodecFactory> decoderFactory;
@@ -176,6 +177,7 @@ public class AppendReq {
     //  bytes header = 7;
     //  bytes body = 8;
     //}
+    // re-used
     static class LogItemCallback extends PbCallback<Object> {
         private LogItem item;
         private RaftCodecFactory codecFactory;

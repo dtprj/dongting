@@ -33,5 +33,7 @@ public class KvServerUtil {
         nioServer.register(Commands.DTKV_GET, p);
         nioServer.register(Commands.DTKV_PUT, p);
         nioServer.register(Commands.DTKV_REMOVE, p);
+        nioServer.register(Commands.DTKV_MKDIR, p);
+        nioServer.register(Commands.DTKV_LIST, p);
     }
 }

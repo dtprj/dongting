@@ -51,7 +51,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @SuppressWarnings("Convert2Diamond")
 public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
-    private final NioClient client;
+    private final NioClient nioClient;
     // key is nodeId
     private final IntObjMap<NodeInfo> allNodes = new IntObjMap<>();
     // key is groupId
@@ -61,7 +61,7 @@ public class RaftClient extends AbstractLifeCircle {
     private long nextEpoch = 0;
 
     public RaftClient(NioClientConfig nioClientConfig) {
-        this.client = new NioClient(nioClientConfig);
+        this.nioClient = new NioClient(nioClientConfig);
     }
 
     public void addOrUpdateGroup(int groupId, List<RaftNode> servers) throws NetException {
@@ -83,7 +83,7 @@ public class RaftClient extends AbstractLifeCircle {
         for (RaftNode n : servers) {
             Objects.requireNonNull(n);
             if (allNodes.get(n.getNodeId()) == null) {
-                CompletableFuture<Peer> f = client.addPeer(n.getHostPort());
+                CompletableFuture<Peer> f = nioClient.addPeer(n.getHostPort());
                 futures.add(f.thenAccept(peer -> needAddList.add(new NodeInfo(n.getNodeId(), n.getHostPort(), peer))));
             }
         }
@@ -100,7 +100,7 @@ public class RaftClient extends AbstractLifeCircle {
             } finally {
                 if (!success) {
                     for (NodeInfo n : needAddList) {
-                        client.removePeer(n.getHostPort());
+                        nioClient.removePeer(n.getHostPort());
                     }
                 }
             }
@@ -159,7 +159,7 @@ public class RaftClient extends AbstractLifeCircle {
             for (NodeInfo nodeInfo : oldGroupInfo.servers) {
                 if (nodeInfo.getRefCount().release()) {
                     allNodes.remove(nodeInfo.getNodeId());
-                    client.removePeer(nodeInfo.getPeer());
+                    nioClient.removePeer(nodeInfo.getPeer());
                 }
             }
         }
@@ -237,7 +237,7 @@ public class RaftClient extends AbstractLifeCircle {
                 c.fail(ex);
             }
         };
-        client.sendRequest(gi.leader, request, decoder, timeout, newCallback);
+        nioClient.sendRequest(gi.leader, request, decoder, timeout, newCallback);
     }
 
     private CompletableFuture<GroupInfo> updateLeaderInfo(int groupId) {
@@ -276,7 +276,7 @@ public class RaftClient extends AbstractLifeCircle {
         NodeInfo node = it.next();
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, gi.groupId);
         DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
-        client.sendRequest(node.getPeer(), req, c -> c.toDecoderCallback(new QueryStatusResp.QueryStatusRespCallback()), rpcTimeout)
+        nioClient.sendRequest(node.getPeer(), req, c -> c.toDecoderCallback(new QueryStatusResp.QueryStatusRespCallback()), rpcTimeout)
                 .whenComplete((rf, ex) -> processLeaderQueryResult(gi, it, rf, ex, node));
     }
 
@@ -351,12 +351,16 @@ public class RaftClient extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        client.start();
-        client.waitStart();
+        nioClient.start();
+        nioClient.waitStart();
     }
 
     @Override
     protected void doStop(DtTime timeout, boolean force) {
-        client.stop(timeout);
+        nioClient.stop(timeout);
+    }
+
+    public NioClient getNioClient() {
+        return nioClient;
     }
 }

@@ -53,6 +53,7 @@ public class AppendResp {
         return suggestIndex;
     }
 
+    // re-used
     public static class Callback extends PbCallback<AppendResp> {
 
         private AppendResp result;
