@@ -164,7 +164,7 @@ public class AppendReqWritePacket extends WritePacket {
                     writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
                     break;
                 case WRITE_ITEM_BIZ_BODY_LEN:
-                    if (currentItem.getActualHeaderSize() <= 0) {
+                    if (currentItem.getActualBodySize() <= 0) {
                         currentItem = null;
                         encodeLogIndex++;
                         writeStatus = WRITE_ITEM_HEADER;
