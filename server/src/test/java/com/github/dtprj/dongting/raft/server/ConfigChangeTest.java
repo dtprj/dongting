@@ -41,14 +41,13 @@ public class ConfigChangeTest extends ServerTestBase {
         waitStart(s2);
         waitStart(s3);
 
-        int leaderId = waitLeaderElectAndGetLeaderId(s2, s3);
+        ServerInfo leader = waitLeaderElectAndGetLeaderId(s2, s3);
 
         RaftNode n4 = new RaftNode(4, new HostPort("127.0.0.1", 4004));
         s2.raftServer.addNode(n4, 1000);
         s3.raftServer.addNode(n4, 1000);
 
-        ServerInfo leader = leaderId == 2 ? s2 : s3;
-        ServerInfo follower = leaderId == 2 ? s3 : s2;
+        ServerInfo follower = leader == s2 ? s3 : s2;
         CompletableFuture<Long> f = leader.group.leaderPrepareJointConsensus(Set.of(2, 3, 4), new HashSet<>());
         long prepareIndex = f.get(5, TimeUnit.SECONDS);
 

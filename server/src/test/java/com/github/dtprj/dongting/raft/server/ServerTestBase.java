@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.CRC32C;
 
 import static com.github.dtprj.dongting.util.Tick.tick;
@@ -171,14 +171,14 @@ public class ServerTestBase {
         si.raftServer.stop(new DtTime(5, TimeUnit.SECONDS));
     }
 
-    protected int waitLeaderElectAndGetLeaderId(ServerInfo... servers) {
-        AtomicInteger leaderId = new AtomicInteger();
+    protected ServerInfo waitLeaderElectAndGetLeaderId(ServerInfo... servers) {
+        AtomicReference<ServerInfo> si = new AtomicReference<>();
         TestUtil.waitUtil(() -> {
             int leader = 0;
             for (ServerInfo server : servers) {
                 if (server.raftServer.getRaftGroup(1).isLeader()) {
                     leader++;
-                    leaderId.set(server.nodeId);
+                    si.set(server);
                 }
             }
             if (leader > 1) {
@@ -186,7 +186,7 @@ public class ServerTestBase {
             }
             return leader == 1;
         });
-        return leaderId.get();
+        return si.get();
     }
 
     protected long put(ServerInfo leader, String key, String value) {

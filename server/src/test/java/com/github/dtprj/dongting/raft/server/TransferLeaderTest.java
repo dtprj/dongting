@@ -15,33 +15,42 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.raft.impl.RaftRole;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * @author huangli
  */
-public class VoteTest extends ServerTestBase {
+public class TransferLeaderTest extends ServerTestBase {
 
     @Test
     void test() throws Exception {
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
+        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "1,2,3";
-        String observers = "4";
-        ServerInfo[] sis = new ServerInfo[4];
+        String observers = "";
+        ServerInfo[] sis = new ServerInfo[3];
         sis[0] = createServer(1, servers, members, observers);
         sis[1] = createServer(2, servers, members, observers);
         sis[2] = createServer(3, servers, members, observers);
-        sis[3] = createServer(4, servers, members, observers);
         for (ServerInfo si : sis) {
             waitStart(si);
         }
 
-        int leader = waitLeaderElectAndGetLeaderId(sis).nodeId;
-        assertTrue(leader != 4);
-        // DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        // sis[leader-1].raftServer.stop(timeout);
+        ServerInfo leader = waitLeaderElectAndGetLeaderId(sis);
+
+        ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
+        CompletableFuture<Void> f = leader.group.transferLeadership(newLeader.nodeId, 2000);
+        f.get(5, TimeUnit.SECONDS);
+
+        assertEquals(RaftRole.follower, leader.group.getGroupComponents().getRaftStatus().getRole());
+        assertEquals(RaftRole.leader, newLeader.group.getGroupComponents().getRaftStatus().getRole());
+
+        put(newLeader, "k1", "v1");
 
         for (ServerInfo si : sis) {
             waitStop(si);
