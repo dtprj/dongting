@@ -258,7 +258,7 @@ public class PbParser {
         this.fieldType = type;
         value = value >>> 3;
         if (value == 0) {
-            throw new PbException("bad index:" + fieldIndex);
+            throw new PbException("bad index:" + value + ", last field index is" + fieldIndex);
         }
         this.fieldIndex = value;
 
