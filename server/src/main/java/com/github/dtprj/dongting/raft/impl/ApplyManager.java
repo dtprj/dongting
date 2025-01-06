@@ -471,7 +471,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         private FrameCallResult doPrepare(RaftTask rt) {
             byte[] data = ((ByteArray) rt.getInput().getBody()).getData();
             String dataStr = new String(data);
-            String[] fields = dataStr.split(";");
+            String[] fields = dataStr.split(";", -1);
             Set<Integer> oldMemberIds = parseSet(fields[0]);
             Set<Integer> oldObserverIds = parseSet(fields[1]);
             Set<Integer> newMemberIds = parseSet(fields[2]);
