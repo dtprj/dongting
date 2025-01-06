@@ -520,7 +520,8 @@ public class MemberManager {
             f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
             return FiberFrame.voidCompletedFrame();
         }
-        RaftInput input = new RaftInput(0, null, new ByteArray(data), null, false);
+        RaftInput input = new RaftInput(0, null, data == null ? null : new ByteArray(data),
+                null, false);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {
