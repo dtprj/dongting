@@ -15,10 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
-
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,21 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author huangli
  */
 public class VoteTest extends ServerTestBase {
-
-    private int waitLeaderElectAndGetLeaderId(ServerInfo... servers) {
-        AtomicInteger leaderId = new AtomicInteger();
-        TestUtil.waitUtil(() -> {
-            int leader = 0;
-            for (ServerInfo server : servers) {
-                if (server.raftServer.getRaftGroup(1).isLeader()) {
-                    leader++;
-                    leaderId.set(server.nodeId);
-                }
-            }
-            return leader == 1;
-        });
-        return leaderId.get();
-    }
 
     @Test
     void test() throws Exception {

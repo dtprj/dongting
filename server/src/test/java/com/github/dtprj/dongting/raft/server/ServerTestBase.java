@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvConfig;
@@ -33,6 +34,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 import com.github.dtprj.dongting.raft.store.StoreAccessor;
 import com.github.dtprj.dongting.raft.store.TestDir;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 
 import java.io.File;
 import java.io.RandomAccessFile;
@@ -40,8 +42,10 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32C;
 
 import static com.github.dtprj.dongting.util.Tick.tick;
@@ -165,5 +169,45 @@ public class ServerTestBase {
 
     protected void waitStop(ServerInfo si) {
         si.raftServer.stop(new DtTime(5, TimeUnit.SECONDS));
+    }
+
+    protected int waitLeaderElectAndGetLeaderId(ServerInfo... servers) {
+        AtomicInteger leaderId = new AtomicInteger();
+        TestUtil.waitUtil(() -> {
+            int leader = 0;
+            for (ServerInfo server : servers) {
+                if (server.raftServer.getRaftGroup(1).isLeader()) {
+                    leader++;
+                    leaderId.set(server.nodeId);
+                }
+            }
+            if (leader > 1) {
+                throw new RuntimeException("more than one leader");
+            }
+            return leader == 1;
+        });
+        return leaderId.get();
+    }
+
+    protected long put(ServerInfo leader, String key, String value) {
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new ByteArray(key.getBytes()),
+                new ByteArray(value.getBytes()), new DtTime(3, TimeUnit.SECONDS), false);
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        leader.group.submitLinearTask(ri, new RaftCallback() {
+            @Override
+            public void success(long raftIndex, Object result) {
+                f.complete(raftIndex);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        });
+        try {
+            return f.get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }
