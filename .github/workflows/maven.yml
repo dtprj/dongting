@@ -31,7 +31,7 @@ jobs:
         distribution: 'temurin'
         cache: maven
     - name: Build with Maven
-      run: mvn -B verify --file pom.xml -Dtick=3
+      run: mvn -B verify --file pom.xml -Dtick=5
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
