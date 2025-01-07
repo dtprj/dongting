@@ -51,7 +51,7 @@ public class DtKVServerTest extends ServerTestBase {
         List<KvResult> listResult = client.list(1, "", timeout).get(1, TimeUnit.SECONDS);
         assertEquals(1, listResult.size());
         assertEquals(KvCodes.CODE_SUCCESS, listResult.get(0).getBizCode());
-        assertEquals("dir1", new String(listResult.get(0).getNode().getData()));
+        assertEquals("dir1", listResult.get(0).getKeyInDir().toString());
 
         client.remove(1, "dir1.k1", timeout).get(1, TimeUnit.SECONDS);
         result = client.get(1, "dir1.k1", timeout).get(1, TimeUnit.SECONDS);

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.config.DtKv;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.util.CodecTestUtil;
@@ -32,7 +33,7 @@ import java.util.Random;
 public class KvResultTest {
 
     public static KvResult buildResult() {
-        return new KvResult(new Random().nextInt(), KvNodeTest.buildNode());
+        return new KvResult(new Random().nextInt(), KvNodeTest.buildNode(), new ByteArray("keyInDir".getBytes()));
     }
 
     @Test
@@ -71,10 +72,12 @@ public class KvResultTest {
     public static void compare1(KvResult expect, DtKv.KvResult result) {
         Assertions.assertEquals(expect.getBizCode(), result.getBizCode());
         KvNodeTest.compare1(expect.getNode(), result.getNode());
+        Assertions.assertEquals(expect.getKeyInDir().toString(), result.getKeyInDir());
     }
 
     public static void compare2(KvResult expect, KvResult r) {
         Assertions.assertEquals(expect.getBizCode(), r.getBizCode());
         KvNodeTest.compare2(expect.getNode(), r.getNode());
+        Assertions.assertEquals(expect.getKeyInDir().toString(), r.getKeyInDir().toString());
     }
 }

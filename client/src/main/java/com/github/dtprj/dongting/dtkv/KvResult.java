@@ -59,7 +59,7 @@ public class KvResult implements Encodable {
         this.sizeOfField1 = PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode);
         this.size = sizeOfField1 +
                 (node == null ? 0 : PbUtil.accurateLengthDelimitedSize(IDX_NODE, node.actualSize()))
-                + (keyInDir == null ? 0 : keyInDir.actualSize());
+                + (keyInDir == null ? 0 : PbUtil.accurateLengthDelimitedSize(IDX_KEY_IN_DIR, keyInDir.actualSize()));
     }
 
     @Override
@@ -79,7 +79,6 @@ public class KvResult implements Encodable {
         if (c.stage == IDX_BIZ_CODE) {
             if (EncodeUtil.encode(c, destBuffer, IDX_NODE, node)) {
                 c.stage = IDX_KEY_IN_DIR;
-                return true;
             } else {
                 return false;
             }
@@ -142,4 +141,7 @@ public class KvResult implements Encodable {
         return node;
     }
 
+    public ByteArray getKeyInDir() {
+        return keyInDir;
+    }
 }
