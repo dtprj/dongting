@@ -83,7 +83,7 @@ public class ServerTestBase {
             serverConfig.setServicePort(servicePortBase + nodeId);
         }
         serverConfig.setElectTimeout(tick(25));
-        serverConfig.setHeartbeatInterval(tick(12));
+        serverConfig.setHeartbeatInterval(tick(7));
         serverConfig.setRpcTimeout(tick(100));
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
