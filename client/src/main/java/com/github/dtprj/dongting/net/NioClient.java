@@ -135,11 +135,13 @@ public class NioClient extends NioNet {
 
     public <T> CompletableFuture<ReadPacket<T>> sendRequest(WritePacket request,
                                                             DecoderCallbackCreator<T> decoder, DtTime timeout) {
+        Objects.requireNonNull(decoder);
         return sendRequest(null, request, decoder, timeout);
     }
 
     public <T> CompletableFuture<ReadPacket<T>> sendRequest(Peer peer, WritePacket request,
                                                             DecoderCallbackCreator<T> decoder, DtTime timeout) {
+        Objects.requireNonNull(decoder);
         CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
         send(worker, peer, request, decoder, timeout, new RpcCallback<T>() {
             @Override
@@ -157,11 +159,13 @@ public class NioClient extends NioNet {
 
     public <T> void sendRequest(WritePacket request, DecoderCallbackCreator<T> decoder,
                                 DtTime timeout, RpcCallback<T> callback) {
+        Objects.requireNonNull(decoder);
         send(worker, null, request, decoder, timeout, callback);
     }
 
     public <T> void sendRequest(Peer peer, WritePacket request, DecoderCallbackCreator<T> decoder,
                                 DtTime timeout, RpcCallback<T> callback) {
+        Objects.requireNonNull(decoder);
         send(worker, peer, request, decoder, timeout, callback);
     }
 

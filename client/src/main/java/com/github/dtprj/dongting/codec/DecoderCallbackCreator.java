@@ -22,9 +22,6 @@ package com.github.dtprj.dongting.codec;
 public interface DecoderCallbackCreator<T> {
     DecoderCallback<T> apply(DecodeContext ctx);
 
-    DecoderCallbackCreator<Void> VOID_DECODE_CALLBACK_CREATOR = fixed(DecoderCallback.VOID_DECODE_CALLBACK);
+    DecoderCallbackCreator<Void> VOID_DECODE_CALLBACK_CREATOR = ctx -> DecoderCallback.VOID_DECODE_CALLBACK;
 
-    static <T> DecoderCallbackCreator<T> fixed(DecoderCallback<T> c) {
-        return ctx -> c;
-    }
 }

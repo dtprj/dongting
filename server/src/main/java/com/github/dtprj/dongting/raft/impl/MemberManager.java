@@ -701,8 +701,10 @@ public class MemberManager {
     }
 
     public void transferLeadership(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
-        groupConfig.getFiberGroup().fireFiber("transfer-leader",
-                new TranferLeaderFiberFrame(nodeId, f, deadline));
+        if (!groupConfig.getFiberGroup().fireFiber("transfer-leader",
+                new TranferLeaderFiberFrame(nodeId, f, deadline))) {
+            f.completeExceptionally(new RaftException("fire transfer leader fiber failed"));
+        }
     }
 
     private class TranferLeaderFiberFrame extends FiberFrame<Void> {
@@ -715,6 +717,13 @@ public class MemberManager {
             this.nodeId = nodeId;
             this.f = f;
             this.deadline = deadline;
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            RaftUtil.clearTransferLeaderCondition(raftStatus);
+            f.completeExceptionally(ex);
+            return Fiber.frameReturn();
         }
 
         @Override
@@ -777,7 +786,7 @@ public class MemberManager {
                 req.groupId = groupId;
                 TransferLeaderReq.TransferLeaderReqWritePacket frame = new TransferLeaderReq.TransferLeaderReqWritePacket(req);
                 client.sendRequest(newLeader.getNode().getPeer(), frame,
-                                null, new DtTime(5, TimeUnit.SECONDS))
+                                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, new DtTime(5, TimeUnit.SECONDS))
                         .whenComplete((rf, ex) -> {
                             if (ex != null) {
                                 log.error("transfer leader failed, groupId={}", groupId, ex);
