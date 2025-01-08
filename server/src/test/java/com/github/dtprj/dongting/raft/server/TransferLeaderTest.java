@@ -47,8 +47,8 @@ public class TransferLeaderTest extends ServerTestBase {
         CompletableFuture<Void> f = leader.group.transferLeadership(newLeader.nodeId, 2000);
         f.get(5, TimeUnit.SECONDS);
 
-        assertEquals(RaftRole.follower, leader.group.getGroupComponents().getRaftStatus().getRole());
-        assertEquals(RaftRole.leader, newLeader.group.getGroupComponents().getRaftStatus().getRole());
+        assertEquals(RaftRole.follower, leader.group.getGroupComponents().getRaftStatus().getShareStatus().role);
+        assertEquals(RaftRole.leader, newLeader.group.getGroupComponents().getRaftStatus().getShareStatus().role);
 
         put(newLeader, "k1", "v1");
 
