@@ -100,12 +100,12 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             if (current != null) {
                 EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
                 wf.setMsg(ex.toString());
+                log.error("uncaught exception in {}.", getClass().getSimpleName(), ex);
                 current.getReqContext().getDtChannel().getRespWriter().writeRespInBizThreads(
                         current.getReqFrame(), wf, current.getReqContext().getTimeout());
             }
             if (!isGroupShouldStopPlain()) {
-                log.error("uncaught exception in {}, restart processor fiber: {}",
-                        getClass().getSimpleName(), ex.toString());
+                log.error("restart processor fiber.");
                 startProcessFiber(channel);
             }
             return Fiber.frameReturn();
