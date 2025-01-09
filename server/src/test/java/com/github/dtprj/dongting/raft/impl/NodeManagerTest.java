@@ -120,6 +120,7 @@ public class NodeManagerTest {
         waitUtil(() -> n2.nodeManager.currentReadyNodes == 2, DtUtil.SCHEDULED_SERVICE);
         n1 = createManager(1, "1,2", "3");
         n1.nodeManager.start();
+        n1.nodeManager.getNodePingReadyFuture().get(2, TimeUnit.SECONDS);
         waitUtil(() -> n2.nodeManager.currentReadyNodes == 3, DtUtil.SCHEDULED_SERVICE);
 
         // test add and remove node
