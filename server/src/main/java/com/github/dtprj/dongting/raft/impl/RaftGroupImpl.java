@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -120,7 +121,8 @@ public class RaftGroupImpl extends RaftGroup {
                 RaftCallback.callFail(callback, ex);
             }
         };
-        gc.getLinearTaskRunner().submitRaftTaskInBizThread(input, wrapper);
+        int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
+        gc.getLinearTaskRunner().submitRaftTaskInBizThread(type, input, wrapper);
     }
 
     @Override

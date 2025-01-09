@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -44,7 +43,6 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -303,9 +301,9 @@ public class MemberManager {
             }
 
             private FrameCallResult afterCheck(Void unused) {
-                FiberFrame<Void> ff = leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE,
+                leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE,
                         getInputData(newMemberNodes, newObserverNodes), f);
-                return Fiber.call(ff, this::justReturn);
+                return Fiber.frameReturn();
             }
         };
     }
@@ -321,8 +319,8 @@ public class MemberManager {
 
             @Override
             public FrameCallResult execute(Void input) {
-                FiberFrame<Void> ff = leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null, f);
-                return Fiber.call(ff, this::justReturn);
+                leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null, f);
+                return Fiber.frameReturn();
             }
         };
     }
@@ -462,9 +460,7 @@ public class MemberManager {
                     log.info("members prepare status check success, groupId={}, memberReadyCount={}, preparedMemberReadyCount={}",
                             groupId, memberReadyCount, preparedMemberReadyCount);
 
-                    FiberFrame<Void> f = leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
-                    Fiber configChangeCommitFiber = new Fiber("configChangeCommitFiber", FiberGroup.currentGroup(), f);
-                    configChangeCommitFiber.start();
+                    leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
                 } else if (memberNotReadyCount >= raftStatus.getElectQuorum() ||
                         (prepareQuorum > 0 && preparedMemberNotReadyCount >= prepareQuorum)) {
                     log.error("members prepare status check failed, groupId={}, memberNotReadyCount={}, preparedMemberNotReadyCount={}",
@@ -499,7 +495,7 @@ public class MemberManager {
         sb.append(';');
     }
 
-    private FiberFrame<Void> leaderConfigChange(int type, byte[] data, CompletableFuture<Long> f) {
+    private void leaderConfigChange(int type, byte[] data, CompletableFuture<Long> f) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
@@ -518,11 +514,11 @@ public class MemberManager {
             log.error("leader config change {}, not leader, role={}, groupId={}",
                     stageStr, raftStatus.getRole(), groupId);
             f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
-            return FiberFrame.voidCompletedFrame();
         }
         RaftInput input = new RaftInput(0, null, data == null ? null : new ByteArray(data),
                 null, false);
-        RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, new RaftCallback() {
+        // use runner fiber to execute to avoid race condition
+        gc.getLinearTaskRunner().submitRaftTaskInBizThread(type, input, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {
                 f.complete(raftIndex);
@@ -533,8 +529,6 @@ public class MemberManager {
                 f.completeExceptionally(ex);
             }
         });
-
-        return gc.getLinearTaskRunner().raftExec(Collections.singletonList(rt));
     }
 
     private RaftMember findExistMember(int nodeId) {

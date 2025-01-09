@@ -126,9 +126,8 @@ public class LinearTaskRunner {
         }
     }
 
-    public void submitRaftTaskInBizThread(RaftInput input, RaftCallback callback) {
-        int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
-        RaftTask t = new RaftTask(raftStatus.getTs(), type, input, callback);
+    public void submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {
+        RaftTask t = new RaftTask(raftStatus.getTs(), raftLogType, input, callback);
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
         if (!taskChannel.fireOffer(t, true)) {
             RaftUtil.release(input);
