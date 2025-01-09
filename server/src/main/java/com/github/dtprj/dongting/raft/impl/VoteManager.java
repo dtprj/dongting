@@ -78,7 +78,7 @@ public class VoteManager {
         this.statusManager = gc.getStatusManager();
     }
 
-    public void startFiber() {
+    public void startVoteFiber() {
         VoteFiberFrame ff = new VoteFiberFrame();
         Fiber f = new Fiber("vote-" + groupId, groupConfig.getFiberGroup(), ff, true);
         f.start();
@@ -184,12 +184,17 @@ public class VoteManager {
             resp.setTerm(currentTerm);
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
-            CompletableFuture<ReadPacket<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
-                    ctx -> ctx.toDecoderCallback(new VoteResp.Callback()), timeout);
-            log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
-                    preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
-                    currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
-            f.whenComplete((rf, ex) -> fireRespProcessFiber(req, rf.getBody(), ex, member, voteIdOfRequest));
+            try {
+                CompletableFuture<ReadPacket<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
+                        ctx -> ctx.toDecoderCallback(new VoteResp.Callback()), timeout);
+                log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
+                        preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
+                        currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
+                f.whenComplete((rf, ex) ->
+                        fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest));
+            } catch (Exception e) {
+                fireRespProcessFiber(req, null, e, member, voteIdOfRequest);
+            }
         }
     }
 
@@ -233,6 +238,19 @@ public class VoteManager {
     private class VoteFiberFrame extends FiberFrame<Void> {
 
         private final Random r = new Random();
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            log.error("vote fiber error", ex);
+            if (!isGroupShouldStopPlain()) {
+                log.info("restart vote fiber. groupId={}", groupId);
+                startVoteFiber();
+            }
+            return Fiber.frameReturn();
+        }
+
+        public VoteFiberFrame() {
+        }
 
         @Override
         public FrameCallResult execute(Void input) {

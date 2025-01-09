@@ -147,7 +147,12 @@ public class NodeManager extends AbstractLifeCircle {
         if (status < STATUS_PREPARE_STOP) {
             allNodesEx.forEach((nodeId, nodeEx) -> {
                 if (!nodeEx.isSelf() && !nodeEx.isPinging()) {
-                    nodePing(nodeEx, null);
+                    try {
+                        nodePing(nodeEx, null);
+                    } catch (Throwable e) {
+                        log.error("node ping error", e);
+                        nodeEx.setPinging(false);
+                    }
                 }
             });
         }
@@ -201,7 +206,7 @@ public class NodeManager extends AbstractLifeCircle {
         SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, uuid));
         packet.setCommand(Commands.NODE_PING);
         CompletableFuture<ReadPacket<NodePing>> f = client.sendRequest(nodeEx.getPeer(),
-                packet,ctx -> ctx.toDecoderCallback(new NodePing()), timeout);
+                packet, ctx -> ctx.toDecoderCallback(new NodePing()), timeout);
         return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
     }
 
@@ -264,9 +269,9 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     public FiberFuture<List<List<RaftNodeEx>>> doApplyConfig(Set<Integer> oldMemberIds, Set<Integer> oldObserverIds,
-                                           Set<Integer> oldPreparedMemberIds, Set<Integer> oldPreparedObserverIds,
-                                           Set<Integer> newMemberIds, Set<Integer> newObserverIds,
-                                           Set<Integer> newPreparedMemberIds, Set<Integer> newPreparedObserverIds) {
+                                                             Set<Integer> oldPreparedMemberIds, Set<Integer> oldPreparedObserverIds,
+                                                             Set<Integer> newMemberIds, Set<Integer> newObserverIds,
+                                                             Set<Integer> newPreparedMemberIds, Set<Integer> newPreparedObserverIds) {
         return runInScheduleThread("appleConfigInSchedule", () -> {
             checkNodeIdSet(oldMemberIds);
             checkNodeIdSet(oldObserverIds);

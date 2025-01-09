@@ -196,7 +196,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
     private FrameCallResult initRaftFibers() {
         raftStatus.copyShareStatus();
         gc.getCommitManager().startCommitFiber();
-        gc.getVoteManager().startFiber();
+        gc.getVoteManager().startVoteFiber();
         gc.getApplyManager().init(getFiberGroup());
         gc.getSnapshotManager().startFiber();
         return Fiber.frameReturn();

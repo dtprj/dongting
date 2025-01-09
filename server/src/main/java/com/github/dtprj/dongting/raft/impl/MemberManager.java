@@ -377,23 +377,32 @@ public class MemberManager {
                 boolean result = raftStatus.getLastApplied() >= prepareIndex;
                 resultMap.put(n.getNodeId(), CompletableFuture.completedFuture(result));
             } else {
-                final DecoderCallbackCreator<QueryStatusResp> decoder = ctx -> ctx.toDecoderCallback(
-                        new QueryStatusResp.QueryStatusRespCallback());
-                CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId),
-                                decoder, new DtTime(3, TimeUnit.SECONDS))
-                        .handle((resp, ex) -> {
-                            if (ex != null) {
-                                log.warn("query prepare status failed, groupId={}, remoteId={}", n.getNodeId(), groupId, ex);
-                                return Boolean.FALSE;
-                            } else {
-                                QueryStatusResp body = resp.getBody();
-                                log.info("query prepare status success, groupId={}, remoteId={}, lastApplied={}, prepareIndex={}",
-                                        groupId, n.getNodeId(), body.getLastApplied(), prepareIndex);
-                                return body.getLastApplied() >= prepareIndex;
-                            }
-                        });
-                resultMap.put(n.getNodeId(), queryFuture);
+                try {
+                    resultMap.put(n.getNodeId(), sendQuery(n));
+                } catch (Exception e) {
+                    log.error("query prepare status failed", e);
+                    resultMap.put(n.getNodeId(), CompletableFuture.completedFuture(false));
+                }
             }
+        }
+
+        private CompletableFuture<Boolean> sendQuery(RaftNodeEx n) {
+            final DecoderCallbackCreator<QueryStatusResp> decoder = ctx -> ctx.toDecoderCallback(
+                    new QueryStatusResp.QueryStatusRespCallback());
+            CompletableFuture<ReadPacket<QueryStatusResp>> f = client.sendRequest(n.getPeer(),
+                    new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId), decoder,
+                    new DtTime(3, TimeUnit.SECONDS));
+            return f.handle((resp, ex) -> {
+                if (ex != null) {
+                    log.warn("query prepare status failed, groupId={}, remoteId={}", n.getNodeId(), groupId, ex);
+                    return Boolean.FALSE;
+                } else {
+                    QueryStatusResp body = resp.getBody();
+                    log.info("query prepare status success, groupId={}, remoteId={}, lastApplied={}, prepareIndex={}",
+                            groupId, n.getNodeId(), body.getLastApplied(), prepareIndex);
+                    return body.getLastApplied() >= prepareIndex;
+                }
+            });
         }
 
         private boolean lastConfigIndexNotMatch() {
