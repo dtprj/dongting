@@ -427,7 +427,7 @@ public class NioServerTest {
     @Test
     public void flowControlTest2() throws Exception {
         setupServer(c -> {
-            c.setMaxInRequests(2);
+            c.setMaxInRequests(100);
             c.setBizThreads(1);
             c.setMaxInBytes(10000);
         });
