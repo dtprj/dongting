@@ -192,10 +192,10 @@ public class LinearTaskRunner {
 
         RaftUtil.resetElectTimer(raftStatus);
 
-        return submitTasks(raftStatus, inputs);
+        return append(raftStatus, inputs);
     }
 
-    public FiberFrame<Void> submitTasks(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
+    public FiberFrame<Void> append(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
         TailCache tailCache = raftStatus.getTailCache();
         ArrayList<LogItem> logItems = new ArrayList<>(inputs.size());
         for (int len = inputs.size(), i = 0; i < len; i++) {
@@ -218,7 +218,7 @@ public class LinearTaskRunner {
             }
         }
         raftStatus.getDataArrivedCondition().signalAll();
-        return raftLog.submitAppend(logItems);
+        return raftLog.append(logItems);
     }
 
     public FiberFrame<Void> sendHeartBeat() {

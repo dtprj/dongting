@@ -35,7 +35,7 @@ public interface RaftLog {
      */
     FiberFrame<Pair<Integer, Long>> init();
 
-    FiberFrame<Void> submitAppend(List<LogItem> inputs);
+    FiberFrame<Void> append(List<LogItem> inputs);
 
     /**
      * truncate tail to index (include)

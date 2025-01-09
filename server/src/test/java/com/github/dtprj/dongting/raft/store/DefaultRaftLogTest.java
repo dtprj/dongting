@@ -127,7 +127,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return Fiber.call(raftLog.submitAppend(list), v -> waitWriteFinish(null));
+                return Fiber.call(raftLog.append(list), v -> waitWriteFinish(null));
             }
 
             private FrameCallResult waitWriteFinish(Void v) {
