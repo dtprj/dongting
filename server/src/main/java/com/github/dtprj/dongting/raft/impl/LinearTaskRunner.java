@@ -119,7 +119,9 @@ public class LinearTaskRunner {
             if (!list.isEmpty()) {
                 return Fiber.call(raftExec(list), this);
             } else if (raftStatus.getRole() == RaftRole.leader) {
-                return Fiber.call(sendHeartBeat(), this);
+                RaftInput input = createHeartBeatInput();
+                RaftTask task = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
+                return Fiber.call(raftExec(Collections.singletonList(task)), this);
             }
             // loop
             return Fiber.resume(null, this);
@@ -220,10 +222,14 @@ public class LinearTaskRunner {
         return raftLog.append(logItems);
     }
 
-    public FiberFrame<Void> sendHeartBeat() {
+    private RaftInput createHeartBeatInput() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        RaftInput input = new RaftInput(0, null, null, deadline, false);
-        RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
-        return raftExec(Collections.singletonList(rt));
+        return new RaftInput(0, null, null, deadline, false);
     }
+
+    public void issueHeartBeat() {
+        RaftInput input = createHeartBeatInput();
+        submitRaftTaskInBizThread(LogItem.TYPE_HEARTBEAT, input, null);
+    }
+
 }
