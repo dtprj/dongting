@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
+import com.github.dtprj.dongting.common.Tick;
 import com.github.dtprj.dongting.log.BugLog;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
@@ -395,47 +396,54 @@ public class NioServerTest {
     }
 
     @Test
-    public void flowControlTest() throws Exception {
+    public void flowControlTest1() throws Exception {
         setupServer(c -> {
             c.setMaxInRequests(1);
             c.setBizThreads(1);
             c.setMaxInBytes(10000);
         });
-        server.register(50000, new SleepPingProcessor(50));
+        server.register(50000, new SleepPingProcessor(Tick.tick(25)));
         server.start();
-        {
-            InvokeThread t1 = new InvokeThread(100);
-            InvokeThread t2 = new InvokeThread(100);
-            InvokeThread t3 = new InvokeThread(100);
-            t1.start();
-            t1.waitHandshake();
-            t2.start();
-            t2.waitHandshake();
-            t3.start();
-            t3.waitHandshake();
+        InvokeThread t1 = new InvokeThread(100);
+        InvokeThread t2 = new InvokeThread(100);
+        InvokeThread t3 = new InvokeThread(100);
+        t1.start();
+        t1.waitHandshake();
+        t2.start();
+        t2.waitHandshake();
+        t3.start();
+        t3.waitHandshake();
 
-            t1.notifyInvoke();
-            t2.notifyInvoke();
-            t3.notifyInvoke();
+        t1.notifyInvoke();
+        t2.notifyInvoke();
+        t3.notifyInvoke();
 
-            t1.join(1000);
-            t2.join(1000);
-            t3.join(1000);
-            assertEquals(CmdCodes.FLOW_CONTROL * 2, t1.result.get() + t2.result.get() + t3.result.get());
-        }
-        {
-            InvokeThread t1 = new InvokeThread(6000);
-            InvokeThread t2 = new InvokeThread(6000);
-            t1.start();
-            t1.waitHandshake();
-            t2.start();
-            t2.waitHandshake();
-            t1.notifyInvoke();
-            t2.notifyInvoke();
-            t1.join(1000);
-            t2.join(1000);
-            assertEquals(CmdCodes.FLOW_CONTROL, t1.result.get() + t2.result.get());
-        }
+        t1.join(2000);
+        t2.join(2000);
+        t3.join(2000);
+        assertEquals(CmdCodes.FLOW_CONTROL * 2, t1.result.get() + t2.result.get() + t3.result.get());
+    }
+
+    @Test
+    public void flowControlTest2() throws Exception {
+        setupServer(c -> {
+            c.setMaxInRequests(2);
+            c.setBizThreads(1);
+            c.setMaxInBytes(10000);
+        });
+        server.register(50000, new SleepPingProcessor(Tick.tick(25)));
+        server.start();
+        InvokeThread t1 = new InvokeThread(6000);
+        InvokeThread t2 = new InvokeThread(6000);
+        t1.start();
+        t1.waitHandshake();
+        t2.start();
+        t2.waitHandshake();
+        t1.notifyInvoke();
+        t2.notifyInvoke();
+        t1.join(2000);
+        t2.join(2000);
+        assertEquals(CmdCodes.FLOW_CONTROL, t1.result.get() + t2.result.get());
     }
 
     @Test
