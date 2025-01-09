@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
@@ -103,7 +104,7 @@ public abstract class WritePacket extends Packet implements Encodable {
 
     @Override
     public final boolean encode(EncodeContext context, ByteBuffer buf) {
-        int step = context.getStage();
+        int step = context.stage;
         if (step == STATUS_INIT) {
             int totalSize = actualSize();
             int headerSize = totalSize - actualBodySize();
@@ -129,7 +130,17 @@ public abstract class WritePacket extends Packet implements Encodable {
         if (step == STATUS_HEADER_ENCODE_FINISHED) {
             try {
                 if (bodySize > 0) {
+                    int x = buf.position();
                     finish = encodeBody(context, buf);
+                    x = buf.position() - x;
+                    if (finish) {
+                        if (bodySize != x + context.pending) {
+                            throw new CodecException("WritePacket body size not match actual encoded size: "
+                                    + bodySize + ", " + (x + context.pending));
+                        }
+                    } else {
+                        context.pending += x;
+                    }
                 } else {
                     finish = true;
                 }
