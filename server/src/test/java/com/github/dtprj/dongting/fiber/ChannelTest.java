@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.util.Tick;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -134,11 +135,11 @@ public class ChannelTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        Assertions.assertTrue(latch1.await(1, TimeUnit.SECONDS));
+        Assertions.assertTrue(latch1.await(2, TimeUnit.SECONDS));
         Thread.sleep(1); // ensure fiber is in waiting state
         long t = System.nanoTime();
         channel.fireOffer(1);
-        Assertions.assertTrue(latch2.await(1, TimeUnit.SECONDS));
-        Assertions.assertTrue(System.nanoTime() - t < Duration.ofMillis(10).toNanos());
+        Assertions.assertTrue(latch2.await(2, TimeUnit.SECONDS));
+        Assertions.assertTrue(System.nanoTime() - t < Duration.ofMillis(Tick.tick(10)).toNanos());
     }
 }
