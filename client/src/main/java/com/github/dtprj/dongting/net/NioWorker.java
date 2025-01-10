@@ -153,7 +153,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             ioWorkerQueue.dispatchActions();
             selector.close();
 
-            finishPendingReq();
+            cleanPendingOutgoingRequests(null, 3);
 
             List<DtChannelImpl> tempList = new ArrayList<>(channels.size());
             // can't modify channels map in foreach
@@ -211,7 +211,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 if (readBuffer != null && ts.getNanoTime() - readBufferUseTime > cleanIntervalNanos) {
                     releaseReadBuffer();
                 }
-                cleanTimeoutReq(ts);
+                cleanTimeoutReq();
                 if (client != null) {
                     cleanOutgoingTimeoutConnect(ts);
                 } else {
@@ -245,25 +245,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         // we only need keep order in same connection, so we only use lower 32 bits.
         // the lower 32 bits may overflow, so we use subtraction to compare, can't use < or >
         return a.getLeft().intValue() - b.getLeft().intValue();
-    }
-
-    private void finishPendingReq() {
-        try {
-            pendingOutgoingRequests.forEach((key, value) -> {
-                if (value.callback != null) {
-                    tempSortList.add(new Pair<>(key, value));
-                }
-                // return false to remove it
-                return false;
-            });
-            // sort to keep fail order
-            tempSortList.sort(this::compare);
-            for (Pair<Long, WriteData> p : tempSortList) {
-                p.getRight().callFail(false, new NetException("client closed"));
-            }
-        } finally {
-            tempSortList.clear();
-        }
     }
 
     private boolean sel(Selector selector, Timestamp ts) {
@@ -665,6 +646,74 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
+    // 1 clean by dtc, 2 clean by timeout, 3 clean all
+    private void cleanPendingOutgoingRequests(DtChannelImpl dtc, int mode) {
+        ArrayList<Pair<Long, WriteData>> list;
+        if (mode == 1) {
+            // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
+            // use new array list to avoid ConcurrentModificationException
+            list = new ArrayList<>();
+        } else {
+            list = this.tempSortList;
+        }
+        try {
+            this.pendingOutgoingRequests.forEach((key, wd) -> {
+                if (mode == 1) {
+                    if (wd.dtc == dtc) {
+                        if (wd.callback != null) {
+                            list.add(new Pair<>(key, wd));
+                        }
+                        return false;
+                    } else {
+                        return true;
+                    }
+                } else if (mode == 2) {
+                    DtTime t = wd.getTimeout();
+                    if (wd.getDtc().isClosed() || t.isTimeout(timestamp)) {
+                        if (wd.callback != null) {
+                            list.add(new Pair<>(key, wd));
+                        }
+                        return false;
+                    } else {
+                        return true;
+                    }
+                } else {
+                    if (wd.callback != null) {
+                        list.add(new Pair<>(key, wd));
+                    }
+                    return false;
+                }
+            });
+
+            if (list.isEmpty()) {
+                return;
+            }
+            list.sort(this::compare);
+            for (Pair<Long, WriteData> p : list) {
+                WriteData wd = p.getRight();
+                // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
+                // so callFail should be idempotent
+                if (mode == 1) {
+                    wd.callFail(false, new NetException("channel closed, cancel pending request in NioWorker"));
+                } else if (mode == 2) {
+                    DtTime t = wd.getTimeout();
+                    if (wd.getDtc().isClosed()) {
+                        wd.callFail(false, new NetException("channel closed, future cancelled by timeout cleaner"));
+                    } else if (t.isTimeout(timestamp)) {
+                        log.debug("drop timeout request: {}ms, seq={}, {}", t.getTimeout(TimeUnit.MILLISECONDS),
+                                wd.getData().getSeq(), wd.getDtc().getChannel());
+                        String msg = "request is timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                        wd.callFail(false, new NetTimeoutException(msg));
+                    }
+                } else {
+                    wd.callFail(false, new NetException("client closed"));
+                }
+            }
+        } finally {
+            list.clear();
+        }
+    }
+
     void close(DtChannelImpl dtc) {
         if (dtc.isClosed()) {
             return;
@@ -690,30 +739,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             // O(n) in client side
             channelsList.remove(dtc);
         }
-        if (!dtc.handshake && incomingConnects != null) {
+        if (incomingConnects != null) {
             incomingConnects.remove(dtc);
         }
         closeChannel0(dtc.getChannel());
         if (config.isFinishPendingImmediatelyWhenChannelClose()) {
-            try {
-                pendingOutgoingRequests.forEach((key, wd) -> {
-                    if (wd.getDtc() == dtc) {
-                        if (wd.callback != null) {
-                            tempSortList.add(new Pair<>(key, wd));
-                        }
-                        return false;
-                    }
-                    return true;
-                });
-                // sort to keep fail order
-                tempSortList.sort(this::compare);
-                for (Pair<Long, WriteData> p : tempSortList) {
-                    p.getRight().callFail(false, new NetException(
-                            "channel closed, cancel pending request in NioWorker"));
-                }
-            } finally {
-                tempSortList.clear();
-            }
+            cleanPendingOutgoingRequests(dtc, 1);
         }
         dtc.getSubQueue().cleanChannelQueue();
     }
@@ -729,34 +760,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void cleanTimeoutReq(Timestamp roundStartTime) {
-        try {
-            this.pendingOutgoingRequests.forEach((key, wd) -> {
-                DtTime t = wd.getTimeout();
-                if (wd.getDtc().isClosed() || t.isTimeout(roundStartTime)) {
-                    tempSortList.add(new Pair<>(key, wd));
-                    return false;
-                }
-                return true;
-            });
-
-            tempSortList.sort(this::compare);
-            for (Pair<Long, WriteData> p : tempSortList) {
-                WriteData wd = p.getRight();
-                DtTime t = wd.getTimeout();
-                if (wd.getDtc().isClosed()) {
-                    wd.callFail(false, new NetException("channel closed, future cancelled by timeout cleaner"));
-                } else if (t.isTimeout(roundStartTime)) {
-                    log.debug("drop timeout request: {}ms, seq={}, {}",
-                            t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
-                            wd.getDtc().getChannel());
-                    String msg = "request is timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                    wd.callFail(false, new NetTimeoutException(msg));
-                }
-            }
-        } finally {
-            tempSortList.clear();
-        }
+    private void cleanTimeoutReq() {
+        cleanPendingOutgoingRequests(null, 2);
 
         if (client != null) {
             client.cleanWaitConnectReq(wd -> {

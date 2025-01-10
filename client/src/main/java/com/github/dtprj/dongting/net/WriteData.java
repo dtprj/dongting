@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.common.DtTime;
  * @author huangli
  */
 class WriteData {
-    private DtChannelImpl dtc;
+    DtChannelImpl dtc;
 
     private final WritePacket data;
     private final DtTime timeout;
@@ -33,7 +33,7 @@ class WriteData {
 
     // only for request or one way request
     private final Peer peer;
-    final RpcCallback<?> callback;
+    RpcCallback<?> callback;
     final DecoderCallbackCreator<?> respDecoderCallback;
 
     // for request or one way request (client side)
@@ -72,18 +72,32 @@ class WriteData {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     void callSuccess(ReadPacket resp) {
-        if (data.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
-            RpcCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
-        } else {
-            RpcCallback.callSuccess(callback, resp);
+        if (callback == null) {
+            return;
+        }
+        try {
+            if (data.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
+                RpcCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
+            } else {
+                RpcCallback.callSuccess(callback, resp);
+            }
+        } finally {
+            callback = null;
         }
     }
 
     void callFail(boolean callClean, Throwable ex) {
-        if (callClean) {
-            data.clean();
+        if (callback == null) {
+            return;
         }
-        RpcCallback.callFail(callback, ex);
+        try {
+            if (callClean) {
+                data.clean();
+            }
+            RpcCallback.callFail(callback, ex);
+        } finally {
+            callback = null;
+        }
     }
 
     public DtChannelImpl getDtc() {
