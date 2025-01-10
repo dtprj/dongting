@@ -132,10 +132,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoWorkerQueue ioWorkerQueue) {
         Consumer<ByteBuffer> callback = (buf) -> {
-            try {
-                ioWorkerQueue.scheduleFromBizThread(() -> heapPool.getSmallPool().release(buf));
-            } catch (NetException e) {
-                log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
+            boolean b = ioWorkerQueue.scheduleFromBizThread(() -> heapPool.getSmallPool().release(buf));
+            if (!b) {
+                log.warn("schedule ReleaseBufferTask fail");
             }
         };
         return heapPool.toReleaseInOtherThreadInstance(thread, callback);
@@ -566,26 +565,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         RpcCallback<HandshakeBody> rpcCallback = new RpcCallback<HandshakeBody>() {
             @Override
             public void success(ReadPacket<HandshakeBody> resp) {
-                if (status >= STATUS_PREPARE_STOP) {
-                    log.info("handshake while worker closed, ignore it: {}", dtc.getChannel());
-                    close(dtc);
-                    return;
-                }
-                if (resp.getBody() == null || resp.getBody().config == null) {
-                    log.error("handshake fail: invalid response");
-                    close(dtc);
-                    return;
-                }
-                ConfigBody cb = resp.getBody().config;
-                if (config != null && config.isServerHint()) {
-                    client.processServerConfigHint(dtc.peer, cb);
-                    config.writeFence();
-                }
-
-                ci.peer.status = PeerStatus.connected;
-                ci.peer.resetConnectRetry(workerStatus);
-                finishHandshake(dtc);
-                ci.future.complete(null);
+                handshakeSuccess(dtc, ci, resp);
             }
 
             @Override
@@ -617,13 +597,39 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ci.peer.enqueueAfterConnect();
     }
 
+    private void handshakeSuccess(DtChannelImpl dtc, ConnectInfo ci, ReadPacket<HandshakeBody> resp) {
+        if (status >= STATUS_PREPARE_STOP) {
+            log.info("handshake while worker closed, ignore it: {}", dtc.getChannel());
+            close(dtc);
+            return;
+        }
+        if (resp.getBody() == null || resp.getBody().config == null) {
+            log.error("handshake fail: invalid response");
+            close(dtc);
+            return;
+        }
+        ConfigBody cb = resp.getBody().config;
+        if (config != null && config.isServerHint()) {
+            client.processServerConfigHint(dtc.peer, cb);
+            config.writeFence();
+        }
+
+        ci.peer.status = PeerStatus.connected;
+        ci.peer.resetConnectRetry(workerStatus);
+        finishHandshake(dtc);
+        ci.future.complete(null);
+    }
+
     public void doInIoThread(Runnable runnable, CompletableFuture<?> future) {
-        try {
-            ioWorkerQueue.scheduleFromBizThread(runnable);
+        if (Thread.currentThread() == thread) {
+            runnable.run();
+        } else {
+            boolean b = ioWorkerQueue.scheduleFromBizThread(runnable);
             wakeup();
-        } catch (NetException e) {
-            if (future != null) {
-                future.completeExceptionally(e);
+            if (!b) {
+                if (future != null) {
+                    future.completeExceptionally(new NetException("closed"));
+                }
             }
         }
     }

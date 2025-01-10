@@ -47,10 +47,8 @@ class IoWorkerQueue {
         }
     }
 
-    public void scheduleFromBizThread(Runnable runnable) throws NetException {
-        if (!queue.offer(runnable)) {
-            throw new NetException("IoQueue closed");
-        }
+    public boolean scheduleFromBizThread(Runnable runnable) {
+        return queue.offer(runnable);
     }
 
     public void dispatchActions() {
