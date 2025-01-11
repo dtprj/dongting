@@ -41,6 +41,13 @@ public class ByteArray implements Encodable {
 
     public ByteArray(byte[] data, int startPos, int len) {
         Objects.requireNonNull(data);
+        int l = data.length;
+        if (startPos < 0 || startPos > l) {
+            throw new IllegalArgumentException("startPos: " + startPos + ", array length: " + data.length);
+        }
+        if (len < 0 || startPos + len > l) {
+            throw new IllegalArgumentException("len: " + len + ", startPos: " + startPos + ", array length: " + data.length);
+        }
         this.data = data;
         this.startPos = startPos;
         this.len = len;
