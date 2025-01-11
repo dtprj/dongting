@@ -38,15 +38,15 @@ import java.util.concurrent.CompletableFuture;
 public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
     private List<RaftNode> initServers;
-    private int initGroupId;
+    private int[] initGroupIds;
 
     public KvClient() {
         NioClientConfig nioClientConfig = new NioClientConfig();
         this.raftClient = new RaftClient(nioClientConfig);
     }
 
-    public KvClient(int initGroupId, String initServers) {
-        this.initGroupId = initGroupId;
+    public KvClient(String initServers, int... initGroupIds) {
+        this.initGroupIds = initGroupIds;
         NioClientConfig nioClientConfig = new NioClientConfig();
         this.raftClient = new RaftClient(nioClientConfig);
         this.initServers = RaftNode.parseServers(initServers);
@@ -144,7 +144,9 @@ public class KvClient extends AbstractLifeCircle {
     protected void doStart() {
         raftClient.start();
         if (initServers != null) {
-            raftClient.addOrUpdateGroup(initGroupId, initServers);
+            for (int initGroupId : initGroupIds) {
+                raftClient.addOrUpdateGroup(initGroupId, initServers);
+            }
         }
     }
 

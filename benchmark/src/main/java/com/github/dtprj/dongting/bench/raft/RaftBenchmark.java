@@ -71,7 +71,7 @@ public class RaftBenchmark extends BenchBase {
     private KvClient[] clients;
 
     public static void main(String[] args) throws Exception {
-        RaftBenchmark benchmark = new RaftBenchmark(CLIENT_COUNT, 100, 100);
+        RaftBenchmark benchmark = new RaftBenchmark(CLIENT_COUNT, 5000, 100);
         benchmark.setLogRt(true);
         benchmark.start();
     }

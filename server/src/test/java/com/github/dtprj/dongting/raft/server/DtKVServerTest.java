@@ -40,7 +40,7 @@ public class DtKVServerTest extends ServerTestBase {
         waitStart(s1);
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
 
-        KvClient client = new KvClient(1, "1, 127.0.0.1:5001");
+        KvClient client = new KvClient("1, 127.0.0.1:5001", 1);
         client.start();
         client.mkdir(1, "dir1", timeout).get();
         client.put(1, "dir1.k1", "v1".getBytes(), timeout).get(1, TimeUnit.SECONDS);
