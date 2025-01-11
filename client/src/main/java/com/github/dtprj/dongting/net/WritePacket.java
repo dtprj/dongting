@@ -131,7 +131,7 @@ public abstract class WritePacket extends Packet implements Encodable {
             try {
                 if (bodySize > 0) {
                     int x = buf.position();
-                    finish = encodeBody(context, buf);
+                    finish = encodeBody(context.createOrGetNestedContext(false), buf);
                     x = buf.position() - x;
                     if (finish) {
                         if (bodySize != x + context.pending) {
