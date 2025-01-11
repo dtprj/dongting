@@ -339,7 +339,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             log.warn("{} error, channel will close: {}", stage, e.toString());
             closeChannelBySelKey(key);
         } catch (Exception e) {
-            log.warn("{} error, channel will close: {}", stage, e);
+            log.warn("{} error, channel will close", stage, e);
             closeChannelBySelKey(key);
         }
     }
