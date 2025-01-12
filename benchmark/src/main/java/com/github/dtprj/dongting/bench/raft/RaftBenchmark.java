@@ -159,8 +159,7 @@ public class RaftBenchmark extends BenchBase {
         //noinspection rawtypes
         CompletableFuture[] futures = new CompletableFuture[threadCount];
         for (int i = 0; i < threadCount; i++) {
-            // make c find the leader
-            futures[i] = clients[i].get(GROUP_ID, "kkk", new DtTime(5, TimeUnit.SECONDS));
+            futures[i] = clients[i].getRaftClient().fetchLeader(GROUP_ID);
         }
         CompletableFuture.allOf(futures).get();
     }

@@ -277,6 +277,25 @@ public class RaftClient extends AbstractLifeCircle {
         nioClient.sendRequest(gi.leader, request, decoder, timeout, newCallback);
     }
 
+    public CompletableFuture<Peer> fetchLeader(int groupId) {
+        lock.lock();
+        try {
+            GroupInfo gi = groups.get(groupId);
+            if (gi == null) {
+                return DtUtil.failedFuture(new NoSuchGroupException(groupId));
+            }
+            if (gi.leader != null) {
+                return CompletableFuture.completedFuture(gi.leader);
+            }
+            if (gi.leaderFuture != null) {
+                return gi.leaderFuture.thenApply(g -> g.leader);
+            }
+            return updateLeaderInfo(groupId).thenApply(g -> g.leader);
+        } finally {
+            lock.unlock();
+        }
+    }
+
     private CompletableFuture<GroupInfo> updateLeaderInfo(int groupId) {
         log.info("try find leader for group {}", groupId);
         lock.lock();
