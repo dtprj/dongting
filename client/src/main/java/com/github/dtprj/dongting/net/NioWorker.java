@@ -324,10 +324,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 if (buf != null) {
                     subQueue.setWriting(true);
                     long startTime = perfCallback.takeTime(PerfConsts.RPC_D_WRITE);
-                    int x = buf.remaining();
+                    int x1 = buf.remaining();
                     sc.write(buf);
-                    x = x - buf.remaining();
-                    perfCallback.fireTime(PerfConsts.RPC_D_WRITE, startTime, 1, x);
+                    int x2 = buf.remaining();
+                    if (x2 == 0) {
+                        subQueue.afterBufferWriteFinish();
+                    }
+                    perfCallback.fireTime(PerfConsts.RPC_D_WRITE, startTime, 1, x2 - x1);
                 } else {
                     // no data to write
                     subQueue.setWriting(false);

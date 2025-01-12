@@ -110,17 +110,19 @@ class IoChannelQueue {
         }
     }
 
+    void afterBufferWriteFinish(){
+        // current buffer write finished
+        workerStatus.addPacketsToWrite(-packetsInBuffer);
+        directPool.release(writeBuffer);
+        this.writeBuffer = null;
+        packetsInBuffer = 0;
+    }
+
     public ByteBuffer getWriteBuffer(Timestamp roundTime) {
         ByteBuffer writeBuffer = this.writeBuffer;
         if (writeBuffer != null) {
             if (writeBuffer.remaining() > 0) {
                 return writeBuffer;
-            } else {
-                // current buffer write finished
-                workerStatus.addPacketsToWrite(-packetsInBuffer);
-                directPool.release(writeBuffer);
-                this.writeBuffer = null;
-                packetsInBuffer = 0;
             }
         }
         int subQueueBytes = this.subQueueBytes;
