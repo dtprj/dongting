@@ -81,6 +81,10 @@ public class NioClient extends NioNet {
         int timeoutCount = 0;
         int failCount = 0;
         List<Peer> peers = this.peers;
+        if (peers.isEmpty()) {
+            log.info("[{}] started", config.getName());
+            return;
+        }
         StringBuilder sb = new StringBuilder(startFutures.size() * 32);
         sb.append("peer status:\n");
         for (int i = 0; i < peers.size(); i++) {
