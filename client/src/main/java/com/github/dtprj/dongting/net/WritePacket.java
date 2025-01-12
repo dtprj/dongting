@@ -41,6 +41,9 @@ public abstract class WritePacket extends Packet implements Encodable {
 
     private byte[] msgBytes;
 
+    volatile boolean acquirePermit;
+    int maxPacketSize;
+
     boolean use;
     private boolean cleaned;
 
@@ -60,10 +63,13 @@ public abstract class WritePacket extends Packet implements Encodable {
     protected abstract boolean encodeBody(EncodeContext context, ByteBuffer dest);
 
     public final int calcMaxPacketSize() {
-        return MAX_HEADER_SIZE
-                + (msgBytes == null ? 0 : msgBytes.length)
-                + (extra == null ? 0 : extra.length)
-                + actualBodySize();
+        if (maxPacketSize == 0) {
+            maxPacketSize = MAX_HEADER_SIZE
+                    + (msgBytes == null ? 0 : msgBytes.length)
+                    + (extra == null ? 0 : extra.length)
+                    + actualBodySize();
+        }
+        return maxPacketSize;
     }
 
     public final int actualBodySize() {

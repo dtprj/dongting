@@ -190,35 +190,62 @@ public class RaftClient extends AbstractLifeCircle {
             RpcCallback.callFail(callback, new NoSuchGroupException(groupId));
             return;
         }
-        if (groupInfo.leader != null) {
-            send(request, decoder, timeout, callback, groupInfo, 0);
-        } else {
-            CompletableFuture<GroupInfo> leaderFuture;
-            if (groupInfo.leaderFuture == null) {
-                leaderFuture = updateLeaderInfo(groupId);
+        boolean getPermit = false;
+        try {
+            getPermit = nioClient.acquirePermit(request, timeout);
+            final boolean finalGetPermit = getPermit;
+            if (groupInfo.leader != null) {
+                send(request, decoder, timeout, callback, groupInfo, 0, finalGetPermit);
             } else {
-                leaderFuture = groupInfo.leaderFuture;
-            }
-            leaderFuture.whenComplete((gi, ex) -> {
-                if (ex != null) {
-                    RpcCallback.callFail(callback, ex);
-                } else if (gi == null) {
-                    RpcCallback.callFail(callback, new RaftException("no leader"));
-                } else if (timeout.isTimeout()) {
-                    RpcCallback.callFail(callback, new NetTimeoutException("timeout after find leader"));
+                CompletableFuture<GroupInfo> leaderFuture;
+                if (groupInfo.leaderFuture == null) {
+                    leaderFuture = updateLeaderInfo(groupId);
                 } else {
-                    send(request, decoder, timeout, callback, gi, 0);
+                    leaderFuture = groupInfo.leaderFuture;
                 }
-            });
+                leaderFuture.whenComplete((gi, ex) -> {
+                    if (ex != null) {
+                        RpcCallback.callFail(callback, ex);
+                        if (finalGetPermit) {
+                            nioClient.releasePermit(request);
+                        }
+                    } else if (gi == null) {
+                        RpcCallback.callFail(callback, new RaftException("no leader"));
+                        if (finalGetPermit) {
+                            nioClient.releasePermit(request);
+                        }
+                    } else if (timeout.isTimeout()) {
+                        RpcCallback.callFail(callback, new NetTimeoutException("timeout after find leader"));
+                        if (finalGetPermit) {
+                            nioClient.releasePermit(request);
+                        }
+                    } else {
+                        send(request, decoder, timeout, callback, gi, 0, finalGetPermit);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                DtUtil.restoreInterruptStatus();
+            }
+            RpcCallback.callFail(callback, e);
+            if (getPermit) {
+                nioClient.releasePermit(request);
+            }
         }
     }
 
     private <T> void send(WritePacket request, DecoderCallbackCreator<T> decoder,
-                          DtTime timeout, RpcCallback<T> c, GroupInfo gi, int retry) {
+                          DtTime timeout, RpcCallback<T> c, GroupInfo gi, int retry, boolean getPermit) {
         RpcCallback<T> newCallback = new RpcCallback<T>() {
             @Override
             public void success(ReadPacket<T> resp) {
-                c.success(resp);
+                if (c != null) {
+                    c.success(resp);
+                }
+                if (getPermit) {
+                    nioClient.releasePermit(request);
+                }
             }
 
             @Override
@@ -229,18 +256,24 @@ public class RaftClient extends AbstractLifeCircle {
                         Peer newLeader = updateLeaderFromExtra(ncEx.getExtra(), gi);
                         if (newLeader != null && !timeout.isTimeout()) {
                             request.prepareRetry();
-                            send(request, decoder, timeout, c, gi, 1);
+                            send(request, decoder, timeout, c, gi, 1, getPermit);
                             return;
                         }
                     }
                 }
-                c.fail(ex);
+                if (c != null) {
+                    c.fail(ex);
+                    if (getPermit) {
+                        nioClient.releasePermit(request);
+                    }
+                }
             }
         };
         nioClient.sendRequest(gi.leader, request, decoder, timeout, newCallback);
     }
 
     private CompletableFuture<GroupInfo> updateLeaderInfo(int groupId) {
+        log.info("try find leader for group {}", groupId);
         lock.lock();
         try {
             GroupInfo gi = groups.get(groupId);

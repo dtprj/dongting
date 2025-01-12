@@ -52,10 +52,13 @@ public abstract class NioNet extends AbstractLifeCircle {
     int pendingRequests;
     int pendingBytes;
 
+    private final boolean server;
+
     public NioNet(NioConfig config) {
         this.config = config;
         this.nioStatus = new NioStatus();
         this.perfCallback = config.getPerfCallback();
+        this.server = config instanceof NioServerConfig;
         if (config.getMaxPacketSize() < config.getMaxBodySize() + 128 * 1024) {
             throw new IllegalArgumentException("maxPacketSize should greater than maxBodySize plus 128KB.");
         }
@@ -96,18 +99,42 @@ public abstract class NioNet extends AbstractLifeCircle {
     private <T> void send0(NioWorker worker, Peer peer, DtChannelImpl dtc, WritePacket request,
                            DecoderCallbackCreator<T> decoder, DtTime timeout,
                            RpcCallback<T> callback) {
+        boolean acquirePermit = false;
         try {
             config.readFence();
-            int estimateSize = generalCheck(request, timeout, callback);
+            generalCheck(request, timeout, callback);
             request.setPacketType(decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
 
-            if (request.command != Commands.CMD_HANDSHAKE) {
-                callback = acquirePermitAndWrapCallback(timeout, callback, estimateSize);
+            if (!server && request.command != Commands.CMD_HANDSHAKE && !request.acquirePermit) {
+                acquirePermit = acquirePermit(request, timeout);
             }
         } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                DtUtil.restoreInterruptStatus();
+            }
             RpcCallback.callFail(callback, e);
             request.clean();
             return;
+        }
+        if (acquirePermit) {
+            RpcCallback<T> old = callback;
+            callback = new RpcCallback<T>() {
+                @Override
+                public void success(ReadPacket<T> resp) {
+                    releasePermit(request);
+                    if (old != null) {
+                        old.success(resp);
+                    }
+                }
+
+                @Override
+                public void fail(Throwable ex) {
+                    releasePermit(request);
+                    if (old != null) {
+                        old.fail(ex);
+                    }
+                }
+            };
         }
         WriteData wd;
         if (peer != null) {
@@ -118,18 +145,20 @@ public abstract class NioNet extends AbstractLifeCircle {
         worker.writeReqInBizThreads(wd);
     }
 
-    private <T> RpcCallback<T> acquirePermitAndWrapCallback(DtTime timeout, RpcCallback<T> callback,
-                                                            int estimateSize) throws InterruptedException {
+    public boolean acquirePermit(WritePacket request, DtTime timeout) throws InterruptedException {
         while (true) {
             int maxPending = config.getMaxOutRequests();
             long maxPendingBytes = config.getMaxOutBytes();
             if (maxPending <= 0 && maxPendingBytes <= 0) {
-                break;
+                return false;
             }
 
             long t = perfCallback.takeTime(PerfConsts.RPC_D_ACQUIRE);
             lock.lock();
             try {
+                if (request.acquirePermit) {
+                    throw new IllegalStateException("current request is already acquired permit");
+                }
                 if (maxPending > 0 && pendingRequests + 1 > maxPending) {
                     if (!pendingReqCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
                         throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
@@ -138,6 +167,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                     // re-check all
                     continue;
                 }
+                int estimateSize = request.calcMaxPacketSize();
                 if (maxPendingBytes > 0 && pendingBytes + estimateSize > maxPendingBytes) {
                     if (!pendingBytesCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
                         throw new NetTimeoutException("too many pending bytes, client wait permit timeout in "
@@ -146,19 +176,18 @@ public abstract class NioNet extends AbstractLifeCircle {
                     // re-check all
                     continue;
                 }
+                request.acquirePermit = true;
                 pendingRequests++;
                 pendingBytes += estimateSize;
             } finally {
                 lock.unlock();
                 perfCallback.fireTime(PerfConsts.RPC_D_ACQUIRE, t);
             }
-            callback = wrapCallback(callback, estimateSize);
-            break;
+            return true;
         }
-        return callback;
     }
 
-    private <T> int generalCheck(WritePacket request, DtTime timeout, RpcCallback<T> callback) {
+    private <T> void generalCheck(WritePacket request, DtTime timeout, RpcCallback<T> callback) {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(callback);
         Objects.requireNonNull(request);
@@ -178,41 +207,32 @@ public abstract class NioNet extends AbstractLifeCircle {
             throw new NetException("packet body size " + bodySize
                     + " exceeds max body size " + config.getMaxBodySize());
         }
-        return estimateSize;
     }
 
-    private <T> RpcCallback<T> wrapCallback(RpcCallback<T> callback, int estimateSize) {
-        return new RpcCallback<T>() {
-            boolean b;
-
-            @Override
-            public void success(ReadPacket<T> resp) {
-                updatePending();
-                RpcCallback.callSuccess(callback, resp);
+    public void releasePermit(WritePacket request) {
+        lock.lock();
+        try {
+            if (!request.acquirePermit) {
+                BugLog.getLog().error("current request is not acquired permit");
+                return;
             }
-
-            @Override
-            public void fail(Throwable ex) {
-                updatePending();
-                RpcCallback.callFail(callback, ex);
+            int estimateSize = request.calcMaxPacketSize();
+            pendingRequests--;
+            if (pendingRequests < 0) {
+                BugLog.getLog().error("pendingRequests is " + pendingRequests);
+                pendingRequests = 0;
             }
-
-            private void updatePending() {
-                lock.lock();
-                try {
-                    if (b) {
-                        BugLog.getLog().error("already called update pending");
-                    }
-                    b = true;
-                    pendingRequests--;
-                    pendingBytes -= estimateSize;
-                    pendingReqCond.signal();
-                    pendingBytesCond.signal();
-                } finally {
-                    lock.unlock();
-                }
+            pendingBytes -= estimateSize;
+            if (pendingBytes < 0) {
+                BugLog.getLog().error("pendingBytes is " + pendingBytes);
+                pendingBytes = 0;
             }
-        };
+            request.acquirePermit = false;
+            pendingReqCond.signalAll();
+            pendingBytesCond.signalAll();
+        } finally {
+            lock.unlock();
+        }
     }
 
     protected void initBizExecutor() {
