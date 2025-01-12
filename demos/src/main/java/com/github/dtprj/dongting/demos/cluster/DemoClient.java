@@ -30,8 +30,9 @@ public class DemoClient {
     public static void main(String[] args) throws Exception {
         String servers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
         int groupId = 0;
-        KvClient client = new KvClient(servers, groupId);
-        client.start();
+        KvClient kvClient = new KvClient();
+        kvClient.start();
+        kvClient.getRaftClient().addOrUpdateGroup(groupId, servers);
 
         long startTime = System.currentTimeMillis();
         int loop = 3_000;
@@ -39,7 +40,7 @@ public class DemoClient {
         for (int i = 0; i < loop; i++) {
             String key = "key" + (i % 10_000);
             DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-            CompletableFuture<Void> f = client.put(groupId, key, "value".getBytes(), timeout);
+            CompletableFuture<Void> f = kvClient.put(groupId, key, "value".getBytes(), timeout);
             f.whenComplete((v, e) -> {
                 if (e == null) {
                     latch.countDown();
@@ -51,6 +52,6 @@ public class DemoClient {
         latch.await();
         System.out.println("put " + loop + " keys cost " + (System.currentTimeMillis() - startTime) + "ms");
 
-        client.stop(new DtTime(3, TimeUnit.SECONDS));
+        kvClient.stop(new DtTime(3, TimeUnit.SECONDS));
     }
 }

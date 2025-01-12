@@ -64,6 +64,11 @@ public class RaftClient extends AbstractLifeCircle {
         this.nioClient = new NioClient(nioClientConfig);
     }
 
+    public void addOrUpdateGroup(int groupId, String servers) throws NetException {
+        List<RaftNode> list = RaftNode.parseServers(servers);
+        addOrUpdateGroup(groupId, list);
+    }
+
     public void addOrUpdateGroup(int groupId, List<RaftNode> servers) throws NetException {
         Objects.requireNonNull(servers);
         if (servers.isEmpty()) {
