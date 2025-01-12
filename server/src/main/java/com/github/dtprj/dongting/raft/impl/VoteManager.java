@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -172,7 +173,7 @@ public class VoteManager {
         req.setLastLogIndex(raftStatus.getLastLogIndex());
         req.setLastLogTerm(raftStatus.getLastLogTerm());
         req.setPreVote(preVote);
-        VoteReq.VoteReqWritePacket wf = new VoteReq.VoteReqWritePacket(req);
+        SimpleWritePacket wf = new SimpleWritePacket(req);
         wf.setCommand(Commands.RAFT_REQUEST_VOTE);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
 

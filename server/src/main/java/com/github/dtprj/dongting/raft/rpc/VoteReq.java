@@ -17,8 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
+import com.github.dtprj.dongting.codec.SimpleEncodable;
 
 import java.nio.ByteBuffer;
 
@@ -31,13 +30,33 @@ import java.nio.ByteBuffer;
 //  fixed64 last_log_index = 4;
 //  uint32 last_log_term = 5;
 //  uint32 pre_vote = 6;
-public class VoteReq {
+public class VoteReq implements SimpleEncodable {
     private int groupId;
     private int term;
     private int candidateId;
     private long lastLogIndex;
     private int lastLogTerm;
     private boolean preVote;
+
+    @Override
+    public int actualSize() {
+        return PbUtil.accurateUnsignedLongSize(1, groupId)
+                + PbUtil.accurateUnsignedLongSize(2, term)
+                + PbUtil.accurateUnsignedIntSize(3, candidateId)
+                + PbUtil.accurateFix64Size(4, lastLogIndex)
+                + PbUtil.accurateUnsignedIntSize(5, lastLogTerm)
+                + PbUtil.accurateUnsignedIntSize(6, preVote ? 1 : 0);
+    }
+
+    @Override
+    public void encode(ByteBuffer buf) {
+        PbUtil.writeUnsignedInt32(buf, 1, groupId);
+        PbUtil.writeUnsignedInt32(buf, 2, term);
+        PbUtil.writeUnsignedInt32(buf, 3, candidateId);
+        PbUtil.writeFix64(buf, 4, lastLogIndex);
+        PbUtil.writeUnsignedInt32(buf, 5, lastLogTerm);
+        PbUtil.writeUnsignedInt32(buf, 6, preVote ? 1 : 0);
+    }
 
     public static class Callback extends PbCallback<VoteReq> {
         private final VoteReq result = new VoteReq();
@@ -75,36 +94,6 @@ public class VoteReq {
         @Override
         public VoteReq getResult() {
             return result;
-        }
-    }
-
-    public static class VoteReqWritePacket extends SmallNoCopyWritePacket {
-
-        private final VoteReq data;
-
-        public VoteReqWritePacket(VoteReq data) {
-            setCommand(Commands.RAFT_REQUEST_VOTE);
-            this.data = data;
-        }
-
-        @Override
-        protected int calcActualBodySize() {
-            return PbUtil.accurateUnsignedLongSize(1, data.groupId)
-                    + PbUtil.accurateUnsignedLongSize(2, data.term)
-                    + PbUtil.accurateUnsignedIntSize(3, data.candidateId)
-                    + PbUtil.accurateFix64Size(4, data.lastLogIndex)
-                    + PbUtil.accurateUnsignedIntSize(5, data.lastLogTerm)
-                    + PbUtil.accurateUnsignedIntSize(6, data.preVote ? 1 : 0);
-        }
-
-        @Override
-        protected void encodeBody(ByteBuffer buf) {
-            PbUtil.writeUnsignedInt32(buf, 1, data.groupId);
-            PbUtil.writeUnsignedInt32(buf, 2, data.term);
-            PbUtil.writeUnsignedInt32(buf, 3, data.candidateId);
-            PbUtil.writeFix64(buf, 4, data.lastLogIndex);
-            PbUtil.writeUnsignedInt32(buf, 5, data.lastLogTerm);
-            PbUtil.writeUnsignedInt32(buf, 6, data.preVote ? 1 : 0);
         }
     }
 

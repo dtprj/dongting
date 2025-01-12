@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.PbIntCallback;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -56,7 +57,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         resp.setLastApplied(raftStatus.getLastApplied());
         resp.setLastLogIndex(raftStatus.getLastLogIndex());
 
-        QueryStatusResp.QueryStatusRespWritePacket wf = new QueryStatusResp.QueryStatusRespWritePacket(resp);
+        SimpleWritePacket wf = new SimpleWritePacket(resp);
         wf.setRespCode(CmdCodes.SUCCESS);
         writeResp(reqInfo, wf);
         return FiberFrame.voidCompletedFrame();

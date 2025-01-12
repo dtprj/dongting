@@ -17,14 +17,14 @@ package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
+import com.github.dtprj.dongting.codec.SimpleEncodable;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class QueryStatusResp {
+public class QueryStatusResp implements SimpleEncodable {
     // uint32 group_id = 1;
     // uint32 term = 2;
     // uint32 leader_id = 3;
@@ -37,6 +37,26 @@ public class QueryStatusResp {
     private long commitIndex;
     private long lastApplied;
     private long lastLogIndex;
+
+    @Override
+    public int actualSize() {
+        return PbUtil.accurateUnsignedIntSize(1, groupId) +
+                PbUtil.accurateUnsignedIntSize(2, term) +
+                PbUtil.accurateUnsignedIntSize(3, leaderId) +
+                PbUtil.accurateFix64Size(4, commitIndex) +
+                PbUtil.accurateFix64Size(5, lastApplied) +
+                PbUtil.accurateFix64Size(6, lastLogIndex);
+    }
+
+    @Override
+    public void encode(ByteBuffer buf) {
+        PbUtil.writeUnsignedInt32(buf, 1, groupId);
+        PbUtil.writeUnsignedInt32(buf, 2, term);
+        PbUtil.writeUnsignedInt32(buf, 3, leaderId);
+        PbUtil.writeFix64(buf, 4, commitIndex);
+        PbUtil.writeFix64(buf, 5, lastApplied);
+        PbUtil.writeFix64(buf, 6, lastLogIndex);
+    }
 
     public static class QueryStatusRespCallback extends PbCallback<QueryStatusResp> {
         private final QueryStatusResp result = new QueryStatusResp();
@@ -76,35 +96,6 @@ public class QueryStatusResp {
         @Override
         public QueryStatusResp getResult() {
             return result;
-        }
-    }
-
-    public static class QueryStatusRespWritePacket extends SmallNoCopyWritePacket {
-
-        QueryStatusResp resp;
-
-        public QueryStatusRespWritePacket(QueryStatusResp resp) {
-            this.resp = resp;
-        }
-
-        @Override
-        protected int calcActualBodySize() {
-            return PbUtil.accurateUnsignedIntSize(1, resp.groupId) +
-                    PbUtil.accurateUnsignedIntSize(2, resp.term) +
-                    PbUtil.accurateUnsignedIntSize(3, resp.leaderId) +
-                    PbUtil.accurateFix64Size(4, resp.commitIndex) +
-                    PbUtil.accurateFix64Size(5, resp.lastApplied) +
-                    PbUtil.accurateFix64Size(6, resp.lastLogIndex);
-        }
-
-        @Override
-        protected void encodeBody(ByteBuffer buf) {
-            PbUtil.writeUnsignedInt32(buf, 1, resp.groupId);
-            PbUtil.writeUnsignedInt32(buf, 2, resp.term);
-            PbUtil.writeUnsignedInt32(buf, 3, resp.leaderId);
-            PbUtil.writeFix64(buf, 4, resp.commitIndex);
-            PbUtil.writeFix64(buf, 5, resp.lastApplied);
-            PbUtil.writeFix64(buf, 6, resp.lastLogIndex);
         }
     }
 

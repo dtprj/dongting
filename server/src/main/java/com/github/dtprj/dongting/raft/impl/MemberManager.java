@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.RaftPingPacketCallback;
@@ -787,7 +788,8 @@ public class MemberManager {
                 req.logIndex = raftStatus.getLastLogIndex();
                 req.oldLeaderId = serverConfig.getNodeId();
                 req.groupId = groupId;
-                TransferLeaderReq.TransferLeaderReqWritePacket frame = new TransferLeaderReq.TransferLeaderReqWritePacket(req);
+                SimpleWritePacket frame = new SimpleWritePacket(req);
+                frame.setCommand(Commands.RAFT_LEADER_TRANSFER);
                 client.sendRequest(newLeader.getNode().getPeer(), frame,
                                 DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, new DtTime(5, TimeUnit.SECONDS))
                         .whenComplete((rf, ex) -> {

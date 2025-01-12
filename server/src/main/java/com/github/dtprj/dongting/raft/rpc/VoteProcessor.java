@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -142,7 +143,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             VoteResp resp = new VoteResp();
             resp.setVoteGranted(grant);
             resp.setTerm(raftStatus.getCurrentTerm());
-            VoteResp.VoteRespWritePacket wf = new VoteResp.VoteRespWritePacket(resp);
+            SimpleWritePacket wf = new SimpleWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
             writeResp(reqInfo, wf);
             log.info("receive {} request from node {}. granted={}", voteReq.isPreVote() ? "pre-vote" : "vote",

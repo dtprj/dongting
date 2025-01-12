@@ -17,8 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
+import com.github.dtprj.dongting.codec.SimpleEncodable;
 
 import java.nio.ByteBuffer;
 
@@ -31,11 +30,27 @@ import java.nio.ByteBuffer;
 //  uint32 old_leader_id = 3;
 //  fixed64 log_index = 4;
 //}
-public class TransferLeaderReq {
+public class TransferLeaderReq implements SimpleEncodable {
     public int groupId;
     public int term;
     public int oldLeaderId;
     public long logIndex;
+
+    @Override
+    public int actualSize() {
+        return PbUtil.accurateUnsignedIntSize(1, groupId)
+                + PbUtil.accurateUnsignedIntSize(2, term)
+                + PbUtil.accurateUnsignedIntSize(3, oldLeaderId)
+                + PbUtil.accurateFix64Size(4, logIndex);
+    }
+
+    @Override
+    public void encode(ByteBuffer buf) {
+        PbUtil.writeUnsignedInt32(buf, 1, groupId);
+        PbUtil.writeUnsignedInt32(buf, 2, term);
+        PbUtil.writeUnsignedInt32(buf, 3, oldLeaderId);
+        PbUtil.writeFix64(buf, 4, logIndex);
+    }
 
     public static class Callback extends PbCallback<TransferLeaderReq> {
         private final TransferLeaderReq result = new TransferLeaderReq();
@@ -67,31 +82,6 @@ public class TransferLeaderReq {
         @Override
         public TransferLeaderReq getResult() {
             return result;
-        }
-    }
-
-    public static class TransferLeaderReqWritePacket extends SmallNoCopyWritePacket {
-        private final TransferLeaderReq req;
-
-        public TransferLeaderReqWritePacket(TransferLeaderReq req) {
-            setCommand(Commands.RAFT_LEADER_TRANSFER);
-            this.req = req;
-        }
-
-        @Override
-        protected int calcActualBodySize() {
-            return PbUtil.accurateUnsignedIntSize(1, req.groupId)
-                    + PbUtil.accurateUnsignedIntSize(2, req.term)
-                    + PbUtil.accurateUnsignedIntSize(3, req.oldLeaderId)
-                    + PbUtil.accurateFix64Size(4, req.logIndex);
-        }
-
-        @Override
-        protected void encodeBody(ByteBuffer buf) {
-            PbUtil.writeUnsignedInt32(buf, 1, req.groupId);
-            PbUtil.writeUnsignedInt32(buf, 2, req.term);
-            PbUtil.writeUnsignedInt32(buf, 3, req.oldLeaderId);
-            PbUtil.writeFix64(buf, 4, req.logIndex);
         }
     }
 }

@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
+import com.github.dtprj.dongting.codec.SimpleEncodable;
 
 import java.nio.ByteBuffer;
 
@@ -26,9 +26,21 @@ import java.nio.ByteBuffer;
  */
 //  uint32 term = 1;
 //  uint32 vote_granted = 2;
-public class VoteResp {
+public class VoteResp implements SimpleEncodable {
     private int term;
     private boolean voteGranted;
+
+    @Override
+    public int actualSize() {
+        return PbUtil.accurateUnsignedIntSize(1, term)
+                + PbUtil.accurateUnsignedIntSize(2, voteGranted ? 1 : 0);
+    }
+
+    @Override
+    public void encode(ByteBuffer buf) {
+        PbUtil.writeUnsignedInt32(buf, 1, term);
+        PbUtil.writeUnsignedInt32(buf, 2, voteGranted ? 1 : 0);
+    }
 
     public static class Callback extends PbCallback<VoteResp> {
         private final VoteResp result = new VoteResp();
@@ -49,27 +61,6 @@ public class VoteResp {
         @Override
         public VoteResp getResult() {
             return result;
-        }
-    }
-
-    public static class VoteRespWritePacket extends SmallNoCopyWritePacket {
-
-        private final VoteResp data;
-
-        public VoteRespWritePacket(VoteResp data) {
-            this.data = data;
-        }
-
-        @Override
-        protected int calcActualBodySize() {
-            return PbUtil.accurateUnsignedIntSize(1, data.term)
-                    + PbUtil.accurateUnsignedIntSize(2, data.voteGranted ? 1 : 0);
-        }
-
-        @Override
-        protected void encodeBody(ByteBuffer buf) {
-            PbUtil.writeUnsignedInt32(buf, 1, data.term);
-            PbUtil.writeUnsignedInt32(buf, 2, data.voteGranted ? 1 : 0);
         }
     }
 
