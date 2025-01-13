@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -52,12 +53,18 @@ public class KvResp implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        if (destBuffer.remaining() >= PbUtil.accurateUnsignedIntSize(IDX_SIZE, listCount)) {
-            PbUtil.writeUnsignedInt32(destBuffer, 1, listCount);
-        } else {
-            return false;
+        if (context.stage == EncodeContext.STAGE_BEGIN) {
+            if (destBuffer.remaining() >= PbUtil.maxUnsignedIntSize()) {
+                PbUtil.writeUnsignedInt32(destBuffer, 1, listCount);
+                context.stage = IDX_SIZE;
+            } else {
+                return false;
+            }
         }
-        return EncodeUtil.encodeObjs(context, destBuffer, IDX_RESULTS, results);
+        if (context.stage == IDX_SIZE) {
+            return EncodeUtil.encodeObjs(context, destBuffer, IDX_RESULTS, results);
+        }
+        throw new CodecException(context);
     }
 
     // re-used

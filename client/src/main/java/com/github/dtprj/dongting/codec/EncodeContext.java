@@ -51,9 +51,7 @@ public class EncodeContext {
         if (nested == null) {
             nested = new EncodeContext(heapPool);
         }
-        if (!nestedUse) {
-            nestedUse = true;
-        }
+        nestedUse = true;
         if (reset) {
             nested.reset();
         }
