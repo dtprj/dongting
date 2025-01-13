@@ -33,7 +33,7 @@ public class DemoClient {
         KvClient kvClient = new KvClient();
         kvClient.start();
         kvClient.getRaftClient().addOrUpdateGroup(groupId, servers);
-        kvClient.getRaftClient().fetchLeader(groupId);
+        kvClient.getRaftClient().fetchLeader(groupId).get();
 
         long startTime = System.currentTimeMillis();
         int loop = 3_000;

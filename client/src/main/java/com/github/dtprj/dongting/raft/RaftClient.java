@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -42,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -55,7 +55,7 @@ public class RaftClient extends AbstractLifeCircle {
     // key is nodeId
     private final IntObjMap<NodeInfo> allNodes = new IntObjMap<>();
     // key is groupId
-    private volatile IntObjMap<GroupInfo> groups = new IntObjMap<>();
+    private final ConcurrentHashMap<Integer, GroupInfo> groups = new ConcurrentHashMap<>();
 
     private final ReentrantLock lock = new ReentrantLock();
     private long nextEpoch = 0;
@@ -151,8 +151,7 @@ public class RaftClient extends AbstractLifeCircle {
         } else {
             gi = new GroupInfo(groupId, generateNextEpoch(), nodeInfoList, leader, false);
         }
-        //noinspection NonAtomicOperationOnVolatileField
-        this.groups = IntObjMap.copyOnWritePut(groups, groupId, gi).getRight();
+        groups.put(groupId, gi);
     }
 
     private long generateNextEpoch() {
@@ -174,9 +173,7 @@ public class RaftClient extends AbstractLifeCircle {
     public void removeGroup(int groupId) throws NetException {
         lock.lock();
         try {
-            Pair<GroupInfo, IntObjMap<GroupInfo>> pair = IntObjMap.copyOnWriteRemove(groups, groupId);
-            this.groups = pair.getRight();
-            GroupInfo oldGroupInfo = pair.getLeft();
+            GroupInfo oldGroupInfo = groups.remove(groupId);
             if (oldGroupInfo != null) {
                 if (oldGroupInfo.leaderFuture != null) {
                     oldGroupInfo.leaderFuture.completeExceptionally(new RaftException("group removed " + groupId));
@@ -188,7 +185,7 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    public <T> void sendRequest(int groupId, WritePacket request, DecoderCallbackCreator<T> decoder,
+    public <T> void sendRequest(Integer groupId, WritePacket request, DecoderCallbackCreator<T> decoder,
                                 DtTime timeout, RpcCallback<T> callback) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
@@ -214,13 +211,13 @@ public class RaftClient extends AbstractLifeCircle {
                         if (finalGetPermit) {
                             nioClient.releasePermit(request);
                         }
-                    } else if (gi == null) {
-                        RpcCallback.callFail(callback, new RaftException("no leader"));
+                    } else if (gi == null || gi.leader == null) {
+                        RpcCallback.callFail(callback, new RaftException("can't find leader for group " + groupId));
                         if (finalGetPermit) {
                             nioClient.releasePermit(request);
                         }
                     } else if (timeout.isTimeout()) {
-                        RpcCallback.callFail(callback, new NetTimeoutException("timeout after find leader"));
+                        RpcCallback.callFail(callback, new NetTimeoutException("timeout after find leader for group " + groupId));
                         if (finalGetPermit) {
                             nioClient.releasePermit(request);
                         }
@@ -278,22 +275,13 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public CompletableFuture<Peer> fetchLeader(int groupId) {
-        lock.lock();
-        try {
-            GroupInfo gi = groups.get(groupId);
-            if (gi == null) {
-                return DtUtil.failedFuture(new NoSuchGroupException(groupId));
+        return updateLeaderInfo(groupId).thenApply(gi -> {
+            if (gi == null || gi.leader == null) {
+                throw new RaftException("can't find leader for group " + groupId);
+            } else {
+                return gi.leader;
             }
-            if (gi.leader != null) {
-                return CompletableFuture.completedFuture(gi.leader);
-            }
-            if (gi.leaderFuture != null) {
-                return gi.leaderFuture.thenApply(g -> g.leader);
-            }
-            return updateLeaderInfo(groupId).thenApply(g -> g.leader);
-        } finally {
-            lock.unlock();
-        }
+        });
     }
 
     private CompletableFuture<GroupInfo> updateLeaderInfo(int groupId) {
