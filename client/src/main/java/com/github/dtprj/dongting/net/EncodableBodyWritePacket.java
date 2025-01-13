@@ -43,4 +43,9 @@ public class EncodableBodyWritePacket extends RetryableWritePacket {
         }
         return body.encode(context, dest);
     }
+
+    @Override
+    public String toString() {
+        return "EncodableBodyWritePacket{" + "body=" + body + '}';
+    }
 }

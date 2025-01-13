@@ -141,7 +141,7 @@ public abstract class WritePacket extends Packet implements Encodable {
                     x = buf.position() - x;
                     if (finish) {
                         if (bodySize != x + context.pending) {
-                            throw new CodecException("WritePacket body size not match actual encoded size: "
+                            throw new CodecException(this + " body size not match actual encoded size: "
                                     + bodySize + ", " + (x + context.pending));
                         }
                     } else {
