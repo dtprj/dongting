@@ -19,6 +19,7 @@ package com.github.dtprj.dongting.demos.cluster;
  * @author huangli
  */
 public class Server1 extends Server {
+    // in this simple demo just start 1 raft group with 3 nodes
     public static void main(String[] args) {
         int nodeId = 1;
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";

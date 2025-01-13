@@ -33,16 +33,18 @@ import java.util.List;
  */
 public class Server {
 
-    protected static RaftServer startServer(int nodeId, String servers, String members,
+    protected static void startServer(int nodeId, String servers, String members,
                                             String observers, int[] groupIds) {
         RaftServerConfig serverConfig = new RaftServerConfig();
         serverConfig.setServers(servers);
         serverConfig.setNodeId(nodeId);
-        serverConfig.setReplicatePort(4000 + nodeId);
-        serverConfig.setServicePort(5000 + nodeId);
+        serverConfig.setReplicatePort(4000 + nodeId); // internal use for raft log replication (server to server)
+        serverConfig.setServicePort(5000 + nodeId); // use for client access
+        // since it is demo, use little timeout values to make election faster
         serverConfig.setElectTimeout(3000);
         serverConfig.setHeartbeatInterval(1000);
 
+        // multi-raft group support
         List<RaftGroupConfig> groupConfigs = new ArrayList<>();
         for (int groupId : groupIds) {
             RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, members, observers);
@@ -53,14 +55,15 @@ public class Server {
         DefaultRaftFactory raftFactory = new DefaultRaftFactory() {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
+                // the state machine can be customized, here use DtKV, a simple key-value store
                 return new DtKV(groupConfig, new KvConfig());
             }
         };
 
         RaftServer raftServer = new RaftServer(serverConfig, groupConfigs, raftFactory);
+        // register DtKV rpc processor
         KvServerUtil.initKvServer(raftServer);
 
         raftServer.start();
-        return raftServer;
     }
 }
