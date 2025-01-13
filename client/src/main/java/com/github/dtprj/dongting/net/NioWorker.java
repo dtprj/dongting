@@ -601,6 +601,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ci.peer.status = PeerStatus.connected;
         ci.peer.resetConnectRetry(workerStatus);
         finishHandshake(dtc);
+        ci.peer.enqueueAfterConnect();
         ci.future.complete(null);
     }
 
