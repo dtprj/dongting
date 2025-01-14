@@ -15,17 +15,24 @@
  */
 package com.github.dtprj.dongting.demos.cluster;
 
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.demos.base.DemoClient;
+import com.github.dtprj.dongting.dtkv.KvClient;
+
+import java.util.concurrent.TimeUnit;
+
 /**
  * @author huangli
  */
-public class Server3 extends Server {
-    // in this simple demo just start 1 raft group with 3 nodes
-    public static void main(String[] args) {
-        int nodeId = 3;
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
-        String members = "1,2,3";
-        String observers = "";
+public class ClusterClient extends DemoClient {
+
+    public static void main(String[] args) throws Exception {
+        String servers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
         int groupId = 0;
-        startServer(nodeId, servers, members, observers, new int[]{groupId});
+        final int loop = 10_000;
+        KvClient client = run(groupId, servers, loop);
+
+        // System.exit(0);
+        client.stop(new DtTime(3, TimeUnit.SECONDS));
     }
 }

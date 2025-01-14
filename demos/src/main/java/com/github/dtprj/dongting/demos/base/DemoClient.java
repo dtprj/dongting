@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.demos.cluster;
+package com.github.dtprj.dongting.demos.base;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
@@ -31,19 +31,15 @@ import java.util.concurrent.TimeUnit;
 public class DemoClient {
     private static final DtLog log = DtLogs.getLogger(DemoClient.class);
 
-    public static void main(String[] args) throws Exception {
-        String servers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
-        int groupId = 0;
-        final int loop = 10_000;
-
+    public static KvClient run(int groupId, String servers, int loopCount) throws Exception {
         KvClient kvClient = new KvClient();
         kvClient.start();
         kvClient.getRaftClient().addOrUpdateGroup(groupId, servers);
         kvClient.getRaftClient().fetchLeader(groupId).get();
 
         long t1 = System.currentTimeMillis();
-        CountDownLatch latch1 = new CountDownLatch(loop);
-        for (int i = 0; i < loop; i++) {
+        CountDownLatch latch1 = new CountDownLatch(loopCount);
+        for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
             DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
             CompletableFuture<Void> f = kvClient.put(groupId, key, "value".getBytes(), timeout);
@@ -60,8 +56,8 @@ public class DemoClient {
         t1 = System.currentTimeMillis() - t1;
 
         long t2 = System.currentTimeMillis();
-        CountDownLatch latch2 = new CountDownLatch(loop);
-        for (int i = 0; i < loop; i++) {
+        CountDownLatch latch2 = new CountDownLatch(loopCount);
+        for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
             DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
             CompletableFuture<KvNode> f = kvClient.get(groupId, key, timeout);
@@ -79,11 +75,10 @@ public class DemoClient {
 
 
         System.out.println("----------------------------------------------");
-        System.out.println("Unbelievable! " + loop + " puts finished in " + t1 + " ms, gets finished in " + t2 + " ms");
-        System.out.println("Throughput: " + loop * 1000 / t1 + " puts/s, " + loop * 1000 / t2 + " gets/s");
+        System.out.println("Unbelievable! " + loopCount + " puts finished in " + t1 + " ms, gets finished in " + t2 + " ms");
+        System.out.println("Throughput: " + loopCount * 1000L / t1 + " puts/s, " + loopCount * 1000L / t2 + " gets/s");
         System.out.println(System.getProperty("os.name") + " with " + Runtime.getRuntime().availableProcessors() + " cores");
         System.out.println("----------------------------------------------");
-
-        kvClient.stop(new DtTime(3, TimeUnit.SECONDS));
+        return kvClient;
     }
 }

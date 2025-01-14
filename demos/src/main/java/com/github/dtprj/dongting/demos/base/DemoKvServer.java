@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.demos.cluster;
+package com.github.dtprj.dongting.demos.base;
 
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvConfig;
@@ -31,9 +31,9 @@ import java.util.List;
 /**
  * @author huangli
  */
-public class Server {
+public class DemoKvServer {
 
-    protected static void startServer(int nodeId, String servers, String members,
+    public static RaftServer startServer(int nodeId, String servers, String members,
                                             String observers, int[] groupIds) {
         RaftServerConfig serverConfig = new RaftServerConfig();
         serverConfig.setServers(servers);
@@ -65,5 +65,6 @@ public class Server {
         KvServerUtil.initKvServer(raftServer);
 
         raftServer.start();
+        return raftServer;
     }
 }

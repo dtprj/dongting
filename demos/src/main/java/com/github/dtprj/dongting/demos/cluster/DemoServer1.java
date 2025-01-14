@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.demos.cluster;
 
+import com.github.dtprj.dongting.demos.base.DemoKvServer;
+
 /**
  * @author huangli
  */
-public class Server1 extends Server {
+public class DemoServer1 extends DemoKvServer {
     // in this simple demo just start 1 raft group with 3 nodes
     public static void main(String[] args) {
         int nodeId = 1;
