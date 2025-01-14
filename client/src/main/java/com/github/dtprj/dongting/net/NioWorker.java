@@ -330,7 +330,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     if (x2 == 0) {
                         subQueue.afterBufferWriteFinish();
                     }
-                    perfCallback.fireTime(PerfConsts.RPC_D_WRITE, startTime, 1, x2 - x1);
+                    perfCallback.fireTime(PerfConsts.RPC_D_WRITE, startTime, 1, x1 - x2);
                 } else {
                     // no data to write
                     subQueue.setWriting(false);
