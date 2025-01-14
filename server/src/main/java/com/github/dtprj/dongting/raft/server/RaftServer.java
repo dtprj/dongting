@@ -132,8 +132,9 @@ public class RaftServer extends AbstractLifeCircle {
 
         NioClientConfig repClientConfig = new NioClientConfig();
         repClientConfig.setName("RaftRepClient" + serverConfig.getNodeId());
-        setupNioConfig(repClientConfig);
         repClientConfig.setConnectRetryIntervals(null); //use node ping
+        setupNioConfig(repClientConfig);
+        customReplicateNioClient(repClientConfig);
         replicateNioClient = new NioClient(repClientConfig);
 
         nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient,
@@ -145,6 +146,7 @@ public class RaftServer extends AbstractLifeCircle {
         repServerConfig.setBizThreads(0);
         // use multi io threads
         setupNioConfig(repServerConfig);
+        customReplicateNioServer(repServerConfig);
         replicateNioServer = new NioServer(repServerConfig);
 
         replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
@@ -164,6 +166,7 @@ public class RaftServer extends AbstractLifeCircle {
             serviceServerConfig.setBizThreads(0);
             // use multi io threads
             serviceServerConfig.setDecodeContextFactory(DecodeContextEx::new);
+            customServiceNioServer(serviceServerConfig);
             serviceNioServer = new NioServer(serviceServerConfig);
             addRaftGroupProcessor(serviceNioServer, Commands.RAFT_QUERY_STATUS, queryStatusProcessor);
         } else {
@@ -188,6 +191,15 @@ public class RaftServer extends AbstractLifeCircle {
         nc.setMaxBodySize(Integer.MAX_VALUE);
         nc.setMaxPacketSize(Integer.MAX_VALUE);
         nc.setDecodeContextFactory(DecodeContextEx::new);
+    }
+
+    protected void customReplicateNioClient(@SuppressWarnings("unused") NioClientConfig c) {
+    }
+
+    protected void customReplicateNioServer(@SuppressWarnings("unused") NioServerConfig c) {
+    }
+
+    protected void customServiceNioServer(@SuppressWarnings("unused") NioServerConfig c) {
     }
 
     private void createRaftGroups(RaftServerConfig serverConfig,

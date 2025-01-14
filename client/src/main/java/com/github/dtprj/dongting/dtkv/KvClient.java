@@ -38,8 +38,11 @@ public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
 
     public KvClient() {
-        NioClientConfig nioClientConfig = new NioClientConfig();
-        this.raftClient = new RaftClient(nioClientConfig);
+        this(new NioClientConfig());
+    }
+
+    public KvClient(NioClientConfig nioConfig) {
+        this.raftClient = new RaftClient(nioConfig);
     }
 
     private RpcCallback<Void> voidCallback(CompletableFuture<Void> f, int anotherSuccessCode) {
