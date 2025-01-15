@@ -31,21 +31,21 @@ public interface PerfConsts {
     int RPC_D_READ = 8;
     int RPC_D_WRITE = 9;
 
-    int FIBER_D_POLL = 100;
-    int FIBER_D_WORK = 101;
+    int FIBER_D_POLL = 20;
+    int FIBER_D_WORK = 21;
 
-    int RAFT_D_LEADER_RUNNER_FIBER_LATENCY = 200;
-    int RAFT_D_ENCODE_AND_WRITE = 201;
-    int RAFT_D_LOG_WRITE1 = 202;
-    int RAFT_D_LOG_WRITE2 = 203;
-    int RAFT_D_LOG_SYNC = 204;
-    int RAFT_D_IDX_POS_NOT_READY = 205;
-    int RAFT_D_LOG_POS_NOT_READY = 206;
-    int RAFT_D_IDX_FILE_ALLOC = 207;
-    int RAFT_D_LOG_FILE_ALLOC = 208;
-    int RAFT_D_IDX_BLOCK = 209;
-    int RAFT_D_IDX_WRITE = 210;
-    int RAFT_D_IDX_FORCE = 211;
-    int RAFT_D_REPLICATE_RPC = 212;
-    int RAFT_D_STATE_MACHINE_EXEC = 213;
+    int RAFT_D_LEADER_RUNNER_FIBER_LATENCY = 30;
+    int RAFT_D_ENCODE_AND_WRITE = 31;
+    int RAFT_D_LOG_WRITE1 = 32;
+    int RAFT_D_LOG_WRITE2 = 33;
+    int RAFT_D_LOG_SYNC = 34;
+    int RAFT_D_IDX_POS_NOT_READY = 35;
+    int RAFT_D_LOG_POS_NOT_READY = 36;
+    int RAFT_D_IDX_FILE_ALLOC = 37;
+    int RAFT_D_LOG_FILE_ALLOC = 38;
+    int RAFT_D_IDX_BLOCK = 39;
+    int RAFT_D_IDX_WRITE = 40;
+    int RAFT_D_IDX_FORCE = 41;
+    int RAFT_D_REPLICATE_RPC = 42;
+    int RAFT_D_STATE_MACHINE_EXEC = 43;
 }

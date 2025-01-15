@@ -67,7 +67,7 @@ public abstract class PerfCallback implements PerfConsts {
     }
 
     public void fireTime(int perfType, long startTime, int count, long sum, Timestamp ts) {
-        if (!accept(perfType)) {
+        if (startTime == 0 || !accept(perfType)) {
             return;
         }
         long costTime = takeTime0(ts) - startTime;
@@ -75,7 +75,7 @@ public abstract class PerfCallback implements PerfConsts {
     }
 
     public void fireTime(int perfType, long startTime) {
-        if (!accept(perfType)) {
+        if (startTime == 0 || !accept(perfType)) {
             return;
         }
         long costTime = takeTime0() - startTime;
@@ -83,7 +83,7 @@ public abstract class PerfCallback implements PerfConsts {
     }
 
     public void fireTime(int perfType, long startTime, int count, long sum) {
-        if (!accept(perfType)) {
+        if (startTime == 0 || !accept(perfType)) {
             return;
         }
         long costTime = takeTime0() - startTime;
