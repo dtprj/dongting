@@ -23,11 +23,6 @@ import io.prometheus.client.Summary;
  */
 public class RaftPerfCallback extends PrometheusPerfCallback {
 
-    private final Summary debugTime;
-    private final Summary debugCount;
-    private final Summary debugSum;
-
-
     private final Summary fiberPoll;
     private final Summary fiberWork;
 
@@ -56,9 +51,6 @@ public class RaftPerfCallback extends PrometheusPerfCallback {
 
     public RaftPerfCallback(boolean useNanos, String prefix) {
         super(useNanos);
-        this.debugTime = createSummary(prefix + "debug_time");
-        this.debugCount = createSummary(prefix + "debug_count");
-        this.debugSum = createSummary(prefix + "debug_sum");
         this.fiberPoll = createSummary(prefix + "fiber_poll");
         this.fiberWork = createSummary(prefix + "fiber_work");
         this.raftLeaderRunnerFiberLatency = createSummary(prefix + "raft_leader_runner_fiber_latency");
@@ -96,11 +88,6 @@ public class RaftPerfCallback extends PrometheusPerfCallback {
             return;
         }
         switch (perfType) {
-            case PERF_DEBUG:
-                debugTime.observe(costTime);
-                debugCount.observe(count);
-                debugSum.observe(sum);
-                break;
             case FIBER_D_POLL:
                 fiberPoll.observe(costTime);
                 break;
@@ -161,9 +148,6 @@ public class RaftPerfCallback extends PrometheusPerfCallback {
     }
 
     public void printStats() {
-        printTime(debugTime);
-        printValue(debugCount);
-        printValue(debugSum);
         printTime(fiberPoll);
         printTime(fiberWork);
         printTime(raftLeaderRunnerFiberLatency);

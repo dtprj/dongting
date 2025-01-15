@@ -19,7 +19,9 @@ package com.github.dtprj.dongting.common;
  * @author huangli
  */
 public interface PerfConsts {
-    int PERF_DEBUG = -1;
+    int PERF_DEBUG1 = -1;
+    int PERF_DEBUG2 = -2;
+    int PERF_DEBUG3 = -3;
 
     int RPC_D_ACQUIRE = 1;
     int RPC_D_WORKER_QUEUE = 2;

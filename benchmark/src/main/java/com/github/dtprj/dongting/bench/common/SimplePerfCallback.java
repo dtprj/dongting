@@ -34,8 +34,8 @@ public class SimplePerfCallback extends PerfCallback {
 
     protected volatile boolean started = false;
 
-    public SimplePerfCallback(boolean useNanos, String prefix) {
-        super(useNanos);
+    public SimplePerfCallback(String prefix) {
+        super(true);
         this.prefix = prefix;
     }
 
@@ -44,8 +44,10 @@ public class SimplePerfCallback extends PerfCallback {
         final LongAdder invokeCount = new LongAdder();
         final LongAdder count = new LongAdder();
         final LongAdder sum = new LongAdder();
-        final AtomicLong max = new AtomicLong(Long.MIN_VALUE);
-        final AtomicLong min = new AtomicLong(Long.MAX_VALUE);
+        final LongAdder time = new LongAdder();
+        final AtomicLong maxCount = new AtomicLong(Long.MIN_VALUE);
+        final AtomicLong maxTime = new AtomicLong(Long.MIN_VALUE);
+        final AtomicLong maxSum = new AtomicLong(Long.MIN_VALUE);
 
         Value(String name) {
             this.name = name;
@@ -65,17 +67,24 @@ public class SimplePerfCallback extends PerfCallback {
         Value value = map.computeIfAbsent(perfType, k -> new Value(getName(perfType)));
         value.invokeCount.add(1);
         value.count.add(count);
+        value.time.add(costTime);
         value.sum.add(sum);
-        AtomicLong x = value.max;
+        AtomicLong x = value.maxTime;
         long v;
         while (costTime > (v = x.longValue())) {
             if (x.compareAndSet(v, costTime)) {
                 break;
             }
         }
-        x = value.min;
-        while (costTime < (v = x.longValue())) {
-            if (x.compareAndSet(v, costTime)) {
+        x = value.maxCount;
+        while (costTime > (v = x.longValue())) {
+            if (x.compareAndSet(v, count)) {
+                break;
+            }
+        }
+        x = value.maxSum;
+        while (costTime > (v = x.longValue())) {
+            if (x.compareAndSet(v, sum)) {
                 break;
             }
         }
@@ -83,7 +92,9 @@ public class SimplePerfCallback extends PerfCallback {
 
     protected String getName(int perfType) {
         return switch (perfType) {
-            case PERF_DEBUG -> prefix + "debug";
+            case PERF_DEBUG1 -> prefix + "debug1";
+            case PERF_DEBUG2 -> prefix + "debug2";
+            case PERF_DEBUG3 -> prefix + "debug3";
             case RPC_D_ACQUIRE -> prefix + "rpc_acquire";
             case RPC_D_WORKER_QUEUE -> prefix + "rpc_worker_queue";
             case RPC_D_CHANNEL_QUEUE -> prefix + "rpc_channel_queue";
@@ -123,18 +134,17 @@ public class SimplePerfCallback extends PerfCallback {
             if (invokeCount == 0) {
                 return;
             }
-            long count = value.count.sum();
-            long sum = value.sum.sum();
-            double avg = count == 0 ? 0 : sum / (double) count;
-            String s;
-            if (useNanos) {
-                s = String.format("%s: call %d, avg %.3fus, total %.1fms, max %.3fus, min %.3fus",
-                        value.name, invokeCount, avg / 1000, sum / 1_000_000.0, value.max.get() / 1000.0,
-                        value.min.get() / 1000.0);
-            } else {
-                s = String.format("%s: call %d, avg %.1fms, total %,dms, max %,dms, min %,dms",
-                        value.name, invokeCount, avg, sum, value.max.get(), value.min.get());
-            }
+            long totalCount = value.count.sum();
+            long totalSum = value.sum.sum();
+            long totalTime = value.time.sum();
+            double avgTime = totalTime / (double) invokeCount;
+            double avgSum = totalSum / (double) invokeCount;
+            double avgCount = totalCount / (double) invokeCount;
+            String s = String.format("%s: call %,d, avgTime %,.3fus, totalTime %,.1fms, avgSum %,.1f, avgCount %,.1f," +
+                            " maxTime %,.3fus, maxSum %,d, maxCount %,d",
+                    value.name, invokeCount, avgTime / 1000, totalTime / 1_000_000.0, avgSum, avgCount,
+                    value.maxTime.doubleValue() / 1000, value.maxSum.longValue(), value.maxCount.longValue());
+
             log.info(s);
         });
     }
