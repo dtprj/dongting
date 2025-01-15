@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.bench.rpc;
 
-import com.github.dtprj.dongting.bench.common.SimplePerfCallback;
+import com.github.dtprj.dongting.bench.common.PrometheusPerfCallback;
 import io.prometheus.client.Summary;
 
 import java.util.concurrent.atomic.LongAdder;
@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * @author huangli
  */
-public class RpcPerfCallback extends SimplePerfCallback {
+public class RpcPerfCallback extends PrometheusPerfCallback {
 
     private final Summary rpcAcquire;
     private final Summary rpcWorkerQueue;

@@ -28,12 +28,12 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * @author huangli
  */
-public abstract class SimplePerfCallback extends PerfCallback {
-    protected static final DtLog log = DtLogs.getLogger(SimplePerfCallback.class);
+public abstract class PrometheusPerfCallback extends PerfCallback {
+    protected static final DtLog log = DtLogs.getLogger(PrometheusPerfCallback.class);
 
     protected volatile boolean started = false;
 
-    public SimplePerfCallback(boolean useNanos) {
+    public PrometheusPerfCallback(boolean useNanos) {
         super(useNanos);
     }
 

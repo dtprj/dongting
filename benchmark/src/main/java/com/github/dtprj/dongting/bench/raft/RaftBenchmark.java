@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.bench.raft;
 
 import com.github.dtprj.dongting.bench.common.BenchBase;
-import com.github.dtprj.dongting.bench.common.SimplePerfCallback;
+import com.github.dtprj.dongting.bench.common.PrometheusPerfCallback;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -168,8 +168,8 @@ public class RaftBenchmark extends BenchBase {
     protected void afterWarmup() {
         for (RaftGroupConfig groupConfig : groupConfigs) {
             PerfCallback c = groupConfig.getPerfCallback();
-            if (c instanceof SimplePerfCallback) {
-                ((SimplePerfCallback) c).start();
+            if (c instanceof PrometheusPerfCallback) {
+                ((PrometheusPerfCallback) c).start();
             }
         }
     }

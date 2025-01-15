@@ -15,13 +15,13 @@
  */
 package com.github.dtprj.dongting.bench.raft;
 
-import com.github.dtprj.dongting.bench.common.SimplePerfCallback;
+import com.github.dtprj.dongting.bench.common.PrometheusPerfCallback;
 import io.prometheus.client.Summary;
 
 /**
  * @author huangli
  */
-public class RaftPerfCallback extends SimplePerfCallback {
+public class RaftPerfCallback extends PrometheusPerfCallback {
 
     private final Summary debugTime;
     private final Summary debugCount;
