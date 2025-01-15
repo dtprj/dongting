@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.net.PerfConsts;
-
 /**
  * @author huangli
  */
