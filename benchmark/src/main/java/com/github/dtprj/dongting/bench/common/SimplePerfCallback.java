@@ -61,12 +61,12 @@ public abstract class SimplePerfCallback extends PerfCallback {
         SortedMap<Double, Double> q = value.quantiles;
         String s;
         if (useNanos) {
-            s = String.format("%s: %,.0f, avg: %,.3fus, p50: %,.3fus, p99: %,.3fus, max: %,.3fus, min: %,.3fus",
-                    getName(summary), value.count, avg / 1000, q.get(0.5) / 1000,
+            s = String.format("%s: call %,.0f, avg %,.3fus, total %,.1fms, p50 %,.3fus, p99 %,.3fus, max %,.3fus, min %,.3fus",
+                    getName(summary), value.count, avg / 1000, value.sum / 1_000_000, q.get(0.5) / 1000,
                     q.get(0.99) / 1000, q.get(1.0) / 1000, q.get(0.0) / 1000);
         } else {
-            s = String.format("%s: %,.0f, avg: %,.1fms, p50: %,.1fms, p99: %,.1fms, max: %,.1fms, min: %,.1fms",
-                    getName(summary), value.count, avg, q.get(0.5), q.get(0.99), q.get(1.0), q.get(0.0));
+            s = String.format("%s: call %,.0f, avg %,.1fms, total %,.1fms, p50 %,.1fms, p99 %,.1fms, max %,.1fms, min %,.1fms",
+                    getName(summary), value.count, avg, value.sum, q.get(0.5), q.get(0.99), q.get(1.0), q.get(0.0));
         }
         log.info(s);
     }
@@ -78,8 +78,8 @@ public abstract class SimplePerfCallback extends PerfCallback {
         }
         double avg = value.sum / value.count;
         SortedMap<Double, Double> q = value.quantiles;
-        String s = String.format("%s: %,.0f, avg: %,.1f, p50: %,.1f, p99: %,.1f, max: %,.1f, min: %,.1f",
-                getName(summary), value.count, avg, q.get(0.5), q.get(0.99), q.get(1.0), q.get(0.0));
+        String s = String.format("%s: call %,.0f, avg %,.1f, total %,.1f, p50 %,.1f, p99 %,.1f, max %,.1f, min %,.1f",
+                getName(summary), value.count, avg, value.sum, q.get(0.5), q.get(0.99), q.get(1.0), q.get(0.0));
         log.info(s);
     }
 
