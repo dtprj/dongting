@@ -42,7 +42,6 @@ import java.util.concurrent.TimeoutException;
 /**
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
 public class NioServer extends NioNet implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
 
@@ -213,42 +212,9 @@ public class NioServer extends NioNet implements Runnable {
         log.warn("force stop done");
     }
 
-    public <T> CompletableFuture<ReadPacket<T>> sendRequest(DtChannel dtc, WritePacket request,
-                                                            DecoderCallbackCreator<T> decoder, DtTime timeout) {
-        CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
-        push((DtChannelImpl) dtc, request, decoder, timeout, new RpcCallback<T>() {
-            @Override
-            public void success(ReadPacket<T> resp) {
-                f.complete(resp);
-            }
-
-            @Override
-            public void fail(Throwable ex) {
-                f.completeExceptionally(ex);
-            }
-        });
-        return f;
-    }
-
     public <T> void sendRequest(DtChannel dtc, WritePacket request, DecoderCallbackCreator<T> decoder,
                                 DtTime timeout, RpcCallback<T> callback) {
         push((DtChannelImpl) dtc, request, decoder, timeout, callback);
-    }
-
-    public CompletableFuture<Void> sendOneWay(DtChannel dtc, WritePacket request, DtTime timeout) {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        push((DtChannelImpl) dtc, request, null, timeout, new RpcCallback<Object>() {
-            @Override
-            public void success(ReadPacket<Object> resp) {
-                f.complete(null);
-            }
-
-            @Override
-            public void fail(Throwable ex) {
-                f.completeExceptionally(ex);
-            }
-        });
-        return f;
     }
 
     public <T> void sendOneWay(DtChannel dtc, WritePacket request, DtTime timeout, RpcCallback<T> callback) {
