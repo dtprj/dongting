@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.LongAdder;
 public class SimplePerfCallback extends PerfCallback {
     private static final DtLog log = DtLogs.getLogger(SimplePerfCallback.class);
 
-    private static final ConcurrentHashMap<Integer, Value> map = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, Value> map = new ConcurrentHashMap<>();
     private final String prefix;
 
     protected volatile boolean started = false;
