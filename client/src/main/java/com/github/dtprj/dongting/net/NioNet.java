@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.log.BugLog;
@@ -113,7 +114,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (e instanceof InterruptedException) {
                 DtUtil.restoreInterruptStatus();
             }
-            RpcCallback.callFail(callback, e);
+            FutureCallback.callFail(callback, e);
             request.clean();
             return;
         }

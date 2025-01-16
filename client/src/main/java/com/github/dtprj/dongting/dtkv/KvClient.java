@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
 
@@ -30,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -45,8 +47,23 @@ public class KvClient extends AbstractLifeCircle {
         this.raftClient = new RaftClient(nioConfig);
     }
 
+    public static <X1, X2> RpcCallback<X1> create(CompletableFuture<X2> f, Function<ReadPacket<X1>, X2> converter) {
+        //noinspection Convert2Diamond
+        return new RpcCallback<X1>() {
+            @Override
+            public void success(ReadPacket<X1> resp) {
+                f.complete(converter.apply(resp));
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        };
+    }
+
     private RpcCallback<Void> voidCallback(CompletableFuture<Void> f, int anotherSuccessCode) {
-        return RpcCallback.create(f, p -> {
+        return create(f, p -> {
             int bc = p.getBizCode();
             if (bc != KvCodes.CODE_SUCCESS && bc != anotherSuccessCode) {
                 f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
@@ -75,7 +92,7 @@ public class KvClient extends AbstractLifeCircle {
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_GET);
         CompletableFuture<KvNode> f = new CompletableFuture<>();
-        RpcCallback<KvResp> c = RpcCallback.create(f, p -> {
+        RpcCallback<KvResp> c = create(f, p -> {
             int bc = p.getBizCode();
             if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
                 f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
@@ -97,7 +114,7 @@ public class KvClient extends AbstractLifeCircle {
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_LIST);
         CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
-        RpcCallback<KvResp> c = RpcCallback.create(f, p -> {
+        RpcCallback<KvResp> c = create(f, p -> {
             int bc = p.getBizCode();
             if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
                 f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));

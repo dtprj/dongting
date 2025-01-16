@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -189,7 +190,7 @@ public class RaftClient extends AbstractLifeCircle {
                                 DtTime timeout, RpcCallback<T> callback) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
-            RpcCallback.callFail(callback, new NoSuchGroupException(groupId));
+            FutureCallback.callFail(callback, new NoSuchGroupException(groupId));
             return;
         }
         boolean getPermit = false;
@@ -207,17 +208,17 @@ public class RaftClient extends AbstractLifeCircle {
                 }
                 leaderFuture.whenComplete((gi, ex) -> {
                     if (ex != null) {
-                        RpcCallback.callFail(callback, ex);
+                        FutureCallback.callFail(callback, ex);
                         if (finalGetPermit) {
                             nioClient.releasePermit(request);
                         }
                     } else if (gi == null || gi.leader == null) {
-                        RpcCallback.callFail(callback, new RaftException("can't find leader for group " + groupId));
+                        FutureCallback.callFail(callback, new RaftException("can't find leader for group " + groupId));
                         if (finalGetPermit) {
                             nioClient.releasePermit(request);
                         }
                     } else if (timeout.isTimeout()) {
-                        RpcCallback.callFail(callback, new NetTimeoutException("timeout after find leader for group " + groupId));
+                        FutureCallback.callFail(callback, new NetTimeoutException("timeout after find leader for group " + groupId));
                         if (finalGetPermit) {
                             nioClient.releasePermit(request);
                         }
@@ -230,7 +231,7 @@ public class RaftClient extends AbstractLifeCircle {
             if (e instanceof InterruptedException) {
                 DtUtil.restoreInterruptStatus();
             }
-            RpcCallback.callFail(callback, e);
+            FutureCallback.callFail(callback, e);
             if (getPermit) {
                 nioClient.releasePermit(request);
             }

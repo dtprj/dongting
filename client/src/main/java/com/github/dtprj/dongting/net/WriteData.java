@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.FutureCallback;
 
 /**
  * @author huangli
@@ -77,9 +78,9 @@ class WriteData {
         }
         try {
             if (data.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
-                RpcCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
+                FutureCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
             } else {
-                RpcCallback.callSuccess(callback, resp);
+                FutureCallback.callSuccess(callback, resp);
             }
         } finally {
             callback = null;
@@ -94,7 +95,7 @@ class WriteData {
             if (callClean) {
                 data.clean();
             }
-            RpcCallback.callFail(callback, ex);
+            FutureCallback.callFail(callback, ex);
         } finally {
             callback = null;
         }
