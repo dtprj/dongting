@@ -126,7 +126,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         workerStatus = new WorkerStatus(this);
         workerStatus.setIoQueue(ioWorkerQueue);
         workerStatus.setPendingRequests(pendingOutgoingRequests);
-        workerStatus.setWakeupRunnable(this::wakeup);
         workerStatus.setDirectPool(directPool);
         workerStatus.setHeapPool(refBufferFactory);
         workerStatus.setTs(timestamp);
@@ -357,7 +356,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void wakeup() {
+    void wakeup() {
         if (Thread.currentThread() == thread) {
             wakeupCalled = true;
             return;
@@ -365,6 +364,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (wakeupCalledInOtherThreads.incrementAndGet() == 1) {
             selector.wakeup();
         }
+    }
+
+    void markWakeupInIoThread() {
+        wakeupCalled = true;
     }
 
     private DtChannelImpl initNewChannel(SocketChannel sc, Peer peer) throws IOException {

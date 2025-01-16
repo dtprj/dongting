@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.common.Timestamp;
 class WorkerStatus {
     final NioWorker worker;
     IoWorkerQueue ioWorkerQueue;
-    Runnable wakeupRunnable;
     LongObjMap<WriteData> pendingRequests;
     ByteBufferPool directPool;
     RefBufferFactory heapPool;
@@ -49,14 +48,6 @@ class WorkerStatus {
 
     public void setIoQueue(IoWorkerQueue ioWorkerQueue) {
         this.ioWorkerQueue = ioWorkerQueue;
-    }
-
-    public Runnable getWakeupRunnable() {
-        return wakeupRunnable;
-    }
-
-    public void setWakeupRunnable(Runnable wakeupRunnable) {
-        this.wakeupRunnable = wakeupRunnable;
     }
 
     public LongObjMap<WriteData> getPendingRequests() {

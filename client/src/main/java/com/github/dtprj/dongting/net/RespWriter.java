@@ -23,12 +23,12 @@ import com.github.dtprj.dongting.common.DtTime;
 public class RespWriter {
 
     private final IoWorkerQueue ioWorkerQueue;
-    private final Runnable wakeupRunnable;
+    private final NioWorker worker;
     private final DtChannelImpl dtc;
 
-    RespWriter(IoWorkerQueue ioWorkerQueue, Runnable wakeupRunnable, DtChannelImpl dtc) {
+    RespWriter(IoWorkerQueue ioWorkerQueue, NioWorker worker, DtChannelImpl dtc) {
         this.ioWorkerQueue = ioWorkerQueue;
-        this.wakeupRunnable = wakeupRunnable;
+        this.worker = worker;
         this.dtc = dtc;
     }
 
@@ -36,20 +36,26 @@ public class RespWriter {
     public void writeRespInBizThreads(ReadPacket<?> req, WritePacket resp, DtTime timeout) {
         resp.setSeq(req.getSeq());
         resp.setCommand(req.getCommand());
-        if (dtc.isClosed()) {
-            resp.clean();
-            // not restrict, but we will check again in io thread
-            return;
-        }
-        if (req.responseHasWrite) {
-            // this check is not thread safe
-            throw new IllegalStateException("the response has been written");
-        }
-        req.responseHasWrite = true;
-
         resp.setPacketType(PacketType.TYPE_RESP);
+
         WriteData data = new WriteData(dtc, resp, timeout);
-        ioWorkerQueue.writeFromBizThread(data);
-        wakeupRunnable.run();
+        if (Thread.currentThread() == worker.getThread()) {
+            dtc.subQueue.enqueue(data);
+            worker.markWakeupInIoThread();
+        } else {
+            if (dtc.isClosed()) {
+                resp.clean();
+                // not restrict, but we will check again in io thread
+                return;
+            }
+            if (req.responseHasWrite) {
+                // this check is not thread safe
+                throw new IllegalStateException("the response has been written");
+            }
+            req.responseHasWrite = true;
+
+            ioWorkerQueue.writeFromBizThread(data);
+            worker.wakeup();
+        }
     }
 }

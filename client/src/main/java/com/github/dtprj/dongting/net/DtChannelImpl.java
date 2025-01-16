@@ -64,7 +64,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private int currentReadPacketSize;
     private DecoderCallback currentDecoderCallback;
 
-    private final IoChannelQueue subQueue;
+    final IoChannelQueue subQueue;
 
     private boolean running = true;
     private boolean closed;
@@ -86,7 +86,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
         this.parser = new MultiParser(decodeContext, this, nioConfig.getMaxPacketSize());
 
-        this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
+        this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWorker(), this);
 
         this.remoteAddr = channel.getRemoteAddress();
         this.localAddr = channel.getLocalAddress();
