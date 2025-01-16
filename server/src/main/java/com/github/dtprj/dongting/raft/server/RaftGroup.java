@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.Set;
@@ -34,16 +35,16 @@ public abstract class RaftGroup {
 
     /**
      * Get raft lease read index, use this index to read data from the state machine.
-     * Generally, the future returned by this method should complete immediately,
-     * however, it may be blocked in some conditions.
+     * Generally, the callback should be called immediately in current thread,
+     * however, if group not ready it may be called in raft thread after some time.
      *
      * <p>NOTE: Lease read is also linearizable.
      *
      * <li>If current node is not leader, or lease timeout(indicates something wrong),
-     * the future will complete with a NotLeaderException. </li>
-     * <li>If can't get the index before deadline, the future will complete with a RaftExecTimeoutException. </li>
+     * callback will fail with a NotLeaderException. </li>
+     * <li>If it can't get the index before deadline, callback will fail with a RaftExecTimeoutException. </li>
      */
-    public abstract CompletableFuture<Long> getLeaseReadIndex(DtTime deadline);
+    public abstract void leaseRead(DtTime deadline, FutureCallback<Long> callback);
 
 
     /**

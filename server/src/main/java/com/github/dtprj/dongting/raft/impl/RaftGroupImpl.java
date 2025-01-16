@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FlowControlException;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -126,14 +127,16 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Long> getLeaseReadIndex(DtTime deadline) {
+    public void leaseRead(DtTime deadline, FutureCallback<Long> callback) {
         if (fiberGroup.isShouldStop()) {
-            return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
+            FutureCallback.callFail(callback, new RaftException("raft group thread is stop"));
+            return;
         }
         ShareStatus ss = raftStatus.getShareStatus();
         if (ss.role != RaftRole.leader) {
-            return CompletableFuture.failedFuture(new NotLeaderException(
+            FutureCallback.callFail(callback, new NotLeaderException(
                     ss.currentLeader == null ? null : ss.currentLeader.getNode()));
+            return;
         }
 
         // NOTICE : timestamp is not thread safe
@@ -141,13 +144,21 @@ public class RaftGroupImpl extends RaftGroup {
             readTimestamp.refresh(1);
             long t = readTimestamp.getNanoTime();
             if (ss.leaseEndNanos - t < 0) {
-                return CompletableFuture.failedFuture(new NotLeaderException(null));
+                FutureCallback.callFail(callback, new NotLeaderException(null));
+            } else {
+                FutureCallback.callSuccess(callback, ss.lastApplied);
             }
-            return CompletableFuture.completedFuture(ss.lastApplied);
+        } else {
+            // wait group ready
+            CompletableFuture<Long> f = gc.getApplyManager().addToWaitReadyQueue(deadline);
+            f.whenComplete((idx, ex) -> {
+                if (ex != null) {
+                    FutureCallback.callFail(callback, ex);
+                } else {
+                    FutureCallback.callSuccess(callback, idx);
+                }
+            });
         }
-
-        // wait group ready
-        return gc.getApplyManager().addToWaitReadyQueue(deadline);
     }
 
     @Override

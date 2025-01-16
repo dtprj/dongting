@@ -245,7 +245,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
     public CompletableFuture<Long> addToWaitReadyQueue(DtTime t) {
         CompletableFuture<Long> f = new CompletableFuture<>();
-        fiberGroup.fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
+        boolean b = fiberGroup.fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 if (t.isTimeout(raftStatus.getTs())) {
@@ -262,6 +262,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 return Fiber.frameReturn();
             }
         });
+        if (!b) {
+            f.completeExceptionally(new RaftException("group should stop"));
+        }
         return f;
     }
 

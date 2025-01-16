@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
@@ -28,20 +29,17 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
-import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BiFunction;
 
 /**
  * @author huangli
@@ -96,42 +94,52 @@ public class KvProcessor extends RaftBizProcessor<KvReq> {
         return null;
     }
 
-    private void leaseRead(ReqInfo<KvReq> reqInfo, BiFunction<DtKV, Long, WritePacket> callback) {
-        ReqContext reqContext = reqInfo.getReqContext();
-        RaftGroup group = reqInfo.getRaftGroup();
-        group.getLeaseReadIndex(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {
-            try {
-                if (ex != null) {
-                    writeErrorResp(reqInfo, ex);
-                } else {
+    private void doGet(ReqInfo<KvReq> reqInfo, KvReq req) {
+        reqInfo.getRaftGroup().leaseRead(reqInfo.getReqContext().getTimeout(), new FutureCallback<>() {
+            @Override
+            public void success(Long result) {
+                try {
                     DtKV dtKV = (DtKV) reqInfo.getRaftGroup().getStateMachine();
-                    writeResp(reqInfo, callback.apply(dtKV, logIndex));
+                    KvResult r = dtKV.get(new ByteArray(req.getKey()));
+                    KvResp resp = new KvResp(Collections.singletonList(r));
+                    EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
+                    wf.setRespCode(CmdCodes.SUCCESS);
+                    wf.setBizCode(r.getBizCode());
+                    writeResp(reqInfo, wf);
+                } catch (Exception e) {
+                    writeErrorResp(reqInfo, e);
                 }
-            } catch (Exception callbackEx) {
-                writeErrorResp(reqInfo, callbackEx);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                writeErrorResp(reqInfo, ex);
             }
         });
     }
 
-    private void doGet(ReqInfo<KvReq> reqInfo, KvReq req) {
-        leaseRead(reqInfo, (dtKV, logIndex) -> {
-            KvResult r = dtKV.get(new ByteArray(req.getKey()));
-            KvResp resp = new KvResp(Collections.singletonList(r));
-            EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
-            wf.setRespCode(CmdCodes.SUCCESS);
-            wf.setBizCode(r.getBizCode());
-            return wf;
-        });
-    }
-
     private void doList(ReqInfo<KvReq> reqInfo, KvReq req) {
-        leaseRead(reqInfo, (dtKV, logIndex) -> {
-            Pair<Integer, List<KvResult>> p = dtKV.list(req.getKey() == null ? null : new ByteArray(req.getKey()));
-            KvResp resp = new KvResp(p.getRight());
-            EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
-            wf.setRespCode(CmdCodes.SUCCESS);
-            wf.setBizCode(p.getLeft());
-            return wf;
+
+        reqInfo.getRaftGroup().leaseRead(reqInfo.getReqContext().getTimeout(), new FutureCallback<>() {
+            @Override
+            public void success(Long result) {
+                try {
+                    DtKV dtKV = (DtKV) reqInfo.getRaftGroup().getStateMachine();
+                    Pair<Integer, List<KvResult>> p = dtKV.list(req.getKey() == null ? null : new ByteArray(req.getKey()));
+                    KvResp resp = new KvResp(p.getRight());
+                    EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
+                    wf.setRespCode(CmdCodes.SUCCESS);
+                    wf.setBizCode(p.getLeft());
+                    writeResp(reqInfo, wf);
+                } catch (Exception e) {
+                    writeErrorResp(reqInfo, e);
+                }
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                writeErrorResp(reqInfo, ex);
+            }
         });
     }
 
