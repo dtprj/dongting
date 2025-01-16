@@ -187,7 +187,7 @@ public class FiberFuture<T> extends WaitSource {
     /**
      * this method should call in dispatcher thread
      */
-    public void registerCallback(FutureCallback<T> callback) {
+    public void registerCallback(FiberFutureCallback<T> callback) {
         fiberGroup.checkGroup();
         callback.future = this;
         if (done) {
@@ -199,7 +199,7 @@ public class FiberFuture<T> extends WaitSource {
         }
     }
 
-    public abstract static class FutureCallback<T> extends FiberFrame<Void> {
+    public abstract static class FiberFutureCallback<T> extends FiberFrame<Void> {
 
         private FiberFuture<T> future;
 
