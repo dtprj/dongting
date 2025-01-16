@@ -65,7 +65,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final NioConfig config;
     private final NioClient client;
     private Selector selector;
-    private final AtomicInteger notified = new AtomicInteger(0);
+    private final AtomicInteger wakeupCalledInOtherThreads = new AtomicInteger(0);
+    private boolean wakeupCalled;
 
     private final CompletableFuture<Void> prepareStopFuture = new CompletableFuture<>();
 
@@ -250,27 +251,35 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private boolean sel(Selector selector, Timestamp ts) {
         PerfCallback c = perfCallback;
-        long start = c.takeTime(PerfConsts.RPC_D_WORKER_SEL, ts);
+        boolean selNow = this.wakeupCalled || wakeupCalledInOtherThreads.get() > 0;
+        long start = selNow ? 0 : c.takeTime(PerfConsts.RPC_D_WORKER_SEL, ts);
         try {
-            long selectTimeoutMillis = config.getSelectTimeout();
-            if (selectTimeoutMillis > 0) {
-                selector.select(selectTimeoutMillis);
+            if (selNow) {
+                selector.selectNow();
             } else {
-                // for unit test find more problem
-                selector.select();
+                long selectTimeoutMillis = config.getSelectTimeout();
+                if (selectTimeoutMillis > 0) {
+                    selector.select(selectTimeoutMillis);
+                } else {
+                    // for unit test find more problem
+                    selector.select();
+                }
             }
             return true;
         } catch (Exception e) {
             log.error("select failed: {}", workerName, e);
             return false;
         } finally {
-            notified.lazySet(0);
-            if (c.accept(PerfConsts.RPC_D_WORKER_WORK) || c.accept(PerfConsts.RPC_D_WORKER_SEL)) {
+            if ((c.accept(PerfConsts.RPC_D_WORKER_WORK) || c.accept(PerfConsts.RPC_D_WORKER_SEL)) && !selNow) {
                 perfCallback.refresh(ts);
             } else {
                 ts.refresh(1);
             }
-            c.fireTime(PerfConsts.RPC_D_WORKER_SEL, start, 1, 0, ts);
+            if (!selNow) {
+                c.fireTime(PerfConsts.RPC_D_WORKER_SEL, start, 1, 0, ts);
+            }
+            wakeupCalledInOtherThreads.lazySet(0);
+            wakeupCalled = false;
         }
     }
 
@@ -350,9 +359,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void wakeup() {
         if (Thread.currentThread() == thread) {
+            wakeupCalled = true;
             return;
         }
-        if (notified.incrementAndGet() == 1) {
+        if (wakeupCalledInOtherThreads.incrementAndGet() == 1) {
             selector.wakeup();
         }
     }

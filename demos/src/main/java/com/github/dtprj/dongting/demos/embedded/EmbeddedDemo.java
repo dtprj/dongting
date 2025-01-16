@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class EmbeddedDemo {
 
+    final static int LOOP_COUNT = 200_000;
+
     public static void main(String[] args) throws Exception {
         String replicateServer = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "1,2,3";
@@ -47,7 +49,7 @@ public class EmbeddedDemo {
         System.out.println("-------------------------------------------");
 
         String rpcServers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
-        KvClient client = DemoClient.run(groupId, rpcServers, 10_000);
+        KvClient client = DemoClient.run(groupId, rpcServers, LOOP_COUNT);
 
 
         // System.exit(0);
