@@ -29,6 +29,9 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class DemoClient {
+
+    private static final byte[] DATA = new byte[256];
+
     private static final DtLog log = DtLogs.getLogger(DemoClient.class);
 
     public static KvClient run(int groupId, String servers, int loopCount) throws Exception {
@@ -42,7 +45,7 @@ public class DemoClient {
         for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
             DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-            CompletableFuture<Void> f = kvClient.put(groupId, key, "value".getBytes(), timeout);
+            CompletableFuture<Void> f = kvClient.put(groupId, key, DATA, timeout);
             f.whenComplete((v, e) -> {
                 if (e == null) {
                     latch1.countDown();
