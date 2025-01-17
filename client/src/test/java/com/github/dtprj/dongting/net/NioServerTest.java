@@ -604,7 +604,7 @@ public class NioServerTest {
                 Thread t = new Thread(() -> {
                     RefBufWritePacket resp = new RefBufWritePacket((RefBuffer) packet.getBody());
                     resp.setRespCode(CmdCodes.SUCCESS);
-                    reqContext.getDtChannel().getRespWriter().writeRespInBizThreads(packet, resp, new DtTime(1, TimeUnit.SECONDS));
+                    reqContext.getRespWriter().writeRespInBizThreads(packet, resp, new DtTime(1, TimeUnit.SECONDS));
                 });
                 t.start();
                 return null;

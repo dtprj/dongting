@@ -43,8 +43,8 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
     protected abstract int getGroupId(ReadPacket<T> frame);
 
     protected void writeResp(ReqInfo<?> reqInfo, WritePacket respFrame) {
-        reqInfo.getReqContext().getDtChannel().getRespWriter().writeRespInBizThreads(
-                reqInfo.getReqFrame(), respFrame, reqInfo.getReqContext().getTimeout());
+        ReqContext c = reqInfo.getReqContext();
+        c.getRespWriter().writeRespInBizThreads(reqInfo.getReqFrame(), respFrame, c.getTimeout());
     }
 
     /**

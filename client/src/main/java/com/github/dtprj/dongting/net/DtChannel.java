@@ -27,6 +27,4 @@ public interface DtChannel {
     SocketAddress getRemoteAddr();
 
     SocketAddress getLocalAddr();
-
-    RespWriter getRespWriter();
 }

@@ -341,7 +341,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             flowControl = true;
         }
 
-        ReqContext reqContext = new ReqContext(this, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
+        ReqContext reqContext = new ReqContext(this, respWriter, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.executor == null) {
             if (timeout(req, reqContext, roundTime)) {
                 return;
@@ -472,10 +472,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return packet;
     }
 
-    @Override
-    public RespWriter getRespWriter() {
-        return respWriter;
-    }
 }
 
 @SuppressWarnings({"rawtypes", "unchecked"})
@@ -526,7 +522,7 @@ class ProcessInBizThreadTask implements Runnable {
             }
         }
         if (resp != null) {
-            dtc.getRespWriter().writeRespInBizThreads(req, resp, reqContext.getTimeout());
+            reqContext.getRespWriter().writeRespInBizThreads(req, resp, reqContext.getTimeout());
         }
     }
 }

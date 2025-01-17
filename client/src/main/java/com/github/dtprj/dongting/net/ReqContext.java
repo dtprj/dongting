@@ -23,9 +23,11 @@ import com.github.dtprj.dongting.common.DtTime;
 public class ReqContext {
     private final DtChannelImpl dtChannel;
     private final DtTime timeout;
+    private final RespWriter respWriter;
 
-    ReqContext(DtChannelImpl dtChannel, DtTime timeout) {
+    ReqContext(DtChannelImpl dtChannel, RespWriter respWriter, DtTime timeout) {
         this.dtChannel = dtChannel;
+        this.respWriter = respWriter;
         this.timeout = timeout;
     }
 
@@ -35,5 +37,9 @@ public class ReqContext {
 
     public DtChannel getDtChannel() {
         return dtChannel;
+    }
+
+    public RespWriter getRespWriter() {
+        return respWriter;
     }
 }
