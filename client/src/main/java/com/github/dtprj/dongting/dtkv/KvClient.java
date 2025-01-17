@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
@@ -26,16 +28,20 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
+import com.github.dtprj.dongting.raft.RaftException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
 
@@ -47,12 +53,30 @@ public class KvClient extends AbstractLifeCircle {
         this.raftClient = new RaftClient(nioConfig);
     }
 
-    public static <X1, X2> RpcCallback<X1> create(CompletableFuture<X2> f, Function<ReadPacket<X1>, X2> converter) {
-        //noinspection Convert2Diamond
-        return new RpcCallback<X1>() {
+    private <T, T2> RpcCallback<T> wrap(FutureCallback<T2> c, int anotherSuccessCode, Function<T, T2> f) {
+        return new RpcCallback<T>() {
             @Override
-            public void success(ReadPacket<X1> resp) {
-                f.complete(converter.apply(resp));
+            public void success(ReadPacket<T> result) {
+                int bc = result.getBizCode();
+                if (bc != KvCodes.CODE_SUCCESS && bc != anotherSuccessCode) {
+                    c.fail(new NetBizCodeException(bc, result.getMsg()));
+                } else {
+                    c.success(f.apply(result.getBody()));
+                }
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                c.fail(ex);
+            }
+        };
+    }
+
+    private <T> FutureCallback<T> futureCallback(CompletableFuture<T> f) {
+        return new FutureCallback<T>() {
+            @Override
+            public void success(T result) {
+                f.complete(result);
             }
 
             @Override
@@ -62,92 +86,111 @@ public class KvClient extends AbstractLifeCircle {
         };
     }
 
-    private RpcCallback<Void> voidCallback(CompletableFuture<Void> f, int anotherSuccessCode) {
-        return create(f, p -> {
-            int bc = p.getBizCode();
-            if (bc != KvCodes.CODE_SUCCESS && bc != anotherSuccessCode) {
-                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
-            }
-            return null;
-        });
+    private <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
+        try {
+            return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            DtUtil.restoreInterruptStatus();
+            throw new RaftException("interrupted", e);
+        } catch (ExecutionException e) {
+            throw new RaftException("execution exception", e.getCause());
+        } catch (Exception e) {
+            // TODO process timeout ex
+            throw new RaftException("execution exception", e);
+        }
     }
 
-    public CompletableFuture<Void> put(int groupId, String key, byte[] value, DtTime timeout) {
+    public void put(int groupId, String key, byte[] value, DtTime timeout) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        put(groupId, key, value, timeout, futureCallback(f));
+        waitFuture(f, timeout);
+    }
+
+    public void put(int groupId, String key, byte[] value, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
         KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
                 new ByteArray(value), null, null, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RpcCallback<Void> c = voidCallback(f, KvCodes.CODE_SUCCESS_OVERWRITE);
+        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_SUCCESS_OVERWRITE, v -> v);
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
-        return f;
     }
 
-    public CompletableFuture<KvNode> get(int groupId, String key, DtTime timeout) {
+    public KvNode get(int groupId, String key, DtTime timeout) {
+        CompletableFuture<KvNode> f = new CompletableFuture<>();
+        get(groupId, key, timeout, futureCallback(f));
+        return waitFuture(f, timeout);
+    }
+
+    public void get(int groupId, String key, DtTime timeout, FutureCallback<KvNode> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
                 null, null, null, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_GET);
-        CompletableFuture<KvNode> f = new CompletableFuture<>();
-        RpcCallback<KvResp> c = create(f, p -> {
-            int bc = p.getBizCode();
-            if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
-                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
-            }
-            KvResp resp = p.getBody();
-            if (resp == null || resp.getResults().isEmpty()) {
+
+        RpcCallback<KvResp> c = wrap(callback, KvCodes.CODE_NOT_FOUND, resp -> {
+            if (resp == null || resp.getResults() == null || resp.getResults().isEmpty()) {
                 return null;
+            } else {
+                return resp.getResults().get(0).getNode();
             }
-            return resp.getResults().get(0).getNode();
         });
-        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
-        return f;
+
+        DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(ctx.kvRespCallback());
+        raftClient.sendRequest(groupId, wf, dc, timeout, c);
     }
 
-    public CompletableFuture<List<KvResult>> list(int groupId, String key, DtTime timeout) {
+    public List<KvResult> list(int groupId, String key, DtTime timeout) {
+        CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
+        list(groupId, key, timeout, futureCallback(f));
+        return waitFuture(f, timeout);
+    }
+
+    public void list(int groupId, String key, DtTime timeout, FutureCallback<List<KvResult>> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
                 null, null, null, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_LIST);
-        CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
-        RpcCallback<KvResp> c = create(f, p -> {
-            int bc = p.getBizCode();
-            if (bc != KvCodes.CODE_SUCCESS && bc != KvCodes.CODE_NOT_FOUND) {
-                f.completeExceptionally(new NetBizCodeException(bc, p.getMsg()));
-            }
-            KvResp resp = p.getBody();
-            return resp == null ? null : resp.getResults();
-        });
-        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(ctx.kvRespCallback()), timeout, c);
-        return f;
+
+        RpcCallback<KvResp> c = wrap(callback, KvCodes.CODE_NOT_FOUND,
+                resp -> resp == null ? null : resp.getResults());
+        DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(ctx.kvRespCallback());
+        raftClient.sendRequest(groupId, wf, dc, timeout, c);
     }
 
-    public CompletableFuture<Void> remove(int groupId, String key, DtTime timeout) {
+    public void remove(int groupId, String key, DtTime timeout) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        remove(groupId, key, timeout, futureCallback(f));
+        waitFuture(f, timeout);
+    }
+
+    public void remove(int groupId, String key, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
                 null, null, null, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_REMOVE);
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RpcCallback<Void> c = voidCallback(f, KvCodes.CODE_NOT_FOUND);
+        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_NOT_FOUND, v -> v);
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
-        return f;
     }
 
-    public CompletableFuture<Void> mkdir(int groupId, String key, DtTime timeout) {
+    public void mkdir(int groupId, String key, DtTime timeout) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        mkdir(groupId, key, timeout, futureCallback(f));
+        waitFuture(f, timeout);
+    }
+
+    public void mkdir(int groupId, String key, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
                 null, null, null, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_MKDIR);
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RpcCallback<Void> c = voidCallback(f, KvCodes.CODE_DIR_EXISTS);
+        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_DIR_EXISTS, v -> v);
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
-        return f;
     }
 
     @Override

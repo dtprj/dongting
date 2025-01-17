@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.bench.common.PrometheusPerfCallback;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
@@ -195,18 +196,22 @@ public class RaftBenchmark extends BenchBase {
             int k = Integer.reverse((int) startTime);
             k = Math.abs(k % KEYS);
             final DtTime timeout = new DtTime(2500, TimeUnit.MILLISECONDS);
-            CompletableFuture<Void> f = clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout);
 
             if (SYNC) {
-                f.get();
+                clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout);
                 success(state);
             } else {
-                f.whenComplete((result, ex) -> {
-                    logRt(startTime, state);
-                    if (ex != null) {
-                        fail(state);
-                    } else {
-                        success(state);
+                clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout, new FutureCallback<>() {
+                    @Override
+                    public void success(Void result) {
+                        logRt(startTime, state);
+                        RaftBenchmark.this.success(state);
+                    }
+
+                    @Override
+                    public void fail(Throwable ex) {
+                        logRt(startTime, state);
+                        RaftBenchmark.this.fail(state);
                     }
                 });
             }

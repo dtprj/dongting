@@ -16,12 +16,12 @@
 package com.github.dtprj.dongting.demos.base;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -45,12 +45,15 @@ public class DemoClient {
         for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
             DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-            CompletableFuture<Void> f = kvClient.put(groupId, key, DATA, timeout);
-            f.whenComplete((v, e) -> {
-                if (e == null) {
+            kvClient.put(groupId, key, DATA, timeout, new FutureCallback<>() {
+                @Override
+                public void success(Void result) {
                     latch1.countDown();
-                } else {
-                    log.error("", e);
+                }
+
+                @Override
+                public void fail(Throwable ex) {
+                    log.error("", ex);
                     System.exit(1);
                 }
             });
@@ -63,12 +66,15 @@ public class DemoClient {
         for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
             DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-            CompletableFuture<KvNode> f = kvClient.get(groupId, key, timeout);
-            f.whenComplete((v, e) -> {
-                if (e == null) {
+            kvClient.get(groupId, key, timeout, new FutureCallback<>() {
+                @Override
+                public void success(KvNode result) {
                     latch2.countDown();
-                } else {
-                    log.error("", e);
+                }
+
+                @Override
+                public void fail(Throwable ex) {
+                    log.error("", ex);
                     System.exit(1);
                 }
             });
