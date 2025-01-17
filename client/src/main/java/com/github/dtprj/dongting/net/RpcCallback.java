@@ -17,8 +17,24 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.FutureCallback;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public interface RpcCallback<T> extends FutureCallback<ReadPacket<T>> {
+    static <T> RpcCallback<T> fromFuture(CompletableFuture<ReadPacket<T>> f) {
+        return new RpcCallback<T>() {
+            @Override
+            public void success(ReadPacket<T> result) {
+                f.complete(result);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        };
+    }
 }

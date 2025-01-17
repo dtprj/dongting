@@ -79,20 +79,6 @@ public class KvClient extends AbstractLifeCircle {
         };
     }
 
-    private <T> FutureCallback<T> futureCallback(CompletableFuture<T> f) {
-        return new FutureCallback<T>() {
-            @Override
-            public void success(T result) {
-                f.complete(result);
-            }
-
-            @Override
-            public void fail(Throwable ex) {
-                f.completeExceptionally(ex);
-            }
-        };
-    }
-
     private <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
         try {
             return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
@@ -110,7 +96,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public void put(int groupId, String key, byte[] value, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        put(groupId, key, value, timeout, futureCallback(f));
+        put(groupId, key, value, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
@@ -127,7 +113,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public KvNode get(int groupId, String key, DtTime timeout) {
         CompletableFuture<KvNode> f = new CompletableFuture<>();
-        get(groupId, key, timeout, futureCallback(f));
+        get(groupId, key, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
@@ -152,7 +138,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public List<KvResult> list(int groupId, String key, DtTime timeout) {
         CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
-        list(groupId, key, timeout, futureCallback(f));
+        list(groupId, key, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
@@ -171,7 +157,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public void remove(int groupId, String key, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        remove(groupId, key, timeout, futureCallback(f));
+        remove(groupId, key, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
@@ -187,7 +173,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public void mkdir(int groupId, String key, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        mkdir(groupId, key, timeout, futureCallback(f));
+        mkdir(groupId, key, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
