@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.net.RpcCallback;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -131,9 +130,7 @@ public class RpcBenchmark extends BenchBase {
             req.setCommand(cmd);
 
             if (SYNC) {
-                CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(
-                        req, ctx -> ctx.refBufferDecoderCallback(true), timeout);
-                ReadPacket<RefBuffer> rf = f.get();
+                ReadPacket<RefBuffer> rf = client.sendRequest(req, ctx -> ctx.refBufferDecoderCallback(true), timeout);
                 success(state);
                 RefBuffer rc = rf.getBody();
                 rc.release();

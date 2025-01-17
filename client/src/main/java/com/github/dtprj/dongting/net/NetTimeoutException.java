@@ -24,4 +24,8 @@ public class NetTimeoutException extends NetException {
     public NetTimeoutException(String message) {
         super(message);
     }
+
+    public NetTimeoutException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

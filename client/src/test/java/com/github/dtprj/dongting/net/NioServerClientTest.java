@@ -56,7 +56,7 @@ public class NioServerClientTest {
         }
     }
 
-    static void invoke(NioClient client) throws Exception {
+    static void invoke(NioClient client) {
         Random r = new Random();
         int len = (r.nextInt(10) == 0) ? 0 : r.nextInt(3000);
         ByteBuffer buf = ByteBuffer.allocate(len);
@@ -64,8 +64,7 @@ public class NioServerClientTest {
         ByteBufferWritePacket wf = new ByteBufferWritePacket(buf);
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
-        ReadPacket<RefBuffer> rf = f.get(1, TimeUnit.SECONDS);
+        ReadPacket<RefBuffer> rf = client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
@@ -118,10 +117,12 @@ public class NioServerClientTest {
             ByteBufferWritePacket wf2 = new ByteBufferWritePacket(SimpleByteBufferPool.EMPTY_BUFFER);
             wf2.setCommand(12345);
 
-            CompletableFuture<ReadPacket<RefBuffer>> f1 = client.sendRequest(wf1, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<RefBuffer>> f1 = new CompletableFuture<>();
+            client.sendRequest(wf1, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS), RpcCallback.fromFuture(f1));
             Thread.sleep(10);// wait dispatch thread
             dtc.seq = dtc.seq - 1;
-            CompletableFuture<ReadPacket<RefBuffer>> f2 = client.sendRequest(wf2, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<RefBuffer>> f2 = new CompletableFuture<>();
+            client.sendRequest(wf2, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS), RpcCallback.fromFuture(f2));
             ReadPacket<RefBuffer> rf2 = f2.get(1, TimeUnit.SECONDS);
             Assertions.assertEquals(CmdCodes.SUCCESS, rf2.getRespCode());
 

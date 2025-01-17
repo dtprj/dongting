@@ -44,6 +44,6 @@ public class NetCodeException extends NetException {
 
     @Override
     public String toString() {
-        return "receive error from server: code=" + code + ", msg=" + getMessage();
+        return "NetCodeException: receive error from server. code=" + code + ", msg=" + getMessage();
     }
 }

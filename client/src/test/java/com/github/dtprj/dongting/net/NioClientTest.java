@@ -45,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -296,17 +297,15 @@ public class NioClientTest {
         sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoderCallback());
     }
 
-    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis, DecoderCallback<?> decoderCallback) throws Exception {
+    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis, DecoderCallback<?> decoderCallback) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<?> f = client.sendRequest(wf,
-                ctx -> decoderCallback, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
-
-        ReadPacket<?> rf = (ReadPacket<?>) f.get(5000, TimeUnit.MILLISECONDS);
+        ReadPacket<?> rf = client.sendRequest(wf, ctx -> decoderCallback,
+                new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
@@ -354,8 +353,9 @@ public class NioClientTest {
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(wf,
-                ctx -> new RefBufferDecoderCallback(), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+        CompletableFuture<ReadPacket<RefBuffer>> f = new CompletableFuture<>();
+        client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
+                new DtTime(timeoutMillis, TimeUnit.MILLISECONDS), RpcCallback.fromFuture(f));
         return f.thenApply(rf -> {
             assertEquals(wf.getSeq(), rf.getSeq());
             assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
@@ -437,11 +437,7 @@ public class NioClientTest {
         server1 = null;
         server2 = null;
         TestUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.dtChannel == null));
-        try {
-            sendSync(5000, client, tick(500));
-        } catch (ExecutionException e) {
-            assertEquals(NetException.class, e.getCause().getClass());
-        }
+        assertThrows(NetException.class, () -> sendSync(5000, client, tick(500)));
     }
 
     @Test
@@ -591,12 +587,7 @@ public class NioClientTest {
         client.stop(new DtTime(1, TimeUnit.SECONDS));
         assertEquals(AbstractLifeCircle.STATUS_STOPPED, client.getStatus());
 
-        try {
-            sendSync(5000, client, tick(1000));
-            fail();
-        } catch (ExecutionException e) {
-            assertEquals(NetException.class, e.getCause().getClass());
-        }
+        assertThrows(NetException.class, () -> sendSync(5000, client, tick(1000)));
 
         client = new NioClient(c);
         client.start();
@@ -605,12 +596,7 @@ public class NioClientTest {
 
         TestUtil.stop(client);
 
-        try {
-            sendSync(5000, client, tick(1000));
-            fail();
-        } catch (ExecutionException e) {
-            assertEquals(NetException.class, e.getCause().getClass());
-        }
+        assertThrows(NetException.class, () -> sendSync(5000, client, tick(1000)));
 
         try {
             client.start();
@@ -632,9 +618,8 @@ public class NioClientTest {
         try {
             sendSync(5000, client, tick(1000));
             fail();
-        } catch (ExecutionException e) {
-            assertEquals(NetCodeException.class, e.getCause().getClass());
-            assertEquals(100, ((NetCodeException) e.getCause()).getCode());
+        } catch (NetCodeException e) {
+            assertEquals(100, e.getCode());
         }
     }
 
@@ -729,31 +714,34 @@ public class NioClientTest {
         AtomicInteger expectFinishIndex = new AtomicInteger(0);
         AtomicReference<Throwable> fail = new AtomicReference<>();
         int loop = 40;
-        //noinspection rawtypes
-        CompletableFuture[] allFutures = new CompletableFuture[loop];
+        CountDownLatch cl = new CountDownLatch(loop);
         for (int i = 0; i < loop; i++) {
             ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
             wf.setCommand(Commands.CMD_PING);
-            CompletableFuture<?> f = client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
-                    new DtTime(100, TimeUnit.SECONDS));
             int index = i;
-            allFutures[i] = f.handle((v, e) -> {
-                if (e == null) {
-                    fail.compareAndSet(null, e);
-                    return null;
-                }
-                int expectIndex = expectFinishIndex.getAndIncrement();
-                if (expectIndex != index) {
-                    fail.compareAndSet(null, new Exception("fail order " + index + "," + expectIndex
-                            + ", msg=" + e.getMessage()));
-                }
-                return null;
-            });
+            client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
+                    new DtTime(100, TimeUnit.SECONDS), new RpcCallback<RefBuffer>() {
+                        @Override
+                        public void success(ReadPacket<RefBuffer> result) {
+                            fail.compareAndSet(null, new Exception("not fail"));
+                            cl.countDown();
+                        }
+
+                        @Override
+                        public void fail(Throwable e) {
+                            int expectIndex = expectFinishIndex.getAndIncrement();
+                            if (expectIndex != index) {
+                                fail.compareAndSet(null, new Exception("fail order " + index + "," + expectIndex
+                                        + ", msg=" + e.getMessage()));
+                            }
+                            cl.countDown();
+                        }
+                    });
         }
 
         client.stop(new DtTime(1, TimeUnit.NANOSECONDS));
         client = null;
-        CompletableFuture.allOf(allFutures).get();
+        assertTrue(cl.await(5, TimeUnit.SECONDS));
         assertNull(fail.get());
     }
 
@@ -784,8 +772,9 @@ public class NioClientTest {
                     return null;
                 }
             };
-            CompletableFuture<?> f = client.sendRequest(wf,
-                    ctx -> decoderCallback, new DtTime(tick(1), TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<Object>> f = new CompletableFuture<>();
+            client.sendRequest(wf, ctx -> decoderCallback, new DtTime(tick(1), TimeUnit.SECONDS),
+                    RpcCallback.fromFuture(f));
 
             try {
                 f.get(tick(5), TimeUnit.SECONDS);
@@ -822,8 +811,9 @@ public class NioClientTest {
                 }
             };
             wf.setCommand(Commands.CMD_PING);
-            CompletableFuture<?> f = client.sendRequest(wf, ctx -> new ByteArrayDecoderCallback(),
-                    new DtTime(tick(1), TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<byte[]>> f = new CompletableFuture<>();
+            client.sendRequest(wf, ctx -> new ByteArrayDecoderCallback(),
+                    new DtTime(tick(1), TimeUnit.SECONDS), RpcCallback.fromFuture(f));
 
             try {
                 f.get(tick(5), TimeUnit.SECONDS);
@@ -852,8 +842,9 @@ public class NioClientTest {
                 }
             };
             wf.setCommand(Commands.CMD_PING);
-            CompletableFuture<?> f = client.sendRequest(wf, ctx -> new ByteArrayDecoderCallback(),
-                    new DtTime(tick(1), TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<byte[]>> f = new CompletableFuture<>();
+            client.sendRequest(wf, ctx -> new ByteArrayDecoderCallback(),
+                    new DtTime(tick(1), TimeUnit.SECONDS), RpcCallback.fromFuture(f));
 
             try {
                 f.get(tick(5), TimeUnit.SECONDS);
