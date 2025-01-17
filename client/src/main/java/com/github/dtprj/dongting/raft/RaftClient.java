@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NetException;
-import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
@@ -218,7 +217,7 @@ public class RaftClient extends AbstractLifeCircle {
                             nioClient.releasePermit(request);
                         }
                     } else if (timeout.isTimeout()) {
-                        FutureCallback.callFail(callback, new NetTimeoutException("timeout after find leader for group " + groupId));
+                        FutureCallback.callFail(callback, new RaftTimeoutException("timeout after find leader for group " + groupId));
                         if (finalGetPermit) {
                             nioClient.releasePermit(request);
                         }

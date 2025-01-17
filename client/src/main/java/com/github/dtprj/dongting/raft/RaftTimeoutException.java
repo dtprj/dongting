@@ -21,10 +21,11 @@ package com.github.dtprj.dongting.raft;
 public class RaftTimeoutException extends RaftException {
     private static final long serialVersionUID = -5280601793702190730L;
 
-    public RaftTimeoutException() {
-    }
-
     public RaftTimeoutException(String message) {
         super(message);
+    }
+
+    public RaftTimeoutException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

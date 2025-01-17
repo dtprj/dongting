@@ -24,11 +24,13 @@ import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
+import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftTimeoutException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -36,6 +38,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
@@ -67,7 +70,11 @@ public class KvClient extends AbstractLifeCircle {
 
             @Override
             public void fail(Throwable ex) {
-                c.fail(ex);
+                if (ex instanceof NetTimeoutException) {
+                    c.fail(new RaftTimeoutException(ex.getMessage(), ex));
+                } else {
+                    c.fail(ex);
+                }
             }
         };
     }
@@ -94,8 +101,9 @@ public class KvClient extends AbstractLifeCircle {
             throw new RaftException("interrupted", e);
         } catch (ExecutionException e) {
             throw new RaftException("execution exception", e.getCause());
+        } catch (TimeoutException e) {
+            throw new RaftTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
         } catch (Exception e) {
-            // TODO process timeout ex
             throw new RaftException("execution exception", e);
         }
     }
