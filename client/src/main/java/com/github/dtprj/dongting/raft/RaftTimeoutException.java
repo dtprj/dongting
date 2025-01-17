@@ -13,20 +13,18 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
-
-import com.github.dtprj.dongting.raft.RaftException;
+package com.github.dtprj.dongting.raft;
 
 /**
  * @author huangli
  */
-public class RaftExecTimeoutException extends RaftException {
+public class RaftTimeoutException extends RaftException {
     private static final long serialVersionUID = -5280601793702190730L;
 
-    public RaftExecTimeoutException() {
+    public RaftTimeoutException() {
     }
 
-    public RaftExecTimeoutException(String message) {
+    public RaftTimeoutException(String message) {
         super(message);
     }
 }

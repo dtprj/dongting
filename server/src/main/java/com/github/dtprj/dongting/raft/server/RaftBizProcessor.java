@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftTimeoutException;
 
 import java.nio.charset.StandardCharsets;
 
@@ -39,7 +40,7 @@ public abstract class RaftBizProcessor<T> extends RaftProcessor<T> {
 
     protected void writeErrorResp(ReqInfo<?> reqInfo, Throwable ex) {
         Throwable root = DtUtil.rootCause(ex);
-        if (root instanceof RaftExecTimeoutException) {
+        if (root instanceof RaftTimeoutException) {
             ReadPacket<?> reqFrame = reqInfo.getReqFrame();
             log.warn("raft operation timeout: command={}, seq={}", reqFrame.getCommand(), reqFrame.getSeq());
             return;

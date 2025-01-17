@@ -27,10 +27,10 @@ import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
-import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -169,7 +169,7 @@ public class LinearTaskRunner {
 
             if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
                 RaftUtil.release(input);
-                rt.callFail(new RaftExecTimeoutException("timeout "
+                rt.callFail(new RaftTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
                 // not removed from list, filter in submitTasks()
                 continue;

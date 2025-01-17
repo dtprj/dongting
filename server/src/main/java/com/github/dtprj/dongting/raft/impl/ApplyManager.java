@@ -32,8 +32,8 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
@@ -215,7 +215,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             CompletableFuture<Long> f = p.getRight();
             if (deadline.isTimeout(ts)) {
                 it.remove();
-                RaftExecTimeoutException e = new RaftExecTimeoutException("wait group ready timeout: "
+                RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
                         + deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
                 completeWaitReadyFuture(f, null, e);
             } else if (processItemsNotTimeout) {
@@ -249,7 +249,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             @Override
             public FrameCallResult execute(Void input) {
                 if (t.isTimeout(raftStatus.getTs())) {
-                    RaftExecTimeoutException e = new RaftExecTimeoutException("wait group ready timeout: "
+                    RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
                             + t.getTimeout(TimeUnit.MILLISECONDS) + "ms");
                     completeWaitReadyFuture(f, null, e);
                 } else if (isGroupShouldStopPlain()) {
