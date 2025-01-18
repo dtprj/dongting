@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
-import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
@@ -35,7 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -186,13 +185,13 @@ public class VoteManager {
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
             try {
-                CompletableFuture<ReadPacket<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
-                        ctx -> ctx.toDecoderCallback(new VoteResp.Callback()), timeout);
+                RpcCallback<VoteResp> c = RpcCallback.fromHandler((rf, ex) ->
+                        fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest));
+                client.sendRequest(member.getNode().getPeer(), wf,ctx -> ctx.toDecoderCallback(new VoteResp.Callback()),
+                        timeout, c);
                 log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                         preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
                         currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
-                f.whenComplete((rf, ex) ->
-                        fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest));
             } catch (Exception e) {
                 fireRespProcessFiber(req, null, e, member, voteIdOfRequest);
             }

@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -213,9 +214,10 @@ public class MemberManager {
             DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
             RaftPingWritePacket f = new RaftPingWritePacket(groupId, serverConfig.getNodeId(),
                     raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
-            client.sendRequest(raftNodeEx.getPeer(), f, ctx -> ctx.toDecoderCallback(new RaftPingPacketCallback()), timeout)
-                    .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing),
-                            groupConfig.getFiberGroup().getExecutor());
+            RpcCallback<RaftPingPacketCallback> callback = RpcCallback.fromHandlerAsync(groupConfig.getFiberGroup().getExecutor(),
+                    (result, ex) -> processPingResult(raftNodeEx, member, result, ex, nodeEpochWhenStartPing));
+            client.sendRequest(raftNodeEx.getPeer(), f, ctx -> ctx.toDecoderCallback(new RaftPingPacketCallback()),
+                    timeout, callback);
         } catch (Exception e) {
             log.error("raft ping error, remote={}", raftNodeEx.getHostPort(), e);
             member.setPinging(false);
@@ -390,9 +392,9 @@ public class MemberManager {
         private CompletableFuture<Boolean> sendQuery(RaftNodeEx n) {
             final DecoderCallbackCreator<QueryStatusResp> decoder = ctx -> ctx.toDecoderCallback(
                     new QueryStatusResp.QueryStatusRespCallback());
-            CompletableFuture<ReadPacket<QueryStatusResp>> f = client.sendRequest(n.getPeer(),
-                    new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId), decoder,
-                    new DtTime(3, TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<QueryStatusResp>> f = new CompletableFuture<>();
+            client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId), decoder,
+                    new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
             return f.handle((resp, ex) -> {
                 if (ex != null) {
                     log.warn("query prepare status failed, groupId={}, remoteId={}", n.getNodeId(), groupId, ex);
@@ -790,15 +792,19 @@ public class MemberManager {
                 req.groupId = groupId;
                 SimpleWritePacket frame = new SimpleWritePacket(req);
                 frame.setCommand(Commands.RAFT_LEADER_TRANSFER);
-                client.sendRequest(newLeader.getNode().getPeer(), frame,
-                                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, new DtTime(5, TimeUnit.SECONDS))
-                        .whenComplete((rf, ex) -> {
-                            if (ex != null) {
-                                log.error("transfer leader failed, groupId={}", groupId, ex);
-                                f.completeExceptionally(ex);
-                            } else {
+                DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
+                client.sendRequest(newLeader.getNode().getPeer(), frame, dc, new DtTime(5, TimeUnit.SECONDS),
+                        new RpcCallback<>() {
+                            @Override
+                            public void success(ReadPacket<Void> result) {
                                 log.info("transfer leader success, groupId={}", groupId);
                                 f.complete(null);
+                            }
+
+                            @Override
+                            public void fail(Throwable ex) {
+                                log.error("transfer leader failed, groupId={}", groupId, ex);
+                                f.completeExceptionally(ex);
                             }
                         });
                 return Fiber.frameReturn();

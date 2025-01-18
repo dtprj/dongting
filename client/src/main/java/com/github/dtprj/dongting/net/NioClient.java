@@ -144,22 +144,11 @@ public class NioClient extends NioNet {
         return waitFuture(f, timeout);
     }
 
-    public <T> CompletableFuture<ReadPacket<T>> sendRequest(Peer peer, WritePacket request,
-                                                            DecoderCallbackCreator<T> decoder, DtTime timeout) {
+    public <T> ReadPacket<T> sendRequest(Peer peer, WritePacket request, DecoderCallbackCreator<T> decoder, DtTime timeout) {
         Objects.requireNonNull(decoder);
         CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
-        send(worker, peer, request, decoder, timeout, new RpcCallback<T>() {
-            @Override
-            public void success(ReadPacket<T> resp) {
-                f.complete(resp);
-            }
-
-            @Override
-            public void fail(Throwable ex) {
-                f.completeExceptionally(ex);
-            }
-        });
-        return f;
+        send(worker, peer, request, decoder, timeout, RpcCallback.fromFuture(f));
+        return waitFuture(f, timeout);
     }
 
     public <T> void sendRequest(WritePacket request, DecoderCallbackCreator<T> decoder,

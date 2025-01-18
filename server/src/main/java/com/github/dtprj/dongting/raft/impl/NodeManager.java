@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
@@ -205,8 +206,10 @@ public class NodeManager extends AbstractLifeCircle {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, uuid));
         packet.setCommand(Commands.NODE_PING);
-        CompletableFuture<ReadPacket<NodePing>> f = client.sendRequest(nodeEx.getPeer(),
-                packet, ctx -> ctx.toDecoderCallback(new NodePing()), timeout);
+        // TODO simplification
+        CompletableFuture<ReadPacket<NodePing>> f = new CompletableFuture<>();
+        client.sendRequest(nodeEx.getPeer(), packet, ctx -> ctx.toDecoderCallback(new NodePing()),
+                timeout, RpcCallback.fromFuture(f));
         return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
     }
 

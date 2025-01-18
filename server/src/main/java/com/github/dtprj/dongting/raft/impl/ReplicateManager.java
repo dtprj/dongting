@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -37,6 +38,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWritePacket;
@@ -54,7 +56,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -370,23 +372,30 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
-        // release in AppendReqWritePacket
-        CompletableFuture<ReadPacket<AppendResp>> f = client.sendRequest(member.getNode().getPeer(),
-                req, APPEND_RESP_DECODER_CALLBACK_CREATOR, timeout);
-
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
             LogItem item = items.get(i);
             bytes += item.getActualBodySize();
         }
+        long finalBytes = bytes;
+        Executor ge = groupConfig.getFiberGroup().getExecutor();
+        // release in AppendReqWritePacket
+        client.sendRequest(member.getNode().getPeer(), req, APPEND_RESP_DECODER_CALLBACK_CREATOR, timeout,
+                new RpcCallback<>() {
+                    @Override
+                    public void success(ReadPacket<AppendResp> result) {
+                        ge.execute(() -> afterAppendRpc(result, null, prevLogIndex,
+                                firstItem.getPrevLogTerm(), leaseStartNanos, items.size(), finalBytes, perfStartTime));
+                    }
 
+                    @Override
+                    public void fail(Throwable ex) {
+                        ge.execute(() -> afterAppendRpc(null, ex, prevLogIndex,
+                                firstItem.getPrevLogTerm(), leaseStartNanos, items.size(), finalBytes, perfStartTime));
+                    }
+                });
         pendingItems += items.size();
         pendingBytes += bytes;
-
-        long finalBytes = bytes;
-        f.whenCompleteAsync((rf, ex) -> afterAppendRpc(rf, ex, prevLogIndex,
-                        firstItem.getPrevLogTerm(), leaseStartNanos, items.size(), finalBytes, perfStartTime),
-                getFiberGroup().getExecutor());
     }
 
     void afterAppendRpc(ReadPacket<AppendResp> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
@@ -701,15 +710,17 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         // data buffer released in WritePacket
         InstallSnapshotReq.InstallReqWritePacket wf = new InstallSnapshotReq.InstallReqWritePacket(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
+        FiberGroup fg = groupConfig.getFiberGroup();
+        FiberFuture<Void> f = fg.newFuture("install-" + groupId + "-" + req.offset);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadPacket<AppendResp>> future = client.sendRequest(
-                member.getNode().getPeer(), wf, APPEND_RESP_DECODER_CALLBACK_CREATOR, timeout);
+        RpcCallback<AppendResp> callback = RpcCallback.fromHandlerAsync(fg.getExecutor(),
+                (resp, ex) -> afterInstallRpc(resp, ex, req, f));
+        client.sendRequest(member.getNode().getPeer(), wf, APPEND_RESP_DECODER_CALLBACK_CREATOR,
+                timeout, callback);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
         log.info("transfer snapshot data to member {}. groupId={}, offset={}, bytes={}, done={}",
                 member.getNode().getNodeId(), groupId, req.offset, bytes, req.done);
-        FiberFuture<Void> f = getFiberGroup().newFuture("install-" + groupId + "-" + req.offset);
-        future.whenCompleteAsync((rf, ex) -> afterInstallRpc(rf, ex, req, f), getFiberGroup().getExecutor());
         return f;
     }
 

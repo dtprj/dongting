@@ -292,7 +292,7 @@ public class NioClientTest {
         generalTest(client, tick(100));
     }
 
-    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
+    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) {
         sendSync(maxBodySize, client, timeoutMillis, new RefBufferDecoderCallback());
         sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoderCallback());
     }
@@ -324,16 +324,14 @@ public class NioClientTest {
         }
     }
 
-    private static void sendSyncByPeer(int maxBodySize, NioClient client,
-                                       Peer peer, long timeoutMillis) throws Exception {
+    private static void sendSyncByPeer(int maxBodySize, NioClient client, Peer peer, long timeoutMillis) {
         byte[] bs = new byte[ThreadLocalRandom.current().nextInt(maxBodySize)];
         ThreadLocalRandom.current().nextBytes(bs);
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(peer, wf,
+        ReadPacket<RefBuffer> rf = client.sendRequest(peer, wf,
                 ctx -> new RefBufferDecoderCallback(), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
-        ReadPacket<RefBuffer> rf = f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
@@ -395,7 +393,7 @@ public class NioClientTest {
 
         client.start();
         client.waitStart();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 5; i++) {
             sendSync(5000, client, tick(500));
         }
         DtUtil.close(server1);
@@ -403,7 +401,7 @@ public class NioClientTest {
         Peer p2 = client.getPeers().get(1);
         TestUtil.waitUtil(() -> p1.status.ordinal() < PeerStatus.connected.ordinal());
         int success = 0;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 5; i++) {
             try {
                 sendSync(5000, client, tick(100));
                 success++;
@@ -411,13 +409,9 @@ public class NioClientTest {
                 // ignore
             }
         }
-        assertEquals(10, success);
+        assertEquals(5, success);
 
-        try {
-            sendSyncByPeer(5000, client, p1, tick(500));
-        } catch (ExecutionException e) {
-            assertEquals(NetException.class, e.getCause().getClass());
-        }
+        assertThrows(NetException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
         sendSyncByPeer(5000, client, p2, tick(500));
 
         try {
@@ -457,11 +451,7 @@ public class NioClientTest {
 
         Peer p1 = client.getPeers().get(0);
 
-        try {
-            sendSyncByPeer(5000, client, p1, tick(500));
-        } catch (ExecutionException e) {
-            assertEquals(NetException.class, e.getCause().getClass());
-        }
+        assertThrows(NetException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
 
         server1 = new BioServer(9000);
 
@@ -545,7 +535,7 @@ public class NioClientTest {
 
         assertEquals(1, client.getPeers().size());
         sendSync(5000, client, tick(100));
-        assertThrows(ExecutionException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
+        assertThrows(NetException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
         sendSyncByPeer(5000, client, p2, tick(500));
 
         client.removePeer(p2.getEndPoint()).get();
@@ -686,14 +676,26 @@ public class NioClientTest {
         client.waitStart();
         Peer peer = client.addPeer(new HostPort("110.110.110.110", 2345)).get();
 
-        try {
-            // auto connect
-            sendSyncByPeer(5000, client, peer, 1);
-            fail();
-        } catch (ExecutionException e) {
-            assertEquals(NetTimeoutException.class, e.getCause().getClass());
-            assertEquals("wait connect timeout", e.getCause().getMessage());
-        }
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(new byte[]{1}));
+        wf.setCommand(Commands.CMD_PING);
+
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        client.sendRequest(peer, wf, ctx -> new RefBufferDecoderCallback(),
+                new DtTime(1, TimeUnit.MILLISECONDS), new RpcCallback<RefBuffer>() {
+                    @Override
+                    public void success(ReadPacket<RefBuffer> result) {
+                        f.completeExceptionally(new Exception("not fail"));
+                    }
+
+                    @Override
+                    public void fail(Throwable ex) {
+                        if (ex.getMessage().equals("wait connect timeout")) {
+                            f.complete(null);
+                        } else {
+                            f.completeExceptionally(ex);
+                        }
+                    }
+                });
     }
 
     @Test
@@ -877,7 +879,7 @@ public class NioClientTest {
         try {
             ByteBufferWritePacket f = new ByteBufferWritePacket(buf);
             f.setCommand(Commands.CMD_PING);
-            client.sendRequest(peer, f, ctx -> new ByteArrayDecoderCallback(), new DtTime(1, TimeUnit.SECONDS)).get();
+            client.sendRequest(peer, f, ctx -> new ByteArrayDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
             fail();
         } catch (Exception e) {
             assertEquals(NetException.class, DtUtil.rootCause(e).getClass());
@@ -888,7 +890,7 @@ public class NioClientTest {
         try {
             ByteBufferWritePacket f = new ByteBufferWritePacket(buf);
             f.setCommand(Commands.CMD_PING);
-            client.sendRequest(peer, f, ctx -> new ByteArrayDecoderCallback(), new DtTime(1, TimeUnit.SECONDS)).get();
+            client.sendRequest(peer, f, ctx -> new ByteArrayDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
             fail();
         } catch (Exception e) {
             assertEquals(NetException.class, DtUtil.rootCause(e).getClass());

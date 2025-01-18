@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.common.FutureCallback;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 
 /**
  * @author huangli
@@ -34,6 +36,34 @@ public interface RpcCallback<T> extends FutureCallback<ReadPacket<T>> {
             @Override
             public void fail(Throwable ex) {
                 f.completeExceptionally(ex);
+            }
+        };
+    }
+
+    static <T> RpcCallback<T> fromHandler(BiConsumer<ReadPacket<T>, Throwable> handler) {
+        return new RpcCallback<T>() {
+            @Override
+            public void success(ReadPacket<T> result) {
+                handler.accept(result, null);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                handler.accept(null, ex);
+            }
+        };
+    }
+
+    static <T> RpcCallback<T> fromHandlerAsync(Executor executor, BiConsumer<ReadPacket<T>, Throwable> handler) {
+        return new RpcCallback<T>() {
+            @Override
+            public void success(ReadPacket<T> result) {
+                executor.execute(() -> handler.accept(result, null));
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                executor.execute(() -> handler.accept(null, ex));
             }
         };
     }
