@@ -34,7 +34,7 @@ public class DemoClient {
 
     private static final DtLog log = DtLogs.getLogger(DemoClient.class);
 
-    public static KvClient run(int groupId, String servers, int loopCount) throws Exception {
+    public static KvClient putAndGetFixCount(int groupId, String servers, int loopCount) throws Exception {
         KvClient kvClient = new KvClient();
         kvClient.start();
         kvClient.getRaftClient().addOrUpdateGroup(groupId, servers);

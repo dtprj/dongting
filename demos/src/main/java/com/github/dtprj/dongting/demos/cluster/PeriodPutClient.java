@@ -16,24 +16,38 @@
 package com.github.dtprj.dongting.demos.cluster;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.demos.base.DemoClient;
 import com.github.dtprj.dongting.dtkv.KvClient;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
  */
-public class ClusterClient extends DemoClient {
+public class PeriodPutClient {
 
-    final static int LOOP_COUNT = 1_000_000;
+    private static final DtLog log = DtLogs.getLogger(PeriodPutClient.class);
 
     public static void main(String[] args) throws Exception {
         String servers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
         int groupId = 0;
-        KvClient client = putAndGetFixCount(groupId, servers, LOOP_COUNT);
+        KvClient kvClient = new KvClient();
+        kvClient.start();
+        kvClient.getRaftClient().addOrUpdateGroup(groupId, servers);
+        kvClient.getRaftClient().fetchLeader(groupId).get();
 
-        // System.exit(0);
-        client.stop(new DtTime(3, TimeUnit.SECONDS));
+        long count = 1;
+        while (true) {
+            try {
+                String key = "key" + ((count++) % 10_000);
+                long t = System.currentTimeMillis();
+                kvClient.put(groupId, key, "value".getBytes(), new DtTime(10, TimeUnit.SECONDS));
+                log.info("put key " + key + " cost " + (System.currentTimeMillis() - t) + "ms");
+            } catch (Exception e) {
+                log.error("put key fail: {}", e.toString());
+            }
+            Thread.sleep(1000);
+        }
     }
 }
