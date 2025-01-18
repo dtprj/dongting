@@ -161,9 +161,42 @@ public class NodeManager extends AbstractLifeCircle {
 
     private CompletableFuture<Void> nodePing(RaftNodeEx nodeEx, Consumer<Throwable> extraCallback) {
         nodeEx.setPinging(true);
+
+        DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, uuid));
+        packet.setCommand(Commands.NODE_PING);
+        CompletableFuture<ReadPacket<NodePing>> f = new CompletableFuture<>();
+        client.sendRequest(nodeEx.getPeer(), packet, ctx -> ctx.toDecoderCallback(new NodePing()),
+                timeout, RpcCallback.fromFuture(f));
+        CompletableFuture<Void> f2 = f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
         // we should set connecting status in schedule thread
-        return sendNodePing(nodeEx).whenCompleteAsync(
-                (v, ex) -> processResultInScheduleThread(nodeEx, ex, extraCallback), DtUtil.SCHEDULED_SERVICE);
+        return f2.whenCompleteAsync((v, ex) ->
+                processResultInScheduleThread(nodeEx, ex, extraCallback), DtUtil.SCHEDULED_SERVICE);
+    }
+
+    // run in io thread
+    private void whenRpcFinish(ReadPacket<NodePing> rf, RaftNodeEx nodeEx) {
+        NodePing callback = rf.getBody();
+        if (nodeEx.getNodeId() != callback.nodeId) {
+            String msg = "config fail: node id not match. expect " + nodeEx.getNodeId() + ", but " + callback.nodeId;
+            log.error(msg);
+            throw new RaftException(msg);
+        }
+        boolean uuidMatch = uuid.getMostSignificantBits() == callback.uuidHigh &&
+                uuid.getLeastSignificantBits() == callback.uuidLow;
+        if (nodeEx.isSelf()) {
+            if (!uuidMatch) {
+                String msg = "config fail: self node uuid not match";
+                log.error(msg);
+                throw new RaftException(msg);
+            }
+        } else {
+            if (uuidMatch) {
+                String msg = "config fail: node uuid match";
+                log.error(msg);
+                throw new RaftException(msg);
+            }
+        }
     }
 
     private void processResultInScheduleThread(RaftNodeEx nodeEx, Throwable ex, Consumer<Throwable> extraCallback) {
@@ -199,42 +232,6 @@ public class NodeManager extends AbstractLifeCircle {
         if (currentReadyNodes >= startReadyQuorum && !nodePingReadyFuture.isDone()) {
             log.info("nodeManager is ready");
             nodePingReadyFuture.complete(null);
-        }
-    }
-
-    private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
-        DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, uuid));
-        packet.setCommand(Commands.NODE_PING);
-        // TODO simplification
-        CompletableFuture<ReadPacket<NodePing>> f = new CompletableFuture<>();
-        client.sendRequest(nodeEx.getPeer(), packet, ctx -> ctx.toDecoderCallback(new NodePing()),
-                timeout, RpcCallback.fromFuture(f));
-        return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
-    }
-
-    // run in io thread
-    private void whenRpcFinish(ReadPacket<NodePing> rf, RaftNodeEx nodeEx) {
-        NodePing callback = rf.getBody();
-        if (nodeEx.getNodeId() != callback.nodeId) {
-            String msg = "config fail: node id not match. expect " + nodeEx.getNodeId() + ", but " + callback.nodeId;
-            log.error(msg);
-            throw new RaftException(msg);
-        }
-        boolean uuidMatch = uuid.getMostSignificantBits() == callback.uuidHigh &&
-                uuid.getLeastSignificantBits() == callback.uuidLow;
-        if (nodeEx.isSelf()) {
-            if (!uuidMatch) {
-                String msg = "config fail: self node uuid not match";
-                log.error(msg);
-                throw new RaftException(msg);
-            }
-        } else {
-            if (uuidMatch) {
-                String msg = "config fail: node uuid match";
-                log.error(msg);
-                throw new RaftException(msg);
-            }
         }
     }
 
