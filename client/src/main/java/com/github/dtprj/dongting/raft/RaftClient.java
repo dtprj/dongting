@@ -345,7 +345,7 @@ public class RaftClient extends AbstractLifeCircle {
         }
         NodeInfo node = it.next();
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, gi.groupId);
-        DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
+        DtTime rpcTimeout = new DtTime(5, TimeUnit.SECONDS);
         DecoderCallbackCreator<QueryStatusResp> dc = c -> c.toDecoderCallback(new QueryStatusResp.QueryStatusRespCallback());
         RpcCallback<QueryStatusResp> callback = RpcCallback.fromHandler(
                 (resp, ex) -> processLeaderQueryResult(gi, it, resp, ex, node));
@@ -384,9 +384,8 @@ public class RaftClient extends AbstractLifeCircle {
                 } else {
                     Peer leader = parseLeader(gi, rf.getBody().getLeaderId());
                     if (leader != null) {
-                        GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.epoch, gi.servers, leader, false);
-                        groups.put(gi.groupId, newGroupInfo);
-                        gi.leaderFuture.complete(newGroupInfo);
+                        log.debug("find leader for group {}: {}", gi.groupId, leader.getEndPoint());
+                        connectToLeader(gi, leader);
                     } else {
                         findLeader(gi, it);
                     }
@@ -397,10 +396,29 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
+    private void connectToLeader(GroupInfo gi, Peer leader) {
+        assert gi.leaderFuture != null;
+        try {
+            nioClient.connect(leader, new DtTime(5, TimeUnit.SECONDS)).whenComplete((v, e) -> {
+                if (e != null) {
+                    log.warn("connect to leader {} fail: {}", leader.getEndPoint(), e.toString());
+                    gi.leaderFuture.completeExceptionally(new RaftException("connect to leader " + leader.getEndPoint() + " fail"));
+                } else {
+                    log.info("group {} connected to leader: {}", gi.groupId, leader.getEndPoint());
+                    GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.epoch, gi.servers, leader, false);
+                    groups.put(gi.groupId, newGroupInfo);
+                    gi.leaderFuture.complete(newGroupInfo);
+                }
+            });
+        } catch (Exception e) {
+            log.error("", e);
+            gi.leaderFuture.completeExceptionally(e);
+        }
+    }
+
     private Peer parseLeader(GroupInfo groupInfo, int leaderId) {
         for (NodeInfo ni : groupInfo.servers) {
             if (ni.getNodeId() == leaderId) {
-                log.info("group {} find leader: {}, {}", groupInfo.groupId, leaderId, ni.getHostPort());
                 return ni.getPeer();
             }
         }
