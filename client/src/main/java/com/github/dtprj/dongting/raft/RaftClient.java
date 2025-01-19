@@ -275,6 +275,30 @@ public class RaftClient extends AbstractLifeCircle {
         nioClient.sendRequest(gi.leader, request, decoder, timeout, newCallback);
     }
 
+    private Peer updateLeaderFromExtra(byte[] extra, GroupInfo groupInfo) {
+        if (extra == null) {
+            return null;
+        }
+        lock.lock();
+        try {
+            GroupInfo currentGroupInfo = groups.get(groupInfo.groupId);
+            if (currentGroupInfo == null || currentGroupInfo.epoch != groupInfo.epoch) {
+                // group info changed, drop the result
+                return null;
+            }
+            String s = new String(extra, StandardCharsets.UTF_8);
+            Peer leader = parseLeader(groupInfo, Integer.parseInt(s));
+            if (leader != null) {
+                GroupInfo newGroupInfo = new GroupInfo(groupInfo.groupId, groupInfo.epoch,
+                        groupInfo.servers, leader, false);
+                groups.put(groupInfo.groupId, newGroupInfo);
+            }
+            return leader;
+        } finally {
+            lock.unlock();
+        }
+    }
+
     public CompletableFuture<Peer> fetchLeader(int groupId) {
         return updateLeaderInfo(groupId).thenApply(gi -> {
             if (gi == null || gi.leader == null) {
@@ -286,7 +310,6 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     private CompletableFuture<GroupInfo> updateLeaderInfo(int groupId) {
-        log.info("try find leader for group {}", groupId);
         lock.lock();
         try {
             GroupInfo gi = groups.get(groupId);
@@ -302,6 +325,7 @@ public class RaftClient extends AbstractLifeCircle {
             GroupInfo newGroupInfo = new GroupInfo(groupId, generateNextEpoch(), gi.servers, null, true);
             groups.put(groupId, newGroupInfo);
             Iterator<NodeInfo> it = newGroupInfo.servers.iterator();
+            log.info("try find leader for group {}", groupId);
             findLeader(newGroupInfo, it);
             return newGroupInfo.leaderFuture;
         } finally {
@@ -333,8 +357,20 @@ public class RaftClient extends AbstractLifeCircle {
         lock.lock();
         try {
             GroupInfo currentGroupInfo = groups.get(gi.groupId);
-            if (currentGroupInfo == null || currentGroupInfo.epoch != gi.epoch) {
+            assert gi.leaderFuture != null;
+            if (currentGroupInfo == null) {
+                gi.leaderFuture.completeExceptionally(new RaftException("group removed " + gi.groupId));
+                return;
+            }
+            if (currentGroupInfo.epoch != gi.epoch) {
                 // group info changed, stop current find process
+                updateLeaderInfo(gi.groupId).whenComplete((ld, e) -> {
+                    if (e != null) {
+                        gi.leaderFuture.completeExceptionally(e);
+                    } else {
+                        gi.leaderFuture.complete(ld);
+                    }
+                });
                 return;
             }
             if (ex != null) {
@@ -350,37 +386,12 @@ public class RaftClient extends AbstractLifeCircle {
                     if (leader != null) {
                         GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.epoch, gi.servers, leader, false);
                         groups.put(gi.groupId, newGroupInfo);
-                        //noinspection DataFlowIssue
                         gi.leaderFuture.complete(newGroupInfo);
                     } else {
                         findLeader(gi, it);
                     }
                 }
             }
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    private Peer updateLeaderFromExtra(byte[] extra, GroupInfo groupInfo) {
-        if (extra == null) {
-            return null;
-        }
-        lock.lock();
-        try {
-            GroupInfo currentGroupInfo = groups.get(groupInfo.groupId);
-            if (currentGroupInfo == null || currentGroupInfo.epoch != groupInfo.epoch) {
-                // group info changed, drop the result
-                return null;
-            }
-            String s = new String(extra, StandardCharsets.UTF_8);
-            Peer leader = parseLeader(groupInfo, Integer.parseInt(s));
-            if (leader != null) {
-                GroupInfo newGroupInfo = new GroupInfo(groupInfo.groupId, groupInfo.epoch,
-                        groupInfo.servers, leader, false);
-                groups.put(groupInfo.groupId, newGroupInfo);
-            }
-            return leader;
         } finally {
             lock.unlock();
         }
