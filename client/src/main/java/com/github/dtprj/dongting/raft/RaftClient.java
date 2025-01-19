@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.Peer;
+import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WritePacket;
@@ -196,7 +197,7 @@ public class RaftClient extends AbstractLifeCircle {
         try {
             getPermit = nioClient.acquirePermit(request, timeout);
             final boolean finalGetPermit = getPermit;
-            if (groupInfo.leader != null) {
+            if (groupInfo.leader != null && groupInfo.leader.getStatus() == PeerStatus.connected) {
                 send(request, decoder, timeout, callback, groupInfo, 0, finalGetPermit);
             } else {
                 CompletableFuture<GroupInfo> leaderFuture;
@@ -292,7 +293,7 @@ public class RaftClient extends AbstractLifeCircle {
             if (gi == null) {
                 return DtUtil.failedFuture(new NoSuchGroupException(groupId));
             }
-            if (gi.leader != null) {
+            if (gi.leader != null && gi.leader.getStatus() == PeerStatus.connected) {
                 return CompletableFuture.completedFuture(gi);
             }
             if (gi.leaderFuture != null) {
