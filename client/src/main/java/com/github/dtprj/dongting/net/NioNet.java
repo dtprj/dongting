@@ -299,11 +299,6 @@ public abstract class NioNet extends AbstractLifeCircle {
         return new HostPort(host, port);
     }
 
-    @SuppressWarnings("unused")
-    public void setChannelListener(ChannelListener channelListener) {
-        nioStatus.channelListener = channelListener;
-    }
-
     protected <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
         try {
             return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);

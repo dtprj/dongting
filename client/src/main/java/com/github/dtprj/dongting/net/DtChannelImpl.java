@@ -436,6 +436,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return channel;
     }
 
+    @Override
+    public Peer getPeer() {
+        return peer;
+    }
+
     public boolean isClosed() {
         return closed;
     }

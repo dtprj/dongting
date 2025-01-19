@@ -24,7 +24,6 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 class NioStatus {
     private final IntObjMap<ReqProcessor<?>> processors = new IntObjMap<>();
-    ChannelListener channelListener;
 
     final ReentrantLock pendingLock = new ReentrantLock();
     int pendingRequests;

@@ -56,6 +56,8 @@ public abstract class NioConfig {
     private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
     private Supplier<DecodeContext> decodeContextFactory = DecodeContext::new;
 
+    private ChannelListener channelListener;
+
     private boolean serverHint = true;
 
     public int getBizThreads() {
@@ -176,6 +178,14 @@ public abstract class NioConfig {
 
     public void setDecodeContextFactory(Supplier<DecodeContext> decodeContextFactory) {
         this.decodeContextFactory = decodeContextFactory;
+    }
+
+    public ChannelListener getChannelListener() {
+        return channelListener;
+    }
+
+    public void setChannelListener(ChannelListener channelListener) {
+        this.channelListener = channelListener;
     }
 
     public boolean isServerHint() {

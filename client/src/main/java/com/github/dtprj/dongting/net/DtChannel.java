@@ -27,4 +27,9 @@ public interface DtChannel {
     SocketAddress getRemoteAddr();
 
     SocketAddress getLocalAddr();
+
+    /**
+     * server side will return null.
+     */
+    Peer getPeer();
 }
