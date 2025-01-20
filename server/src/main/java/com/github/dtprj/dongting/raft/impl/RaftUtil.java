@@ -23,7 +23,10 @@ import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.rpc.RaftPing;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -36,6 +39,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.zip.CRC32C;
 
 /**
@@ -337,4 +341,15 @@ public final class RaftUtil {
         return value == null ? defaultValue : Boolean.parseBoolean(value);
     }
 
+    public static SimpleWritePacket buildRaftPingPacket(int nodeId, RaftStatusImpl raftStatus) {
+        RaftPing raftPing = new RaftPing();
+        raftPing.groupId = raftStatus.getGroupId();
+        raftPing.nodeId = nodeId;
+        Function<RaftMember, RaftNodeEx> mapper = RaftMember::getNode;
+        raftPing.members = RaftNode.formatServers(raftStatus.getMembers(), mapper);
+        raftPing.observers = RaftNode.formatServers(raftStatus.getObservers(), mapper);
+        raftPing.preparedMembers = RaftNode.formatServers(raftStatus.getPreparedMembers(), mapper);
+        raftPing.preparedObservers = RaftNode.formatServers(raftStatus.getPreparedObservers(), mapper);
+        return new SimpleWritePacket(raftPing);
+    }
 }

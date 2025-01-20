@@ -20,36 +20,36 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli
  */
-public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingPacketCallback> {
+public class RaftPingProcessor extends RaftSequenceProcessor<RaftPing> {
 
     public RaftPingProcessor(RaftServer raftServer) {
         super(raftServer);
     }
 
     @Override
-    protected int getGroupId(ReadPacket<RaftPingPacketCallback> frame) {
+    protected int getGroupId(ReadPacket<RaftPing> frame) {
         return frame.getBody().groupId;
     }
 
     @Override
-    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<RaftPingPacketCallback> reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<RaftPing> reqInfo) {
         GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
-        RaftPingWritePacket resp = new RaftPingWritePacket(gc.getGroupConfig().getGroupId(),
-                gc.getServerConfig().getNodeId(), gc.getRaftStatus().getNodeIdOfMembers(),
-                gc.getRaftStatus().getNodeIdOfObservers());
+        SimpleWritePacket resp = RaftUtil.buildRaftPingPacket(gc.getServerConfig().getNodeId(), gc.getRaftStatus());
         resp.setRespCode(CmdCodes.SUCCESS);
         writeResp(reqInfo, resp);
         return FiberFrame.voidCompletedFrame();
     }
 
     @Override
-    public DecoderCallback<RaftPingPacketCallback> createDecoderCallback(int command, DecodeContext context) {
-        return context.toDecoderCallback(new RaftPingPacketCallback());
+    public DecoderCallback<RaftPing> createDecoderCallback(int command, DecodeContext context) {
+        return context.toDecoderCallback(new RaftPing());
     }
 }

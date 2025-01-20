@@ -34,8 +34,8 @@ import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.rpc.RaftPingPacketCallback;
-import com.github.dtprj.dongting.raft.rpc.RaftPingWritePacket;
+import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.rpc.RaftPing;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
@@ -212,11 +212,13 @@ public class MemberManager {
         member.setPinging(true);
         try {
             DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            RaftPingWritePacket f = new RaftPingWritePacket(groupId, serverConfig.getNodeId(),
-                    raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
-            RpcCallback<RaftPingPacketCallback> callback = RpcCallback.fromHandlerAsync(groupConfig.getFiberGroup().getExecutor(),
+
+            SimpleWritePacket f = RaftUtil.buildRaftPingPacket(serverConfig.getNodeId(), raftStatus);
+            f.setCommand(Commands.RAFT_PING);
+
+            RpcCallback<RaftPing> callback = RpcCallback.fromHandlerAsync(groupConfig.getFiberGroup().getExecutor(),
                     (result, ex) -> processPingResult(raftNodeEx, member, result, ex, nodeEpochWhenStartPing));
-            client.sendRequest(raftNodeEx.getPeer(), f, ctx -> ctx.toDecoderCallback(new RaftPingPacketCallback()),
+            client.sendRequest(raftNodeEx.getPeer(), f, ctx -> ctx.toDecoderCallback(new RaftPing()),
                     timeout, callback);
         } catch (Exception e) {
             log.error("raft ping error, remote={}", raftNodeEx.getHostPort(), e);
@@ -225,45 +227,80 @@ public class MemberManager {
     }
 
     private void processPingResult(RaftNodeEx raftNodeEx, RaftMember member,
-                                   ReadPacket<RaftPingPacketCallback> rf, Throwable ex, int nodeEpochWhenStartPing) {
+                                   ReadPacket<RaftPing> rf, Throwable ex, int nodeEpochWhenStartPing) {
         member.setPinging(false);
-        RaftPingPacketCallback callback = rf.getBody();
         if (ex != null) {
             log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
             setReady(member, false);
         } else {
-            if (callback.nodeId != raftNodeEx.getNodeId() || callback.groupId != groupId) {
+            RaftPing ping = rf.getBody();
+            if (ping.nodeId != raftNodeEx.getNodeId() || ping.groupId != groupId) {
                 log.error("raft ping error, groupId or nodeId not found, groupId={}, remote={}",
                         groupId, raftNodeEx.getHostPort());
                 setReady(member, false);
-            } else if (checkRemoteConfig(callback)) {
-                NodeStatus currentNodeStatus = member.getNode().getStatus();
-                if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
-                    log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
-                    setReady(member, true);
-                    member.setNodeEpoch(nodeEpochWhenStartPing);
-                    replicateManager.tryStartReplicateFibers();
-                } else {
-                    log.warn("raft ping success but current node status not match. "
-                                    + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",
-                            callback.nodeId, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
-                            currentNodeStatus.getEpoch(), nodeEpochWhenStartPing);
-                    setReady(member, false);
-                }
             } else {
-                log.error("raft ping error, group ids not match: remote={}, localIds={}, remoteIds={}, localObservers={}, remoteObservers={}",
-                        raftNodeEx, raftStatus.getNodeIdOfMembers(), callback.nodeIdOfMembers, raftStatus.getNodeIdOfObservers(), callback.nodeIdOfObservers);
-                setReady(member, false);
+                String s = null;
+                if (groupConfig.isStaticConfig()) {
+                    s = checkRemoteConfig(ping);
+                }
+                if (s != null) {
+                    log.error("raft ping static check fail: {}", s);
+                    setReady(member, false);
+                } else {
+                    NodeStatus currentNodeStatus = member.getNode().getStatus();
+                    if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
+                        log.info("raft ping success, id={}, remote={}", ping.nodeId, raftNodeEx.getHostPort());
+                        setReady(member, true);
+                        member.setNodeEpoch(nodeEpochWhenStartPing);
+                        replicateManager.tryStartReplicateFibers();
+                    } else {
+                        log.warn("raft ping success but current node status not match. "
+                                        + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",
+                                ping.nodeId, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
+                                currentNodeStatus.getEpoch(), nodeEpochWhenStartPing);
+                        setReady(member, false);
+                    }
+                }
             }
         }
     }
 
-    private boolean checkRemoteConfig(RaftPingPacketCallback callback) {
-        if (groupConfig.isStaticConfig()) {
-            return raftStatus.getNodeIdOfMembers().equals(callback.nodeIdOfMembers)
-                    && raftStatus.getNodeIdOfObservers().equals(callback.nodeIdOfObservers);
+    private String checkRemoteConfig(RaftPing ping) {
+        String s = checkRemoteConfig("members", raftStatus.getMembers(), ping.members);
+        if (s != null) {
+            return s;
         }
-        return true;
+        s = checkRemoteConfig("observers", raftStatus.getObservers(), ping.observers);
+        if (s != null) {
+            return s;
+        }
+        s = checkRemoteConfig("preparedMembers", raftStatus.getPreparedMembers(), ping.preparedMembers);
+        if (s != null) {
+            return s;
+        }
+        return checkRemoteConfig("preparedObservers", raftStatus.getPreparedObservers(), ping.preparedObservers);
+    }
+
+    private String checkRemoteConfig(String s, List<RaftMember> localServers, String remoteServers) {
+        List<RaftNode> remotes = RaftNode.parseServers(remoteServers);
+        if (localServers.size() != remotes.size()) {
+            return s + " size not match, local=" + RaftNode.formatServers(localServers, RaftMember::getNode)
+                    + ", remote=" + remoteServers;
+        }
+        for (RaftNode rn : remotes) {
+            RaftMember localMember = null;
+            for (RaftMember m : localServers) {
+                if (m.getNode().getNodeId() == rn.getNodeId()) {
+                    localMember = m;
+                    break;
+                }
+            }
+            if (localMember == null || !localMember.getNode().getHostPort().equals(rn.getHostPort())) {
+                return s + " not match, local=" + RaftNode.formatServers(localServers, RaftMember::getNode)
+                        + ", remote=" + remoteServers;
+            }
+        }
+        return null;
     }
 
     public void setReady(RaftMember member, boolean ready) {

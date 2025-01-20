@@ -19,7 +19,9 @@ import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioNet;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -52,6 +54,10 @@ public class RaftNode {
     }
 
     public static List<RaftNode> parseServers(String serversStr) {
+        if (serversStr == null || serversStr.isEmpty()) {
+            //noinspection unchecked
+            return Collections.EMPTY_LIST;
+        }
         String[] servers = serversStr.split(";");
         if (servers.length == 0) {
             throw new RaftException("servers list is empty");
@@ -71,5 +77,19 @@ public class RaftNode {
         } catch (NumberFormatException e) {
             throw new RaftException("bad servers list: " + serversStr);
         }
+    }
+
+    public static String formatServers(List<RaftNode> servers) {
+        return formatServers(servers, Function.identity());
+    }
+
+    public static <T> String formatServers(List<T> servers, Function<T, ? extends RaftNode> mapper) {
+        StringBuilder sb = new StringBuilder();
+        for (T s : servers) {
+            RaftNode n = mapper.apply(s);
+            HostPort hp = n.getHostPort();
+            sb.append(n.getNodeId()).append(",").append(hp.getHost()).append(":").append(hp.getPort()).append(";");
+        }
+        return sb.toString();
     }
 }
