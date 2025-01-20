@@ -27,6 +27,7 @@ class GroupInfo {
     final int groupId;
     final List<NodeInfo> servers;
     final Peer leader;
+    final NodeInfo leaderNodeInfo;
     final CompletableFuture<GroupInfo> leaderFuture;
     long epoch;
 
@@ -40,5 +41,21 @@ class GroupInfo {
         } else {
             this.leaderFuture = null;
         }
+        NodeInfo ni = null;
+        if (leader != null) {
+            for (NodeInfo nodeInfo : servers) {
+                if (nodeInfo.getPeer() == leader) {
+                    ni = nodeInfo;
+                }
+            }
+            if (ni == null) {
+                throw new IllegalArgumentException("leader not in servers");
+            } else {
+                this.leaderNodeInfo = ni;
+            }
+        } else {
+            this.leaderNodeInfo = null;
+        }
+
     }
 }

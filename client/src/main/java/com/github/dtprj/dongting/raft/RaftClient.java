@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.IntObjMap;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -299,12 +300,12 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    public CompletableFuture<Peer> fetchLeader(int groupId) {
+    public CompletableFuture<Pair<Integer, Peer>> fetchLeader(int groupId) {
         return updateLeaderInfo(groupId).thenApply(gi -> {
             if (gi == null || gi.leader == null) {
-                throw new RaftException("can't find leader for group " + groupId);
+                return null;
             } else {
-                return gi.leader;
+                return new Pair<>(gi.groupId, gi.leader);
             }
         });
     }
@@ -336,7 +337,7 @@ public class RaftClient extends AbstractLifeCircle {
     private void findLeader(GroupInfo gi, Iterator<NodeInfo> it) {
         if (!it.hasNext()) {
             //noinspection DataFlowIssue
-            gi.leaderFuture.complete(null);
+            gi.leaderFuture.completeExceptionally(new RaftException("can't find leader for group " + gi.groupId));
 
             // set new group info, to trigger next find
             GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.epoch, gi.servers, null, false);
