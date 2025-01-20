@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -24,9 +26,13 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * @author huangli
@@ -41,11 +47,6 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
     }
 
     protected abstract int getGroupId(ReadPacket<T> frame);
-
-    protected void writeResp(ReqInfo<?> reqInfo, WritePacket respFrame) {
-        ReqContext c = reqInfo.getReqContext();
-        c.getRespWriter().writeRespInBizThreads(reqInfo.getReqFrame(), respFrame, c.getTimeout());
-    }
 
     /**
      * run in io thread.
@@ -104,5 +105,35 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
     protected abstract WritePacket doProcess(ReqInfo<T> reqInfo);
 
     protected void cleanReq(ReqInfo<T> reqInfo) {
+    }
+
+    protected void writeResp(ReqInfo<?> reqInfo, WritePacket respFrame) {
+        ReqContext c = reqInfo.getReqContext();
+        c.getRespWriter().writeRespInBizThreads(reqInfo.getReqFrame(), respFrame, c.getTimeout());
+    }
+
+    protected void writeErrorResp(ReqInfo<?> reqInfo, Throwable ex) {
+        Throwable root = DtUtil.rootCause(ex);
+        if (root instanceof RaftTimeoutException) {
+            ReadPacket<?> reqFrame = reqInfo.getReqFrame();
+            log.warn("raft operation timeout: command={}, seq={}", reqFrame.getCommand(), reqFrame.getSeq());
+            return;
+        }
+        EmptyBodyRespPacket errorResp;
+        if (root instanceof FlowControlException) {
+            errorResp = new EmptyBodyRespPacket(CmdCodes.FLOW_CONTROL);
+        } else if (root instanceof NotLeaderException) {
+            errorResp = new EmptyBodyRespPacket(CmdCodes.NOT_RAFT_LEADER);
+            RaftNode leader = ((NotLeaderException) root).getCurrentLeader();
+            if (leader != null) {
+                errorResp.setExtra(String.valueOf(leader.getNodeId()).getBytes(StandardCharsets.UTF_8));
+            }
+            log.warn("not leader, current leader is {}", leader);
+        } else {
+            errorResp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+            log.warn("raft processor error", ex);
+        }
+        errorResp.setMsg(root.toString());
+        writeResp(reqInfo, errorResp);
     }
 }

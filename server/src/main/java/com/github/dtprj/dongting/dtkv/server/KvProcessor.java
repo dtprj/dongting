@@ -32,9 +32,9 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
-import com.github.dtprj.dongting.raft.server.RaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
@@ -44,7 +44,7 @@ import java.util.List;
 /**
  * @author huangli
  */
-public class KvProcessor extends RaftBizProcessor<KvReq> {
+public class KvProcessor extends RaftProcessor<KvReq> {
     public KvProcessor(RaftServer raftServer) {
         super(raftServer);
     }
