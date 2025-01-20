@@ -34,8 +34,9 @@ public interface Commands {
     int RAFT_PING = 101;
     int RAFT_REQUEST_VOTE = 102;
     int RAFT_INSTALL_SNAPSHOT = 103;
-    int RAFT_LEADER_TRANSFER = 104;
-    int RAFT_QUERY_STATUS = 105;
+    int RAFT_ADMIN_TRANSFER_LEADER = 104; // from admin tool to old leader
+    int RAFT_TRANSFER_LEADER = 105; // from old leader to new leader
+    int RAFT_QUERY_STATUS = 106;
 
     // 120 ~ 139 for dt kv
     int DTKV_REMOVE = 120;

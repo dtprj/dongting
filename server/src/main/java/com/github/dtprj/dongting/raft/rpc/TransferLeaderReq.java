@@ -25,23 +25,29 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 //message TransferLeaderReq {
-//  uint32 group_id = 1;
-//  uint32 term = 2;
-//  uint32 old_leader_id = 3;
-//  fixed64 log_index = 4;
+//uint32 group_id = 1;
+//uint32 term = 2; // not used in admin transfer leader request
+//uint32 old_leader_id = 3;
+//uint32 new_leader_id = 4;
+//fixed64 log_index = 5; // not used in admin transfer leader request
 //}
-public class TransferLeaderReq implements SimpleEncodable {
+public class TransferLeaderReq extends PbCallback<TransferLeaderReq> implements SimpleEncodable {
     public int groupId;
     public int term;
     public int oldLeaderId;
+    public int newLeaderId;
     public long logIndex;
+
+    public TransferLeaderReq() {
+    }
 
     @Override
     public int actualSize() {
         return PbUtil.accurateUnsignedIntSize(1, groupId)
                 + PbUtil.accurateUnsignedIntSize(2, term)
                 + PbUtil.accurateUnsignedIntSize(3, oldLeaderId)
-                + PbUtil.accurateFix64Size(4, logIndex);
+                + PbUtil.accurateUnsignedIntSize(4, newLeaderId)
+                + PbUtil.accurateFix64Size(5, logIndex);
     }
 
     @Override
@@ -49,39 +55,39 @@ public class TransferLeaderReq implements SimpleEncodable {
         PbUtil.writeUnsignedInt32(buf, 1, groupId);
         PbUtil.writeUnsignedInt32(buf, 2, term);
         PbUtil.writeUnsignedInt32(buf, 3, oldLeaderId);
-        PbUtil.writeFix64(buf, 4, logIndex);
+        PbUtil.writeUnsignedInt32(buf, 4, newLeaderId);
+        PbUtil.writeFix64(buf, 5, logIndex);
     }
 
-    public static class Callback extends PbCallback<TransferLeaderReq> {
-        private final TransferLeaderReq result = new TransferLeaderReq();
-
-        @Override
-        public boolean readVarNumber(int index, long value) {
-            switch (index) {
-                case 1:
-                    result.groupId = (int) value;
-                    break;
-                case 2:
-                    result.term = (int) value;
-                    break;
-                case 3:
-                    result.oldLeaderId = (int) value;
-                    break;
-            }
-            return true;
+    @Override
+    public boolean readVarNumber(int index, long value) {
+        switch (index) {
+            case 1:
+                groupId = (int) value;
+                break;
+            case 2:
+                term = (int) value;
+                break;
+            case 3:
+                oldLeaderId = (int) value;
+                break;
+            case 4:
+                newLeaderId = (int) value;
+                break;
         }
+        return true;
+    }
 
-        @Override
-        public boolean readFix64(int index, long value) {
-            if (index == 4) {
-                result.logIndex = value;
-            }
-            return true;
+    @Override
+    public boolean readFix64(int index, long value) {
+        if (index == 5) {
+            logIndex = value;
         }
+        return true;
+    }
 
-        @Override
-        public TransferLeaderReq getResult() {
-            return result;
-        }
+    @Override
+    public TransferLeaderReq getResult() {
+        return this;
     }
 }

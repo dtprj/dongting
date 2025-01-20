@@ -97,9 +97,10 @@ message InstallSnapshotReq {
 
 message TransferLeaderReq {
   uint32 group_id = 1;
-  uint32 term = 2;
+  uint32 term = 2; // not used in admin transfer leader request
   uint32 old_leader_id = 3;
-  fixed64 log_index = 4;
+  uint32 new_leader_id = 4;
+  fixed64 log_index = 5; // not used in admin transfer leader request
 }
 
 // return EmptyBodyRespFrame

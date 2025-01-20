@@ -52,6 +52,7 @@ import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
+import com.github.dtprj.dongting.raft.rpc.AdminTransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
@@ -155,7 +156,8 @@ public class RaftServer extends AbstractLifeCircle {
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_APPEND_ENTRIES, appendProcessor);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_INSTALL_SNAPSHOT, appendProcessor);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
-        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(this));
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_ADMIN_TRANSFER_LEADER, new AdminTransferLeaderProcessor(this));
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_TRANSFER_LEADER, new TransferLeaderProcessor(this));
         QueryStatusProcessor queryStatusProcessor = new QueryStatusProcessor(this);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_QUERY_STATUS, queryStatusProcessor);
 

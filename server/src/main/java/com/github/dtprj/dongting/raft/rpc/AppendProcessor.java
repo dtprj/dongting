@@ -185,7 +185,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
         int remoteTerm = getRemoteTerm();
         int leaderId = getLeaderId();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (gc.getMemberManager().checkLeader(leaderId)) {
+        if (gc.getMemberManager().isValidCandidate(leaderId)) {
             int localTerm = raftStatus.getCurrentTerm();
             if (remoteTerm == localTerm) {
                 if (raftStatus.getRole() == RaftRole.follower) {

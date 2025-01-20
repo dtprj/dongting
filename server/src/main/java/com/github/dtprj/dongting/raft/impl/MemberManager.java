@@ -730,7 +730,7 @@ public class MemberManager {
     }
 
 
-    public boolean checkLeader(int nodeId) {
+    public boolean isValidCandidate(int nodeId) {
         RaftMember leader = raftStatus.getCurrentLeader();
         if (leader != null && leader.getNode().getNodeId() == nodeId) {
             return true;
@@ -826,9 +826,10 @@ public class MemberManager {
                 req.term = raftStatus.getCurrentTerm();
                 req.logIndex = raftStatus.getLastLogIndex();
                 req.oldLeaderId = serverConfig.getNodeId();
+                req.newLeaderId = newLeader.getNode().getNodeId();
                 req.groupId = groupId;
                 SimpleWritePacket frame = new SimpleWritePacket(req);
-                frame.setCommand(Commands.RAFT_LEADER_TRANSFER);
+                frame.setCommand(Commands.RAFT_TRANSFER_LEADER);
                 DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
                 client.sendRequest(newLeader.getNode().getPeer(), frame, dc, new DtTime(5, TimeUnit.SECONDS),
                         new RpcCallback<>() {
