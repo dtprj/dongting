@@ -53,7 +53,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @SuppressWarnings("Convert2Diamond")
 public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
-    private final NioClient nioClient;
+    protected final NioClient nioClient;
     // key is nodeId
     private final IntObjMap<RaftNode> allNodes = new IntObjMap<>();
     // key is groupId
@@ -215,11 +215,6 @@ public class RaftClient extends AbstractLifeCircle {
                         if (finalGetPermit) {
                             nioClient.releasePermit(request);
                         }
-                    } else if (gi == null || gi.leader == null) {
-                        FutureCallback.callFail(callback, new RaftException("can't find leader for group " + groupId));
-                        if (finalGetPermit) {
-                            nioClient.releasePermit(request);
-                        }
                     } else if (timeout.isTimeout()) {
                         FutureCallback.callFail(callback, new RaftTimeoutException("timeout after find leader for group " + groupId));
                         if (finalGetPermit) {
@@ -306,16 +301,10 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public CompletableFuture<RaftNode> fetchLeader(int groupId) {
-        return updateLeaderInfo(groupId).thenApply(gi -> {
-            if (gi == null || gi.leader == null) {
-                return null;
-            } else {
-                return gi.leader;
-            }
-        });
+        return updateLeaderInfo(groupId).thenApply(gi -> gi.leader);
     }
 
-    private CompletableFuture<GroupInfo> updateLeaderInfo(int groupId) {
+    protected CompletableFuture<GroupInfo> updateLeaderInfo(Integer groupId) {
         lock.lock();
         try {
             GroupInfo gi = groups.get(groupId);
