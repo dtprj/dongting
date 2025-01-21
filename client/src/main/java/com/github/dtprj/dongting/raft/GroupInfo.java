@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft;
 
-import com.github.dtprj.dongting.net.Peer;
-
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -26,36 +24,31 @@ import java.util.concurrent.CompletableFuture;
 class GroupInfo {
     final int groupId;
     final List<RaftNode> servers;
-    final Peer leader;
-    final RaftNode leaderNodeInfo;
+    final RaftNode leader;
     final CompletableFuture<GroupInfo> leaderFuture;
     long epoch;
 
-    public GroupInfo(int groupId, long epoch, List<RaftNode> servers, Peer leader, boolean createFuture) {
+    public GroupInfo(int groupId, long epoch, List<RaftNode> servers, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
         this.epoch = epoch;
         this.servers = servers;
-        this.leader = leader;
         if (createFuture) {
             this.leaderFuture = new CompletableFuture<>();
         } else {
             this.leaderFuture = null;
         }
-        RaftNode ni = null;
-        if (leader != null) {
-            for (RaftNode nodeInfo : servers) {
-                if (nodeInfo.getPeer() == leader) {
-                    ni = nodeInfo;
-                }
-            }
-            if (ni == null) {
-                throw new IllegalArgumentException("leader not in servers");
-            } else {
-                this.leaderNodeInfo = ni;
-            }
-        } else {
-            this.leaderNodeInfo = null;
-        }
+        this.leader = leader;
+    }
 
+    public RaftNode getLeader() {
+        return leader;
+    }
+
+    public int getGroupId() {
+        return groupId;
+    }
+
+    public List<RaftNode> getServers() {
+        return servers;
     }
 }
