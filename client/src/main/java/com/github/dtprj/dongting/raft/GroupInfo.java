@@ -25,13 +25,13 @@ import java.util.concurrent.CompletableFuture;
  */
 class GroupInfo {
     final int groupId;
-    final List<NodeInfo> servers;
+    final List<RaftNode> servers;
     final Peer leader;
-    final NodeInfo leaderNodeInfo;
+    final RaftNode leaderNodeInfo;
     final CompletableFuture<GroupInfo> leaderFuture;
     long epoch;
 
-    public GroupInfo(int groupId, long epoch, List<NodeInfo> servers, Peer leader, boolean createFuture) {
+    public GroupInfo(int groupId, long epoch, List<RaftNode> servers, Peer leader, boolean createFuture) {
         this.groupId = groupId;
         this.epoch = epoch;
         this.servers = servers;
@@ -41,9 +41,9 @@ class GroupInfo {
         } else {
             this.leaderFuture = null;
         }
-        NodeInfo ni = null;
+        RaftNode ni = null;
         if (leader != null) {
-            for (NodeInfo nodeInfo : servers) {
+            for (RaftNode nodeInfo : servers) {
                 if (nodeInfo.getPeer() == leader) {
                     ni = nodeInfo;
                 }

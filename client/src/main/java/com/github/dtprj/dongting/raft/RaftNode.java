@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioNet;
+import com.github.dtprj.dongting.net.Peer;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,12 +30,20 @@ import java.util.function.Function;
 public class RaftNode {
     private final int nodeId;
     private final HostPort hostPort;
+    private final Peer peer;
 
     private String str;
 
+    protected int useCount;
+
     public RaftNode(int nodeId, HostPort hostPort) {
+        this(nodeId, hostPort, null);
+    }
+
+    protected RaftNode(int nodeId, HostPort hostPort, Peer peer) {
         this.nodeId = nodeId;
         this.hostPort = hostPort;
+        this.peer = peer;
     }
 
     public int getNodeId() {
@@ -43,6 +52,10 @@ public class RaftNode {
 
     public HostPort getHostPort() {
         return hostPort;
+    }
+
+    public Peer getPeer() {
+        return peer;
     }
 
     @Override

@@ -55,7 +55,7 @@ public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
     private final NioClient nioClient;
     // key is nodeId
-    private final IntObjMap<NodeInfo> allNodes = new IntObjMap<>();
+    private final IntObjMap<RaftNode> allNodes = new IntObjMap<>();
     // key is groupId
     private final ConcurrentHashMap<Integer, GroupInfo> groups = new ConcurrentHashMap<>();
 
@@ -85,13 +85,21 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     private void addOrUpdateGroupInLock(int groupId, List<RaftNode> servers) throws NetException {
-        ArrayList<NodeInfo> needAddList = new ArrayList<>();
+        ArrayList<RaftNode> needAddList = new ArrayList<>();
+        ArrayList<RaftNode> managedServers = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (RaftNode n : servers) {
             Objects.requireNonNull(n);
-            if (allNodes.get(n.getNodeId()) == null) {
+            RaftNode existManagedNode = allNodes.get(n.getNodeId());
+            if (existManagedNode == null) {
                 CompletableFuture<Peer> f = nioClient.addPeer(n.getHostPort());
-                futures.add(f.thenAccept(peer -> needAddList.add(new NodeInfo(n.getNodeId(), n.getHostPort(), peer))));
+                futures.add(f.thenAccept(peer -> {
+                    RaftNode newNode = new RaftNode(n.getNodeId(), n.getHostPort(), peer);
+                    needAddList.add(newNode);
+                    managedServers.add(newNode);
+                }));
+            } else {
+                managedServers.add(existManagedNode);
             }
         }
         if (!futures.isEmpty()) {
@@ -106,41 +114,32 @@ public class RaftClient extends AbstractLifeCircle {
                 throw new NetException(e);
             } finally {
                 if (!success) {
-                    for (NodeInfo n : needAddList) {
+                    for (RaftNode n : needAddList) {
                         nioClient.removePeer(n.getHostPort());
                     }
                 }
             }
         }
 
-        ArrayList<NodeInfo> nodeInfoList = new ArrayList<>();
         GroupInfo oldGroupInfo = groups.get(groupId);
-        Peer leader = null;
-        for (RaftNode n : servers) {
-            NodeInfo nodeInfo = allNodes.get(n.getNodeId());
-            if (nodeInfo != null) {
-                nodeInfo.getRefCount().retain();
-                nodeInfoList.add(nodeInfo);
-            }
+        RaftNode leader = null;
+        for (RaftNode n : managedServers) {
+            n.useCount++;
             if (oldGroupInfo != null) {
-                Peer oldLeader = oldGroupInfo.leader;
-                if (oldLeader != null && oldLeader.getEndPoint().equals(n.getHostPort())) {
+                RaftNode oldLeader = oldGroupInfo.leaderNodeInfo;
+                if (oldLeader != null && oldLeader == n) {
                     // old leader in the new servers list
                     leader = oldLeader;
                 }
             }
-        }
-        for (NodeInfo nodeInfo : needAddList) {
-            nodeInfoList.add(nodeInfo);
-            allNodes.put(nodeInfo.getNodeId(), nodeInfo);
         }
 
         releaseOldGroup(oldGroupInfo);
 
         GroupInfo gi;
         if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
-            gi = new GroupInfo(groupId, generateNextEpoch(), nodeInfoList, leader, true);
-            findLeader(gi, nodeInfoList.iterator());
+            gi = new GroupInfo(groupId, generateNextEpoch(), managedServers, leader == null ? null : leader.getPeer(), true);
+            findLeader(gi, managedServers.iterator());
             // use new leader future to complete the old one
             //noinspection DataFlowIssue
             gi.leaderFuture.whenComplete((result, ex) -> {
@@ -151,7 +150,7 @@ public class RaftClient extends AbstractLifeCircle {
                 }
             });
         } else {
-            gi = new GroupInfo(groupId, generateNextEpoch(), nodeInfoList, leader, false);
+            gi = new GroupInfo(groupId, generateNextEpoch(), managedServers, leader == null ? null : leader.getPeer(), false);
         }
         groups.put(groupId, gi);
     }
@@ -162,10 +161,11 @@ public class RaftClient extends AbstractLifeCircle {
 
     private void releaseOldGroup(GroupInfo oldGroupInfo) {
         if (oldGroupInfo != null) {
-            for (NodeInfo nodeInfo : oldGroupInfo.servers) {
-                if (nodeInfo.getRefCount().release()) {
-                    allNodes.remove(nodeInfo.getNodeId());
-                    nioClient.removePeer(nodeInfo.getPeer());
+            for (RaftNode n : oldGroupInfo.servers) {
+                n.useCount--;
+                if (n.useCount <= 0) {
+                    allNodes.remove(n.getNodeId());
+                    nioClient.removePeer(n.getPeer());
                 }
             }
         }
@@ -325,7 +325,7 @@ public class RaftClient extends AbstractLifeCircle {
             }
             GroupInfo newGroupInfo = new GroupInfo(groupId, generateNextEpoch(), gi.servers, null, true);
             groups.put(groupId, newGroupInfo);
-            Iterator<NodeInfo> it = newGroupInfo.servers.iterator();
+            Iterator<RaftNode> it = newGroupInfo.servers.iterator();
             log.info("try find leader for group {}", groupId);
             findLeader(newGroupInfo, it);
             return newGroupInfo.leaderFuture;
@@ -334,7 +334,7 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private void findLeader(GroupInfo gi, Iterator<NodeInfo> it) {
+    private void findLeader(GroupInfo gi, Iterator<RaftNode> it) {
         if (!it.hasNext()) {
             //noinspection DataFlowIssue
             gi.leaderFuture.completeExceptionally(new RaftException("can't find leader for group " + gi.groupId));
@@ -344,7 +344,7 @@ public class RaftClient extends AbstractLifeCircle {
             groups.put(gi.groupId, newGroupInfo);
             return;
         }
-        NodeInfo node = it.next();
+        RaftNode node = it.next();
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, gi.groupId);
         DtTime rpcTimeout = new DtTime(5, TimeUnit.SECONDS);
         DecoderCallbackCreator<QueryStatusResp> dc = c -> c.toDecoderCallback(new QueryStatusResp.QueryStatusRespCallback());
@@ -353,8 +353,8 @@ public class RaftClient extends AbstractLifeCircle {
         nioClient.sendRequest(node.getPeer(), req, dc, rpcTimeout, callback);
     }
 
-    private void processLeaderQueryResult(GroupInfo gi, Iterator<NodeInfo> it,
-                                          ReadPacket<QueryStatusResp> rf, Throwable ex, NodeInfo node) {
+    private void processLeaderQueryResult(GroupInfo gi, Iterator<RaftNode> it,
+                                          ReadPacket<QueryStatusResp> rf, Throwable ex, RaftNode node) {
         lock.lock();
         try {
             GroupInfo currentGroupInfo = groups.get(gi.groupId);
@@ -418,7 +418,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     private Peer parseLeader(GroupInfo groupInfo, int leaderId) {
-        for (NodeInfo ni : groupInfo.servers) {
+        for (RaftNode ni : groupInfo.servers) {
             if (ni.getNodeId() == leaderId) {
                 return ni.getPeer();
             }
