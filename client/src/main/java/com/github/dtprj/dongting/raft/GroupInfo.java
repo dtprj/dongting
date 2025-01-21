@@ -21,7 +21,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-class GroupInfo {
+public class GroupInfo {
     final int groupId;
     final List<RaftNode> servers;
     final RaftNode leader;
