@@ -702,13 +702,11 @@ public class MemberManager {
             int selfNodeId = serverConfig.getNodeId();
             boolean selfIsMember = raftStatus.getNodeIdOfMembers().contains(selfNodeId)
                     || raftStatus.getNodeIdOfPreparedMembers().contains(selfNodeId);
-            boolean selfIsObserver = raftStatus.getNodeIdOfObservers().contains(selfNodeId)
-                    || raftStatus.getNodeIdOfPreparedObservers().contains(selfNodeId);
             int currentLeaderId = raftStatus.getCurrentLeader() == null ? -1 :
                     raftStatus.getCurrentLeader().getNode().getNodeId();
             if (raftStatus.getRole() == RaftRole.observer && selfIsMember) {
                 RaftUtil.changeToFollower(raftStatus, currentLeaderId, "apply config change");
-            } else if (raftStatus.getRole() == RaftRole.follower && selfIsObserver) {
+            } else if (raftStatus.getRole() != RaftRole.observer && !selfIsMember) {
                 RaftUtil.changeToObserver(raftStatus, currentLeaderId);
             }
             gc.getVoteManager().cancelVote("config change");
