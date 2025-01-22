@@ -24,7 +24,9 @@ import com.github.dtprj.dongting.buf.PoolFactory;
 @SuppressWarnings("unused")
 public class RaftServerConfig {
     private String servers;
+    // internal use for raft log replication (server to server), and admin commands
     private int replicatePort;
+    // use for client access, 0 indicates not start the client service server
     private int servicePort;
     private int nodeId;
     private long electTimeout = 15 * 1000;

@@ -258,6 +258,8 @@ public class RaftClient extends AbstractLifeCircle {
                         if (gi != null) {
                             RaftNode newLeader = updateLeaderFromExtra(ncEx.getExtra(), gi);
                             if (newLeader != null && !timeout.isTimeout()) {
+                                log.info("leader changed, update leader from node {} to {}, request will auto retry",
+                                        leader.getNodeId(), newLeader.getNodeId());
                                 request.prepareRetry();
                                 send(groupId, request, decoder, timeout, c, newLeader, 1, getPermit);
                                 return;

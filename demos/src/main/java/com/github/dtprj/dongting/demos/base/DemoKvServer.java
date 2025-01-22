@@ -38,7 +38,8 @@ public class DemoKvServer {
         RaftServerConfig serverConfig = new RaftServerConfig();
         serverConfig.setServers(servers);
         serverConfig.setNodeId(nodeId);
-        serverConfig.setReplicatePort(4000 + nodeId); // internal use for raft log replication (server to server)
+        // internal use for raft log replication (server to server), and admin commands
+        serverConfig.setReplicatePort(4000 + nodeId);
         serverConfig.setServicePort(5000 + nodeId); // use for client access
         // since it is demo, use little timeout values to make election faster
         serverConfig.setElectTimeout(3000);
