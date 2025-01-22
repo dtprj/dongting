@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import org.junit.jupiter.api.Test;
 
@@ -44,7 +45,14 @@ public class TransferLeaderTest extends ServerTestBase {
         ServerInfo leader = waitLeaderElectAndGetLeaderId(sis);
 
         ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
-        CompletableFuture<Void> f = leader.group.transferLeadership(newLeader.nodeId, 2000);
+
+        AdminRaftClient c = new AdminRaftClient();
+        c.start();
+        c.addOrUpdateGroup(groupId, "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003");
+        c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
+        CompletableFuture<Void> f = c.transferLeader(groupId, leader.nodeId, newLeader.nodeId,
+                new DtTime(5, TimeUnit.SECONDS));
+
         f.get(5, TimeUnit.SECONDS);
 
         assertEquals(RaftRole.follower, leader.group.getGroupComponents().getRaftStatus().getShareStatus().role);

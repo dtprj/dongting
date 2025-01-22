@@ -63,6 +63,7 @@ public class ServerTestBase {
     protected int initVoteFor = 0;
     protected long initCommitIndex = 0;
     protected boolean initSnapshot = false;
+    protected int groupId = 1;
 
     protected static class ServerInfo {
         public RaftServer raftServer;
@@ -74,7 +75,6 @@ public class ServerTestBase {
     protected ServerInfo createServer(int nodeId, String servers, String nodeIdOfMembers,
                                       String nodeIdOfObservers) throws Exception {
         int replicatePort = 4000 + nodeId;
-        int groupId = 1;
         RaftServerConfig serverConfig = new RaftServerConfig();
         serverConfig.setServers(servers);
         serverConfig.setNodeId(nodeId);

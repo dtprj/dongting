@@ -72,7 +72,6 @@ public class AdminTransferLeaderProcessor extends RaftSequenceProcessor<Transfer
             throw new RaftException("old leader or new leader is not valid candidate");
         }
         return new FiberFrame<>() {
-            final FiberFuture<Void> fiberFuture = getFiberGroup().newFuture("admin transfer leader");
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
@@ -84,13 +83,14 @@ public class AdminTransferLeaderProcessor extends RaftSequenceProcessor<Transfer
             @Override
             public FrameCallResult execute(Void input) {
                 log.info("admin transfer leader begin, groupId={}, old={}, new={}", req.groupId, req.oldLeaderId, req.newLeaderId);
+                FiberFuture<Void> fiberFuture = getFiberGroup().newFuture("admin transfer leader");
                 long timeout = reqInfo.getReqContext().getTimeout().getTimeout(TimeUnit.MILLISECONDS);
                 CompletableFuture<Void> f = reqInfo.getRaftGroup().transferLeadership(req.newLeaderId, timeout);
                 f.whenComplete((v, ex) -> {
                     if (ex != null) {
-                        fiberFuture.completeExceptionally(ex);
+                        fiberFuture.fireCompleteExceptionally(ex);
                     } else {
-                        fiberFuture.complete(null);
+                        fiberFuture.fireComplete(null);
                     }
                 });
                 return fiberFuture.await(timeout, this::afterTransfer);
