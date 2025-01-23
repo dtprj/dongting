@@ -350,9 +350,18 @@ public class PbParserTest {
 
     @Test
     public void testParse() {
-        Callback callback = new Callback(0, 0, "", "", 0, 0, new NestedMsg(0, null));
+        Callback callback = new Callback(0, 0, "", "", 0, 0, null);
         ByteBuffer buf = callback.buildPacket();
         PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining());
+        parser.parse(buf);
+        assertEquals(1, callback.beginCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
+
+        callback = new Callback(0, 0, "", "", 0, 0, new NestedMsg(0, null));
+        buf = callback.buildPacket();
+        parser = new PbParser();
         parser.prepareNext(context, callback, buf.remaining());
         parser.parse(buf);
         assertEquals(1, callback.beginCount);

@@ -361,7 +361,7 @@ public class PbUtilTest {
 
     @Test
     public void testAccurateUnsignedLongSize() {
-        assertEquals(0L, accurateUnsignedLongSize(0L));
+        assertEquals(1L, accurateUnsignedLongSize(0L));
         testAccurateUnsignedLongSize(-1L);
         testAccurateUnsignedLongSize(1L);
         testAccurateUnsignedLongSize(Long.MAX_VALUE);

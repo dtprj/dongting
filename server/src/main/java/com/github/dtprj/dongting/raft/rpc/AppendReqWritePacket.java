@@ -200,7 +200,7 @@ public class AppendReqWritePacket extends WritePacket {
         try {
             result = data.encode(context, dest);
             return result;
-        } catch (RuntimeException | Error e){
+        } catch (RuntimeException | Error e) {
             context.reset();
             throw e;
         } finally {

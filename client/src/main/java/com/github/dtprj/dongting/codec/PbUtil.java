@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 /**
  * encode/decode util for proto buffer 3.
@@ -95,6 +96,16 @@ public final class PbUtil {
         buf.putInt(Integer.reverseBytes(value));
     }
 
+    public static void writeSet(ByteBuffer buf, int index, Set<Integer> s) {
+        if (s == null || s.isEmpty()) {
+            return;
+        }
+        for (int id : s) {
+            writeTag(buf, TYPE_FIX32, index);
+            buf.putInt(Integer.reverseBytes(id));
+        }
+    }
+
     public static void writeFix64(ByteBuffer buf, int index, long value) {
         if (value == 0) {
             return;
@@ -126,7 +137,7 @@ public final class PbUtil {
     }
 
     public static void writeUTF8(ByteBuffer buf, int index, String value) {
-        if (value == null || value.length() == 0) {
+        if (value == null || value.isEmpty()) {
             return;
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
@@ -151,9 +162,6 @@ public final class PbUtil {
     }
 
     public static void writeLengthDelimitedPrefix(ByteBuffer buf, int index, int len) {
-        if (len == 0) {
-            return;
-        }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
         writeUnsignedInt32ValueOnly(buf, len);
     }
@@ -283,8 +291,6 @@ public final class PbUtil {
     static int accurateUnsignedLongSize(long value) {
         if (value < 0L) {
             return 10;
-        } else if (value == 0L) {
-            return 0;
         } else if (value <= MAX_1_BYTE_LONG_VALUE) {
             return 1;
         } else if (value <= MAX_2_BYTE_LONG_VALUE) {
@@ -322,6 +328,13 @@ public final class PbUtil {
         return accurateTagSize(index) + 4;
     }
 
+    public static int actualFix32Size(int index, Set<Integer> s) {
+        if (s == null || s.isEmpty()) {
+            return 0;
+        }
+        return s.size() * (accurateTagSize(index) + 4);
+    }
+
     public static int accurateFix64Size(int index, long value) {
         if (value == 0L) {
             return 0;
@@ -341,9 +354,6 @@ public final class PbUtil {
     }
 
     public static int accurateLengthDelimitedPrefixSize(int index, int bodyLen) {
-        if (bodyLen == 0) {
-            return 0;
-        }
         return accurateTagSize(index) + accurateUnsignedIntSize(bodyLen);
     }
 }

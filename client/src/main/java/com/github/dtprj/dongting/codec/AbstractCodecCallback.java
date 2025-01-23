@@ -127,26 +127,6 @@ public abstract class AbstractCodecCallback<T> {
         }
     }
 
-    protected final ByteBuffer parseByteBuffer(ByteBuffer buf, int fieldLen, int currentPos) {
-        if (fieldLen == 0) {
-            return SimpleByteBufferPool.EMPTY_BUFFER;
-        }
-        ByteBuffer result;
-        if (currentPos == 0) {
-            result = ByteBuffer.allocate(fieldLen);
-            context.status = result;
-        } else {
-            result = (ByteBuffer) context.status;
-        }
-        result.put(buf);
-        if (result.position() < fieldLen) {
-            return null;
-        } else {
-            result.flip();
-            return result;
-        }
-    }
-
     protected final RefBuffer parseRefBuffer(ByteBuffer buf, int fieldLen, int currentPos) {
         if (fieldLen == 0) {
             return RefBuffer.wrap(SimpleByteBufferPool.EMPTY_BUFFER);

@@ -38,6 +38,9 @@ public class PbStrWritePacket extends SmallNoCopyWritePacket {
 
     @Override
     protected void encodeBody(ByteBuffer buf) {
+        if (bytes == null || bytes.length == 0) {
+            return;
+        }
         PbUtil.writeLengthDelimitedPrefix(buf, 1, bytes.length);
         buf.put(bytes);
     }

@@ -31,22 +31,27 @@ public class EncodeUtil {
     }
 
     public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
-        if (o == null) {
+        return encode(c, destBuffer, pbIndex, o, false);
+    }
+
+    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o, boolean encodeEmpty) {
+        int actualSize = o == null ? 0 : o.actualSize();
+        if (actualSize == 0 && !encodeEmpty) {
             return true;
         }
         if (c.pending == 0) {
             int r = destBuffer.remaining();
-            int actualSize = o.actualSize();
-            if (actualSize == 0) {
-                return true;
-            }
             int prefixSize = PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, actualSize);
             if (r < prefixSize) {
                 return false;
             }
             PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, actualSize);
+            if (actualSize == 0) {
+                return true;
+            }
             c.pending = 1;
         }
+        assert o != null;
         EncodeContext sub;
         if (c.pending == 1) {
             c.pending = 2;
@@ -72,18 +77,27 @@ public class EncodeUtil {
     }
 
     public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
-        if (o == null || o.length == 0) {
+        return encode(context, destBuffer, pbIndex, o, false);
+    }
+
+    public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o, boolean encodeEmpty) {
+        int size = o == null ? 0 : o.length;
+        if (size == 0 && !encodeEmpty) {
             return true;
         }
         if (context.pending == 0) {
             int r = destBuffer.remaining();
-            int prefixSize = PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, o.length);
+            int prefixSize = PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, size);
             if (r < prefixSize) {
                 return false;
             }
-            PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, o.length);
+            PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, size);
+            if (size == 0) {
+                return true;
+            }
             context.pending = 1;
         }
+        assert o != null;
         int arrOffset = context.pending - 1;
         if (arrOffset < 0 || arrOffset >= o.length) {
             throw new CodecException(context);
@@ -108,7 +122,9 @@ public class EncodeUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             byte[] e = list.get(i);
-            if (e != null) {
+            if (e.length == 0) {
+                size += PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, 0);
+            } else {
                 size += PbUtil.accurateLengthDelimitedSize(pbIndex, e.length);
             }
         }
@@ -132,7 +148,7 @@ public class EncodeUtil {
         int i = sub.stage;
         for (; i < count; i++) {
             byte[] bs = list.get(i);
-            if (!encode(sub, dest, pbIndex, bs)) {
+            if (!encode(sub, dest, pbIndex, bs, true)) {
                 sub.stage = i;
                 return false;
             }
@@ -149,8 +165,11 @@ public class EncodeUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             Encodable e = list.get(i);
-            if (e != null) {
-                size += PbUtil.accurateLengthDelimitedSize(pbIndex, e.actualSize());
+            int ac = e.actualSize();
+            if (ac == 0) {
+                size += PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, 0);
+            } else {
+                size += PbUtil.accurateLengthDelimitedSize(pbIndex, ac);
             }
         }
         return size;
@@ -173,7 +192,7 @@ public class EncodeUtil {
         int i = sub.stage;
         for (; i < count; i++) {
             Encodable o = list.get(i);
-            if (!encode(sub, dest, pbIndex, o)) {
+            if (!encode(sub, dest, pbIndex, o, true)) {
                 sub.stage = i;
                 return false;
             }

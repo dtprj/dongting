@@ -169,10 +169,10 @@ public class InstallSnapshotReq {
                     + PbUtil.accurateFix64Size(6, req.offset)
                     + PbUtil.accurateUnsignedIntSize(7, req.done ? 1 : 0)
                     + PbUtil.accurateFix64Size(8, req.nextWritePos);
-            x += calcFix32SetSize(9, req.members);
-            x += calcFix32SetSize(10, req.observers);
-            x += calcFix32SetSize(11, req.preparedMembers);
-            x += calcFix32SetSize(12, req.preparedObservers);
+            x += PbUtil.actualFix32Size(9, req.members);
+            x += PbUtil.actualFix32Size(10, req.observers);
+            x += PbUtil.actualFix32Size(11, req.preparedMembers);
+            x += PbUtil.actualFix32Size(12, req.preparedObservers);
             x += PbUtil.accurateFix64Size(13, req.lastConfigChangeIndex);
 
             RefBuffer rb = req.data;
@@ -183,14 +183,6 @@ public class InstallSnapshotReq {
                 this.bufferSize = 0;
             }
             this.headerSize = x - bufferSize;
-        }
-
-        private int calcFix32SetSize(int index, Set<Integer> s) {
-            int x = 0;
-            for (int id : s) {
-                x += PbUtil.accurateFix32Size(index, id);
-            }
-            return x;
         }
 
         @Override
@@ -210,10 +202,10 @@ public class InstallSnapshotReq {
                     PbUtil.writeFix64(dest, 6, req.offset);
                     PbUtil.writeUnsignedInt32(dest, 7, req.done ? 1 : 0);
                     PbUtil.writeFix64(dest, 8, req.nextWritePos);
-                    writeSet(dest, 9, req.members);
-                    writeSet(dest, 10, req.observers);
-                    writeSet(dest, 11, req.preparedMembers);
-                    writeSet(dest, 12, req.preparedObservers);
+                    PbUtil.writeSet(dest, 9, req.members);
+                    PbUtil.writeSet(dest, 10, req.observers);
+                    PbUtil.writeSet(dest, 11, req.preparedMembers);
+                    PbUtil.writeSet(dest, 12, req.preparedObservers);
                     PbUtil.writeFix64(dest, 13, req.lastConfigChangeIndex);
                     if (bufferSize > 0) {
                         PbUtil.writeLengthDelimitedPrefix(dest, 15, bufferSize);
@@ -228,12 +220,6 @@ public class InstallSnapshotReq {
             }
             dest.put(req.data.getBuffer());
             return !req.data.getBuffer().hasRemaining();
-        }
-
-        private void writeSet(ByteBuffer buf, int index, Set<Integer> s) {
-            for (int id : s) {
-                PbUtil.writeFix32(buf, index, id);
-            }
         }
 
         @Override
