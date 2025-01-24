@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.demos.cluster;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.RaftNode;
-import com.github.dtprj.dongting.raft.server.AdminRaftClient;
+import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
