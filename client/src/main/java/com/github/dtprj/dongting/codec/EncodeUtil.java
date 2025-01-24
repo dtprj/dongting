@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.codec;
 
+import com.github.dtprj.dongting.common.ByteArray;
+
 import java.nio.ByteBuffer;
 import java.util.List;
 
@@ -30,11 +32,15 @@ public class EncodeUtil {
         return PbUtil.accurateLengthDelimitedSize(pbIndex, o.actualSize());
     }
 
-    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
+    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, ByteArray o) {
         return encode(c, destBuffer, pbIndex, o, false);
     }
 
-    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o, boolean encodeEmpty) {
+    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
+        return encode(c, destBuffer, pbIndex, o, true);
+    }
+
+    private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o, boolean encodeEmpty) {
         int actualSize = o == null ? 0 : o.actualSize();
         if (actualSize == 0 && !encodeEmpty) {
             return true;
@@ -80,7 +86,7 @@ public class EncodeUtil {
         return encode(context, destBuffer, pbIndex, o, false);
     }
 
-    public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o, boolean encodeEmpty) {
+    private static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o, boolean encodeEmpty) {
         int size = o == null ? 0 : o.length;
         if (size == 0 && !encodeEmpty) {
             return true;

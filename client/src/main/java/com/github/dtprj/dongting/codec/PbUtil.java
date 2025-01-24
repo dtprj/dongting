@@ -96,7 +96,7 @@ public final class PbUtil {
         buf.putInt(Integer.reverseBytes(value));
     }
 
-    public static void writeSet(ByteBuffer buf, int index, Set<Integer> s) {
+    public static void writeFix32(ByteBuffer buf, int index, Set<Integer> s) {
         if (s == null || s.isEmpty()) {
             return;
         }
@@ -328,7 +328,7 @@ public final class PbUtil {
         return accurateTagSize(index) + 4;
     }
 
-    public static int actualFix32Size(int index, Set<Integer> s) {
+    public static int accurateFix32Size(int index, Set<Integer> s) {
         if (s == null || s.isEmpty()) {
             return 0;
         }

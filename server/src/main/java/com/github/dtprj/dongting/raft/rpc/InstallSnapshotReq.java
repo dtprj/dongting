@@ -169,10 +169,10 @@ public class InstallSnapshotReq {
                     + PbUtil.accurateFix64Size(6, req.offset)
                     + PbUtil.accurateUnsignedIntSize(7, req.done ? 1 : 0)
                     + PbUtil.accurateFix64Size(8, req.nextWritePos);
-            x += PbUtil.actualFix32Size(9, req.members);
-            x += PbUtil.actualFix32Size(10, req.observers);
-            x += PbUtil.actualFix32Size(11, req.preparedMembers);
-            x += PbUtil.actualFix32Size(12, req.preparedObservers);
+            x += PbUtil.accurateFix32Size(9, req.members);
+            x += PbUtil.accurateFix32Size(10, req.observers);
+            x += PbUtil.accurateFix32Size(11, req.preparedMembers);
+            x += PbUtil.accurateFix32Size(12, req.preparedObservers);
             x += PbUtil.accurateFix64Size(13, req.lastConfigChangeIndex);
 
             RefBuffer rb = req.data;
@@ -202,10 +202,10 @@ public class InstallSnapshotReq {
                     PbUtil.writeFix64(dest, 6, req.offset);
                     PbUtil.writeUnsignedInt32(dest, 7, req.done ? 1 : 0);
                     PbUtil.writeFix64(dest, 8, req.nextWritePos);
-                    PbUtil.writeSet(dest, 9, req.members);
-                    PbUtil.writeSet(dest, 10, req.observers);
-                    PbUtil.writeSet(dest, 11, req.preparedMembers);
-                    PbUtil.writeSet(dest, 12, req.preparedObservers);
+                    PbUtil.writeFix32(dest, 9, req.members);
+                    PbUtil.writeFix32(dest, 10, req.observers);
+                    PbUtil.writeFix32(dest, 11, req.preparedMembers);
+                    PbUtil.writeFix32(dest, 12, req.preparedObservers);
                     PbUtil.writeFix64(dest, 13, req.lastConfigChangeIndex);
                     if (bufferSize > 0) {
                         PbUtil.writeLengthDelimitedPrefix(dest, 15, bufferSize);
