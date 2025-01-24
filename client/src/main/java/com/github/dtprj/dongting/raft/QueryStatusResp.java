@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -48,6 +49,9 @@ public class QueryStatusResp extends PbCallback<QueryStatusResp> implements Simp
     private Set<Integer> observers = Collections.emptySet();
     private Set<Integer> preparedMembers = Collections.emptySet();
     private Set<Integer> preparedObservers = Collections.emptySet();
+
+    public static final DecoderCallbackCreator<QueryStatusResp> DECODER = ctx -> ctx.toDecoderCallback(
+            new QueryStatusResp());
 
     @Override
     public int actualSize() {

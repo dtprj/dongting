@@ -427,11 +427,9 @@ public class MemberManager {
         }
 
         private CompletableFuture<Boolean> sendQuery(RaftNodeEx n) {
-            final DecoderCallbackCreator<QueryStatusResp> decoder = ctx -> ctx.toDecoderCallback(
-                    new QueryStatusResp());
             CompletableFuture<ReadPacket<QueryStatusResp>> f = new CompletableFuture<>();
-            client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId), decoder,
-                    new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
+            client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId),
+                    QueryStatusResp.DECODER, new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
             return f.handle((resp, ex) -> {
                 if (ex != null) {
                     log.warn("query prepare status failed, groupId={}, remoteId={}", n.getNodeId(), groupId, ex);
@@ -818,37 +816,68 @@ public class MemberManager {
             boolean newLeaderHasLastLog = newLeader.getMatchIndex() == raftStatus.getLastLogIndex();
 
             if (newLeader.isReady() && lastLogCommit && newLeaderHasLastLog) {
-                RaftUtil.clearTransferLeaderCondition(raftStatus);
-                RaftUtil.changeToFollower(raftStatus, newLeader.getNode().getNodeId(), "transfer leader");
-                TransferLeaderReq req = new TransferLeaderReq();
-                req.term = raftStatus.getCurrentTerm();
-                req.logIndex = raftStatus.getLastLogIndex();
-                req.oldLeaderId = serverConfig.getNodeId();
-                req.newLeaderId = newLeader.getNode().getNodeId();
-                req.groupId = groupId;
-                SimpleWritePacket frame = new SimpleWritePacket(req);
-                frame.setCommand(Commands.RAFT_TRANSFER_LEADER);
-                DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
-                client.sendRequest(newLeader.getNode().getPeer(), frame, dc, new DtTime(5, TimeUnit.SECONDS),
-                        new RpcCallback<>() {
-                            @Override
-                            public void success(ReadPacket<Void> result) {
-                                log.info("transfer leader success, groupId={}", groupId);
-                                f.complete(null);
-                            }
-
-                            @Override
-                            public void fail(Throwable ex) {
-                                log.error("transfer leader failed, groupId={}", groupId, ex);
-                                f.completeExceptionally(ex);
-                            }
-                        });
+                PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
+                CompletableFuture<ReadPacket<QueryStatusResp>> queryFuture = new CompletableFuture<>();
+                client.sendRequest(newLeader.getNode().getPeer(), req, QueryStatusResp.DECODER,
+                        new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(queryFuture));
+                RaftNodeEx newLeaderNode = newLeader.getNode();
+                queryFuture.whenCompleteAsync((resp, ex) -> {
+                    if (ex != null) {
+                        f.completeExceptionally(ex);
+                    } else {
+                        execTransferLeader(newLeaderNode, resp, f);
+                    }
+                }, groupConfig.getFiberGroup().getExecutor());
                 return Fiber.frameReturn();
             } else {
                 return Fiber.sleep(1, this::checkBeforeTransferLeader);
             }
         }
     }
+
+    private void execTransferLeader(RaftNodeEx newLeader, ReadPacket<QueryStatusResp> resp,
+                                    CompletableFuture<Void> finalFuture) {
+        try {
+            QueryStatusResp s = resp.getBody();
+            if (!s.getMembers().equals(raftStatus.getNodeIdOfMembers())
+                    || !s.getObservers().equals(raftStatus.getNodeIdOfObservers())
+                    || !s.getPreparedMembers().equals(raftStatus.getNodeIdOfPreparedMembers())
+                    || !s.getPreparedObservers().equals(raftStatus.getNodeIdOfPreparedObservers())) {
+                log.error("config not match, groupId={}", groupId);
+                finalFuture.completeExceptionally(new RaftException("config not match"));
+                return;
+            }
+            RaftUtil.clearTransferLeaderCondition(raftStatus);
+            RaftUtil.changeToFollower(raftStatus, newLeader.getNodeId(), "transfer leader");
+            TransferLeaderReq req = new TransferLeaderReq();
+            req.term = raftStatus.getCurrentTerm();
+            req.logIndex = raftStatus.getLastLogIndex();
+            req.oldLeaderId = serverConfig.getNodeId();
+            req.newLeaderId = newLeader.getNodeId();
+            req.groupId = groupId;
+            SimpleWritePacket frame = new SimpleWritePacket(req);
+            frame.setCommand(Commands.RAFT_TRANSFER_LEADER);
+            DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
+            client.sendRequest(newLeader.getPeer(), frame, dc, new DtTime(5, TimeUnit.SECONDS),
+                    new RpcCallback<>() {
+                        @Override
+                        public void success(ReadPacket<Void> result) {
+                            log.info("transfer leader success, groupId={}", groupId);
+                            finalFuture.complete(null);
+                        }
+
+                        @Override
+                        public void fail(Throwable ex) {
+                            log.error("transfer leader failed, groupId={}", groupId, ex);
+                            finalFuture.completeExceptionally(ex);
+                        }
+                    });
+        } catch (Exception e) {
+            log.error("", e);
+            finalFuture.completeExceptionally(e);
+        }
+    }
+
 
     public CompletableFuture<Void> getPingReadyFuture() {
         return pingReadyFuture;
