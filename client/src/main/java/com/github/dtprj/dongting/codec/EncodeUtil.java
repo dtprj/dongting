@@ -41,7 +41,10 @@ public class EncodeUtil {
     }
 
     private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o, boolean encodeEmpty) {
-        int actualSize = o == null ? 0 : o.actualSize();
+        if (o == null) {
+            return true;
+        }
+        int actualSize = o.actualSize();
         if (actualSize == 0 && !encodeEmpty) {
             return true;
         }
@@ -57,7 +60,6 @@ public class EncodeUtil {
             }
             c.pending = 1;
         }
-        assert o != null;
         EncodeContext sub;
         if (c.pending == 1) {
             c.pending = 2;
@@ -87,7 +89,10 @@ public class EncodeUtil {
     }
 
     private static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o, boolean encodeEmpty) {
-        int size = o == null ? 0 : o.length;
+        if (o == null) {
+            return true;
+        }
+        int size = o.length;
         if (size == 0 && !encodeEmpty) {
             return true;
         }
@@ -103,7 +108,6 @@ public class EncodeUtil {
             }
             context.pending = 1;
         }
-        assert o != null;
         int arrOffset = context.pending - 1;
         if (arrOffset < 0 || arrOffset >= o.length) {
             throw new CodecException(context);
