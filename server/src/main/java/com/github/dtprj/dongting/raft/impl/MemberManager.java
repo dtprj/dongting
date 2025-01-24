@@ -428,7 +428,7 @@ public class MemberManager {
 
         private CompletableFuture<Boolean> sendQuery(RaftNodeEx n) {
             final DecoderCallbackCreator<QueryStatusResp> decoder = ctx -> ctx.toDecoderCallback(
-                    new QueryStatusResp.QueryStatusRespCallback());
+                    new QueryStatusResp());
             CompletableFuture<ReadPacket<QueryStatusResp>> f = new CompletableFuture<>();
             client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId), decoder,
                     new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
