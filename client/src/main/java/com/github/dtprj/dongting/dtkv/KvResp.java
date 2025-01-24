@@ -34,28 +34,28 @@ public class KvResp implements Encodable {
     private static final int IDX_RESULTS = 2;
 
     private final List<KvResult> results;
-    private final int listCount;
-    private int size;
+    private final int size;
+    private int encodeSize;
 
     public KvResp(List<KvResult> results) {
         this.results = results;
-        this.listCount = results == null ? 0 : results.size();
+        this.size = results == null ? 0 : results.size();
     }
 
     @Override
     public int actualSize() {
-        if (size == 0) {
-            this.size = PbUtil.accurateUnsignedIntSize(IDX_SIZE, listCount)
+        if (encodeSize == 0) {
+            this.encodeSize = PbUtil.accurateUnsignedIntSize(IDX_SIZE, size)
                     + EncodeUtil.actualSizeOfObjs(IDX_RESULTS, results);
         }
-        return size;
+        return encodeSize;
     }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         if (context.stage == EncodeContext.STAGE_BEGIN) {
             if (destBuffer.remaining() >= PbUtil.maxUnsignedIntSize()) {
-                PbUtil.writeUnsignedInt32(destBuffer, 1, listCount);
+                PbUtil.writeUnsignedInt32(destBuffer, 1, size);
                 context.stage = IDX_SIZE;
             } else {
                 return false;
