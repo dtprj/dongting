@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
@@ -228,19 +229,20 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
     }
 
     protected FrameCallResult writeAppendResp(int code, int suggestTerm, long suggestIndex, String msg) {
-        AppendRespWritePacket resp = new AppendRespWritePacket();
-        resp.setTerm(gc.getRaftStatus().getCurrentTerm());
+        AppendResp resp = new AppendResp();
+        resp.term = gc.getRaftStatus().getCurrentTerm();
         if (code == AppendProcessor.APPEND_SUCCESS) {
-            resp.setSuccess(true);
+            resp.success = true;
         } else {
-            resp.setSuccess(false);
-            resp.setAppendCode(code);
+            resp.success = false;
+            resp.appendCode = code;
         }
-        resp.setRespCode(CmdCodes.SUCCESS);
-        resp.setSuggestTerm(suggestTerm);
-        resp.setSuggestIndex(suggestIndex);
-        resp.setMsg(msg);
-        processor.writeResp(reqInfo, resp);
+        resp.suggestTerm = suggestTerm;
+        resp.suggestIndex = suggestIndex;
+        SimpleWritePacket p = new SimpleWritePacket(resp);
+        p.setRespCode(CmdCodes.SUCCESS);
+        p.setMsg(msg);
+        processor.writeResp(reqInfo, p);
         return Fiber.frameReturn();
     }
 

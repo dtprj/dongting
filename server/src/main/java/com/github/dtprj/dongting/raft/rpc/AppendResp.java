@@ -16,6 +16,10 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.codec.SimpleEncodable;
+
+import java.nio.ByteBuffer;
 
 /**
  * @author huangli
@@ -26,12 +30,30 @@ import com.github.dtprj.dongting.codec.PbCallback;
 //  uint32 append_code = 3;
 //  uint32 suggest_term = 4;
 //  fixed64 suggest_index = 5;
-public class AppendResp {
-    private int term;
-    private boolean success;
-    private int appendCode;
-    private int suggestTerm;
-    private long suggestIndex;
+public class AppendResp implements SimpleEncodable {
+    int term;
+    boolean success;
+    int appendCode;
+    int suggestTerm;
+    long suggestIndex;
+
+    @Override
+    public int actualSize() {
+        return PbUtil.accurateUnsignedIntSize(1, term)
+                + PbUtil.accurateUnsignedIntSize(2, success ? 1 : 0)
+                + PbUtil.accurateUnsignedIntSize(3, appendCode)
+                + PbUtil.accurateUnsignedIntSize(4, suggestTerm)
+                + PbUtil.accurateFix64Size(5, suggestIndex);
+    }
+
+    @Override
+    public void encode(ByteBuffer buf) {
+        PbUtil.writeUnsignedInt32(buf, 1, term);
+        PbUtil.writeUnsignedInt32(buf, 2, success ? 1 : 0);
+        PbUtil.writeUnsignedInt32(buf, 3, appendCode);
+        PbUtil.writeUnsignedInt32(buf, 4, suggestTerm);
+        PbUtil.writeFix64(buf, 5, suggestIndex);
+    }
 
     public int getTerm() {
         return term;
