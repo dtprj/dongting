@@ -93,9 +93,6 @@ public class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEn
         PbUtil.writeFix64(buf, 2, MAGIC2);
         PbUtil.writeUnsignedInt32(buf, 3, majorVersion);
         PbUtil.writeUnsignedInt32(buf, 4, minorVersion);
-        if (config != null) {
-            PbUtil.writeLengthDelimitedPrefix(buf, 8, config.actualSize());
-            config.encode(buf);
-        }
+        EncodeUtil.encode(buf, 8, config);
     }
 }

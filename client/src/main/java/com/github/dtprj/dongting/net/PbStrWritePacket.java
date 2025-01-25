@@ -47,6 +47,9 @@ public class PbStrWritePacket extends SmallNoCopyWritePacket {
 
     @Override
     protected int calcActualBodySize() {
-        return bytes == null ? 0 : PbUtil.accurateLengthDelimitedSize(1, bytes.length);
+        if (bytes == null || bytes.length == 0) {
+            return 0;
+        }
+        return PbUtil.accurateLengthDelimitedPrefixSize(1, bytes.length) + bytes.length;
     }
 }

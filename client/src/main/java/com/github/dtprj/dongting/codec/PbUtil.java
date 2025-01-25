@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 /**
@@ -136,16 +135,6 @@ public final class PbUtil {
         }
     }
 
-    public static void writeUTF8(ByteBuffer buf, int index, String value) {
-        if (value == null || value.isEmpty()) {
-            return;
-        }
-        writeTag(buf, TYPE_LENGTH_DELIMITED, index);
-        byte[] bs = value.getBytes(StandardCharsets.UTF_8);
-        writeUnsignedInt32ValueOnly(buf, bs.length);
-        buf.put(bs);
-    }
-
     public static void writeAscii(ByteBuffer buf, int index, String value) {
         if (value == null) {
             return;
@@ -204,19 +193,6 @@ public final class PbUtil {
             bitIndex += 7;
         }
         throw new PbException("bad protobuf var int input");
-    }
-
-    public static int maxStrSizeUTF8(String str) {
-        if (str == null) {
-            return 0;
-        }
-        int len = str.length();
-        if (len == 0) {
-            return 0;
-        }
-        // tag, max 4 bytes
-        // length, var int32, max 5 bytes
-        return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH + len + len + len;
     }
 
     public static int maxStrSizeAscii(String str) {
@@ -342,15 +318,11 @@ public final class PbUtil {
         return accurateTagSize(index) + 8;
     }
 
-    public static int maxLengthDelimitedSize(int bodyLen) {
-        return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH + bodyLen;
-    }
-
-    public static int accurateLengthDelimitedSize(int index, int bodyLen) {
-        if (bodyLen == 0) {
+    public static int accurateBytesLength(int index, byte[] bs) {
+        if (bs == null || bs.length == 0) {
             return 0;
         }
-        return accurateTagSize(index) + accurateUnsignedIntSize(bodyLen) + bodyLen;
+        return accurateTagSize(index) + accurateUnsignedIntSize(bs.length) + bs.length;
     }
 
     public static int accurateLengthDelimitedPrefixSize(int index, int bodyLen) {

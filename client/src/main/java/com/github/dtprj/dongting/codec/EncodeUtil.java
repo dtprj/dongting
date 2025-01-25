@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @author huangli
@@ -29,22 +30,40 @@ public class EncodeUtil {
         if (o == null) {
             return 0;
         }
-        return PbUtil.accurateLengthDelimitedSize(pbIndex, o.actualSize());
+        int s = o.actualSize();
+        return PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
+    }
+
+    public static void encode(ByteBuffer destBuffer, int pbIndex, SimpleEncodable o) {
+        if (o == null) {
+            return;
+        }
+        PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, o.actualSize());
+        o.encode(destBuffer);
     }
 
     public static int actualSize(int pbIndex, Encodable o) {
         if (o == null) {
             return 0;
         }
-        return PbUtil.accurateLengthDelimitedSize(pbIndex, o.actualSize());
+        int s = o.actualSize();
+        return PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
     }
 
-    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, ByteArray o) {
-        return encode(c, destBuffer, pbIndex, o, false);
+    public static int actualSize(int pbIndex, ByteArray o) {
+        if (o == null || o.actualSize() == 0) {
+            return 0;
+        }
+        int s = o.actualSize();
+        return PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
     }
 
     public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
         return encode(c, destBuffer, pbIndex, o, true);
+    }
+
+    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, ByteArray o) {
+        return encode(c, destBuffer, pbIndex, o, false);
     }
 
     private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o, boolean encodeEmpty) {
@@ -85,10 +104,11 @@ public class EncodeUtil {
     }
 
     public static int actualSize(int pbIndex, byte[] o) {
-        if (o == null) {
+        if (o == null || o.length == 0) {
             return 0;
         }
-        return PbUtil.accurateLengthDelimitedSize(pbIndex, o.length);
+        int s = o.length;
+        return PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
     }
 
     public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
@@ -139,11 +159,9 @@ public class EncodeUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             byte[] e = list.get(i);
-            if (e.length == 0) {
-                size += PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, 0);
-            } else {
-                size += PbUtil.accurateLengthDelimitedSize(pbIndex, e.length);
-            }
+            Objects.requireNonNull(e);
+            int s = e.length;
+            size += PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
         }
         return size;
     }
@@ -165,6 +183,7 @@ public class EncodeUtil {
         int i = sub.stage;
         for (; i < count; i++) {
             byte[] bs = list.get(i);
+            Objects.requireNonNull(bs);
             if (!encode(sub, dest, pbIndex, bs, true)) {
                 sub.stage = i;
                 return false;
@@ -182,12 +201,9 @@ public class EncodeUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             Encodable e = list.get(i);
-            int ac = e.actualSize();
-            if (ac == 0) {
-                size += PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, 0);
-            } else {
-                size += PbUtil.accurateLengthDelimitedSize(pbIndex, ac);
-            }
+            Objects.requireNonNull(e);
+            int s = e.actualSize();
+            size += PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
         }
         return size;
     }
@@ -209,6 +225,7 @@ public class EncodeUtil {
         int i = sub.stage;
         for (; i < count; i++) {
             Encodable o = list.get(i);
+            Objects.requireNonNull(o);
             if (!encode(sub, dest, pbIndex, o, true)) {
                 sub.stage = i;
                 return false;

@@ -450,31 +450,16 @@ public class PbUtilTest {
 
     @Test
     public void testString() {
-        assertEquals(0, maxStrSizeUTF8(null));
-        assertEquals(0, maxStrSizeUTF8(""));
         assertEquals(0, maxStrSizeAscii(null));
         assertEquals(0, maxStrSizeAscii(""));
         assertEquals(0, accurateStrSizeAscii(1, null));
         assertEquals(0, accurateStrSizeAscii(1, ""));
 
-        String chineseStr = "汉字";
-        ByteBuffer buf = ByteBuffer.allocate(maxStrSizeUTF8(chineseStr));
-        writeUTF8(buf, 536870911, chineseStr);
-        assertEquals(4, buf.remaining());
-
         String asciiStr = "12345678";
-        buf = ByteBuffer.allocate(maxStrSizeAscii(asciiStr));
+        ByteBuffer buf = ByteBuffer.allocate(maxStrSizeAscii(asciiStr));
         writeAscii(buf, 536870911, asciiStr);
         assertEquals(4, buf.remaining());
         assertEquals(buf.capacity() - 4, accurateStrSizeAscii(536870911, asciiStr));
-    }
-
-    @Test
-    public void testLengthDelimitedSize() {
-        assertEquals(0, accurateLengthDelimitedSize(1, 0));
-        assertEquals(accurateLengthDelimitedSize(536870911, Integer.MAX_VALUE), maxLengthDelimitedSize(Integer.MAX_VALUE));
-        assertTrue(accurateLengthDelimitedSize(10000, Integer.MAX_VALUE) < maxLengthDelimitedSize(Integer.MAX_VALUE));
-        assertTrue(accurateLengthDelimitedSize(536870911, 10000) < maxLengthDelimitedSize(10000));
     }
 
     @Test

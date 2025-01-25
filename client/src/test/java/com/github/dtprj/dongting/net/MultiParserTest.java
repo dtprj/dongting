@@ -70,7 +70,7 @@ public class MultiParserTest {
         Callback callback = new Callback();
         ByteBuffer buf = ByteBuffer.allocate(64);
         buf.putInt(0);
-        PbUtil.writeUTF8(buf, 1, "VVV");
+        PbUtil.writeAscii(buf, 1, "VVV");
         // len has 4 bytes
         int len = buf.position() - 4;
         buf.putInt(0, len);
@@ -96,7 +96,7 @@ public class MultiParserTest {
         Callback callback = new Callback();
         ByteBuffer buf = ByteBuffer.allocate(64);
         buf.putInt(0);
-        PbUtil.writeUTF8(buf, 1, "VVV");
+        PbUtil.writeAscii(buf, 1, "VVV");
         // len has 4 bytes
         int len = buf.position() - 4;
         buf.putInt(0, len);
@@ -128,7 +128,7 @@ public class MultiParserTest {
         Callback callback = new Callback();
         ByteBuffer buf = ByteBuffer.allocate(64);
         buf.putInt(0);
-        PbUtil.writeUTF8(buf, 1, "VVV");
+        PbUtil.writeAscii(buf, 1, "VVV");
         // len has 4 bytes
         int len = buf.position() - 4;
         buf.putInt(0, len);

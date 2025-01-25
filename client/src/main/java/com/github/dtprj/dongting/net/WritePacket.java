@@ -99,10 +99,14 @@ public abstract class WritePacket extends Packet implements Encodable {
                     + PbUtil.accurateFix32Size(IDX_SEQ, seq) // fixed32 seq = 3;
                     + PbUtil.accurateUnsignedIntSize(IDX_RESP_CODE, respCode) // uint32 resp_code = 4;
                     + PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode) // uint32 biz_code = 5;
-                    + PbUtil.accurateLengthDelimitedSize(IDX_MSG, msgBytes == null ? 0 : msgBytes.length) // string resp_msg = 6;
+                    + PbUtil.accurateBytesLength(IDX_MSG, msgBytes) // string resp_msg = 6;
                     + PbUtil.accurateFix64Size(IDX_TIMEOUT, timeout) // fixed64 timeout = 7;
-                    + PbUtil.accurateLengthDelimitedSize(IDX_EXTRA, extra == null ? 0 : extra.length) // bytes extra = 8;
-                    + PbUtil.accurateLengthDelimitedSize(IDX_BODY, actualBodySize()); // bytes body = 15;
+                    + PbUtil.accurateBytesLength(IDX_EXTRA, extra); // bytes extra = 8;
+            int bodySize = actualBodySize();
+            if (bodySize > 0) {
+                // bytes body = 15;
+                dumpSize += PbUtil.accurateLengthDelimitedPrefixSize(IDX_BODY, bodySize) + bodySize;
+            }
             this.dumpSize = dumpSize;
         }
         return dumpSize;
@@ -123,7 +127,7 @@ public abstract class WritePacket extends Packet implements Encodable {
                 PbUtil.writeFix32(buf, IDX_SEQ, seq);
                 PbUtil.writeUnsignedInt32(buf, IDX_RESP_CODE, respCode);
                 PbUtil.writeUnsignedInt32(buf, IDX_BIZ_CODE, bizCode);
-                PbUtil.writeUTF8(buf, IDX_MSG, msg);
+                PbUtil.writeBytes(buf, IDX_MSG, msgBytes);
                 PbUtil.writeFix64(buf, IDX_TIMEOUT, timeout);
                 PbUtil.writeBytes(buf, IDX_EXTRA, extra);
                 if (bodySize > 0) {

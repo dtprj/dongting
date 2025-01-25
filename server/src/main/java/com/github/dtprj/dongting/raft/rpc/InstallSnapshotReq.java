@@ -177,7 +177,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData {
             RefBuffer rb = req.data;
             if (rb != null && rb.getBuffer().hasRemaining()) {
                 this.bufferSize = rb.getBuffer().remaining();
-                x += PbUtil.accurateLengthDelimitedSize(15, bufferSize);
+                x += PbUtil.accurateLengthDelimitedPrefixSize(15, bufferSize) + bufferSize;
             } else {
                 this.bufferSize = 0;
             }

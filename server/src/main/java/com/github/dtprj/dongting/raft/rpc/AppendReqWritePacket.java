@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -62,10 +62,8 @@ public class AppendReqWritePacket extends WritePacket {
 
     private static final int WRITE_HEADER = 0;
     private static final int WRITE_ITEM_HEADER = 1;
-    private static final int WRITE_ITEM_BIZ_HEADER_LEN = 2;
-    private static final int WRITE_ITEM_BIZ_HEADER = 3;
-    private static final int WRITE_ITEM_BIZ_BODY_LEN = 4;
-    private static final int WRITE_ITEM_BIZ_BODY = 5;
+    private static final int WRITE_ITEM_BIZ_HEADER = 2;
+    private static final int WRITE_ITEM_BIZ_BODY = 3;
     private int writeStatus;
     private int encodeLogIndex;
 
@@ -85,7 +83,8 @@ public class AppendReqWritePacket extends WritePacket {
         int x = headerSize;
         for (LogItem item : logs) {
             int itemSize = computeItemSize(item);
-            x += PbUtil.accurateLengthDelimitedSize(7, itemSize);
+            // assert itemSize > 0
+            x += PbUtil.accurateLengthDelimitedPrefixSize(7, itemSize) + itemSize;
         }
         return x;
     }
@@ -102,8 +101,8 @@ public class AppendReqWritePacket extends WritePacket {
                 + PbUtil.accurateUnsignedIntSize(5, item.getPrevLogTerm())
                 + PbUtil.accurateFix64Size(6, item.getTimestamp());
         itemSize = itemHeaderSize
-                + PbUtil.accurateLengthDelimitedSize(7, item.getActualHeaderSize())
-                + PbUtil.accurateLengthDelimitedSize(8, item.getActualBodySize());
+                + EncodeUtil.actualSize(7, item.getHeader())
+                + EncodeUtil.actualSize(8, item.getBody());
         item.setPbItemSize(itemSize);
         item.setPbHeaderSize(itemHeaderSize);
         return itemSize;
@@ -143,69 +142,26 @@ public class AppendReqWritePacket extends WritePacket {
                     PbUtil.writeFix64(dest, 4, currentItem.getIndex());
                     PbUtil.writeUnsignedInt32(dest, 5, currentItem.getPrevLogTerm());
                     PbUtil.writeFix64(dest, 6, currentItem.getTimestamp());
-                    writeStatus = WRITE_ITEM_BIZ_HEADER_LEN;
-                    break;
-                case WRITE_ITEM_BIZ_HEADER_LEN:
-                    if (currentItem.getActualHeaderSize() <= 0) {
-                        writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
-                        break;
-                    }
-                    if (dest.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
-                            7, currentItem.getActualHeaderSize())) {
-                        return false;
-                    }
-                    PbUtil.writeLengthDelimitedPrefix(dest, 7, currentItem.getActualHeaderSize());
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
-                    if (!writeData(context, dest, currentItem.getHeader())) {
+                    if (EncodeUtil.encode(context, dest, 7, currentItem.getHeader())) {
+                        writeStatus = WRITE_ITEM_BIZ_BODY;
+                        break;
+                    } else {
                         return false;
                     }
-                    writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
-                    break;
-                case WRITE_ITEM_BIZ_BODY_LEN:
-                    if (currentItem.getActualBodySize() <= 0) {
+                case WRITE_ITEM_BIZ_BODY:
+                    if (EncodeUtil.encode(context, dest, 8, currentItem.getBody())) {
+                        writeStatus = WRITE_ITEM_HEADER;
                         currentItem = null;
                         encodeLogIndex++;
-                        writeStatus = WRITE_ITEM_HEADER;
                         break;
-                    }
-                    if (dest.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
-                            8, currentItem.getActualBodySize())) {
+                    } else {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(dest, 8, currentItem.getActualBodySize());
-                    writeStatus = WRITE_ITEM_BIZ_BODY;
-                    break;
-                case WRITE_ITEM_BIZ_BODY:
-                    if (!writeData(context, dest, currentItem.getBody())) {
-                        return false;
-                    }
-                    currentItem = null;
-                    encodeLogIndex++;
-                    writeStatus = WRITE_ITEM_HEADER;
-                    break;
                 default:
                     throw new IllegalStateException("unknown write status " + writeStatus);
-            }
-        }
-    }
-
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean writeData(EncodeContext context, ByteBuffer dest, Encodable data) {
-        if (!dest.hasRemaining()) {
-            return false;
-        }
-        boolean result = false;
-        try {
-            result = data.encode(context, dest);
-            return result;
-        } catch (RuntimeException | Error e) {
-            context.reset();
-            throw e;
-        } finally {
-            if (result) {
-                context.reset();
             }
         }
     }
