@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
+import com.github.dtprj.dongting.raft.RaftServerRpcData;
 
 import java.nio.ByteBuffer;
 
@@ -30,9 +31,9 @@ import java.nio.ByteBuffer;
 //  fixed64 last_log_index = 4;
 //  uint32 last_log_term = 5;
 //  uint32 pre_vote = 6;
-public class VoteReq implements SimpleEncodable {
-    private int groupId;
-    private int term;
+public class VoteReq extends RaftServerRpcData implements SimpleEncodable {
+    // private int groupId;
+    // private int term;
     private int candidateId;
     private long lastLogIndex;
     private int lastLogTerm;
@@ -97,14 +98,6 @@ public class VoteReq implements SimpleEncodable {
         }
     }
 
-    public int getTerm() {
-        return term;
-    }
-
-    public void setTerm(int term) {
-        this.term = term;
-    }
-
     public int getCandidateId() {
         return candidateId;
     }
@@ -137,11 +130,4 @@ public class VoteReq implements SimpleEncodable {
         this.preVote = preVote;
     }
 
-    public int getGroupId() {
-        return groupId;
-    }
-
-    public void setGroupId(int groupId) {
-        this.groupId = groupId;
-    }
 }

@@ -20,10 +20,9 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.RaftConfigRpcData;
 
 import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * @author huangli
@@ -44,9 +43,9 @@ import java.util.Set;
 //  fixed64 last_config_change_index = 13;
 
 //  bytes data = 15;
-public class InstallSnapshotReq {
-    public int groupId;
-    public int term;
+public class InstallSnapshotReq extends RaftConfigRpcData {
+    // public int groupId;
+    // public int term;
     public int leaderId;
     public long lastIncludedIndex;
     public int lastIncludedTerm;
@@ -54,10 +53,10 @@ public class InstallSnapshotReq {
     public boolean done;
 
     public long nextWritePos;
-    public final Set<Integer> members = new HashSet<>();
-    public final Set<Integer> observers = new HashSet<>();
-    public final Set<Integer> preparedMembers = new HashSet<>();
-    public final Set<Integer> preparedObservers = new HashSet<>();
+    // public final Set<Integer> members = new HashSet<>();
+    // public final Set<Integer> observers = new HashSet<>();
+    // public final Set<Integer> preparedMembers = new HashSet<>();
+    // public final Set<Integer> preparedObservers = new HashSet<>();
     public long lastConfigChangeIndex;
 
     public RefBuffer data;

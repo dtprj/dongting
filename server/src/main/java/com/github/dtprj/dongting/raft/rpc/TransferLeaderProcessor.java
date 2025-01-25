@@ -88,6 +88,6 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
 
     @Override
     public DecoderCallback<TransferLeaderReq> createDecoderCallback(int command, DecodeContext context) {
-        return context.toDecoderCallback(new TransferLeaderReq());
+        return context.toDecoderCallback(new TransferLeaderReq.Callback());
     }
 }

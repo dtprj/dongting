@@ -21,7 +21,7 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.raft.RaftReq;
+import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -30,7 +30,7 @@ import java.util.List;
 /**
  * @author huangli
  */
-public class KvReq extends RaftReq implements Encodable {
+public class KvReq extends RaftRpcData implements Encodable {
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_KEY = 2;
     private static final int IDX_VALUE = 3;
@@ -50,7 +50,7 @@ public class KvReq extends RaftReq implements Encodable {
 
     public KvReq(int groupId, byte[] key, ByteArray value, ArrayList<byte[]> keys,
                  ArrayList<? extends ByteArray> values, ByteArray expectValue) {
-        super(groupId);
+        this.groupId = groupId;
         this.key = key;
         this.value = value;
         this.keys = keys;

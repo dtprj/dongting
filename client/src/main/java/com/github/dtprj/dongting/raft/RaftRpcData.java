@@ -18,15 +18,14 @@ package com.github.dtprj.dongting.raft;
 /**
  * @author huangli
  */
-public abstract class RaftReq {
-    protected final int groupId;
-
-    public RaftReq(int groupId) {
-        this.groupId = groupId;
-    }
+public abstract class RaftRpcData {
+    public int groupId;
 
     public int getGroupId() {
         return groupId;
     }
 
+    public void setGroupId(int groupId) {
+        this.groupId = groupId;
+    }
 }

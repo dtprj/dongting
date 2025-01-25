@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
+import com.github.dtprj.dongting.raft.RaftServerRpcData;
 
 import java.nio.ByteBuffer;
 
@@ -31,9 +32,9 @@ import java.nio.ByteBuffer;
 //uint32 new_leader_id = 4;
 //fixed64 log_index = 5; // not used in admin transfer leader request
 //}
-public class TransferLeaderReq extends PbCallback<TransferLeaderReq> implements SimpleEncodable {
-    public int groupId;
-    public int term;
+public class TransferLeaderReq extends RaftServerRpcData implements SimpleEncodable {
+    // public int groupId;
+    // public int term;
     public int oldLeaderId;
     public int newLeaderId;
     public long logIndex;
@@ -59,35 +60,39 @@ public class TransferLeaderReq extends PbCallback<TransferLeaderReq> implements 
         PbUtil.writeFix64(buf, 5, logIndex);
     }
 
-    @Override
-    public boolean readVarNumber(int index, long value) {
-        switch (index) {
-            case 1:
-                groupId = (int) value;
-                break;
-            case 2:
-                term = (int) value;
-                break;
-            case 3:
-                oldLeaderId = (int) value;
-                break;
-            case 4:
-                newLeaderId = (int) value;
-                break;
-        }
-        return true;
-    }
+    static final class Callback extends PbCallback<TransferLeaderReq> {
+        private final TransferLeaderReq req = new TransferLeaderReq();
 
-    @Override
-    public boolean readFix64(int index, long value) {
-        if (index == 5) {
-            logIndex = value;
+        @Override
+        public boolean readVarNumber(int index, long value) {
+            switch (index) {
+                case 1:
+                    req.groupId = (int) value;
+                    break;
+                case 2:
+                    req.term = (int) value;
+                    break;
+                case 3:
+                    req.oldLeaderId = (int) value;
+                    break;
+                case 4:
+                    req.newLeaderId = (int) value;
+                    break;
+            }
+            return true;
         }
-        return true;
-    }
 
-    @Override
-    public TransferLeaderReq getResult() {
-        return this;
+        @Override
+        public boolean readFix64(int index, long value) {
+            if (index == 5) {
+                req.logIndex = value;
+            }
+            return true;
+        }
+
+        @Override
+        public TransferLeaderReq getResult() {
+            return req;
+        }
     }
 }
