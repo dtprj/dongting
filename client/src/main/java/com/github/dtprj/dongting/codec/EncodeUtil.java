@@ -25,6 +25,13 @@ import java.util.List;
  */
 public class EncodeUtil {
 
+    public static int actualSize(int pbIndex, SimpleEncodable o) {
+        if (o == null) {
+            return 0;
+        }
+        return PbUtil.accurateLengthDelimitedSize(pbIndex, o.actualSize());
+    }
+
     public static int actualSize(int pbIndex, Encodable o) {
         if (o == null) {
             return 0;

@@ -40,15 +40,15 @@ public class HandshakeBodyTest {
                         .build())
                 .build();
         byte[] bs = h.toByteArray();
-        HandshakeBody.Callback callback = new HandshakeBody.Callback();
+        HandshakeBody callback = new HandshakeBody();
         PbParser parser = new PbParser();
         DecodeContext context = CodecTestUtil.createContext();
         parser.prepareNext(context, callback, bs.length);
         parser.parse(ByteBuffer.wrap(bs));
 
         HandshakeBody result = callback.getResult();
-        Assertions.assertEquals(h.getMagic1(), result.MAGIC1);
-        Assertions.assertEquals(h.getMagic2(), result.MAGIC2);
+        Assertions.assertEquals(h.getMagic1(), HandshakeBody.MAGIC1);
+        Assertions.assertEquals(h.getMagic2(), HandshakeBody.MAGIC2);
         Assertions.assertEquals(h.getMajorVersion(), result.majorVersion);
         Assertions.assertEquals(h.getMinorVersion(), result.minorVersion);
         Assertions.assertEquals(h.getConfig().getMaxPacketSize(), result.config.maxPacketSize);
@@ -62,11 +62,10 @@ public class HandshakeBodyTest {
         h.config = new ConfigBody();
         h.config.maxPacketSize = 100;
 
-        HandshakeBody.WritePacket p = new HandshakeBody.WritePacket(h);
         ByteBuffer buf = ByteBuffer.allocate(128);
-        p.encodeBody(buf);
+        h.encode(buf);
         buf.flip();
-        Assertions.assertEquals(buf.remaining(), p.calcActualBodySize());
+        Assertions.assertEquals(buf.remaining(), h.actualSize());
 
         DtPacket.Handshake result = DtPacket.Handshake.parseFrom(buf);
         Assertions.assertEquals(h.MAGIC1, result.getMagic1());

@@ -584,12 +584,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         cb.maxInPending = config.getMaxInRequests();
         cb.maxInPendingBytes = config.getMaxInBytes();
         hb.config = cb;
-        HandshakeBody.WritePacket p = new HandshakeBody.WritePacket(hb);
+        SimpleWritePacket p = new SimpleWritePacket(hb);
+
         p.packetType = PacketType.TYPE_REQ;
         p.command = Commands.CMD_HANDSHAKE;
 
         WriteData wd = new WriteData(dtc, p, ci.deadline, rpcCallback,
-                ctx -> ctx.toDecoderCallback(new HandshakeBody.Callback()));
+                ctx -> ctx.toDecoderCallback(new HandshakeBody()));
         dtc.getSubQueue().enqueue(wd);
         // send pending request as quickly as possible, even before handshake finished
         ci.peer.enqueueAfterConnect();

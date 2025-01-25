@@ -40,7 +40,7 @@ public class ConfigBodyTest {
                 .setMaxOutPendingBytes(Integer.MAX_VALUE + 600L)
                 .build();
         byte[] bs = c.toByteArray();
-        ConfigBody.Callback callback = new ConfigBody.Callback();
+        ConfigBody callback = new ConfigBody();
         PbParser parser = new PbParser();
         DecodeContext context = CodecTestUtil.createContext();
         parser.prepareNext(context, callback, bs.length);
@@ -65,10 +65,10 @@ public class ConfigBodyTest {
         c.maxOutPendingBytes = Integer.MAX_VALUE + 600;
 
         ByteBuffer buf = ByteBuffer.allocate(128);
-        c.encodeBody(buf);
+        c.encode(buf);
         buf.flip();
 
-        Assertions.assertEquals(c.calcActualBodySize(), buf.remaining());
+        Assertions.assertEquals(c.actualSize(), buf.remaining());
 
         DtPacket.Config result = DtPacket.Config.parseFrom(buf);
 

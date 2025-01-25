@@ -17,13 +17,14 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.codec.SimpleEncodable;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class ConfigBody {
+public class ConfigBody extends PbCallback<ConfigBody> implements SimpleEncodable {
     int maxPacketSize;
     int maxBodySize;
     int maxInPending;
@@ -31,41 +32,38 @@ public class ConfigBody {
     int maxOutPending;
     long maxOutPendingBytes;
 
-    public static class Callback extends PbCallback<ConfigBody> {
-        final ConfigBody result = new ConfigBody();
-
-        @Override
-        public boolean readVarNumber(int index, long value) {
-            switch (index) {
-                case 1:
-                    result.maxPacketSize = (int) value;
-                    break;
-                case 2:
-                    result.maxBodySize = (int) value;
-                    break;
-                case 3:
-                    result.maxInPending = (int) value;
-                    break;
-                case 4:
-                    result.maxInPendingBytes = value;
-                    break;
-                case 5:
-                    result.maxOutPending = (int) value;
-                    break;
-                case 6:
-                    result.maxOutPendingBytes = value;
-                    break;
-            }
-            return true;
+    @Override
+    public boolean readVarNumber(int index, long value) {
+        switch (index) {
+            case 1:
+                maxPacketSize = (int) value;
+                break;
+            case 2:
+                maxBodySize = (int) value;
+                break;
+            case 3:
+                maxInPending = (int) value;
+                break;
+            case 4:
+                maxInPendingBytes = value;
+                break;
+            case 5:
+                maxOutPending = (int) value;
+                break;
+            case 6:
+                maxOutPendingBytes = value;
+                break;
         }
-
-        @Override
-        protected ConfigBody getResult() {
-            return result;
-        }
+        return true;
     }
 
-    public int calcActualBodySize() {
+    @Override
+    protected ConfigBody getResult() {
+        return this;
+    }
+
+    @Override
+    public int actualSize() {
         return PbUtil.accurateUnsignedIntSize(1, maxPacketSize) +
                 PbUtil.accurateUnsignedIntSize(2, maxBodySize) +
                 PbUtil.accurateUnsignedIntSize(3, maxInPending) +
@@ -74,36 +72,13 @@ public class ConfigBody {
                 PbUtil.accurateUnsignedLongSize(6, maxOutPendingBytes);
     }
 
-    public void encodeBody(ByteBuffer buf) {
+    @Override
+    public void encode(ByteBuffer buf) {
         PbUtil.writeUnsignedInt32(buf, 1, maxPacketSize);
         PbUtil.writeUnsignedInt32(buf, 2, maxBodySize);
         PbUtil.writeUnsignedInt32(buf, 3, maxInPending);
         PbUtil.writeUnsignedInt64(buf, 4, maxInPendingBytes);
         PbUtil.writeUnsignedInt32(buf, 5, maxOutPending);
         PbUtil.writeUnsignedInt64(buf, 6, maxOutPendingBytes);
-    }
-
-    public int getMaxPacketSize() {
-        return maxPacketSize;
-    }
-
-    public int getMaxBodySize() {
-        return maxBodySize;
-    }
-
-    public int getMaxInPending() {
-        return maxInPending;
-    }
-
-    public long getMaxInPendingBytes() {
-        return maxInPendingBytes;
-    }
-
-    public int getMaxOutPending() {
-        return maxOutPending;
-    }
-
-    public long getMaxOutPendingBytes() {
-        return maxOutPendingBytes;
     }
 }

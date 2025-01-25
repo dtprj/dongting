@@ -35,7 +35,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
 
     @Override
     public DecoderCallback<HandshakeBody> createDecoderCallback(int command, DecodeContext context) {
-        return context.toDecoderCallback(new HandshakeBody.Callback());
+        return context.toDecoderCallback(new HandshakeBody());
     }
 
     @Override
@@ -54,7 +54,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
             hb.config = buildServerHint();
         }
 
-        HandshakeBody.WritePacket p = new HandshakeBody.WritePacket(hb);
+        SimpleWritePacket p = new SimpleWritePacket(hb);
         p.setRespCode(CmdCodes.SUCCESS);
 
         dtc.workerStatus.worker.finishHandshake(dtc);
