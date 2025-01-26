@@ -117,15 +117,14 @@ public class AppendReqWritePacketTest {
 
     private AppendReqWritePacket createFrame(boolean addHeader, boolean addBody) {
         AppendReqWritePacket f = new AppendReqWritePacket();
-        f.setGroupId(12345);
-        f.setTerm(4);
-        f.setLeaderId(2);
-        f.setPrevLogIndex(100);
-        f.setPrevLogTerm(3);
-        f.setLeaderCommit(99);
-        f.setLogs(null);
+        f.groupId = 12345;
+        f.term = 4;
+        f.leaderId = 2;
+        f.prevLogIndex = 100;
+        f.prevLogTerm = 3;
+        f.leaderCommit = 99;
         ArrayList<LogItem> logs = new ArrayList<>();
-        f.setLogs(logs);
+        f.logs = logs;
         for (int i = 0; i < 2; i++) {
             LogItem log = new LogItem();
             log.setBizType(1);
@@ -147,14 +146,14 @@ public class AppendReqWritePacketTest {
     private void check(AppendReqWritePacket f, AppendReq c) {
         assertEquals(f.groupId, c.groupId);
         assertEquals(f.term, c.term);
-        assertEquals(f.leaderId, c.getLeaderId());
-        assertEquals(f.prevLogIndex, c.getPrevLogIndex());
-        assertEquals(f.prevLogTerm, c.getPrevLogTerm());
-        assertEquals(f.leaderCommit, c.getLeaderCommit());
-        assertEquals(f.logs.size(), c.getLogs().size());
+        assertEquals(f.leaderId, c.leaderId);
+        assertEquals(f.prevLogIndex, c.prevLogIndex);
+        assertEquals(f.prevLogTerm, c.prevLogTerm);
+        assertEquals(f.leaderCommit, c.leaderCommit);
+        assertEquals(f.logs.size(), c.logs.size());
         for (int i = 0; i < f.logs.size(); i++) {
             LogItem l1 = f.logs.get(i);
-            LogItem l2 = c.getLogs().get(i);
+            LogItem l2 = c.logs.get(i);
             assertEquals(l1.getBizType(), l2.getBizType());
             assertEquals(l1.getIndex(), l2.getIndex());
             assertEquals(l1.getTerm(), l2.getTerm());

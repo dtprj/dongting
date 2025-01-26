@@ -99,7 +99,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         }
         if (f.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
             AppendReq req = (AppendReq) f.getBody();
-            RaftUtil.release(req.getLogs());
+            RaftUtil.release(req.logs);
         } else {
             InstallSnapshotReq req = (InstallSnapshotReq) f.getBody();
             req.release();
@@ -277,14 +277,14 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         gc.getRaftStatus().copyShareStatus();
         AppendReq req = reqInfo.getReqFrame().getBody();
         if (needRelease) {
-            RaftUtil.release(req.getLogs());
+            RaftUtil.release(req.logs);
         }
         return Fiber.frameReturn();
     }
 
     @Override
     protected int getLeaderId() {
-        return reqInfo.getReqFrame().getBody().getLeaderId();
+        return reqInfo.getReqFrame().getBody().leaderId;
     }
 
     @Override
@@ -305,14 +305,14 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             writeAppendResp(AppendProcessor.APPEND_INSTALL_SNAPSHOT, null);
             return Fiber.frameReturn();
         }
-        if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
+        if (req.prevLogIndex != raftStatus.getLastLogIndex() || req.prevLogTerm != raftStatus.getLastLogTerm()) {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}, groupId={}",
-                    req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(),
-                    raftStatus.getLastLogTerm(), req.getLeaderId(), raftStatus.getGroupId());
+                    req.prevLogIndex, raftStatus.getLastLogIndex(), req.prevLogTerm,
+                    raftStatus.getLastLogTerm(), req.leaderId, raftStatus.getGroupId());
             int currentTerm = raftStatus.getCurrentTerm();
             Supplier<Boolean> cancelIndicator = () -> raftStatus.getCurrentTerm() != currentTerm;
             FiberFrame<Pair<Integer, Long>> replicatePosFrame = gc.getRaftLog().tryFindMatchPos(
-                    req.getPrevLogTerm(), req.getPrevLogIndex(), cancelIndicator);
+                    req.prevLogTerm, req.prevLogIndex, cancelIndicator);
             return Fiber.call(replicatePosFrame, pos -> resumeWhenFindReplicatePosFinish(pos, currentTerm));
         }
         return doAppend(reqInfo, gc);
@@ -321,25 +321,25 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     private FrameCallResult doAppend(ReqInfoEx<AppendReq> reqInfo, GroupComponents gc) {
         AppendReq req = reqInfo.getReqFrame().getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
+        if (req.prevLogIndex < raftStatus.getCommitIndex()) {
             BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
-                    req.getLeaderId(), req.getPrevLogIndex(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
+                    req.leaderId, req.prevLogIndex, raftStatus.getCommitIndex(), raftStatus.getGroupId());
             writeAppendResp(AppendProcessor.APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT, null);
             return Fiber.frameReturn();
         }
-        List<LogItem> logs = req.getLogs();
+        List<LogItem> logs = req.logs;
         if (logs == null || logs.isEmpty()) {
             log.error("bad request: no logs");
             writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, null);
             return Fiber.frameReturn();
         }
 
-        if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
+        if (req.leaderCommit < raftStatus.getCommitIndex()) {
             log.info("leader commitIndex less than local, maybe leader restart recently. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}, groupId={}",
-                    req.getLeaderId(), req.term, req.getLeaderCommit(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
+                    req.leaderId, req.term, req.leaderCommit, raftStatus.getCommitIndex(), raftStatus.getGroupId());
         }
-        if (req.getLeaderCommit() > raftStatus.getLeaderCommit()) {
-            raftStatus.setLeaderCommit(req.getLeaderCommit());
+        if (req.leaderCommit > raftStatus.getLeaderCommit()) {
+            raftStatus.setLeaderCommit(req.leaderCommit);
         }
 
         long index = LinearTaskRunner.lastIndex(raftStatus);
@@ -349,7 +349,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             LogItem li = logs.get(i);
             if (++index != li.getIndex()) {
                 log.error("bad request: log index not match. index={}, expectIndex={}, leaderId={}, groupId={}",
-                        li.getIndex(), index, req.getLeaderId(), raftStatus.getGroupId());
+                        li.getIndex(), index, req.leaderId, raftStatus.getGroupId());
                 writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index not match");
                 return Fiber.frameReturn();
             }
@@ -407,14 +407,14 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());
             writeAppendResp(AppendProcessor.APPEND_LOG_NOT_MATCH, null);
             return Fiber.frameReturn();
-        } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
+        } else if (pos.getLeft() == req.prevLogTerm && pos.getRight() == req.prevLogIndex) {
             log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
-                    req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
+                    req.prevLogIndex, req.prevLogTerm, raftStatus.getGroupId());
             if (RaftUtil.writeNotFinished(raftStatus)) {
                 // resume to this::execute to re-run all check
                 return RaftUtil.waitWriteFinish(raftStatus, this);
             } else {
-                return truncateAndAppend(req.getPrevLogIndex(), req.getPrevLogTerm());
+                return truncateAndAppend(req.prevLogIndex, req.prevLogTerm);
             }
         } else {
             log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());

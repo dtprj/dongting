@@ -360,13 +360,13 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         AppendReqWritePacket req = new AppendReqWritePacket();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
-        req.setGroupId(groupId);
-        req.setTerm(raftStatus.getCurrentTerm());
-        req.setLeaderId(serverConfig.getNodeId());
-        req.setLeaderCommit(raftStatus.getCommitIndex());
-        req.setPrevLogIndex(prevLogIndex);
-        req.setPrevLogTerm(firstItem.getPrevLogTerm());
-        req.setLogs(items);
+        req.groupId = groupId;
+        req.term = raftStatus.getCurrentTerm();
+        req.leaderId = serverConfig.getNodeId();
+        req.leaderCommit = raftStatus.getCommitIndex();
+        req.prevLogIndex = prevLogIndex;
+        req.prevLogTerm = firstItem.getPrevLogTerm();
+        req.logs = items;
 
         member.setNextIndex(prevLogIndex + 1 + items.size());
 

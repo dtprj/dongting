@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -48,31 +47,11 @@ public class AppendReq extends RaftRpcData {
 
     // private int groupId;
     // private int term;
-    private int leaderId;
-    private long prevLogIndex;
-    private int prevLogTerm;
-    private long leaderCommit;
-    private final LinkedList<LogItem> logs = new LinkedList<>();
-
-    public int getLeaderId() {
-        return leaderId;
-    }
-
-    public long getPrevLogIndex() {
-        return prevLogIndex;
-    }
-
-    public int getPrevLogTerm() {
-        return prevLogTerm;
-    }
-
-    public long getLeaderCommit() {
-        return leaderCommit;
-    }
-
-    public List<LogItem> getLogs() {
-        return logs;
-    }
+    public int leaderId;
+    public long prevLogIndex;
+    public int prevLogTerm;
+    public long leaderCommit;
+    public final LinkedList<LogItem> logs = new LinkedList<>();
 
     // re-used
     public static class Callback extends PbCallback<AppendReq> {

@@ -50,13 +50,13 @@ import java.util.List;
 //}
 public class AppendReqWritePacket extends WritePacket {
 
-    int groupId;
-    int term;
-    int leaderId;
-    long prevLogIndex;
-    int prevLogTerm;
-    long leaderCommit;
-    List<LogItem> logs;
+    public int groupId;
+    public int term;
+    public int leaderId;
+    public long prevLogIndex;
+    public int prevLogTerm;
+    public long leaderCommit;
+    public List<LogItem> logs;
 
     private int headerSize;
 
@@ -164,34 +164,6 @@ public class AppendReqWritePacket extends WritePacket {
                     throw new IllegalStateException("unknown write status " + writeStatus);
             }
         }
-    }
-
-    public void setGroupId(int groupId) {
-        this.groupId = groupId;
-    }
-
-    public void setTerm(int term) {
-        this.term = term;
-    }
-
-    public void setLeaderId(int leaderId) {
-        this.leaderId = leaderId;
-    }
-
-    public void setPrevLogIndex(long prevLogIndex) {
-        this.prevLogIndex = prevLogIndex;
-    }
-
-    public void setPrevLogTerm(int prevLogTerm) {
-        this.prevLogTerm = prevLogTerm;
-    }
-
-    public void setLeaderCommit(long leaderCommit) {
-        this.leaderCommit = leaderCommit;
-    }
-
-    public void setLogs(List<LogItem> logs) {
-        this.logs = logs;
     }
 
     @Override
