@@ -26,36 +26,4 @@ public class RaftConfigRpcData extends RaftRpcData {
     public Set<Integer> observers = new HashSet<>();
     public Set<Integer> preparedMembers = new HashSet<>();
     public Set<Integer> preparedObservers = new HashSet<>();
-
-    public Set<Integer> getMembers() {
-        return members;
-    }
-
-    public void setMembers(Set<Integer> members) {
-        this.members = members;
-    }
-
-    public Set<Integer> getObservers() {
-        return observers;
-    }
-
-    public void setObservers(Set<Integer> observers) {
-        this.observers = observers;
-    }
-
-    public Set<Integer> getPreparedMembers() {
-        return preparedMembers;
-    }
-
-    public void setPreparedMembers(Set<Integer> preparedMembers) {
-        this.preparedMembers = preparedMembers;
-    }
-
-    public Set<Integer> getPreparedObservers() {
-        return preparedObservers;
-    }
-
-    public void setPreparedObservers(Set<Integer> preparedObservers) {
-        this.preparedObservers = preparedObservers;
-    }
 }

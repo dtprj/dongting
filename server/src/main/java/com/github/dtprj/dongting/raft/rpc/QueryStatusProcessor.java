@@ -56,10 +56,10 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         resp.setCommitIndex(raftStatus.getCommitIndex());
         resp.setLastApplied(raftStatus.getLastApplied());
         resp.setLastLogIndex(raftStatus.getLastLogIndex());
-        resp.setMembers(raftStatus.getNodeIdOfMembers());
-        resp.setObservers(raftStatus.getNodeIdOfObservers());
-        resp.setPreparedMembers(raftStatus.getNodeIdOfPreparedMembers());
-        resp.setPreparedObservers(raftStatus.getNodeIdOfPreparedObservers());
+        resp.members = raftStatus.getNodeIdOfMembers();
+        resp.observers = raftStatus.getNodeIdOfObservers();
+        resp.preparedMembers = raftStatus.getNodeIdOfPreparedMembers();
+        resp.preparedObservers = raftStatus.getNodeIdOfPreparedObservers();
 
         SimpleWritePacket wf = new SimpleWritePacket(resp);
         wf.setRespCode(CmdCodes.SUCCESS);

@@ -839,10 +839,10 @@ public class MemberManager {
                                     CompletableFuture<Void> finalFuture) {
         try {
             QueryStatusResp s = resp.getBody();
-            if (!s.getMembers().equals(raftStatus.getNodeIdOfMembers())
-                    || !s.getObservers().equals(raftStatus.getNodeIdOfObservers())
-                    || !s.getPreparedMembers().equals(raftStatus.getNodeIdOfPreparedMembers())
-                    || !s.getPreparedObservers().equals(raftStatus.getNodeIdOfPreparedObservers())) {
+            if (!s.members.equals(raftStatus.getNodeIdOfMembers())
+                    || !s.observers.equals(raftStatus.getNodeIdOfObservers())
+                    || !s.preparedMembers.equals(raftStatus.getNodeIdOfPreparedMembers())
+                    || !s.preparedObservers.equals(raftStatus.getNodeIdOfPreparedObservers())) {
                 log.error("config not match, groupId={}", groupId);
                 finalFuture.completeExceptionally(new RaftException("config not match"));
                 return;
