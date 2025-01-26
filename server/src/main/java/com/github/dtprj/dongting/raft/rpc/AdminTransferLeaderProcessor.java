@@ -17,21 +17,16 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.RaftRole;
-import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -39,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class AdminTransferLeaderProcessor extends RaftSequenceProcessor<TransferLeaderReq> {
+public class AdminTransferLeaderProcessor extends RaftProcessor<TransferLeaderReq> {
 
     private static final DtLog log = DtLogs.getLogger(AdminTransferLeaderProcessor.class);
 
@@ -53,56 +48,28 @@ public class AdminTransferLeaderProcessor extends RaftSequenceProcessor<Transfer
     }
 
     @Override
-    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<TransferLeaderReq> reqInfo) {
+    protected WritePacket doProcess(ReqInfo<TransferLeaderReq> reqInfo) {
         ReadPacket<TransferLeaderReq> frame = reqInfo.reqFrame;
         TransferLeaderReq req = frame.getBody();
-        GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
-        RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (raftStatus.getRole() != RaftRole.leader) {
-            log.error("not leader, groupId={}, role={}", req.groupId, raftStatus.getRole());
-            throw new NotLeaderException(raftStatus.getCurrentLeader().getNode());
-        }
-        if (req.oldLeaderId != gc.getServerConfig().getNodeId()) {
+        if (req.oldLeaderId != raftServer.getServerConfig().getNodeId()) {
             log.error("old leader id mismatch, groupId={}, oldLeaderId={}, localId={}",
-                    req.groupId, req.oldLeaderId, gc.getServerConfig().getNodeId());
+                    req.groupId, req.oldLeaderId, raftServer.getServerConfig().getNodeId());
             throw new RaftException("new leader id mismatch");
         }
-        if (!gc.getMemberManager().isValidCandidate(req.oldLeaderId) || !gc.getMemberManager().isValidCandidate(req.newLeaderId)) {
-            log.error("old leader or new leader is not valid candidate, groupId={}, old={}, new={}", req.groupId, req.oldLeaderId, req.newLeaderId);
-            throw new RaftException("old leader or new leader is not valid candidate");
-        }
-        return new FiberFrame<>() {
-
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                log.error("admin transfer leader fail", ex);
+        CompletableFuture<Void> f = reqInfo.raftGroup.transferLeadership(req.newLeaderId,
+                reqInfo.reqContext.getTimeout().getTimeout(TimeUnit.MILLISECONDS));
+        f.whenComplete((v, ex) -> {
+            if (ex != null) {
+                log.error("transferLeadership failed, groupId={}, newLeaderId={}",
+                        req.groupId, req.newLeaderId, ex);
                 writeErrorResp(reqInfo, ex);
-                return Fiber.frameReturn();
+            } else {
+                log.info("transferLeadership success, groupId={}, newLeaderId={}",
+                        req.groupId, req.newLeaderId);
+                writeResp(reqInfo, new EmptyBodyRespPacket(CmdCodes.SUCCESS));
             }
-
-            @Override
-            public FrameCallResult execute(Void input) {
-                log.info("admin transfer leader begin, groupId={}, old={}, new={}", req.groupId, req.oldLeaderId, req.newLeaderId);
-                FiberFuture<Void> fiberFuture = getFiberGroup().newFuture("admin transfer leader");
-                long timeout = reqInfo.reqContext.getTimeout().getTimeout(TimeUnit.MILLISECONDS);
-                CompletableFuture<Void> f = reqInfo.raftGroup.transferLeadership(req.newLeaderId, timeout);
-                f.whenComplete((v, ex) -> {
-                    if (ex != null) {
-                        fiberFuture.fireCompleteExceptionally(ex);
-                    } else {
-                        fiberFuture.fireComplete(null);
-                    }
-                });
-                return fiberFuture.await(timeout, this::afterTransfer);
-            }
-
-            private FrameCallResult afterTransfer(Void unused) {
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                writeResp(reqInfo, resp);
-                log.info("admin transfer leader success, groupId={}", req.groupId);
-                return Fiber.frameReturn();
-            }
-        };
+        });
+        return null;
     }
 
 

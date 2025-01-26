@@ -179,9 +179,11 @@ public class RaftServer extends AbstractLifeCircle {
         allMemberReadyFuture.whenComplete(this::afterAllMemberReady);
     }
 
-    private void addRaftGroupProcessor(NioServer nioServer, int command, RaftSequenceProcessor<?> processor) {
+    private void addRaftGroupProcessor(NioServer nioServer, int command, RaftProcessor<?> processor) {
         nioServer.register(command, processor);
-        raftSequenceProcessors.add(processor);
+        if (processor instanceof RaftSequenceProcessor) {
+            raftSequenceProcessors.add((RaftSequenceProcessor<?>) processor);
+        }
     }
 
     private void setupNioConfig(NioConfig nc) {
@@ -683,5 +685,9 @@ public class RaftServer extends AbstractLifeCircle {
 
     public NioServer getServiceNioServer() {
         return serviceNioServer;
+    }
+
+    public RaftServerConfig getServerConfig() {
+        return serverConfig;
     }
 }
