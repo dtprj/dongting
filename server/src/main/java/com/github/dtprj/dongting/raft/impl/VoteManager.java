@@ -168,10 +168,10 @@ public class VoteManager {
         int currentTerm = raftStatus.getCurrentTerm();
         req.groupId = groupId;
         req.term = currentTerm;
-        req.setCandidateId(config.getNodeId());
-        req.setLastLogIndex(raftStatus.getLastLogIndex());
-        req.setLastLogTerm(raftStatus.getLastLogTerm());
-        req.setPreVote(preVote);
+        req.candidateId = config.getNodeId();
+        req.lastLogIndex = raftStatus.getLastLogIndex();
+        req.lastLogTerm = raftStatus.getLastLogTerm();
+        req.preVote = preVote;
         SimpleWritePacket wf = new SimpleWritePacket(req);
         wf.setCommand(Commands.RAFT_REQUEST_VOTE);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
@@ -180,8 +180,8 @@ public class VoteManager {
 
         if (member.getNode().isSelf()) {
             VoteResp resp = new VoteResp();
-            resp.setVoteGranted(true);
-            resp.setTerm(currentTerm);
+            resp.voteGranted = true;
+            resp.term = currentTerm;
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
             try {
@@ -191,7 +191,7 @@ public class VoteManager {
                         timeout, c);
                 log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                         preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
-                        currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
+                        currentTerm, req.lastLogIndex, req.lastLogTerm);
             } catch (Exception e) {
                 fireRespProcessFiber(req, null, e, member, voteIdOfRequest);
             }
@@ -349,7 +349,7 @@ public class VoteManager {
             if (voteCheckFail(voteIdOfRequest)) {
                 return Fiber.frameReturn();
             }
-            String voteType = req.isPreVote() ? "pre-vote" : "vote";
+            String voteType = req.preVote ? "pre-vote" : "vote";
             int remoteId = remoteMember.getNode().getNodeId();
             if (ex != null) {
                 log.warn("{} rpc fail. groupId={}, term={}, remote={}, error={}", voteType,
@@ -357,10 +357,10 @@ public class VoteManager {
                 // don't send more request for simplification
                 return Fiber.frameReturn();
             }
-            int remoteTerm = resp.getTerm();
+            int remoteTerm = resp.term;
             if (remoteTerm < raftStatus.getCurrentTerm()) {
                 log.warn("receive outdated {} resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                        voteType, resp.getTerm(), req.term, remoteId, groupId);
+                        voteType, resp.term, req.term, remoteId, groupId);
                 return Fiber.frameReturn();
             }
             if (remoteTerm > raftStatus.getCurrentTerm()) {
@@ -370,19 +370,19 @@ public class VoteManager {
                 return Fiber.frameReturn();
             }
             RaftRole r = raftStatus.getRole();
-            if ((req.isPreVote() && r != RaftRole.follower && r != RaftRole.candidate) ||
-                    (!req.isPreVote()) && r != RaftRole.candidate) {
+            if ((req.preVote && r != RaftRole.follower && r != RaftRole.candidate) ||
+                    (!req.preVote) && r != RaftRole.candidate) {
                 log.warn("{} receive {} resp, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                        r, voteType, resp.getTerm(), req.term, remoteId, groupId);
+                        r, voteType, resp.term, req.term, remoteId, groupId);
                 return Fiber.frameReturn();
             }
             if (remoteId != config.getNodeId()) {
                 log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                        resp.isVoteGranted(), resp.getTerm(), req.term, remoteId, groupId);
+                        resp.voteGranted, resp.term, req.term, remoteId, groupId);
             }
-            if (resp.isVoteGranted()) {
-                if (isElectedAfterVote(remoteId, req.isPreVote())) {
-                    if (req.isPreVote()) {
+            if (resp.voteGranted) {
+                if (isElectedAfterVote(remoteId, req.preVote)) {
+                    if (req.preVote) {
                         log.info("pre-vote success. groupId={}, term={}, lastLogTerm={}, lastLogIndex={}", groupId,
                                 raftStatus.getCurrentTerm(), raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
                         return startVote();
@@ -402,8 +402,8 @@ public class VoteManager {
         private boolean voteCheckFail(long oldVoteId) {
             if (oldVoteId != currentVoteId) {
                 log.info("vote id changed, ignore {} response. remoteNode={}, grant={}",
-                        req.isPreVote() ? "preVote" : "vote", remoteMember.getNode().getNodeId(),
-                        resp.isVoteGranted());
+                        req.preVote ? "preVote" : "vote", remoteMember.getNode().getNodeId(),
+                        resp.voteGranted);
                 return true;
             }
             if (MemberManager.validCandidate(raftStatus, config.getNodeId())) {

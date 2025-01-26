@@ -32,12 +32,12 @@ import java.nio.ByteBuffer;
 //  uint32 last_log_term = 5;
 //  uint32 pre_vote = 6;
 public class VoteReq extends RaftRpcData implements SimpleEncodable {
-    // private int groupId;
-    // private int term;
-    private int candidateId;
-    private long lastLogIndex;
-    private int lastLogTerm;
-    private boolean preVote;
+    // public int groupId;
+    // public int term;
+    public int candidateId;
+    public long lastLogIndex;
+    public int lastLogTerm;
+    public boolean preVote;
 
     @Override
     public int actualSize() {
@@ -96,38 +96,6 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
         public VoteReq getResult() {
             return result;
         }
-    }
-
-    public int getCandidateId() {
-        return candidateId;
-    }
-
-    public void setCandidateId(int candidateId) {
-        this.candidateId = candidateId;
-    }
-
-    public long getLastLogIndex() {
-        return lastLogIndex;
-    }
-
-    public void setLastLogIndex(long lastLogIndex) {
-        this.lastLogIndex = lastLogIndex;
-    }
-
-    public int getLastLogTerm() {
-        return lastLogTerm;
-    }
-
-    public void setLastLogTerm(int lastLogTerm) {
-        this.lastLogTerm = lastLogTerm;
-    }
-
-    public boolean isPreVote() {
-        return preVote;
-    }
-
-    public void setPreVote(boolean preVote) {
-        this.preVote = preVote;
     }
 
 }

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
+import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
 
@@ -26,9 +27,9 @@ import java.nio.ByteBuffer;
  */
 //  uint32 term = 1;
 //  uint32 vote_granted = 2;
-public class VoteResp implements SimpleEncodable {
-    private int term;
-    private boolean voteGranted;
+public class VoteResp extends RaftRpcData implements SimpleEncodable {
+    // public int term;
+    public boolean voteGranted;
 
     @Override
     public int actualSize() {
@@ -62,21 +63,5 @@ public class VoteResp implements SimpleEncodable {
         public VoteResp getResult() {
             return result;
         }
-    }
-
-    public int getTerm() {
-        return term;
-    }
-
-    public void setTerm(int term) {
-        this.term = term;
-    }
-
-    public boolean isVoteGranted() {
-        return voteGranted;
-    }
-
-    public void setVoteGranted(boolean voteGranted) {
-        this.voteGranted = voteGranted;
     }
 }
