@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
+import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
 
@@ -30,12 +31,12 @@ import java.nio.ByteBuffer;
 //  uint32 append_code = 3;
 //  uint32 suggest_term = 4;
 //  fixed64 suggest_index = 5;
-public class AppendResp implements SimpleEncodable {
-    int term;
-    boolean success;
-    int appendCode;
-    int suggestTerm;
-    long suggestIndex;
+public class AppendResp extends RaftRpcData implements SimpleEncodable {
+    // public int term;
+    public boolean success;
+    public int appendCode;
+    public int suggestTerm;
+    public long suggestIndex;
 
     @Override
     public int actualSize() {
@@ -53,26 +54,6 @@ public class AppendResp implements SimpleEncodable {
         PbUtil.writeUnsignedInt32(buf, 3, appendCode);
         PbUtil.writeUnsignedInt32(buf, 4, suggestTerm);
         PbUtil.writeFix64(buf, 5, suggestIndex);
-    }
-
-    public int getTerm() {
-        return term;
-    }
-
-    public boolean isSuccess() {
-        return success;
-    }
-
-    public int getAppendCode() {
-        return appendCode;
-    }
-
-    public int getSuggestTerm() {
-        return suggestTerm;
-    }
-
-    public long getSuggestIndex() {
-        return suggestIndex;
     }
 
     // re-used
