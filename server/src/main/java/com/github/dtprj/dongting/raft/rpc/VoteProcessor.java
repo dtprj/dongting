@@ -63,8 +63,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private VoteFiberFrame(ReqInfoEx<VoteReq> reqInfo) {
             this.reqInfo = reqInfo;
-            this.raftStatus = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus();
-            this.voteReq = reqInfo.getReqFrame().getBody();
+            this.raftStatus = reqInfo.raftGroup.getGroupComponents().getRaftStatus();
+            this.voteReq = reqInfo.reqFrame.getBody();
         }
 
         @Override
@@ -72,7 +72,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             if (!MemberManager.validCandidate(raftStatus, voteReq.candidateId)) {
                 log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
                         voteReq.candidateId, voteReq.groupId,
-                        reqInfo.getReqContext().getDtChannel().getRemoteAddr());
+                        reqInfo.reqContext.getDtChannel().getRemoteAddr());
                 // don't write response
                 return Fiber.frameReturn();
             }
@@ -113,13 +113,13 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
         }
 
         private FrameCallResult updateStatusFile(boolean grant) {
-            StatusManager statusManager = reqInfo.getRaftGroup().getGroupComponents().getStatusManager();
+            StatusManager statusManager = reqInfo.raftGroup.getGroupComponents().getStatusManager();
             int expectTerm = raftStatus.getCurrentTerm();
 
             boolean notPreVoteAndGrant = !voteReq.preVote && grant;
             if (notPreVoteAndGrant) {
                 raftStatus.setVotedFor(voteReq.candidateId);
-                reqInfo.getRaftGroup().getGroupComponents().getVoteManager().cancelVote(
+                reqInfo.raftGroup.getGroupComponents().getVoteManager().cancelVote(
                         "vote for node " + voteReq.candidateId);
             }
             if (termUpdated || notPreVoteAndGrant) {

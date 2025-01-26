@@ -65,7 +65,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
      */
     @Override
     protected WritePacket doProcess(ReqInfo<KvReq> reqInfo) {
-        ReadPacket<KvReq> frame = reqInfo.getReqFrame();
+        ReadPacket<KvReq> frame = reqInfo.reqFrame;
         KvReq req = frame.getBody();
         if (req == null) {
             EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
@@ -95,11 +95,11 @@ public class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     private void doGet(ReqInfo<KvReq> reqInfo, KvReq req) {
-        reqInfo.getRaftGroup().leaseRead(reqInfo.getReqContext().getTimeout(), new FutureCallback<>() {
+        reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), new FutureCallback<>() {
             @Override
             public void success(Long result) {
                 try {
-                    DtKV dtKV = (DtKV) reqInfo.getRaftGroup().getStateMachine();
+                    DtKV dtKV = (DtKV) reqInfo.raftGroup.getStateMachine();
                     KvResult r = dtKV.get(new ByteArray(req.getKey()));
                     KvResp resp = new KvResp(Collections.singletonList(r));
                     EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
@@ -120,11 +120,11 @@ public class KvProcessor extends RaftProcessor<KvReq> {
 
     private void doList(ReqInfo<KvReq> reqInfo, KvReq req) {
 
-        reqInfo.getRaftGroup().leaseRead(reqInfo.getReqContext().getTimeout(), new FutureCallback<>() {
+        reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), new FutureCallback<>() {
             @Override
             public void success(Long result) {
                 try {
-                    DtKV dtKV = (DtKV) reqInfo.getRaftGroup().getStateMachine();
+                    DtKV dtKV = (DtKV) reqInfo.raftGroup.getStateMachine();
                     Pair<Integer, List<KvResult>> p = dtKV.list(req.getKey() == null ? null : new ByteArray(req.getKey()));
                     KvResp resp = new KvResp(p.getRight());
                     EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
@@ -144,8 +144,8 @@ public class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, Encodable header, Encodable body) {
-        RaftInput ri = new RaftInput(bizType, header, body, reqInfo.getReqContext().getTimeout(), false);
-        reqInfo.getRaftGroup().submitLinearTask(ri, new RC(reqInfo));
+        RaftInput ri = new RaftInput(bizType, header, body, reqInfo.reqContext.getTimeout(), false);
+        reqInfo.raftGroup.submitLinearTask(ri, new RC(reqInfo));
     }
 
     private class RC implements RaftCallback {

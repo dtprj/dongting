@@ -24,16 +24,11 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
  * @author huangli
  */
 public class ReqInfoEx<T> extends ReqInfo<T> {
-    private final RaftGroupImpl raftGroup;
+    public final RaftGroupImpl raftGroup;
 
     public ReqInfoEx(ReadPacket<T> reqFrame, ReqContext reqContext, RaftGroupImpl raftGroup) {
         super(reqFrame, reqContext, raftGroup);
         this.raftGroup = raftGroup;
-    }
-
-    @Override
-    public RaftGroupImpl getRaftGroup() {
-        return raftGroup;
     }
 
 }

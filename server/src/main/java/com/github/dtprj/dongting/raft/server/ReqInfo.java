@@ -22,9 +22,9 @@ import com.github.dtprj.dongting.net.ReqContext;
  * @author huangli
  */
 public class ReqInfo<T> {
-    private final ReadPacket<T> reqFrame;
-    private final ReqContext reqContext;
-    private final RaftGroup raftGroup;
+    public final ReadPacket<T> reqFrame;
+    public final ReqContext reqContext;
+    public final RaftGroup raftGroup;
 
     boolean invokeCleanUp;
 
@@ -34,15 +34,4 @@ public class ReqInfo<T> {
         this.raftGroup = raftGroup;
     }
 
-    public ReadPacket<T> getReqFrame() {
-        return reqFrame;
-    }
-
-    public ReqContext getReqContext() {
-        return reqContext;
-    }
-
-    public RaftGroup getRaftGroup() {
-        return raftGroup;
-    }
 }

@@ -108,14 +108,14 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
     }
 
     protected void writeResp(ReqInfo<?> reqInfo, WritePacket respFrame) {
-        ReqContext c = reqInfo.getReqContext();
-        c.getRespWriter().writeRespInBizThreads(reqInfo.getReqFrame(), respFrame, c.getTimeout());
+        ReqContext c = reqInfo.reqContext;
+        c.getRespWriter().writeRespInBizThreads(reqInfo.reqFrame, respFrame, c.getTimeout());
     }
 
     protected void writeErrorResp(ReqInfo<?> reqInfo, Throwable ex) {
         Throwable root = DtUtil.rootCause(ex);
         if (root instanceof RaftTimeoutException) {
-            ReadPacket<?> reqFrame = reqInfo.getReqFrame();
+            ReadPacket<?> reqFrame = reqInfo.reqFrame;
             log.warn("raft operation timeout: command={}, seq={}", reqFrame.getCommand(), reqFrame.getSeq());
             return;
         }

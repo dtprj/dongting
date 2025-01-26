@@ -41,7 +41,7 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPing> {
 
     @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<RaftPing> reqInfo) {
-        GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
+        GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
         SimpleWritePacket resp = RaftUtil.buildRaftPingPacket(gc.getServerConfig().getNodeId(), gc.getRaftStatus());
         resp.setRespCode(CmdCodes.SUCCESS);
         writeResp(reqInfo, resp);

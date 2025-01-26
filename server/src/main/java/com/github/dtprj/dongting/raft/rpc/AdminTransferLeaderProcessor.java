@@ -54,9 +54,9 @@ public class AdminTransferLeaderProcessor extends RaftSequenceProcessor<Transfer
 
     @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<TransferLeaderReq> reqInfo) {
-        ReadPacket<TransferLeaderReq> frame = reqInfo.getReqFrame();
+        ReadPacket<TransferLeaderReq> frame = reqInfo.reqFrame;
         TransferLeaderReq req = frame.getBody();
-        GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
+        GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.getRole() != RaftRole.leader) {
             log.error("not leader, groupId={}, role={}", req.groupId, raftStatus.getRole());
@@ -84,8 +84,8 @@ public class AdminTransferLeaderProcessor extends RaftSequenceProcessor<Transfer
             public FrameCallResult execute(Void input) {
                 log.info("admin transfer leader begin, groupId={}, old={}, new={}", req.groupId, req.oldLeaderId, req.newLeaderId);
                 FiberFuture<Void> fiberFuture = getFiberGroup().newFuture("admin transfer leader");
-                long timeout = reqInfo.getReqContext().getTimeout().getTimeout(TimeUnit.MILLISECONDS);
-                CompletableFuture<Void> f = reqInfo.getRaftGroup().transferLeadership(req.newLeaderId, timeout);
+                long timeout = reqInfo.reqContext.getTimeout().getTimeout(TimeUnit.MILLISECONDS);
+                CompletableFuture<Void> f = reqInfo.raftGroup.transferLeadership(req.newLeaderId, timeout);
                 f.whenComplete((v, ex) -> {
                     if (ex != null) {
                         fiberFuture.fireCompleteExceptionally(ex);

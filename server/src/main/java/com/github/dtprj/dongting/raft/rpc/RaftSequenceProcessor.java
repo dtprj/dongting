@@ -78,9 +78,9 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
                 if (o != null) {
                     invokeCleanReq(o);
                     EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
-                    wf.setMsg("raft group is stopped: " + o.getRaftGroup().getGroupId());
-                    o.getReqContext().getRespWriter().writeRespInBizThreads(
-                            o.getReqFrame(), wf, o.getReqContext().getTimeout());
+                    wf.setMsg("raft group is stopped: " + o.raftGroup.getGroupId());
+                    o.reqContext.getRespWriter().writeRespInBizThreads(
+                            o.reqFrame, wf, o.reqContext.getTimeout());
                     // should continue loop to take all pending tasks and release them
                     return Fiber.resume(null, this);
                 } else {
@@ -101,8 +101,8 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
                 EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
                 wf.setMsg(ex.toString());
                 log.error("uncaught exception in {}.", getClass().getSimpleName(), ex);
-                current.getReqContext().getRespWriter().writeRespInBizThreads(
-                        current.getReqFrame(), wf, current.getReqContext().getTimeout());
+                current.reqContext.getRespWriter().writeRespInBizThreads(
+                        current.reqFrame, wf, current.reqContext.getTimeout());
             }
             if (!isGroupShouldStopPlain()) {
                 log.error("restart processor fiber.");
@@ -115,10 +115,10 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
     @Override
     protected final WritePacket doProcess(ReqInfo<T> reqInfo) {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
-        FiberChannel<Object> c = rix.getRaftGroup().getGroupComponents().getProcessorChannels().get(typeId);
+        FiberChannel<Object> c = rix.raftGroup.getGroupComponents().getProcessorChannels().get(typeId);
         if (!c.fireOffer(reqInfo, true)) {
             invokeCleanReq(reqInfo);
-            log.error("fire task failed , maybe group is stopped: {}", reqInfo.getRaftGroup().getGroupId());
+            log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());
         }
         return null;
     }
