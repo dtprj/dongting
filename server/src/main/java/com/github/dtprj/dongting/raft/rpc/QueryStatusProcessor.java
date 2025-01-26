@@ -50,9 +50,9 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<Integer> reqInfo) {
         RaftStatusImpl raftStatus = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus();
         QueryStatusResp resp = new QueryStatusResp();
-        resp.setGroupId(reqInfo.getRaftGroup().getGroupId());
+        resp.groupId = reqInfo.getRaftGroup().getGroupId();
         resp.setLeaderId(raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().getNode().getNodeId());
-        resp.setTerm(raftStatus.getCurrentTerm());
+        resp.term = raftStatus.getCurrentTerm();
         resp.setCommitIndex(raftStatus.getCommitIndex());
         resp.setLastApplied(raftStatus.getLastApplied());
         resp.setLastLogIndex(raftStatus.getLastLogIndex());

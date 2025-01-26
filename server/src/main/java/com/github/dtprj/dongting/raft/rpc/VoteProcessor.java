@@ -44,7 +44,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
     @Override
     protected int getGroupId(ReadPacket<VoteReq> frame) {
-        return frame.getBody().getGroupId();
+        return frame.getBody().groupId;
     }
 
     @Override
@@ -71,7 +71,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
         public FrameCallResult execute(Void input) {
             if (!MemberManager.validCandidate(raftStatus, voteReq.getCandidateId())) {
                 log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
-                        voteReq.getCandidateId(), voteReq.getGroupId(),
+                        voteReq.getCandidateId(), voteReq.groupId,
                         reqInfo.getReqContext().getDtChannel().getRemoteAddr());
                 // don't write response
                 return Fiber.frameReturn();
@@ -79,8 +79,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             if (!logReceiveInfo) {
                 log.info("receive {} request from node {}. groupId={}, voteFor={}, reqTerm={}, currentTerm={}, " +
                                 "reqLastLogTerm={}, localLastLogTerm={}, reqIndex={}, localLastLogIndex={}",
-                        voteReq.isPreVote() ? "pre-vote" : "vote", voteReq.getCandidateId(), voteReq.getGroupId(),
-                        raftStatus.getVotedFor(), voteReq.getTerm(), raftStatus.getCurrentTerm(), voteReq.getLastLogTerm(),
+                        voteReq.isPreVote() ? "pre-vote" : "vote", voteReq.getCandidateId(), voteReq.groupId,
+                        raftStatus.getVotedFor(), voteReq.term, raftStatus.getCurrentTerm(), voteReq.getLastLogTerm(),
                         raftStatus.getLastLogTerm(), voteReq.getLastLogIndex(), raftStatus.getLastLogIndex());
                 logReceiveInfo = true;
             }
@@ -90,15 +90,15 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 log.warn("raft group is stopping. ignore vote/pre-vote request");
                 return Fiber.frameReturn();
             }
-            if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
+            if (voteReq.term > raftStatus.getCurrentTerm()) {
                 String msg = (voteReq.isPreVote() ? "pre-vote" : "vote") + " request term greater than local";
-                RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1, msg);
+                RaftUtil.incrTerm(voteReq.term, raftStatus, -1, msg);
                 termUpdated = true;
             }
             RaftUtil.resetElectTimer(raftStatus);
             if (raftStatus.isInstallSnapshot()) {
                 log.info("receive vote/preVote request during install snapshot. remoteId={}, group={}",
-                        voteReq.getCandidateId(), voteReq.getGroupId());
+                        voteReq.getCandidateId(), voteReq.groupId);
                 return updateStatusFile(false);
             } else {
                 if (!voteReq.isPreVote() && RaftUtil.writeNotFinished(raftStatus)) {
@@ -153,7 +153,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private boolean shouldGrant() {
             boolean result;
-            if (voteReq.getTerm() < raftStatus.getCurrentTerm()) {
+            if (voteReq.term < raftStatus.getCurrentTerm()) {
                 result = false;
             } else {
                 // pre-vote not save voteFor state, so not check it
@@ -176,8 +176,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             }
             log.info("{} grant check {}. candidateId={}, groupId={}, voteFor={}, reqTerm={}, currentTerm={}, " +
                             "reqLastLogTerm={}, localLastLogTerm={}, reqIndex={}, localLastLogIndex={}",
-                    voteReq.isPreVote() ? "pre-vote" : "vote", result, voteReq.getCandidateId(), voteReq.getGroupId(),
-                    raftStatus.getVotedFor(), voteReq.getTerm(), raftStatus.getCurrentTerm(), voteReq.getLastLogTerm(),
+                    voteReq.isPreVote() ? "pre-vote" : "vote", result, voteReq.getCandidateId(), voteReq.groupId,
+                    raftStatus.getVotedFor(), voteReq.term, raftStatus.getCurrentTerm(), voteReq.getLastLogTerm(),
                     raftStatus.getLastLogTerm(), voteReq.getLastLogIndex(), raftStatus.getLastLogIndex());
             return result;
         }

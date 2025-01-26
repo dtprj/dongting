@@ -82,7 +82,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         if (frame.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
             ReadPacket<AppendReq> f = (ReadPacket<AppendReq>) frame;
             AppendReq body = f.getBody();
-            return body == null ? -1 : body.getGroupId();
+            return body == null ? -1 : body.groupId;
         } else {
             ReadPacket<InstallSnapshotReq> f = (ReadPacket<InstallSnapshotReq>) frame;
             return f.getBody().groupId;
@@ -289,7 +289,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
     @Override
     protected int getRemoteTerm() {
-        return reqInfo.getReqFrame().getBody().getTerm();
+        return reqInfo.getReqFrame().getBody().term;
     }
 
     @Override
@@ -336,7 +336,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
         if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
             log.info("leader commitIndex less than local, maybe leader restart recently. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}, groupId={}",
-                    req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
+                    req.getLeaderId(), req.term, req.getLeaderCommit(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
         }
         if (req.getLeaderCommit() > raftStatus.getLeaderCommit()) {
             raftStatus.setLeaderCommit(req.getLeaderCommit());

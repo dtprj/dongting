@@ -166,8 +166,8 @@ public class VoteManager {
     private void sendRequest(RaftMember member, boolean preVote) {
         VoteReq req = new VoteReq();
         int currentTerm = raftStatus.getCurrentTerm();
-        req.setGroupId(groupId);
-        req.setTerm(currentTerm);
+        req.groupId = groupId;
+        req.term = currentTerm;
         req.setCandidateId(config.getNodeId());
         req.setLastLogIndex(raftStatus.getLastLogIndex());
         req.setLastLogTerm(raftStatus.getLastLogTerm());
@@ -353,14 +353,14 @@ public class VoteManager {
             int remoteId = remoteMember.getNode().getNodeId();
             if (ex != null) {
                 log.warn("{} rpc fail. groupId={}, term={}, remote={}, error={}", voteType,
-                        groupId, req.getTerm(), remoteId, ex.toString());
+                        groupId, req.term, remoteId, ex.toString());
                 // don't send more request for simplification
                 return Fiber.frameReturn();
             }
             int remoteTerm = resp.getTerm();
             if (remoteTerm < raftStatus.getCurrentTerm()) {
                 log.warn("receive outdated {} resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                        voteType, resp.getTerm(), req.getTerm(), remoteId, groupId);
+                        voteType, resp.getTerm(), req.term, remoteId, groupId);
                 return Fiber.frameReturn();
             }
             if (remoteTerm > raftStatus.getCurrentTerm()) {
@@ -373,12 +373,12 @@ public class VoteManager {
             if ((req.isPreVote() && r != RaftRole.follower && r != RaftRole.candidate) ||
                     (!req.isPreVote()) && r != RaftRole.candidate) {
                 log.warn("{} receive {} resp, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                        r, voteType, resp.getTerm(), req.getTerm(), remoteId, groupId);
+                        r, voteType, resp.getTerm(), req.term, remoteId, groupId);
                 return Fiber.frameReturn();
             }
             if (remoteId != config.getNodeId()) {
                 log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                        resp.isVoteGranted(), resp.getTerm(), req.getTerm(), remoteId, groupId);
+                        resp.isVoteGranted(), resp.getTerm(), req.term, remoteId, groupId);
             }
             if (resp.isVoteGranted()) {
                 if (isElectedAfterVote(remoteId, req.isPreVote())) {

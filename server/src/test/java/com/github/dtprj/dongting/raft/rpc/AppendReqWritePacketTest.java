@@ -145,8 +145,8 @@ public class AppendReqWritePacketTest {
     }
 
     private void check(AppendReqWritePacket f, AppendReq c) {
-        assertEquals(f.groupId, c.getGroupId());
-        assertEquals(f.term, c.getTerm());
+        assertEquals(f.groupId, c.groupId);
+        assertEquals(f.term, c.term);
         assertEquals(f.leaderId, c.getLeaderId());
         assertEquals(f.prevLogIndex, c.getPrevLogIndex());
         assertEquals(f.prevLogTerm, c.getPrevLogTerm());

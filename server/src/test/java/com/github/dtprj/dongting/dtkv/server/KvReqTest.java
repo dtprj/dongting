@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.codec.StrEncoder;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.config.DtKv;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.util.CodecTestUtil;
@@ -99,7 +98,7 @@ public class KvReqTest {
     }
 
     private void compare1(KvReq expect, DtKv.KvReq req) {
-        Assertions.assertEquals(expect.getGroupId(), req.getGroupId());
+        Assertions.assertEquals(expect.groupId, req.getGroupId());
         Assertions.assertEquals(new String(expect.getKey()), req.getKey());
         Assertions.assertEquals(((StrEncoder) expect.getValue()).getStr(), req.getValue().toStringUtf8());
         Assertions.assertEquals(((StrEncoder) expect.getExpectValue()).getStr(), req.getExpectValue().toStringUtf8());
@@ -111,13 +110,13 @@ public class KvReqTest {
     }
 
     private void compare2(KvReq expect, KvReq r) {
-        Assertions.assertEquals(expect.getGroupId(), r.getGroupId());
+        Assertions.assertEquals(expect.groupId, r.groupId);
         Assertions.assertArrayEquals(expect.getKey(), r.getKey());
-        Assertions.assertArrayEquals(((StrEncoder) expect.getValue()).getStr().getBytes(), ((ByteArray) r.getValue()).getData());
-        Assertions.assertArrayEquals(((StrEncoder) expect.getExpectValue()).getStr().getBytes(), ((ByteArray) r.getExpectValue()).getData());
+        Assertions.assertArrayEquals(((StrEncoder) expect.getValue()).getStr().getBytes(), r.getValue().getData());
+        Assertions.assertArrayEquals(((StrEncoder) expect.getExpectValue()).getStr().getBytes(), r.getExpectValue().getData());
         for (int i = 0; i < expect.getKeys().size(); i++) {
             Assertions.assertArrayEquals(expect.getKeys().get(i), r.getKeys().get(i));
-            Assertions.assertArrayEquals(((StrEncoder) expect.getValues().get(i)).getStr().getBytes(), ((ByteArray) r.getValues().get(i)).getData());
+            Assertions.assertArrayEquals(((StrEncoder) expect.getValues().get(i)).getStr().getBytes(), r.getValues().get(i).getData());
         }
     }
 
