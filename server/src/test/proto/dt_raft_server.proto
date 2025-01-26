@@ -121,3 +121,32 @@ message QueryStatusResp {
   repeated fixed32 prepared_members = 9[packed = false];
   repeated fixed32 prepared_observers = 10[packed = false];
 }
+
+// only use for admin commands, raft server use log replicate to perform config change
+message AdminPrepareConfigChangeReq {
+  uint32 group_id = 1;
+  repeated fixed32 members = 2[packed = false];
+  repeated fixed32 observers = 3[packed = false];
+  repeated fixed32 prepared_members = 4[packed = false];
+  repeated fixed32 prepared_observers = 5[packed = false];
+  repeated fixed32 new_members = 6[packed = false];
+  repeated fixed32 new_observers = 7[packed = false];
+}
+
+message AdminPrepareConfigChangeResp {
+  fixed64 prepare_index = 1;
+}
+
+message AdminCommitConfigChangeReq {
+  uint32 group_id = 1;
+  fixed64 prepare_index = 2;
+}
+
+// return EmptyBodyRespFrame
+
+message AdminAbortConfigChangeReq {
+  uint32 group_id = 1;
+  fixed64 prepare_index = 2;
+}
+
+// return EmptyBodyRespFrame

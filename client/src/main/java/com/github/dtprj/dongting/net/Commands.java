@@ -37,6 +37,10 @@ public interface Commands {
     int RAFT_ADMIN_TRANSFER_LEADER = 104; // from admin tool to old leader
     int RAFT_TRANSFER_LEADER = 105; // from old leader to new leader
     int RAFT_QUERY_STATUS = 106;
+    int RAFT_ADMIN_PREPARE_CHANGE = 107;
+    int RAFT_ADMIN_COMMIT_CHANGE = 108;
+    int RAFT_ADMIN_ABORT_CHANGE = 109;
+
 
     // 120 ~ 139 for dt kv
     int DTKV_REMOVE = 120;

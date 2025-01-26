@@ -52,6 +52,7 @@ import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
+import com.github.dtprj.dongting.raft.rpc.AdminConfigChangeProcessor;
 import com.github.dtprj.dongting.raft.rpc.AdminTransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
@@ -160,6 +161,10 @@ public class RaftServer extends AbstractLifeCircle {
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_TRANSFER_LEADER, new TransferLeaderProcessor(this));
         QueryStatusProcessor queryStatusProcessor = new QueryStatusProcessor(this);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_QUERY_STATUS, queryStatusProcessor);
+        AdminConfigChangeProcessor adminConfigChangeProcessor = new AdminConfigChangeProcessor(this);
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_ADMIN_PREPARE_CHANGE, adminConfigChangeProcessor);
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_ADMIN_COMMIT_CHANGE, adminConfigChangeProcessor);
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_ADMIN_ABORT_CHANGE, adminConfigChangeProcessor);
 
         if (serverConfig.getServicePort() > 0) {
             NioServerConfig serviceServerConfig = new NioServerConfig();
