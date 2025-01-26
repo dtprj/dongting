@@ -20,6 +20,7 @@ package com.github.dtprj.dongting.raft;
  */
 public abstract class RaftRpcData {
     public int groupId;
+    public int term;
 
     public int getGroupId() {
         return groupId;
@@ -27,5 +28,13 @@ public abstract class RaftRpcData {
 
     public void setGroupId(int groupId) {
         this.groupId = groupId;
+    }
+
+    public int getTerm() {
+        return term;
+    }
+
+    public void setTerm(int term) {
+        this.term = term;
     }
 }

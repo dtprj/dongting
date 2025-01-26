@@ -21,7 +21,7 @@ import java.util.Set;
 /**
  * @author huangli
  */
-public class RaftConfigRpcData extends RaftServerRpcData {
+public class RaftConfigRpcData extends RaftRpcData {
     public Set<Integer> members = new HashSet<>();
     public Set<Integer> observers = new HashSet<>();
     public Set<Integer> preparedMembers = new HashSet<>();

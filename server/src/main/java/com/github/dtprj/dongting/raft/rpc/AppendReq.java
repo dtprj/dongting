@@ -21,7 +21,7 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.RaftServerRpcData;
+import com.github.dtprj.dongting.raft.RaftRpcData;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -43,7 +43,7 @@ import java.util.function.Function;
 //  fixed64 leader_commit = 6;
 //  repeated LogItem entries = 7;
 //}
-public class AppendReq extends RaftServerRpcData {
+public class AppendReq extends RaftRpcData {
     private static final DtLog log = DtLogs.getLogger(AppendReq.class);
 
     // private int groupId;

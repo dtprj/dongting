@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
-import com.github.dtprj.dongting.raft.RaftServerRpcData;
+import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
 
@@ -31,7 +31,7 @@ import java.nio.ByteBuffer;
 //  fixed64 last_log_index = 4;
 //  uint32 last_log_term = 5;
 //  uint32 pre_vote = 6;
-public class VoteReq extends RaftServerRpcData implements SimpleEncodable {
+public class VoteReq extends RaftRpcData implements SimpleEncodable {
     // private int groupId;
     // private int term;
     private int candidateId;

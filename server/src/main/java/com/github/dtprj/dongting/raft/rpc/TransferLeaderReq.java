@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
-import com.github.dtprj.dongting.raft.RaftServerRpcData;
+import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
 
@@ -32,7 +32,7 @@ import java.nio.ByteBuffer;
 //uint32 new_leader_id = 4;
 //fixed64 log_index = 5; // not used in admin transfer leader request
 //}
-public class TransferLeaderReq extends RaftServerRpcData implements SimpleEncodable {
+public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
     // public int groupId;
     // public int term;
     public int oldLeaderId;
