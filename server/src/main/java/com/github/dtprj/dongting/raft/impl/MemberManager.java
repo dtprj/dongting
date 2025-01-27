@@ -324,7 +324,9 @@ public class MemberManager {
         return count;
     }
 
-    public FiberFrame<Void> leaderPrepareJointConsensus(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
+    public FiberFrame<Void> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers,
+                                                        Set<Integer> prepareMembers, Set<Integer> prepareObservers,
+                                                        Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
                                                         CompletableFuture<Long> f) {
         return new FiberFrame<>() {
             @Override
@@ -336,6 +338,14 @@ public class MemberManager {
 
             @Override
             public FrameCallResult execute(Void input) {
+                if (!raftStatus.getNodeIdOfMembers().equals(members)
+                        || !raftStatus.getNodeIdOfObservers().equals(observers)
+                        || !raftStatus.getNodeIdOfPreparedMembers().equals(prepareMembers)
+                        || !raftStatus.getNodeIdOfPreparedObservers().equals(prepareObservers)) {
+                    log.error("old members or observers not match, groupId={}", groupId);
+                    f.completeExceptionally(new RaftException("old members or observers not match"));
+                    return Fiber.frameReturn();
+                }
                 FiberFuture<Void> f = nodeManager.checkLeaderPrepare(newMemberNodes, newObserverNodes);
                 return f.await(this::afterCheck);
             }
