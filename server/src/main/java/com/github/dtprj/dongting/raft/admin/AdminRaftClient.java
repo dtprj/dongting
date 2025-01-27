@@ -16,18 +16,21 @@
 package com.github.dtprj.dongting.raft.admin;
 
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
+import com.github.dtprj.dongting.codec.PbLongCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
-import com.github.dtprj.dongting.raft.GroupInfo;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.rpc.AdminCommitOrAbortReq;
+import com.github.dtprj.dongting.raft.rpc.AdminPrepareConfigChangeReq;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -48,32 +51,73 @@ public class AdminRaftClient extends RaftClient {
             return CompletableFuture.failedFuture(new IllegalArgumentException(
                     "old and new leader id equals: " + oldLeader));
         }
-        return updateLeaderInfo(groupId).thenCompose(group -> transferLeader(group, oldLeader, newLeader, timeout));
+        return updateLeaderInfo(groupId).thenCompose(leaderGroup -> {
+            if (leaderGroup.getLeader().getNodeId() != oldLeader) {
+                throw new RaftException("old leader not match");
+            }
+            boolean foundNewLeader = false;
+            for (RaftNode n : leaderGroup.getServers()) {
+                if (n.getNodeId() == newLeader) {
+                    foundNewLeader = true;
+                    break;
+                }
+            }
+            if (!foundNewLeader) {
+                throw new RaftException("new leader not found is servers list: " + newLeader);
+            }
+            TransferLeaderReq req = new TransferLeaderReq();
+            req.groupId = leaderGroup.getGroupId();
+            req.oldLeaderId = oldLeader;
+            req.newLeaderId = newLeader;
+            SimpleWritePacket p = new SimpleWritePacket(req);
+            p.setCommand(Commands.RAFT_ADMIN_TRANSFER_LEADER);
+            DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
+            CompletableFuture<ReadPacket<Void>> f = new CompletableFuture<>();
+            nioClient.sendRequest(leaderGroup.getLeader().getPeer(), p, dc, timeout, RpcCallback.fromFuture(f));
+            return f.thenApply(rp -> null);
+        });
     }
 
-    private CompletableFuture<Void> transferLeader(GroupInfo group, int oldLeader, int newLeader, DtTime timeout) {
-        if (group.getLeader().getNodeId() != oldLeader) {
-            throw new RaftException("old leader not match");
-        }
-        boolean foundNewLeader = false;
-        for (RaftNode n : group.getServers()) {
-            if (n.getNodeId() == newLeader) {
-                foundNewLeader = true;
-                break;
-            }
-        }
-        if (!foundNewLeader) {
-            throw new RaftException("new leader not found is servers list: " + newLeader);
-        }
-        TransferLeaderReq req = new TransferLeaderReq();
-        req.groupId = group.getGroupId();
-        req.oldLeaderId = oldLeader;
-        req.newLeaderId = newLeader;
-        SimpleWritePacket p = new SimpleWritePacket(req);
-        p.setCommand(Commands.RAFT_ADMIN_TRANSFER_LEADER);
-        DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
-        CompletableFuture<ReadPacket<Void>> f = new CompletableFuture<>();
-        nioClient.sendRequest(group.getLeader().getPeer(), p, dc, timeout, RpcCallback.fromFuture(f));
-        return f.thenApply(rp -> null);
+    public CompletableFuture<Long> prepareConfigChange(int groupId, Set<Integer> members, Set<Integer> observers,
+                                                       Set<Integer> prepareMembers, Set<Integer> prepareObservers,
+                                                       Set<Integer> newMembers, Set<Integer> newObservers,
+                                                       DtTime timeout) {
+        AdminPrepareConfigChangeReq req = new AdminPrepareConfigChangeReq();
+        req.groupId = groupId;
+        req.members.addAll(members);
+        req.observers.addAll(observers);
+        req.preparedMembers.addAll(prepareMembers);
+        req.preparedObservers.addAll(prepareObservers);
+        req.newMembers.addAll(newMembers);
+        req.newObservers.addAll(newObservers);
+        SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_PREPARE_CHANGE, req);
+
+        DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;
+        CompletableFuture<Long> r = new CompletableFuture<>();
+        sendRequest(groupId, p, dc, timeout, RpcCallback.fromUnwrapFuture(r));
+        return r;
+    }
+
+    public CompletableFuture<Long> commitChange(int groupId, long prepareIndex, DtTime timeout) {
+        AdminCommitOrAbortReq req = new AdminCommitOrAbortReq();
+        req.groupId = groupId;
+        req.prepareIndex = prepareIndex;
+        SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_COMMIT_CHANGE, req);
+
+        DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;
+        CompletableFuture<Long> r = new CompletableFuture<>();
+        sendRequest(groupId, p, dc, timeout, RpcCallback.fromUnwrapFuture(r));
+        return r;
+    }
+
+    public CompletableFuture<Long> abortChange(int groupId, DtTime timeout) {
+        AdminCommitOrAbortReq req = new AdminCommitOrAbortReq();
+        req.groupId = groupId;
+        SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_ABORT_CHANGE, req);
+
+        DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;
+        CompletableFuture<Long> r = new CompletableFuture<>();
+        sendRequest(groupId, p, dc, timeout, RpcCallback.fromUnwrapFuture(r));
+        return r;
     }
 }

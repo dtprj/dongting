@@ -15,12 +15,13 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +35,7 @@ public class ConfigChangeTest extends ServerTestBase {
 
     @Test
     void test() throws Exception {
+        DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         String servers = "2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "2,3";
         ServerInfo s2 = createServer(2, servers, members, "");
@@ -48,7 +50,14 @@ public class ConfigChangeTest extends ServerTestBase {
         s3.raftServer.addNode(n4, 1000);
 
         ServerInfo follower = leader == s2 ? s3 : s2;
-        CompletableFuture<Long> f = leader.group.leaderPrepareJointConsensus(Set.of(2, 3, 4), new HashSet<>());
+
+        AdminRaftClient c = new AdminRaftClient();
+        c.start();
+        c.addOrUpdateGroup(groupId, "2,127.0.0.1:4002;3,127.0.0.1:4003");
+        c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
+
+        CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(), Set.of(),
+                Set.of(2, 3, 4), Set.of(), timeout);
         long prepareIndex = f.get(5, TimeUnit.SECONDS);
 
         put(leader, "k1", "v1"); // make follower apply the prepare operation as soon as possible
@@ -56,7 +65,7 @@ public class ConfigChangeTest extends ServerTestBase {
         TestUtil.waitUtil(() -> follower.group.getGroupComponents().getRaftStatus()
                 .getShareStatus().lastApplied >= prepareIndex);
 
-        f = leader.group.leaderCommitJointConsensus(prepareIndex);
+        f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
 
         ServerInfo s4 = createServer(4, "2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004", "2,3,4", "");

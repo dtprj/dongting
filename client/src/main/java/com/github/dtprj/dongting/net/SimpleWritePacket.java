@@ -31,6 +31,11 @@ public class SimpleWritePacket extends RetryableWritePacket {
         this.body = body;
     }
 
+    public SimpleWritePacket(int command, SimpleEncodable body) {
+        this.command = command;
+        this.body = body;
+    }
+
     @Override
     protected int calcActualBodySize() {
         return body == null ? 0 : body.actualSize();

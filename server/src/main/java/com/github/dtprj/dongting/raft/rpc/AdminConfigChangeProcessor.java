@@ -19,9 +19,8 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.PbLongWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -91,7 +90,7 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
                 writeErrorResp(reqInfo, ex);
             } else {
                 log.info("Admin {} config change success, groupId={}, resultIndex={}", type, rg.getGroupId(), index);
-                writeResp(reqInfo, new EmptyBodyRespPacket(CmdCodes.SUCCESS));
+                writeResp(reqInfo, new PbLongWritePacket(index));
             }
         });
         return null;

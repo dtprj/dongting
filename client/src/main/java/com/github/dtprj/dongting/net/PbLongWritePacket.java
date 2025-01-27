@@ -27,7 +27,11 @@ public class PbLongWritePacket extends SmallNoCopyWritePacket {
     private final long value;
 
     public PbLongWritePacket(int command, long value) {
-        setCommand(command);
+        this.command = command;
+        this.value = value;
+    }
+
+    public PbLongWritePacket(long value) {
         this.value = value;
     }
 

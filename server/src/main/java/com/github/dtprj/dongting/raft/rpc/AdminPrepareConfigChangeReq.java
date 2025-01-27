@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.codec.SimpleEncodable;
 import com.github.dtprj.dongting.raft.RaftConfigRpcData;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -41,8 +42,8 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
     }
      */
 
-    public Set<Integer> newMembers;
-    public Set<Integer> newObservers;
+    public Set<Integer> newMembers = new HashSet<>();
+    public Set<Integer> newObservers = new HashSet<>();
 
     public AdminPrepareConfigChangeReq() {
     }

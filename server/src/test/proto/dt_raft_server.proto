@@ -142,11 +142,15 @@ message AdminCommitConfigChangeReq {
   fixed64 prepare_index = 2;
 }
 
-// return EmptyBodyRespFrame
+message AdminCommitConfigChangeResp {
+  fixed64 commit_index = 1;
+}
 
 message AdminAbortConfigChangeReq {
   uint32 group_id = 1;
   fixed64 prepare_index = 2;
 }
 
-// return EmptyBodyRespFrame
+message AdminAbortConfigChangeResp {
+  fixed64 abort_index = 1;
+}

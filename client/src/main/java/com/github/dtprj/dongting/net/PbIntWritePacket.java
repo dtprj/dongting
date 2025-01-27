@@ -27,7 +27,11 @@ public class PbIntWritePacket extends SmallNoCopyWritePacket {
     private final int value;
 
     public PbIntWritePacket(int command, int value) {
-        setCommand(command);
+        this.command = command;
+        this.value = value;
+    }
+
+    public PbIntWritePacket(int value) {
         this.value = value;
     }
 

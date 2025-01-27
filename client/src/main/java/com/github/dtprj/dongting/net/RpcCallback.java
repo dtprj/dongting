@@ -26,6 +26,20 @@ import java.util.function.BiConsumer;
  */
 @SuppressWarnings("Convert2Diamond")
 public interface RpcCallback<T> extends FutureCallback<ReadPacket<T>> {
+    static <T> RpcCallback<T> fromUnwrapFuture(CompletableFuture<T> f) {
+        return new RpcCallback<T>() {
+            @Override
+            public void success(ReadPacket<T> result) {
+                f.complete(result.body);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        };
+    }
+
     static <T> RpcCallback<T> fromFuture(CompletableFuture<ReadPacket<T>> f) {
         return new RpcCallback<T>() {
             @Override
