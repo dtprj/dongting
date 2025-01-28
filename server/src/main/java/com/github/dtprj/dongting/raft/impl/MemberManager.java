@@ -229,33 +229,35 @@ public class MemberManager {
     private void processPingResult(RaftNodeEx raftNodeEx, RaftMember member,
                                    ReadPacket<RaftPing> rf, Throwable ex, int nodeEpochWhenStartPing) {
         member.setPinging(false);
-        if (ex != null) {
-            log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
-            setReady(member, false);
-        } else {
-            RaftPing ping = rf.getBody();
-            String s = null;
-            if (groupConfig.isStaticConfig()) {
-                s = checkRemoteConfig(ping);
-            }
-            if (s != null) {
-                log.error("raft ping static check fail: {}", s);
+        try {
+            if (ex != null) {
+                log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
                 setReady(member, false);
             } else {
-                NodeStatus currentNodeStatus = member.getNode().getStatus();
-                if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
-                    log.info("raft ping success, id={}, remote={}", ping.nodeId, raftNodeEx.getHostPort());
-                    setReady(member, true);
-                    member.setNodeEpoch(nodeEpochWhenStartPing);
-                    replicateManager.tryStartReplicateFibers();
-                } else {
-                    log.warn("raft ping success but current node status not match. "
-                                    + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",
-                            ping.nodeId, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
-                            currentNodeStatus.getEpoch(), nodeEpochWhenStartPing);
+                RaftPing ping = rf.getBody();
+                String s = checkRemoteConfig(ping);
+                if (s != null) {
+                    log.error("raft ping static check fail: {}", s);
                     setReady(member, false);
+                } else {
+                    NodeStatus currentNodeStatus = member.getNode().getStatus();
+                    if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
+                        log.info("raft ping success, id={}, remote={}", ping.nodeId, raftNodeEx.getHostPort());
+                        setReady(member, true);
+                        member.setNodeEpoch(nodeEpochWhenStartPing);
+                        replicateManager.tryStartReplicateFibers();
+                    } else {
+                        log.warn("raft ping success but current node status not match. "
+                                        + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",
+                                ping.nodeId, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
+                                currentNodeStatus.getEpoch(), nodeEpochWhenStartPing);
+                        setReady(member, false);
+                    }
                 }
             }
+        } catch (Exception e) {
+            log.error("process ping result error", e);
+            setReady(member, false);
         }
     }
 
@@ -277,21 +279,26 @@ public class MemberManager {
 
     private String checkRemoteConfig(String s, List<RaftMember> localServers, String remoteServers) {
         List<RaftNode> remotes = RaftNode.parseServers(remoteServers);
-        if (localServers.size() != remotes.size()) {
-            return s + " size not match, local=" + RaftNode.formatServers(localServers, RaftMember::getNode)
-                    + ", remote=" + remoteServers;
-        }
-        for (RaftNode rn : remotes) {
-            RaftMember localMember = null;
-            for (RaftMember m : localServers) {
-                if (m.getNode().getNodeId() == rn.getNodeId()) {
-                    localMember = m;
-                    break;
-                }
-            }
-            if (localMember == null || !localMember.getNode().getHostPort().equals(rn.getHostPort())) {
-                return s + " not match, local=" + RaftNode.formatServers(localServers, RaftMember::getNode)
+        int check = groupConfig.getRaftPingCheck();
+        if (check > 0) {
+            if (localServers.size() != remotes.size()) {
+                return s + " size not match, local=" + RaftNode.formatServers(localServers, RaftMember::getNode)
                         + ", remote=" + remoteServers;
+            }
+            for (RaftNode rn : remotes) {
+                RaftMember localMember = null;
+                for (RaftMember m : localServers) {
+                    if (m.getNode().getNodeId() == rn.getNodeId()) {
+                        localMember = m;
+                        break;
+                    }
+                }
+                boolean fail = localMember == null ||
+                        (check > 1 && !localMember.getNode().getHostPort().equals(rn.getHostPort()));
+                if (fail) {
+                    return s + " not match, local=" + RaftNode.formatServers(localServers, RaftMember::getNode)
+                            + ", remote=" + remoteServers;
+                }
             }
         }
         return null;

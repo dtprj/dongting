@@ -30,7 +30,7 @@ public class RaftGroupConfig {
     private String statusFile = "raft.status";
     private int[] ioRetryInterval = new int[]{100, 1000, 3000, 5000, 10000, 20000};
     private boolean syncForce = true;
-    private boolean staticConfig = true;
+    private int raftPingCheck = 0;
 
     private int maxReplicateItems = 50000;
     private long maxReplicateBytes = 16 * 1024 * 1024;
@@ -150,12 +150,12 @@ public class RaftGroupConfig {
         this.maxPendingTaskBytes = maxPendingTaskBytes;
     }
 
-    public boolean isStaticConfig() {
-        return staticConfig;
+    public int getRaftPingCheck() {
+        return raftPingCheck;
     }
 
-    public void setStaticConfig(boolean staticConfig) {
-        this.staticConfig = staticConfig;
+    public void setRaftPingCheck(int raftPingCheck) {
+        this.raftPingCheck = raftPingCheck;
     }
 
     public int getIdxCacheSize() {
