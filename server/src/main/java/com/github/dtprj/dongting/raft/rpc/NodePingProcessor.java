@@ -17,14 +17,15 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.net.WritePacket;
-
-import java.util.UUID;
+import com.github.dtprj.dongting.raft.impl.NodeManager;
 
 /**
  * @author huangli
@@ -32,18 +33,29 @@ import java.util.UUID;
 public class NodePingProcessor extends ReqProcessor<NodePing> {
 
     private final int selfNodeId;
-    private final UUID uuid;
+    private final NodeManager nodeManager;
 
-    public NodePingProcessor(int selfNodeId, UUID uuid) {
+    public NodePingProcessor(int selfNodeId, NodeManager nodeManager) {
         this.selfNodeId = selfNodeId;
-        this.uuid = uuid;
+        this.nodeManager = nodeManager;
     }
 
     @Override
     public WritePacket process(ReadPacket<NodePing> packet, ReqContext reqContext) {
-        SimpleWritePacket r = new SimpleWritePacket(new NodePing(selfNodeId, uuid));
-        r.setCommand(Commands.NODE_PING);
-        return r;
+        DtUtil.SCHEDULED_SERVICE.execute(() -> {
+            NodePing reqPing = packet.getBody();
+            WritePacket p;
+            if (!nodeManager.containsNode(reqPing.localNodeId)) {
+                p = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                p.setMsg("node not found: " + reqPing.localNodeId);
+            } else {
+                NodePing respPing = new NodePing(selfNodeId, reqPing.localNodeId, nodeManager.getUuid());
+                p = new SimpleWritePacket(respPing);
+                p.setRespCode(CmdCodes.SUCCESS);
+            }
+            reqContext.getRespWriter().writeRespInBizThreads(packet, p, reqContext.getTimeout());
+        });
+        return null;
     }
 
     @Override

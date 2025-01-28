@@ -69,7 +69,7 @@ public class NodeManagerTest {
         NioServer server = new NioServer(nioServerConfig);
         NodeManager nodeManager = new NodeManager(raftServerConfig, nodes, client, nodes.size());
         nodeManager.pingIntervalMillis = 1;
-        server.register(Commands.NODE_PING, new NodePingProcessor(nodeId, nodeManager.getUuid()));
+        server.register(Commands.NODE_PING, new NodePingProcessor(nodeId, nodeManager));
         server.start();
         client.start();
         client.waitStart();
@@ -134,13 +134,19 @@ public class NodeManagerTest {
         n1.nodeManager.removeNode(9).get();
         n1.nodeManager.removeNode(10000).get();
 
-        NodeInfo n4 = createManager(4, "2,4", "");
+        NodeInfo n4 = createManager(4, "1,2,3", "4");
         n4.nodeManager.start();
-        n4.nodeManager.getNodePingReadyFuture().get(5, TimeUnit.SECONDS);
-        waitUtil(() -> n2.nodeManager.currentReadyNodes == 3, DtUtil.SCHEDULED_SERVICE);
+
         n2.nodeManager.addNode(new RaftNode(4, new HostPort("127.0.0.1", 15204))).get();
+        n3.nodeManager.addNode(new RaftNode(4, new HostPort("127.0.0.1", 15204))).get();
         waitUtil(() -> n2.nodeManager.currentReadyNodes == 4, DtUtil.SCHEDULED_SERVICE);
-        waitUtil(() -> n2.nodeManager.getAllNodeIds().size() == 4, DtUtil.SCHEDULED_SERVICE);
+        waitUtil(() -> n3.nodeManager.currentReadyNodes == 4, DtUtil.SCHEDULED_SERVICE);
+
+        NodeInfo finalN1 = n1;
+        waitUtil(() -> finalN1.nodeManager.currentReadyNodes == 3, DtUtil.SCHEDULED_SERVICE);
+        waitUtil(() -> n2.nodeManager.currentReadyNodes == 4, DtUtil.SCHEDULED_SERVICE);
+        waitUtil(() -> n3.nodeManager.currentReadyNodes == 4, DtUtil.SCHEDULED_SERVICE);
+        waitUtil(() -> n4.nodeManager.currentReadyNodes == 3, DtUtil.SCHEDULED_SERVICE);
 
         closeManager(n1, n2, n3, n4);
     }

@@ -26,46 +26,52 @@ import java.util.UUID;
  * @author huangli
  */
 public class NodePing extends PbCallback<NodePing> implements SimpleEncodable {
-    public int nodeId;
+    public int localNodeId;
+    public int remoteNodeId;
     public long uuidHigh;
     public long uuidLow;
 
     public NodePing() {
     }
 
-    public NodePing(int nodeId, UUID uuid) {
-        this.nodeId = nodeId;
+    public NodePing(int localNodeId, int remoteNodeId, UUID uuid) {
+        this.localNodeId = localNodeId;
+        this.remoteNodeId = remoteNodeId;
         this.uuidHigh = uuid.getMostSignificantBits();
         this.uuidLow = uuid.getLeastSignificantBits();
     }
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateFix32Size(1, nodeId)
-                + PbUtil.accurateFix64Size(2, uuidHigh)
-                + PbUtil.accurateFix64Size(3, uuidLow);
+        return PbUtil.accurateUnsignedIntSize(1, localNodeId)
+                + PbUtil.accurateUnsignedIntSize(2, remoteNodeId)
+                + PbUtil.accurateFix64Size(3, uuidHigh)
+                + PbUtil.accurateFix64Size(4, uuidLow);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeFix32(buf, 1, nodeId);
-        PbUtil.writeFix64(buf, 2, uuidHigh);
-        PbUtil.writeFix64(buf, 3, uuidLow);
+        PbUtil.writeUnsignedInt32(buf, 1, localNodeId);
+        PbUtil.writeUnsignedInt32(buf, 2, remoteNodeId);
+        PbUtil.writeFix64(buf, 3, uuidHigh);
+        PbUtil.writeFix64(buf, 4, uuidLow);
     }
 
     @Override
-    public boolean readFix32(int index, int value) {
+    public boolean readVarNumber(int index, long value) {
         if (index == 1) {
-            this.nodeId = value;
+            this.localNodeId = (int) value;
+        } else if (index == 2) {
+            this.remoteNodeId = (int) value;
         }
         return true;
     }
 
     @Override
     public boolean readFix64(int index, long value) {
-        if (index == 2) {
+        if (index == 3) {
             this.uuidHigh = value;
-        } else if (index == 3) {
+        } else if (index == 4) {
             this.uuidLow = value;
         }
         return true;

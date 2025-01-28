@@ -108,14 +108,11 @@ public class NodeManager extends AbstractLifeCircle {
         allRaftNodesOnlyForInit = null;
 
         for (CompletableFuture<RaftNodeEx> f : futures) {
-            RaftNodeEx node = f.join();
-            if (node.isSelf()) {
-                if (config.isCheckSelf()) {
-                    doCheckSelf(node);
-                }
-            }
             RaftNodeEx nodeEx = f.join();
             allNodesEx.put(nodeEx.getNodeId(), nodeEx);
+            if (nodeEx.isSelf() && config.isCheckSelf()) {
+                doCheckSelf(nodeEx);
+            }
         }
 
         raftGroups.forEach((groupId, g) -> {
@@ -163,7 +160,7 @@ public class NodeManager extends AbstractLifeCircle {
         nodeEx.setPinging(true);
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, uuid));
+        SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, nodeEx.getNodeId(), uuid));
         packet.setCommand(Commands.NODE_PING);
         CompletableFuture<ReadPacket<NodePing>> f = new CompletableFuture<>();
         client.sendRequest(nodeEx.getPeer(), packet, ctx -> ctx.toDecoderCallback(new NodePing()),
@@ -176,14 +173,14 @@ public class NodeManager extends AbstractLifeCircle {
 
     // run in io thread
     private void whenRpcFinish(ReadPacket<NodePing> rf, RaftNodeEx nodeEx) {
-        NodePing callback = rf.getBody();
-        if (nodeEx.getNodeId() != callback.nodeId) {
-            String msg = "config fail: node id not match. expect " + nodeEx.getNodeId() + ", but " + callback.nodeId;
+        NodePing np = rf.getBody();
+        if (nodeEx.getNodeId() != np.localNodeId) {
+            String msg = "config fail: node id not match. expect " + nodeEx.getNodeId() + ", but " + np.localNodeId;
             log.error(msg);
             throw new RaftException(msg);
         }
-        boolean uuidMatch = uuid.getMostSignificantBits() == callback.uuidHigh &&
-                uuid.getLeastSignificantBits() == callback.uuidLow;
+        boolean uuidMatch = uuid.getMostSignificantBits() == np.uuidHigh &&
+                uuid.getLeastSignificantBits() == np.uuidLow;
         if (nodeEx.isSelf()) {
             if (!uuidMatch) {
                 String msg = "config fail: self node uuid not match";
@@ -366,5 +363,10 @@ public class NodeManager extends AbstractLifeCircle {
             ids.add(nodeId);
         });
         return ids;
+    }
+
+    // should access in schedule thread
+    public boolean containsNode(int nodeId) {
+        return allNodesEx.get(nodeId) != null;
     }
 }
