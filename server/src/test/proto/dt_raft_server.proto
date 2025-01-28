@@ -24,8 +24,8 @@ message NodePing {
 }
 
 message RaftPing {
-  fixed32 group_id = 1;
-  fixed32 node_id = 2;
+  uint32 group_id = 1;
+  uint32 node_id = 2;
   string servers = 3;
   string observers = 4;
   string prepared_members = 5;

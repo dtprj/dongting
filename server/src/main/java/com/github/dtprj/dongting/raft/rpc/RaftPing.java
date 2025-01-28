@@ -33,11 +33,11 @@ public class RaftPing extends PbCallback<RaftPing> implements SimpleEncodable {
     public String preparedObservers;
 
     @Override
-    public boolean readFix32(int index, int value) {
+    public boolean readVarNumber(int index, long value) {
         if (index == 1) {
-            this.groupId = value;
+            this.groupId = (int) value;
         } else if (index == 2) {
-            this.nodeId = value;
+            this.nodeId = (int) value;
         }
         return true;
     }
@@ -58,8 +58,8 @@ public class RaftPing extends PbCallback<RaftPing> implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        int size = PbUtil.accurateFix32Size(1, groupId);
-        size += PbUtil.accurateFix32Size(2, nodeId);
+        int size = PbUtil.accurateUnsignedIntSize(1, groupId);
+        size += PbUtil.accurateUnsignedIntSize(2, nodeId);
         size += PbUtil.accurateStrSizeAscii(3, members);
         size += PbUtil.accurateStrSizeAscii(4, observers);
         size += PbUtil.accurateStrSizeAscii(5, preparedMembers);
@@ -69,8 +69,8 @@ public class RaftPing extends PbCallback<RaftPing> implements SimpleEncodable {
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeFix32(buf, 1, groupId);
-        PbUtil.writeFix32(buf, 2, nodeId);
+        PbUtil.writeUnsignedInt32(buf, 1, groupId);
+        PbUtil.writeUnsignedInt32(buf, 2, nodeId);
         PbUtil.writeAscii(buf, 3, members);
         PbUtil.writeAscii(buf, 4, observers);
         PbUtil.writeAscii(buf, 5, preparedMembers);

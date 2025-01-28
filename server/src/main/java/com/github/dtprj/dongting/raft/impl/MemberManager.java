@@ -234,32 +234,26 @@ public class MemberManager {
             setReady(member, false);
         } else {
             RaftPing ping = rf.getBody();
-            if (ping.nodeId != raftNodeEx.getNodeId() || ping.groupId != groupId) {
-                log.error("raft ping error, groupId or nodeId not found, groupId={}, remote={}",
-                        groupId, raftNodeEx.getHostPort());
+            String s = null;
+            if (groupConfig.isStaticConfig()) {
+                s = checkRemoteConfig(ping);
+            }
+            if (s != null) {
+                log.error("raft ping static check fail: {}", s);
                 setReady(member, false);
             } else {
-                String s = null;
-                if (groupConfig.isStaticConfig()) {
-                    s = checkRemoteConfig(ping);
-                }
-                if (s != null) {
-                    log.error("raft ping static check fail: {}", s);
-                    setReady(member, false);
+                NodeStatus currentNodeStatus = member.getNode().getStatus();
+                if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
+                    log.info("raft ping success, id={}, remote={}", ping.nodeId, raftNodeEx.getHostPort());
+                    setReady(member, true);
+                    member.setNodeEpoch(nodeEpochWhenStartPing);
+                    replicateManager.tryStartReplicateFibers();
                 } else {
-                    NodeStatus currentNodeStatus = member.getNode().getStatus();
-                    if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
-                        log.info("raft ping success, id={}, remote={}", ping.nodeId, raftNodeEx.getHostPort());
-                        setReady(member, true);
-                        member.setNodeEpoch(nodeEpochWhenStartPing);
-                        replicateManager.tryStartReplicateFibers();
-                    } else {
-                        log.warn("raft ping success but current node status not match. "
-                                        + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",
-                                ping.nodeId, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
-                                currentNodeStatus.getEpoch(), nodeEpochWhenStartPing);
-                        setReady(member, false);
-                    }
+                    log.warn("raft ping success but current node status not match. "
+                                    + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",
+                            ping.nodeId, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
+                            currentNodeStatus.getEpoch(), nodeEpochWhenStartPing);
+                    setReady(member, false);
                 }
             }
         }
