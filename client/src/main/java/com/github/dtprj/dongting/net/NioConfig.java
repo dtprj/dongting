@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.common.ConfigBase;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 
@@ -26,11 +27,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public abstract class NioConfig {
-    // use as fence
-    private volatile int version = 1;
-    @SuppressWarnings("unused")
-    private int versionHelper;
+public abstract class NioConfig extends ConfigBase {
 
     private int bizThreads;
     private String name;
@@ -196,11 +193,4 @@ public abstract class NioConfig {
         this.serverHint = serverHint;
     }
 
-    public void readFence() {
-        versionHelper += version;
-    }
-
-    public synchronized void writeFence() {
-        version++;
-    }
 }
