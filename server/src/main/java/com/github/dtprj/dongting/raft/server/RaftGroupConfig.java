@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.ConfigBase;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 
@@ -22,7 +23,7 @@ import com.github.dtprj.dongting.common.PerfCallback;
  * @author huangli
  */
 @SuppressWarnings("unused")
-public class RaftGroupConfig {
+public class RaftGroupConfig extends ConfigBase {
     private final int groupId;
     private final String nodeIdOfMembers;
     private final String nodeIdOfObservers;
@@ -31,6 +32,7 @@ public class RaftGroupConfig {
     private int[] ioRetryInterval = new int[]{100, 1000, 3000, 5000, 10000, 20000};
     private boolean syncForce = true;
     private int raftPingCheck = 0;
+    private boolean disableConfigChange;
 
     private int maxReplicateItems = 50000;
     private long maxReplicateBytes = 16 * 1024 * 1024;
@@ -244,5 +246,13 @@ public class RaftGroupConfig {
 
     public void setSaveSnapshotWhenClose(boolean saveSnapshotWhenClose) {
         this.saveSnapshotWhenClose = saveSnapshotWhenClose;
+    }
+
+    public boolean isDisableConfigChange() {
+        return disableConfigChange;
+    }
+
+    public void setDisableConfigChange(boolean disableConfigChange) {
+        this.disableConfigChange = disableConfigChange;
     }
 }

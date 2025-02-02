@@ -674,6 +674,11 @@ public class MemberManager {
 
         @Override
         public FrameCallResult execute(Void v) {
+            groupConfig.readFence();
+            if (groupConfig.isDisableConfigChange()) {
+                log.warn("ignore apply config change, groupId={}", groupId);
+                return Fiber.frameReturn();
+            }
             if (raftStatus.getNodeIdOfMembers().equals(newMembers)
                     && raftStatus.getNodeIdOfObservers().equals(observerIds)
                     && raftStatus.getNodeIdOfPreparedMembers().equals(preparedMemberIds)
