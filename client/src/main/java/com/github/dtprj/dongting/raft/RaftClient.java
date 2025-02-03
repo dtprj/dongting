@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -55,9 +54,9 @@ public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
     protected final NioClient nioClient;
     // key is nodeId
-    private final IntObjMap<RaftNode> allNodes = new IntObjMap<>();
+    protected final ConcurrentHashMap<Integer, RaftNode> allNodes = new ConcurrentHashMap<>();
     // key is groupId
-    private final ConcurrentHashMap<Integer, GroupInfo> groups = new ConcurrentHashMap<>();
+    protected final ConcurrentHashMap<Integer, GroupInfo> groups = new ConcurrentHashMap<>();
 
     private final ReentrantLock lock = new ReentrantLock();
     private long nextEpoch = 0;

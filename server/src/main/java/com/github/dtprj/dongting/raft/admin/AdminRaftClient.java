@@ -18,11 +18,14 @@ package com.github.dtprj.dongting.raft.admin;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.PbLongCallback;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
+import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
@@ -119,5 +122,17 @@ public class AdminRaftClient extends RaftClient {
         CompletableFuture<Long> r = new CompletableFuture<>();
         sendRequest(groupId, p, dc, timeout, RpcCallback.fromUnwrapFuture(r));
         return r;
+    }
+
+    public CompletableFuture<QueryStatusResp> queryRaftServerStatus(int nodeId, int groupId, DtTime timeout) {
+        RaftNode n = allNodes.get(nodeId);
+        if (n == null) {
+            return DtUtil.failedFuture(new RaftException("node not found" + nodeId));
+        }
+        PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
+        CompletableFuture<QueryStatusResp> f = new CompletableFuture<>();
+        RpcCallback<QueryStatusResp> callback = RpcCallback.fromUnwrapFuture(f);
+        nioClient.sendRequest(n.getPeer(), req, QueryStatusResp.DECODER, timeout, callback);
+        return f;
     }
 }
