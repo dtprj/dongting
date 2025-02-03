@@ -22,8 +22,6 @@ import com.github.dtprj.dongting.codec.SimpleEncodable;
 import com.github.dtprj.dongting.raft.RaftConfigRpcData;
 
 import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * @author huangli
@@ -37,13 +35,8 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
         repeated fixed32 observers = 3[packed = false];
         repeated fixed32 prepared_members = 4[packed = false];
         repeated fixed32 prepared_observers = 5[packed = false];
-        repeated fixed32 new_members = 6[packed = false];
-        repeated fixed32 new_observers = 7[packed = false];
     }
      */
-
-    public Set<Integer> newMembers = new HashSet<>();
-    public Set<Integer> newObservers = new HashSet<>();
 
     public AdminPrepareConfigChangeReq() {
     }
@@ -54,9 +47,7 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
                 + PbUtil.accurateFix32Size(2, members)
                 + PbUtil.accurateFix32Size(3, observers)
                 + PbUtil.accurateFix32Size(4, preparedMembers)
-                + PbUtil.accurateFix32Size(5, preparedObservers)
-                + PbUtil.accurateFix32Size(6, newMembers)
-                + PbUtil.accurateFix32Size(7, newObservers);
+                + PbUtil.accurateFix32Size(5, preparedObservers);
     }
 
     @Override
@@ -66,8 +57,6 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
         PbUtil.writeFix32(buf, 3, observers);
         PbUtil.writeFix32(buf, 4, preparedMembers);
         PbUtil.writeFix32(buf, 5, preparedObservers);
-        PbUtil.writeFix32(buf, 6, newMembers);
-        PbUtil.writeFix32(buf, 7, newObservers);
     }
 
     static final class Callback extends PbCallback<AdminPrepareConfigChangeReq> {
@@ -100,12 +89,6 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
                     break;
                 case 5:
                     req.preparedObservers.add(value);
-                    break;
-                case 6:
-                    req.newMembers.add(value);
-                    break;
-                case 7:
-                    req.newObservers.add(value);
                     break;
             }
             return true;

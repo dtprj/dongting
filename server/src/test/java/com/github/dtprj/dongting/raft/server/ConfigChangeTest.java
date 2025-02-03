@@ -56,7 +56,7 @@ public class ConfigChangeTest extends ServerTestBase {
         c.addOrUpdateGroup(groupId, "2,127.0.0.1:4002;3,127.0.0.1:4003");
         c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
 
-        CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(), Set.of(),
+        CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(),
                 Set.of(2, 3, 4), Set.of(), timeout);
         long prepareIndex = f.get(5, TimeUnit.SECONDS);
 

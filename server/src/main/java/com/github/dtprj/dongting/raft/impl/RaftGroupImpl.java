@@ -215,21 +215,19 @@ public class RaftGroupImpl extends RaftGroup {
 
     @Override
     public CompletableFuture<Long> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers,
-                                                               Set<Integer> prepareMembers, Set<Integer> prepareObservers,
-                                                               Set<Integer> newMembers, Set<Integer> newObservers) {
-        if (newMembers.isEmpty()) {
-            throw new RaftException("newMembers are empty");
+                                                               Set<Integer> preparedMembers, Set<Integer> prepareObservers) {
+        if (preparedMembers.isEmpty()) {
+            throw new RaftException("preparedMembers are empty");
         }
         checkStatus();
-        for (int nodeId : newMembers) {
-            if (newObservers.contains(nodeId)) {
+        for (int nodeId : preparedMembers) {
+            if (prepareObservers.contains(nodeId)) {
                 log.error("node is both member and observer: nodeId={}, groupId={}", nodeId, groupId);
                 throw new RaftException("node is both member and observer: " + nodeId);
             }
         }
         CompletableFuture<Long> f = new CompletableFuture<>();
-        FiberFrame<Void> ff = gc.getMemberManager().leaderPrepareJointConsensus(members, observers,
-                prepareMembers, prepareObservers, newMembers, newObservers, f);
+        FiberFrame<Void> ff = gc.getMemberManager().leaderPrepareJointConsensus(members, observers, preparedMembers, prepareObservers, f);
         gc.getFiberGroup().fireFiber("leaderPrepareJointConsensus", ff);
         return f;
     }

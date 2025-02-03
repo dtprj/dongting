@@ -83,7 +83,6 @@ public class AdminRaftClient extends RaftClient {
 
     public CompletableFuture<Long> prepareConfigChange(int groupId, Set<Integer> members, Set<Integer> observers,
                                                        Set<Integer> prepareMembers, Set<Integer> prepareObservers,
-                                                       Set<Integer> newMembers, Set<Integer> newObservers,
                                                        DtTime timeout) {
         AdminPrepareConfigChangeReq req = new AdminPrepareConfigChangeReq();
         req.groupId = groupId;
@@ -91,8 +90,6 @@ public class AdminRaftClient extends RaftClient {
         req.observers.addAll(observers);
         req.preparedMembers.addAll(prepareMembers);
         req.preparedObservers.addAll(prepareObservers);
-        req.newMembers.addAll(newMembers);
-        req.newObservers.addAll(newObservers);
         SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_PREPARE_CHANGE, req);
 
         DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;

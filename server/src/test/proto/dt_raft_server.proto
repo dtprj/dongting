@@ -130,8 +130,6 @@ message AdminPrepareConfigChangeReq {
   repeated fixed32 observers = 3[packed = false];
   repeated fixed32 prepared_members = 4[packed = false];
   repeated fixed32 prepared_observers = 5[packed = false];
-  repeated fixed32 new_members = 6[packed = false];
-  repeated fixed32 new_observers = 7[packed = false];
 }
 
 message AdminPrepareConfigChangeResp {
