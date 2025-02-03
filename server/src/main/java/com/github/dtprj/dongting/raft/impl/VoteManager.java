@@ -346,9 +346,6 @@ public class VoteManager {
                 cancelVote("stop");
                 return Fiber.frameReturn();
             }
-            if (voteCheckFail(voteIdOfRequest)) {
-                return Fiber.frameReturn();
-            }
             String voteType = req.preVote ? "pre-vote" : "vote";
             int remoteId = remoteMember.getNode().getNodeId();
             if (ex != null) {
@@ -357,6 +354,10 @@ public class VoteManager {
                 // don't send more request for simplification
                 return Fiber.frameReturn();
             }
+            if (voteCheckFail(voteIdOfRequest)) {
+                return Fiber.frameReturn();
+            }
+
             int remoteTerm = resp.term;
             if (remoteTerm < raftStatus.getCurrentTerm()) {
                 log.warn("receive outdated {} resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
