@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
@@ -73,7 +74,9 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
                         voteReq.candidateId, voteReq.groupId,
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                // don't write response
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                resp.setMsg("receive vote request from unknown member");
+                writeResp(reqInfo, resp);
                 return Fiber.frameReturn();
             }
             if (!logReceiveInfo) {
@@ -88,6 +91,9 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 // RaftSequenceProcessor checked, however the fiber may suspend to for wait write finish,
                 // the stop flag may be changed, so we should re-check it
                 log.warn("raft group is stopping. ignore vote/pre-vote request");
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
+                resp.setMsg("raft group is stopping");
+                writeResp(reqInfo, resp);
                 return Fiber.frameReturn();
             }
             if (voteReq.term > raftStatus.getCurrentTerm()) {
@@ -95,7 +101,6 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 RaftUtil.incrTerm(voteReq.term, raftStatus, -1, msg);
                 termUpdated = true;
             }
-            RaftUtil.resetElectTimer(raftStatus);
             if (raftStatus.isInstallSnapshot()) {
                 log.info("receive vote/preVote request during install snapshot. remoteId={}, group={}",
                         voteReq.candidateId, voteReq.groupId);
@@ -118,6 +123,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
             boolean notPreVoteAndGrant = !voteReq.preVote && grant;
             if (notPreVoteAndGrant) {
+                RaftUtil.resetElectTimer(raftStatus);
                 raftStatus.setVotedFor(voteReq.candidateId);
                 reqInfo.raftGroup.getGroupComponents().getVoteManager().cancelVote(
                         "vote for node " + voteReq.candidateId);
@@ -126,7 +132,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 statusManager.persistAsync(notPreVoteAndGrant);
             }
             if (notPreVoteAndGrant) {
-                return statusManager.waitUpdateFinish(v -> afterStatusFileUpdated(expectTerm, grant));
+                return statusManager.waitUpdateFinish(v -> afterStatusFileUpdated(expectTerm, true));
             } else {
                 return afterStatusFileUpdated(expectTerm, grant);
             }
@@ -138,7 +144,6 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         expectTerm, raftStatus.getCurrentTerm());
                 return Fiber.frameReturn();
             }
-            RaftUtil.resetElectTimer(raftStatus);
 
             VoteResp resp = new VoteResp();
             resp.voteGranted = grant;
