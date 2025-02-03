@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
-import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
@@ -43,13 +42,11 @@ public class ConfigChangeTest extends ServerTestBase {
         waitStart(s2);
         waitStart(s3);
 
-        ServerInfo leader = waitLeaderElectAndGetLeaderId(s2, s3);
+        waitLeaderElectAndGetLeaderId(s2, s3);
 
         RaftNode n4 = new RaftNode(4, new HostPort("127.0.0.1", 4004));
         s2.raftServer.addNode(n4, 1000);
         s3.raftServer.addNode(n4, 1000);
-
-        ServerInfo follower = leader == s2 ? s3 : s2;
 
         AdminRaftClient c = new AdminRaftClient();
         c.start();
@@ -59,11 +56,6 @@ public class ConfigChangeTest extends ServerTestBase {
         CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(),
                 Set.of(2, 3, 4), Set.of(), timeout);
         long prepareIndex = f.get(5, TimeUnit.SECONDS);
-
-        put(leader, "k1", "v1"); // make follower apply the prepare operation as soon as possible
-        // commit will check follower apply to prepareIndex
-        TestUtil.waitUtil(() -> follower.group.getGroupComponents().getRaftStatus()
-                .getShareStatus().lastApplied >= prepareIndex);
 
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);

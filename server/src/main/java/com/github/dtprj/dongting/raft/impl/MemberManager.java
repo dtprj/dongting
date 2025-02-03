@@ -520,8 +520,8 @@ public class MemberManager {
                         (prepareQuorum > 0 && preparedMemberNotReadyCount >= prepareQuorum)) {
                     log.error("members prepare status check failed, groupId={}, memberNotReadyCount={}, preparedMemberNotReadyCount={}",
                             groupId, memberNotReadyCount, preparedMemberNotReadyCount);
-                    finalFuture.completeExceptionally(new RaftException("members prepare status check failed:"
-                            + memberNotReadyCount + "," + preparedMemberNotReadyCount));
+                    finalFuture.completeExceptionally(new RaftException("members prepare status check failed:memberNotReadyCount="
+                            + memberNotReadyCount + ",preparedMemberNotReadyCount=" + preparedMemberNotReadyCount));
                 }
             } catch (Throwable e) {
                 log.error("check prepare status error", e);
@@ -576,7 +576,18 @@ public class MemberManager {
         gc.getLinearTaskRunner().submitRaftTaskInBizThread(type, input, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {
-                f.complete(raftIndex);
+                if (type == LogItem.TYPE_PREPARE_CONFIG_CHANGE) {
+                    // When prepareIndex applied, the prepared member may still not apply to prepareIndex (the commit
+                    // manager does not check prepare members since they are not active).
+                    // If we call commit config change immediately after prepareIndex applied, the prepareIndex
+                    // check will fail, so we issue a heartbeat and wait to prepareIndex + 1 to be applied.
+                    gc.getLinearTaskRunner().issueHeartBeat();
+                    Fiber fiber = new Fiber("finishPrepareFuture", groupConfig.getFiberGroup(),
+                            finishPrepareFuture(f, raftIndex));
+                    fiber.start();
+                } else {
+                    f.complete(raftIndex);
+                }
             }
 
             @Override
@@ -584,6 +595,19 @@ public class MemberManager {
                 f.completeExceptionally(ex);
             }
         });
+    }
+
+    private FiberFrame<Void> finishPrepareFuture(CompletableFuture<Long> f, long prepareIndex) {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                if (raftStatus.getLastApplied() < prepareIndex + 1) {
+                    return gc.getApplyManager().applyFinishCond.await(100, this);
+                }
+                f.complete(prepareIndex);
+                return Fiber.frameReturn();
+            }
+        };
     }
 
     private RaftMember findExistMember(int nodeId) {

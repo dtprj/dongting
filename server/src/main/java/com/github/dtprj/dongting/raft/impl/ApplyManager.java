@@ -65,10 +65,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     private RaftLog raftLog;
     private StateMachine stateMachine;
 
-    private FiberCondition needApplyCond;
+    private final FiberCondition needApplyCond;
     private boolean waitApply;
-    private FiberCondition applyFinishCond;
-    private FiberCondition applyMonitorCond;
+    final FiberCondition applyFinishCond;
+    private final FiberCondition applyMonitorCond;
     private final LinkedList<RaftTask> heartBeatQueue = new LinkedList<>();
 
     private long initCommitIndex;
@@ -89,6 +89,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         this.fiberGroup = gc.getFiberGroup();
         this.perfCallback = gc.getGroupConfig().getPerfCallback();
         this.waitReadyQueue = new PriorityQueue<>(this);
+        this.needApplyCond = fiberGroup.newCondition("needApply");
+        this.applyFinishCond = fiberGroup.newCondition("applyFinish");
+        this.applyMonitorCond = fiberGroup.newCondition("applyMonitor");
     }
 
     @Override
@@ -103,9 +106,6 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     public void init(FiberGroup fiberGroup) {
-        this.needApplyCond = fiberGroup.newCondition("needApply");
-        this.applyFinishCond = fiberGroup.newCondition("applyFinish");
-        this.applyMonitorCond = fiberGroup.newCondition("applyMonitor");
         this.initCommitIndex = raftStatus.getCommitIndex();
         startApplyFiber(fiberGroup);
         new Fiber("waitGroupReadyTimeout", fiberGroup, new WaitGroupReadyTimeoutFrame(), true).start();
