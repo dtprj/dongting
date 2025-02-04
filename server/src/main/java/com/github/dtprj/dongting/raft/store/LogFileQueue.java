@@ -135,7 +135,7 @@ class LogFileQueue extends FileQueue {
                 writePos = r.getRight();
                 // loop
                 i++;
-                return execute(null);
+                return Fiber.resume(null, this);
             }
 
             private FrameCallResult finish() {

@@ -99,7 +99,7 @@ public class RetryFrame<O> extends FiberFrame<O> {
             throw lastSubFrameEx;
         }
         retryCount++;
-        return execute(null);
+        return Fiber.resume(null, this);
     }
 
     @Override
