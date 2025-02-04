@@ -720,10 +720,10 @@ public class MemberManager {
             List<RaftNodeEx> preparedMemberNodes = result.get(2);
             List<RaftNodeEx> preparedObserverNodes = result.get(3);
 
-            List<RaftMember> newMembers = createMembers(newMemberNodes);
-            List<RaftMember> newObservers = createMembers(newObserverNodes);
-            List<RaftMember> newPreparedMembers = createMembers(preparedMemberNodes);
-            List<RaftMember> newPreparedObservers = createMembers(preparedObserverNodes);
+            List<RaftMember> newMembers = createMembersInConfigChange(newMemberNodes);
+            List<RaftMember> newObservers = createMembersInConfigChange(newObserverNodes);
+            List<RaftMember> newPreparedMembers = createMembersInConfigChange(preparedMemberNodes);
+            List<RaftMember> newPreparedObservers = createMembersInConfigChange(preparedObserverNodes);
 
             raftStatus.setMembers(newMembers);
             raftStatus.setObservers(newObservers);
@@ -747,12 +747,13 @@ public class MemberManager {
         }
     }
 
-    private List<RaftMember> createMembers(List<RaftNodeEx> nodes) {
+    private List<RaftMember> createMembersInConfigChange(List<RaftNodeEx> nodes) {
         List<RaftMember> newMembers = new ArrayList<>();
         for (RaftNodeEx node : nodes) {
             RaftMember m = findExistMember(node.getNodeId());
             if (m == null) {
                 m = createMember(node, RaftRole.observer);
+                m.setNextIndex(raftStatus.getLastLogIndex() + 1);
             }
             newMembers.add(m);
         }

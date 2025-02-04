@@ -244,7 +244,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         if (ex instanceof RaftCancelException) {
             log.info("ReplicateManager load raft log cancelled");
         } else {
-            log.error("load raft log failed", ex);
+            log.error("replicate fiber fail, remoteId={}", member.getNode().getNodeId(), ex);
             if (raftStatus.getRole() == RaftRole.leader) {
                 // if log is deleted, the next load will never success, so we need to reset nextIndex.
                 // however, the exception may be caused by other reasons
