@@ -463,9 +463,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);
                 case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    return gc.getMemberManager().doAbort();
+                    return gc.getMemberManager().doAbort(rt.getItem().getIndex());
                 case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    return gc.getMemberManager().doCommit();
+                    return gc.getMemberManager().doCommit(rt.getItem().getIndex());
                 default:
                     throw Fiber.fatal(new RaftException("unknown config change type"));
             }
@@ -487,7 +487,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
                         oldObserverIds, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
             }
-            return gc.getMemberManager().doPrepare(newMemberIds, newObserverIds);
+            return gc.getMemberManager().doPrepare(rt.getItem().getIndex(), newMemberIds, newObserverIds);
         }
 
         private Set<Integer> parseSet(String s) {

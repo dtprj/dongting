@@ -645,30 +645,31 @@ public class MemberManager {
         return m;
     }
 
-    public FrameCallResult doPrepare(Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
-        ApplyConfigFrame f = new ApplyConfigFrame("prepare config change", raftStatus.getNodeIdOfMembers(),
-                raftStatus.getNodeIdOfObservers(), newMemberIds, newObserverIds);
+    public FrameCallResult doPrepare(long raftIndex, Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
+        ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") prepare config change",
+                raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(), newMemberIds, newObserverIds);
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
-    public FrameCallResult doAbort() {
+    public FrameCallResult doAbort(long raftIndex) {
         HashSet<Integer> preparedMemberIds = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
         if (preparedMemberIds.isEmpty()) {
             log.info("no pending config change, ignore abort, groupId={}", raftStatus.getGroupId());
             return Fiber.frameReturn();
         }
-        ApplyConfigFrame f = new ApplyConfigFrame("abort config change", raftStatus.getNodeIdOfMembers(),
-                raftStatus.getNodeIdOfObservers(), emptySet(), emptySet());
+        ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") abort config change",
+                raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(), emptySet(), emptySet());
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
-    public FrameCallResult doCommit() {
+    public FrameCallResult doCommit(long raftIndex) {
         if (raftStatus.getPreparedMembers().isEmpty()) {
             log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
             return Fiber.frameReturn();
         }
-        ApplyConfigFrame f = new ApplyConfigFrame("commit config change", raftStatus.getNodeIdOfPreparedMembers(),
-                raftStatus.getNodeIdOfPreparedObservers(), emptySet(), emptySet());
+        ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") commit config change",
+                raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
+                emptySet(), emptySet());
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
@@ -679,18 +680,18 @@ public class MemberManager {
 
     private class ApplyConfigFrame extends FiberFrame<Void> {
         private final String msg;
-        private final Set<Integer> newMembers;
-        private final Set<Integer> observerIds;
-        private final Set<Integer> preparedMemberIds;
-        private final Set<Integer> preparedObserverIds;
+        private final Set<Integer> members;
+        private final Set<Integer> observers;
+        private final Set<Integer> preparedMembers;
+        private final Set<Integer> preparedObservers;
 
-        ApplyConfigFrame(String msg, Set<Integer> newMembers, Set<Integer> observerIds,
-                         Set<Integer> preparedMemberIds, Set<Integer> preparedObserverIds) {
+        ApplyConfigFrame(String msg, Set<Integer> members, Set<Integer> observers,
+                         Set<Integer> preparedMembers, Set<Integer> preparedObservers) {
             this.msg = msg;
-            this.newMembers = newMembers;
-            this.observerIds = observerIds;
-            this.preparedMemberIds = preparedMemberIds;
-            this.preparedObserverIds = preparedObserverIds;
+            this.members = members;
+            this.observers = observers;
+            this.preparedMembers = preparedMembers;
+            this.preparedObservers = preparedObservers;
         }
 
         @Override
@@ -700,20 +701,21 @@ public class MemberManager {
                 log.warn("ignore apply config change, groupId={}", groupId);
                 return Fiber.frameReturn();
             }
-            if (raftStatus.getNodeIdOfMembers().equals(newMembers)
-                    && raftStatus.getNodeIdOfObservers().equals(observerIds)
-                    && raftStatus.getNodeIdOfPreparedMembers().equals(preparedMemberIds)
-                    && raftStatus.getNodeIdOfPreparedObservers().equals(preparedObserverIds)) {
+            if (raftStatus.getNodeIdOfMembers().equals(members)
+                    && raftStatus.getNodeIdOfObservers().equals(observers)
+                    && raftStatus.getNodeIdOfPreparedMembers().equals(preparedMembers)
+                    && raftStatus.getNodeIdOfPreparedObservers().equals(preparedObservers)) {
                 return Fiber.frameReturn();
             }
-            log.info("{} , groupId={}, oldMember={}, oldObserver={}, oldPreparedMember={}, oldPreparedObserver={}, newMember={}, newObserver={}, newPreparedMember={}, newPreparedObserver={}",
+            log.info("{} begin, groupId={}, oldMember={}, oldObserver={}, oldPreparedMember={}, oldPreparedObserver={}," +
+                            " newMember={}, newObserver={}, newPreparedMember={}, newPreparedObserver={}",
                     msg, groupId, raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
                     raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
-                    newMembers, observerIds, preparedMemberIds, preparedObserverIds);
+                    members, observers, preparedMembers, preparedObservers);
             return nodeManager.doApplyConfig(
                             raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
                             raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
-                            newMembers, observerIds, preparedMemberIds, preparedObserverIds)
+                            members, observers, preparedMembers, preparedObservers)
                     .await(result -> postConfigChange(msg, result));
         }
 
