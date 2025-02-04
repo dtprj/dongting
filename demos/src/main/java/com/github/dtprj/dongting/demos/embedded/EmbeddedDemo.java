@@ -34,7 +34,7 @@ public class EmbeddedDemo {
         String replicateServer = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "1,2,3";
         String observers = "";
-        int groupId = 1;
+        int groupId = 2;
         RaftServer s1 = DemoKvServer.startServer(1, replicateServer, members, observers, new int[]{groupId});
         RaftServer s2 = DemoKvServer.startServer(2, replicateServer, members, observers, new int[]{groupId});
         RaftServer s3 = DemoKvServer.startServer(3, replicateServer, members, observers, new int[]{groupId});

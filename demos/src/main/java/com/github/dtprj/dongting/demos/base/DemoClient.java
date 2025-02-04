@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class DemoClient {
+public abstract class DemoClient {
 
     private static final byte[] DATA = new byte[256];
 

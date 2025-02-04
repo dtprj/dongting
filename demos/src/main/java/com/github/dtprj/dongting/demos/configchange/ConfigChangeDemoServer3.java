@@ -13,27 +13,20 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.demos.standalone;
+package com.github.dtprj.dongting.demos.configchange;
 
-import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.demos.base.DemoClient;
-import com.github.dtprj.dongting.dtkv.KvClient;
-
-import java.util.concurrent.TimeUnit;
+import com.github.dtprj.dongting.demos.base.DemoKvServer;
 
 /**
  * @author huangli
  */
-public class StandaloneClient extends DemoClient {
-
-    final static int LOOP_COUNT = 1_000_000;
-
-    public static void main(String[] args) throws Exception {
-        String servers = "1,127.0.0.1:5001";
-        int groupId = 3;
-        KvClient client = putAndGetFixCount(groupId, servers, LOOP_COUNT);
-
-        // System.exit(0);
-        client.stop(new DtTime(3, TimeUnit.SECONDS));
+public class ConfigChangeDemoServer3 extends DemoKvServer {
+    public static void main(String[] args) {
+        int nodeId = 3;
+        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
+        String members = "1,2,3";
+        String observers = "";
+        int groupId = 1;
+        startServer(nodeId, servers, members, observers, new int[]{groupId});
     }
 }

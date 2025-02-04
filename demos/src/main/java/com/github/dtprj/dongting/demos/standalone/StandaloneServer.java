@@ -27,7 +27,7 @@ public class StandaloneServer extends DemoKvServer {
         String servers = "1,127.0.0.1:4001";
         String members = "1";
         String observers = "";
-        int groupId = 2;
+        int groupId = 3;
         startServer(nodeId, servers, members, observers, new int[]{groupId});
     }
 }
