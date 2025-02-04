@@ -86,17 +86,13 @@ public class RaftClient extends AbstractLifeCircle {
     private void addOrUpdateGroupInLock(int groupId, List<RaftNode> servers) throws NetException {
         ArrayList<RaftNode> needAddList = new ArrayList<>();
         ArrayList<RaftNode> managedServers = new ArrayList<>();
-        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+        ArrayList<CompletableFuture<RaftNode>> futures = new ArrayList<>();
         for (RaftNode n : servers) {
             Objects.requireNonNull(n);
             RaftNode existManagedNode = allNodes.get(n.getNodeId());
             if (existManagedNode == null) {
                 CompletableFuture<Peer> f = nioClient.addPeer(n.getHostPort());
-                futures.add(f.thenAccept(peer -> {
-                    RaftNode newNode = new RaftNode(n.getNodeId(), n.getHostPort(), peer);
-                    needAddList.add(newNode);
-                    managedServers.add(newNode);
-                }));
+                futures.add(f.thenApply(peer -> new RaftNode(n.getNodeId(), n.getHostPort(), peer)));
             } else {
                 managedServers.add(existManagedNode);
             }
@@ -104,7 +100,13 @@ public class RaftClient extends AbstractLifeCircle {
         if (!futures.isEmpty()) {
             boolean success = false;
             try {
-                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(10, TimeUnit.SECONDS);
+                DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
+                for (CompletableFuture<RaftNode> f : futures) {
+                    RaftNode n = f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                    needAddList.add(n);
+                    managedServers.add(n);
+                    allNodes.put(n.getNodeId(), n);
+                }
                 success = true;
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
