@@ -122,14 +122,9 @@ public class MemberManager {
         raftStatus.setPreparedMembers(emptyList());
         raftStatus.setPreparedObservers(emptyList());
         computeDuplicatedData(raftStatus);
-        if (!raftStatus.getNodeIdOfMembers().contains(serverConfig.getNodeId())
-                && !raftStatus.getNodeIdOfObservers().contains(serverConfig.getNodeId())) {
-            raftStatus.setSelf(null);
-            raftStatus.setRole(RaftRole.observer);
-        } else {
-            // to update startReadyFuture
-            setReady(raftStatus.getSelf(), true);
-        }
+
+        // to update startReadyFuture
+        setReady(raftStatus.getSelf(), true);
     }
 
     static void computeDuplicatedData(RaftStatusImpl raftStatus) {

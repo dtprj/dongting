@@ -85,11 +85,9 @@ public class CommitManager {
         }
         if (raftStatus.getRole() == RaftRole.leader) {
             RaftMember self = raftStatus.getSelf();
-            if (self != null) {
-                self.setNextIndex(lastPersistIndex + 1);
-                self.setMatchIndex(lastPersistIndex);
-                self.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime());
-            }
+            self.setNextIndex(lastPersistIndex + 1);
+            self.setMatchIndex(lastPersistIndex);
+            self.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime());
 
             RaftUtil.updateLease(raftStatus);
             // not call raftStatus.copyShareStatus(), invoke after apply
@@ -141,7 +139,7 @@ public class CommitManager {
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
     private static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
-                                     List<RaftMember> servers, int rwQuorum) {
+                                      List<RaftMember> servers, int rwQuorum) {
         if (recentMatchIndex < currentCommitIndex) {
             return false;
         }
