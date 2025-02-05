@@ -122,7 +122,14 @@ public class DefaultRaftLog implements RaftLog {
 
             private FrameCallResult afterLogRestore(int lastTerm) {
                 RaftUtil.checkStop(fiberGroup);
-                startFibersAndMarkInit();
+
+                idxFiles.startFibers();
+                logFiles.startFibers();
+                idxFiles.initialized = true;
+                logFiles.initialized = true;
+
+                startQueueDeleteFiber();
+
                 if (idxFiles.getNextIndex() == 1) {
                     setResult(new Pair<>(0, 0L));
                 } else {
@@ -138,14 +145,6 @@ public class DefaultRaftLog implements RaftLog {
                 throw ex;
             }
         };
-    }
-
-    private void startFibersAndMarkInit() {
-        idxFiles.startFibers();
-        logFiles.startFibers();
-        idxFiles.initialized = true;
-        logFiles.initialized = true;
-        startQueueDeleteFiber();
     }
 
     private void startQueueDeleteFiber() {
@@ -278,7 +277,9 @@ public class DefaultRaftLog implements RaftLog {
             }
 
             private FrameCallResult afterLogFinishInstall(Void unused) {
-                startFibersAndMarkInit();
+                idxFiles.initialized = true;
+                logFiles.initialized = true;
+                startQueueDeleteFiber();
                 statusManager.getProperties().put(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
                 statusManager.getProperties().put(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
                 statusManager.persistAsync(true);
