@@ -473,7 +473,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return f.compose("idxAllocStop", v -> stopFileQueue());
     }
 
-    public FiberFrame<Void> initForInstall(long nextLogIndex) throws Exception {
+    public FiberFrame<Void> finishInstall(long nextLogIndex) throws Exception {
         long newFileStartPos = startPosOfFile(indexToPos(nextLogIndex));
         queueStartPosition = newFileStartPos;
         queueEndPosition = newFileStartPos;

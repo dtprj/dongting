@@ -270,7 +270,7 @@ public class DefaultRaftLog implements RaftLog {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
-                return Fiber.call(idxFiles.initForInstall(nextLogIndex), this::afterIdxFinishInstall);
+                return Fiber.call(idxFiles.finishInstall(nextLogIndex), this::afterIdxFinishInstall);
             }
 
             private FrameCallResult afterIdxFinishInstall(Void unused) throws Exception {
