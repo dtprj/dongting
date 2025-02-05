@@ -99,7 +99,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         }
         if (raftStatus.isInstallSnapshot()) {
             log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
-            return initRaftFibers();
+            return afterRecoverStateMachine(null);
         } else {
             if (gc.getSnapshotManager() == null) {
                 return afterRecoverStateMachine(null);
@@ -112,10 +112,6 @@ public class InitFiberFrame extends FiberFrame<Void> {
     private FrameCallResult afterSnapshotManagerInit(Snapshot snapshot) {
         if (cancelInit()) {
             return Fiber.frameReturn();
-        }
-        if (raftStatus.isInstallSnapshot()) {
-            log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
-            return Fiber.call(gc.getRaftLog().init(), r -> initRaftFibers());
         }
         if (snapshot == null) {
             return afterRecoverStateMachine(null);
@@ -165,35 +161,33 @@ public class InitFiberFrame extends FiberFrame<Void> {
         if (cancelInit()) {
             return Fiber.frameReturn();
         }
-        int logInitResultTerm = logInitResult.getLeft();
-        long logInitResultIndex = logInitResult.getRight();
-        if (logInitResultIndex < snapshotIndex || logInitResultIndex < raftStatus.getCommitIndex()) {
-            log.error("raft log last index invalid, {}, {}, {}", logInitResultIndex, snapshotIndex, raftStatus.getCommitIndex());
-            throw new RaftException("raft log last index invalid");
+        if (logInitResult != null) {
+            int logInitResultTerm = logInitResult.getLeft();
+            long logInitResultIndex = logInitResult.getRight();
+            if (logInitResultIndex < snapshotIndex || logInitResultIndex < raftStatus.getCommitIndex()) {
+                log.error("raft log last index invalid, {}, {}, {}", logInitResultIndex, snapshotIndex, raftStatus.getCommitIndex());
+                throw new RaftException("raft log last index invalid");
+            }
+            if (logInitResultTerm < snapshotTerm) {
+                log.error("raft log last term invalid, {}, {}", logInitResultTerm, snapshotTerm);
+                throw new RaftException("raft log last term invalid");
+            }
+            if (logInitResultTerm > raftStatus.getCurrentTerm()) {
+                log.error("raft log last term({}) greater than current term({})",
+                        logInitResultTerm, raftStatus.getCurrentTerm());
+                throw new RaftException("raft log last term greater than current term");
+            }
+
+            raftStatus.setLastLogTerm(logInitResultTerm);
+
+            raftStatus.setLastLogIndex(logInitResultIndex);
+            raftStatus.setLastWriteLogIndex(logInitResultIndex);
+            raftStatus.setLastForceLogIndex(logInitResultIndex);
+
+            log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
+                    logInitResult.getLeft(), logInitResult.getRight(), groupConfig.getGroupId());
         }
-        if (logInitResultTerm < snapshotTerm) {
-            log.error("raft log last term invalid, {}, {}", logInitResultTerm, snapshotTerm);
-            throw new RaftException("raft log last term invalid");
-        }
-        if (logInitResultTerm > raftStatus.getCurrentTerm()) {
-            log.error("raft log last term({}) greater than current term({})",
-                    logInitResultTerm, raftStatus.getCurrentTerm());
-            throw new RaftException("raft log last term greater than current term");
-        }
 
-        raftStatus.setLastLogTerm(logInitResultTerm);
-
-        raftStatus.setLastLogIndex(logInitResultIndex);
-        raftStatus.setLastWriteLogIndex(logInitResultIndex);
-        raftStatus.setLastForceLogIndex(logInitResultIndex);
-
-        log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
-                logInitResult.getLeft(), logInitResult.getRight(), groupConfig.getGroupId());
-
-        return initRaftFibers();
-    }
-
-    private FrameCallResult initRaftFibers() {
         raftStatus.copyShareStatus();
         gc.getCommitManager().startCommitFiber();
         gc.getVoteManager().startVoteFiber();

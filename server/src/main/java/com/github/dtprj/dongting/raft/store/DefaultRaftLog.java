@@ -79,7 +79,7 @@ public class DefaultRaftLog implements RaftLog {
         this(groupConfig, statusManager, raftCodecFactory, DEFAULT_DELETE_INTERVAL_MILLIS);
     }
 
-    private void createFiles(){
+    private void createFiles() {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
@@ -104,6 +104,7 @@ public class DefaultRaftLog implements RaftLog {
                     startQueueDeleteFiber();
                     deleteFrame.requestDeleteAllAndExit = true;
                     deleteFrame.delCond.signal();
+                    setResult(null);
                     return Fiber.frameReturn();
                 }
 
