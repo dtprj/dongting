@@ -306,8 +306,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 return Fiber.frameReturn();
             }
             long diff = getDiff();
+            // 0: flush without force, 1 : flush with force, 2: force only
             int flushType;
-            if (diff > flushThreshold) {
+            if (diff > 0 && nextPersistIndex <= firstIndex) {
+                // after install snapshot
+                flushType = 1;
+            } else if (diff > flushThreshold) {
                 flushType = 0;
             } else if (markClose) {
                 if (diff > 0) {
@@ -426,11 +430,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     protected void afterDelete() {
         if (queue.size() > 0) {
             firstIndex = posToIndex(queueStartPosition);
-        } else {
-            firstIndex = 0;
-            nextIndex = 0;
-            nextPersistIndex = 0;
-            persistedIndex = 0;
         }
     }
 
