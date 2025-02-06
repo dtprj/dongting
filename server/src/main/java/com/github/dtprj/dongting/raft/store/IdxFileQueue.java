@@ -45,7 +45,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
-    static final String KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT = "nextIdxAfterInstallSnapshot";
     static final String KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT = "nextPosAfterInstallSnapshot";
 
     public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
@@ -104,19 +103,16 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public FiberFrame<Pair<Long, Long>> initRestorePos() throws Exception {
         this.firstIndex = posToIndex(queueStartPosition);
-        long firstValidIndex = RaftUtil.parseLong(statusManager.getProperties(),
-                KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, 0);
         this.persistedIndexInStatusFile = RaftUtil.parseLong(statusManager.getProperties(),
                 KEY_PERSIST_IDX_INDEX, 0);
         long restoreIndex = persistedIndexInStatusFile;
 
         log.info("load raft status file. firstIndex={}, {}={}, {}={}", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
-                KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, firstValidIndex);
-        restoreIndex = Math.max(restoreIndex, firstValidIndex);
+                StatusManager.FIRST_VALID_IDX, raftStatus.getFirstValidIndex());
+        restoreIndex = Math.max(restoreIndex, raftStatus.getFirstValidIndex());
         restoreIndex = Math.max(restoreIndex, firstIndex);
 
-        if (restoreIndex == 0) {
-            restoreIndex = 1;
+        if (restoreIndex == 1) {
             long restoreStartPos = 0;
             nextIndex = 1;
             nextPersistIndex = 1;
@@ -150,7 +146,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
                 @Override
                 protected FrameCallResult handle(Throwable ex) throws Throwable {
-                    if (finalRestoreIndex == firstValidIndex) {
+                    if (finalRestoreIndex == raftStatus.getFirstValidIndex()) {
                         // next index not write after install snapshot
                         // return null will cause install snapshot
                         log.warn("load log pos failed", ex);

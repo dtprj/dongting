@@ -46,6 +46,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
+import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -506,10 +507,10 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult afterApplyExit(Void v) {
-        return gc.getStatusManager().waitUpdateFinish(this::afterStatusPersist);
+        return gc.getStatusManager().waitUpdateFinish(this::afterBeginStatusPersist);
     }
 
-    private FrameCallResult afterStatusPersist(Void v) throws Exception {
+    private FrameCallResult afterBeginStatusPersist(Void v) throws Exception {
         return Fiber.call(gc.getRaftLog().beginInstall(), this::applyConfigChange);
     }
 
@@ -558,13 +559,22 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         raftStatus.setLastWriteLogIndex(req.lastIncludedIndex);
         raftStatus.setLastForceLogIndex(req.lastIncludedIndex);
 
-        FiberFrame<Void> finishFrame = gc.getRaftLog().finishInstall(
-                req.lastIncludedIndex + 1, req.nextWritePos);
-        return Fiber.call(finishFrame, v -> {
-            gc.getApplyManager().signalStartApply();
-            log.info("apply snapshot finish, groupId={}", groupId);
-            return releaseAndWriteResp(null);
-        });
+        long nextIdx = req.lastIncludedIndex + 1;
+        FiberFrame<Void> ff = gc.getRaftLog().finishInstall(nextIdx, req.nextWritePos);
+        return Fiber.call(ff, v -> afterRaftLogFinishInstall(nextIdx));
+    }
+
+    private FrameCallResult afterRaftLogFinishInstall(long nextLogIndex) {
+        gc.getRaftStatus().setFirstValidIndex(nextLogIndex);
+        StatusManager sm = gc.getStatusManager();
+        sm.persistAsync(true);
+        return sm.waitUpdateFinish(this::afterFinishStatusSaved);
+    }
+
+    private FrameCallResult afterFinishStatusSaved(Void v) {
+        gc.getApplyManager().signalStartApply();
+        log.info("apply snapshot finish, groupId={}", groupId);
+        return releaseAndWriteResp(null);
     }
 
     private FrameCallResult releaseAndWriteResp(Throwable ex) {

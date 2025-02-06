@@ -110,10 +110,10 @@ public class ServerTestBase {
             File file = new File(dir, groupConfig.getStatusFile());
             ByteBuffer buf = ByteBuffer.allocate(StatusFile.FILE_LENGTH);
             Map<String, String> props = new HashMap<>();
-            props.put(StatusManager.CURRENT_TERM_KEY, String.valueOf(initTerm));
-            props.put(StatusManager.VOTED_FOR_KEY, String.valueOf(initVoteFor));
-            props.put(StatusManager.COMMIT_INDEX_KEY, String.valueOf(initCommitIndex));
-            props.put(StatusManager.KEY_INSTALL_SNAPSHOT, String.valueOf(initSnapshot));
+            props.put(StatusManager.CURRENT_TERM, String.valueOf(initTerm));
+            props.put(StatusManager.VOTED_FOR, String.valueOf(initVoteFor));
+            props.put(StatusManager.COMMIT_INDEX, String.valueOf(initCommitIndex));
+            props.put(StatusManager.INSTALL_SNAPSHOT, String.valueOf(initSnapshot));
             StatusFile.writeToBuffer(props, buf, new CRC32C());
             RandomAccessFile raf = new RandomAccessFile(file, "rw");
             raf.write(buf.array());

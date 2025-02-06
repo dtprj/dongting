@@ -39,7 +39,6 @@ import java.io.File;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT;
 import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT;
 
 /**
@@ -281,10 +280,8 @@ public class DefaultRaftLog implements RaftLog {
                 idxFiles.initialized = true;
                 logFiles.initialized = true;
                 startQueueDeleteFiber();
-                statusManager.getProperties().put(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
                 statusManager.getProperties().put(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
-                statusManager.persistAsync(true);
-                return statusManager.waitUpdateFinish(this::justReturn);
+                return Fiber.frameReturn();
             }
         };
     }

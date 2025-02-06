@@ -86,6 +86,9 @@ public class RaftStatusImpl extends RaftStatus {
     private long lastWriteLogIndex;
     private long lastApplying;
 
+    // update after install snapshot by leader, so current node has no raft logs before the index
+    private long firstValidIndex = 1;
+
     private boolean truncating;
 
     private long leaderCommit;
@@ -460,5 +463,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setTruncating(boolean truncating) {
         this.truncating = truncating;
+    }
+
+    public long getFirstValidIndex() {
+        return firstValidIndex;
+    }
+
+    public void setFirstValidIndex(long firstValidIndex) {
+        this.firstValidIndex = firstValidIndex;
     }
 }

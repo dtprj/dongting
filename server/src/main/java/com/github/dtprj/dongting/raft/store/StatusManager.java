@@ -40,10 +40,12 @@ import java.util.Map;
 public class StatusManager {
     private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
-    public static final String CURRENT_TERM_KEY = "currentTerm";
-    public static final String VOTED_FOR_KEY = "votedFor";
-    public static final String COMMIT_INDEX_KEY = "commitIndex";
-    public static final String KEY_INSTALL_SNAPSHOT = "installSnapshot";
+    public static final String CURRENT_TERM = "currentTerm";
+    public static final String VOTED_FOR = "votedFor";
+    public static final String COMMIT_INDEX = "commitIndex";
+    public static final String INSTALL_SNAPSHOT = "installSnapshot";
+
+    public static final String FIRST_VALID_IDX = "firstValidIndex";
 
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatusImpl raftStatus;
@@ -78,11 +80,11 @@ public class StatusManager {
             protected FrameCallResult postProcess(Void result) {
                 Map<String, String> loadedProps = statusFile.getProperties();
 
-                raftStatus.setCurrentTerm(RaftUtil.parseInt(loadedProps, CURRENT_TERM_KEY, 0));
-                raftStatus.setVotedFor(RaftUtil.parseInt(loadedProps, VOTED_FOR_KEY, 0));
-                raftStatus.setCommitIndex(RaftUtil.parseInt(loadedProps, COMMIT_INDEX_KEY, 0));
-                raftStatus.setInstallSnapshot(RaftUtil.parseBoolean(loadedProps,
-                        KEY_INSTALL_SNAPSHOT, false));
+                raftStatus.setCurrentTerm(RaftUtil.parseInt(loadedProps, CURRENT_TERM, 0));
+                raftStatus.setVotedFor(RaftUtil.parseInt(loadedProps, VOTED_FOR, 0));
+                raftStatus.setCommitIndex(RaftUtil.parseInt(loadedProps, COMMIT_INDEX, 0));
+                raftStatus.setInstallSnapshot(RaftUtil.parseBoolean(loadedProps, INSTALL_SNAPSHOT, false));
+                raftStatus.setFirstValidIndex(RaftUtil.parseLong(loadedProps, FIRST_VALID_IDX, 1));
 
                 updateFiber.start();
                 return Fiber.frameReturn();
@@ -160,10 +162,11 @@ public class StatusManager {
         private void copyWriteData() {
             Map<String, String> destMap = statusFile.getProperties();
 
-            destMap.put(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
-            destMap.put(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
-            destMap.put(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
-            destMap.put(KEY_INSTALL_SNAPSHOT, String.valueOf(raftStatus.isInstallSnapshot()));
+            destMap.put(CURRENT_TERM, String.valueOf(raftStatus.getCurrentTerm()));
+            destMap.put(VOTED_FOR, String.valueOf(raftStatus.getVotedFor()));
+            destMap.put(COMMIT_INDEX, String.valueOf(raftStatus.getCommitIndex()));
+            destMap.put(INSTALL_SNAPSHOT, String.valueOf(raftStatus.isInstallSnapshot()));
+            destMap.put(FIRST_VALID_IDX, String.valueOf(raftStatus.getFirstValidIndex()));
         }
     }
 

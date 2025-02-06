@@ -60,9 +60,9 @@ public class StatusManagerTest extends BaseFiberTest {
         File f = new File(groupConfig.getDataDir(), groupConfig.getStatusFile());
         p.load(new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8));
 
-        assertEquals(raftStatus.getCommitIndex() + "", p.getProperty(StatusManager.COMMIT_INDEX_KEY));
-        assertEquals(raftStatus.getVotedFor() + "", p.getProperty(StatusManager.VOTED_FOR_KEY));
-        assertEquals(raftStatus.getCurrentTerm() + "", p.getProperty(StatusManager.CURRENT_TERM_KEY));
+        assertEquals(raftStatus.getCommitIndex() + "", p.getProperty(StatusManager.COMMIT_INDEX));
+        assertEquals(raftStatus.getVotedFor() + "", p.getProperty(StatusManager.VOTED_FOR));
+        assertEquals(raftStatus.getCurrentTerm() + "", p.getProperty(StatusManager.CURRENT_TERM));
         statusManager.getProperties().forEach((k, v) -> assertEquals(v, p.get(k)));
     }
 
