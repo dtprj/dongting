@@ -574,6 +574,12 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private FrameCallResult afterFinishStatusSaved(Void v) {
         gc.getApplyManager().signalStartApply();
         log.info("apply snapshot finish, groupId={}", groupId);
+
+        // Have no logs before lastIncludedIndex, so save snapshot immediately.
+        // Restart before snapshot is saved will cause install snapshot (since it can't recover state machine).
+        // The save is async and FiberFuture returned by saveSnapshot() is not used.
+        gc.getSnapshotManager().saveSnapshot();
+
         return releaseAndWriteResp(null);
     }
 

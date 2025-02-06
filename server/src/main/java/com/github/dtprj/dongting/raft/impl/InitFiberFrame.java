@@ -97,13 +97,15 @@ public class InitFiberFrame extends FiberFrame<Void> {
         if (cancelInit()) {
             return Fiber.frameReturn();
         }
-        if (raftStatus.isInstallSnapshot()) {
-            log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
+        if (raftStatus.isInstallSnapshot() || gc.getSnapshotManager() == null) {
+            if (raftStatus.isInstallSnapshot()) {
+                log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
+            } else {
+                raftStatus.setInstallSnapshot(true);
+                log.info("no snapshot manager, mark install snapshot, groupId={}", groupConfig.getGroupId());
+            }
             return afterRecoverStateMachine(null);
         } else {
-            if (gc.getSnapshotManager() == null) {
-                return afterRecoverStateMachine(null);
-            }
             FiberFrame<Snapshot> f = gc.getSnapshotManager().init();
             return Fiber.call(f, this::afterSnapshotManagerInit);
         }
@@ -114,6 +116,15 @@ public class InitFiberFrame extends FiberFrame<Void> {
             return Fiber.frameReturn();
         }
         if (snapshot == null) {
+            if (raftStatus.getFirstValidIndex() > 1) {
+                raftStatus.setInstallSnapshot(true);
+                log.warn("no snapshot and firstValidIndex>1, mark install snapshot");
+            }
+            return afterRecoverStateMachine(null);
+        } else if (snapshot.getSnapshotInfo().getLastIncludedIndex() < raftStatus.getFirstValidIndex()) {
+            raftStatus.setInstallSnapshot(true);
+            log.warn("snapshot lastIncludedIndex({}) less than firstValidIndex({}), mark install snapshot",
+                    snapshot.getSnapshotInfo().getLastIncludedIndex(), raftStatus.getFirstValidIndex());
             return afterRecoverStateMachine(null);
         }
         SnapshotInfo si = snapshot.getSnapshotInfo();
