@@ -186,6 +186,8 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
             log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
                     logInitResult.getLeft(), logInitResult.getRight(), groupConfig.getGroupId());
+        } else {
+            raftStatus.setInstallSnapshot(true);
         }
 
         raftStatus.copyShareStatus();

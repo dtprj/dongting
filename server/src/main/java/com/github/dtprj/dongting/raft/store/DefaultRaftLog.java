@@ -112,6 +112,11 @@ public class DefaultRaftLog implements RaftLog {
 
             private FrameCallResult afterIdxFileQueueInit(Pair<Long, Long> p) {
                 RaftUtil.checkStop(fiberGroup);
+                if (p == null) {
+                    // return null will cause install snapshot
+                    setResult(null);
+                    return Fiber.frameReturn();
+                }
                 long restoreIndex = p.getLeft();
                 long restoreStartPos = p.getRight();
                 long firstValidPos = RaftUtil.parseLong(statusManager.getProperties(),

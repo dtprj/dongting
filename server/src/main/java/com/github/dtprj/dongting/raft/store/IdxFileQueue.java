@@ -131,29 +131,19 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             return new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
+                    if (finalRestoreIndex == raftStatus.getFirstValidIndex()) {
+                        // return null will cause install snapshot
+                        setResult(null);
+                        return Fiber.frameReturn();
+                    }
                     FiberFrame<Long> f = loadLogPos(finalRestoreIndex);
                     return Fiber.call(f, this::afterLoad);
                 }
 
                 private FrameCallResult afterLoad(Long restoreIndexPos) {
-                    if (queueEndPosition == 0) {
-                        tryAllocateAsync(0);
-                    }
                     log.info("restore from index: {}, pos: {}", finalRestoreIndex, restoreIndexPos);
                     setResult(new Pair<>(finalRestoreIndex, restoreIndexPos));
                     return Fiber.frameReturn();
-                }
-
-                @Override
-                protected FrameCallResult handle(Throwable ex) throws Throwable {
-                    if (finalRestoreIndex == raftStatus.getFirstValidIndex()) {
-                        // next index not write after install snapshot
-                        // return null will cause install snapshot
-                        log.warn("load log pos failed", ex);
-                        setResult(null);
-                        return Fiber.frameReturn();
-                    }
-                    throw ex;
                 }
             };
         }
