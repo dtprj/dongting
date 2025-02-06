@@ -109,7 +109,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         log.info("load raft status file. firstIndex={}, {}={}, {}={}", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
                 StatusManager.FIRST_VALID_IDX, raftStatus.getFirstValidIndex());
-        restoreIndex = Math.max(restoreIndex, raftStatus.getFirstValidIndex());
+        firstIndex = Math.max(firstIndex, raftStatus.getFirstValidIndex());
         restoreIndex = Math.max(restoreIndex, firstIndex);
 
         if (restoreIndex == 1) {
