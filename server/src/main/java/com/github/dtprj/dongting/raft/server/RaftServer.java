@@ -247,7 +247,7 @@ public class RaftServer extends AbstractLifeCircle {
         boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
         boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
         if (!isMember && !isObserver) {
-            throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
+            log.warn("node {} is not member or observer of group {}", serverConfig.getNodeId(), rgc.getGroupId());
         }
 
         Dispatcher dispatcher = raftFactory.createDispatcher(rgc);

@@ -121,6 +121,10 @@ public class MemberManager {
         }
         raftStatus.setPreparedMembers(emptyList());
         raftStatus.setPreparedObservers(emptyList());
+        if (raftStatus.getSelf() == null) {
+            RaftNodeEx node = nodeManager.allNodesEx.get(serverConfig.getNodeId());
+            createMember(node, RaftRole.none);
+        }
         computeDuplicatedData(raftStatus);
 
         // to update startReadyFuture
@@ -717,13 +721,13 @@ public class MemberManager {
         private FrameCallResult postConfigChange(String msg, List<List<RaftNodeEx>> result) {
             List<RaftNodeEx> newMemberNodes = result.get(0);
             List<RaftNodeEx> newObserverNodes = result.get(1);
-            List<RaftNodeEx> preparedMemberNodes = result.get(2);
-            List<RaftNodeEx> preparedObserverNodes = result.get(3);
+            List<RaftNodeEx> newPreparedMemberNodes = result.get(2);
+            List<RaftNodeEx> newPreparedObserverNodes = result.get(3);
 
             List<RaftMember> newMembers = createMembersInConfigChange(newMemberNodes);
             List<RaftMember> newObservers = createMembersInConfigChange(newObserverNodes);
-            List<RaftMember> newPreparedMembers = createMembersInConfigChange(preparedMemberNodes);
-            List<RaftMember> newPreparedObservers = createMembersInConfigChange(preparedObserverNodes);
+            List<RaftMember> newPreparedMembers = createMembersInConfigChange(newPreparedMemberNodes);
+            List<RaftMember> newPreparedObservers = createMembersInConfigChange(newPreparedObserverNodes);
 
             raftStatus.setMembers(newMembers);
             raftStatus.setObservers(newObservers);
@@ -732,15 +736,37 @@ public class MemberManager {
             computeDuplicatedData(raftStatus);
 
             int selfNodeId = serverConfig.getNodeId();
+            int newLeaderId = -1;
+            if (raftStatus.getCurrentLeader() != null) {
+                newLeaderId = raftStatus.getCurrentLeader().getNode().getNodeId();
+                if (!raftStatus.getNodeIdOfMembers().contains(newLeaderId)
+                        && !raftStatus.getNodeIdOfPreparedMembers().contains(newLeaderId)) {
+                    newLeaderId = -1;
+                }
+            }
+            if (newLeaderId == -1) {
+                raftStatus.setCurrentLeader(null);
+            }
+
             boolean selfIsMember = raftStatus.getNodeIdOfMembers().contains(selfNodeId)
                     || raftStatus.getNodeIdOfPreparedMembers().contains(selfNodeId);
-            int currentLeaderId = raftStatus.getCurrentLeader() == null ? -1 :
-                    raftStatus.getCurrentLeader().getNode().getNodeId();
-            if (raftStatus.getRole() == RaftRole.observer && selfIsMember) {
-                RaftUtil.changeToFollower(raftStatus, currentLeaderId, "apply config change");
-            } else if (raftStatus.getRole() != RaftRole.observer && !selfIsMember) {
-                RaftUtil.changeToObserver(raftStatus, currentLeaderId);
+            boolean selfIsObserver = raftStatus.getNodeIdOfObservers().contains(selfNodeId)
+                    || raftStatus.getNodeIdOfPreparedObservers().contains(selfNodeId);
+            RaftRole r = raftStatus.getRole();
+            if (selfIsMember) {
+                if (r != RaftRole.leader && r != RaftRole.follower) {
+                    RaftUtil.changeToFollower(raftStatus, newLeaderId, "apply config change");
+                }
+            } else if (selfIsObserver) {
+                if (r != RaftRole.observer) {
+                    RaftUtil.changeToObserver(raftStatus, newLeaderId);
+                }
+            } else {
+                if (r != RaftRole.none) {
+                    RaftUtil.changeToNone(raftStatus, newLeaderId);
+                }
             }
+
             gc.getVoteManager().cancelVote("config change");
             log.info("{} success, groupId={}", msg, groupId);
             return Fiber.frameReturn();

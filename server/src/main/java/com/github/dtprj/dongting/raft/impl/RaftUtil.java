@@ -104,7 +104,7 @@ public final class RaftUtil {
             updateLeader(raftStatus, newLeaderId);
         }
         LinkedList<Pair<RaftTask, NotLeaderException>> failList = new LinkedList<>();
-        if (oldRole != RaftRole.observer) {
+        if (oldRole != RaftRole.observer && oldRole != RaftRole.none) {
             log.info("update term from {} to {}, change to follower, oldRole={}, reason: {}",
                     raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole(), reason);
             raftStatus.setRole(RaftRole.follower);
@@ -248,9 +248,7 @@ public final class RaftUtil {
         log.info("change to follower. term={}, oldRole={}, reason: {}", raftStatus.getCurrentTerm(),
                 raftStatus.getRole(), reason);
         resetStatus(raftStatus);
-        if (leaderId > 0) {
-            updateLeader(raftStatus, leaderId);
-        }
+        updateLeader(raftStatus, leaderId);
         raftStatus.setRole(RaftRole.follower);
         raftStatus.copyShareStatus();
     }
@@ -258,10 +256,16 @@ public final class RaftUtil {
     public static void changeToObserver(RaftStatusImpl raftStatus, int leaderId) {
         log.info("change to observer. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
         resetStatus(raftStatus);
-        if (leaderId > 0) {
-            updateLeader(raftStatus, leaderId);
-        }
+        updateLeader(raftStatus, leaderId);
         raftStatus.setRole(RaftRole.observer);
+        raftStatus.copyShareStatus();
+    }
+
+    public static void changeToNone(RaftStatusImpl raftStatus, int leaderId) {
+        log.info("change to none. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
+        resetStatus(raftStatus);
+        updateLeader(raftStatus, leaderId);
+        raftStatus.setRole(RaftRole.none);
         raftStatus.copyShareStatus();
     }
 

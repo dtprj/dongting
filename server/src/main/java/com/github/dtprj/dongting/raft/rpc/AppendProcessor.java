@@ -35,7 +35,6 @@ import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
-import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -190,26 +189,22 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
         if (gc.getMemberManager().isValidCandidate(leaderId)) {
             int localTerm = raftStatus.getCurrentTerm();
             if (remoteTerm == localTerm) {
-                if (raftStatus.getRole() == RaftRole.follower) {
-                    gc.getVoteManager().cancelVote("receive append request from leader");
-                    RaftUtil.resetElectTimer(raftStatus);
-                    RaftUtil.updateLeader(raftStatus, leaderId);
-                    return process();
-                } else if (raftStatus.getRole() == RaftRole.observer) {
-                    gc.getVoteManager().cancelVote("receive append request from leader");
-                    RaftUtil.resetElectTimer(raftStatus);
-                    RaftUtil.updateLeader(raftStatus, leaderId);
-                    return process();
-                } else if (raftStatus.getRole() == RaftRole.candidate) {
-                    String r = "candidate receive append request from leader";
-                    gc.getVoteManager().cancelVote(r);
-                    RaftUtil.resetElectTimer(raftStatus);
-                    RaftUtil.changeToFollower(raftStatus, leaderId, r);
-                    return process();
-                } else {
-                    BugLog.getLog().error("leader receive {} request. term={}, remote={}", appendType,
-                            remoteTerm, reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                    return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "leader receive raft install snapshot request");
+                switch (raftStatus.getRole()) {
+                    case leader:
+                        BugLog.getLog().error("leader receive {} request. term={}, remote={}", appendType,
+                                remoteTerm, reqInfo.reqContext.getDtChannel().getRemoteAddr());
+                        return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "leader receive raft install snapshot request");
+                    case candidate:
+                        String r = "candidate receive append request from leader";
+                        gc.getVoteManager().cancelVote(r);
+                        RaftUtil.resetElectTimer(raftStatus);
+                        RaftUtil.changeToFollower(raftStatus, leaderId, r);
+                        return process();
+                    default:
+                        gc.getVoteManager().cancelVote("receive append request from leader");
+                        RaftUtil.resetElectTimer(raftStatus);
+                        RaftUtil.updateLeader(raftStatus, leaderId);
+                        return process();
                 }
             } else if (remoteTerm > localTerm) {
                 gc.getVoteManager().cancelVote("receive append request with larger term");

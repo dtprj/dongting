@@ -79,6 +79,15 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 writeResp(reqInfo, resp);
                 return Fiber.frameReturn();
             }
+            if (!MemberManager.validCandidate(raftStatus, raftServer.getServerConfig().getNodeId())) {
+                log.warn("current node is not members and can't process vote. remoteId={}, group={}, remote={}",
+                        voteReq.candidateId, voteReq.groupId,
+                        reqInfo.reqContext.getDtChannel().getRemoteAddr());
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                resp.setMsg("current node is not members and can't process vote");
+                writeResp(reqInfo, resp);
+                return Fiber.frameReturn();
+            }
             if (!logReceiveInfo) {
                 log.info("receive {} request from node {}. groupId={}, voteFor={}, reqTerm={}, currentTerm={}, " +
                                 "reqLastLogTerm={}, localLastLogTerm={}, reqIndex={}, localLastLogIndex={}",

@@ -263,7 +263,7 @@ public class VoteManager {
                 return Fiber.frameReturn();
             }
             RaftStatusImpl raftStatus = VoteManager.this.raftStatus;
-            if (raftStatus.getRole() == RaftRole.observer) {
+            if (raftStatus.getRole() == RaftRole.observer || raftStatus.getRole() == RaftRole.none) {
                 return sleepToNextElectTime();
             }
             //if (raftStatus.getRole() == RaftRole.leader && raftStatus.getLeaseStartNanos()
