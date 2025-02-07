@@ -328,6 +328,10 @@ public class NodeManager extends AbstractLifeCircle {
 
     public CompletableFuture<Void> removeNode(int nodeId) {
         CompletableFuture<Void> f = new CompletableFuture<>();
+        if (nodeId == selfNodeId) {
+            f.completeExceptionally(new RaftException("can not remove self"));
+            return f;
+        }
         DtUtil.SCHEDULED_SERVICE.execute(() -> {
             try {
                 RaftNodeEx existNode = allNodesEx.get(nodeId);
