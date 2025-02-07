@@ -27,10 +27,10 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class ChangeTo234Client {
+public class ChangeTo123Client {
 
     // to run this demo, you need to start ConfigChangeDemoServer1/2/3/4 first.
-    // this demo change raft member from [1, 2, 3] to [2, 3, 4], if current member is [2, 3, 4], exit with code 1.
+    // this demo change raft member from [2, 3, 4] to [1, 2, 3], if current member is [1, 2, 3], exit with code 1.
     public static void main(String[] args) throws Exception {
         // use replicate port
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
@@ -43,19 +43,19 @@ public class ChangeTo234Client {
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         QueryStatusResp status = adminClient.queryRaftServerStatus(
                 leader.getNodeId(), groupId, timeout).get();
-        if (status.members.contains(4)) {
-            System.out.println("current member is [2,3,4], try run ChangeTo123Client.");
+        if (status.members.contains(1)) {
+            System.out.println("current member is [1,2,3], try run ChangeTo123Client.");
             System.exit(1);
         }
 
-        if (leader.getNodeId() == 1) {
+        if (leader.getNodeId() == 4) {
             CompletableFuture<Void> f = adminClient.transferLeader(groupId, leader.getNodeId(), 2, timeout);
             f.get();
             System.out.println("transfer leader to node 2 success");
         }
 
-        CompletableFuture<Long> prepareFuture = adminClient.prepareConfigChange(groupId, Set.of(1, 2, 3), Set.of(),
-                Set.of(2, 3, 4), Set.of(), timeout);
+        CompletableFuture<Long> prepareFuture = adminClient.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(),
+                Set.of(1, 2, 3), Set.of(), timeout);
         long prepareIndex = prepareFuture.get();
         System.out.println("prepare config change success");
 
