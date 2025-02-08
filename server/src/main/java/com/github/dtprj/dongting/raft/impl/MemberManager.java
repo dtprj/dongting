@@ -656,7 +656,8 @@ public class MemberManager {
     public FrameCallResult doAbort(long raftIndex) {
         HashSet<Integer> preparedMemberIds = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
         if (preparedMemberIds.isEmpty()) {
-            log.info("no pending config change, ignore abort, groupId={}", raftStatus.getGroupId());
+            log.info("no pending config change, ignore abort, raftIndex={} groupId={}",
+                    raftIndex, raftStatus.getGroupId());
             return Fiber.frameReturn();
         }
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") abort config change",
@@ -666,7 +667,8 @@ public class MemberManager {
 
     public FrameCallResult doCommit(long raftIndex) {
         if (raftStatus.getPreparedMembers().isEmpty()) {
-            log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
+            log.warn("no prepared config change, ignore commit, raftIndex={}, groupId={}",
+                    raftIndex, raftStatus.getGroupId());
             return Fiber.frameReturn();
         }
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") commit config change",
