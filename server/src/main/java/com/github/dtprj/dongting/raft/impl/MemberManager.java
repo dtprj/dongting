@@ -735,6 +735,8 @@ public class MemberManager {
             List<RaftMember> newPreparedMembers = createMembersInConfigChange(newPreparedMemberNodes);
             List<RaftMember> newPreparedObservers = createMembersInConfigChange(newPreparedObserverNodes);
 
+            List<RaftMember> oldRepList = raftStatus.getReplicateList();
+
             raftStatus.setMembers(newMembers);
             raftStatus.setObservers(newObservers);
             raftStatus.setPreparedMembers(newPreparedMembers);
@@ -770,6 +772,14 @@ public class MemberManager {
             } else {
                 if (r != RaftRole.none) {
                     RaftUtil.changeToNone(raftStatus, newLeaderId);
+                }
+            }
+            if (r == RaftRole.leader) {
+                List<RaftMember> newRepList = raftStatus.getReplicateList();
+                for (RaftMember m : oldRepList) {
+                    if (newRepList.contains(m)) {
+                        m.incrementReplicateEpoch(m.getReplicateEpoch());
+                    }
                 }
             }
 
