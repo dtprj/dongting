@@ -90,7 +90,7 @@ public class TailCache {
             throw new IllegalArgumentException("index " + index + " is greater than nextWriteIndex " + nextWriteIndex);
         }
 
-        log.info("truncate tail cache to {}, old nextWriteIndex={}", index, nextWriteIndex);
+        log.info("truncate tail cache to {}(inclusive), old nextWriteIndex={}", index, nextWriteIndex);
         Throwable ex = null;
         while (size() > 0 && index < nextWriteIndex()) {
             RaftTask raftTask = cache.removeLast();

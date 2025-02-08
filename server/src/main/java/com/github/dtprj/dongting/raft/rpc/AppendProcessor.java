@@ -405,28 +405,25 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             writeAppendResp(AppendProcessor.APPEND_LOG_NOT_MATCH, null);
             return Fiber.frameReturn();
         } else if (pos.getLeft() == req.prevLogTerm && pos.getRight() == req.prevLogIndex) {
-            log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
-                    req.prevLogIndex, req.prevLogTerm, raftStatus.getGroupId());
             if (RaftUtil.writeNotFinished(raftStatus)) {
                 // resume to this::execute to re-run all check
                 return RaftUtil.waitWriteFinish(raftStatus, this);
             } else {
-                return truncateAndAppend(req.prevLogIndex, req.prevLogTerm);
+                gc.getRaftStatus().setTruncating(true);
+                long truncateIndex = req.prevLogIndex + 1;
+
+                log.info("local log truncate to {}(inclusive)", truncateIndex);
+
+                TailCache tailCache = reqInfo.raftGroup.getGroupComponents().getRaftStatus().getTailCache();
+                tailCache.truncate(truncateIndex);
+                return Fiber.call(gc.getRaftLog().truncateTail(truncateIndex),
+                        v -> afterTruncate(req.prevLogIndex, req.prevLogTerm));
             }
         } else {
             log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
             writeAppendResp(AppendProcessor.APPEND_LOG_NOT_MATCH, pos.getLeft(), pos.getRight(), null);
             return Fiber.frameReturn();
         }
-    }
-
-    private FrameCallResult truncateAndAppend(long matchIndex, int matchTerm) {
-        gc.getRaftStatus().setTruncating(true);
-        long truncateIndex = matchIndex + 1;
-
-        TailCache tailCache = reqInfo.raftGroup.getGroupComponents().getRaftStatus().getTailCache();
-        tailCache.truncate(truncateIndex);
-        return Fiber.call(gc.getRaftLog().truncateTail(truncateIndex), v -> afterTruncate(matchIndex, matchTerm));
     }
 
     private FrameCallResult afterTruncate(long matchIndex, int matchTerm) {
