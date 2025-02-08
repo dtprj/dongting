@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.PbLongWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -86,7 +87,11 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
         }
         f.whenComplete((index, ex) -> {
             if (ex != null) {
-                log.error("Admin {} config change failed, groupId={}", type, rg.getGroupId(), ex);
+                if (ex instanceof NotLeaderException) {
+                    log.warn("Admin {} config change failed, groupId={}, not leader", type, rg.getGroupId());
+                } else {
+                    log.error("Admin {} config change failed, groupId={}", type, rg.getGroupId(), ex);
+                }
                 writeErrorResp(reqInfo, ex);
             } else {
                 log.info("Admin {} config change success, groupId={}, resultIndex={}", type, rg.getGroupId(), index);
