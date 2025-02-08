@@ -122,8 +122,11 @@ public class MemberManager {
         raftStatus.setPreparedMembers(emptyList());
         raftStatus.setPreparedObservers(emptyList());
         if (raftStatus.getSelf() == null) {
+            // the current node is not in members and observers
             RaftNodeEx node = nodeManager.allNodesEx.get(serverConfig.getNodeId());
             createMember(node, RaftRole.none);
+            // for RaftRole.none, don't ping member when init
+            pingReadyFuture.complete(null);
         }
         computeDuplicatedData(raftStatus);
 

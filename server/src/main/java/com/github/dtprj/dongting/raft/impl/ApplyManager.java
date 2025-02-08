@@ -277,7 +277,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         raftStatus.setLastApplied(index);
         raftStatus.setLastAppliedTerm(rt.getItem().getTerm());
 
-        if (!raftStatus.isGroupReady() && index >= raftStatus.getGroupReadyIndex()) {
+        if (!raftStatus.isGroupReady() && raftStatus.getRole() != RaftRole.none
+                && index >= raftStatus.getGroupReadyIndex()) {
             raftStatus.setGroupReady(true);
             // copy share status should happen before group ready notifications
             raftStatus.copyShareStatus();
