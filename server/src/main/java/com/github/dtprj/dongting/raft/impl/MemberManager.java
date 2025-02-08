@@ -383,6 +383,7 @@ public class MemberManager {
         private final CompletableFuture<Long> finalFuture;
         private final long prepareIndex;
         private final HashMap<Integer, CompletableFuture<Boolean>> resultMap = new HashMap<>();
+        private boolean fireCommit;
 
         private LeaderCommitFrame(CompletableFuture<Long> finalFuture, long prepareIndex) {
             this.finalFuture = finalFuture;
@@ -466,7 +467,7 @@ public class MemberManager {
 
         private void checkPrepareStatus() {
             try {
-                if (finalFuture.isDone()) {
+                if (fireCommit) {
                     // prevent duplicate change
                     return;
                 }
@@ -516,7 +517,7 @@ public class MemberManager {
                 if (memberReadyCount >= raftStatus.getElectQuorum() && preparedMemberReadyCount >= prepareQuorum) {
                     log.info("members prepare status check success, groupId={}, memberReadyCount={}, preparedMemberReadyCount={}",
                             groupId, memberReadyCount, preparedMemberReadyCount);
-
+                    fireCommit = true;
                     leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
                 } else if (memberNotReadyCount >= raftStatus.getElectQuorum() ||
                         (prepareQuorum > 0 && preparedMemberNotReadyCount >= prepareQuorum)) {
