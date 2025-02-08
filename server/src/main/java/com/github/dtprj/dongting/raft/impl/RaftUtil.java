@@ -283,16 +283,13 @@ public final class RaftUtil {
     }
 
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
-        if (raftStatus.getLastForceLogIndex() != raftStatus.getLastLogIndex() || raftStatus.isTruncating()) {
-            log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}, truncating={}",
-                    raftStatus.getLastForceLogIndex(), raftStatus.getLastLogIndex(), raftStatus.isTruncating());
-            return true;
-        }
-        return false;
+        return raftStatus.getLastForceLogIndex() != raftStatus.getLastLogIndex() || raftStatus.isTruncating();
     }
 
     public static FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
         if (writeNotFinished(raftStatus)) {
+            log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}, truncating={}",
+                    raftStatus.getLastForceLogIndex(), raftStatus.getLastLogIndex(), raftStatus.isTruncating());
             return raftStatus.getLogForceFinishCondition().await(10 * 1000,
                     v -> waitWriteFinish(raftStatus, resumePoint));
         } else {

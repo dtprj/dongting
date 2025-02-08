@@ -303,9 +303,9 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             return Fiber.frameReturn();
         }
         if (req.prevLogIndex != raftStatus.getLastLogIndex() || req.prevLogTerm != raftStatus.getLastLogTerm()) {
-            log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}, groupId={}",
+            log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, count={}, leaderId={}, groupId={}",
                     req.prevLogIndex, raftStatus.getLastLogIndex(), req.prevLogTerm,
-                    raftStatus.getLastLogTerm(), req.leaderId, raftStatus.getGroupId());
+                    raftStatus.getLastLogTerm(), req.logs.size(), req.leaderId, raftStatus.getGroupId());
             int currentTerm = raftStatus.getCurrentTerm();
             Supplier<Boolean> cancelIndicator = () -> raftStatus.getCurrentTerm() != currentTerm;
             FiberFrame<Pair<Integer, Long>> replicatePosFrame = gc.getRaftLog().tryFindMatchPos(

@@ -422,6 +422,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         if (index < cache.getFirstKey() || index > cache.getLastKey()) {
             throw new RaftException("truncateTail out of cache range: " + index);
         }
+        log.info("truncate tail to {}(inclusive), old nextIndex={}", index, nextIndex);
         cache.truncate(index);
         nextIndex = index;
     }

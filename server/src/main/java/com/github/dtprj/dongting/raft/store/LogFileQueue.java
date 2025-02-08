@@ -239,6 +239,8 @@ class LogFileQueue extends FileQueue {
                 }
             }
         }
+        log.info("truncate tail to index={}(inclusive), pos={}, oldNextPersistIndex={}, nextPersistPos={}",
+                index, pos, logAppender.nextPersistIndex, logAppender.nextPersistPos);
         logAppender.setNext(index, pos);
     }
 
