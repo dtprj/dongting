@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
+import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -355,7 +356,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             task.setItem(li);
             list.add(task);
 
-            if (index < raftStatus.getGroupReadyIndex()) {
+            if (index < raftStatus.getGroupReadyIndex() && raftStatus.getRole() != RaftRole.none) {
                 raftStatus.setGroupReadyIndex(index);
             }
             if (i == len - 1) {
