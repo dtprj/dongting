@@ -820,7 +820,7 @@ public class MemberManager {
             if (m.getMatchIndex() >= raftIndex || raftStatus.getTs().getNanoTime() - startNanos > 5000L * 1000 * 1000) {
                 return afterSleep();
             }
-            return m.getRepCondition().await(50, this);
+            return m.getRepDoneCondition().await(50, this);
         }
 
         private FrameCallResult afterSleep() {

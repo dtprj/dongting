@@ -210,7 +210,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     private final ReplicateManager replicateManager;
     private final CommitManager commitManager;
     private final RaftLog raftLog;
-    private final FiberCondition repCondition;
+    private final FiberCondition repDoneCondition;
     private final FiberCondition needRepCondition;
 
     private final int maxReplicateItems;
@@ -231,7 +231,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.ts = groupConfig.getTs();
         this.perfCallback = groupConfig.getPerfCallback();
-        this.repCondition = member.getRepCondition();
+        this.repDoneCondition = member.getRepDoneCondition();
         this.needRepCondition = raftStatus.getNeedRepCondition();
 
         this.raftLog = replicateManager.raftLog;
@@ -271,10 +271,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return Fiber.frameReturn();
         }
         if (pendingItems >= maxReplicateItems) {
-            return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
+            return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, this);
         }
         if (pendingBytes >= maxReplicateBytes) {
-            return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
+            return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, this);
         }
 
         long nextIndex = member.getNextIndex();
@@ -290,7 +290,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             if (pendingItems == 0) {
                 return doReplicate(member, diff, nextIndex);
             } else {
-                return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
+                return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, this);
             }
         }
     }
@@ -300,7 +300,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         int rest = maxReplicateItems - pendingItems;
         if (pendingItems > 0 && rest <= restItemsToStartReplicate) {
             // avoid silly window syndrome
-            return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
+            return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, this);
         }
 
         int limit = multiAppend ? (int) Math.min(rest, diff) : 1;
@@ -406,7 +406,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     void afterAppendRpc(ReadPacket<AppendResp> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
                         long leaseStartNanos, int itemCount, long bytes, long perfStartTime) {
         perfCallback.fireTime(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes);
-        repCondition.signalAll();
+        repDoneCondition.signalAll();
         if (epochChange()) {
             log.info("receive outdated append result, replicateEpoch not match. ignore.");
             return;
