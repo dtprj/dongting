@@ -76,6 +76,8 @@ public class MemberManager {
 
     int daemonSleepInterval = 1000;
 
+    final ArrayList<RaftMember> legacyMembers = new ArrayList<>();
+
     public MemberManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
@@ -651,6 +653,7 @@ public class MemberManager {
     public FrameCallResult doPrepare(long raftIndex, Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") prepare config change",
                 raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(), newMemberIds, newObserverIds);
+        f.raftIndex = raftIndex;
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
@@ -663,6 +666,7 @@ public class MemberManager {
         }
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") abort config change",
                 raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(), emptySet(), emptySet());
+        f.raftIndex = raftIndex;
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
@@ -675,6 +679,7 @@ public class MemberManager {
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") commit config change",
                 raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
                 emptySet(), emptySet());
+        f.raftIndex = raftIndex;
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
@@ -689,6 +694,8 @@ public class MemberManager {
         private final Set<Integer> observers;
         private final Set<Integer> preparedMembers;
         private final Set<Integer> preparedObservers;
+
+        private long raftIndex;
 
         ApplyConfigFrame(String msg, Set<Integer> members, Set<Integer> observers,
                          Set<Integer> preparedMembers, Set<Integer> preparedObservers) {
@@ -777,14 +784,52 @@ public class MemberManager {
             if (r == RaftRole.leader) {
                 List<RaftMember> newRepList = raftStatus.getReplicateList();
                 for (RaftMember m : oldRepList) {
-                    if (!newRepList.contains(m)) {
-                        m.incrementReplicateEpoch(m.getReplicateEpoch());
+                    if (!newRepList.contains(m) && m.getReplicateFiber() != null && !m.getReplicateFiber().isFinished()) {
+                        legacyMembers.add(m);
+                        RemoveLegacyFrame ff = new RemoveLegacyFrame(m, raftIndex);
+                        Fiber f = new Fiber("remove-legacy-" + m.getNode().getNodeId(),
+                                groupConfig.getFiberGroup(), ff, true);
+                        f.start();
                     }
                 }
             }
 
             gc.getVoteManager().cancelVote("config change");
             log.info("{} success, groupId={}", msg, groupId);
+            return Fiber.frameReturn();
+        }
+    }
+
+    private class RemoveLegacyFrame extends FiberFrame<Void> {
+
+        private final RaftMember m;
+        private final long raftIndex;
+        private final long startNanos;
+
+        private RemoveLegacyFrame(RaftMember m, long raftIndex) {
+            this.m = m;
+            this.raftIndex = raftIndex;
+            this.startNanos = raftStatus.getTs().getNanoTime();
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            // delay stop replicate to ensure the commit config change log is replicate to the legacy member.
+            // otherwise the legacy member may start pre-vote and generate WARN logs in other members.
+            // however this is not necessary.
+            if (m.getMatchIndex() >= raftIndex || raftStatus.getTs().getNanoTime() - startNanos > 5000L * 1000 * 1000) {
+                return afterSleep();
+            }
+            return m.getRepCondition().await(50, this);
+        }
+
+        private FrameCallResult afterSleep() {
+            m.incrementReplicateEpoch(m.getReplicateEpoch());
+            return m.getReplicateFiber().join(this::afterJoin);
+        }
+
+        private FrameCallResult afterJoin(Void v) {
+            legacyMembers.remove(m);
             return Fiber.frameReturn();
         }
     }
@@ -958,5 +1003,14 @@ public class MemberManager {
 
     public CompletableFuture<Void> getPingReadyFuture() {
         return pingReadyFuture;
+    }
+
+    public boolean inLegacyMember(RaftMember m) {
+        for (int size = legacyMembers.size(), i = 0; i < size; i++) {
+            if (legacyMembers.get(i).getNode().getNodeId() == m.getNode().getNodeId()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

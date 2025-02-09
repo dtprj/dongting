@@ -97,11 +97,16 @@ public class ReplicateManager {
         if (raftStatus.getRole() != RaftRole.leader) {
             return;
         }
-        for (RaftMember m : raftStatus.getReplicateList()) {
+        List<RaftMember> list = raftStatus.getReplicateList();
+        for (int size = list.size(), i = 0; i < size; i++) {
+            RaftMember m = list.get(i);
             if (m.getNode().isSelf()) {
                 continue;
             }
             if (!m.isReady()) {
+                continue;
+            }
+            if (gc.getMemberManager().inLegacyMember(m)) {
                 continue;
             }
             if (m.getReplicateFiber() == null || m.getReplicateFiber().isFinished()) {
