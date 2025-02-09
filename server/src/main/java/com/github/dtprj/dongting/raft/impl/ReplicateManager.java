@@ -316,11 +316,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 RaftTask rt = raftStatus.getTailCache().get(nextIndex + i);
                 LogItem li = rt.getItem();
                 size += li.getActualBodySize();
-                if (i == 0) {
-                    leaseStartNanos = rt.getCreateTimeNanos();
-                } else if (size > sizeLimit) {
+                if (size > sizeLimit) {
                     break;
                 }
+                leaseStartNanos = rt.getCreateTimeNanos();
                 li.retain();
                 items.add(li);
             }
