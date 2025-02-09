@@ -777,7 +777,7 @@ public class MemberManager {
             if (r == RaftRole.leader) {
                 List<RaftMember> newRepList = raftStatus.getReplicateList();
                 for (RaftMember m : oldRepList) {
-                    if (newRepList.contains(m)) {
+                    if (!newRepList.contains(m)) {
                         m.incrementReplicateEpoch(m.getReplicateEpoch());
                     }
                 }
