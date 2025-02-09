@@ -88,9 +88,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
     public static void initRaftStatus(RaftStatusImpl raftStatus, FiberGroup fg, RaftServerConfig serverConfig) {
         raftStatus.setElectTimeoutNanos(Duration.ofMillis(serverConfig.getElectTimeout()).toNanos());
         raftStatus.setFiberGroup(fg);
-        raftStatus.setDataArrivedCondition(fg.newCondition("dataArrived"));
-        raftStatus.setLogForceFinishCondition(fg.newCondition("logSyncFinish"));
-        raftStatus.setLogWriteFinishCondition(fg.newCondition("logWriteFinish"));
+        int groupId = raftStatus.getGroupId();
+        raftStatus.setNeedRepCondition(fg.newCondition("needRep" + groupId));
+        raftStatus.setLogForceFinishCondition(fg.newCondition("logSyncFinish" + groupId));
+        raftStatus.setLogWriteFinishCondition(fg.newCondition("logWriteFinish" + groupId));
     }
 
     private FrameCallResult afterInitStatusFile(Void unused) {

@@ -58,7 +58,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private List<RaftMember> replicateList;
 
-    private FiberCondition dataArrivedCondition;
+    private FiberCondition needRepCondition;
     private TailCache tailCache;
 
     // for leader, groupReadyIndex is the firstIndex of currentTerm.
@@ -385,12 +385,12 @@ public class RaftStatusImpl extends RaftStatus {
         this.leaderCommit = leaderCommit;
     }
 
-    public FiberCondition getDataArrivedCondition() {
-        return dataArrivedCondition;
+    public FiberCondition getNeedRepCondition() {
+        return needRepCondition;
     }
 
-    public void setDataArrivedCondition(FiberCondition dataArrivedCondition) {
-        this.dataArrivedCondition = dataArrivedCondition;
+    public void setNeedRepCondition(FiberCondition needRepCondition) {
+        this.needRepCondition = needRepCondition;
     }
 
     public FiberGroup getFiberGroup() {

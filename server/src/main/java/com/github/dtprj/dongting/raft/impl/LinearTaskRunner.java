@@ -218,7 +218,7 @@ public class LinearTaskRunner {
                 raftStatus.setLastLogTerm(li.getTerm());
             }
         }
-        raftStatus.getDataArrivedCondition().signalAll();
+        raftStatus.getNeedRepCondition().signalAll();
         return raftLog.append(logItems);
     }
 
