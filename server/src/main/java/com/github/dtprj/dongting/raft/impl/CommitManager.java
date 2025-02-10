@@ -69,7 +69,7 @@ public class CommitManager {
             RaftStatusImpl raftStatus = CommitManager.this.raftStatus;
             long idx = syncForce ? raftStatus.getLastForceLogIndex() : raftStatus.getLastWriteLogIndex();
             if (idx > raftStatus.getCommitIndex()) {
-                CommitManager.this.logFinish(idx);
+                CommitManager.this.logWriteFinish(idx);
             }
             FiberCondition c = syncForce ? raftStatus.getLogForceFinishCondition()
                     : raftStatus.getLogWriteFinishCondition();
@@ -77,7 +77,7 @@ public class CommitManager {
         }
     }
 
-    private void logFinish(long lastPersistIndex) {
+    private void logWriteFinish(long lastPersistIndex) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (lastPersistIndex > raftStatus.getLastLogIndex()) {
             throw Fiber.fatal(new RaftException("lastPersistIndex > lastLogIndex. lastPersistIndex="
@@ -102,12 +102,19 @@ public class CommitManager {
                     break;
                 }
             }
-            if (raftStatus.getLeaderCommit() > raftStatus.getCommitIndex()) {
-                long newCommitIndex = Math.min(lastPersistIndex, raftStatus.getLeaderCommit());
-                if (newCommitIndex > raftStatus.getCommitIndex()) {
-                    raftStatus.setCommitIndex(newCommitIndex);
-                    applyManager.wakeupApply();
-                }
+            followerTryCommit(raftStatus);
+        }
+    }
+
+    public void followerTryCommit(RaftStatusImpl raftStatus) {
+        long lastPersistIndex = syncForce ? raftStatus.getLastForceLogIndex() : raftStatus.getLastWriteLogIndex();
+        long leaderCommit = raftStatus.getLeaderCommit();
+        long oldCommitIndex = raftStatus.getCommitIndex();
+        if (leaderCommit > oldCommitIndex) {
+            long newCommitIndex = Math.min(lastPersistIndex, leaderCommit);
+            if (newCommitIndex > oldCommitIndex) {
+                raftStatus.setCommitIndex(newCommitIndex);
+                applyManager.wakeupApply();
             }
         }
     }

@@ -342,6 +342,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         }
         if (req.leaderCommit > raftStatus.getLeaderCommit()) {
             raftStatus.setLeaderCommit(req.leaderCommit);
+            gc.getCommitManager().followerTryCommit(raftStatus);
         }
 
         long index = LinearTaskRunner.lastIndex(raftStatus);
