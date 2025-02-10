@@ -200,11 +200,21 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                         gc.getVoteManager().cancelVote(r);
                         RaftUtil.resetElectTimer(raftStatus);
                         RaftUtil.changeToFollower(raftStatus, leaderId, r);
+                        if (reqInfo.reqContext.getTimeout().isTimeout(raftStatus.getTs())) {
+                            log.info("request timeout, ignore. groupId={}", raftStatus.getGroupId());
+                            // not generate response
+                            return Fiber.frameReturn();
+                        }
                         return process();
                     default:
                         gc.getVoteManager().cancelVote("receive append request from leader");
                         RaftUtil.resetElectTimer(raftStatus);
                         RaftUtil.updateLeader(raftStatus, leaderId);
+                        if (reqInfo.reqContext.getTimeout().isTimeout(raftStatus.getTs())) {
+                            log.info("request timeout, ignore. groupId={}", raftStatus.getGroupId());
+                            // not generate response
+                            return Fiber.frameReturn();
+                        }
                         return process();
                 }
             } else if (remoteTerm > localTerm) {
@@ -293,11 +303,6 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     protected FrameCallResult process() {
         AppendReq req = reqInfo.reqFrame.getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (reqInfo.reqContext.getTimeout().isTimeout(raftStatus.getTs())) {
-            log.info("append request timeout, ignore. groupId={}", raftStatus.getGroupId());
-            // not generate response
-            return Fiber.frameReturn();
-        }
         if (raftStatus.isInstallSnapshot()) {
             writeAppendResp(AppendProcessor.APPEND_INSTALL_SNAPSHOT, null);
             return Fiber.frameReturn();
