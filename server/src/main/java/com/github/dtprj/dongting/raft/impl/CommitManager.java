@@ -92,7 +92,7 @@ public class CommitManager {
             RaftUtil.updateLease(raftStatus);
             // not call raftStatus.copyShareStatus(), invoke after apply
 
-            tryCommit(lastPersistIndex);
+            leaderTryCommit(lastPersistIndex);
         } else {
             while (respQueue.size() > 0) {
                 AppendRespWriter writer = respQueue.get(0);
@@ -112,7 +112,7 @@ public class CommitManager {
         }
     }
 
-    public void tryCommit(long recentMatchIndex) {
+    public void leaderTryCommit(long recentMatchIndex) {
         RaftStatusImpl raftStatus = this.raftStatus;
 
         if (!needCommit(recentMatchIndex, raftStatus)) {

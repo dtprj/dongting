@@ -456,7 +456,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 updateLease(member, leaseStartNanos, raftStatus);
                 member.setMatchIndex(expectNewMatchIndex);
                 multiAppend = true;
-                commitManager.tryCommit(expectNewMatchIndex);
+                commitManager.leaderTryCommit(expectNewMatchIndex);
             } else {
                 BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}," +
                                 " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
