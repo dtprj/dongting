@@ -121,6 +121,10 @@ public class DefaultRaftLog implements RaftLog {
                 long restoreStartPos = p.getRight();
                 long firstValidPos = RaftUtil.parseLong(statusManager.getProperties(),
                         KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, 0);
+
+                // restore will cause idx write, so start idx fibers
+                idxFiles.startFibers();
+
                 return Fiber.call(logFiles.restore(restoreIndex, restoreStartPos, firstValidPos),
                         this::afterLogRestore);
             }
@@ -128,7 +132,6 @@ public class DefaultRaftLog implements RaftLog {
             private FrameCallResult afterLogRestore(int lastTerm) {
                 RaftUtil.checkStop(fiberGroup);
 
-                idxFiles.startFibers();
                 logFiles.startFibers();
                 idxFiles.initialized = true;
                 logFiles.initialized = true;

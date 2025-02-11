@@ -192,7 +192,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if (getDiff() > flushThreshold) {
+        if (getDiff() >= flushThreshold) {
             needFlushCondition.signal();
         }
     }
@@ -253,19 +253,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     @Override
     public boolean needWaitFlush() {
         removeHead();
-        LongLongSeqMap cache = this.cache;
-        if (cache.size() > blockCacheItems && persistedIndex < Math.min(raftStatus.getCommitIndex(), cache.getLastKey())) {
-            long first = cache.getFirstKey();
-            long last = cache.getLastKey();
-            log.warn("group {} cache size exceed {}({}), may cause block. cache from {} to {}, commitIndex={}(diff={}), " +
-                            "lastWriteIndex={}(diff={}), lastForceIndex={}(diff={}), ",
-                    raftStatus.getGroupId(), blockCacheItems, cache.size(), first, last,
-                    raftStatus.getCommitIndex(), (last - raftStatus.getCommitIndex()),
-                    raftStatus.getLastWriteLogIndex(), (last - raftStatus.getLastWriteLogIndex()),
-                    raftStatus.getLastForceLogIndex(), (last - raftStatus.getLastForceLogIndex()));
-            return true;
-        }
-        return false;
+        return cache.size() > blockCacheItems && getDiff() >= flushThreshold;
     }
 
     @Override
@@ -274,7 +262,14 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                if (cache.size() > blockCacheItems && persistedIndex < Math.min(raftStatus.getCommitIndex(), cache.getLastKey())) {
+                if (needWaitFlush()) {
+                    long first = cache.getFirstKey();
+                    long last = cache.getLastKey();
+                    log.warn("group {} cache size {} exceed {}, may cause block. cache from {} to {}, idxPersistedIndex={}," +
+                                    " commitIndex={}, lastWriteIndex={}, lastForceIndex={}",
+                            raftStatus.getGroupId(), cache.size(), blockCacheItems, first, last, persistedIndex,
+                            raftStatus.getCommitIndex(), raftStatus.getLastWriteLogIndex(), raftStatus.getLastForceLogIndex());
+                    needFlushCondition.signalAll();
                     return flushDoneCondition.await(1000, this);
                 }
                 return Fiber.frameReturn();
