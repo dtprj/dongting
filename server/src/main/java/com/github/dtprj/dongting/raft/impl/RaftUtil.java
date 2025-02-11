@@ -146,6 +146,7 @@ public final class RaftUtil {
         for (RaftMember member : raftStatus.getReplicateList()) {
             member.setMatchIndex(0);
             member.setNextIndex(0);
+            member.setRepCommitIndex(0);
             if (cleanLastConfirmReqNanos) {
                 member.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
             }

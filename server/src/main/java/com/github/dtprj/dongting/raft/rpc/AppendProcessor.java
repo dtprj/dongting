@@ -307,7 +307,10 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             writeAppendResp(AppendProcessor.APPEND_INSTALL_SNAPSHOT, null);
             return Fiber.frameReturn();
         }
-        if (req.prevLogIndex != raftStatus.getLastLogIndex() || req.prevLogTerm != raftStatus.getLastLogTerm()) {
+        if (req.logs.isEmpty()) {
+            updateLeaderCommit(req, raftStatus);
+            return Fiber.frameReturn();
+        } else if (req.prevLogIndex != raftStatus.getLastLogIndex() || req.prevLogTerm != raftStatus.getLastLogTerm()) {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, count={}, leaderId={}, groupId={}",
                     req.prevLogIndex, raftStatus.getLastLogIndex(), req.prevLogTerm,
                     raftStatus.getLastLogTerm(), req.logs.size(), req.leaderId, raftStatus.getGroupId());
@@ -316,12 +319,12 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             FiberFrame<Pair<Integer, Long>> replicatePosFrame = gc.getRaftLog().tryFindMatchPos(
                     req.prevLogTerm, req.prevLogIndex, cancelIndicator);
             return Fiber.call(replicatePosFrame, pos -> resumeWhenFindReplicatePosFinish(pos, currentTerm));
+        } else {
+            return doAppend(req);
         }
-        return doAppend(reqInfo, gc);
     }
 
-    private FrameCallResult doAppend(ReqInfoEx<AppendReq> reqInfo, GroupComponents gc) {
-        AppendReq req = reqInfo.reqFrame.getBody();
+    private FrameCallResult doAppend(AppendReq req) {
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (req.prevLogIndex < raftStatus.getCommitIndex()) {
             BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
@@ -330,20 +333,8 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             return Fiber.frameReturn();
         }
         List<LogItem> logs = req.logs;
-        if (logs == null || logs.isEmpty()) {
-            log.error("bad request: no logs");
-            writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, null);
-            return Fiber.frameReturn();
-        }
 
-        if (req.leaderCommit < raftStatus.getCommitIndex()) {
-            log.info("leader commitIndex less than local, maybe leader restart recently. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}, groupId={}",
-                    req.leaderId, req.term, req.leaderCommit, raftStatus.getCommitIndex(), raftStatus.getGroupId());
-        }
-        if (req.leaderCommit > raftStatus.getLeaderCommit()) {
-            raftStatus.setLeaderCommit(req.leaderCommit);
-            gc.getCommitManager().followerTryCommit(raftStatus);
-        }
+        updateLeaderCommit(req, raftStatus);
 
         long index = LinearTaskRunner.lastIndex(raftStatus);
 
@@ -373,6 +364,18 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         FiberFrame<Void> f = gc.getLinearTaskRunner().append(raftStatus, list);
         // success response write in CommitManager fiber
         return Fiber.call(f, this::justReturn);
+    }
+
+    private void updateLeaderCommit(AppendReq req, RaftStatusImpl raftStatus) {
+        if (req.leaderCommit < raftStatus.getCommitIndex()) {
+            log.info("leader commitIndex less than local, maybe leader restart recently. leaderId={}," +
+                            " leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}, groupId={}",
+                    req.leaderId, req.term, req.leaderCommit, raftStatus.getCommitIndex(), raftStatus.getGroupId());
+        }
+        if (req.leaderCommit > raftStatus.getLeaderCommit()) {
+            raftStatus.setLeaderCommit(req.leaderCommit);
+            gc.getCommitManager().followerTryCommit(raftStatus);
+        }
     }
 
     private void registerRespWriter(RaftStatusImpl raftStatus, long index) {
@@ -443,7 +446,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         raftStatus.setLastForceLogIndex(matchIndex);
         raftStatus.setLastLogIndex(matchIndex);
         raftStatus.setLastLogTerm(matchTerm);
-        return doAppend(reqInfo, gc);
+        return doAppend(reqInfo.reqFrame.getBody());
     }
 
 }// end of AppendFiberFrame

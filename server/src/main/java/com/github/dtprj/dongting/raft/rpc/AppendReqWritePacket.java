@@ -81,10 +81,12 @@ public class AppendReqWritePacket extends WritePacket {
                 + PbUtil.accurateUnsignedIntSize(5, prevLogTerm)
                 + PbUtil.accurateFix64Size(6, leaderCommit);
         int x = headerSize;
-        for (LogItem item : logs) {
-            int itemSize = computeItemSize(item);
-            // assert itemSize > 0
-            x += PbUtil.accurateLengthDelimitedPrefixSize(7, itemSize) + itemSize;
+        if (logs != null) {
+            for (LogItem item : logs) {
+                int itemSize = computeItemSize(item);
+                // assert itemSize > 0
+                x += PbUtil.accurateLengthDelimitedPrefixSize(7, itemSize) + itemSize;
+            }
         }
         return x;
     }
@@ -125,7 +127,7 @@ public class AppendReqWritePacket extends WritePacket {
                     writeStatus = WRITE_ITEM_HEADER;
                     break;
                 case WRITE_ITEM_HEADER:
-                    if (encodeLogIndex < logs.size()) {
+                    if (logs != null && encodeLogIndex < logs.size()) {
                         currentItem = logs.get(encodeLogIndex);
                     } else {
                         return true;

@@ -55,6 +55,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -220,6 +221,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     int pendingItems;
     long pendingBytes;
     private boolean multiAppend;
+    private boolean updateCommitIndex;
 
     private RaftLog.LogIterator replicateIterator;
     private final Timestamp ts;
@@ -265,32 +267,39 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         return Fiber.frameReturn();
     }
 
+    private FrameCallResult await() {
+        return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, needRepCondition, this);
+    }
+
     @Override
     public FrameCallResult execute(Void input) {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
         if (pendingItems >= maxReplicateItems) {
-            return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, this);
+            return await();
         }
         if (pendingBytes >= maxReplicateBytes) {
-            return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, this);
+            return await();
         }
 
         long nextIndex = member.getNextIndex();
         long diff = raftStatus.getLastLogIndex() - nextIndex + 1;
-        if (diff <= 0) {
-            // no data to replicate
-            return needRepCondition.await(WAIT_CONDITION_TIMEOUT, this);
+        if (diff <= 0 && member.getRepCommitIndex() >= raftStatus.getCommitIndex()) {
+            // no data to replicate and no need to update repCommitIndex
+            return await();
         }
 
         if (multiAppend) {
             return doReplicate(member, diff, nextIndex);
         } else {
-            if (pendingItems == 0) {
+            if (diff <= 0) {
+                // don't update repCommitIndex in this case
+                return await();
+            } else if (pendingItems <= 0) {
                 return doReplicate(member, diff, nextIndex);
             } else {
-                return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, this);
+                return await();
             }
         }
     }
@@ -300,12 +309,23 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         int rest = maxReplicateItems - pendingItems;
         if (pendingItems > 0 && rest <= restItemsToStartReplicate) {
             // avoid silly window syndrome
-            return repDoneCondition.await(WAIT_CONDITION_TIMEOUT, this);
+            return await();
+        }
+
+        TailCache tailCache = raftStatus.getTailCache();
+        if (diff == 0) {
+            if (updateCommitIndex) {
+                return await();
+            } else {
+                updateCommitIndex = true;
+                sendAppendRequest(member, Collections.emptyList(), 0);
+                return Fiber.resume(null, this);
+            }
         }
 
         int limit = multiAppend ? (int) Math.min(rest, diff) : 1;
 
-        RaftTask first = raftStatus.getTailCache().get(nextIndex);
+        RaftTask first = tailCache.get(nextIndex);
         if (first != null) {
             closeIterator();
             long sizeLimit = groupConfig.getSingleReplicateLimit();
@@ -313,10 +333,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             long size = 0;
             long leaseStartNanos = 0;
             for (int i = 0; i < limit; i++) {
-                RaftTask rt = raftStatus.getTailCache().get(nextIndex + i);
+                RaftTask rt = tailCache.get(nextIndex + i);
                 LogItem li = rt.getItem();
                 size += li.getActualBodySize();
-                if (size > sizeLimit) {
+                if (i > 0 && size > sizeLimit) {
                     break;
                 }
                 leaseStartNanos = rt.getCreateTimeNanos();
@@ -359,20 +379,24 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     }
 
     private void sendAppendRequest(RaftMember member, List<LogItem> items, long leaseStartNanos) {
-        LogItem firstItem = items.get(0);
-        long prevLogIndex = firstItem.getIndex() - 1;
-
         AppendReqWritePacket req = new AppendReqWritePacket();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.groupId = groupId;
         req.term = raftStatus.getCurrentTerm();
         req.leaderId = serverConfig.getNodeId();
         req.leaderCommit = raftStatus.getCommitIndex();
-        req.prevLogIndex = prevLogIndex;
-        req.prevLogTerm = firstItem.getPrevLogTerm();
-        req.logs = items;
 
-        member.setNextIndex(prevLogIndex + 1 + items.size());
+        if (!items.isEmpty()) {
+            LogItem firstItem = items.get(0);
+            long prevLogIndex = firstItem.getIndex() - 1;
+            req.prevLogIndex = prevLogIndex;
+            req.prevLogTerm = firstItem.getPrevLogTerm();
+            req.logs = items;
+            member.setNextIndex(prevLogIndex + 1 + items.size());
+        } else {
+            member.setRepCommitIndex(raftStatus.getCommitIndex());
+        }
+
 
         DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
@@ -388,22 +412,21 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 new RpcCallback<>() {
                     @Override
                     public void success(ReadPacket<AppendResp> result) {
-                        ge.execute(() -> afterAppendRpc(result, null, prevLogIndex,
-                                firstItem.getPrevLogTerm(), leaseStartNanos, items.size(), finalBytes, perfStartTime));
+                        ge.execute(() -> afterAppendRpc(result, null, req, leaseStartNanos, finalBytes, perfStartTime));
                     }
 
                     @Override
                     public void fail(Throwable ex) {
-                        ge.execute(() -> afterAppendRpc(null, ex, prevLogIndex,
-                                firstItem.getPrevLogTerm(), leaseStartNanos, items.size(), finalBytes, perfStartTime));
+                        ge.execute(() -> afterAppendRpc(null, ex, req, leaseStartNanos, finalBytes, perfStartTime));
                     }
                 });
         pendingItems += items.size();
         pendingBytes += bytes;
     }
 
-    void afterAppendRpc(ReadPacket<AppendResp> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
-                        long leaseStartNanos, int itemCount, long bytes, long perfStartTime) {
+    void afterAppendRpc(ReadPacket<AppendResp> rf, Throwable ex, AppendReqWritePacket req,
+                        long leaseStartNanos, long bytes, long perfStartTime) {
+        int itemCount = req.logs == null ? 0 : req.logs.size();
         perfCallback.fireTime(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes);
         repDoneCondition.signalAll();
         if (epochChange()) {
@@ -414,10 +437,9 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         descPending(itemCount, bytes);
 
         if (ex == null) {
-            processAppendResult(rf, prevLogIndex, prevLogTerm, leaseStartNanos, itemCount);
+            processAppendResult(rf, req.prevLogIndex, req.prevLogTerm, leaseStartNanos, itemCount);
         } else {
             incrementEpoch();
-            needRepCondition.signal(this.getFiber());
 
             ex = DtUtil.rootCause(ex);
             boolean warn = false;
@@ -428,10 +450,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             if (warn) {
                 log.warn("append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}. {}",
                         member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
-                        term, prevLogIndex, ex.toString());
+                        term, req.prevLogIndex, ex.toString());
             } else {
                 log.error("append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}",
-                        member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), term, prevLogIndex, ex);
+                        member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), term, req.prevLogIndex, ex);
             }
         }
     }
@@ -452,7 +474,9 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return;
         }
         if (body.success) {
-            if (member.getMatchIndex() <= prevLogIndex) {
+            if (count == 0) {
+                updateCommitIndex = false;
+            } else if (member.getMatchIndex() <= prevLogIndex) {
                 updateLease(member, leaseStartNanos, raftStatus);
                 member.setMatchIndex(expectNewMatchIndex);
                 multiAppend = true;
@@ -468,7 +492,6 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         } else {
             closeIterator();
             incrementEpoch();
-            needRepCondition.signal(this.getFiber());
             int appendCode = body.appendCode;
             if (appendCode == AppendProcessor.APPEND_LOG_NOT_MATCH) {
                 updateLease(member, leaseStartNanos, raftStatus);
