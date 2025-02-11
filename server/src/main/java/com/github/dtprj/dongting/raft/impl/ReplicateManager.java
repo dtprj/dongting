@@ -285,7 +285,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         long nextIndex = member.getNextIndex();
         long diff = raftStatus.getLastLogIndex() - nextIndex + 1;
-        if (diff <= 0 && member.getRepCommitIndex() >= raftStatus.getCommitIndex()) {
+        if (diff <= 0 && member.repCommitIndex >= raftStatus.getCommitIndex()) {
             // no data to replicate and no need to update repCommitIndex
             return await();
         }
@@ -394,7 +394,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             req.logs = items;
             member.setNextIndex(prevLogIndex + 1 + items.size());
         } else {
-            member.setRepCommitIndex(raftStatus.getCommitIndex());
+            member.repCommitIndex = raftStatus.getCommitIndex();
         }
 
 
@@ -437,7 +437,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         descPending(itemCount, bytes);
 
         if (ex == null) {
-            processAppendResult(rf, req.prevLogIndex, req.prevLogTerm, leaseStartNanos, itemCount);
+            processAppendResult(rf, req, leaseStartNanos, itemCount);
         } else {
             incrementEpoch();
 
@@ -458,10 +458,12 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
     }
 
-    private void processAppendResult(ReadPacket<AppendResp> rf, long prevLogIndex,
-                                     int prevLogTerm, long leaseStartNanos, int count) {
-        long expectNewMatchIndex = prevLogIndex + count;
-        AppendResp body = rf.getBody();
+    private void processAppendResult(ReadPacket<AppendResp> resp, AppendReqWritePacket req,
+                                     long leaseStartNanos, int itemCount) {
+        long prevLogIndex = req.prevLogIndex;
+        int prevLogTerm = req.prevLogTerm;
+        long expectNewMatchIndex = prevLogIndex + itemCount;
+        AppendResp body = resp.getBody();
         RaftStatusImpl raftStatus = this.raftStatus;
         int remoteTerm = body.term;
         if (replicateManager.checkTermFailed(remoteTerm, true)) {
@@ -474,7 +476,8 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return;
         }
         if (body.success) {
-            if (count == 0) {
+            member.repCommitIndexAcked = Math.max(member.repCommitIndexAcked, req.leaderCommit);
+            if (itemCount == 0) {
                 updateCommitIndex = false;
             } else if (member.getMatchIndex() <= prevLogIndex) {
                 updateLease(member, leaseStartNanos, raftStatus);
@@ -499,7 +502,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             } else if (appendCode == AppendProcessor.APPEND_SERVER_ERROR) {
                 updateLease(member, leaseStartNanos, raftStatus);
                 log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
-                        groupId, prevLogIndex, rf.getMsg());
+                        groupId, prevLogIndex, resp.getMsg());
             } else if (appendCode == AppendProcessor.APPEND_INSTALL_SNAPSHOT) {
                 log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
                         groupId, member.getNode().getNodeId());

@@ -817,7 +817,8 @@ public class MemberManager {
             // delay stop replicate to ensure the commit config change log is replicate to the legacy member.
             // otherwise the legacy member may start pre-vote and generate WARN logs in other members.
             // however this is not necessary.
-            if (m.getMatchIndex() >= raftIndex || raftStatus.getTs().getNanoTime() - startNanos > 5000L * 1000 * 1000) {
+            boolean timeout = raftStatus.getTs().getNanoTime() - startNanos > 5000L * 1000 * 1000;
+            if ((m.getMatchIndex() >= raftIndex && m.repCommitIndexAcked >= raftIndex) || timeout) {
                 return afterSleep();
             }
             return m.getRepDoneCondition().await(50, this);

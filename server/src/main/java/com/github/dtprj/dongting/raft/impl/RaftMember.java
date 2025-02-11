@@ -34,7 +34,8 @@ public class RaftMember {
     private long nextIndex;
     private long matchIndex;
 
-    private long repCommitIndex;
+    public long repCommitIndex;
+    public long repCommitIndexAcked;
 
     private int replicateEpoch;
     private int nodeEpoch;
@@ -126,13 +127,5 @@ public class RaftMember {
 
     public void setNodeEpoch(int nodeEpoch) {
         this.nodeEpoch = nodeEpoch;
-    }
-
-    public long getRepCommitIndex() {
-        return repCommitIndex;
-    }
-
-    public void setRepCommitIndex(long repCommitIndex) {
-        this.repCommitIndex = repCommitIndex;
     }
 }
