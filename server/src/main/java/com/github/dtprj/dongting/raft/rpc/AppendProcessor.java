@@ -309,6 +309,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         }
         if (req.logs.isEmpty()) {
             updateLeaderCommit(req, raftStatus);
+            writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
             return Fiber.frameReturn();
         } else if (req.prevLogIndex != raftStatus.getLastLogIndex() || req.prevLogTerm != raftStatus.getLastLogTerm()) {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, count={}, leaderId={}, groupId={}",
