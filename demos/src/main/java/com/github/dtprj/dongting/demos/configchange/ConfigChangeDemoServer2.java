@@ -20,13 +20,12 @@ import com.github.dtprj.dongting.demos.base.DemoKvServer;
 /**
  * @author huangli
  */
-public class ConfigChangeDemoServer2 extends DemoKvServer {
+public class ConfigChangeDemoServer2 extends DemoKvServer implements GroupId {
     public static void main(String[] args) {
         int nodeId = 2;
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
         String members = "1,2,3";
         String observers = "";
-        int groupId = 1;
-        startServer(nodeId, servers, members, observers, new int[]{groupId});
+        startServer(nodeId, servers, members, observers, new int[]{GROUP_ID});
     }
 }

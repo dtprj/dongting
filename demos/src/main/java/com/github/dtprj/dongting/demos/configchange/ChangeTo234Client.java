@@ -27,39 +27,42 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class ChangeTo234Client {
+public class ChangeTo234Client implements GroupId {
 
     // to run this demo, you need to start ConfigChangeDemoServer1/2/3/4 first.
     // this demo change raft member from [1, 2, 3] to [2, 3, 4], if current member is [2, 3, 4], exit with code 1.
     public static void main(String[] args) throws Exception {
         // use replicate port
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
-        int groupId = 1;
         AdminRaftClient adminClient = new AdminRaftClient();
         adminClient.start();
-        adminClient.addOrUpdateGroup(groupId, servers);
-        RaftNode leader = adminClient.fetchLeader(groupId).get();
+        adminClient.addOrUpdateGroup(GROUP_ID, servers);
+        RaftNode leader = adminClient.fetchLeader(GROUP_ID).get();
 
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         QueryStatusResp status = adminClient.queryRaftServerStatus(
-                leader.getNodeId(), groupId, timeout).get();
+                leader.getNodeId(), GROUP_ID, timeout).get();
         if (status.members.contains(4)) {
             System.out.println("current member is [2,3,4], try run ChangeTo123Client.");
             System.exit(1);
         }
 
         if (leader.getNodeId() == 1) {
-            CompletableFuture<Void> f = adminClient.transferLeader(groupId, leader.getNodeId(), 2, timeout);
+            CompletableFuture<Void> f = adminClient.transferLeader(GROUP_ID, leader.getNodeId(), 2, timeout);
             f.get();
             System.out.println("transfer leader to node 2 success");
         }
 
-        CompletableFuture<Long> prepareFuture = adminClient.prepareConfigChange(groupId, Set.of(1, 2, 3), Set.of(),
+        // Prepared member will also participate in the election and the calculation of replicating the quorum.
+        // Therefore, the best practice is to make two changes. First, add it to the raft group as observers,
+        // and then promote it to members through another change.
+        // For simplicity here, the new node are directly added as member to the raft group.
+        CompletableFuture<Long> prepareFuture = adminClient.prepareConfigChange(GROUP_ID, Set.of(1, 2, 3), Set.of(),
                 Set.of(2, 3, 4), Set.of(), timeout);
         long prepareIndex = prepareFuture.get();
         System.out.println("prepare config change success");
 
-        adminClient.commitChange(groupId, prepareIndex, timeout).get();
+        adminClient.commitChange(GROUP_ID, prepareIndex, timeout).get();
         System.out.println("commit change success");
 
         System.exit(0);

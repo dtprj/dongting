@@ -24,14 +24,13 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class StandaloneClient extends DemoClient {
+public class StandaloneClient extends DemoClient implements GroupId {
 
     final static int LOOP_COUNT = 1_000_000;
 
     public static void main(String[] args) throws Exception {
         String servers = "1,127.0.0.1:5001";
-        int groupId = 3;
-        KvClient client = putAndGetFixCount(groupId, servers, LOOP_COUNT);
+        KvClient client = putAndGetFixCount(GROUP_ID, servers, LOOP_COUNT);
 
         // System.exit(0);
         client.stop(new DtTime(3, TimeUnit.SECONDS));

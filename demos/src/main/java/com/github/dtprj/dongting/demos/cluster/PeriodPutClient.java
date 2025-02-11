@@ -25,24 +25,23 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class PeriodPutClient {
+public class PeriodPutClient implements GroupId {
 
     private static final DtLog log = DtLogs.getLogger(PeriodPutClient.class);
 
     public static void main(String[] args) throws Exception {
         String servers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
-        int groupId = 0;
         KvClient kvClient = new KvClient();
         kvClient.start();
-        kvClient.getRaftClient().addOrUpdateGroup(groupId, servers);
-        kvClient.getRaftClient().fetchLeader(groupId).get();
+        kvClient.getRaftClient().addOrUpdateGroup(GROUP_ID, servers);
+        kvClient.getRaftClient().fetchLeader(GROUP_ID).get();
 
         long count = 1;
         while (true) {
             try {
                 String key = "key" + ((count++) % 10_000);
                 long t = System.currentTimeMillis();
-                kvClient.put(groupId, key, "value".getBytes(), new DtTime(10, TimeUnit.SECONDS));
+                kvClient.put(GROUP_ID, key, "value".getBytes(), new DtTime(10, TimeUnit.SECONDS));
                 log.info("put key " + key + " cost " + (System.currentTimeMillis() - t) + "ms");
             } catch (Exception e) {
                 log.error("put key fail: {}", e.toString());

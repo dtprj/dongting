@@ -25,21 +25,20 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class ChangeLeader {
+public class ChangeLeader implements GroupId {
 
     public static void main(String[] args) throws Exception {
         // use replicate port
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
-        int groupId = 0;
         AdminRaftClient adminClient = new AdminRaftClient();
         adminClient.start();
-        adminClient.addOrUpdateGroup(groupId, servers);
-        RaftNode leader = adminClient.fetchLeader(groupId).get();
+        adminClient.addOrUpdateGroup(GROUP_ID, servers);
+        RaftNode leader = adminClient.fetchLeader(GROUP_ID).get();
 
         System.out.println("current leader is node " + leader.getNodeId());
         int newLeaderNodeId = leader.getNodeId() == 1 ? 2 : 1;
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        CompletableFuture<Void> f = adminClient.transferLeader(groupId, leader.getNodeId(), newLeaderNodeId, timeout);
+        CompletableFuture<Void> f = adminClient.transferLeader(GROUP_ID, leader.getNodeId(), newLeaderNodeId, timeout);
         f.get();
         System.out.println("transfer leader success");
     }

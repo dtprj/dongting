@@ -49,7 +49,7 @@ public abstract class DemoKvServer {
         List<RaftGroupConfig> groupConfigs = new ArrayList<>();
         for (int groupId : groupIds) {
             RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, members, observers);
-            groupConfig.setDataDir("target/raft_data_" + groupId + "_node" + nodeId);
+            groupConfig.setDataDir("target/raft_data_group" + groupId + "_node" + nodeId);
             groupConfigs.add(groupConfig);
         }
 

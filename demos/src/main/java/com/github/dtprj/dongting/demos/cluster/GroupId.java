@@ -13,19 +13,13 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.demos.configchange;
-
-import com.github.dtprj.dongting.demos.base.DemoKvServer;
+package com.github.dtprj.dongting.demos.cluster;
 
 /**
  * @author huangli
  */
-public class ConfigChangeDemoServer1 extends DemoKvServer implements GroupId {
-    public static void main(String[] args) {
-        int nodeId = 1;
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
-        String members = "1,2,3";
-        String observers = "";
-        startServer(nodeId, servers, members, observers, new int[]{GROUP_ID});
-    }
+interface GroupId {
+    // the group id is used to auto generate storage dir name in target dir (see DemoKvServer),
+    // use different group id to ensure different demos will use different storage dir.
+    int GROUP_ID = 0;
 }

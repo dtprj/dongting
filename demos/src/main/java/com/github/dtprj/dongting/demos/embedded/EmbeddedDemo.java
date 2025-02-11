@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class EmbeddedDemo {
+public class EmbeddedDemo implements GroupId {
 
     final static int LOOP_COUNT = 1_000_000;
 
@@ -34,10 +34,9 @@ public class EmbeddedDemo {
         String replicateServer = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "1,2,3";
         String observers = "";
-        int groupId = 2;
-        RaftServer s1 = DemoKvServer.startServer(1, replicateServer, members, observers, new int[]{groupId});
-        RaftServer s2 = DemoKvServer.startServer(2, replicateServer, members, observers, new int[]{groupId});
-        RaftServer s3 = DemoKvServer.startServer(3, replicateServer, members, observers, new int[]{groupId});
+        RaftServer s1 = DemoKvServer.startServer(1, replicateServer, members, observers, new int[]{GROUP_ID});
+        RaftServer s2 = DemoKvServer.startServer(2, replicateServer, members, observers, new int[]{GROUP_ID});
+        RaftServer s3 = DemoKvServer.startServer(3, replicateServer, members, observers, new int[]{GROUP_ID});
 
         // wait raft election finish and servers ready
         s1.getAllGroupReadyFuture().get(60, TimeUnit.SECONDS);
@@ -49,7 +48,7 @@ public class EmbeddedDemo {
         System.out.println("-------------------------------------------");
 
         String rpcServers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
-        KvClient client = DemoClient.putAndGetFixCount(groupId, rpcServers, LOOP_COUNT);
+        KvClient client = DemoClient.putAndGetFixCount(GROUP_ID, rpcServers, LOOP_COUNT);
 
 
         // System.exit(0);

@@ -20,14 +20,13 @@ import com.github.dtprj.dongting.demos.base.DemoKvServer;
 /**
  * @author huangli
  */
-public class StandaloneServer extends DemoKvServer {
-    // in this simple demo just start 1 raft group with 3 nodes
+public class StandaloneServer extends DemoKvServer implements GroupId {
+    // in this simple demo just start 1 raft group with 1 node
     public static void main(String[] args) {
         int nodeId = 1;
         String servers = "1,127.0.0.1:4001";
         String members = "1";
         String observers = "";
-        int groupId = 3;
-        startServer(nodeId, servers, members, observers, new int[]{groupId});
+        startServer(nodeId, servers, members, observers, new int[]{GROUP_ID});
     }
 }
