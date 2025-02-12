@@ -27,23 +27,26 @@ public interface Commands {
     int DTKV_GET = 5;
     int DTKV_PUT = 6;
 
-    // 16 ~ 29 for rpc
+    // 16 ~ 39 for rpc
 
-    // 100 ~ 119 for raft
-    int NODE_PING = 100;
-    int RAFT_PING = 101;
-    int RAFT_REQUEST_VOTE = 102;
-    int RAFT_INSTALL_SNAPSHOT = 103;
-    int RAFT_ADMIN_TRANSFER_LEADER = 104; // from admin tool to old leader
-    int RAFT_TRANSFER_LEADER = 105; // from old leader to new leader
-    int RAFT_QUERY_STATUS = 106;
-    int RAFT_ADMIN_PREPARE_CHANGE = 107;
-    int RAFT_ADMIN_COMMIT_CHANGE = 108;
-    int RAFT_ADMIN_ABORT_CHANGE = 109;
+    // 40 ~ 69 for raft
+    int NODE_PING = 40;
+    int RAFT_PING = 41;
+    int RAFT_REQUEST_VOTE = 42;
+    int RAFT_INSTALL_SNAPSHOT = 43;
+    int RAFT_ADMIN_TRANSFER_LEADER = 44; // from admin tool to old leader
+    int RAFT_TRANSFER_LEADER = 45; // from old leader to new leader
+    int RAFT_QUERY_STATUS = 46;
+    int RAFT_ADMIN_PREPARE_CHANGE = 47;
+    int RAFT_ADMIN_COMMIT_CHANGE = 48;
+    int RAFT_ADMIN_ABORT_CHANGE = 49;
+    int RAFT_ADMIN_ADD_NODE = 50;
+    int RAFT_ADMIN_REMOVE_NODE = 51;
+    int RAFT_ADMIN_ADD_GROUP = 52;
+    int RAFT_ADMIN_REMOVE_GROUP = 53;
 
-
-    // 120 ~ 139 for dt kv
-    int DTKV_REMOVE = 120;
-    int DTKV_MKDIR = 121;
-    int DTKV_LIST = 122;
+    // 80 ~ 109 for dt kv
+    int DTKV_REMOVE = 80;
+    int DTKV_MKDIR = 81;
+    int DTKV_LIST = 82;
 }
