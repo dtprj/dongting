@@ -86,11 +86,11 @@ public class KvClient extends AbstractLifeCircle {
             DtUtil.restoreInterruptStatus();
             throw new RaftException("interrupted", e);
         } catch (ExecutionException e) {
-            throw new RaftException("execution exception", e.getCause());
+            throw new RaftException("execution exception: " + e.getCause().getMessage(), e.getCause());
         } catch (TimeoutException e) {
             throw new RaftTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
         } catch (Exception e) {
-            throw new RaftException("execution exception", e);
+            throw new RaftException("execution exception: " + e.getMessage(), e);
         }
     }
 
