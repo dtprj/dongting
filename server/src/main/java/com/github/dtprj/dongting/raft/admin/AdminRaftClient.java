@@ -147,7 +147,7 @@ public class AdminRaftClient extends RaftClient {
         return f;
     }
 
-    public CompletableFuture<Void> addGroup(int nodeId, int groupId, String members, String observers, DtTime timeout) {
+    public CompletableFuture<Void> serverAddGroup(int nodeId, int groupId, String members, String observers, DtTime timeout) {
         AdminAddGroupReq req = new AdminAddGroupReq();
         req.groupId = groupId;
         req.nodeIdOfMembers = members;
@@ -156,12 +156,12 @@ public class AdminRaftClient extends RaftClient {
         return sendByNodeId(nodeId, timeout, p);
     }
 
-    public CompletableFuture<Void> removeGroup(int nodeId, int groupId, DtTime timeout) {
+    public CompletableFuture<Void> serverRemoveGroup(int nodeId, int groupId, DtTime timeout) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_GROUP, groupId);
         return sendByNodeId(nodeId, timeout, p);
     }
 
-    public CompletableFuture<Void> addNode(int nodeIdToInvoke, int nodeIdToAdd, String host, int port, DtTime timeout) {
+    public CompletableFuture<Void> serverAddNode(int nodeIdToInvoke, int nodeIdToAdd, String host, int port, DtTime timeout) {
         AdminAddNodeReq req = new AdminAddNodeReq();
         req.nodeId = nodeIdToAdd;
         req.host = host;
@@ -170,7 +170,7 @@ public class AdminRaftClient extends RaftClient {
         return sendByNodeId(nodeIdToInvoke, timeout, p);
     }
 
-    public CompletableFuture<Void> removeNode(int nodeIdToInvoke, int nodeIdToRemove, DtTime timeout) {
+    public CompletableFuture<Void> serverRemoveNode(int nodeIdToInvoke, int nodeIdToRemove, DtTime timeout) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_NODE, nodeIdToRemove);
         return sendByNodeId(nodeIdToInvoke, timeout, p);
     }

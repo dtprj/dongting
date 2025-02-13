@@ -153,7 +153,7 @@ public class RaftBenchmark extends BenchBase {
             KvClient c = new KvClient();
             c.getRaftClient().getNioClient().getConfig().setMaxOutRequests(CLIENT_MAX_OUT_REQUESTS / threadCount);
             c.start();
-            c.getRaftClient().addOrUpdateGroup(GROUP_ID, serverNodes);
+            c.getRaftClient().clientAddOrUpdateGroup(GROUP_ID, serverNodes);
             clients[i] = c;
         }
 

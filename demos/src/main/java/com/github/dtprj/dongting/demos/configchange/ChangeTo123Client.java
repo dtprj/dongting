@@ -36,7 +36,7 @@ public class ChangeTo123Client implements GroupId {
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
         AdminRaftClient adminClient = new AdminRaftClient();
         adminClient.start();
-        adminClient.addOrUpdateGroup(GROUP_ID, servers);
+        adminClient.clientAddOrUpdateGroup(GROUP_ID, servers);
         RaftNode leader = adminClient.fetchLeader(GROUP_ID).get();
 
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);

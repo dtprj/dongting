@@ -21,7 +21,7 @@ package com.github.dtprj.dongting.demos.multiraft;
 interface GroupId {
     // the group id is used to auto generate storage dir name in target dir (see DemoKvServer),
     // use different group id to ensure different demos will use different storage dir.
-    int GROUP_ID1 = 101;
-    int GROUP_ID2 = 102;
-    int GROUP_ID3 = 103;
+    int GROUP_ID_101 = 101;
+    int GROUP_ID_102 = 102;
+    int GROUP_ID_103 = 103;
 }

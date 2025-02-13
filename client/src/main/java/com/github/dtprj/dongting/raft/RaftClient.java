@@ -65,12 +65,12 @@ public class RaftClient extends AbstractLifeCircle {
         this.nioClient = new NioClient(nioClientConfig);
     }
 
-    public void addOrUpdateGroup(int groupId, String servers) throws NetException {
+    public void clientAddOrUpdateGroup(int groupId, String servers) throws NetException {
         List<RaftNode> list = RaftNode.parseServers(servers);
-        addOrUpdateGroup(groupId, list);
+        clientAddOrUpdateGroup(groupId, list);
     }
 
-    public void addOrUpdateGroup(int groupId, List<RaftNode> servers) throws NetException {
+    public void clientAddOrUpdateGroup(int groupId, List<RaftNode> servers) throws NetException {
         Objects.requireNonNull(servers);
         if (servers.isEmpty()) {
             throw new IllegalArgumentException("servers is empty");
@@ -175,7 +175,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     @SuppressWarnings("unused")
-    public void removeGroup(int groupId) throws NetException {
+    public void clientRemoveGroup(int groupId) throws NetException {
         lock.lock();
         try {
             GroupInfo oldGroupInfo = groups.remove(groupId);

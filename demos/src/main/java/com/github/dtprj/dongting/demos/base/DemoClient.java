@@ -37,7 +37,7 @@ public abstract class DemoClient {
     public static KvClient putAndGetFixCount(int groupId, String servers, int loopCount) throws Exception {
         KvClient kvClient = new KvClient();
         kvClient.start();
-        kvClient.getRaftClient().addOrUpdateGroup(groupId, servers);
+        kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, servers);
         kvClient.getRaftClient().fetchLeader(groupId).get();
 
         long t1 = System.currentTimeMillis();

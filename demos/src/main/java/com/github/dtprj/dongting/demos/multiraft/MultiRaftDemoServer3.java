@@ -26,6 +26,6 @@ public class MultiRaftDemoServer3 extends DemoKvServer implements GroupId {
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "1,2,3";
         String observers = "";
-        startServer(nodeId, servers, members, observers, new int[]{GROUP_ID1, GROUP_ID2});
+        startServer(nodeId, servers, members, observers, new int[]{GROUP_ID_101, GROUP_ID_102});
     }
 }
