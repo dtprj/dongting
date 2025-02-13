@@ -44,7 +44,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -130,7 +129,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     private void doCheckSelf(RaftNodeEx nodeEx) {
         try {
-            CompletableFuture<Void> f = nodePing(nodeEx, null);
+            CompletableFuture<Void> f = nodePing(nodeEx);
             f.get(config.getConnectTimeout() + config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             throw new RaftException(e);
@@ -146,7 +145,7 @@ public class NodeManager extends AbstractLifeCircle {
             allNodesEx.forEach((nodeId, nodeEx) -> {
                 if (!nodeEx.isSelf() && !nodeEx.isPinging()) {
                     try {
-                        nodePing(nodeEx, null);
+                        nodePing(nodeEx);
                     } catch (Throwable e) {
                         log.error("node ping error", e);
                         nodeEx.setPinging(false);
@@ -156,7 +155,7 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    private CompletableFuture<Void> nodePing(RaftNodeEx nodeEx, Consumer<Throwable> extraCallback) {
+    private CompletableFuture<Void> nodePing(RaftNodeEx nodeEx) {
         nodeEx.setPinging(true);
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
@@ -168,7 +167,7 @@ public class NodeManager extends AbstractLifeCircle {
         CompletableFuture<Void> f2 = f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
         // we should set connecting status in schedule thread
         return f2.whenCompleteAsync((v, ex) ->
-                processResultInScheduleThread(nodeEx, ex, extraCallback), DtUtil.SCHEDULED_SERVICE);
+                processResultInScheduleThread(nodeEx, ex), DtUtil.SCHEDULED_SERVICE);
     }
 
     // run in io thread
@@ -196,7 +195,7 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    private void processResultInScheduleThread(RaftNodeEx nodeEx, Throwable ex, Consumer<Throwable> extraCallback) {
+    private void processResultInScheduleThread(RaftNodeEx nodeEx, Throwable ex) {
         nodeEx.setPinging(false);
         if (ex != null) {
             log.error("node ping fail, localId={}, remoteId={}, endPoint={}, err={}",
@@ -208,9 +207,6 @@ public class NodeManager extends AbstractLifeCircle {
                         nodeEx.getNodeId(), nodeEx.getPeer().getEndPoint());
             }
             updateNodeStatus(nodeEx, true);
-        }
-        if (extraCallback != null) {
-            extraCallback.accept(ex);
         }
     }
 
@@ -306,17 +302,16 @@ public class NodeManager extends AbstractLifeCircle {
             try {
                 RaftNodeEx existNode = allNodesEx.get(nodeEx.getNodeId());
                 if (existNode != null) {
-                    f.complete(existNode);
+                    if (existNode.getHostPort().equals(node.getHostPort())) {
+                        f.complete(existNode);
+                    } else {
+                        f.completeExceptionally(new RaftException("node " + node.getNodeId()
+                                + " already exist but host/port is not same, new node is " + node.getHostPort()
+                                + ", exist one is " + existNode.getHostPort()));
+                    }
                 } else {
-                    nodePing(nodeEx, pingEx -> {
-                        if (ex == null) {
-                            allNodesEx.put(nodeEx.getNodeId(), nodeEx);
-                            f.complete(nodeEx);
-                        } else {
-                            log.error("add node {} fail", nodeEx.getPeer().getEndPoint(), ex);
-                            f.completeExceptionally(pingEx);
-                        }
-                    });
+                    allNodesEx.put(nodeEx.getNodeId(), nodeEx);
+                    f.complete(nodeEx);
                 }
             } catch (Exception unexpected) {
                 log.error("", unexpected);

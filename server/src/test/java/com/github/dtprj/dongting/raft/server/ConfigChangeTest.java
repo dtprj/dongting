@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.net.HostPort;
-import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import org.junit.jupiter.api.Test;
 
@@ -44,14 +42,15 @@ public class ConfigChangeTest extends ServerTestBase {
 
         waitLeaderElectAndGetLeaderId(s2, s3);
 
-        RaftNode n4 = new RaftNode(4, new HostPort("127.0.0.1", 4004));
-        s2.raftServer.addNode(n4);
-        s3.raftServer.addNode(n4);
-
         AdminRaftClient c = new AdminRaftClient();
         c.start();
         c.addOrUpdateGroup(groupId, "2,127.0.0.1:4002;3,127.0.0.1:4003");
         c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
+
+        CompletableFuture<Void> f1 = c.addNode(2, 4, "127.0.0.1", 4004, timeout);
+        CompletableFuture<Void> f2 = c.addNode(3, 4, "127.0.0.1", 4004, timeout);
+        f1.get(5, TimeUnit.SECONDS);
+        f2.get(5, TimeUnit.SECONDS);
 
         CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(),
                 Set.of(2, 3, 4), Set.of(), timeout);

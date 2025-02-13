@@ -25,10 +25,13 @@ import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.rpc.AdminAddGroupReq;
+import com.github.dtprj.dongting.raft.rpc.AdminAddNodeReq;
 import com.github.dtprj.dongting.raft.rpc.AdminCommitOrAbortReq;
 import com.github.dtprj.dongting.raft.rpc.AdminPrepareConfigChangeReq;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
@@ -131,5 +134,44 @@ public class AdminRaftClient extends RaftClient {
         RpcCallback<QueryStatusResp> callback = RpcCallback.fromUnwrapFuture(f);
         nioClient.sendRequest(n.getPeer(), req, QueryStatusResp.DECODER, timeout, callback);
         return f;
+    }
+
+    private CompletableFuture<Void> sendByNodeId(int nodeId, DtTime timeout, WritePacket p) {
+        RaftNode n = allNodes.get(nodeId);
+        if (n == null) {
+            return DtUtil.failedFuture(new RaftException("node not found: " + nodeId));
+        }
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        nioClient.sendRequest(n.getPeer(), p, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
+                timeout, RpcCallback.fromUnwrapFuture(f));
+        return f;
+    }
+
+    public CompletableFuture<Void> addGroup(int nodeId, int groupId, String members, String observers, DtTime timeout) {
+        AdminAddGroupReq req = new AdminAddGroupReq();
+        req.groupId = groupId;
+        req.nodeIdOfMembers = members;
+        req.nodeIdOfObservers = observers;
+        SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_ADD_GROUP, req);
+        return sendByNodeId(nodeId, timeout, p);
+    }
+
+    public CompletableFuture<Void> removeGroup(int nodeId, int groupId, DtTime timeout) {
+        PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_GROUP, groupId);
+        return sendByNodeId(nodeId, timeout, p);
+    }
+
+    public CompletableFuture<Void> addNode(int nodeIdToInvoke, int nodeIdToAdd, String host, int port, DtTime timeout) {
+        AdminAddNodeReq req = new AdminAddNodeReq();
+        req.nodeId = nodeIdToAdd;
+        req.host = host;
+        req.port = port;
+        SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_ADD_NODE, req);
+        return sendByNodeId(nodeIdToInvoke, timeout, p);
+    }
+
+    public CompletableFuture<Void> removeNode(int nodeIdToInvoke, int nodeIdToRemove, DtTime timeout) {
+        PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_NODE, nodeIdToRemove);
+        return sendByNodeId(nodeIdToInvoke, timeout, p);
     }
 }

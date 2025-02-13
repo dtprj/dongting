@@ -428,6 +428,10 @@ public class RaftClient extends AbstractLifeCircle {
         return groups.get(groupId);
     }
 
+    public RaftNode getNode(Integer nodeId) {
+        return allNodes.get(nodeId);
+    }
+
     @Override
     protected void doStart() {
         nioClient.start();
