@@ -45,8 +45,8 @@ public class ConfigChangeTest extends ServerTestBase {
         waitLeaderElectAndGetLeaderId(s2, s3);
 
         RaftNode n4 = new RaftNode(4, new HostPort("127.0.0.1", 4004));
-        s2.raftServer.addNode(n4, 1000);
-        s3.raftServer.addNode(n4, 1000);
+        s2.raftServer.addNode(n4);
+        s3.raftServer.addNode(n4);
 
         AdminRaftClient c = new AdminRaftClient();
         c.start();

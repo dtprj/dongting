@@ -336,6 +336,7 @@ public class NodeManager extends AbstractLifeCircle {
             try {
                 RaftNodeEx existNode = allNodesEx.get(nodeId);
                 if (existNode == null) {
+                    log.warn("node {} not exist", nodeId);
                     f.complete(null);
                 } else {
                     if (existNode.getUseCount() == 0) {

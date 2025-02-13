@@ -87,4 +87,9 @@ public abstract class DefaultRaftFactory implements RaftFactory {
     public void stopDispatcher(Dispatcher dispatcher, DtTime timeout) {
         dispatcher.stop(timeout);
     }
+
+    @Override
+    public RaftGroupConfig createConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
+        return RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
+    }
 }

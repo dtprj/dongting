@@ -153,3 +153,31 @@ message AdminAbortConfigChangeReq {
 message AdminAbortConfigChangeResp {
   fixed64 abort_index = 1;
 }
+
+message AdminAddGroupReq {
+  uint32 group_id = 1;
+  string node_id_of_members = 2;
+  string node_id_of_observers = 3;
+}
+
+// return EmptyBodyRespFrame
+
+message AdminRemoveGroupReq {
+  uint32 group_id = 1;
+}
+
+// return EmptyBodyRespFrame
+
+message AdminAddNodeReq {
+  uint32 node_id = 1;
+  string host = 2;
+  uint32 port = 3;
+}
+
+// return EmptyBodyRespFrame
+
+message AdminRemoveNodeReq {
+  uint32 node_id = 1;
+}
+
+// return EmptyBodyRespFrame

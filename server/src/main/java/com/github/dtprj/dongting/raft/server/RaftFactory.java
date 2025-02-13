@@ -26,4 +26,6 @@ public interface RaftFactory {
     void startDispatcher(Dispatcher dispatcher);
 
     void stopDispatcher(Dispatcher dispatcher, DtTime timeout);
+
+    RaftGroupConfig createConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers);
 }
