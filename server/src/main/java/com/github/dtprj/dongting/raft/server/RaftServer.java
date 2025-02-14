@@ -605,6 +605,7 @@ public class RaftServer extends AbstractLifeCircle {
                         f.completeExceptionally(ex);
                     } else {
                         f.complete(null);
+                        startMemberPing(g);
                     }
                 });
             } catch (InterruptedException e) {

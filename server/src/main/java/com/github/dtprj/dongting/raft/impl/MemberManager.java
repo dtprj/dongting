@@ -172,6 +172,9 @@ public class MemberManager {
             @Override
             public FrameCallResult execute(Void input) {
                 try {
+                    if (isGroupShouldStopPlain()) {
+                        return Fiber.frameReturn();
+                    }
                     ensureRaftMemberStatus();
                     replicateManager.tryStartReplicateFibers();
                     return Fiber.sleep(daemonSleepInterval, this);
