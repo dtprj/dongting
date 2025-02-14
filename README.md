@@ -66,7 +66,7 @@ any other cloud service providers.
 Dongting does not require you to adjust Linux kernel parameters to achieve optimal performance
 (you might not even have the permission to do so).
 
-## try it
+## Try it
 
 All the examples are in the ```demos``` directory. 
 They require no configuration and can be run directly by executing the ```main``` method.
@@ -74,8 +74,8 @@ It is recommended to run them in an IDE for easier breakpoint setting and observ
 All demos use DtKV as the Raft state machine, which is an in-memory KV database.
 
 The [cluster](demos/src/main/java/com/github/dtprj/dongting/demos/cluster) directory contains an example of
-running a 3-node Raft cluster.
-Run ```DemoServer1```, ```DemoServer2```, and ```DemoServer3``` separately, the Raft cluster will typically 
+running a 3-node raft cluster.
+Run ```DemoServer1```, ```DemoServer2```, and ```DemoServer3``` separately, the raft cluster will typically 
 be ready within one second.
 Run ```DemoClient```, which will send 1 million put and get requests while recording the completion time.
 Run ```PeriodPutClient```, which continuously sends a put request every second without stopping. 
@@ -84,7 +84,7 @@ Additionally, execute ```ChangeLeader``` to switch the Raft leader to a specifie
 The running ```PeriodPutClient``` will not be affected in any way.
 
 The [standalone](demos/src/main/java/com/github/dtprj/dongting/demos/standalone) directory contains an example
-of running a single-node Raft cluster.
+of running a single-node raft group.
 
 The [embedded](demos/src/main/java/com/github/dtprj/dongting/demos/embedded) directory contains an example of 
 embedding 3 servers and 1 client into single process.
@@ -97,10 +97,10 @@ Executing ```ChangeTo234Client``` will change the Raft members to node 2, 3, and
 Executing ```ChangeTo123Client``` will revert the Raft members back to node 1, 2, and 3.
 
 The [multiraft](demos/src/main/java/com/github/dtprj/dongting/demos/multiraft) directory contains examples of
-running multi-Raft, which is typically used for sharding or dynamic sharding.
+running multi-raft, which is typically used for sharding or dynamic sharding.
 Run ```MultiRaftDemoServer1```, ```MultiRaftDemoServer2```, and ```MultiRaftDemoServer3``` to start two (static) 
 raft groups by default, with IDs 101 and 102.
-Executing ```PeriodPutClient``` will send a put request every second to Raft groups 101, 102, and 103.
+Executing ```PeriodPutClient``` will send a put request every second to raft groups 101, 102, and 103.
 Since group 103 does not exist, there will be two successful put operations and one failed operation per second.
 Run ```AddGroup103Demo``` to add raft group 103 at runtime, after which ```PeriodPutClient``` will output 
 three successful operations per second.
