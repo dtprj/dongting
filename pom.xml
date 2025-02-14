@@ -92,7 +92,7 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>3.21.12</version>
+            <version>4.29.3</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -163,7 +163,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <protocArtifact>com.google.protobuf:protoc:3.21.4:exe:${os.detected.classifier}</protocArtifact>
+                    <protocArtifact>com.google.protobuf:protoc:4.29.3:exe:${os.detected.classifier}</protocArtifact>
                 </configuration>
             </plugin>
             <plugin>
