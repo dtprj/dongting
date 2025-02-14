@@ -30,11 +30,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public abstract class DemoClient {
+public abstract class DemoClientBase {
 
     private static final byte[] DATA = new byte[256];
 
-    private static final DtLog log = DtLogs.getLogger(DemoClient.class);
+    private static final DtLog log = DtLogs.getLogger(DemoClientBase.class);
 
     public static KvClient putAndGetFixCount(int groupId, String servers, int loopCount) throws Exception {
         KvClient kvClient = new KvClient();

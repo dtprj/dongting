@@ -31,7 +31,7 @@ import java.util.List;
 /**
  * @author huangli
  */
-public abstract class DemoKvServer {
+public abstract class DemoKvServerBase {
 
     public static RaftServer startServer(int nodeId, String servers, String members,
                                             String observers, int[] groupIds) {

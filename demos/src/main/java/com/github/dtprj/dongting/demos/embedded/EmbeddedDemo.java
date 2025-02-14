@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.demos.embedded;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.demos.base.DemoClient;
-import com.github.dtprj.dongting.demos.base.DemoKvServer;
+import com.github.dtprj.dongting.demos.base.DemoClientBase;
+import com.github.dtprj.dongting.demos.base.DemoKvServerBase;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
@@ -34,9 +34,9 @@ public class EmbeddedDemo implements GroupId {
         String replicateServer = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "1,2,3";
         String observers = "";
-        RaftServer s1 = DemoKvServer.startServer(1, replicateServer, members, observers, new int[]{GROUP_ID});
-        RaftServer s2 = DemoKvServer.startServer(2, replicateServer, members, observers, new int[]{GROUP_ID});
-        RaftServer s3 = DemoKvServer.startServer(3, replicateServer, members, observers, new int[]{GROUP_ID});
+        RaftServer s1 = DemoKvServerBase.startServer(1, replicateServer, members, observers, new int[]{GROUP_ID});
+        RaftServer s2 = DemoKvServerBase.startServer(2, replicateServer, members, observers, new int[]{GROUP_ID});
+        RaftServer s3 = DemoKvServerBase.startServer(3, replicateServer, members, observers, new int[]{GROUP_ID});
 
         // wait raft election finish and servers ready
         s1.getAllGroupReadyFuture().get(60, TimeUnit.SECONDS);
@@ -48,7 +48,7 @@ public class EmbeddedDemo implements GroupId {
         System.out.println("-------------------------------------------");
 
         String rpcServers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
-        KvClient client = DemoClient.putAndGetFixCount(GROUP_ID, rpcServers, LOOP_COUNT);
+        KvClient client = DemoClientBase.putAndGetFixCount(GROUP_ID, rpcServers, LOOP_COUNT);
 
 
         // System.exit(0);

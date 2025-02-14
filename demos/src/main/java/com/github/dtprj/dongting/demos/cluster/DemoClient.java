@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.demos.cluster;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.demos.base.DemoClient;
+import com.github.dtprj.dongting.demos.base.DemoClientBase;
 import com.github.dtprj.dongting.dtkv.KvClient;
 
 import java.util.concurrent.TimeUnit;
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class ClusterClient extends DemoClient implements GroupId {
+public class DemoClient extends DemoClientBase implements GroupId {
 
     final static int LOOP_COUNT = 1_000_000;
 

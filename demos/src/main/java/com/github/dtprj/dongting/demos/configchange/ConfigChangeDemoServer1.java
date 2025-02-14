@@ -15,12 +15,12 @@
  */
 package com.github.dtprj.dongting.demos.configchange;
 
-import com.github.dtprj.dongting.demos.base.DemoKvServer;
+import com.github.dtprj.dongting.demos.base.DemoKvServerBase;
 
 /**
  * @author huangli
  */
-public class ConfigChangeDemoServer1 extends DemoKvServer implements GroupId {
+public class ConfigChangeDemoServer1 extends DemoKvServerBase implements GroupId {
     public static void main(String[] args) {
         int nodeId = 1;
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";

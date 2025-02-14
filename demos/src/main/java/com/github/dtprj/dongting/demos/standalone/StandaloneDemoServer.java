@@ -15,12 +15,12 @@
  */
 package com.github.dtprj.dongting.demos.standalone;
 
-import com.github.dtprj.dongting.demos.base.DemoKvServer;
+import com.github.dtprj.dongting.demos.base.DemoKvServerBase;
 
 /**
  * @author huangli
  */
-public class StandaloneServer extends DemoKvServer implements GroupId {
+public class StandaloneDemoServer extends DemoKvServerBase implements GroupId {
     // in this simple demo just start 1 raft group with 1 node
     public static void main(String[] args) {
         int nodeId = 1;
