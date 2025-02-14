@@ -45,12 +45,10 @@ public abstract class DemoKvServer {
         serverConfig.setElectTimeout(3000);
         serverConfig.setHeartbeatInterval(1000);
 
-        // multi-raft group support
+        // multi raft group support
         List<RaftGroupConfig> groupConfigs = new ArrayList<>();
         for (int groupId : groupIds) {
-            RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, members, observers);
-            groupConfig.setDataDir("target/raft_data_group" + groupId + "_node" + nodeId);
-            groupConfigs.add(groupConfig);
+            groupConfigs.add(raftConfig(nodeId, groupId, members, observers));
         }
 
         DefaultRaftFactory raftFactory = new DefaultRaftFactory() {
@@ -58,6 +56,12 @@ public abstract class DemoKvServer {
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 // the state machine can be customized, here use DtKV, a simple key-value store
                 return new DtKV(groupConfig, new KvConfig());
+            }
+
+            // called when add group at runtime
+            @Override
+            public RaftGroupConfig createConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
+                return raftConfig(nodeId, groupId, members, observers);
             }
         };
 
@@ -67,5 +71,11 @@ public abstract class DemoKvServer {
 
         raftServer.start();
         return raftServer;
+    }
+
+    private static RaftGroupConfig raftConfig(int nodeId, int groupId, String members, String observers) {
+        RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, members, observers);
+        groupConfig.setDataDir("target/raft_data_group" + groupId + "_node" + nodeId);
+        return groupConfig;
     }
 }
