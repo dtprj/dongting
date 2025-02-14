@@ -67,7 +67,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private long firstIndex;
 
     private long lastFlushNanos;
-    private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
+    private static final long FLUSH_INTERVAL_NANOS = 2L * 1000 * 1000 * 1000;
 
     private final Fiber flushFiber;
     private final FiberCondition needFlushCondition;
