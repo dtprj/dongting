@@ -89,7 +89,8 @@ public abstract class DemoClientBase {
 
 
         System.out.println("----------------------------------------------");
-        System.out.println("Unbelievable! " + loopCount + " puts finished in " + t1 + " ms, gets finished in " + t2 + " ms");
+        System.out.println("Unbelievable! " + loopCount + " linearizable puts finished in " + t1 + " ms, "
+                + loopCount + " linearizable lease gets finished in " + t2 + " ms");
         System.out.println("Throughput: " + loopCount * 1000L / t1 + " puts/s, " + loopCount * 1000L / t2 + " gets/s");
         System.out.println(System.getProperty("os.name") + " with " + Runtime.getRuntime().availableProcessors() + " cores");
         System.out.println("----------------------------------------------");
