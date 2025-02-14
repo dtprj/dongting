@@ -125,7 +125,7 @@ public class AdminRaftClient extends RaftClient {
     }
 
     public CompletableFuture<QueryStatusResp> queryRaftServerStatus(int nodeId, int groupId, DtTime timeout) {
-        RaftNode n = allNodes.get(nodeId);
+        RaftNode n = getNode(nodeId);
         if (n == null) {
             return DtUtil.failedFuture(new RaftException("node not found: " + nodeId));
         }
@@ -137,7 +137,7 @@ public class AdminRaftClient extends RaftClient {
     }
 
     private CompletableFuture<Void> sendByNodeId(int nodeId, DtTime timeout, WritePacket p) {
-        RaftNode n = allNodes.get(nodeId);
+        RaftNode n = getNode(nodeId);
         if (n == null) {
             return DtUtil.failedFuture(new RaftException("node not found: " + nodeId));
         }

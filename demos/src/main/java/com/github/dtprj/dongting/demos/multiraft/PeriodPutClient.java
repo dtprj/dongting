@@ -35,9 +35,10 @@ public class PeriodPutClient implements GroupId {
         String servers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
         KvClient kvClient = new KvClient();
         kvClient.start();
-        kvClient.getRaftClient().clientAddOrUpdateGroup(GROUP_ID_101, servers);
-        kvClient.getRaftClient().clientAddOrUpdateGroup(GROUP_ID_102, servers);
-        kvClient.getRaftClient().clientAddOrUpdateGroup(GROUP_ID_103, servers);
+        kvClient.getRaftClient().clientAddNode(servers);
+        kvClient.getRaftClient().clientAddOrUpdateGroup(GROUP_ID_101, new int[]{1, 2, 3});
+        kvClient.getRaftClient().clientAddOrUpdateGroup(GROUP_ID_102, new int[]{1, 2, 3});
+        kvClient.getRaftClient().clientAddOrUpdateGroup(GROUP_ID_103, new int[]{1, 2, 3});
 
         while (true) {
             send(kvClient, GROUP_ID_101);

@@ -42,7 +42,8 @@ public class DtKVServerTest extends ServerTestBase {
 
         KvClient client = new KvClient();
         client.start();
-        client.getRaftClient().clientAddOrUpdateGroup(groupId, "1, 127.0.0.1:5001");
+        client.getRaftClient().clientAddNode("1, 127.0.0.1:5001");
+        client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1});
         client.mkdir(groupId, "dir1", timeout);
         client.put(groupId, "dir1.k1", "v1".getBytes(), timeout);
 

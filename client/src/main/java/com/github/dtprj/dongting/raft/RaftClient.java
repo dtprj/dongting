@@ -54,9 +54,9 @@ public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
     protected final NioClient nioClient;
     // key is nodeId
-    protected final ConcurrentHashMap<Integer, RaftNode> allNodes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, RaftNode> allNodes = new ConcurrentHashMap<>();
     // key is groupId
-    protected final ConcurrentHashMap<Integer, GroupInfo> groups = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, GroupInfo> groups = new ConcurrentHashMap<>();
 
     private final ReentrantLock lock = new ReentrantLock();
     private long nextEpoch = 0;
@@ -65,46 +65,37 @@ public class RaftClient extends AbstractLifeCircle {
         this.nioClient = new NioClient(nioClientConfig);
     }
 
-    public void clientAddOrUpdateGroup(int groupId, String servers) throws NetException {
+    public void clientAddNode(String servers) {
         List<RaftNode> list = RaftNode.parseServers(servers);
-        clientAddOrUpdateGroup(groupId, list);
+        clientAddNode(list);
     }
 
-    public void clientAddOrUpdateGroup(int groupId, List<RaftNode> servers) throws NetException {
-        Objects.requireNonNull(servers);
-        if (servers.isEmpty()) {
-            throw new IllegalArgumentException("servers is empty");
-        }
+    public void clientAddNode(List<RaftNode> nodes) {
         lock.lock();
         try {
-            addOrUpdateGroupInLock(groupId, servers);
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    private void addOrUpdateGroupInLock(int groupId, List<RaftNode> servers) throws NetException {
-        ArrayList<RaftNode> needAddList = new ArrayList<>();
-        ArrayList<RaftNode> managedServers = new ArrayList<>();
-        ArrayList<CompletableFuture<RaftNode>> futures = new ArrayList<>();
-        for (RaftNode n : servers) {
-            Objects.requireNonNull(n);
-            RaftNode existManagedNode = allNodes.get(n.getNodeId());
-            if (existManagedNode == null) {
-                CompletableFuture<Peer> f = nioClient.addPeer(n.getHostPort());
-                futures.add(f.thenApply(peer -> new RaftNode(n.getNodeId(), n.getHostPort(), peer)));
-            } else {
-                managedServers.add(existManagedNode);
+            for (RaftNode n : nodes) {
+                RaftNode e = allNodes.get(n.getNodeId());
+                if (e != null) {
+                    if (!e.getHostPort().equals(n.getHostPort())) {
+                        throw new RaftException("node " + n.getNodeId() + " already exist with different hostPort: "
+                                + e.getHostPort() + " , " + n.getHostPort());
+                    }
+                }
             }
-        }
-        if (!futures.isEmpty()) {
+            ArrayList<RaftNode> needAddList = new ArrayList<>();
+            ArrayList<CompletableFuture<RaftNode>> futures = new ArrayList<>();
+            for (RaftNode n : nodes) {
+                if (allNodes.get(n.getNodeId()) == null) {
+                    needAddList.add(n);
+                    CompletableFuture<Peer> f = nioClient.addPeer(n.getHostPort());
+                    futures.add(f.thenApply(peer -> new RaftNode(n.getNodeId(), n.getHostPort(), peer)));
+                }
+            }
             boolean success = false;
             try {
                 DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
                 for (CompletableFuture<RaftNode> f : futures) {
                     RaftNode n = f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-                    needAddList.add(n);
-                    managedServers.add(n);
                     allNodes.put(n.getNodeId(), n);
                 }
                 success = true;
@@ -117,14 +108,60 @@ public class RaftClient extends AbstractLifeCircle {
                 if (!success) {
                     for (RaftNode n : needAddList) {
                         nioClient.removePeer(n.getHostPort());
+                        allNodes.remove(n.getNodeId());
                     }
                 }
             }
+        } finally {
+            lock.unlock();
         }
+    }
 
+    public void clientRemoveNode(int... nodeIds) {
+        lock.lock();
+        try {
+            for (int id : nodeIds) {
+                RaftNode n = allNodes.get(id);
+                if (n.useCount > 0) {
+                    throw new RaftException("node " + id + " is in use: useCount=" + n.useCount);
+                }
+            }
+            for (int id : nodeIds) {
+                RaftNode n = allNodes.remove(id);
+                if (n != null) {
+                    nioClient.removePeer(n.getHostPort());
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void clientAddOrUpdateGroup(int groupId, int[] serverIds) throws NetException {
+        Objects.requireNonNull(serverIds);
+        if (serverIds.length == 0) {
+            throw new IllegalArgumentException("servers is empty");
+        }
+        lock.lock();
+        try {
+            addOrUpdateGroupInLock(groupId, serverIds);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void addOrUpdateGroupInLock(int groupId, int[] serverIds) throws NetException {
+        for (int id : serverIds) {
+            if (allNodes.get(id) == null) {
+                throw new RaftException("node " + id + " not exist");
+            }
+        }
+        List<RaftNode> managedServers = new ArrayList<>();
         GroupInfo oldGroupInfo = groups.get(groupId);
         RaftNode leader = null;
-        for (RaftNode n : managedServers) {
+        for (int nodeId : serverIds) {
+            RaftNode n = allNodes.get(nodeId);
+            managedServers.add(n);
             n.useCount++;
             if (oldGroupInfo != null) {
                 RaftNode oldLeader = oldGroupInfo.leader;
@@ -135,7 +172,11 @@ public class RaftClient extends AbstractLifeCircle {
             }
         }
 
-        releaseOldGroup(oldGroupInfo);
+        if (oldGroupInfo != null) {
+            for (RaftNode n : oldGroupInfo.servers) {
+                n.useCount--;
+            }
+        }
 
         GroupInfo gi;
         if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
@@ -162,18 +203,6 @@ public class RaftClient extends AbstractLifeCircle {
         return nextEpoch++;
     }
 
-    private void releaseOldGroup(GroupInfo oldGroupInfo) {
-        if (oldGroupInfo != null) {
-            for (RaftNode n : oldGroupInfo.servers) {
-                n.useCount--;
-                if (n.useCount <= 0) {
-                    allNodes.remove(n.getNodeId());
-                    nioClient.removePeer(n.getPeer());
-                }
-            }
-        }
-    }
-
     @SuppressWarnings("unused")
     public void clientRemoveGroup(int groupId) throws NetException {
         lock.lock();
@@ -183,7 +212,9 @@ public class RaftClient extends AbstractLifeCircle {
                 if (oldGroupInfo.leaderFuture != null) {
                     oldGroupInfo.leaderFuture.completeExceptionally(new RaftException("group removed " + groupId));
                 }
-                releaseOldGroup(oldGroupInfo);
+                for (RaftNode n : oldGroupInfo.servers) {
+                    n.useCount--;
+                }
             }
         } finally {
             lock.unlock();

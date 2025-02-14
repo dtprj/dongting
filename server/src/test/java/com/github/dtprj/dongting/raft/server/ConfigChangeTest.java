@@ -44,7 +44,8 @@ public class ConfigChangeTest extends ServerTestBase {
 
         AdminRaftClient c = new AdminRaftClient();
         c.start();
-        c.clientAddOrUpdateGroup(groupId, "2,127.0.0.1:4002;3,127.0.0.1:4003");
+        c.clientAddNode("2,127.0.0.1:4002;3,127.0.0.1:4003");
+        c.clientAddOrUpdateGroup(groupId, new int[]{2, 3});
         c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
 
         CompletableFuture<Void> f1 = c.serverAddNode(2, 4, "127.0.0.1", 4004, timeout);

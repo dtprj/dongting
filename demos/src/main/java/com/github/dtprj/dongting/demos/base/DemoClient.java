@@ -21,7 +21,9 @@ import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftNode;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -37,7 +39,10 @@ public abstract class DemoClient {
     public static KvClient putAndGetFixCount(int groupId, String servers, int loopCount) throws Exception {
         KvClient kvClient = new KvClient();
         kvClient.start();
-        kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, servers);
+        List<RaftNode> nodes = RaftNode.parseServers(servers);
+        kvClient.getRaftClient().clientAddNode(servers);
+        int[] nodeIds = nodes.stream().mapToInt(RaftNode::getNodeId).toArray();
+        kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, nodeIds);
         kvClient.getRaftClient().fetchLeader(groupId).get();
 
         long t1 = System.currentTimeMillis();

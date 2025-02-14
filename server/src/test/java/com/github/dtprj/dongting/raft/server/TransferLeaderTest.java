@@ -49,7 +49,8 @@ public class TransferLeaderTest extends ServerTestBase {
 
         AdminRaftClient c = new AdminRaftClient();
         c.start();
-        c.clientAddOrUpdateGroup(groupId, "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003");
+        c.clientAddNode("1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003");
+        c.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
         c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
         CompletableFuture<Void> f = c.transferLeader(groupId, leader.nodeId, newLeader.nodeId,
                 new DtTime(5, TimeUnit.SECONDS));

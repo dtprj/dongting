@@ -32,7 +32,8 @@ public class ChangeLeader implements GroupId {
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         AdminRaftClient adminClient = new AdminRaftClient();
         adminClient.start();
-        adminClient.clientAddOrUpdateGroup(GROUP_ID, servers);
+        adminClient.clientAddNode(servers);
+        adminClient.clientAddOrUpdateGroup(GROUP_ID, new int[]{1, 2, 3});
         RaftNode leader = adminClient.fetchLeader(GROUP_ID).get();
 
         System.out.println("current leader is node " + leader.getNodeId());
