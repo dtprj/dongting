@@ -21,7 +21,7 @@
     <parent>
         <artifactId>dongting</artifactId>
         <groupId>com.github.dtprj.dongting</groupId>
-        <version>0.2-SNAPSHOT</version>
+        <version>0.8-SNAPSHOT</version>
     </parent>
     <artifactId>dongting-demos</artifactId>
 
@@ -33,7 +33,7 @@
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-server</artifactId>
-            <version>0.2-SNAPSHOT</version>
+            <version>0.8-SNAPSHOT</version>
         </dependency>
     </dependencies>
     <build>
