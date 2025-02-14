@@ -9,7 +9,7 @@ and low-level RPC. Features are as follows:
   removal, and updating of RAFT Groups, allowing your cluster to scale dynamically. 
   The state machine runs in the raft framework can be customized.
 * (Under testing) Low-level RPC. Used by Donging itself.
-* (Under testing) Distribute configuration server with linearizability.
+* (Under testing) Distribute configuration server with linearizability (DtKV).
 * (Planned) MQ (message queues) with linearizability. Use RAFT log as message queue log.
 
 ## 10X Throughput
@@ -66,11 +66,55 @@ any other cloud service providers.
 Dongting does not require you to adjust Linux kernel parameters to achieve optimal performance
 (you might not even have the permission to do so).
 
+## try it
+
+All the examples are in the ```demos``` directory. 
+They require no configuration and can be run directly by executing the ```main``` method.
+It is recommended to run them in an IDE for easier breakpoint setting and observation.
+All demos use DtKV as the Raft state machine, which is an in-memory KV database.
+
+The [cluster](demos/src/main/java/com/github/dtprj/dongting/demos/cluster) directory contains an example of
+running a 3-node Raft cluster.
+Run ```DemoServer1```, ```DemoServer2```, and ```DemoServer3``` separately, the Raft cluster will typically 
+be ready within one second.
+Run ```DemoClient```, which will send 1 million put and get requests while recording the completion time.
+Run ```PeriodPutClient```, which continuously sends a put request every second without stopping. 
+You can shut down one server at any time, and ```PeriodPutClient``` will remain unaffected.
+Additionally, execute ```ChangeLeader``` to switch the Raft leader to a specified node.
+The running ```PeriodPutClient``` will not be affected in any way.
+
+The [standalone](demos/src/main/java/com/github/dtprj/dongting/demos/standalone) directory contains an example
+of running a single-node Raft cluster.
+
+The [embedded](demos/src/main/java/com/github/dtprj/dongting/demos/embedded) directory contains an example of 
+embedding 3 servers and 1 client into single process.
+
+The [configchange](demos/src/main/java/com/github/dtprj/dongting/demos/configchange) directory contains examples 
+of dynamically changing Raft members at runtime.
+First, run ```ConfigChangeDemoServer1```, ```ConfigChangeDemoServer2```, ```ConfigChangeDemoServer3```, 
+and ```ConfigChangeDemoServer4```. By default, a Raft group with node 1, 2, and 3 will be started.
+Executing ```ChangeTo234Client``` will change the Raft members to node 2, 3, and 4.
+Executing ```ChangeTo123Client``` will revert the Raft members back to node 1, 2, and 3.
+
+The [multiraft](demos/src/main/java/com/github/dtprj/dongting/demos/multiraft) directory contains examples of
+running multi-Raft, which is typically used for sharding or dynamic sharding.
+Run ```MultiRaftDemoServer1```, ```MultiRaftDemoServer2```, and ```MultiRaftDemoServer3``` to start two (static) 
+raft groups by default, with IDs 101 and 102.
+Executing ```PeriodPutClient``` will send a put request every second to Raft groups 101, 102, and 103.
+Since group 103 does not exist, there will be two successful put operations and one failed operation per second.
+Run ```AddGroup103Demo``` to add raft group 103 at runtime, after which ```PeriodPutClient``` will output 
+three successful operations per second.
+Executing ```RemoveGroup103Demo``` will remove raft group 103.
+
 ## Under development
 
-Unfortunately, the Dongting project is still under development (even though I have been developing this project 
-full-time for almost two years). Currently, all the features of the RAFT framework have been developed, 
-but they still need to be tested. Unit tests are not completed yet, but simple demos and performance tests are available.
+Unfortunately, the project is still under development. All current demos can run, 
+but the entire project requires further internal testing and is not production-ready.
+
+Additionally, the following features have not yet been implemented:
+
+* (DtKV) Configuration change notifications like value watch.
+* Message queues.
 
 ## About me
 if you can read Chinese, you can visit my project Weibo:
