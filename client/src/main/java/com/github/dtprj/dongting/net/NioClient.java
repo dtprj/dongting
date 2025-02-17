@@ -37,7 +37,6 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
 public class NioClient extends NioNet {
 
     private static final DtLog log = DtLogs.getLogger(NioClient.class);
@@ -169,17 +168,7 @@ public class NioClient extends NioNet {
 
     public CompletableFuture<Void> sendOneWay(Peer peer, WritePacket request, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        send(worker, peer, request, null, timeout, new RpcCallback<Object>() {
-            @Override
-            public void success(ReadPacket<Object> resp) {
-                f.complete(null);
-            }
-
-            @Override
-            public void fail(Throwable ex) {
-                f.completeExceptionally(ex);
-            }
-        });
+        send(worker, peer, request, null, timeout, RpcCallback.fromUnwrapFuture(f));
         return f;
     }
 

@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
@@ -95,9 +94,8 @@ public class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     private void doGet(ReqInfo<KvReq> reqInfo, KvReq req) {
-        reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), new FutureCallback<>() {
-            @Override
-            public void success(Long result) {
+        reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), (result, ex) -> {
+            if (ex == null) {
                 try {
                     DtKV dtKV = (DtKV) reqInfo.raftGroup.getStateMachine();
                     KvResult r = dtKV.get(new ByteArray(req.getKey()));
@@ -109,10 +107,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                 } catch (Exception e) {
                     writeErrorResp(reqInfo, e);
                 }
-            }
-
-            @Override
-            public void fail(Throwable ex) {
+            } else {
                 writeErrorResp(reqInfo, ex);
             }
         });
@@ -120,9 +115,8 @@ public class KvProcessor extends RaftProcessor<KvReq> {
 
     private void doList(ReqInfo<KvReq> reqInfo, KvReq req) {
 
-        reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), new FutureCallback<>() {
-            @Override
-            public void success(Long result) {
+        reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), (result, ex) -> {
+            if (ex == null) {
                 try {
                     DtKV dtKV = (DtKV) reqInfo.raftGroup.getStateMachine();
                     Pair<Integer, List<KvResult>> p = dtKV.list(req.getKey() == null ? null : new ByteArray(req.getKey()));
@@ -134,10 +128,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                 } catch (Exception e) {
                     writeErrorResp(reqInfo, e);
                 }
-            }
-
-            @Override
-            public void fail(Throwable ex) {
+            } else {
                 writeErrorResp(reqInfo, ex);
             }
         });

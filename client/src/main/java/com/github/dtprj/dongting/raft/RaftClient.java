@@ -49,7 +49,6 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
 public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
     protected final NioClient nioClient;
@@ -230,6 +229,7 @@ public class RaftClient extends AbstractLifeCircle {
         }
         boolean getPermit = false;
         try {
+            nioClient.getConfig().readFence();
             getPermit = nioClient.acquirePermit(request, timeout);
             if (groupInfo.leader != null && groupInfo.leader.getPeer().getStatus() == PeerStatus.connected) {
                 send(groupId, request, decoder, timeout, callback, groupInfo.leader, 0, getPermit);
@@ -270,19 +270,8 @@ public class RaftClient extends AbstractLifeCircle {
 
     private <T> void send(Integer groupId, WritePacket request, DecoderCallbackCreator<T> decoder,
                           DtTime timeout, RpcCallback<T> c, RaftNode leader, int retry, boolean getPermit) {
-        RpcCallback<T> newCallback = new RpcCallback<T>() {
-            @Override
-            public void success(ReadPacket<T> resp) {
-                if (c != null) {
-                    c.success(resp);
-                }
-                if (getPermit) {
-                    nioClient.releasePermit(request);
-                }
-            }
-
-            @Override
-            public void fail(Throwable ex) {
+        RpcCallback<T> newCallback = (result, ex) -> {
+            if (ex != null) {
                 if (request.canRetry() && retry == 0 && ex instanceof NetCodeException) {
                     NetCodeException ncEx = (NetCodeException) ex;
                     if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
@@ -290,7 +279,7 @@ public class RaftClient extends AbstractLifeCircle {
                         if (gi != null) {
                             RaftNode newLeader = updateLeaderFromExtra(ncEx.getExtra(), gi);
                             if (newLeader != null && !timeout.isTimeout()) {
-                                log.info("leader changed, update leader from node {} to {}, request will auto retry",
+                                FutureCallback.log.info("leader changed, update leader from node {} to {}, request will auto retry",
                                         leader.getNodeId(), newLeader.getNodeId());
                                 request.prepareRetry();
                                 send(groupId, request, decoder, timeout, c, newLeader, 1, getPermit);
@@ -299,12 +288,12 @@ public class RaftClient extends AbstractLifeCircle {
                         }
                     }
                 }
-                if (c != null) {
-                    c.fail(ex);
-                    if (getPermit) {
-                        nioClient.releasePermit(request);
-                    }
-                }
+            }
+            if (getPermit) {
+                nioClient.releasePermit(request);
+            }
+            if (c != null) {
+                c.call(result, ex);
             }
         };
         nioClient.sendRequest(leader.getPeer(), request, decoder, timeout, newCallback);
@@ -375,8 +364,8 @@ public class RaftClient extends AbstractLifeCircle {
         RaftNode node = it.next();
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, gi.groupId);
         DtTime rpcTimeout = new DtTime(5, TimeUnit.SECONDS);
-        RpcCallback<QueryStatusResp> callback = RpcCallback.fromHandler(
-                (resp, ex) -> processLeaderQueryResult(gi, it, resp, ex, node));
+        RpcCallback<QueryStatusResp> callback = (resp, ex) ->
+                processLeaderQueryResult(gi, it, resp, ex, node);
         nioClient.sendRequest(node.getPeer(), req, QueryStatusResp.DECODER, rpcTimeout, callback);
     }
 

@@ -407,19 +407,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
         long finalBytes = bytes;
         Executor ge = groupConfig.getFiberGroup().getExecutor();
+        RpcCallback<AppendResp> c = (result, ex) ->
+                ge.execute(() -> afterAppendRpc(result, ex, req, leaseStartNanos, finalBytes, perfStartTime));
         // release in AppendReqWritePacket
-        client.sendRequest(member.getNode().getPeer(), req, APPEND_RESP_DECODER_CALLBACK_CREATOR, timeout,
-                new RpcCallback<>() {
-                    @Override
-                    public void success(ReadPacket<AppendResp> result) {
-                        ge.execute(() -> afterAppendRpc(result, null, req, leaseStartNanos, finalBytes, perfStartTime));
-                    }
-
-                    @Override
-                    public void fail(Throwable ex) {
-                        ge.execute(() -> afterAppendRpc(null, ex, req, leaseStartNanos, finalBytes, perfStartTime));
-                    }
-                });
+        client.sendRequest(member.getNode().getPeer(), req, APPEND_RESP_DECODER_CALLBACK_CREATOR, timeout, c);
         pendingItems += items.size();
         pendingBytes += bytes;
     }
@@ -743,8 +734,8 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         FiberGroup fg = groupConfig.getFiberGroup();
         FiberFuture<Void> f = fg.newFuture("install-" + groupId + "-" + req.offset);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        RpcCallback<AppendResp> callback = RpcCallback.fromHandlerAsync(fg.getExecutor(),
-                (resp, ex) -> afterInstallRpc(resp, ex, req, f));
+        RpcCallback<AppendResp> callback = (resp, ex) ->
+                fg.getExecutor().execute(() -> afterInstallRpc(resp, ex, req, f));
         client.sendRequest(member.getNode().getPeer(), wf, APPEND_RESP_DECODER_CALLBACK_CREATOR,
                 timeout, callback);
         int bytes = data == null ? 0 : data.getBuffer().remaining();

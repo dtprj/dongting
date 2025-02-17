@@ -50,6 +50,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
@@ -223,8 +224,9 @@ public class MemberManager {
             SimpleWritePacket f = RaftUtil.buildRaftPingPacket(serverConfig.getNodeId(), raftStatus);
             f.setCommand(Commands.RAFT_PING);
 
-            RpcCallback<RaftPing> callback = RpcCallback.fromHandlerAsync(groupConfig.getFiberGroup().getExecutor(),
-                    (result, ex) -> processPingResult(raftNodeEx, member, result, ex, nodeEpochWhenStartPing));
+            Executor executor = groupConfig.getFiberGroup().getExecutor();
+            RpcCallback<RaftPing> callback = (result, ex) -> executor.execute(
+                    () -> processPingResult(raftNodeEx, member, result, ex, nodeEpochWhenStartPing));
             client.sendRequest(raftNodeEx.getPeer(), f, ctx -> ctx.toDecoderCallback(new RaftPing()),
                     timeout, callback);
         } catch (Exception e) {
@@ -985,15 +987,11 @@ public class MemberManager {
             frame.setCommand(Commands.RAFT_TRANSFER_LEADER);
             DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
             client.sendRequest(newLeader.getPeer(), frame, dc, new DtTime(5, TimeUnit.SECONDS),
-                    new RpcCallback<>() {
-                        @Override
-                        public void success(ReadPacket<Void> result) {
+                    (result, ex) -> {
+                        if (ex == null) {
                             log.info("transfer leader success, groupId={}", groupId);
                             finalFuture.complete(null);
-                        }
-
-                        @Override
-                        public void fail(Throwable ex) {
+                        } else {
                             log.error("transfer leader failed, groupId={}", groupId, ex);
                             finalFuture.completeExceptionally(ex);
                         }

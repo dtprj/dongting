@@ -15,50 +15,47 @@
  */
 package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
+@FunctionalInterface
 public interface FutureCallback<T> {
 
-    void success(T result);
+    DtLog log = DtLogs.getLogger(FutureCallback.class);
 
-    void fail(Throwable ex);
+    void call(T result, Throwable ex);
 
     static void callFail(FutureCallback<?> callback, Throwable ex) {
         try {
             if (callback != null) {
-                callback.fail(ex);
+                callback.call(null, ex);
             }
         } catch (Throwable ex2) {
-            BugLog.getLog().error("RpcCallback error", ex2);
+            log.error("RpcCallback error", ex2);
         }
     }
 
     static <T> void callSuccess(FutureCallback<T> callback, T result) {
         try {
             if (callback != null) {
-                callback.success(result);
+                callback.call(result, null);
             }
         } catch (Throwable ex) {
-            BugLog.getLog().error("RpcCallback error", ex);
+            log.error("RpcCallback error", ex);
         }
     }
 
     static <T> FutureCallback<T> fromFuture(CompletableFuture<T> f) {
-        return new FutureCallback<T>() {
-            @Override
-            public void success(T result) {
-                f.complete(result);
-            }
-
-            @Override
-            public void fail(Throwable ex) {
+        return (result, ex) -> {
+            if (ex != null) {
                 f.completeExceptionally(ex);
+            } else {
+                f.complete(result);
             }
         };
     }

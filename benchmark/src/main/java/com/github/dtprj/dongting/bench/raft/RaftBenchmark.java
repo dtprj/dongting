@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.bench.common.PrometheusPerfCallback;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
@@ -202,15 +201,11 @@ public class RaftBenchmark extends BenchBase {
                 clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout);
                 success(state);
             } else {
-                clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout, new FutureCallback<>() {
-                    @Override
-                    public void success(Void result) {
+                clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout, (result, ex) -> {
+                    if (ex == null) {
                         logRt(startTime, state);
                         RaftBenchmark.this.success(state);
-                    }
-
-                    @Override
-                    public void fail(Throwable ex) {
+                    } else {
                         logRt(startTime, state);
                         RaftBenchmark.this.fail(state);
                     }

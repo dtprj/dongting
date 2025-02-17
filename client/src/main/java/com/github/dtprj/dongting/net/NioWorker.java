@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Pair;
@@ -53,7 +54,6 @@ import java.util.function.Consumer;
  *
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
 class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);
 
@@ -560,16 +560,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void sendHandshake(DtChannelImpl dtc, ConnectInfo ci) {
-        RpcCallback<HandshakeBody> rpcCallback = new RpcCallback<HandshakeBody>() {
-            @Override
-            public void success(ReadPacket<HandshakeBody> resp) {
-                handshakeSuccess(dtc, ci, resp);
-            }
-
-            @Override
-            public void fail(Throwable ex) {
-                log.error("handshake fail: {}", ex);
+        RpcCallback<HandshakeBody> rpcCallback = (resp, ex) -> {
+            if (ex != null) {
+                FutureCallback.log.error("handshake fail: {}", ex);
                 close(dtc);
+            } else {
+                handshakeSuccess(dtc, ci, resp);
             }
         };
 

@@ -681,19 +681,15 @@ public class NioClientTest {
 
         CompletableFuture<Void> f = new CompletableFuture<>();
         client.sendRequest(peer, wf, ctx -> new RefBufferDecoderCallback(),
-                new DtTime(1, TimeUnit.MILLISECONDS), new RpcCallback<RefBuffer>() {
-                    @Override
-                    public void success(ReadPacket<RefBuffer> result) {
-                        f.completeExceptionally(new Exception("not fail"));
-                    }
-
-                    @Override
-                    public void fail(Throwable ex) {
+                new DtTime(1, TimeUnit.MILLISECONDS), (result, ex) -> {
+                    if (ex != null) {
                         if (ex.getMessage().equals("wait connect timeout")) {
                             f.complete(null);
                         } else {
                             f.completeExceptionally(ex);
                         }
+                    } else {
+                        f.completeExceptionally(new Exception("not fail"));
                     }
                 });
     }
@@ -722,19 +718,15 @@ public class NioClientTest {
             wf.setCommand(Commands.CMD_PING);
             int index = i;
             client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
-                    new DtTime(100, TimeUnit.SECONDS), new RpcCallback<RefBuffer>() {
-                        @Override
-                        public void success(ReadPacket<RefBuffer> result) {
+                    new DtTime(100, TimeUnit.SECONDS), (result, ex) -> {
+                        if (ex == null) {
                             fail.compareAndSet(null, new Exception("not fail"));
                             cl.countDown();
-                        }
-
-                        @Override
-                        public void fail(Throwable e) {
+                        } else {
                             int expectIndex = expectFinishIndex.getAndIncrement();
                             if (expectIndex != index) {
                                 fail.compareAndSet(null, new Exception("fail order " + index + "," + expectIndex
-                                        + ", msg=" + e.getMessage()));
+                                        + ", msg=" + ex.getMessage()));
                             }
                             cl.countDown();
                         }

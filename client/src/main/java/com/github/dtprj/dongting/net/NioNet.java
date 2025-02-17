@@ -43,7 +43,6 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
 public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
@@ -123,21 +122,10 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
         if (acquirePermit) {
             RpcCallback<T> old = callback;
-            callback = new RpcCallback<T>() {
-                @Override
-                public void success(ReadPacket<T> resp) {
-                    releasePermit(request);
-                    if (old != null) {
-                        old.success(resp);
-                    }
-                }
-
-                @Override
-                public void fail(Throwable ex) {
-                    releasePermit(request);
-                    if (old != null) {
-                        old.fail(ex);
-                    }
+            callback = (result, ex) -> {
+                releasePermit(request);
+                if (old != null) {
+                    old.call(result, ex);
                 }
             };
         }

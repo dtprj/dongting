@@ -135,19 +135,15 @@ public class RpcBenchmark extends BenchBase {
                 RefBuffer rc = rf.getBody();
                 rc.release();
             } else {
-                RpcCallback<RefBuffer> c = new RpcCallback<>() {
-                    @Override
-                    public void success(ReadPacket<RefBuffer> resp) {
+                RpcCallback<RefBuffer> c = (resp, ex) -> {
+                    if (ex == null) {
                         logRt(startTime, state);
                         RefBuffer rc = resp.getBody();
                         rc.release();
-                        RpcBenchmark.this.success(state);
-                    }
-
-                    @Override
-                    public void fail(Throwable ex) {
+                        success(state);
+                    } else {
                         logRt(startTime, state);
-                        RpcBenchmark.this.fail(state);
+                        fail(state);
                     }
                 };
                 client.sendRequest(req, ctx -> ctx.refBufferDecoderCallback(true), timeout, c);

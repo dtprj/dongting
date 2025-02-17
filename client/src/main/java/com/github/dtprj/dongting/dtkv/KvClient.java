@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
 import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClientConfig;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -44,7 +43,6 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
 public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
 
@@ -57,25 +55,19 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private <T, T2> RpcCallback<T> wrap(FutureCallback<T2> c, int anotherSuccessCode, Function<T, T2> f) {
-        return new RpcCallback<T>() {
-            @Override
-            public void success(ReadPacket<T> result) {
+        return (result, ex) -> {
+            T2 finalResult = null;
+            if (ex == null) {
                 int bc = result.getBizCode();
                 if (bc != KvCodes.CODE_SUCCESS && bc != anotherSuccessCode) {
-                    c.fail(new NetBizCodeException(bc, result.getMsg()));
+                    ex = new NetBizCodeException(bc, result.getMsg());
                 } else {
-                    c.success(f.apply(result.getBody()));
+                    finalResult = f.apply(result.getBody());
                 }
+            } else if (ex instanceof NetTimeoutException) {
+                ex = new RaftTimeoutException(ex.getMessage(), ex);
             }
-
-            @Override
-            public void fail(Throwable ex) {
-                if (ex instanceof NetTimeoutException) {
-                    c.fail(new RaftTimeoutException(ex.getMessage(), ex));
-                } else {
-                    c.fail(ex);
-                }
-            }
+            c.call(finalResult, ex);
         };
     }
 

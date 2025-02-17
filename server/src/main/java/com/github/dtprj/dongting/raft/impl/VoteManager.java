@@ -185,8 +185,8 @@ public class VoteManager {
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
             try {
-                RpcCallback<VoteResp> c = RpcCallback.fromHandler((rf, ex) ->
-                        fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest));
+                RpcCallback<VoteResp> c = (rf, ex) ->
+                        fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest);
                 client.sendRequest(member.getNode().getPeer(), wf,ctx -> ctx.toDecoderCallback(new VoteResp.Callback()),
                         timeout, c);
                 log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
