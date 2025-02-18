@@ -44,7 +44,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     final WorkerStatus workerStatus;
     private final SocketChannel channel;
     private final DecodeContext decodeContext;
-    private final RespWriter respWriter;
     final Peer peer; // null in server side
     private final SocketAddress remoteAddr;
     private final SocketAddress localAddr;
@@ -85,8 +84,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.decodeContext.setHeapPool(workerStatus.getHeapPool());
 
         this.parser = new MultiParser(decodeContext, this, nioConfig.getMaxPacketSize());
-
-        this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWorker(), this);
 
         this.remoteAddr = channel.getRemoteAddress();
         this.localAddr = channel.getLocalAddress();
@@ -341,7 +338,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             flowControl = true;
         }
 
-        ReqContext reqContext = new ReqContext(this, respWriter, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
+        ReqContext reqContext = new ReqContext(this, req, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.executor == null) {
             if (timeout(req, reqContext, roundTime)) {
                 return;
@@ -527,7 +524,7 @@ class ProcessInBizThreadTask implements Runnable {
             }
         }
         if (resp != null) {
-            reqContext.getRespWriter().writeRespInBizThreads(req, resp, reqContext.getTimeout());
+            reqContext.writeRespInBizThreads(resp);
         }
     }
 }

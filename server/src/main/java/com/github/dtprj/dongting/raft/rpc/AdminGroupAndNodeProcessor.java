@@ -53,16 +53,16 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
         int cmd = packet.getCommand();
         if (cmd == Commands.RAFT_ADMIN_ADD_GROUP) {
             AdminAddGroupReq req = (AdminAddGroupReq) packet.getBody();
-            addGroup(req, packet, reqContext);
+            addGroup(req, reqContext);
         } else if (cmd == Commands.RAFT_ADMIN_REMOVE_GROUP) {
             Integer groupId = (Integer) packet.getBody();
-            removeGroup(groupId, packet, reqContext);
+            removeGroup(groupId, reqContext);
         } else if (cmd == Commands.RAFT_ADMIN_ADD_NODE) {
             AdminAddNodeReq req = (AdminAddNodeReq) packet.getBody();
-            addNode(req, packet, reqContext);
+            addNode(req, reqContext);
         } else if (cmd == Commands.RAFT_ADMIN_REMOVE_NODE) {
             Integer nodeId = (Integer) packet.getBody();
-            removeNode(nodeId, packet, reqContext);
+            removeNode(nodeId, reqContext);
         } else {
             throw new RaftException("bad cmd:" + cmd);
         }
@@ -85,38 +85,38 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
         }
     }
 
-    private void processResult(CompletableFuture<?> f, ReadPacket<Object> packet, ReqContext reqContext) {
+    private void processResult(CompletableFuture<?> f, ReqContext reqContext) {
         f.whenComplete((o, ex) -> {
             if (ex == null) {
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                reqContext.getRespWriter().writeRespInBizThreads(packet, resp, reqContext.getTimeout());
+                reqContext.writeRespInBizThreads(resp);
             } else {
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
                 resp.setMsg(ex.toString());
-                reqContext.getRespWriter().writeRespInBizThreads(packet, resp, reqContext.getTimeout());
+                reqContext.writeRespInBizThreads(resp);
             }
         });
     }
 
-    private void addGroup(AdminAddGroupReq req, ReadPacket<Object> packet, ReqContext reqContext) {
+    private void addGroup(AdminAddGroupReq req, ReqContext reqContext) {
         RaftGroupConfig c = factory.createConfig(req.groupId, req.nodeIdOfMembers, req.nodeIdOfObservers);
         CompletableFuture<Void> f = server.addGroup(c);
-        processResult(f, packet, reqContext);
+        processResult(f, reqContext);
     }
 
-    private void removeGroup(Integer groupId, ReadPacket<Object> packet, ReqContext reqContext) {
+    private void removeGroup(Integer groupId, ReqContext reqContext) {
         CompletableFuture<Void> f = server.removeGroup(groupId, true, reqContext.getTimeout());
-        processResult(f, packet, reqContext);
+        processResult(f, reqContext);
     }
 
-    private void addNode(AdminAddNodeReq req, ReadPacket<Object> packet, ReqContext reqContext) {
+    private void addNode(AdminAddNodeReq req, ReqContext reqContext) {
         RaftNode n = new RaftNode(req.nodeId, new HostPort(req.host, req.port));
         CompletableFuture<Void> f = server.addNode(n);
-        processResult(f, packet, reqContext);
+        processResult(f, reqContext);
     }
 
-    private void removeNode(Integer nodeId, ReadPacket<Object> packet, ReqContext reqContext) {
+    private void removeNode(Integer nodeId, ReqContext reqContext) {
         CompletableFuture<Void> f = server.removeNode(nodeId);
-        processResult(f, packet, reqContext);
+        processResult(f, reqContext);
     }
 }

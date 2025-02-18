@@ -107,11 +107,6 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
     protected void cleanReq(ReqInfo<T> reqInfo) {
     }
 
-    protected void writeResp(ReqInfo<?> reqInfo, WritePacket respFrame) {
-        ReqContext c = reqInfo.reqContext;
-        c.getRespWriter().writeRespInBizThreads(reqInfo.reqFrame, respFrame, c.getTimeout());
-    }
-
     protected void writeErrorResp(ReqInfo<?> reqInfo, Throwable ex) {
         Throwable root = DtUtil.rootCause(ex);
         if (root instanceof RaftTimeoutException) {
@@ -134,6 +129,6 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             log.warn("raft processor error", ex);
         }
         errorResp.setMsg(root.toString());
-        writeResp(reqInfo, errorResp);
+        reqInfo.reqContext.writeRespInBizThreads(errorResp);
     }
 }

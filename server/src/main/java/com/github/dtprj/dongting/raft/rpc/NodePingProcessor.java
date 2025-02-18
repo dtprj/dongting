@@ -53,7 +53,7 @@ public class NodePingProcessor extends ReqProcessor<NodePing> {
                 p = new SimpleWritePacket(respPing);
                 p.setRespCode(CmdCodes.SUCCESS);
             }
-            reqContext.getRespWriter().writeRespInBizThreads(packet, p, reqContext.getTimeout());
+            reqContext.writeRespInBizThreads(p);
         });
         return null;
     }

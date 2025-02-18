@@ -79,8 +79,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
                     invokeCleanReq(o);
                     EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
                     wf.setMsg("raft group is stopped: " + o.raftGroup.getGroupId());
-                    o.reqContext.getRespWriter().writeRespInBizThreads(
-                            o.reqFrame, wf, o.reqContext.getTimeout());
+                    o.reqContext.writeRespInBizThreads(wf);
                     // should continue loop to take all pending tasks and release them
                     return Fiber.resume(null, this);
                 } else {
@@ -101,8 +100,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
                 EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
                 wf.setMsg(ex.toString());
                 log.error("uncaught exception in {}.", getClass().getSimpleName(), ex);
-                current.reqContext.getRespWriter().writeRespInBizThreads(
-                        current.reqFrame, wf, current.reqContext.getTimeout());
+                current.reqContext.writeRespInBizThreads(wf);
             }
             if (!isGroupShouldStopPlain()) {
                 log.error("restart processor fiber.");

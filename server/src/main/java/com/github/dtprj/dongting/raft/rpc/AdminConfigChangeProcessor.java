@@ -95,7 +95,7 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
                 writeErrorResp(reqInfo, ex);
             } else {
                 log.info("Admin {} config change success, groupId={}, resultIndex={}", type, rg.getGroupId(), index);
-                writeResp(reqInfo, new PbLongWritePacket(index));
+                reqInfo.reqContext.writeRespInBizThreads(new PbLongWritePacket(index));
             }
         });
         return null;

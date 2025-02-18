@@ -76,7 +76,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
                 resp.setMsg("receive vote request from unknown member");
-                writeResp(reqInfo, resp);
+                reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
             }
             if (!MemberManager.validCandidate(raftStatus, raftServer.getServerConfig().getNodeId())) {
@@ -85,7 +85,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
                 resp.setMsg("current node is not members and can't process vote");
-                writeResp(reqInfo, resp);
+                reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
             }
             if (!logReceiveInfo) {
@@ -102,7 +102,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 log.warn("raft group is stopping. ignore vote/pre-vote request");
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
                 resp.setMsg("raft group is stopping");
-                writeResp(reqInfo, resp);
+                reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
             }
             if (voteReq.term > raftStatus.getCurrentTerm()) {
@@ -159,7 +159,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             resp.term = raftStatus.getCurrentTerm();
             SimpleWritePacket wf = new SimpleWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
-            writeResp(reqInfo, wf);
+            reqInfo.reqContext.writeRespInBizThreads(wf);
             log.info("receive {} request from node {}. granted={}", voteReq.preVote ? "pre-vote" : "vote",
                     voteReq.candidateId, resp.voteGranted);
             return Fiber.frameReturn();

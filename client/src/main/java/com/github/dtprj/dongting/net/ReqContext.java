@@ -21,13 +21,13 @@ import com.github.dtprj.dongting.common.DtTime;
  * @author huangli
  */
 public class ReqContext {
-    private final DtChannelImpl dtChannel;
+    private final DtChannelImpl dtc;
+    private final ReadPacket<?> req;
     private final DtTime timeout;
-    private final RespWriter respWriter;
 
-    ReqContext(DtChannelImpl dtChannel, RespWriter respWriter, DtTime timeout) {
-        this.dtChannel = dtChannel;
-        this.respWriter = respWriter;
+    ReqContext(DtChannelImpl dtc, ReadPacket<?> req, DtTime timeout) {
+        this.dtc = dtc;
+        this.req = req;
         this.timeout = timeout;
     }
 
@@ -36,10 +36,34 @@ public class ReqContext {
     }
 
     public DtChannel getDtChannel() {
-        return dtChannel;
+        return dtc;
     }
 
-    public RespWriter getRespWriter() {
-        return respWriter;
+    // invoke by other threads
+    public void writeRespInBizThreads(WritePacket resp) {
+        resp.setSeq(req.getSeq());
+        resp.setCommand(req.getCommand());
+        resp.setPacketType(PacketType.TYPE_RESP);
+
+        WriteData data = new WriteData(dtc, resp, timeout);
+        NioWorker worker = dtc.workerStatus.worker;
+        if (Thread.currentThread() == worker.getThread()) {
+            dtc.subQueue.enqueue(data);
+            worker.markWakeupInIoThread();
+        } else {
+            if (dtc.isClosed()) {
+                resp.clean();
+                // not restrict, but we will check again in io thread
+                return;
+            }
+            if (req.responseHasWrite) {
+                // this check is not thread safe
+                throw new IllegalStateException("the response has been written");
+            }
+            req.responseHasWrite = true;
+
+            worker.workerStatus.ioWorkerQueue.writeFromBizThread(data);
+            worker.wakeup();
+        }
     }
 }

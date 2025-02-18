@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
-import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
@@ -148,11 +147,6 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
                 return "CODE_UNKNOWN_" + code;
         }
     }
-
-    @Override
-    public void writeResp(ReqInfo<?> reqInfo, WritePacket respFrame) {
-        super.writeResp(reqInfo, respFrame);
-    }
 }
 
 abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
@@ -249,7 +243,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
         SimpleWritePacket p = new SimpleWritePacket(resp);
         p.setRespCode(CmdCodes.SUCCESS);
         p.setMsg(msg);
-        processor.writeResp(reqInfo, p);
+        reqInfo.reqContext.writeRespInBizThreads(p);
         return Fiber.frameReturn();
     }
 

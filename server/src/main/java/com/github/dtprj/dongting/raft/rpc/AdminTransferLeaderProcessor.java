@@ -66,7 +66,7 @@ public class AdminTransferLeaderProcessor extends RaftProcessor<TransferLeaderRe
             } else {
                 log.info("transferLeadership success, groupId={}, newLeaderId={}",
                         req.groupId, req.newLeaderId);
-                writeResp(reqInfo, new EmptyBodyRespPacket(CmdCodes.SUCCESS));
+                reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SUCCESS));
             }
         });
         return null;

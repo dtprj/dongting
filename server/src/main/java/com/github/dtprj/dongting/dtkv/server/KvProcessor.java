@@ -103,7 +103,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                     EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
                     wf.setRespCode(CmdCodes.SUCCESS);
                     wf.setBizCode(r.getBizCode());
-                    writeResp(reqInfo, wf);
+                    reqInfo.reqContext.writeRespInBizThreads(wf);
                 } catch (Exception e) {
                     writeErrorResp(reqInfo, e);
                 }
@@ -124,7 +124,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                     EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
                     wf.setRespCode(CmdCodes.SUCCESS);
                     wf.setBizCode(p.getLeft());
-                    writeResp(reqInfo, wf);
+                    reqInfo.reqContext.writeRespInBizThreads(wf);
                 } catch (Exception e) {
                     writeErrorResp(reqInfo, e);
                 }
@@ -152,7 +152,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
             KvResult r = (KvResult) result;
             EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             resp.setBizCode(r.getBizCode());
-            writeResp(reqInfo, resp);
+            reqInfo.reqContext.writeRespInBizThreads(resp);
         }
 
         @Override
