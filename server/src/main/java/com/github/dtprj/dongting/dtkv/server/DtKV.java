@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -142,7 +143,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      *
-     * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
+     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(DtTime, FutureCallback)
      */
     public KvResult get(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;
@@ -158,7 +159,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      *
-     * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
+     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(DtTime, FutureCallback)
      */
     public Pair<Integer, List<KvResult>> list(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;

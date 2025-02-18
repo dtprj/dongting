@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -39,6 +40,7 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * @author huangli
@@ -73,7 +75,14 @@ public class KvProcessor extends RaftProcessor<KvReq> {
         }
         switch (frame.getCommand()) {
             case Commands.DTKV_GET:
-                doGet(reqInfo, req);
+                leaseRead(reqInfo, (dtKV, kvReq) -> {
+                    KvResult r = dtKV.get(new ByteArray(kvReq.getKey()));
+                    KvResp resp = new KvResp(Collections.singletonList(r));
+                    EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
+                    p.setRespCode(CmdCodes.SUCCESS);
+                    p.setBizCode(r.getBizCode());
+                    return p;
+                });
                 break;
             case Commands.DTKV_PUT:
                 submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArray(req.getKey()), req.getValue());
@@ -85,7 +94,21 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                 submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, new ByteArray(req.getKey()), null);
                 break;
             case Commands.DTKV_LIST:
-                doList(reqInfo, req);
+                leaseRead(reqInfo, (dtKV, kvReq) -> {
+                    Pair<Integer, List<KvResult>> r = dtKV.list(req.getKey() == null ? null : new ByteArray(req.getKey()));
+                    List<KvResult> results = r.getRight();
+                    if (results == null) {
+                        EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                        p.setBizCode(r.getLeft());
+                        return p;
+                    } else {
+                        KvResp resp = new KvResp(results);
+                        EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
+                        p.setRespCode(CmdCodes.SUCCESS);
+                        p.setBizCode(KvCodes.CODE_SUCCESS);
+                        return p;
+                    }
+                });
                 break;
             default:
                 throw new RaftException("unknown command: " + frame.getCommand());
@@ -93,38 +116,13 @@ public class KvProcessor extends RaftProcessor<KvReq> {
         return null;
     }
 
-    private void doGet(ReqInfo<KvReq> reqInfo, KvReq req) {
+    private void leaseRead(ReqInfo<KvReq> reqInfo, BiFunction<DtKV, KvReq, WritePacket> f) {
         reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), (result, ex) -> {
             if (ex == null) {
                 try {
                     DtKV dtKV = (DtKV) reqInfo.raftGroup.getStateMachine();
-                    KvResult r = dtKV.get(new ByteArray(req.getKey()));
-                    KvResp resp = new KvResp(Collections.singletonList(r));
-                    EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
-                    wf.setRespCode(CmdCodes.SUCCESS);
-                    wf.setBizCode(r.getBizCode());
-                    reqInfo.reqContext.writeRespInBizThreads(wf);
-                } catch (Exception e) {
-                    writeErrorResp(reqInfo, e);
-                }
-            } else {
-                writeErrorResp(reqInfo, ex);
-            }
-        });
-    }
-
-    private void doList(ReqInfo<KvReq> reqInfo, KvReq req) {
-
-        reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), (result, ex) -> {
-            if (ex == null) {
-                try {
-                    DtKV dtKV = (DtKV) reqInfo.raftGroup.getStateMachine();
-                    Pair<Integer, List<KvResult>> p = dtKV.list(req.getKey() == null ? null : new ByteArray(req.getKey()));
-                    KvResp resp = new KvResp(p.getRight());
-                    EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
-                    wf.setRespCode(CmdCodes.SUCCESS);
-                    wf.setBizCode(p.getLeft());
-                    reqInfo.reqContext.writeRespInBizThreads(wf);
+                    WritePacket p = f.apply(dtKV, reqInfo.reqFrame.getBody());
+                    reqInfo.reqContext.writeRespInBizThreads(p);
                 } catch (Exception e) {
                     writeErrorResp(reqInfo, e);
                 }
