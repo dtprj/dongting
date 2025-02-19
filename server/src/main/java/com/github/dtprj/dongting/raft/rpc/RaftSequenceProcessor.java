@@ -97,7 +97,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             if (current != null) {
-                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
                 wf.setMsg(ex.toString());
                 log.error("uncaught exception in {}.", getClass().getSimpleName(), ex);
                 current.reqContext.writeRespInBizThreads(wf);

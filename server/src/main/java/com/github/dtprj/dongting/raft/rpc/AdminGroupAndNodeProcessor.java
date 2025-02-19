@@ -91,7 +91,7 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
                 reqContext.writeRespInBizThreads(resp);
             } else {
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
                 resp.setMsg(ex.toString());
                 reqContext.writeRespInBizThreads(resp);
             }

@@ -46,7 +46,7 @@ public class NodePingProcessor extends ReqProcessor<NodePing> {
             NodePing reqPing = packet.getBody();
             WritePacket p;
             if (!nodeManager.containsNode(reqPing.localNodeId)) {
-                p = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
                 p.setMsg("node not found: " + reqPing.localNodeId);
             } else {
                 NodePing respPing = new NodePing(selfNodeId, reqPing.localNodeId, nodeManager.getUuid());

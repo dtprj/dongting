@@ -125,7 +125,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             }
             log.warn("not leader, current leader is {}", leader);
         } else {
-            errorResp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+            errorResp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
             log.warn("raft processor error", ex);
         }
         errorResp.setMsg(root.toString());

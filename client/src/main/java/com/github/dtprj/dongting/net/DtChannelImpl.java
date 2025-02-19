@@ -353,7 +353,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 return;
             } catch (Throwable e) {
                 log.warn("ReqProcessor.process fail", e);
-                writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString(), reqContext.getTimeout());
+                writeErrorInIoThread(req, CmdCodes.SYS_ERROR, e.toString(), reqContext.getTimeout());
                 return;
             } finally {
                 if (flowControl) {
@@ -515,7 +515,7 @@ class ProcessInBizThreadTask implements Runnable {
         } catch (Throwable e) {
             log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
             if (req.getPacketType() == PacketType.TYPE_REQ) {
-                resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
                 resp.setMsg(e.toString());
             }
         } finally {

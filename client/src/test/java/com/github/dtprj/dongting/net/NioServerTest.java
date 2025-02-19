@@ -551,8 +551,8 @@ public class NioServerTest {
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING1, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING2, 5000, in, out));
 
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10001, 5000, in, out));
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10002, 5000, in, out));
+            assertEquals(CmdCodes.SYS_ERROR, invoke(++seq, 10001, 5000, in, out));
+            assertEquals(CmdCodes.SYS_ERROR, invoke(++seq, 10002, 5000, in, out));
 
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING1, 5000, in, out));

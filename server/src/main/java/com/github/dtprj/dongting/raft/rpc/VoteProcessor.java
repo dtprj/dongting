@@ -74,7 +74,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
                         voteReq.candidateId, voteReq.groupId,
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
                 resp.setMsg("receive vote request from unknown member");
                 reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
@@ -83,7 +83,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 log.warn("current node is not members and can't process vote. remoteId={}, group={}, remote={}",
                         voteReq.candidateId, voteReq.groupId,
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
                 resp.setMsg("current node is not members and can't process vote");
                 reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
