@@ -33,4 +33,37 @@ public interface KvCodes {
     int CODE_KEY_TOO_LONG = 10;
     int CODE_VALUE_TOO_LONG = 11;
     int CODE_INSTALL_SNAPSHOT = 12;
+
+    static String toStr(int code) {
+        switch (code) {
+            case CODE_SUCCESS:
+                return "success";
+            case CODE_NOT_FOUND:
+                return "not found";
+            case CODE_SUCCESS_OVERWRITE:
+                return "success overwrite";
+            case CODE_DIR_EXISTS:
+                return "dir exists";
+            case CODE_VALUE_EXISTS:
+                return "value exists";
+            case CODE_PARENT_NOT_DIR:
+                return "parent not dir";
+            case CODE_INVALID_KEY:
+                return "invalid key";
+            case CODE_INVALID_VALUE:
+                return "invalid value";
+            case CODE_PARENT_DIR_NOT_EXISTS:
+                return "parent dir not exists";
+            case CODE_HAS_CHILDREN:
+                return "has children";
+            case CODE_KEY_TOO_LONG:
+                return "key too long";
+            case CODE_VALUE_TOO_LONG:
+                return "value too long";
+            case CODE_INSTALL_SNAPSHOT:
+                return "install snapshot";
+            default:
+                return "unknown";
+        }
+    }
 }
