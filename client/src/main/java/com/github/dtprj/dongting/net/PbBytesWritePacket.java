@@ -15,14 +15,30 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.nio.charset.StandardCharsets;
+import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
+
+import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class PbStrWritePacket extends PbBytesWritePacket {
+public class PbBytesWritePacket extends RetryableWritePacket {
 
-    public PbStrWritePacket(int command, String value) {
-        super(command, value.getBytes(StandardCharsets.UTF_8));
+    private final byte[] bs;
+
+    public PbBytesWritePacket(int command, byte[] bs) {
+        this.command = command;
+        this.bs = bs;
+    }
+
+    @Override
+    protected int calcActualBodySize() {
+        return bs == null ? 0 : bs.length;
+    }
+
+    @Override
+    protected boolean encodeBody(EncodeContext c, ByteBuffer dest) {
+        return EncodeUtil.encode(c, dest, 1, bs);
     }
 }
