@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.ByteArrayDecoderCallback;
+import com.github.dtprj.dongting.codec.BytesDecoderCallback;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.DtPacket;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -806,7 +806,7 @@ public class NioClientTest {
             };
             wf.setCommand(Commands.CMD_PING);
             CompletableFuture<ReadPacket<byte[]>> f = new CompletableFuture<>();
-            client.sendRequest(wf, ctx -> new ByteArrayDecoderCallback(),
+            client.sendRequest(wf, ctx -> new BytesDecoderCallback(),
                     new DtTime(tick(1), TimeUnit.SECONDS), RpcCallback.fromFuture(f));
 
             try {
@@ -837,7 +837,7 @@ public class NioClientTest {
             };
             wf.setCommand(Commands.CMD_PING);
             CompletableFuture<ReadPacket<byte[]>> f = new CompletableFuture<>();
-            client.sendRequest(wf, ctx -> new ByteArrayDecoderCallback(),
+            client.sendRequest(wf, ctx -> new BytesDecoderCallback(),
                     new DtTime(tick(1), TimeUnit.SECONDS), RpcCallback.fromFuture(f));
 
             try {
@@ -871,7 +871,7 @@ public class NioClientTest {
         try {
             ByteBufferWritePacket f = new ByteBufferWritePacket(buf);
             f.setCommand(Commands.CMD_PING);
-            client.sendRequest(peer, f, ctx -> new ByteArrayDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
+            client.sendRequest(peer, f, ctx -> new BytesDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
             fail();
         } catch (Exception e) {
             assertEquals(NetException.class, DtUtil.rootCause(e).getClass());
@@ -882,7 +882,7 @@ public class NioClientTest {
         try {
             ByteBufferWritePacket f = new ByteBufferWritePacket(buf);
             f.setCommand(Commands.CMD_PING);
-            client.sendRequest(peer, f, ctx -> new ByteArrayDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
+            client.sendRequest(peer, f, ctx -> new BytesDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
             fail();
         } catch (Exception e) {
             assertEquals(NetException.class, DtUtil.rootCause(e).getClass());

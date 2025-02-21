@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class ByteArrayDecoderCallback extends DecoderCallback<byte[]> {
+public class BytesDecoderCallback extends DecoderCallback<byte[]> {
 
     private byte[] r;
 
