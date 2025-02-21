@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public final class PbStringCallback extends PbCallback<String> {
+public final class PbStrCallback extends PbCallback<String> {
 
     private String s;
 
