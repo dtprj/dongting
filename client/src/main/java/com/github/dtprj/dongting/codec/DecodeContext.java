@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -41,9 +40,10 @@ public class DecodeContext {
 
     // caches
     private PbNoCopyDecoderCallback pbNoCopyDecoderCallback;
-    private KvResp.Callback kvRespCallback;
-    private RefBufferDecoderCallback refBufferDecoderCallback;
-    private RefBufferDecoderCallback refBufferDecoderCallbackPlain;
+    private PbIntCallback pbIntCallback;
+    private PbLongCallback pbLongCallback;
+    private PbStrCallback pbStrCallback;
+    private PbBytesCallback pbBytesCallback;
 
     public DecodeContext() {
     }
@@ -127,28 +127,32 @@ public class DecodeContext {
         return (DecoderCallback<T>) c;
     }
 
-    public RefBufferDecoderCallback refBufferDecoderCallback(boolean plain) {
-        RefBufferDecoderCallback c;
-        if (plain) {
-            c = refBufferDecoderCallbackPlain;
-            if (c == null) {
-                c = new RefBufferDecoderCallback(true);
-                this.refBufferDecoderCallbackPlain = c;
-            }
-        } else {
-            c = refBufferDecoderCallback;
-            if (c == null) {
-                c = new RefBufferDecoderCallback(false);
-                this.refBufferDecoderCallback = c;
-            }
+    public PbIntCallback cachedPbIntCallback() {
+        if (pbIntCallback == null) {
+            pbIntCallback = new PbIntCallback();
         }
-        return c;
+        return pbIntCallback;
     }
 
-    public KvResp.Callback kvRespCallback() {
-        if (kvRespCallback == null) {
-            kvRespCallback = new KvResp.Callback();
+    public PbLongCallback cachedPbLongCallback() {
+        if (pbLongCallback == null) {
+            pbLongCallback = new PbLongCallback();
         }
-        return kvRespCallback;
+        return pbLongCallback;
     }
+
+    public PbStrCallback cachedPbStrCallback() {
+        if (pbStrCallback == null) {
+            pbStrCallback = new PbStrCallback();
+        }
+        return pbStrCallback;
+    }
+
+    public PbBytesCallback cachedPbBytesCallback() {
+        if (pbBytesCallback == null) {
+            pbBytesCallback = new PbBytesCallback();
+        }
+        return pbBytesCallback;
+    }
+
 }

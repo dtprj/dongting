@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbIntCallback;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
@@ -75,11 +74,11 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
         if (command == Commands.RAFT_ADMIN_ADD_GROUP) {
             return context.toDecoderCallback(new AdminAddGroupReq());
         } else if (command == Commands.RAFT_ADMIN_REMOVE_GROUP) {
-            return context.toDecoderCallback(new PbIntCallback());
+            return context.toDecoderCallback(context.cachedPbIntCallback());
         } else if (command == Commands.RAFT_ADMIN_ADD_NODE) {
             return context.toDecoderCallback(new AdminAddNodeReq());
         } else if (command == Commands.RAFT_ADMIN_REMOVE_NODE) {
-            return context.toDecoderCallback(new PbIntCallback());
+            return context.toDecoderCallback(context.cachedPbIntCallback());
         } else {
             throw new RaftException("bad command:" + command);
         }

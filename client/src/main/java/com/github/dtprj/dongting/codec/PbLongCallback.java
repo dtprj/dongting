@@ -21,7 +21,7 @@ package com.github.dtprj.dongting.codec;
 public final class PbLongCallback extends PbCallback<Long> {
 
     public static DecoderCallbackCreator<Long> CALLBACK_CREATOR =
-            ctx -> ctx.toDecoderCallback(new PbLongCallback());
+            ctx -> ctx.toDecoderCallback(ctx.cachedPbLongCallback());
 
     @Override
     public boolean readFix64(int index, long value) {

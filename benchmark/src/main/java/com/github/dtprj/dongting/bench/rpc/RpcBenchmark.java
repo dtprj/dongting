@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.bench.rpc;
 
 import com.github.dtprj.dongting.bench.common.BenchBase;
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.net.ByteBufferWritePacket;
@@ -130,7 +131,8 @@ public class RpcBenchmark extends BenchBase {
             req.setCommand(cmd);
 
             if (SYNC) {
-                ReadPacket<RefBuffer> rf = client.sendRequest(req, ctx -> ctx.refBufferDecoderCallback(true), timeout);
+                ReadPacket<RefBuffer> rf = client.sendRequest(req,
+                        ctx -> new RefBufferDecoderCallback(true), timeout);
                 success(state);
                 RefBuffer rc = rf.getBody();
                 rc.release();
@@ -146,7 +148,7 @@ public class RpcBenchmark extends BenchBase {
                         fail(state);
                     }
                 };
-                client.sendRequest(req, ctx -> ctx.refBufferDecoderCallback(true), timeout, c);
+                client.sendRequest(req, ctx -> new RefBufferDecoderCallback(true), timeout, c);
             }
         } catch (Exception e) {
             fail(state);

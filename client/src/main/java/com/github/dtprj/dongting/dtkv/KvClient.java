@@ -124,7 +124,7 @@ public class KvClient extends AbstractLifeCircle {
             }
         });
 
-        DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(ctx.kvRespCallback());
+        DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
         raftClient.sendRequest(groupId, wf, dc, timeout, c);
     }
 
@@ -143,7 +143,7 @@ public class KvClient extends AbstractLifeCircle {
 
         RpcCallback<KvResp> c = wrap(callback, KvCodes.CODE_NOT_FOUND,
                 resp -> resp == null ? null : resp.getResults());
-        DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(ctx.kvRespCallback());
+        DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
         raftClient.sendRequest(groupId, wf, dc, timeout, c);
     }
 
