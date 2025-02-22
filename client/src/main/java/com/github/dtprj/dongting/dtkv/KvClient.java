@@ -94,7 +94,7 @@ public class KvClient extends AbstractLifeCircle {
     public void put(int groupId, String key, byte[] value, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), value, null, null, null);
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), value);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
         RpcCallback<Void> c = wrap(callback, KvCodes.CODE_SUCCESS_OVERWRITE, v -> v);
@@ -109,8 +109,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public void get(int groupId, String key, DtTime timeout, FutureCallback<KvNode> callback) {
         Objects.requireNonNull(key);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
-                null, null, null, null);
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_GET);
 
@@ -134,8 +133,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public void list(int groupId, String key, DtTime timeout, FutureCallback<List<KvResult>> callback) {
         Objects.requireNonNull(key);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
-                null, null, null, null);
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_LIST);
 
@@ -153,8 +151,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public void remove(int groupId, String key, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
-                null, null, null, null);
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_REMOVE);
         RpcCallback<Void> c = wrap(callback, KvCodes.CODE_NOT_FOUND, v -> v);
@@ -169,8 +166,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public void mkdir(int groupId, String key, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
-                null, null, null, null);
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_MKDIR);
         RpcCallback<Void> c = wrap(callback, KvCodes.CODE_DIR_EXISTS, v -> v);

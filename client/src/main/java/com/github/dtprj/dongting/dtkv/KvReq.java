@@ -56,6 +56,33 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.expectValue = expectValue;
     }
 
+    public KvReq(int groupId, byte[] key, byte[] value) {
+        this.groupId = groupId;
+        this.key = key;
+        this.value = value;
+        this.keys = null;
+        this.values = null;
+        this.expectValue = null;
+    }
+
+    public KvReq(int groupId, byte[] key, byte[] value, byte[] expectValue) {
+        this.groupId = groupId;
+        this.key = key;
+        this.value = value;
+        this.keys = null;
+        this.values = null;
+        this.expectValue = expectValue;
+    }
+
+    public KvReq(int groupId, ArrayList<byte[]> keys, ArrayList<byte[]> values) {
+        this.groupId = groupId;
+        this.key = null;
+        this.value = null;
+        this.keys = keys;
+        this.values = values;
+        this.expectValue = null;
+    }
+
     @Override
     public int actualSize() {
         if (encodeSize == 0) {
