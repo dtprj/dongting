@@ -69,14 +69,14 @@ public class KvRespTest {
     }
 
     private void compare1(KvResp expect, DtKv.KvResp resp) {
-        for (int i = 0; i < expect.getResults().size(); i++) {
-            KvResultTest.compare1(expect.getResults().get(i), resp.getResults(i));
+        for (int i = 0; i < expect.results.size(); i++) {
+            KvResultTest.compare1(expect.results.get(i), resp.getResults(i));
         }
     }
 
     private void compare2(KvResp expect, KvResp r) {
-        for (int i = 0; i < expect.getResults().size(); i++) {
-            KvResultTest.compare2(expect.getResults().get(i), r.getResults().get(i));
+        for (int i = 0; i < expect.results.size(); i++) {
+            KvResultTest.compare2(expect.results.get(i), r.results.get(i));
         }
     }
 }

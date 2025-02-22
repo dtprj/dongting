@@ -76,7 +76,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
         switch (frame.getCommand()) {
             case Commands.DTKV_GET:
                 leaseRead(reqInfo, (dtKV, kvReq) -> {
-                    KvResult r = dtKV.get(new ByteArray(kvReq.getKey()));
+                    KvResult r = dtKV.get(new ByteArray(kvReq.key));
                     KvResp resp = new KvResp(Collections.singletonList(r));
                     EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
                     p.setRespCode(CmdCodes.SUCCESS);
@@ -85,17 +85,17 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                 });
                 break;
             case Commands.DTKV_PUT:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArray(req.getKey()), new ByteArray(req.getValue()));
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArray(req.key), new ByteArray(req.value));
                 break;
             case Commands.DTKV_REMOVE:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, new ByteArray(req.getKey()), null);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, new ByteArray(req.key), null);
                 break;
             case Commands.DTKV_MKDIR:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, new ByteArray(req.getKey()), null);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, new ByteArray(req.key), null);
                 break;
             case Commands.DTKV_LIST:
                 leaseRead(reqInfo, (dtKV, kvReq) -> {
-                    Pair<Integer, List<KvResult>> r = dtKV.list(req.getKey() == null ? null : new ByteArray(req.getKey()));
+                    Pair<Integer, List<KvResult>> r = dtKV.list(req.key == null ? null : new ByteArray(req.key));
                     List<KvResult> results = r.getRight();
                     if (results == null) {
                         EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);

@@ -33,7 +33,7 @@ public class KvResp implements Encodable {
     private static final int IDX_SIZE = 1;
     private static final int IDX_RESULTS = 2;
 
-    private final List<KvResult> results;
+    public final List<KvResult> results;
     private final int size;
     private int encodeSize;
 
@@ -107,10 +107,6 @@ public class KvResp implements Encodable {
         protected KvResp getResult() {
             return new KvResp(results);
         }
-    }
-
-    public List<KvResult> getResults() {
-        return results;
     }
 
 }

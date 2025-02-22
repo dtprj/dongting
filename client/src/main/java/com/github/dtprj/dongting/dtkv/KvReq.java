@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * @author huangli
@@ -39,13 +38,13 @@ public class KvReq extends RaftRpcData implements Encodable {
     private static final int IDX_VALUES = 7;
     private static final int IDX_EXPECT_VALUE = 8;
 
-    private final byte[] key;
-    private final byte[] value;
-    private final ArrayList<byte[]> keys;
-    private final ArrayList<byte[]> values;
-    private final byte[] expectValue;
+    public final byte[] key;
+    public final byte[] value;
+    public final ArrayList<byte[]> keys;
+    public final ArrayList<byte[]> values;
+    public final byte[] expectValue;
 
-    private int size;
+    private int encodeSize;
 
     public KvReq(int groupId, byte[] key, byte[] value, ArrayList<byte[]> keys,
                  ArrayList<byte[]> values, byte[] expectValue) {
@@ -59,8 +58,8 @@ public class KvReq extends RaftRpcData implements Encodable {
 
     @Override
     public int actualSize() {
-        if (size == 0) {
-            size = PbUtil.accurateUnsignedIntSize(IDX_GROUP_ID, groupId)
+        if (encodeSize == 0) {
+            encodeSize = PbUtil.accurateUnsignedIntSize(IDX_GROUP_ID, groupId)
                     + EncodeUtil.actualSize(IDX_KEY, key)
                     + EncodeUtil.actualSize(IDX_VALUE, value)
                     + PbUtil.accurateUnsignedIntSize(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
@@ -69,7 +68,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                     + EncodeUtil.actualSizeOfBytes(IDX_VALUES, values)
                     + EncodeUtil.actualSize(IDX_EXPECT_VALUE, expectValue);
         }
-        return size;
+        return encodeSize;
     }
 
     @Override
@@ -137,25 +136,5 @@ public class KvReq extends RaftRpcData implements Encodable {
             }
         }
         throw new CodecException(context);
-    }
-
-    public byte[] getKey() {
-        return key;
-    }
-
-    public byte[] getValue() {
-        return value;
-    }
-
-    public List<byte[]> getKeys() {
-        return keys;
-    }
-
-    public List<byte[]> getValues() {
-        return values;
-    }
-
-    public byte[] getExpectValue() {
-        return expectValue;
     }
 }

@@ -98,24 +98,24 @@ public class KvReqTest {
 
     private void compare1(KvReq expect, DtKv.KvReq req) {
         Assertions.assertEquals(expect.groupId, req.getGroupId());
-        Assertions.assertEquals(new String(expect.getKey()), req.getKey());
-        Assertions.assertEquals(new String(expect.getValue()), req.getValue().toStringUtf8());
-        Assertions.assertEquals(new String(expect.getExpectValue()), req.getExpectValue().toStringUtf8());
-        for (int i = 0; i < expect.getKeys().size(); i++) {
-            Assertions.assertEquals(new String(expect.getKeys().get(i)), req.getKeys(i));
-            byte[] s = expect.getValues().get(i);
+        Assertions.assertEquals(new String(expect.key), req.getKey());
+        Assertions.assertEquals(new String(expect.value), req.getValue().toStringUtf8());
+        Assertions.assertEquals(new String(expect.expectValue), req.getExpectValue().toStringUtf8());
+        for (int i = 0; i < expect.keys.size(); i++) {
+            Assertions.assertEquals(new String(expect.keys.get(i)), req.getKeys(i));
+            byte[] s = expect.values.get(i);
             Assertions.assertEquals(new String(s), req.getValues(i).toStringUtf8());
         }
     }
 
     private void compare2(KvReq expect, KvReq r) {
         Assertions.assertEquals(expect.groupId, r.groupId);
-        Assertions.assertArrayEquals(expect.getKey(), r.getKey());
-        Assertions.assertArrayEquals(expect.getValue(), r.getValue());
-        Assertions.assertArrayEquals(expect.getExpectValue(), r.getExpectValue());
-        for (int i = 0; i < expect.getKeys().size(); i++) {
-            Assertions.assertArrayEquals(expect.getKeys().get(i), r.getKeys().get(i));
-            Assertions.assertArrayEquals(expect.getValues().get(i), r.getValues().get(i));
+        Assertions.assertArrayEquals(expect.key, r.key);
+        Assertions.assertArrayEquals(expect.value, r.value);
+        Assertions.assertArrayEquals(expect.expectValue, r.expectValue);
+        for (int i = 0; i < expect.keys.size(); i++) {
+            Assertions.assertArrayEquals(expect.keys.get(i), r.keys.get(i));
+            Assertions.assertArrayEquals(expect.values.get(i), r.values.get(i));
         }
     }
 

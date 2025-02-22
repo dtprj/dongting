@@ -115,10 +115,10 @@ public class KvClient extends AbstractLifeCircle {
         wf.setCommand(Commands.DTKV_GET);
 
         RpcCallback<KvResp> c = wrap(callback, KvCodes.CODE_NOT_FOUND, resp -> {
-            if (resp == null || resp.getResults() == null || resp.getResults().isEmpty()) {
+            if (resp == null || resp.results == null || resp.results.isEmpty()) {
                 return null;
             } else {
-                return resp.getResults().get(0).getNode();
+                return resp.results.get(0).getNode();
             }
         });
 
@@ -140,7 +140,7 @@ public class KvClient extends AbstractLifeCircle {
         wf.setCommand(Commands.DTKV_LIST);
 
         RpcCallback<KvResp> c = wrap(callback, KvCodes.CODE_NOT_FOUND,
-                resp -> resp == null ? null : resp.getResults());
+                resp -> resp == null ? null : resp.results);
         DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
         raftClient.sendRequest(groupId, wf, dc, timeout, c);
     }
