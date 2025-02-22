@@ -32,14 +32,13 @@ import java.util.ArrayList;
  */
 public class KvReqTest {
 
-    static Object encodeAndParse(ByteBuffer smallBuf, ByteBuffer bigBuf, Encodable e, EncodeContext c, PbParser p) {
+    static Object encodeAndParse(Encodable e, EncodeContext c, PbParser p) {
+        ByteBuffer smallBuf = ByteBuffer.allocate(1);
         ByteBuffer buf = smallBuf;
         while (!e.encode(c, buf)) {
             if (buf.position() == 0) {
-                buf = bigBuf;
-                if (e.encode(c, buf)) {
-                    break;
-                }
+                buf = ByteBuffer.allocate(buf.capacity() + 1);
+                continue;
             }
             buf.flip();
             Assertions.assertNull(p.parse(buf));
@@ -84,15 +83,13 @@ public class KvReqTest {
     @Test
     public void testSmallBuffer() {
         KvReq req = buildReq();
-        ByteBuffer smallBuf = ByteBuffer.allocate(1);
-        ByteBuffer bigBuf = ByteBuffer.allocate(256);
         EncodeContext encodeContext = CodecTestUtil.encodeContext();
 
         PbParser p = new PbParser();
         KvReqCallback callback = new KvReqCallback();
         p.prepareNext(CodecTestUtil.decodeContext(), callback, req.actualSize());
 
-        KvReq r = (KvReq) KvReqTest.encodeAndParse(smallBuf, bigBuf, req, encodeContext, p);
+        KvReq r = (KvReq) KvReqTest.encodeAndParse(req, encodeContext, p);
         compare2(req, r);
     }
 

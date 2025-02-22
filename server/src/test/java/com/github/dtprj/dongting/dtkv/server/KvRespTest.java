@@ -20,24 +20,29 @@ import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.config.DtKv;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.util.CodecTestUtil;
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+
 /**
  * @author huangli
  */
 public class KvRespTest {
 
-    private KvResp buildResp() {
-        return new KvResp(Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
-    }
-
     @Test
     public void testFullBuffer() throws Exception {
-        KvResp resp = buildResp();
+        KvResp resp = new KvResp(Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
+        testFullBuffer0(resp);
+        resp = new KvResp(new int[]{0, 2, 3, 4, 5, 6});
+        testFullBuffer0(resp);
+    }
+
+    private void testFullBuffer0(KvResp resp) throws InvalidProtocolBufferException {
         ByteBuffer buf = ByteBuffer.allocate(256);
         EncodeContext encodeContext = CodecTestUtil.encodeContext();
         Assertions.assertTrue(resp.encode(encodeContext, buf));
@@ -55,28 +60,40 @@ public class KvRespTest {
 
     @Test
     public void testSmallBuffer() {
-        KvResp resp = buildResp();
-        ByteBuffer smallBuf = ByteBuffer.allocate(1);
-        ByteBuffer bigBuf = ByteBuffer.allocate(256);
+        KvResp resp = new KvResp(Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
+        testSmallBuffer0(resp);
+        resp = new KvResp(new int[]{0, 2, 3, 4, 5, 6});
+        testSmallBuffer0(resp);
+    }
+
+    private void testSmallBuffer0(KvResp resp) {
         EncodeContext encodeContext = CodecTestUtil.encodeContext();
 
         PbParser p = new PbParser();
         KvResp.Callback callback = new KvResp.Callback();
         p.prepareNext(CodecTestUtil.decodeContext(), callback, resp.actualSize());
 
-        KvResp r = (KvResp) KvReqTest.encodeAndParse(smallBuf, bigBuf, resp, encodeContext, p);
+        KvResp r = (KvResp) KvReqTest.encodeAndParse(resp, encodeContext, p);
         compare2(resp, r);
     }
 
     private void compare1(KvResp expect, DtKv.KvResp resp) {
-        for (int i = 0; i < expect.results.size(); i++) {
-            KvResultTest.compare1(expect.results.get(i), resp.getResults(i));
+        if (expect.results != null) {
+            for (int i = 0; i < expect.results.size(); i++) {
+                KvResultTest.compare1(expect.results.get(i), resp.getResults(i));
+            }
+        }
+        if (expect.codes != null) {
+            assertArrayEquals(expect.codes, resp.getCodesList().stream().mapToInt(Integer::intValue).toArray());
         }
     }
 
     private void compare2(KvResp expect, KvResp r) {
-        for (int i = 0; i < expect.results.size(); i++) {
-            KvResultTest.compare2(expect.results.get(i), r.results.get(i));
+        if (expect.results != null) {
+            for (int i = 0; i < expect.results.size(); i++) {
+                KvResultTest.compare2(expect.results.get(i), r.results.get(i));
+            }
         }
+        assertArrayEquals(expect.codes, r.codes);
     }
 }

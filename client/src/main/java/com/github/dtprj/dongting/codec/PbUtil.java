@@ -105,6 +105,16 @@ public final class PbUtil {
         }
     }
 
+    public static void writeFix32(ByteBuffer buf, int index, int[] v) {
+        if (v == null) {
+            return;
+        }
+        for (int id : v) {
+            writeTag(buf, TYPE_FIX32, index);
+            buf.putInt(Integer.reverseBytes(id));
+        }
+    }
+
     public static void writeFix64(ByteBuffer buf, int index, long value) {
         if (value == 0) {
             return;
@@ -309,6 +319,13 @@ public final class PbUtil {
             return 0;
         }
         return s.size() * (accurateTagSize(index) + 4);
+    }
+
+    public static int accurateFix32Size(int index, int[] v) {
+        if (v == null || v.length == 0) {
+            return 0;
+        }
+        return v.length * (accurateTagSize(index) + 4);
     }
 
     public static int accurateFix64Size(int index, long value) {

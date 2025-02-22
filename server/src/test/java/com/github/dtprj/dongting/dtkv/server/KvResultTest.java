@@ -57,15 +57,13 @@ public class KvResultTest {
     @Test
     public void testSmallBuffer() {
         KvResult result = buildResult();
-        ByteBuffer smallBuf = ByteBuffer.allocate(1);
-        ByteBuffer bigBuf = ByteBuffer.allocate(256);
         EncodeContext encodeContext = CodecTestUtil.encodeContext();
 
         PbParser p = new PbParser();
         KvResult.Callback callback = new KvResult.Callback();
         p.prepareNext(CodecTestUtil.decodeContext(), callback, result.actualSize());
 
-        KvResult r = (KvResult) KvReqTest.encodeAndParse(smallBuf, bigBuf, result, encodeContext, p);
+        KvResult r = (KvResult) KvReqTest.encodeAndParse(result, encodeContext, p);
         compare2(result, r);
     }
 

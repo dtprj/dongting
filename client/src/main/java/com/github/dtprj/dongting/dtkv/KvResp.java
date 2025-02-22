@@ -30,23 +30,38 @@ import java.util.List;
  * @author huangli
  */
 public class KvResp implements Encodable {
-    private static final int IDX_SIZE = 1;
+    private static final int IDX_RESULTS_SIZE = 1;
     private static final int IDX_RESULTS = 2;
+    private static final int IDX_CODES_SIZE = 3;
+    private static final int IDX_CODES = 4;
 
     public final List<KvResult> results;
-    private final int size;
+    public final int[] codes;
+
     private int encodeSize;
+
+    public KvResp(List<KvResult> results, int[] codes) {
+        this.results = results;
+        this.codes = codes;
+    }
 
     public KvResp(List<KvResult> results) {
         this.results = results;
-        this.size = results == null ? 0 : results.size();
+        this.codes = null;
+    }
+
+    public KvResp(int[] codes) {
+        this.results = null;
+        this.codes = codes;
     }
 
     @Override
     public int actualSize() {
         if (encodeSize == 0) {
-            this.encodeSize = PbUtil.accurateUnsignedIntSize(IDX_SIZE, size)
-                    + EncodeUtil.actualSizeOfObjs(IDX_RESULTS, results);
+            this.encodeSize = PbUtil.accurateUnsignedIntSize(IDX_RESULTS_SIZE, results == null ? 0 : results.size())
+                    + EncodeUtil.actualSizeOfObjs(IDX_RESULTS, results)
+                    + PbUtil.accurateUnsignedIntSize(IDX_CODES_SIZE, codes == null ? 0 : codes.length)
+                    + PbUtil.accurateFix32Size(IDX_CODES, codes);
         }
         return encodeSize;
     }
@@ -54,37 +69,67 @@ public class KvResp implements Encodable {
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         if (context.stage == EncodeContext.STAGE_BEGIN) {
-            if (destBuffer.remaining() >= PbUtil.maxUnsignedIntSize()) {
-                PbUtil.writeUnsignedInt32(destBuffer, 1, size);
-                context.stage = IDX_SIZE;
+            int s = results == null ? 0 : results.size();
+            if (s == 0) {
+                context.stage = IDX_RESULTS;
+            } else {
+                if (destBuffer.remaining() >= PbUtil.maxUnsignedIntSize()) {
+                    PbUtil.writeUnsignedInt32(destBuffer, IDX_RESULTS_SIZE, s);
+                    context.stage = IDX_RESULTS_SIZE;
+                } else {
+                    return false;
+                }
+            }
+        }
+        if (context.stage == IDX_RESULTS_SIZE) {
+            if (EncodeUtil.encodeObjs(context, destBuffer, IDX_RESULTS, results)) {
+                context.stage = IDX_RESULTS;
             } else {
                 return false;
             }
         }
-        if (context.stage == IDX_SIZE) {
-            return EncodeUtil.encodeObjs(context, destBuffer, IDX_RESULTS, results);
+        if (context.stage == IDX_RESULTS) {
+            int s = codes == null ? 0 : codes.length;
+            if (s == 0) {
+                context.stage = EncodeContext.STAGE_END;
+                return true;
+            } else {
+                if (destBuffer.remaining() >= PbUtil.maxUnsignedIntSize()) {
+                    PbUtil.writeUnsignedInt32(destBuffer, IDX_CODES_SIZE, s);
+                    context.stage = IDX_CODES_SIZE;
+                } else {
+                    return false;
+                }
+            }
+        }
+        if (context.stage == IDX_CODES_SIZE) {
+            int s = PbUtil.accurateFix32Size(IDX_CODES, codes);
+            if (destBuffer.remaining() >= s) {
+                PbUtil.writeFix32(destBuffer, IDX_CODES, codes);
+                context.stage = EncodeContext.STAGE_END;
+                return true;
+            } else {
+                return false;
+            }
         }
         throw new CodecException(context);
     }
 
-    // re-used
     public static class Callback extends PbCallback<KvResp> {
         private final KvResult.Callback resultCallback = new KvResult.Callback();
 
-        private int size;
+        private int resultsSize;
         private ArrayList<KvResult> results;
-
-        @Override
-        protected boolean end(boolean success) {
-            results = null;
-            size = 0;
-            return success;
-        }
+        private int codesSize;
+        private int[] codes;
+        private int codesIdx;
 
         @Override
         public boolean readVarNumber(int index, long value) {
-            if (index == IDX_SIZE) {
-                size = (int) value;
+            if (index == IDX_RESULTS_SIZE) {
+                resultsSize = (int) value;
+            } else if (index == IDX_CODES_SIZE) {
+                codesSize = (int) value;
             }
             return true;
         }
@@ -93,7 +138,7 @@ public class KvResp implements Encodable {
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_RESULTS) {
                 if (results == null) {
-                    results = size == 0 ? new ArrayList<>() : new ArrayList<>(size);
+                    results = resultsSize == 0 ? new ArrayList<>() : new ArrayList<>(resultsSize);
                 }
                 KvResult r = parseNested(buf, fieldLen, currentPos, resultCallback);
                 if (r != null) {
@@ -103,9 +148,20 @@ public class KvResp implements Encodable {
             return true;
         }
 
+        public boolean readFix32(int index, int value) {
+            if (index == IDX_CODES) {
+                if (codes == null) {
+                    codes = new int[codesSize];
+                }
+                codes[codesIdx] = value;
+                codesIdx++;
+            }
+            return true;
+        }
+
         @Override
         protected KvResp getResult() {
-            return new KvResp(results);
+            return new KvResp(results, codes);
         }
     }
 

@@ -24,23 +24,25 @@ message KvNode {
 }
 
 message KvResult {
-  int32 biz_code = 1;
+  uint32 biz_code = 1;
   KvNode node = 2;
   string key_in_dir = 3;
 }
 
 message KvReq {
-  int32 group_id = 1;
+  uint32 group_id = 1;
   string key = 2;
   bytes value = 3;
-  int32 keys_size = 4;
+  uint32 keys_size = 4;
   repeated string keys = 5[packed = false];
-  int32 values_size = 6;
+  uint32 values_size = 6;
   repeated bytes values = 7[packed = false];
   bytes expect_value = 8; // reserved for cas operation
 }
 
 message KvResp {
-  int32 size = 1;
+  uint32 results_size = 1;
   repeated KvResult results = 2[packed = false];
+  uint32 codes_size = 3;
+  repeated fixed32 codes = 4[packed = false];
 }

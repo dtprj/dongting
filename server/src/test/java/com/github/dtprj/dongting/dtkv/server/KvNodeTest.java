@@ -58,15 +58,13 @@ public class KvNodeTest {
     @Test
     public void testSmallBuffer() {
         KvNode node = buildNode();
-        ByteBuffer smallBuf = ByteBuffer.allocate(1);
-        ByteBuffer bigBuf = ByteBuffer.allocate(64);
         EncodeContext encodeContext = CodecTestUtil.encodeContext();
 
         PbParser p = new PbParser();
         KvNode.Callback callback = new KvNode.Callback();
         p.prepareNext(CodecTestUtil.decodeContext(), callback, node.actualSize());
 
-        KvNode n = (KvNode) KvReqTest.encodeAndParse(smallBuf, bigBuf, node, encodeContext, p);
+        KvNode n = (KvNode) KvReqTest.encodeAndParse(node, encodeContext, p);
         compare2(node, n);
     }
 
