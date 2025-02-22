@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
@@ -95,8 +94,7 @@ public class KvClient extends AbstractLifeCircle {
     public void put(int groupId, String key, byte[] value, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8),
-                new ByteArray(value), null, null, null);
+        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), value, null, null, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
         RpcCallback<Void> c = wrap(callback, KvCodes.CODE_SUCCESS_OVERWRITE, v -> v);

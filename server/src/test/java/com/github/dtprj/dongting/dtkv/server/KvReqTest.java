@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
-import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.config.DtKv;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.util.CodecTestUtil;
@@ -55,13 +54,13 @@ public class KvReqTest {
 
     private KvReq buildReq() {
         ArrayList<byte[]> keys = new ArrayList<>();
-        ArrayList<StrEncoder> values = new ArrayList<>();
+        ArrayList<byte[]> values = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
             keys.add(("test_key" + i).getBytes());
-            values.add(new StrEncoder("test_value" + i));
+            values.add(("test_value" + i).getBytes());
         }
-        return new KvReq(1, "test_key".getBytes(), new StrEncoder("test_value"),
-                keys, values, new StrEncoder("test_expect_value"));
+        return new KvReq(1, "test_key".getBytes(), "test_value".getBytes(),
+                keys, values, "test_expect_value".getBytes());
     }
 
     @Test
@@ -100,23 +99,23 @@ public class KvReqTest {
     private void compare1(KvReq expect, DtKv.KvReq req) {
         Assertions.assertEquals(expect.groupId, req.getGroupId());
         Assertions.assertEquals(new String(expect.getKey()), req.getKey());
-        Assertions.assertEquals(((StrEncoder) expect.getValue()).getStr(), req.getValue().toStringUtf8());
-        Assertions.assertEquals(((StrEncoder) expect.getExpectValue()).getStr(), req.getExpectValue().toStringUtf8());
+        Assertions.assertEquals(new String(expect.getValue()), req.getValue().toStringUtf8());
+        Assertions.assertEquals(new String(expect.getExpectValue()), req.getExpectValue().toStringUtf8());
         for (int i = 0; i < expect.getKeys().size(); i++) {
             Assertions.assertEquals(new String(expect.getKeys().get(i)), req.getKeys(i));
-            StrEncoder s = (StrEncoder) expect.getValues().get(i);
-            Assertions.assertEquals(s.getStr(), req.getValues(i).toStringUtf8());
+            byte[] s = expect.getValues().get(i);
+            Assertions.assertEquals(new String(s), req.getValues(i).toStringUtf8());
         }
     }
 
     private void compare2(KvReq expect, KvReq r) {
         Assertions.assertEquals(expect.groupId, r.groupId);
         Assertions.assertArrayEquals(expect.getKey(), r.getKey());
-        Assertions.assertArrayEquals(((StrEncoder) expect.getValue()).getStr().getBytes(), r.getValue().getData());
-        Assertions.assertArrayEquals(((StrEncoder) expect.getExpectValue()).getStr().getBytes(), r.getExpectValue().getData());
+        Assertions.assertArrayEquals(expect.getValue(), r.getValue());
+        Assertions.assertArrayEquals(expect.getExpectValue(), r.getExpectValue());
         for (int i = 0; i < expect.getKeys().size(); i++) {
             Assertions.assertArrayEquals(expect.getKeys().get(i), r.getKeys().get(i));
-            Assertions.assertArrayEquals(((StrEncoder) expect.getValues().get(i)).getStr().getBytes(), r.getValues().get(i).getData());
+            Assertions.assertArrayEquals(expect.getValues().get(i), r.getValues().get(i));
         }
     }
 

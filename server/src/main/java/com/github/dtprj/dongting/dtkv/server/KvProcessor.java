@@ -85,7 +85,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                 });
                 break;
             case Commands.DTKV_PUT:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArray(req.getKey()), req.getValue());
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArray(req.getKey()), new ByteArray(req.getValue()));
                 break;
             case Commands.DTKV_REMOVE:
                 submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, new ByteArray(req.getKey()), null);

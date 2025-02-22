@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
@@ -41,15 +40,15 @@ public class KvReq extends RaftRpcData implements Encodable {
     private static final int IDX_EXPECT_VALUE = 8;
 
     private final byte[] key;
-    private final ByteArray value;
+    private final byte[] value;
     private final ArrayList<byte[]> keys;
-    private final ArrayList<? extends ByteArray> values;
-    private final ByteArray expectValue;
+    private final ArrayList<byte[]> values;
+    private final byte[] expectValue;
 
     private int size;
 
-    public KvReq(int groupId, byte[] key, ByteArray value, ArrayList<byte[]> keys,
-                 ArrayList<? extends ByteArray> values, ByteArray expectValue) {
+    public KvReq(int groupId, byte[] key, byte[] value, ArrayList<byte[]> keys,
+                 ArrayList<byte[]> values, byte[] expectValue) {
         this.groupId = groupId;
         this.key = key;
         this.value = value;
@@ -67,7 +66,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                     + PbUtil.accurateUnsignedIntSize(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
                     + EncodeUtil.actualSizeOfBytes(IDX_KEYS, keys)
                     + PbUtil.accurateUnsignedIntSize(IDX_VALUES_SIZE, values == null ? 0 : values.size())
-                    + EncodeUtil.actualSizeOfObjs(IDX_VALUES, values)
+                    + EncodeUtil.actualSizeOfBytes(IDX_VALUES, values)
                     + EncodeUtil.actualSize(IDX_EXPECT_VALUE, expectValue);
         }
         return size;
@@ -123,7 +122,7 @@ public class KvReq extends RaftRpcData implements Encodable {
             context.stage = IDX_VALUES_SIZE;
         }
         if (context.stage == IDX_VALUES_SIZE) {
-            if (values != null && !EncodeUtil.encodeObjs(context, destBuffer, IDX_VALUES, values)) {
+            if (values != null && !EncodeUtil.encodeBytes(context, destBuffer, IDX_VALUES, values)) {
                 return false;
             } else {
                 context.stage = IDX_VALUES;
@@ -144,7 +143,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         return key;
     }
 
-    public ByteArray getValue() {
+    public byte[] getValue() {
         return value;
     }
 
@@ -152,11 +151,11 @@ public class KvReq extends RaftRpcData implements Encodable {
         return keys;
     }
 
-    public List<? extends ByteArray> getValues() {
+    public List<byte[]> getValues() {
         return values;
     }
 
-    public ByteArray getExpectValue() {
+    public byte[] getExpectValue() {
         return expectValue;
     }
 }
