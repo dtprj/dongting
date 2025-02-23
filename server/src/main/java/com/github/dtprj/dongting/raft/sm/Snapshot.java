@@ -38,6 +38,9 @@ public abstract class Snapshot {
         return snapshotInfo;
     }
 
+    /**
+     * read next chunk of snapshot data to the buffer.
+     */
     public abstract FiberFuture<Integer> readNext(ByteBuffer buffer);
 
     public void close() {

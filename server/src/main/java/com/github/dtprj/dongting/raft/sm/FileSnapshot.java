@@ -61,13 +61,12 @@ public class FileSnapshot extends Snapshot {
             return FiberFuture.completedFuture(fiberGroup, 0);
         }
         long rest = fileSize - filePos;
-        ByteBuffer copy = buffer.slice();
-        if (rest < copy.remaining()) {
-            copy.limit(copy.position() + (int) rest);
+        if (rest < buffer.remaining()) {
+            buffer.limit(buffer.position() + (int) rest);
         }
         AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
-        int readBytes = copy.remaining();
-        FiberFuture<Void> f = t.read(copy, filePos);
+        int readBytes = buffer.remaining();
+        FiberFuture<Void> f = t.read(buffer, filePos);
         filePos += readBytes;
         return f.convert("FileSnapshotReadNext", v -> readBytes);
     }
