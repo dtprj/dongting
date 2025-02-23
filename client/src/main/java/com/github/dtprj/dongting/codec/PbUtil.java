@@ -28,9 +28,9 @@ import java.util.Set;
 public final class PbUtil {
 
     private static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
-    private static final int MAX_TAG_LENGTH = 5;
-    private static final int MAX_UNSIGNED_INT_LENGTH = 5;
-    private static final int MAX_UNSIGNED_LONG_LENGTH = 10;
+    static final int MAX_TAG_LENGTH = 5;
+    static final int MAX_UNSIGNED_INT_LENGTH = 5;
+    static final int MAX_UNSIGNED_LONG_LENGTH = 10;
 
     private static final int MAX_1_BYTE_INT_VALUE = 0x0000007F;//7 bits 1
     private static final int MAX_2_BYTE_INT_VALUE = 0x00003FFF;//14 bits 1
@@ -205,19 +205,6 @@ public final class PbUtil {
         throw new PbException("bad protobuf var int input");
     }
 
-    public static int maxStrSizeAscii(String str) {
-        if (str == null) {
-            return 0;
-        }
-        int len = str.length();
-        if (len == 0) {
-            return 0;
-        }
-        // tag, max 4 bytes
-        // length, var int32, max 5 bytes
-        return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH + len;
-    }
-
     public static int accurateStrSizeAscii(int index, String str) {
         if (str == null) {
             return 0;
@@ -227,14 +214,6 @@ public final class PbUtil {
             return 0;
         }
         return accurateTagSize(index) + accurateUnsignedIntSize(len) + len;
-    }
-
-    public static int maxUnsignedIntSize() {
-        return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH;
-    }
-
-    public static int maxUnsignedLongSize() {
-        return MAX_TAG_LENGTH + MAX_UNSIGNED_LONG_LENGTH;
     }
 
     public static int accurateTagSize(int index) {
@@ -297,14 +276,6 @@ public final class PbUtil {
             // MAX_9_BYTE_LONG_VALUE==Long.MAX_VALUE, so ...
             return 9;
         }
-    }
-
-    public static int maxFix32Size() {
-        return MAX_TAG_LENGTH + 4;
-    }
-
-    public static int maxFix64Size() {
-        return MAX_TAG_LENGTH + 8;
     }
 
     public static int accurateFix32Size(int index, int value) {

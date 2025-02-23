@@ -354,9 +354,10 @@ public class PbUtilTest {
     @Test
     public void testAccurateUnsignedIntSizeWithTag() {
         assertEquals(0, accurateUnsignedIntSize(100, 0));
-        assertEquals(maxUnsignedIntSize(), accurateUnsignedIntSize(536870911, Integer.MAX_VALUE));
-        assertEquals(maxUnsignedIntSize(), accurateUnsignedIntSize(536870911, Integer.MIN_VALUE));
-        assertEquals(maxUnsignedIntSize(), accurateUnsignedIntSize(536870911, -1));
+        int maxUnsignedIntSize = PbUtil.MAX_TAG_LENGTH + PbUtil.MAX_UNSIGNED_INT_LENGTH;
+        assertEquals(maxUnsignedIntSize, accurateUnsignedIntSize(536870911, Integer.MAX_VALUE));
+        assertEquals(maxUnsignedIntSize, accurateUnsignedIntSize(536870911, Integer.MIN_VALUE));
+        assertEquals(maxUnsignedIntSize, accurateUnsignedIntSize(536870911, -1));
     }
 
     @Test
@@ -421,9 +422,10 @@ public class PbUtilTest {
     @Test
     public void testAccurateUnsignedLongSizeWithTag() {
         assertEquals(0, accurateUnsignedLongSize(100, 0L));
-        assertEquals(maxUnsignedLongSize() - 1, accurateUnsignedLongSize(536870911, Long.MAX_VALUE));
-        assertEquals(maxUnsignedLongSize(), accurateUnsignedLongSize(536870911, Integer.MIN_VALUE));
-        assertEquals(maxUnsignedLongSize(), accurateUnsignedLongSize(536870911, -1));
+        int maxUnsignedLongSize = PbUtil.MAX_TAG_LENGTH + PbUtil.MAX_UNSIGNED_LONG_LENGTH;
+        assertEquals(maxUnsignedLongSize - 1, accurateUnsignedLongSize(536870911, Long.MAX_VALUE));
+        assertEquals(maxUnsignedLongSize, accurateUnsignedLongSize(536870911, Long.MIN_VALUE));
+        assertEquals(maxUnsignedLongSize, accurateUnsignedLongSize(536870911, -1));
     }
 
     @Test
@@ -431,7 +433,7 @@ public class PbUtilTest {
         assertEquals(0, accurateFix32Size(1, 0));
         assertEquals(0, accurateFix64Size(1, 0));
 
-        ByteBuffer buf = ByteBuffer.allocate(maxFix32Size());
+        ByteBuffer buf = ByteBuffer.allocate(MAX_TAG_LENGTH + 4);
         writeFix32(buf, 1, 0);
         writeFix64(buf, 1, 0);
         assertEquals(0, buf.position());
@@ -441,7 +443,7 @@ public class PbUtilTest {
         buf.position(5);
         assertEquals(123456, Integer.reverseBytes(buf.getInt()));
 
-        buf = ByteBuffer.allocate(maxFix64Size());
+        buf = ByteBuffer.allocate(MAX_TAG_LENGTH + 8);
         writeFix64(buf, 536870911, 12345689012345L);
         assertEquals(accurateFix64Size(536870911, 12345689012345L), buf.position());
         buf.position(5);
@@ -450,16 +452,13 @@ public class PbUtilTest {
 
     @Test
     public void testString() {
-        assertEquals(0, maxStrSizeAscii(null));
-        assertEquals(0, maxStrSizeAscii(""));
         assertEquals(0, accurateStrSizeAscii(1, null));
         assertEquals(0, accurateStrSizeAscii(1, ""));
 
         String asciiStr = "12345678";
-        ByteBuffer buf = ByteBuffer.allocate(maxStrSizeAscii(asciiStr));
+        ByteBuffer buf = ByteBuffer.allocate(accurateStrSizeAscii(536870911, asciiStr));
         writeAscii(buf, 536870911, asciiStr);
-        assertEquals(4, buf.remaining());
-        assertEquals(buf.capacity() - 4, accurateStrSizeAscii(536870911, asciiStr));
+        assertEquals(0, buf.remaining());
     }
 
     @Test
