@@ -70,19 +70,4 @@ public class EncodeContext {
         this.status = status;
     }
 
-    public int getStage() {
-        return stage;
-    }
-
-    public void setStage(int stage) {
-        this.stage = stage;
-    }
-
-    public int getPending() {
-        return pending;
-    }
-
-    public void setPending(int pending) {
-        this.pending = pending;
-    }
 }

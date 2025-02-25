@@ -68,51 +68,28 @@ public class KvResp implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        if (context.stage == EncodeContext.STAGE_BEGIN) {
-            int s = results == null ? 0 : results.size();
-            if (s == 0) {
-                context.stage = IDX_RESULTS;
-            } else {
-                if (destBuffer.remaining() >= PbUtil.maxUnsignedIntSize()) {
-                    PbUtil.writeUnsignedInt32(destBuffer, IDX_RESULTS_SIZE, s);
-                    context.stage = IDX_RESULTS_SIZE;
-                } else {
+        switch (context.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encodeUint32(context, destBuffer, IDX_RESULTS_SIZE, results == null ? 0 : results.size())) {
                     return false;
                 }
-            }
-        }
-        if (context.stage == IDX_RESULTS_SIZE) {
-            if (EncodeUtil.encodeObjs(context, destBuffer, IDX_RESULTS, results)) {
-                context.stage = IDX_RESULTS;
-            } else {
-                return false;
-            }
-        }
-        if (context.stage == IDX_RESULTS) {
-            int s = codes == null ? 0 : codes.length;
-            if (s == 0) {
-                context.stage = EncodeContext.STAGE_END;
-                return true;
-            } else {
-                if (destBuffer.remaining() >= PbUtil.maxUnsignedIntSize()) {
-                    PbUtil.writeUnsignedInt32(destBuffer, IDX_CODES_SIZE, s);
-                    context.stage = IDX_CODES_SIZE;
-                } else {
+                // fall through
+            case IDX_RESULTS_SIZE:
+                if (!EncodeUtil.encodeObjs(context, destBuffer, IDX_RESULTS, results)) {
                     return false;
                 }
-            }
+                // fall through
+            case IDX_RESULTS:
+                if (!EncodeUtil.encodeUint32(context, destBuffer, IDX_CODES_SIZE, codes == null ? 0 : codes.length)) {
+                    return false;
+                }
+                // fall through
+            case IDX_CODES_SIZE:
+                return EncodeUtil.encodeFix32s(context, destBuffer, IDX_CODES, codes);
+            default:
+                throw new CodecException(context);
+
         }
-        if (context.stage == IDX_CODES_SIZE) {
-            int s = PbUtil.accurateFix32Size(IDX_CODES, codes);
-            if (destBuffer.remaining() >= s) {
-                PbUtil.writeFix32(destBuffer, IDX_CODES, codes);
-                context.stage = EncodeContext.STAGE_END;
-                return true;
-            } else {
-                return false;
-            }
-        }
-        throw new CodecException(context);
     }
 
     public static class Callback extends PbCallback<KvResp> {

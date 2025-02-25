@@ -33,6 +33,7 @@ import java.util.ArrayList;
 public class KvReqTest {
 
     static Object encodeAndParse(Encodable e, EncodeContext c, PbParser p) {
+        ByteBuffer fullBuffer = ByteBuffer.allocate(e.actualSize());
         ByteBuffer smallBuf = ByteBuffer.allocate(1);
         ByteBuffer buf = smallBuf;
         while (!e.encode(c, buf)) {
@@ -41,12 +42,14 @@ public class KvReqTest {
                 continue;
             }
             buf.flip();
-            Assertions.assertNull(p.parse(buf));
-            buf.clear();
+            fullBuffer.put(buf);
             buf = smallBuf;
+            buf.clear();
         }
         buf.flip();
-        Object o = p.parse(buf);
+        fullBuffer.put(buf);
+        fullBuffer.flip();
+        Object o = p.parse(fullBuffer);
         Assertions.assertNotNull(o);
         return o;
     }

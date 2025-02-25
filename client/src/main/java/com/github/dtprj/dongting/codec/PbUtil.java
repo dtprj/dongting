@@ -28,9 +28,14 @@ import java.util.Set;
 public final class PbUtil {
 
     private static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
-    static final int MAX_TAG_LENGTH = 5;
-    static final int MAX_UNSIGNED_INT_LENGTH = 5;
-    static final int MAX_UNSIGNED_LONG_LENGTH = 10;
+    private static final int MAX_TAG_LENGTH = 5;
+    private static final int MAX_UNSIGNED_INT_LENGTH = 5;
+    private static final int MAX_UNSIGNED_LONG_LENGTH = 10;
+
+    static final int MAX_TAG_INT32_LEN = MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH;
+    static final int MAX_TAG_INT64_LEN = MAX_TAG_LENGTH + MAX_UNSIGNED_LONG_LENGTH;
+    static final int MAX_TAG_FIX32_LEN = MAX_TAG_LENGTH + 4;
+    static final int MAX_TAG_FIX64_LEN = MAX_TAG_LENGTH + 8;
 
     private static final int MAX_1_BYTE_INT_VALUE = 0x0000007F;//7 bits 1
     private static final int MAX_2_BYTE_INT_VALUE = 0x00003FFF;//14 bits 1
@@ -100,16 +105,6 @@ public final class PbUtil {
             return;
         }
         for (int id : s) {
-            writeTag(buf, TYPE_FIX32, index);
-            buf.putInt(Integer.reverseBytes(id));
-        }
-    }
-
-    public static void writeFix32(ByteBuffer buf, int index, int[] v) {
-        if (v == null) {
-            return;
-        }
-        for (int id : v) {
             writeTag(buf, TYPE_FIX32, index);
             buf.putInt(Integer.reverseBytes(id));
         }

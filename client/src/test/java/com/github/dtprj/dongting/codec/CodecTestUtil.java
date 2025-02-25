@@ -24,10 +24,15 @@ import com.github.dtprj.dongting.common.Timestamp;
  * @author huangli
  */
 public class CodecTestUtil {
+    private static ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
+
     public static DecodeContext createContext() {
-        ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
         DecodeContext c = new DecodeContext();
         c.setHeapPool(new RefBufferFactory(pool, 128));
         return c;
+    }
+
+    public static EncodeContext createEncodeContext() {
+        return new EncodeContext(new RefBufferFactory(pool, 128));
     }
 }

@@ -100,68 +100,46 @@ public class KvReq extends RaftRpcData implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        if (context.stage == EncodeContext.STAGE_BEGIN) {
-            if (groupId != 0) {
-                if (destBuffer.remaining() < PbUtil.maxUnsignedIntSize()) {
+        switch (context.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encodeUint32(context, destBuffer, IDX_GROUP_ID, groupId)) {
                     return false;
                 }
-                PbUtil.writeUnsignedInt32(destBuffer, IDX_GROUP_ID, groupId);
-            }
-            context.stage = IDX_GROUP_ID;
-        }
-        if (context.stage == IDX_GROUP_ID) {
-            if (key != null && !EncodeUtil.encode(context, destBuffer, IDX_KEY, key)) {
-                return false;
-            }
-            context.stage = IDX_KEY;
-        }
-        if (context.stage == IDX_KEY) {
-            if (value != null && !EncodeUtil.encode(context, destBuffer, IDX_VALUE, value)) {
-                return false;
-            } else {
-                context.stage = IDX_VALUE;
-            }
-        }
-        if (context.stage == IDX_VALUE) {
-            if (keys != null) {
-                if (destBuffer.remaining() < PbUtil.maxUnsignedIntSize()) {
+                // fall through
+            case IDX_GROUP_ID:
+                if (!EncodeUtil.encode(context, destBuffer, IDX_KEY, key)) {
                     return false;
                 }
-                PbUtil.writeUnsignedInt32(destBuffer, IDX_KEYS_SIZE, keys.size());
-            }
-            context.stage = IDX_KEYS_SIZE;
-        }
-        if (context.stage == IDX_KEYS_SIZE) {
-            if (keys != null && !EncodeUtil.encodeBytes(context, destBuffer, IDX_KEYS, keys)) {
-                return false;
-            } else {
-                context.stage = IDX_KEYS;
-            }
-        }
-        if (context.stage == IDX_KEYS) {
-            if (values != null) {
-                if (destBuffer.remaining() < PbUtil.maxUnsignedIntSize()) {
+                // fall through
+            case IDX_KEY:
+                if (!EncodeUtil.encode(context, destBuffer, IDX_VALUE, value)) {
                     return false;
                 }
-                PbUtil.writeUnsignedInt32(destBuffer, IDX_VALUES_SIZE, values.size());
-            }
-            context.stage = IDX_VALUES_SIZE;
+                // fall through
+            case IDX_VALUE:
+                if (keys != null && !EncodeUtil.encodeUint32(context, destBuffer, IDX_KEYS_SIZE, keys.size())) {
+                    return false;
+                }
+                // fall through
+            case IDX_KEYS_SIZE:
+                if (keys != null && !EncodeUtil.encodeBytes(context, destBuffer, IDX_KEYS, keys)) {
+                    return false;
+                }
+                // fall through
+            case IDX_KEYS:
+                if (values != null && !EncodeUtil.encodeUint32(context, destBuffer, IDX_VALUES_SIZE, values.size())) {
+                    return false;
+                }
+                // fall through
+            case IDX_VALUES_SIZE:
+                if (values != null && !EncodeUtil.encodeBytes(context, destBuffer, IDX_VALUES, values)) {
+                    return false;
+                }
+                // fall through
+            case IDX_VALUES:
+                return expectValue == null || EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue);
+            default:
+                throw new CodecException(context);
         }
-        if (context.stage == IDX_VALUES_SIZE) {
-            if (values != null && !EncodeUtil.encodeBytes(context, destBuffer, IDX_VALUES, values)) {
-                return false;
-            } else {
-                context.stage = IDX_VALUES;
-            }
-        }
-        if (context.stage == IDX_VALUES) {
-            if (expectValue != null && !EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
-                return false;
-            } else {
-                context.stage = EncodeContext.STAGE_END;
-                return true;
-            }
-        }
-        throw new CodecException(context);
     }
 }

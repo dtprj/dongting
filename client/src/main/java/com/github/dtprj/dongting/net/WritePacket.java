@@ -162,7 +162,7 @@ public abstract class WritePacket extends Packet implements Encodable {
         } else {
             throw new NetException("invalid status: " + step);
         }
-        context.setStage(step);
+        context.stage = step;
         return finish;
     }
 

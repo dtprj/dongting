@@ -28,7 +28,7 @@ public class CodecException extends DtException {
     }
 
     public CodecException(EncodeContext c) {
-        super("illegal encode state, stage=" + c.getStage() + ", pending=" + c.getPending());
+        super("illegal encode state, stage=" + c.stage + ", pending=" + c.pending);
     }
 
 }

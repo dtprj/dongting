@@ -36,8 +36,8 @@ public class KvResult implements Encodable {
     private final int bizCode;
     private final KvNode node;
     private final ByteArray keyInDir;
-    private final int size;
-    private final int sizeOfField1;
+
+    private final int encodeSize;
 
     public static final KvResult SUCCESS = new KvResult(KvCodes.CODE_SUCCESS, null);
     public static final KvResult NOT_FOUND = new KvResult(KvCodes.CODE_NOT_FOUND, null);
@@ -56,41 +56,34 @@ public class KvResult implements Encodable {
         this.node = node;
         this.keyInDir = keyInDir;
 
-        this.sizeOfField1 = PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode);
-        this.size = sizeOfField1 + EncodeUtil.actualSize(IDX_NODE, node) +
-                EncodeUtil.actualSize(IDX_KEY_IN_DIR, keyInDir);
+        this.encodeSize = PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode)
+                + EncodeUtil.actualSize(IDX_NODE, node)
+                + EncodeUtil.actualSize(IDX_KEY_IN_DIR, keyInDir);
     }
 
     @Override
     public int actualSize() {
-        return size;
+        return encodeSize;
     }
 
     @Override
     public boolean encode(EncodeContext c, ByteBuffer destBuffer) {
-        if (c.stage < IDX_BIZ_CODE) {
-            if (destBuffer.remaining() < sizeOfField1) {
-                return false;
-            }
-            PbUtil.writeUnsignedInt32(destBuffer, IDX_BIZ_CODE, bizCode);
-            c.stage = IDX_BIZ_CODE;
+        switch (c.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encodeUint32(c, destBuffer, IDX_BIZ_CODE, bizCode)) {
+                    return false;
+                }
+                // fall through
+            case IDX_BIZ_CODE:
+                if (!EncodeUtil.encode(c, destBuffer, IDX_NODE, node)) {
+                    return false;
+                }
+                // fall through
+            case IDX_NODE:
+                return EncodeUtil.encode(c, destBuffer, IDX_KEY_IN_DIR, keyInDir);
+            default:
+                throw new CodecException(c);
         }
-        if (c.stage == IDX_BIZ_CODE) {
-            if (EncodeUtil.encode(c, destBuffer, IDX_NODE, node)) {
-                c.stage = IDX_KEY_IN_DIR;
-            } else {
-                return false;
-            }
-        }
-        if (c.stage == IDX_KEY_IN_DIR) {
-            if (EncodeUtil.encode(c, destBuffer, IDX_KEY_IN_DIR, keyInDir)) {
-                c.stage = EncodeContext.STAGE_END;
-                return true;
-            } else {
-                return false;
-            }
-        }
-        throw new CodecException(c);
     }
 
     // re-used

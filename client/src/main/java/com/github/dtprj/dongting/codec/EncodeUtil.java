@@ -59,43 +59,71 @@ public class EncodeUtil {
     }
 
     public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
-        return encode(c, destBuffer, pbIndex, o, true);
+        return encode(c, destBuffer, pbIndex, o, true, true);
     }
 
     public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, ByteArray o) {
-        return encode(c, destBuffer, pbIndex, o, false);
+        return encode(c, destBuffer, pbIndex, o, false, true);
     }
 
-    private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o, boolean encodeEmpty) {
-        if (o == null) {
-            return true;
-        }
-        int actualSize = o.actualSize();
-        if (actualSize == 0 && !encodeEmpty) {
-            return true;
-        }
-        if (c.pending == 0) {
-            int r = destBuffer.remaining();
-            int prefixSize = PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, actualSize);
-            if (r < prefixSize) {
+    private static boolean writeObjPrefix(EncodeContext c, ByteBuffer dest, int pbIndex, int objSize) {
+        if (dest.remaining() >= PbUtil.MAX_TAG_INT32_LEN) {
+            PbUtil.writeLengthDelimitedPrefix(dest, pbIndex, objSize);
+        } else {
+            if (dest.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, objSize)) {
                 return false;
+            } else {
+                PbUtil.writeLengthDelimitedPrefix(dest, pbIndex, objSize);
             }
-            PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, actualSize);
-            if (actualSize == 0) {
-                return true;
-            }
-            c.pending = 1;
         }
-        EncodeContext sub;
-        if (c.pending == 1) {
-            c.pending = 2;
-            sub = c.createOrGetNestedContext(true);
-        } else if (c.pending == 2) {
-            sub = c.createOrGetNestedContext(false);
+        c.pending = 1;
+        return true;
+    }
+
+    private static EncodeContext sub(EncodeContext c, int p1, int p2) {
+        if (c.pending == p1) {
+            c.pending = p2;
+            return c.createOrGetNestedContext(true);
+        } else if (c.pending == p2) {
+            return c.createOrGetNestedContext(false);
         } else {
             throw new CodecException(c);
         }
-        if (o.encode(sub, destBuffer)) {
+    }
+
+    private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o,
+                                  boolean encodeEmpty, boolean updateStage) {
+        if (o == null) {
+            if (updateStage) {
+                c.stage = pbIndex;
+            }
+            c.pending = 0;
+            return true;
+        }
+        int size = o.actualSize();
+        if (size == 0 && !encodeEmpty) {
+            if (updateStage) {
+                c.stage = pbIndex;
+            }
+            c.pending = 0;
+            return true;
+        }
+        if (c.pending == 0) {
+            if (!writeObjPrefix(c, destBuffer, pbIndex, size)) {
+                return false;
+            }
+            if (size == 0) {
+                if (updateStage) {
+                    c.stage = pbIndex;
+                }
+                c.pending = 0;
+                return true;
+            }
+        }
+        if (o.encode(sub(c, 1, 2), destBuffer)) {
+            if (updateStage) {
+                c.stage = pbIndex;
+            }
             c.pending = 0;
             return true;
         } else {
@@ -112,42 +140,53 @@ public class EncodeUtil {
     }
 
     public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
-        return encode(context, destBuffer, pbIndex, o, false);
+        return encode(context, destBuffer, pbIndex, o, false, true);
     }
 
-    private static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o, boolean encodeEmpty) {
+    private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, byte[] o,
+                                  boolean encodeEmpty, boolean updateStage) {
         if (o == null) {
+            if (updateStage) {
+                c.stage = pbIndex;
+            }
+            c.pending = 0;
             return true;
         }
-        int size = o.length;
-        if (size == 0 && !encodeEmpty) {
+        if (o.length == 0 && !encodeEmpty) {
+            if (updateStage) {
+                c.stage = pbIndex;
+            }
+            c.pending = 0;
             return true;
         }
-        if (context.pending == 0) {
-            int r = destBuffer.remaining();
-            int prefixSize = PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, size);
-            if (r < prefixSize) {
+        if (c.pending == 0) {
+            if (!writeObjPrefix(c, destBuffer, pbIndex, o.length)) {
                 return false;
             }
-            PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, size);
-            if (size == 0) {
+            if (o.length == 0) {
+                if (updateStage) {
+                    c.stage = pbIndex;
+                }
+                c.pending = 0;
                 return true;
             }
-            context.pending = 1;
         }
-        int arrOffset = context.pending - 1;
+        int arrOffset = c.pending - 1;
         if (arrOffset < 0 || arrOffset >= o.length) {
-            throw new CodecException(context);
+            throw new CodecException(c);
         }
-        int remaining = destBuffer.remaining();
+        int r = destBuffer.remaining();
         int needWrite = o.length - arrOffset;
-        if (remaining >= needWrite) {
+        if (r >= needWrite) {
             destBuffer.put(o, arrOffset, needWrite);
-            context.pending = 0;
+            if (updateStage) {
+                c.stage = pbIndex;
+            }
+            c.pending = 0;
             return true;
         } else {
-            destBuffer.put(o, arrOffset, remaining);
-            context.pending += remaining;
+            destBuffer.put(o, arrOffset, r);
+            c.pending += r;
             return false;
         }
     }
@@ -168,28 +207,21 @@ public class EncodeUtil {
 
     public static boolean encodeBytes(EncodeContext c, ByteBuffer dest, int pbIndex, List<byte[]> list) {
         if (list == null || list.isEmpty()) {
+            c.stage = pbIndex;
+            c.pending = 0;
             return true;
         }
-        EncodeContext sub;
-        if (c.pending == 0) {
-            sub = c.createOrGetNestedContext(true);
-            c.pending = 1;
-        } else if (c.pending == 1) {
-            sub = c.createOrGetNestedContext(false);
-        } else {
-            throw new CodecException(c);
-        }
-        int count = list.size();
-        int i = sub.stage;
-        for (; i < count; i++) {
+        EncodeContext sub = sub(c, 0, 1);
+        for (int count = list.size(), i = sub.stage; i < count; i++) {
             byte[] bs = list.get(i);
             Objects.requireNonNull(bs);
-            if (!encode(sub, dest, pbIndex, bs, true)) {
+            if (!encode(sub, dest, pbIndex, bs, true, false)) {
                 sub.stage = i;
                 return false;
             }
         }
         sub.stage = EncodeContext.STAGE_END;
+        c.stage = pbIndex;
         c.pending = 0;
         return true;
     }
@@ -210,28 +242,143 @@ public class EncodeUtil {
 
     public static boolean encodeObjs(EncodeContext c, ByteBuffer dest, int pbIndex, List<? extends Encodable> list) {
         if (list == null || list.isEmpty()) {
+            c.stage = pbIndex;
+            c.pending = 0;
             return true;
         }
-        EncodeContext sub;
-        if (c.pending == 0) {
-            sub = c.createOrGetNestedContext(true);
-            c.pending = 1;
-        } else if (c.pending == 1) {
-            sub = c.createOrGetNestedContext(false);
-        } else {
-            throw new CodecException(c);
-        }
-        int count = list.size();
-        int i = sub.stage;
-        for (; i < count; i++) {
+        EncodeContext sub = sub(c, 0, 1);
+        for (int count = list.size(), i = sub.stage; i < count; i++) {
             Encodable o = list.get(i);
             Objects.requireNonNull(o);
-            if (!encode(sub, dest, pbIndex, o, true)) {
+            if (!encode(sub, dest, pbIndex, o, true, false)) {
                 sub.stage = i;
                 return false;
             }
         }
         sub.stage = EncodeContext.STAGE_END;
+        c.stage = pbIndex;
+        c.pending = 0;
+        return true;
+    }
+
+    public static boolean encodeFix32(EncodeContext c, ByteBuffer dest, int pbIndex, int value) {
+        int r = dest.remaining();
+        if (r >= PbUtil.MAX_TAG_FIX32_LEN) {
+            PbUtil.writeFix32(dest, pbIndex, value);
+            c.stage = pbIndex;
+            return true;
+        } else {
+            if (r < PbUtil.accurateFix32Size(pbIndex, value)) {
+                return false;
+            } else {
+                PbUtil.writeFix32(dest, pbIndex, value);
+                c.stage = pbIndex;
+                return true;
+            }
+        }
+    }
+
+    public static boolean encodeFix64(EncodeContext c, ByteBuffer dest, int pbIndex, long value) {
+        int r = dest.remaining();
+        if (r >= PbUtil.MAX_TAG_FIX64_LEN) {
+            PbUtil.writeFix64(dest, pbIndex, value);
+            c.stage = pbIndex;
+            return true;
+        } else {
+            if (r < PbUtil.accurateFix64Size(pbIndex, value)) {
+                return false;
+            } else {
+                PbUtil.writeFix64(dest, pbIndex, value);
+                c.stage = pbIndex;
+                return true;
+            }
+        }
+    }
+
+    public static boolean encodeUint32(EncodeContext c, ByteBuffer dest, int pbIndex, int value) {
+        int r = dest.remaining();
+        if (r >= PbUtil.MAX_TAG_INT32_LEN) {
+            PbUtil.writeUnsignedInt32(dest, pbIndex, value);
+            c.stage = pbIndex;
+            return true;
+        } else {
+            if (r < PbUtil.accurateUnsignedIntSize(pbIndex, value)) {
+                return false;
+            } else {
+                PbUtil.writeUnsignedInt32(dest, pbIndex, value);
+                c.stage = pbIndex;
+                return true;
+            }
+        }
+    }
+
+    public static boolean encodeUint64(EncodeContext c, ByteBuffer dest, int pbIndex, long value) {
+        int r = dest.remaining();
+        if (r >= PbUtil.MAX_TAG_INT64_LEN) {
+            PbUtil.writeUnsignedInt64(dest, pbIndex, value);
+            c.stage = pbIndex;
+            return true;
+        } else {
+            if (r < PbUtil.accurateUnsignedLongSize(pbIndex, value)) {
+                return false;
+            } else {
+                PbUtil.writeUnsignedInt64(dest, pbIndex, value);
+                c.stage = pbIndex;
+                return true;
+            }
+        }
+    }
+
+    public static boolean encodeInt32s(EncodeContext c, ByteBuffer dest, int pbIndex, int[] values) {
+        if (values == null || values.length == 0) {
+            c.stage = pbIndex;
+            c.pending = 0;
+            return true;
+        }
+        int i = c.pending;
+        for (int l = values.length; i < l; i++) {
+            int r = dest.remaining();
+            if (r >= PbUtil.MAX_TAG_INT32_LEN) {
+                PbUtil.writeTag(dest, PbUtil.TYPE_VAR_INT, pbIndex);
+                PbUtil.writeUnsignedInt32ValueOnly(dest, values[i]);
+            } else {
+                if (r < PbUtil.accurateTagSize(pbIndex) + PbUtil.accurateUnsignedIntSize(values[i])) {
+                    c.pending = i;
+                    return false;
+                } else {
+                    PbUtil.writeTag(dest, PbUtil.TYPE_VAR_INT, pbIndex);
+                    PbUtil.writeUnsignedInt32ValueOnly(dest, values[i]);
+                }
+            }
+        }
+        c.stage = pbIndex;
+        c.pending = 0;
+        return true;
+    }
+
+    public static boolean encodeFix32s(EncodeContext c, ByteBuffer dest, int pbIndex, int[] values) {
+        if (values == null || values.length == 0) {
+            c.stage = pbIndex;
+            c.pending = 0;
+            return true;
+        }
+        int i = c.pending;
+        for (int l = values.length; i < l; i++) {
+            int r = dest.remaining();
+            if (r >= PbUtil.MAX_TAG_FIX32_LEN) {
+                PbUtil.writeTag(dest, PbUtil.TYPE_FIX32, pbIndex);
+                dest.putInt(Integer.reverseBytes(values[i]));
+            } else {
+                if (r < PbUtil.accurateTagSize(pbIndex) + 4) {
+                    c.pending = i;
+                    return false;
+                } else {
+                    PbUtil.writeTag(dest, PbUtil.TYPE_FIX32, pbIndex);
+                    dest.putInt(Integer.reverseBytes(values[i]));
+                }
+            }
+        }
+        c.stage = pbIndex;
         c.pending = 0;
         return true;
     }
