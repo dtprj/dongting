@@ -56,7 +56,7 @@ public class KvResult implements Encodable {
         this.node = node;
         this.keyInDir = keyInDir;
 
-        this.encodeSize = PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode)
+        this.encodeSize = PbUtil.sizeOfInt32Field(IDX_BIZ_CODE, bizCode)
                 + EncodeUtil.actualSize(IDX_NODE, node)
                 + EncodeUtil.actualSize(IDX_KEY_IN_DIR, keyInDir);
     }
@@ -70,7 +70,7 @@ public class KvResult implements Encodable {
     public boolean encode(EncodeContext c, ByteBuffer destBuffer) {
         switch (c.stage) {
             case EncodeContext.STAGE_BEGIN:
-                if (!EncodeUtil.encodeUint32(c, destBuffer, IDX_BIZ_CODE, bizCode)) {
+                if (!EncodeUtil.encodeInt32(c, destBuffer, IDX_BIZ_CODE, bizCode)) {
                     return false;
                 }
                 // fall through

@@ -43,20 +43,20 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, groupId)
-                + PbUtil.accurateFix32Size(2, members)
-                + PbUtil.accurateFix32Size(3, observers)
-                + PbUtil.accurateFix32Size(4, preparedMembers)
-                + PbUtil.accurateFix32Size(5, preparedObservers);
+        return PbUtil.sizeOfInt32Field(1, groupId)
+                + PbUtil.sizeOfFix32Field(2, members)
+                + PbUtil.sizeOfFix32Field(3, observers)
+                + PbUtil.sizeOfFix32Field(4, preparedMembers)
+                + PbUtil.sizeOfFix32Field(5, preparedObservers);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, groupId);
-        PbUtil.writeFix32(buf, 2, members);
-        PbUtil.writeFix32(buf, 3, observers);
-        PbUtil.writeFix32(buf, 4, preparedMembers);
-        PbUtil.writeFix32(buf, 5, preparedObservers);
+        PbUtil.writeInt32Field(buf, 1, groupId);
+        PbUtil.writeFix32Field(buf, 2, members);
+        PbUtil.writeFix32Field(buf, 3, observers);
+        PbUtil.writeFix32Field(buf, 4, preparedMembers);
+        PbUtil.writeFix32Field(buf, 5, preparedObservers);
     }
 
     static final class Callback extends PbCallback<AdminPrepareConfigChangeReq> {

@@ -33,14 +33,14 @@ public class AdminCommitOrAbortReq extends PbCallback<AdminCommitOrAbortReq> imp
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, groupId)
-                + PbUtil.accurateFix64Size(2, prepareIndex);
+        return PbUtil.sizeOfInt32Field(1, groupId)
+                + PbUtil.sizeOfFix64Field(2, prepareIndex);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, groupId);
-        PbUtil.writeFix64(buf, 2, prepareIndex);
+        PbUtil.writeInt32Field(buf, 1, groupId);
+        PbUtil.writeFix64Field(buf, 2, prepareIndex);
     }
 
     @Override

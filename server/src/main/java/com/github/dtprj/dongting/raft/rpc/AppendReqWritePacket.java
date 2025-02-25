@@ -74,18 +74,18 @@ public class AppendReqWritePacket extends WritePacket {
 
     @Override
     protected int calcActualBodySize() {
-        headerSize = PbUtil.accurateUnsignedIntSize(1, groupId)
-                + PbUtil.accurateUnsignedIntSize(2, term)
-                + PbUtil.accurateUnsignedIntSize(3, leaderId)
-                + PbUtil.accurateFix64Size(4, prevLogIndex)
-                + PbUtil.accurateUnsignedIntSize(5, prevLogTerm)
-                + PbUtil.accurateFix64Size(6, leaderCommit);
+        headerSize = PbUtil.sizeOfInt32Field(1, groupId)
+                + PbUtil.sizeOfInt32Field(2, term)
+                + PbUtil.sizeOfInt32Field(3, leaderId)
+                + PbUtil.sizeOfFix64Field(4, prevLogIndex)
+                + PbUtil.sizeOfInt32Field(5, prevLogTerm)
+                + PbUtil.sizeOfFix64Field(6, leaderCommit);
         int x = headerSize;
         if (logs != null) {
             for (LogItem item : logs) {
                 int itemSize = computeItemSize(item);
                 // assert itemSize > 0
-                x += PbUtil.accurateLengthDelimitedPrefixSize(7, itemSize) + itemSize;
+                x += PbUtil.sizeOfLenFieldPrefix(7, itemSize) + itemSize;
             }
         }
         return x;
@@ -96,12 +96,12 @@ public class AppendReqWritePacket extends WritePacket {
         if (itemSize > 0) {
             return itemSize;
         }
-        int itemHeaderSize = PbUtil.accurateUnsignedIntSize(1, item.getType())
-                + PbUtil.accurateUnsignedIntSize(2, item.getBizType())
-                + PbUtil.accurateUnsignedIntSize(3, item.getTerm())
-                + PbUtil.accurateFix64Size(4, item.getIndex())
-                + PbUtil.accurateUnsignedIntSize(5, item.getPrevLogTerm())
-                + PbUtil.accurateFix64Size(6, item.getTimestamp());
+        int itemHeaderSize = PbUtil.sizeOfInt32Field(1, item.getType())
+                + PbUtil.sizeOfInt32Field(2, item.getBizType())
+                + PbUtil.sizeOfInt32Field(3, item.getTerm())
+                + PbUtil.sizeOfFix64Field(4, item.getIndex())
+                + PbUtil.sizeOfInt32Field(5, item.getPrevLogTerm())
+                + PbUtil.sizeOfFix64Field(6, item.getTimestamp());
         itemSize = itemHeaderSize
                 + EncodeUtil.actualSize(7, item.getHeader())
                 + EncodeUtil.actualSize(8, item.getBody());
@@ -118,12 +118,12 @@ public class AppendReqWritePacket extends WritePacket {
                     if (dest.remaining() < headerSize) {
                         return false;
                     }
-                    PbUtil.writeUnsignedInt32(dest, 1, groupId);
-                    PbUtil.writeUnsignedInt32(dest, 2, term);
-                    PbUtil.writeUnsignedInt32(dest, 3, leaderId);
-                    PbUtil.writeFix64(dest, 4, prevLogIndex);
-                    PbUtil.writeUnsignedInt32(dest, 5, prevLogTerm);
-                    PbUtil.writeFix64(dest, 6, leaderCommit);
+                    PbUtil.writeInt32Field(dest, 1, groupId);
+                    PbUtil.writeInt32Field(dest, 2, term);
+                    PbUtil.writeInt32Field(dest, 3, leaderId);
+                    PbUtil.writeFix64Field(dest, 4, prevLogIndex);
+                    PbUtil.writeInt32Field(dest, 5, prevLogTerm);
+                    PbUtil.writeFix64Field(dest, 6, leaderCommit);
                     writeStatus = WRITE_ITEM_HEADER;
                     break;
                 case WRITE_ITEM_HEADER:
@@ -132,18 +132,18 @@ public class AppendReqWritePacket extends WritePacket {
                     } else {
                         return true;
                     }
-                    if (dest.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
+                    if (dest.remaining() < PbUtil.sizeOfLenFieldPrefix(
                             7, computeItemSize(currentItem)) + currentItem.getPbHeaderSize()) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(dest, 7, computeItemSize(currentItem));
+                    PbUtil.writeLenFieldPrefix(dest, 7, computeItemSize(currentItem));
 
-                    PbUtil.writeUnsignedInt32(dest, 1, currentItem.getType());
-                    PbUtil.writeUnsignedInt32(dest, 2, currentItem.getBizType());
-                    PbUtil.writeUnsignedInt32(dest, 3, currentItem.getTerm());
-                    PbUtil.writeFix64(dest, 4, currentItem.getIndex());
-                    PbUtil.writeUnsignedInt32(dest, 5, currentItem.getPrevLogTerm());
-                    PbUtil.writeFix64(dest, 6, currentItem.getTimestamp());
+                    PbUtil.writeInt32Field(dest, 1, currentItem.getType());
+                    PbUtil.writeInt32Field(dest, 2, currentItem.getBizType());
+                    PbUtil.writeInt32Field(dest, 3, currentItem.getTerm());
+                    PbUtil.writeFix64Field(dest, 4, currentItem.getIndex());
+                    PbUtil.writeInt32Field(dest, 5, currentItem.getPrevLogTerm());
+                    PbUtil.writeFix64Field(dest, 6, currentItem.getTimestamp());
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:

@@ -31,14 +31,14 @@ public class EncodeUtil {
             return 0;
         }
         int s = o.actualSize();
-        return PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
+        return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
     public static void encode(ByteBuffer destBuffer, int pbIndex, SimpleEncodable o) {
         if (o == null) {
             return;
         }
-        PbUtil.writeLengthDelimitedPrefix(destBuffer, pbIndex, o.actualSize());
+        PbUtil.writeLenFieldPrefix(destBuffer, pbIndex, o.actualSize());
         o.encode(destBuffer);
     }
 
@@ -47,7 +47,7 @@ public class EncodeUtil {
             return 0;
         }
         int s = o.actualSize();
-        return PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
+        return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
     public static int actualSize(int pbIndex, ByteArray o) {
@@ -55,7 +55,7 @@ public class EncodeUtil {
             return 0;
         }
         int s = o.actualSize();
-        return PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
+        return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
     public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
@@ -66,14 +66,15 @@ public class EncodeUtil {
         return encode(c, destBuffer, pbIndex, o, false, true);
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private static boolean writeObjPrefix(EncodeContext c, ByteBuffer dest, int pbIndex, int objSize) {
         if (dest.remaining() >= PbUtil.MAX_TAG_INT32_LEN) {
-            PbUtil.writeLengthDelimitedPrefix(dest, pbIndex, objSize);
+            PbUtil.writeLenFieldPrefix(dest, pbIndex, objSize);
         } else {
-            if (dest.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, objSize)) {
+            if (dest.remaining() < PbUtil.sizeOfLenFieldPrefix(pbIndex, objSize)) {
                 return false;
             } else {
-                PbUtil.writeLengthDelimitedPrefix(dest, pbIndex, objSize);
+                PbUtil.writeLenFieldPrefix(dest, pbIndex, objSize);
             }
         }
         c.pending = 1;
@@ -136,7 +137,7 @@ public class EncodeUtil {
             return 0;
         }
         int s = o.length;
-        return PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
+        return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
     public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
@@ -200,7 +201,7 @@ public class EncodeUtil {
             byte[] e = list.get(i);
             Objects.requireNonNull(e);
             int s = e.length;
-            size += PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
+            size += PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
         }
         return size;
     }
@@ -235,7 +236,7 @@ public class EncodeUtil {
             Encodable e = list.get(i);
             Objects.requireNonNull(e);
             int s = e.actualSize();
-            size += PbUtil.accurateLengthDelimitedPrefixSize(pbIndex, s) + s;
+            size += PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
         }
         return size;
     }
@@ -264,14 +265,14 @@ public class EncodeUtil {
     public static boolean encodeFix32(EncodeContext c, ByteBuffer dest, int pbIndex, int value) {
         int r = dest.remaining();
         if (r >= PbUtil.MAX_TAG_FIX32_LEN) {
-            PbUtil.writeFix32(dest, pbIndex, value);
+            PbUtil.writeFix32Field(dest, pbIndex, value);
             c.stage = pbIndex;
             return true;
         } else {
-            if (r < PbUtil.accurateFix32Size(pbIndex, value)) {
+            if (r < PbUtil.sizeOfFix32Field(pbIndex, value)) {
                 return false;
             } else {
-                PbUtil.writeFix32(dest, pbIndex, value);
+                PbUtil.writeFix32Field(dest, pbIndex, value);
                 c.stage = pbIndex;
                 return true;
             }
@@ -281,48 +282,49 @@ public class EncodeUtil {
     public static boolean encodeFix64(EncodeContext c, ByteBuffer dest, int pbIndex, long value) {
         int r = dest.remaining();
         if (r >= PbUtil.MAX_TAG_FIX64_LEN) {
-            PbUtil.writeFix64(dest, pbIndex, value);
+            PbUtil.writeFix64Field(dest, pbIndex, value);
             c.stage = pbIndex;
             return true;
         } else {
-            if (r < PbUtil.accurateFix64Size(pbIndex, value)) {
+            if (r < PbUtil.sizeOfFix64Field(pbIndex, value)) {
                 return false;
             } else {
-                PbUtil.writeFix64(dest, pbIndex, value);
+                PbUtil.writeFix64Field(dest, pbIndex, value);
                 c.stage = pbIndex;
                 return true;
             }
         }
     }
 
-    public static boolean encodeUint32(EncodeContext c, ByteBuffer dest, int pbIndex, int value) {
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public static boolean encodeInt32(EncodeContext c, ByteBuffer dest, int pbIndex, int value) {
         int r = dest.remaining();
         if (r >= PbUtil.MAX_TAG_INT32_LEN) {
-            PbUtil.writeUnsignedInt32(dest, pbIndex, value);
+            PbUtil.writeInt32Field(dest, pbIndex, value);
             c.stage = pbIndex;
             return true;
         } else {
-            if (r < PbUtil.accurateUnsignedIntSize(pbIndex, value)) {
+            if (r < PbUtil.sizeOfInt32Field(pbIndex, value)) {
                 return false;
             } else {
-                PbUtil.writeUnsignedInt32(dest, pbIndex, value);
+                PbUtil.writeInt32Field(dest, pbIndex, value);
                 c.stage = pbIndex;
                 return true;
             }
         }
     }
 
-    public static boolean encodeUint64(EncodeContext c, ByteBuffer dest, int pbIndex, long value) {
+    public static boolean encodeInt64(EncodeContext c, ByteBuffer dest, int pbIndex, long value) {
         int r = dest.remaining();
         if (r >= PbUtil.MAX_TAG_INT64_LEN) {
-            PbUtil.writeUnsignedInt64(dest, pbIndex, value);
+            PbUtil.writeInt64Field(dest, pbIndex, value);
             c.stage = pbIndex;
             return true;
         } else {
-            if (r < PbUtil.accurateUnsignedLongSize(pbIndex, value)) {
+            if (r < PbUtil.sizeOfInt64Field(pbIndex, value)) {
                 return false;
             } else {
-                PbUtil.writeUnsignedInt64(dest, pbIndex, value);
+                PbUtil.writeInt64Field(dest, pbIndex, value);
                 c.stage = pbIndex;
                 return true;
             }
@@ -340,14 +342,14 @@ public class EncodeUtil {
             int r = dest.remaining();
             if (r >= PbUtil.MAX_TAG_INT32_LEN) {
                 PbUtil.writeTag(dest, PbUtil.TYPE_VAR_INT, pbIndex);
-                PbUtil.writeUnsignedInt32ValueOnly(dest, values[i]);
+                PbUtil.writeUnsignedInt32(dest, values[i]);
             } else {
-                if (r < PbUtil.accurateTagSize(pbIndex) + PbUtil.accurateUnsignedIntSize(values[i])) {
+                if (r < PbUtil.sizeOfTag(pbIndex) + PbUtil.sizeOfUnsignedInt32(values[i])) {
                     c.pending = i;
                     return false;
                 } else {
                     PbUtil.writeTag(dest, PbUtil.TYPE_VAR_INT, pbIndex);
-                    PbUtil.writeUnsignedInt32ValueOnly(dest, values[i]);
+                    PbUtil.writeUnsignedInt32(dest, values[i]);
                 }
             }
         }
@@ -369,7 +371,7 @@ public class EncodeUtil {
                 PbUtil.writeTag(dest, PbUtil.TYPE_FIX32, pbIndex);
                 dest.putInt(Integer.reverseBytes(values[i]));
             } else {
-                if (r < PbUtil.accurateTagSize(pbIndex) + 4) {
+                if (r < PbUtil.sizeOfTag(pbIndex) + 4) {
                     c.pending = i;
                     return false;
                 } else {

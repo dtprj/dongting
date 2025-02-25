@@ -53,10 +53,10 @@ public class KvNode implements Encodable {
         this.dir = dir;
         this.data = data;
 
-        this.headerSize = PbUtil.accurateFix64Size(IDX_CREATE_INDEX, createIndex)
-                + PbUtil.accurateFix64Size(IDX_CREATE_TIME, createTime)
-                + PbUtil.accurateFix64Size(IDX_UPDATE_INDEX, updateIndex)
-                + PbUtil.accurateFix64Size(IDX_UPDATE_TIME, updateTime);
+        this.headerSize = PbUtil.sizeOfFix64Field(IDX_CREATE_INDEX, createIndex)
+                + PbUtil.sizeOfFix64Field(IDX_CREATE_TIME, createTime)
+                + PbUtil.sizeOfFix64Field(IDX_UPDATE_INDEX, updateIndex)
+                + PbUtil.sizeOfFix64Field(IDX_UPDATE_TIME, updateTime);
     }
 
     public boolean isDir() {
@@ -70,10 +70,10 @@ public class KvNode implements Encodable {
             if (remaining < headerSize) {
                 return false;
             } else {
-                PbUtil.writeFix64(destBuffer, IDX_CREATE_INDEX, createIndex);
-                PbUtil.writeFix64(destBuffer, IDX_CREATE_TIME, createTime);
-                PbUtil.writeFix64(destBuffer, IDX_UPDATE_INDEX, updateIndex);
-                PbUtil.writeFix64(destBuffer, IDX_UPDATE_TIME, updateTime);
+                PbUtil.writeFix64Field(destBuffer, IDX_CREATE_INDEX, createIndex);
+                PbUtil.writeFix64Field(destBuffer, IDX_CREATE_TIME, createTime);
+                PbUtil.writeFix64Field(destBuffer, IDX_UPDATE_INDEX, updateIndex);
+                PbUtil.writeFix64Field(destBuffer, IDX_UPDATE_TIME, updateTime);
                 context.stage = IDX_UPDATE_TIME;
             }
         }

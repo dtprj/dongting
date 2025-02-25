@@ -43,18 +43,18 @@ public class NodePing extends PbCallback<NodePing> implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, localNodeId)
-                + PbUtil.accurateUnsignedIntSize(2, remoteNodeId)
-                + PbUtil.accurateFix64Size(3, uuidHigh)
-                + PbUtil.accurateFix64Size(4, uuidLow);
+        return PbUtil.sizeOfInt32Field(1, localNodeId)
+                + PbUtil.sizeOfInt32Field(2, remoteNodeId)
+                + PbUtil.sizeOfFix64Field(3, uuidHigh)
+                + PbUtil.sizeOfFix64Field(4, uuidLow);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, localNodeId);
-        PbUtil.writeUnsignedInt32(buf, 2, remoteNodeId);
-        PbUtil.writeFix64(buf, 3, uuidHigh);
-        PbUtil.writeFix64(buf, 4, uuidLow);
+        PbUtil.writeInt32Field(buf, 1, localNodeId);
+        PbUtil.writeInt32Field(buf, 2, remoteNodeId);
+        PbUtil.writeFix64Field(buf, 3, uuidHigh);
+        PbUtil.writeFix64Field(buf, 4, uuidLow);
     }
 
     @Override

@@ -44,20 +44,20 @@ public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, groupId)
-                + PbUtil.accurateUnsignedIntSize(2, term)
-                + PbUtil.accurateUnsignedIntSize(3, oldLeaderId)
-                + PbUtil.accurateUnsignedIntSize(4, newLeaderId)
-                + PbUtil.accurateFix64Size(5, logIndex);
+        return PbUtil.sizeOfInt32Field(1, groupId)
+                + PbUtil.sizeOfInt32Field(2, term)
+                + PbUtil.sizeOfInt32Field(3, oldLeaderId)
+                + PbUtil.sizeOfInt32Field(4, newLeaderId)
+                + PbUtil.sizeOfFix64Field(5, logIndex);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, groupId);
-        PbUtil.writeUnsignedInt32(buf, 2, term);
-        PbUtil.writeUnsignedInt32(buf, 3, oldLeaderId);
-        PbUtil.writeUnsignedInt32(buf, 4, newLeaderId);
-        PbUtil.writeFix64(buf, 5, logIndex);
+        PbUtil.writeInt32Field(buf, 1, groupId);
+        PbUtil.writeInt32Field(buf, 2, term);
+        PbUtil.writeInt32Field(buf, 3, oldLeaderId);
+        PbUtil.writeInt32Field(buf, 4, newLeaderId);
+        PbUtil.writeFix64Field(buf, 5, logIndex);
     }
 
     static final class Callback extends PbCallback<TransferLeaderReq> {

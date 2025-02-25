@@ -41,22 +41,22 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedLongSize(1, groupId)
-                + PbUtil.accurateUnsignedLongSize(2, term)
-                + PbUtil.accurateUnsignedIntSize(3, candidateId)
-                + PbUtil.accurateFix64Size(4, lastLogIndex)
-                + PbUtil.accurateUnsignedIntSize(5, lastLogTerm)
-                + PbUtil.accurateUnsignedIntSize(6, preVote ? 1 : 0);
+        return PbUtil.sizeOfInt64Field(1, groupId)
+                + PbUtil.sizeOfInt64Field(2, term)
+                + PbUtil.sizeOfInt32Field(3, candidateId)
+                + PbUtil.sizeOfFix64Field(4, lastLogIndex)
+                + PbUtil.sizeOfInt32Field(5, lastLogTerm)
+                + PbUtil.sizeOfInt32Field(6, preVote ? 1 : 0);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, groupId);
-        PbUtil.writeUnsignedInt32(buf, 2, term);
-        PbUtil.writeUnsignedInt32(buf, 3, candidateId);
-        PbUtil.writeFix64(buf, 4, lastLogIndex);
-        PbUtil.writeUnsignedInt32(buf, 5, lastLogTerm);
-        PbUtil.writeUnsignedInt32(buf, 6, preVote ? 1 : 0);
+        PbUtil.writeInt32Field(buf, 1, groupId);
+        PbUtil.writeInt32Field(buf, 2, term);
+        PbUtil.writeInt32Field(buf, 3, candidateId);
+        PbUtil.writeFix64Field(buf, 4, lastLogIndex);
+        PbUtil.writeInt32Field(buf, 5, lastLogTerm);
+        PbUtil.writeInt32Field(buf, 6, preVote ? 1 : 0);
     }
 
     public static class Callback extends PbCallback<VoteReq> {

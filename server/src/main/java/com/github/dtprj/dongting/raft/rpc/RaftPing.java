@@ -58,23 +58,23 @@ public class RaftPing extends PbCallback<RaftPing> implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        int size = PbUtil.accurateUnsignedIntSize(1, groupId);
-        size += PbUtil.accurateUnsignedIntSize(2, nodeId);
-        size += PbUtil.accurateStrSizeAscii(3, members);
-        size += PbUtil.accurateStrSizeAscii(4, observers);
-        size += PbUtil.accurateStrSizeAscii(5, preparedMembers);
-        size += PbUtil.accurateStrSizeAscii(6, preparedObservers);
+        int size = PbUtil.sizeOfInt32Field(1, groupId);
+        size += PbUtil.sizeOfInt32Field(2, nodeId);
+        size += PbUtil.sizeOfAscii(3, members);
+        size += PbUtil.sizeOfAscii(4, observers);
+        size += PbUtil.sizeOfAscii(5, preparedMembers);
+        size += PbUtil.sizeOfAscii(6, preparedObservers);
         return size;
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, groupId);
-        PbUtil.writeUnsignedInt32(buf, 2, nodeId);
-        PbUtil.writeAscii(buf, 3, members);
-        PbUtil.writeAscii(buf, 4, observers);
-        PbUtil.writeAscii(buf, 5, preparedMembers);
-        PbUtil.writeAscii(buf, 6, preparedObservers);
+        PbUtil.writeInt32Field(buf, 1, groupId);
+        PbUtil.writeInt32Field(buf, 2, nodeId);
+        PbUtil.writeAsciiField(buf, 3, members);
+        PbUtil.writeAsciiField(buf, 4, observers);
+        PbUtil.writeAsciiField(buf, 5, preparedMembers);
+        PbUtil.writeAsciiField(buf, 6, preparedObservers);
     }
 
     @Override

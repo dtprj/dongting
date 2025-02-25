@@ -64,21 +64,21 @@ public class ConfigBody extends PbCallback<ConfigBody> implements SimpleEncodabl
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, maxPacketSize) +
-                PbUtil.accurateUnsignedIntSize(2, maxBodySize) +
-                PbUtil.accurateUnsignedIntSize(3, maxInPending) +
-                PbUtil.accurateUnsignedLongSize(4, maxInPendingBytes) +
-                PbUtil.accurateUnsignedIntSize(5, maxOutPending) +
-                PbUtil.accurateUnsignedLongSize(6, maxOutPendingBytes);
+        return PbUtil.sizeOfInt32Field(1, maxPacketSize) +
+                PbUtil.sizeOfInt32Field(2, maxBodySize) +
+                PbUtil.sizeOfInt32Field(3, maxInPending) +
+                PbUtil.sizeOfInt64Field(4, maxInPendingBytes) +
+                PbUtil.sizeOfInt32Field(5, maxOutPending) +
+                PbUtil.sizeOfInt64Field(6, maxOutPendingBytes);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, maxPacketSize);
-        PbUtil.writeUnsignedInt32(buf, 2, maxBodySize);
-        PbUtil.writeUnsignedInt32(buf, 3, maxInPending);
-        PbUtil.writeUnsignedInt64(buf, 4, maxInPendingBytes);
-        PbUtil.writeUnsignedInt32(buf, 5, maxOutPending);
-        PbUtil.writeUnsignedInt64(buf, 6, maxOutPendingBytes);
+        PbUtil.writeInt32Field(buf, 1, maxPacketSize);
+        PbUtil.writeInt32Field(buf, 2, maxBodySize);
+        PbUtil.writeInt32Field(buf, 3, maxInPending);
+        PbUtil.writeInt64Field(buf, 4, maxInPendingBytes);
+        PbUtil.writeInt32Field(buf, 5, maxOutPending);
+        PbUtil.writeInt64Field(buf, 6, maxOutPendingBytes);
     }
 }

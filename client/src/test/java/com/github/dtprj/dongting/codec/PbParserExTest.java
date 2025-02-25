@@ -109,7 +109,7 @@ public class PbParserExTest {
     public void testFieldLenExceed() {
         ByteBuffer buf = ByteBuffer.allocate(50);
         PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, 1);
-        PbUtil.writeUnsignedInt32ValueOnly(buf, Integer.MAX_VALUE);
+        PbUtil.writeUnsignedInt32(buf, Integer.MAX_VALUE);
         buf.flip();
         buf.mark();
 
@@ -149,8 +149,8 @@ public class PbParserExTest {
     public void testFieldLenOverflow() {
         ByteBuffer buf = ByteBuffer.allocate(50);
         PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, 1);
-        PbUtil.writeUnsignedInt32ValueOnly(buf, 2);
-        PbUtil.writeUnsignedInt32ValueOnly(buf, 1);
+        PbUtil.writeUnsignedInt32(buf, 2);
+        PbUtil.writeUnsignedInt32(buf, 1);
         buf.flip();
         buf.mark();
 
@@ -175,8 +175,8 @@ public class PbParserExTest {
     public void testBadFieldLen() {
         ByteBuffer buf = ByteBuffer.allocate(50);
         PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, 1);
-        PbUtil.writeUnsignedInt32ValueOnly(buf, -1);
-        PbUtil.writeUnsignedInt32ValueOnly(buf, 1);
+        PbUtil.writeUnsignedInt32(buf, -1);
+        PbUtil.writeUnsignedInt32(buf, 1);
         buf.flip();
         buf.mark();
 
@@ -200,7 +200,7 @@ public class PbParserExTest {
     @Test
     public void testBadFieldIndex() {
         ByteBuffer buf = ByteBuffer.allocate(50);
-        PbUtil.writeUnsignedInt32ValueOnly(buf, 0);
+        PbUtil.writeUnsignedInt32(buf, 0);
         buf.flip();
         buf.mark();
 
@@ -268,7 +268,7 @@ public class PbParserExTest {
     public void testFieldValueExceed() {
         ByteBuffer buf = ByteBuffer.allocate(50);
         PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, 1);
-        PbUtil.writeUnsignedInt64ValueOnly(buf, Long.MAX_VALUE);
+        PbUtil.writeUnsignedInt64(buf, Long.MAX_VALUE);
         buf.flip();
         buf.mark();
 

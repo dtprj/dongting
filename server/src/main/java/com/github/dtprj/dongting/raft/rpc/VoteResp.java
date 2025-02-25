@@ -33,14 +33,14 @@ public class VoteResp extends RaftRpcData implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, term)
-                + PbUtil.accurateUnsignedIntSize(2, voteGranted ? 1 : 0);
+        return PbUtil.sizeOfInt32Field(1, term)
+                + PbUtil.sizeOfInt32Field(2, voteGranted ? 1 : 0);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, term);
-        PbUtil.writeUnsignedInt32(buf, 2, voteGranted ? 1 : 0);
+        PbUtil.writeInt32Field(buf, 1, term);
+        PbUtil.writeInt32Field(buf, 2, voteGranted ? 1 : 0);
     }
 
     public static class Callback extends PbCallback<VoteResp> {

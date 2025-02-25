@@ -32,14 +32,14 @@ public class PbNoCopyDecoderCallbackTest {
         decoder.prepareNext(c, c.toDecoderCallback(c.cachedPbIntCallback()));
 
         ByteBuffer buf = ByteBuffer.allocate(30);
-        PbUtil.writeFix32(buf, 1, 2000);
+        PbUtil.writeFix32Field(buf, 1, 2000);
         buf.flip();
 
         Object r = decoder.decode(buf, buf.remaining(), 0);
         Assertions.assertEquals(2000, r);
 
         buf.clear();
-        PbUtil.writeFix32(buf, 1, 0);
+        PbUtil.writeFix32Field(buf, 1, 0);
         buf.flip();
 
         decoder.prepareNext(c, c.toDecoderCallback(c.cachedPbIntCallback()));

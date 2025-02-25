@@ -80,19 +80,19 @@ public class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEn
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateFix64Size(1, MAGIC1)
-                + PbUtil.accurateFix64Size(2, MAGIC2)
-                + PbUtil.accurateUnsignedIntSize(3, majorVersion)
-                + PbUtil.accurateUnsignedIntSize(4, minorVersion)
+        return PbUtil.sizeOfFix64Field(1, MAGIC1)
+                + PbUtil.sizeOfFix64Field(2, MAGIC2)
+                + PbUtil.sizeOfInt32Field(3, majorVersion)
+                + PbUtil.sizeOfInt32Field(4, minorVersion)
                 + EncodeUtil.actualSize(8, config);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeFix64(buf, 1, MAGIC1);
-        PbUtil.writeFix64(buf, 2, MAGIC2);
-        PbUtil.writeUnsignedInt32(buf, 3, majorVersion);
-        PbUtil.writeUnsignedInt32(buf, 4, minorVersion);
+        PbUtil.writeFix64Field(buf, 1, MAGIC1);
+        PbUtil.writeFix64Field(buf, 2, MAGIC2);
+        PbUtil.writeInt32Field(buf, 3, majorVersion);
+        PbUtil.writeInt32Field(buf, 4, minorVersion);
         EncodeUtil.encode(buf, 8, config);
     }
 }

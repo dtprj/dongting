@@ -86,12 +86,12 @@ public class KvReq extends RaftRpcData implements Encodable {
     @Override
     public int actualSize() {
         if (encodeSize == 0) {
-            encodeSize = PbUtil.accurateUnsignedIntSize(IDX_GROUP_ID, groupId)
+            encodeSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
                     + EncodeUtil.actualSize(IDX_KEY, key)
                     + EncodeUtil.actualSize(IDX_VALUE, value)
-                    + PbUtil.accurateUnsignedIntSize(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
+                    + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
                     + EncodeUtil.actualSizeOfBytes(IDX_KEYS, keys)
-                    + PbUtil.accurateUnsignedIntSize(IDX_VALUES_SIZE, values == null ? 0 : values.size())
+                    + PbUtil.sizeOfInt32Field(IDX_VALUES_SIZE, values == null ? 0 : values.size())
                     + EncodeUtil.actualSizeOfBytes(IDX_VALUES, values)
                     + EncodeUtil.actualSize(IDX_EXPECT_VALUE, expectValue);
         }
@@ -102,7 +102,7 @@ public class KvReq extends RaftRpcData implements Encodable {
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         switch (context.stage) {
             case EncodeContext.STAGE_BEGIN:
-                if (!EncodeUtil.encodeUint32(context, destBuffer, IDX_GROUP_ID, groupId)) {
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_GROUP_ID, groupId)) {
                     return false;
                 }
                 // fall through
@@ -117,7 +117,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                 }
                 // fall through
             case IDX_VALUE:
-                if (keys != null && !EncodeUtil.encodeUint32(context, destBuffer, IDX_KEYS_SIZE, keys.size())) {
+                if (keys != null && !EncodeUtil.encodeInt32(context, destBuffer, IDX_KEYS_SIZE, keys.size())) {
                     return false;
                 }
                 // fall through
@@ -127,7 +127,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                 }
                 // fall through
             case IDX_KEYS:
-                if (values != null && !EncodeUtil.encodeUint32(context, destBuffer, IDX_VALUES_SIZE, values.size())) {
+                if (values != null && !EncodeUtil.encodeInt32(context, destBuffer, IDX_VALUES_SIZE, values.size())) {
                     return false;
                 }
                 // fall through

@@ -71,41 +71,41 @@ public class PbUtilTest {
     }
 
     @Test
-    public void testWriteUnsignedInt32() {
-        PbUtil.writeUnsignedInt32(null, 0, 0);
-        testWriteUnsignedInt32(1);
-        testWriteUnsignedInt32(-1);
-        testWriteUnsignedInt32(10000);
-        testWriteUnsignedInt32(-10000);
-        testWriteUnsignedInt32(Integer.MAX_VALUE);
-        testWriteUnsignedInt32(Integer.MIN_VALUE);
-        testWriteUnsignedInt32(1 << 7);
-        testWriteUnsignedInt32((1 << 7) + 1);
-        testWriteUnsignedInt32((1 << 7) - 1);
-        testWriteUnsignedInt32((1 << 7) - 2);
-        testWriteUnsignedInt32(1 << 14);
-        testWriteUnsignedInt32((1 << 14) + 1);
-        testWriteUnsignedInt32((1 << 14) - 1);
-        testWriteUnsignedInt32((1 << 14) - 2);
-        testWriteUnsignedInt32(1 << 21);
-        testWriteUnsignedInt32((1 << 21) + 1);
-        testWriteUnsignedInt32((1 << 21) - 1);
-        testWriteUnsignedInt32((1 << 21) - 2);
-        testWriteUnsignedInt32(1 << 28);
-        testWriteUnsignedInt32((1 << 28) + 1);
-        testWriteUnsignedInt32((1 << 28) - 1);
-        testWriteUnsignedInt32((1 << 28) - 2);
+    public void testWriteInt32Field() {
+        PbUtil.writeInt32Field(null, 0, 0);
+        testWriteInt32Field(1);
+        testWriteInt32Field(-1);
+        testWriteInt32Field(10000);
+        testWriteInt32Field(-10000);
+        testWriteInt32Field(Integer.MAX_VALUE);
+        testWriteInt32Field(Integer.MIN_VALUE);
+        testWriteInt32Field(1 << 7);
+        testWriteInt32Field((1 << 7) + 1);
+        testWriteInt32Field((1 << 7) - 1);
+        testWriteInt32Field((1 << 7) - 2);
+        testWriteInt32Field(1 << 14);
+        testWriteInt32Field((1 << 14) + 1);
+        testWriteInt32Field((1 << 14) - 1);
+        testWriteInt32Field((1 << 14) - 2);
+        testWriteInt32Field(1 << 21);
+        testWriteInt32Field((1 << 21) + 1);
+        testWriteInt32Field((1 << 21) - 1);
+        testWriteInt32Field((1 << 21) - 2);
+        testWriteInt32Field(1 << 28);
+        testWriteInt32Field((1 << 28) + 1);
+        testWriteInt32Field((1 << 28) - 1);
+        testWriteInt32Field((1 << 28) - 2);
     }
 
-    private void testWriteUnsignedInt32(int v) {
-        DtPbTest.TestInt pb = DtPbTest.TestInt.newBuilder().setFUint32(v).build();
+    private void testWriteInt32Field(int v) {
+        DtPbTest.TestInt pb = DtPbTest.TestInt.newBuilder().setFInt32(v).build();
         byte[] bs = pb.toByteArray();
         int len = bs.length;
         assertTrue(len >= 2);
-        assertTrue(len <= 6);
+        assertTrue(len <= 11);
 
         ByteBuffer buf = ByteBuffer.allocate(20);
-        PbUtil.writeUnsignedInt32(buf, 1, v);
+        PbUtil.writeInt32Field(buf, 1, v);
         assertEquals(len, buf.position());
         byte[] actual = new byte[len];
         System.arraycopy(buf.array(), 0, actual, 0, len);
@@ -114,61 +114,61 @@ public class PbUtilTest {
     }
 
     @Test
-    public void testWriteUnsignedInt64() {
-        PbUtil.writeUnsignedInt64(null, 1, 0);
-        testWriteUnsignedInt64(1);
-        testWriteUnsignedInt64(-1);
-        testWriteUnsignedInt64(10000);
-        testWriteUnsignedInt64(-10000);
-        testWriteUnsignedInt64(Long.MAX_VALUE);
-        testWriteUnsignedInt64(Long.MIN_VALUE);
-        testWriteUnsignedInt64(1L << 7);
-        testWriteUnsignedInt64((1L << 7) + 1);
-        testWriteUnsignedInt64((1L << 7) - 1);
-        testWriteUnsignedInt64((1L << 7) - 2);
-        testWriteUnsignedInt64(1L << 14);
-        testWriteUnsignedInt64((1L << 14) + 1);
-        testWriteUnsignedInt64((1L << 14) - 1);
-        testWriteUnsignedInt64((1L << 14) - 2);
-        testWriteUnsignedInt64(1L << 21);
-        testWriteUnsignedInt64((1L << 21) + 1);
-        testWriteUnsignedInt64((1L << 21) - 1);
-        testWriteUnsignedInt64((1L << 21) - 2);
-        testWriteUnsignedInt64(1L << 28);
-        testWriteUnsignedInt64((1L << 28) + 1);
-        testWriteUnsignedInt64((1L << 28) - 1);
-        testWriteUnsignedInt64((1L << 28) - 2);
-        testWriteUnsignedInt64(1L << 35);
-        testWriteUnsignedInt64((1L << 35) + 1);
-        testWriteUnsignedInt64((1L << 35) - 1);
-        testWriteUnsignedInt64((1L << 35) - 2);
-        testWriteUnsignedInt64(1L << 42);
-        testWriteUnsignedInt64((1L << 42) + 1);
-        testWriteUnsignedInt64((1L << 42) - 1);
-        testWriteUnsignedInt64((1L << 42) - 2);
-        testWriteUnsignedInt64(1L << 49);
-        testWriteUnsignedInt64((1L << 49) + 1);
-        testWriteUnsignedInt64((1L << 49) - 1);
-        testWriteUnsignedInt64((1L << 49) - 2);
-        testWriteUnsignedInt64(1L << 56);
-        testWriteUnsignedInt64((1L << 56) + 1);
-        testWriteUnsignedInt64((1L << 56) - 1);
-        testWriteUnsignedInt64((1L << 56) - 2);
-        testWriteUnsignedInt64(1L << 63);
-        testWriteUnsignedInt64((1L << 63) + 1);
-        testWriteUnsignedInt64((1L << 63) - 1);
-        testWriteUnsignedInt64((1L << 63) - 2);
+    public void testWriteInt64Field() {
+        PbUtil.writeInt64Field(null, 1, 0);
+        testWriteInt64Field(1);
+        testWriteInt64Field(-1);
+        testWriteInt64Field(10000);
+        testWriteInt64Field(-10000);
+        testWriteInt64Field(Long.MAX_VALUE);
+        testWriteInt64Field(Long.MIN_VALUE);
+        testWriteInt64Field(1L << 7);
+        testWriteInt64Field((1L << 7) + 1);
+        testWriteInt64Field((1L << 7) - 1);
+        testWriteInt64Field((1L << 7) - 2);
+        testWriteInt64Field(1L << 14);
+        testWriteInt64Field((1L << 14) + 1);
+        testWriteInt64Field((1L << 14) - 1);
+        testWriteInt64Field((1L << 14) - 2);
+        testWriteInt64Field(1L << 21);
+        testWriteInt64Field((1L << 21) + 1);
+        testWriteInt64Field((1L << 21) - 1);
+        testWriteInt64Field((1L << 21) - 2);
+        testWriteInt64Field(1L << 28);
+        testWriteInt64Field((1L << 28) + 1);
+        testWriteInt64Field((1L << 28) - 1);
+        testWriteInt64Field((1L << 28) - 2);
+        testWriteInt64Field(1L << 35);
+        testWriteInt64Field((1L << 35) + 1);
+        testWriteInt64Field((1L << 35) - 1);
+        testWriteInt64Field((1L << 35) - 2);
+        testWriteInt64Field(1L << 42);
+        testWriteInt64Field((1L << 42) + 1);
+        testWriteInt64Field((1L << 42) - 1);
+        testWriteInt64Field((1L << 42) - 2);
+        testWriteInt64Field(1L << 49);
+        testWriteInt64Field((1L << 49) + 1);
+        testWriteInt64Field((1L << 49) - 1);
+        testWriteInt64Field((1L << 49) - 2);
+        testWriteInt64Field(1L << 56);
+        testWriteInt64Field((1L << 56) + 1);
+        testWriteInt64Field((1L << 56) - 1);
+        testWriteInt64Field((1L << 56) - 2);
+        testWriteInt64Field(1L << 63);
+        testWriteInt64Field((1L << 63) + 1);
+        testWriteInt64Field((1L << 63) - 1);
+        testWriteInt64Field((1L << 63) - 2);
     }
 
-    private void testWriteUnsignedInt64(long v) {
-        DtPbTest.TestInt pb = DtPbTest.TestInt.newBuilder().setFUint64(v).build();
+    private void testWriteInt64Field(long v) {
+        DtPbTest.TestInt pb = DtPbTest.TestInt.newBuilder().setFInt64(v).build();
         byte[] bs = pb.toByteArray();
         int len = bs.length;
         assertTrue(len >= 2);
         assertTrue(len <= 11);
 
         ByteBuffer buf = ByteBuffer.allocate(20);
-        PbUtil.writeUnsignedInt64(buf, 2, v);
+        PbUtil.writeInt64Field(buf, 2, v);
         assertEquals(len, buf.position());
         byte[] actual = new byte[len];
         System.arraycopy(buf.array(), 0, actual, 0, len);
@@ -208,9 +208,8 @@ public class PbUtilTest {
 
     private void testReadUnsignedInt32(int v) {
         ByteBuffer buf = ByteBuffer.allocate(10);
-        PbUtil.writeUnsignedInt32(buf, 1, v);
+        PbUtil.writeUnsignedInt32(buf, v);
         buf.flip();
-        buf.position(1);
         int v2 = PbUtil.readUnsignedInt32(buf);
         assertEquals(v, v2);
     }
@@ -266,229 +265,228 @@ public class PbUtilTest {
     }
 
     private void testReadUnsignedInt64(long v) {
-        ByteBuffer buf = ByteBuffer.allocate(11);
-        PbUtil.writeUnsignedInt64(buf, 1, v);
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        PbUtil.writeUnsignedInt64(buf, v);
         buf.flip();
-        buf.position(1);
         long v2 = PbUtil.readUnsignedInt64(buf);
         assertEquals(v, v2);
     }
 
     @Test
-    public void testAccurateTagSize() {
-        assertThrows(IllegalArgumentException.class, () -> accurateTagSize(0));
-        assertThrows(IllegalArgumentException.class, () -> accurateTagSize(-1));
-        assertThrows(IllegalArgumentException.class, () -> accurateTagSize(536870911 + 1));
-        testAccurateTagSize(1);
+    public void testSizeOfTag() {
+        assertThrows(IllegalArgumentException.class, () -> sizeOfTag(0));
+        assertThrows(IllegalArgumentException.class, () -> sizeOfTag(-1));
+        assertThrows(IllegalArgumentException.class, () -> sizeOfTag(536870911 + 1));
+        testSizeOfTag(1);
 
-        testAccurateTagSize(1 << 4);
-        testAccurateTagSize((1 << 4) + 1);
-        testAccurateTagSize((1 << 4) - 1);
-        testAccurateTagSize((1 << 4) - 2);
+        testSizeOfTag(1 << 4);
+        testSizeOfTag((1 << 4) + 1);
+        testSizeOfTag((1 << 4) - 1);
+        testSizeOfTag((1 << 4) - 2);
 
-        testAccurateTagSize(1 << 11);
-        testAccurateTagSize((1 << 11) + 1);
-        testAccurateTagSize((1 << 11) - 1);
-        testAccurateTagSize((1 << 11) - 2);
+        testSizeOfTag(1 << 11);
+        testSizeOfTag((1 << 11) + 1);
+        testSizeOfTag((1 << 11) - 1);
+        testSizeOfTag((1 << 11) - 2);
 
-        testAccurateTagSize(1 << 18);
-        testAccurateTagSize((1 << 18) + 1);
-        testAccurateTagSize((1 << 18) - 1);
-        testAccurateTagSize((1 << 18) - 2);
+        testSizeOfTag(1 << 18);
+        testSizeOfTag((1 << 18) + 1);
+        testSizeOfTag((1 << 18) - 1);
+        testSizeOfTag((1 << 18) - 2);
 
-        testAccurateTagSize(1 << 25);
-        testAccurateTagSize((1 << 25) + 1);
-        testAccurateTagSize((1 << 25) - 1);
-        testAccurateTagSize((1 << 25) - 2);
+        testSizeOfTag(1 << 25);
+        testSizeOfTag((1 << 25) + 1);
+        testSizeOfTag((1 << 25) - 1);
+        testSizeOfTag((1 << 25) - 2);
 
-        assertThrows(IllegalArgumentException.class, () -> testAccurateTagSize(1 << 29));
-        testAccurateTagSize((1 << 29) - 1);
-        testAccurateTagSize((1 << 29) - 2);
+        assertThrows(IllegalArgumentException.class, () -> testSizeOfTag(1 << 29));
+        testSizeOfTag((1 << 29) - 1);
+        testSizeOfTag((1 << 29) - 2);
     }
 
-    private void testAccurateTagSize(int index) {
+    private void testSizeOfTag(int index) {
         ByteBuffer buf = ByteBuffer.allocate(5);
         writeTag(buf, TYPE_VAR_INT, index);
-        assertEquals(buf.position(), accurateTagSize(index));
+        assertEquals(buf.position(), sizeOfTag(index));
     }
 
     @Test
-    public void testAccurateUnsignedIntSize() {
-        assertEquals(1, accurateUnsignedIntSize(0));
-        testAccurateUnsignedIntSize(-1);
-        testAccurateUnsignedIntSize(1);
-        testAccurateUnsignedIntSize(Integer.MAX_VALUE);
-        testAccurateUnsignedIntSize(Integer.MAX_VALUE - 1);
-        testAccurateUnsignedIntSize(Integer.MAX_VALUE + 1);
-        testAccurateUnsignedIntSize(Integer.MIN_VALUE);
-        testAccurateUnsignedIntSize(Integer.MIN_VALUE - 1);
-        testAccurateUnsignedIntSize(Integer.MIN_VALUE + 1);
+    public void testSizeOfUnsignedInt32() {
+        assertEquals(1, sizeOfUnsignedInt32(0));
+        testSizeOfUnsignedInt32(-1);
+        testSizeOfUnsignedInt32(1);
+        testSizeOfUnsignedInt32(Integer.MAX_VALUE);
+        testSizeOfUnsignedInt32(Integer.MAX_VALUE - 1);
+        testSizeOfUnsignedInt32(Integer.MAX_VALUE + 1);
+        testSizeOfUnsignedInt32(Integer.MIN_VALUE);
+        testSizeOfUnsignedInt32(Integer.MIN_VALUE - 1);
+        testSizeOfUnsignedInt32(Integer.MIN_VALUE + 1);
 
-        testAccurateUnsignedIntSize(1 << 7);
-        testAccurateUnsignedIntSize((1 << 7) + 1);
-        testAccurateUnsignedIntSize((1 << 7) - 1);
-        testAccurateUnsignedIntSize((1 << 7) - 2);
+        testSizeOfUnsignedInt32(1 << 7);
+        testSizeOfUnsignedInt32((1 << 7) + 1);
+        testSizeOfUnsignedInt32((1 << 7) - 1);
+        testSizeOfUnsignedInt32((1 << 7) - 2);
 
-        testAccurateUnsignedIntSize(1 << 14);
-        testAccurateUnsignedIntSize((1 << 14) + 1);
-        testAccurateUnsignedIntSize((1 << 14) - 1);
-        testAccurateUnsignedIntSize((1 << 14) - 2);
+        testSizeOfUnsignedInt32(1 << 14);
+        testSizeOfUnsignedInt32((1 << 14) + 1);
+        testSizeOfUnsignedInt32((1 << 14) - 1);
+        testSizeOfUnsignedInt32((1 << 14) - 2);
 
-        testAccurateUnsignedIntSize(1 << 21);
-        testAccurateUnsignedIntSize((1 << 21) + 1);
-        testAccurateUnsignedIntSize((1 << 21) - 1);
-        testAccurateUnsignedIntSize((1 << 21) - 2);
+        testSizeOfUnsignedInt32(1 << 21);
+        testSizeOfUnsignedInt32((1 << 21) + 1);
+        testSizeOfUnsignedInt32((1 << 21) - 1);
+        testSizeOfUnsignedInt32((1 << 21) - 2);
 
-        testAccurateUnsignedIntSize(1 << 28);
-        testAccurateUnsignedIntSize((1 << 28) + 1);
-        testAccurateUnsignedIntSize((1 << 28) - 1);
-        testAccurateUnsignedIntSize((1 << 28) - 2);
+        testSizeOfUnsignedInt32(1 << 28);
+        testSizeOfUnsignedInt32((1 << 28) + 1);
+        testSizeOfUnsignedInt32((1 << 28) - 1);
+        testSizeOfUnsignedInt32((1 << 28) - 2);
     }
 
-    private void testAccurateUnsignedIntSize(int value) {
+    private void testSizeOfUnsignedInt32(int value) {
         ByteBuffer buf = ByteBuffer.allocate(5);
-        writeUnsignedInt32ValueOnly(buf, value);
-        assertEquals(buf.position(), accurateUnsignedIntSize(value));
+        writeUnsignedInt32(buf, value);
+        assertEquals(buf.position(), sizeOfUnsignedInt32(value));
     }
 
     @Test
-    public void testAccurateUnsignedIntSizeWithTag() {
-        assertEquals(0, accurateUnsignedIntSize(100, 0));
-        assertEquals(MAX_TAG_INT32_LEN, accurateUnsignedIntSize(536870911, Integer.MAX_VALUE));
-        assertEquals(MAX_TAG_INT32_LEN, accurateUnsignedIntSize(536870911, Integer.MIN_VALUE));
-        assertEquals(MAX_TAG_INT32_LEN, accurateUnsignedIntSize(536870911, -1));
+    public void testSizeOfInt32Field() {
+        assertEquals(0, sizeOfInt32Field(100, 0));
+        assertTrue(sizeOfInt32Field(536870911, Integer.MAX_VALUE) <= MAX_TAG_INT32_LEN);
+        assertEquals(MAX_TAG_INT32_LEN, sizeOfInt32Field(536870911, Integer.MIN_VALUE));
+        assertEquals(MAX_TAG_INT32_LEN, sizeOfInt32Field(536870911, -1));
     }
 
     @Test
-    public void testAccurateUnsignedLongSize() {
-        assertEquals(1L, accurateUnsignedLongSize(0L));
-        testAccurateUnsignedLongSize(-1L);
-        testAccurateUnsignedLongSize(1L);
-        testAccurateUnsignedLongSize(Long.MAX_VALUE);
-        testAccurateUnsignedLongSize(Long.MAX_VALUE - 1);
-        testAccurateUnsignedLongSize(Long.MAX_VALUE + 1);
-        testAccurateUnsignedLongSize(Long.MIN_VALUE);
-        testAccurateUnsignedLongSize(Long.MIN_VALUE - 1);
-        testAccurateUnsignedLongSize(Long.MIN_VALUE + 1);
+    public void testSizeOfUnsignedInt64() {
+        assertEquals(1L, sizeOfUnsignedInt64(0L));
+        testSizeOfUnsignedInt64(-1L);
+        testSizeOfUnsignedInt64(1L);
+        testSizeOfUnsignedInt64(Long.MAX_VALUE);
+        testSizeOfUnsignedInt64(Long.MAX_VALUE - 1);
+        testSizeOfUnsignedInt64(Long.MAX_VALUE + 1);
+        testSizeOfUnsignedInt64(Long.MIN_VALUE);
+        testSizeOfUnsignedInt64(Long.MIN_VALUE - 1);
+        testSizeOfUnsignedInt64(Long.MIN_VALUE + 1);
 
-        testAccurateUnsignedLongSize(1L << 7);
-        testAccurateUnsignedLongSize((1L << 7) + 1);
-        testAccurateUnsignedLongSize((1L << 7) - 1);
-        testAccurateUnsignedLongSize((1L << 7) - 2);
+        testSizeOfUnsignedInt64(1L << 7);
+        testSizeOfUnsignedInt64((1L << 7) + 1);
+        testSizeOfUnsignedInt64((1L << 7) - 1);
+        testSizeOfUnsignedInt64((1L << 7) - 2);
 
-        testAccurateUnsignedLongSize(1L << 14);
-        testAccurateUnsignedLongSize((1L << 14) + 1);
-        testAccurateUnsignedLongSize((1L << 14) - 1);
-        testAccurateUnsignedLongSize((1L << 14) - 2);
+        testSizeOfUnsignedInt64(1L << 14);
+        testSizeOfUnsignedInt64((1L << 14) + 1);
+        testSizeOfUnsignedInt64((1L << 14) - 1);
+        testSizeOfUnsignedInt64((1L << 14) - 2);
 
-        testAccurateUnsignedLongSize(1L << 21);
-        testAccurateUnsignedLongSize((1L << 21) + 1);
-        testAccurateUnsignedLongSize((1L << 21) - 1);
-        testAccurateUnsignedLongSize((1L << 21) - 2);
+        testSizeOfUnsignedInt64(1L << 21);
+        testSizeOfUnsignedInt64((1L << 21) + 1);
+        testSizeOfUnsignedInt64((1L << 21) - 1);
+        testSizeOfUnsignedInt64((1L << 21) - 2);
 
-        testAccurateUnsignedLongSize(1L << 28);
-        testAccurateUnsignedLongSize((1L << 28) + 1);
-        testAccurateUnsignedLongSize((1L << 28) - 1);
-        testAccurateUnsignedLongSize((1L << 28) - 2);
+        testSizeOfUnsignedInt64(1L << 28);
+        testSizeOfUnsignedInt64((1L << 28) + 1);
+        testSizeOfUnsignedInt64((1L << 28) - 1);
+        testSizeOfUnsignedInt64((1L << 28) - 2);
 
-        testAccurateUnsignedLongSize(1L << 35);
-        testAccurateUnsignedLongSize((1L << 35) + 1);
-        testAccurateUnsignedLongSize((1L << 35) - 1);
-        testAccurateUnsignedLongSize((1L << 35) - 2);
+        testSizeOfUnsignedInt64(1L << 35);
+        testSizeOfUnsignedInt64((1L << 35) + 1);
+        testSizeOfUnsignedInt64((1L << 35) - 1);
+        testSizeOfUnsignedInt64((1L << 35) - 2);
 
-        testAccurateUnsignedLongSize(1L << 42);
-        testAccurateUnsignedLongSize((1L << 42) + 1);
-        testAccurateUnsignedLongSize((1L << 42) - 1);
-        testAccurateUnsignedLongSize((1L << 42) - 2);
+        testSizeOfUnsignedInt64(1L << 42);
+        testSizeOfUnsignedInt64((1L << 42) + 1);
+        testSizeOfUnsignedInt64((1L << 42) - 1);
+        testSizeOfUnsignedInt64((1L << 42) - 2);
 
-        testAccurateUnsignedLongSize(1L << 49);
-        testAccurateUnsignedLongSize((1L << 49) + 1);
-        testAccurateUnsignedLongSize((1L << 49) - 1);
-        testAccurateUnsignedLongSize((1L << 49) - 2);
+        testSizeOfUnsignedInt64(1L << 49);
+        testSizeOfUnsignedInt64((1L << 49) + 1);
+        testSizeOfUnsignedInt64((1L << 49) - 1);
+        testSizeOfUnsignedInt64((1L << 49) - 2);
 
-        testAccurateUnsignedLongSize(1L << 56);
-        testAccurateUnsignedLongSize((1L << 56) + 1);
-        testAccurateUnsignedLongSize((1L << 56) - 1);
-        testAccurateUnsignedLongSize((1L << 56) - 2);
+        testSizeOfUnsignedInt64(1L << 56);
+        testSizeOfUnsignedInt64((1L << 56) + 1);
+        testSizeOfUnsignedInt64((1L << 56) - 1);
+        testSizeOfUnsignedInt64((1L << 56) - 2);
     }
 
-    private void testAccurateUnsignedLongSize(long value) {
+    private void testSizeOfUnsignedInt64(long value) {
         ByteBuffer buf = ByteBuffer.allocate(10);
-        writeUnsignedInt64ValueOnly(buf, value);
-        assertEquals(buf.position(), accurateUnsignedLongSize(value));
+        writeUnsignedInt64(buf, value);
+        assertEquals(buf.position(), sizeOfUnsignedInt64(value));
     }
 
     @Test
-    public void testAccurateUnsignedLongSizeWithTag() {
-        assertEquals(0, accurateUnsignedLongSize(100, 0L));
-        assertEquals(MAX_TAG_INT64_LEN - 1, accurateUnsignedLongSize(536870911, Long.MAX_VALUE));
-        assertEquals(MAX_TAG_INT64_LEN, accurateUnsignedLongSize(536870911, Long.MIN_VALUE));
-        assertEquals(MAX_TAG_INT64_LEN, accurateUnsignedLongSize(536870911, -1));
+    public void testSizeOfInt64Field() {
+        assertEquals(0, sizeOfInt64Field(100, 0L));
+        assertEquals(MAX_TAG_INT64_LEN - 1, sizeOfInt64Field(536870911, Long.MAX_VALUE));
+        assertEquals(MAX_TAG_INT64_LEN, sizeOfInt64Field(536870911, Long.MIN_VALUE));
+        assertEquals(MAX_TAG_INT64_LEN, sizeOfInt64Field(536870911, -1));
     }
 
     @Test
     public void testWriteFixNumber() {
-        assertEquals(0, accurateFix32Size(1, 0));
-        assertEquals(0, accurateFix64Size(1, 0));
+        assertEquals(0, sizeOfFix32Field(1, 0));
+        assertEquals(0, sizeOfFix64Field(1, 0));
 
         ByteBuffer buf = ByteBuffer.allocate(MAX_TAG_FIX32_LEN);
-        writeFix32(buf, 1, 0);
-        writeFix64(buf, 1, 0);
+        writeFix32Field(buf, 1, 0);
+        writeFix64Field(buf, 1, 0);
         assertEquals(0, buf.position());
 
-        writeFix32(buf, 536870911, 123456);
-        assertEquals(accurateFix32Size(536870911, 123456), buf.position());
+        writeFix32Field(buf, 536870911, 123456);
+        assertEquals(sizeOfFix32Field(536870911, 123456), buf.position());
         buf.position(5);
         assertEquals(123456, Integer.reverseBytes(buf.getInt()));
 
         buf = ByteBuffer.allocate(MAX_TAG_FIX64_LEN);
-        writeFix64(buf, 536870911, 12345689012345L);
-        assertEquals(accurateFix64Size(536870911, 12345689012345L), buf.position());
+        writeFix64Field(buf, 536870911, 12345689012345L);
+        assertEquals(sizeOfFix64Field(536870911, 12345689012345L), buf.position());
         buf.position(5);
         assertEquals(12345689012345L, Long.reverseBytes(buf.getLong()));
     }
 
     @Test
     public void testString() {
-        assertEquals(0, accurateStrSizeAscii(1, null));
-        assertEquals(0, accurateStrSizeAscii(1, ""));
+        assertEquals(0, sizeOfAscii(1, null));
+        assertEquals(0, sizeOfAscii(1, ""));
 
         String asciiStr = "12345678";
-        ByteBuffer buf = ByteBuffer.allocate(accurateStrSizeAscii(536870911, asciiStr));
-        writeAscii(buf, 536870911, asciiStr);
+        ByteBuffer buf = ByteBuffer.allocate(sizeOfAscii(536870911, asciiStr));
+        writeAsciiField(buf, 536870911, asciiStr);
         assertEquals(0, buf.remaining());
     }
 
     @Test
-    public void testWriteUnsignedInt32ValueOnly(){
-        testWriteUnsignedInt32ValueOnly(0);
-        testWriteUnsignedInt32ValueOnly(1);
-        testWriteUnsignedInt32ValueOnly(-1);
-        testWriteUnsignedInt32ValueOnly(Integer.MAX_VALUE);
-        testWriteUnsignedInt32ValueOnly(Integer.MIN_VALUE);
+    public void testWriteUnsignedInt32() {
+        testWriteUnsignedInt32(0);
+        testWriteUnsignedInt32(1);
+        testWriteUnsignedInt32(-1);
+        testWriteUnsignedInt32(Integer.MAX_VALUE);
+        testWriteUnsignedInt32(Integer.MIN_VALUE);
     }
 
-    private void testWriteUnsignedInt32ValueOnly(int v) {
+    private void testWriteUnsignedInt32(int v) {
         ByteBuffer buf = ByteBuffer.allocate(10);
 
-        PbUtil.writeUnsignedInt32ValueOnly(buf, v);
+        PbUtil.writeUnsignedInt32(buf, v);
         buf.flip();
         assertEquals(v, PbUtil.readUnsignedInt32(buf));
     }
 
     @Test
-    public void testWriteUnsignedInt64ValueOnly() {
+    public void testWriteUnsignedInt64() {
         // testWriteUnsignedInt64ValueOnly(0);
-        testWriteUnsignedInt64ValueOnly(1);
-        testWriteUnsignedInt64ValueOnly(-1);
-        testWriteUnsignedInt64ValueOnly(Long.MAX_VALUE);
-        testWriteUnsignedInt64ValueOnly(Long.MIN_VALUE);
+        testWriteUnsignedInt64(1);
+        testWriteUnsignedInt64(-1);
+        testWriteUnsignedInt64(Long.MAX_VALUE);
+        testWriteUnsignedInt64(Long.MIN_VALUE);
     }
 
-    private void testWriteUnsignedInt64ValueOnly(long v) {
+    private void testWriteUnsignedInt64(long v) {
         ByteBuffer buf = ByteBuffer.allocate(10);
 
-        PbUtil.writeUnsignedInt64ValueOnly(buf, v);
+        PbUtil.writeUnsignedInt64(buf, v);
         buf.flip();
         assertEquals(v, PbUtil.readUnsignedInt64(buf));
     }

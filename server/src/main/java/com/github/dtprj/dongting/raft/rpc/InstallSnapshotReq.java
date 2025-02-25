@@ -160,24 +160,24 @@ public class InstallSnapshotReq extends RaftConfigRpcData {
 
         public InstallReqWritePacket(InstallSnapshotReq req) {
             this.req = req;
-            int x = PbUtil.accurateUnsignedIntSize(1, req.groupId)
-                    + PbUtil.accurateUnsignedIntSize(2, req.term)
-                    + PbUtil.accurateUnsignedIntSize(3, req.leaderId)
-                    + PbUtil.accurateFix64Size(4, req.lastIncludedIndex)
-                    + PbUtil.accurateUnsignedIntSize(5, req.lastIncludedTerm)
-                    + PbUtil.accurateFix64Size(6, req.offset)
-                    + PbUtil.accurateUnsignedIntSize(7, req.done ? 1 : 0)
-                    + PbUtil.accurateFix64Size(8, req.nextWritePos);
-            x += PbUtil.accurateFix32Size(9, req.members);
-            x += PbUtil.accurateFix32Size(10, req.observers);
-            x += PbUtil.accurateFix32Size(11, req.preparedMembers);
-            x += PbUtil.accurateFix32Size(12, req.preparedObservers);
-            x += PbUtil.accurateFix64Size(13, req.lastConfigChangeIndex);
+            int x = PbUtil.sizeOfInt32Field(1, req.groupId)
+                    + PbUtil.sizeOfInt32Field(2, req.term)
+                    + PbUtil.sizeOfInt32Field(3, req.leaderId)
+                    + PbUtil.sizeOfFix64Field(4, req.lastIncludedIndex)
+                    + PbUtil.sizeOfInt32Field(5, req.lastIncludedTerm)
+                    + PbUtil.sizeOfFix64Field(6, req.offset)
+                    + PbUtil.sizeOfInt32Field(7, req.done ? 1 : 0)
+                    + PbUtil.sizeOfFix64Field(8, req.nextWritePos);
+            x += PbUtil.sizeOfFix32Field(9, req.members);
+            x += PbUtil.sizeOfFix32Field(10, req.observers);
+            x += PbUtil.sizeOfFix32Field(11, req.preparedMembers);
+            x += PbUtil.sizeOfFix32Field(12, req.preparedObservers);
+            x += PbUtil.sizeOfFix64Field(13, req.lastConfigChangeIndex);
 
             RefBuffer rb = req.data;
             if (rb != null && rb.getBuffer().hasRemaining()) {
                 this.bufferSize = rb.getBuffer().remaining();
-                x += PbUtil.accurateLengthDelimitedPrefixSize(15, bufferSize) + bufferSize;
+                x += PbUtil.sizeOfLenFieldPrefix(15, bufferSize) + bufferSize;
             } else {
                 this.bufferSize = 0;
             }
@@ -193,21 +193,21 @@ public class InstallSnapshotReq extends RaftConfigRpcData {
         protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
             if (!headerWritten) {
                 if (dest.remaining() >= headerSize) {
-                    PbUtil.writeUnsignedInt32(dest, 1, req.groupId);
-                    PbUtil.writeUnsignedInt32(dest, 2, req.term);
-                    PbUtil.writeUnsignedInt32(dest, 3, req.leaderId);
-                    PbUtil.writeFix64(dest, 4, req.lastIncludedIndex);
-                    PbUtil.writeUnsignedInt32(dest, 5, req.lastIncludedTerm);
-                    PbUtil.writeFix64(dest, 6, req.offset);
-                    PbUtil.writeUnsignedInt32(dest, 7, req.done ? 1 : 0);
-                    PbUtil.writeFix64(dest, 8, req.nextWritePos);
-                    PbUtil.writeFix32(dest, 9, req.members);
-                    PbUtil.writeFix32(dest, 10, req.observers);
-                    PbUtil.writeFix32(dest, 11, req.preparedMembers);
-                    PbUtil.writeFix32(dest, 12, req.preparedObservers);
-                    PbUtil.writeFix64(dest, 13, req.lastConfigChangeIndex);
+                    PbUtil.writeInt32Field(dest, 1, req.groupId);
+                    PbUtil.writeInt32Field(dest, 2, req.term);
+                    PbUtil.writeInt32Field(dest, 3, req.leaderId);
+                    PbUtil.writeFix64Field(dest, 4, req.lastIncludedIndex);
+                    PbUtil.writeInt32Field(dest, 5, req.lastIncludedTerm);
+                    PbUtil.writeFix64Field(dest, 6, req.offset);
+                    PbUtil.writeInt32Field(dest, 7, req.done ? 1 : 0);
+                    PbUtil.writeFix64Field(dest, 8, req.nextWritePos);
+                    PbUtil.writeFix32Field(dest, 9, req.members);
+                    PbUtil.writeFix32Field(dest, 10, req.observers);
+                    PbUtil.writeFix32Field(dest, 11, req.preparedMembers);
+                    PbUtil.writeFix32Field(dest, 12, req.preparedObservers);
+                    PbUtil.writeFix64Field(dest, 13, req.lastConfigChangeIndex);
                     if (bufferSize > 0) {
-                        PbUtil.writeLengthDelimitedPrefix(dest, 15, bufferSize);
+                        PbUtil.writeLenFieldPrefix(dest, 15, bufferSize);
                     }
                     headerWritten = true;
                 } else {

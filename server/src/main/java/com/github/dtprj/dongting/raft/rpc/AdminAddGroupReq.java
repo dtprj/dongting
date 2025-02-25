@@ -31,16 +31,16 @@ public class AdminAddGroupReq extends PbCallback<AdminAddGroupReq> implements Si
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, groupId);
-        PbUtil.writeAscii(buf, 2, nodeIdOfMembers);
-        PbUtil.writeAscii(buf, 3, nodeIdOfObservers);
+        PbUtil.writeInt32Field(buf, 1, groupId);
+        PbUtil.writeAsciiField(buf, 2, nodeIdOfMembers);
+        PbUtil.writeAsciiField(buf, 3, nodeIdOfObservers);
     }
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, groupId) +
-                PbUtil.accurateStrSizeAscii(2, nodeIdOfMembers) +
-                PbUtil.accurateStrSizeAscii(3, nodeIdOfObservers);
+        return PbUtil.sizeOfInt32Field(1, groupId) +
+                PbUtil.sizeOfAscii(2, nodeIdOfMembers) +
+                PbUtil.sizeOfAscii(3, nodeIdOfObservers);
     }
 
     @Override

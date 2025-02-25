@@ -94,18 +94,18 @@ public abstract class WritePacket extends Packet implements Encodable {
         int dumpSize = this.dumpSize;
         if (dumpSize == 0) {
             dumpSize = 4 // length
-                    + PbUtil.accurateUnsignedIntSize(IDX_TYPE, packetType) // uint32 packet_type = 1;
-                    + PbUtil.accurateUnsignedIntSize(IDX_COMMAND, command) // uint32 command = 2;
-                    + PbUtil.accurateFix32Size(IDX_SEQ, seq) // fixed32 seq = 3;
-                    + PbUtil.accurateUnsignedIntSize(IDX_RESP_CODE, respCode) // uint32 resp_code = 4;
-                    + PbUtil.accurateUnsignedIntSize(IDX_BIZ_CODE, bizCode) // uint32 biz_code = 5;
-                    + PbUtil.accurateBytesLength(IDX_MSG, msgBytes) // string resp_msg = 6;
-                    + PbUtil.accurateFix64Size(IDX_TIMEOUT, timeout) // fixed64 timeout = 7;
-                    + PbUtil.accurateBytesLength(IDX_EXTRA, extra); // bytes extra = 8;
+                    + PbUtil.sizeOfInt32Field(IDX_TYPE, packetType) // uint32 packet_type = 1;
+                    + PbUtil.sizeOfInt32Field(IDX_COMMAND, command) // uint32 command = 2;
+                    + PbUtil.sizeOfFix32Field(IDX_SEQ, seq) // fixed32 seq = 3;
+                    + PbUtil.sizeOfInt32Field(IDX_RESP_CODE, respCode) // uint32 resp_code = 4;
+                    + PbUtil.sizeOfInt32Field(IDX_BIZ_CODE, bizCode) // uint32 biz_code = 5;
+                    + PbUtil.sizeOfBytesField(IDX_MSG, msgBytes) // string resp_msg = 6;
+                    + PbUtil.sizeOfFix64Field(IDX_TIMEOUT, timeout) // fixed64 timeout = 7;
+                    + PbUtil.sizeOfBytesField(IDX_EXTRA, extra); // bytes extra = 8;
             int bodySize = actualBodySize();
             if (bodySize > 0) {
                 // bytes body = 15;
-                dumpSize += PbUtil.accurateLengthDelimitedPrefixSize(IDX_BODY, bodySize) + bodySize;
+                dumpSize += PbUtil.sizeOfLenFieldPrefix(IDX_BODY, bodySize) + bodySize;
             }
             this.dumpSize = dumpSize;
         }
@@ -122,16 +122,16 @@ public abstract class WritePacket extends Packet implements Encodable {
                 return false;
             } else {
                 buf.putInt(totalSize - 4); //not include total length
-                PbUtil.writeUnsignedInt32(buf, IDX_TYPE, packetType);
-                PbUtil.writeUnsignedInt32(buf, IDX_COMMAND, command);
-                PbUtil.writeFix32(buf, IDX_SEQ, seq);
-                PbUtil.writeUnsignedInt32(buf, IDX_RESP_CODE, respCode);
-                PbUtil.writeUnsignedInt32(buf, IDX_BIZ_CODE, bizCode);
-                PbUtil.writeBytes(buf, IDX_MSG, msgBytes);
-                PbUtil.writeFix64(buf, IDX_TIMEOUT, timeout);
-                PbUtil.writeBytes(buf, IDX_EXTRA, extra);
+                PbUtil.writeInt32Field(buf, IDX_TYPE, packetType);
+                PbUtil.writeInt32Field(buf, IDX_COMMAND, command);
+                PbUtil.writeFix32Field(buf, IDX_SEQ, seq);
+                PbUtil.writeInt32Field(buf, IDX_RESP_CODE, respCode);
+                PbUtil.writeInt32Field(buf, IDX_BIZ_CODE, bizCode);
+                PbUtil.writeBytesField(buf, IDX_MSG, msgBytes);
+                PbUtil.writeFix64Field(buf, IDX_TIMEOUT, timeout);
+                PbUtil.writeBytesField(buf, IDX_EXTRA, extra);
                 if (bodySize > 0) {
-                    PbUtil.writeLengthDelimitedPrefix(buf, Packet.IDX_BODY, bodySize);
+                    PbUtil.writeLenFieldPrefix(buf, Packet.IDX_BODY, bodySize);
                 }
                 step = STATUS_HEADER_ENCODE_FINISHED;
             }

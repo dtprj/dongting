@@ -79,7 +79,7 @@ class EncodeUtilTest {
     private void check(int index, byte[] data) {
         buf.flip();
         ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
-        PbUtil.writeLengthDelimitedPrefix(buf2, index, data.length);
+        PbUtil.writeLenFieldPrefix(buf2, index, data.length);
         buf2.put(data);
         buf2.flip();
         assertEquals(buf2, buf);
@@ -105,7 +105,7 @@ class EncodeUtilTest {
         buf.flip();
         ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
         for (byte[] data : list) {
-            PbUtil.writeLengthDelimitedPrefix(buf2, index, data.length);
+            PbUtil.writeLenFieldPrefix(buf2, index, data.length);
             buf2.put(data);
         }
         buf2.flip();

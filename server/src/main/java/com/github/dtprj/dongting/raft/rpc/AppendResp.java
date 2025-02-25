@@ -40,20 +40,20 @@ public class AppendResp extends RaftRpcData implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, term)
-                + PbUtil.accurateUnsignedIntSize(2, success ? 1 : 0)
-                + PbUtil.accurateUnsignedIntSize(3, appendCode)
-                + PbUtil.accurateUnsignedIntSize(4, suggestTerm)
-                + PbUtil.accurateFix64Size(5, suggestIndex);
+        return PbUtil.sizeOfInt32Field(1, term)
+                + PbUtil.sizeOfInt32Field(2, success ? 1 : 0)
+                + PbUtil.sizeOfInt32Field(3, appendCode)
+                + PbUtil.sizeOfInt32Field(4, suggestTerm)
+                + PbUtil.sizeOfFix64Field(5, suggestIndex);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, term);
-        PbUtil.writeUnsignedInt32(buf, 2, success ? 1 : 0);
-        PbUtil.writeUnsignedInt32(buf, 3, appendCode);
-        PbUtil.writeUnsignedInt32(buf, 4, suggestTerm);
-        PbUtil.writeFix64(buf, 5, suggestIndex);
+        PbUtil.writeInt32Field(buf, 1, term);
+        PbUtil.writeInt32Field(buf, 2, success ? 1 : 0);
+        PbUtil.writeInt32Field(buf, 3, appendCode);
+        PbUtil.writeInt32Field(buf, 4, suggestTerm);
+        PbUtil.writeFix64Field(buf, 5, suggestIndex);
     }
 
     // re-used

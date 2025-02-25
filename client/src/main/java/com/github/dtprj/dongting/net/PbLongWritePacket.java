@@ -37,7 +37,7 @@ public class PbLongWritePacket extends SmallNoCopyWritePacket {
 
     @Override
     protected void encodeBody(ByteBuffer buf) {
-        PbUtil.writeFix64(buf, 1, value);
+        PbUtil.writeFix64Field(buf, 1, value);
     }
 
     @Override

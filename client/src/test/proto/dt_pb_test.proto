@@ -31,13 +31,13 @@ message TestTag {
 }
 
 message TestInt {
-  uint32 f_uint32 = 1;
-  uint64 f_uint64 = 2;
+  int32 f_int32 = 1;
+  int64 f_int64 = 2;
 }
 
 message PbParserTestMsg {
-  uint32 int32Field = 1;
-  uint64 int64Field = 2;
+  int32 int32Field = 1;
+  int64 int64Field = 2;
   string stringField = 3;
   bytes bytesField = 4000;
   fixed32 int32Fix = 5;
@@ -46,6 +46,6 @@ message PbParserTestMsg {
 }
 
 message PbParserTestMsgNested {
-  uint32 f101 = 101;
+  int32 f101 = 101;
   string f102 = 102;
 }

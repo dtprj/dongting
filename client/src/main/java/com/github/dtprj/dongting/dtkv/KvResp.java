@@ -58,10 +58,10 @@ public class KvResp implements Encodable {
     @Override
     public int actualSize() {
         if (encodeSize == 0) {
-            this.encodeSize = PbUtil.accurateUnsignedIntSize(IDX_RESULTS_SIZE, results == null ? 0 : results.size())
+            this.encodeSize = PbUtil.sizeOfInt32Field(IDX_RESULTS_SIZE, results == null ? 0 : results.size())
                     + EncodeUtil.actualSizeOfObjs(IDX_RESULTS, results)
-                    + PbUtil.accurateUnsignedIntSize(IDX_CODES_SIZE, codes == null ? 0 : codes.length)
-                    + PbUtil.accurateFix32Size(IDX_CODES, codes);
+                    + PbUtil.sizeOfInt32Field(IDX_CODES_SIZE, codes == null ? 0 : codes.length)
+                    + PbUtil.sizeOfFix32Field(IDX_CODES, codes);
         }
         return encodeSize;
     }
@@ -70,7 +70,7 @@ public class KvResp implements Encodable {
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         switch (context.stage) {
             case EncodeContext.STAGE_BEGIN:
-                if (!EncodeUtil.encodeUint32(context, destBuffer, IDX_RESULTS_SIZE, results == null ? 0 : results.size())) {
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_RESULTS_SIZE, results == null ? 0 : results.size())) {
                     return false;
                 }
                 // fall through
@@ -80,7 +80,7 @@ public class KvResp implements Encodable {
                 }
                 // fall through
             case IDX_RESULTS:
-                if (!EncodeUtil.encodeUint32(context, destBuffer, IDX_CODES_SIZE, codes == null ? 0 : codes.length)) {
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_CODES_SIZE, codes == null ? 0 : codes.length)) {
                     return false;
                 }
                 // fall through

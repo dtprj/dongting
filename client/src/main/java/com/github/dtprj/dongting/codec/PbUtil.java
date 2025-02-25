@@ -29,11 +29,11 @@ public final class PbUtil {
 
     private static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
     private static final int MAX_TAG_LENGTH = 5;
-    private static final int MAX_UNSIGNED_INT_LENGTH = 5;
-    private static final int MAX_UNSIGNED_LONG_LENGTH = 10;
+    private static final int MAX_INT32_LENGTH = 10;
+    private static final int MAX_INT64_LENGTH = 10;
 
-    static final int MAX_TAG_INT32_LEN = MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH;
-    static final int MAX_TAG_INT64_LEN = MAX_TAG_LENGTH + MAX_UNSIGNED_LONG_LENGTH;
+    static final int MAX_TAG_INT32_LEN = MAX_TAG_LENGTH + MAX_INT32_LENGTH;
+    static final int MAX_TAG_INT64_LEN = MAX_TAG_LENGTH + MAX_INT64_LENGTH;
     static final int MAX_TAG_FIX32_LEN = MAX_TAG_LENGTH + 4;
     static final int MAX_TAG_FIX64_LEN = MAX_TAG_LENGTH + 8;
 
@@ -55,10 +55,8 @@ public final class PbUtil {
     public static final int TYPE_VAR_INT = 0;
     public static final int TYPE_FIX64 = 1;
     public static final int TYPE_LENGTH_DELIMITED = 2;
-    @SuppressWarnings("unused")
-    public static final int TYPE_START_GROUP = 3;
-    @SuppressWarnings("unused")
-    public static final int TYPE_END_GROUP = 4;
+    // public static final int TYPE_START_GROUP = 3;
+    // public static final int TYPE_END_GROUP = 4;
     public static final int TYPE_FIX32 = 5;
 
     static void writeTag(ByteBuffer buf, int type, int index) {
@@ -67,18 +65,23 @@ public final class PbUtil {
         }
         int value = (index << 3) | type;
 
-        writeUnsignedInt32ValueOnly(buf, value);
+        writeUnsignedInt32(buf, value);
     }
 
-    public static void writeUnsignedInt32(ByteBuffer buf, int index, int value) {
+    public static void writeInt32Field(ByteBuffer buf, int index, int value) {
         if (value == 0) {
             return;
         }
         writeTag(buf, TYPE_VAR_INT, index);
-        writeUnsignedInt32ValueOnly(buf, value);
+        if (value < 0) {
+            // negative number use 10 bytes
+            writeUnsignedInt64(buf, value);
+        } else {
+            writeUnsignedInt32(buf, value);
+        }
     }
 
-    static void writeUnsignedInt32ValueOnly(ByteBuffer buf, int value) {
+    static void writeUnsignedInt32(ByteBuffer buf, int value) {
         for (int i = 0; i < 5; i++) {
             int x = value & 0x7F;
             value >>>= 7;
@@ -92,7 +95,7 @@ public final class PbUtil {
         }
     }
 
-    public static void writeFix32(ByteBuffer buf, int index, int value) {
+    public static void writeFix32Field(ByteBuffer buf, int index, int value) {
         if (value == 0) {
             return;
         }
@@ -100,7 +103,7 @@ public final class PbUtil {
         buf.putInt(Integer.reverseBytes(value));
     }
 
-    public static void writeFix32(ByteBuffer buf, int index, Set<Integer> s) {
+    public static void writeFix32Field(ByteBuffer buf, int index, Set<Integer> s) {
         if (s == null || s.isEmpty()) {
             return;
         }
@@ -110,7 +113,7 @@ public final class PbUtil {
         }
     }
 
-    public static void writeFix64(ByteBuffer buf, int index, long value) {
+    public static void writeFix64Field(ByteBuffer buf, int index, long value) {
         if (value == 0) {
             return;
         }
@@ -118,15 +121,15 @@ public final class PbUtil {
         buf.putLong(Long.reverseBytes(value));
     }
 
-    public static void writeUnsignedInt64(ByteBuffer buf, int index, long value) {
+    public static void writeInt64Field(ByteBuffer buf, int index, long value) {
         if (value == 0) {
             return;
         }
         writeTag(buf, TYPE_VAR_INT, index);
-        writeUnsignedInt64ValueOnly(buf, value);
+        writeUnsignedInt64(buf, value);
     }
 
-    static void writeUnsignedInt64ValueOnly(ByteBuffer buf, long value) {
+    static void writeUnsignedInt64(ByteBuffer buf, long value) {
         for (int i = 0; i < 10; i++) {
             long x = value & 0x7FL;
             value >>>= 7;
@@ -140,7 +143,7 @@ public final class PbUtil {
         }
     }
 
-    public static void writeAscii(ByteBuffer buf, int index, String value) {
+    public static void writeAsciiField(ByteBuffer buf, int index, String value) {
         if (value == null) {
             return;
         }
@@ -149,18 +152,18 @@ public final class PbUtil {
             return;
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
-        writeUnsignedInt32ValueOnly(buf, len);
+        writeUnsignedInt32(buf, len);
         for (int i = 0; i < len; i++) {
             buf.put((byte) value.charAt(i));
         }
     }
 
-    public static void writeLengthDelimitedPrefix(ByteBuffer buf, int index, int len) {
+    public static void writeLenFieldPrefix(ByteBuffer buf, int index, int len) {
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
-        writeUnsignedInt32ValueOnly(buf, len);
+        writeUnsignedInt32(buf, len);
     }
 
-    public static void writeBytes(ByteBuffer buf, int index, byte[] data) {
+    public static void writeBytesField(ByteBuffer buf, int index, byte[] data) {
         if (data == null) {
             return;
         }
@@ -168,11 +171,11 @@ public final class PbUtil {
             return;
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
-        writeUnsignedInt32ValueOnly(buf, data.length);
+        writeUnsignedInt32(buf, data.length);
         buf.put(data);
     }
 
-    public static int readUnsignedInt32(ByteBuffer buf) {
+    static int readUnsignedInt32(ByteBuffer buf) {
         int bitIndex = 0;
         int value = 0;
         for (int i = 0; i < 5; i++) {
@@ -186,7 +189,7 @@ public final class PbUtil {
         throw new PbException("bad protobuf var int input");
     }
 
-    public static long readUnsignedInt64(ByteBuffer buf) {
+    static long readUnsignedInt64(ByteBuffer buf) {
         int bitIndex = 0;
         long value = 0;
         for (int i = 0; i < 10; i++) {
@@ -200,7 +203,7 @@ public final class PbUtil {
         throw new PbException("bad protobuf var int input");
     }
 
-    public static int accurateStrSizeAscii(int index, String str) {
+    public static int sizeOfAscii(int index, String str) {
         if (str == null) {
             return 0;
         }
@@ -208,24 +211,28 @@ public final class PbUtil {
         if (len == 0) {
             return 0;
         }
-        return accurateTagSize(index) + accurateUnsignedIntSize(len) + len;
+        return sizeOfTag(index) + sizeOfUnsignedInt32(len) + len;
     }
 
-    public static int accurateTagSize(int index) {
+    public static int sizeOfTag(int index) {
         if (index > MAX_SUPPORT_FIELD_INDEX || index <= 0) {
             throw new IllegalArgumentException(String.valueOf(index));
         }
-        return accurateUnsignedIntSize(index << 3);
+        return sizeOfUnsignedInt32(index << 3);
     }
 
-    public static int accurateUnsignedIntSize(int index, int value) {
+    public static int sizeOfInt32Field(int index, int value) {
         if (value == 0) {
             return 0;
         }
-        return accurateTagSize(index) + accurateUnsignedIntSize(value);
+        if (value > 0) {
+            return sizeOfTag(index) + sizeOfUnsignedInt32(value);
+        } else {
+            return sizeOfTag(index) + sizeOfUnsignedInt64(value);
+        }
     }
 
-    static int accurateUnsignedIntSize(int value) {
+    static int sizeOfUnsignedInt32(int value) {
         if (value < 0) {
             return 5;
         } else if (value <= MAX_1_BYTE_INT_VALUE) {
@@ -241,14 +248,14 @@ public final class PbUtil {
         }
     }
 
-    public static int accurateUnsignedLongSize(int index, long value) {
+    public static int sizeOfInt64Field(int index, long value) {
         if (value == 0L) {
             return 0;
         }
-        return accurateTagSize(index) + accurateUnsignedLongSize(value);
+        return sizeOfTag(index) + sizeOfUnsignedInt64(value);
     }
 
-    static int accurateUnsignedLongSize(long value) {
+    static int sizeOfUnsignedInt64(long value) {
         if (value < 0L) {
             return 10;
         } else if (value <= MAX_1_BYTE_LONG_VALUE) {
@@ -273,42 +280,42 @@ public final class PbUtil {
         }
     }
 
-    public static int accurateFix32Size(int index, int value) {
+    public static int sizeOfFix32Field(int index, int value) {
         if (value == 0) {
             return 0;
         }
-        return accurateTagSize(index) + 4;
+        return sizeOfTag(index) + 4;
     }
 
-    public static int accurateFix32Size(int index, Set<Integer> s) {
+    public static int sizeOfFix32Field(int index, Set<Integer> s) {
         if (s == null || s.isEmpty()) {
             return 0;
         }
-        return s.size() * (accurateTagSize(index) + 4);
+        return s.size() * (sizeOfTag(index) + 4);
     }
 
-    public static int accurateFix32Size(int index, int[] v) {
+    public static int sizeOfFix32Field(int index, int[] v) {
         if (v == null || v.length == 0) {
             return 0;
         }
-        return v.length * (accurateTagSize(index) + 4);
+        return v.length * (sizeOfTag(index) + 4);
     }
 
-    public static int accurateFix64Size(int index, long value) {
+    public static int sizeOfFix64Field(int index, long value) {
         if (value == 0L) {
             return 0;
         }
-        return accurateTagSize(index) + 8;
+        return sizeOfTag(index) + 8;
     }
 
-    public static int accurateBytesLength(int index, byte[] bs) {
+    public static int sizeOfBytesField(int index, byte[] bs) {
         if (bs == null || bs.length == 0) {
             return 0;
         }
-        return accurateTagSize(index) + accurateUnsignedIntSize(bs.length) + bs.length;
+        return sizeOfTag(index) + sizeOfUnsignedInt32(bs.length) + bs.length;
     }
 
-    public static int accurateLengthDelimitedPrefixSize(int index, int bodyLen) {
-        return accurateTagSize(index) + accurateUnsignedIntSize(bodyLen);
+    public static int sizeOfLenFieldPrefix(int index, int bodyLen) {
+        return sizeOfTag(index) + sizeOfUnsignedInt32(bodyLen);
     }
 }

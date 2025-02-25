@@ -37,7 +37,7 @@ public class PbIntWritePacket extends SmallNoCopyWritePacket {
 
     @Override
     protected void encodeBody(ByteBuffer buf) {
-        PbUtil.writeFix32(buf, 1, value);
+        PbUtil.writeFix32Field(buf, 1, value);
     }
 
     @Override

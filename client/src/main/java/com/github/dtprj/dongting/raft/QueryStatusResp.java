@@ -47,30 +47,30 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
 
     @Override
     public int actualSize() {
-        return PbUtil.accurateUnsignedIntSize(1, groupId) +
-                PbUtil.accurateUnsignedIntSize(2, term) +
-                PbUtil.accurateUnsignedIntSize(3, leaderId) +
-                PbUtil.accurateFix64Size(4, commitIndex) +
-                PbUtil.accurateFix64Size(5, lastApplied) +
-                PbUtil.accurateFix64Size(6, lastLogIndex) +
-                PbUtil.accurateFix32Size(7, members) +
-                PbUtil.accurateFix32Size(8, observers) +
-                PbUtil.accurateFix32Size(9, preparedMembers) +
-                PbUtil.accurateFix32Size(10, preparedObservers);
+        return PbUtil.sizeOfInt32Field(1, groupId) +
+                PbUtil.sizeOfInt32Field(2, term) +
+                PbUtil.sizeOfInt32Field(3, leaderId) +
+                PbUtil.sizeOfFix64Field(4, commitIndex) +
+                PbUtil.sizeOfFix64Field(5, lastApplied) +
+                PbUtil.sizeOfFix64Field(6, lastLogIndex) +
+                PbUtil.sizeOfFix32Field(7, members) +
+                PbUtil.sizeOfFix32Field(8, observers) +
+                PbUtil.sizeOfFix32Field(9, preparedMembers) +
+                PbUtil.sizeOfFix32Field(10, preparedObservers);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, groupId);
-        PbUtil.writeUnsignedInt32(buf, 2, term);
-        PbUtil.writeUnsignedInt32(buf, 3, leaderId);
-        PbUtil.writeFix64(buf, 4, commitIndex);
-        PbUtil.writeFix64(buf, 5, lastApplied);
-        PbUtil.writeFix64(buf, 6, lastLogIndex);
-        PbUtil.writeFix32(buf, 7, members);
-        PbUtil.writeFix32(buf, 8, observers);
-        PbUtil.writeFix32(buf, 9, preparedMembers);
-        PbUtil.writeFix32(buf, 10, preparedObservers);
+        PbUtil.writeInt32Field(buf, 1, groupId);
+        PbUtil.writeInt32Field(buf, 2, term);
+        PbUtil.writeInt32Field(buf, 3, leaderId);
+        PbUtil.writeFix64Field(buf, 4, commitIndex);
+        PbUtil.writeFix64Field(buf, 5, lastApplied);
+        PbUtil.writeFix64Field(buf, 6, lastLogIndex);
+        PbUtil.writeFix32Field(buf, 7, members);
+        PbUtil.writeFix32Field(buf, 8, observers);
+        PbUtil.writeFix32Field(buf, 9, preparedMembers);
+        PbUtil.writeFix32Field(buf, 10, preparedObservers);
     }
 
     public static final class Callback extends PbCallback<QueryStatusResp> {
