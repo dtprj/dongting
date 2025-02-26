@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -348,5 +350,19 @@ public final class PbUtil {
 
     public static int sizeOfLenFieldPrefix(int index, int bodyLen) {
         return sizeOfTag(index) + sizeOfUnsignedInt32(bodyLen);
+    }
+
+    public static int sizeOfBytesListField(int pbIndex, List<byte[]> list) {
+        if (list == null || list.isEmpty()) {
+            return 0;
+        }
+        int size = 0;
+        for (int len = list.size(), i = 0; i < len; i++) {
+            byte[] e = list.get(i);
+            Objects.requireNonNull(e);
+            int s = e.length;
+            size += sizeOfLenFieldPrefix(pbIndex, s) + s;
+        }
+        return size;
     }
 }

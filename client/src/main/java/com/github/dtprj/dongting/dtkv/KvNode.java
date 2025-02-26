@@ -91,7 +91,7 @@ public class KvNode implements Encodable {
 
     @Override
     public int actualSize() {
-        return EncodeUtil.sizeOfBytesField(IDX_DATA, data) + headerSize;
+        return PbUtil.sizeOfBytesField(IDX_DATA, data) + headerSize;
     }
 
     // re-used

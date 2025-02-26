@@ -132,14 +132,6 @@ public class EncodeUtil {
         }
     }
 
-    public static int sizeOfBytesField(int pbIndex, byte[] o) {
-        if (o == null || o.length == 0) {
-            return 0;
-        }
-        int s = o.length;
-        return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
-    }
-
     public static boolean encodeBytes(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
         return encode(context, destBuffer, pbIndex, o, false, true);
     }
@@ -190,20 +182,6 @@ public class EncodeUtil {
             c.pending += r;
             return false;
         }
-    }
-
-    public static int sizeOfBytesListField(int pbIndex, List<byte[]> list) {
-        if (list == null || list.isEmpty()) {
-            return 0;
-        }
-        int size = 0;
-        for (int len = list.size(), i = 0; i < len; i++) {
-            byte[] e = list.get(i);
-            Objects.requireNonNull(e);
-            int s = e.length;
-            size += PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
-        }
-        return size;
     }
 
     public static boolean encodeBytesList(EncodeContext c, ByteBuffer dest, int pbIndex, List<byte[]> list) {

@@ -71,14 +71,14 @@ class EncodeUtilTest {
         assertEquals(0, c.pending);
 
         byte[] data = new byte[]{1, 2, 3};
-        init(EncodeUtil.sizeOfBytesField(1, data));
+        init(PbUtil.sizeOfBytesField(1, data));
         assertTrue(EncodeUtil.encodeBytes(c, buf, 1, data));
         assertFalse(buf.hasRemaining());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
         check(1, data);
 
-        init(EncodeUtil.sizeOfBytesField(1, data));
+        init(PbUtil.sizeOfBytesField(1, data));
         encodeUseSmallBuf(b -> EncodeUtil.encodeBytes(c, b, 1, data));
         assertFalse(buf.hasRemaining());
         assertEquals(1, c.stage);
@@ -101,14 +101,14 @@ class EncodeUtilTest {
         list.add(new byte[]{1, 2, 3});
         list.add(new byte[]{});
         list.add(new byte[]{4, 5, 6});
-        init(EncodeUtil.sizeOfBytesListField(1, list));
+        init(PbUtil.sizeOfBytesListField(1, list));
         assertTrue(EncodeUtil.encodeBytesList(c, buf, 1, list));
         assertFalse(buf.hasRemaining());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
         check(1, list);
 
-        init(EncodeUtil.sizeOfBytesListField(1, list));
+        init(PbUtil.sizeOfBytesListField(1, list));
         encodeUseSmallBuf(b -> EncodeUtil.encodeBytesList(c, b, 1, list));
         assertFalse(buf.hasRemaining());
         assertEquals(1, c.stage);
