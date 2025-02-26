@@ -95,6 +95,15 @@ public final class PbUtil {
         }
     }
 
+    static void writeInt32(ByteBuffer buf, int value) {
+        if (value > 0) {
+            writeUnsignedInt32(buf, value);
+        } else {
+            // negative number use 10 bytes
+            writeUnsignedInt64(buf, value);
+        }
+    }
+
     public static void writeFix32Field(ByteBuffer buf, int index, int value) {
         if (value == 0) {
             return;
@@ -225,10 +234,15 @@ public final class PbUtil {
         if (value == 0) {
             return 0;
         }
+        return sizeOfTag(index) + sizeOfInt32(value);
+    }
+
+    static int sizeOfInt32(int value) {
         if (value > 0) {
-            return sizeOfTag(index) + sizeOfUnsignedInt32(value);
+            return sizeOfUnsignedInt32(value);
         } else {
-            return sizeOfTag(index) + sizeOfUnsignedInt64(value);
+            // negative number use 10 bytes
+            return sizeOfUnsignedInt64(value);
         }
     }
 
@@ -246,6 +260,23 @@ public final class PbUtil {
         } else {
             return 5;
         }
+    }
+
+    public static int sizeOfInt32Field(int index, int[] values) {
+        if (values == null || values.length == 0) {
+            return 0;
+        }
+        int size = 0;
+        for (int value : values) {
+            size += sizeOfTag(index);
+            if (value > 0) {
+                size += sizeOfUnsignedInt32(value);
+            } else {
+                // negative number use 10 bytes
+                size += sizeOfUnsignedInt64(value);
+            }
+        }
+        return size;
     }
 
     public static int sizeOfInt64Field(int index, long value) {

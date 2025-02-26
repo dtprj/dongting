@@ -103,8 +103,8 @@ public class AppendReqWritePacket extends WritePacket {
                 + PbUtil.sizeOfInt32Field(5, item.getPrevLogTerm())
                 + PbUtil.sizeOfFix64Field(6, item.getTimestamp());
         itemSize = itemHeaderSize
-                + EncodeUtil.actualSize(7, item.getHeader())
-                + EncodeUtil.actualSize(8, item.getBody());
+                + EncodeUtil.sizeOfEncodableField(7, item.getHeader())
+                + EncodeUtil.sizeOfEncodableField(8, item.getBody());
         item.setPbItemSize(itemSize);
         item.setPbHeaderSize(itemHeaderSize);
         return itemSize;

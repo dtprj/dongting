@@ -59,7 +59,7 @@ public class KvResp implements Encodable {
     public int actualSize() {
         if (encodeSize == 0) {
             this.encodeSize = PbUtil.sizeOfInt32Field(IDX_RESULTS_SIZE, results == null ? 0 : results.size())
-                    + EncodeUtil.actualSizeOfObjs(IDX_RESULTS, results)
+                    + EncodeUtil.sizeOfEncodableListField(IDX_RESULTS, results)
                     + PbUtil.sizeOfInt32Field(IDX_CODES_SIZE, codes == null ? 0 : codes.length)
                     + PbUtil.sizeOfFix32Field(IDX_CODES, codes);
         }
@@ -75,7 +75,7 @@ public class KvResp implements Encodable {
                 }
                 // fall through
             case IDX_RESULTS_SIZE:
-                if (!EncodeUtil.encodeObjs(context, destBuffer, IDX_RESULTS, results)) {
+                if (!EncodeUtil.encodeList(context, destBuffer, IDX_RESULTS, results)) {
                     return false;
                 }
                 // fall through

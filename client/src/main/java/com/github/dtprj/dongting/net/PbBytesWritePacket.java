@@ -39,6 +39,6 @@ public class PbBytesWritePacket extends RetryableWritePacket {
 
     @Override
     protected boolean encodeBody(EncodeContext c, ByteBuffer dest) {
-        return EncodeUtil.encode(c, dest, 1, bs);
+        return EncodeUtil.encodeBytes(c, dest, 1, bs);
     }
 }

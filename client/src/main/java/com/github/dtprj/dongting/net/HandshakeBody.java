@@ -84,7 +84,7 @@ public class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEn
                 + PbUtil.sizeOfFix64Field(2, MAGIC2)
                 + PbUtil.sizeOfInt32Field(3, majorVersion)
                 + PbUtil.sizeOfInt32Field(4, minorVersion)
-                + EncodeUtil.actualSize(8, config);
+                + EncodeUtil.sizeOfSimpleEncodableField(8, config);
     }
 
     @Override

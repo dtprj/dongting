@@ -57,8 +57,8 @@ public class KvResult implements Encodable {
         this.keyInDir = keyInDir;
 
         this.encodeSize = PbUtil.sizeOfInt32Field(IDX_BIZ_CODE, bizCode)
-                + EncodeUtil.actualSize(IDX_NODE, node)
-                + EncodeUtil.actualSize(IDX_KEY_IN_DIR, keyInDir);
+                + EncodeUtil.sizeOfEncodableField(IDX_NODE, node)
+                + EncodeUtil.sizeOfByteArrayField(IDX_KEY_IN_DIR, keyInDir);
     }
 
     @Override

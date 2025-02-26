@@ -26,7 +26,7 @@ import java.util.Objects;
  */
 public class EncodeUtil {
 
-    public static int actualSize(int pbIndex, SimpleEncodable o) {
+    public static int sizeOfSimpleEncodableField(int pbIndex, SimpleEncodable o) {
         if (o == null) {
             return 0;
         }
@@ -42,7 +42,7 @@ public class EncodeUtil {
         o.encode(destBuffer);
     }
 
-    public static int actualSize(int pbIndex, Encodable o) {
+    public static int sizeOfEncodableField(int pbIndex, Encodable o) {
         if (o == null) {
             return 0;
         }
@@ -50,7 +50,7 @@ public class EncodeUtil {
         return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
-    public static int actualSize(int pbIndex, ByteArray o) {
+    public static int sizeOfByteArrayField(int pbIndex, ByteArray o) {
         if (o == null || o.actualSize() == 0) {
             return 0;
         }
@@ -132,7 +132,7 @@ public class EncodeUtil {
         }
     }
 
-    public static int actualSize(int pbIndex, byte[] o) {
+    public static int sizeOfBytesField(int pbIndex, byte[] o) {
         if (o == null || o.length == 0) {
             return 0;
         }
@@ -140,7 +140,7 @@ public class EncodeUtil {
         return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
-    public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
+    public static boolean encodeBytes(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
         return encode(context, destBuffer, pbIndex, o, false, true);
     }
 
@@ -192,7 +192,7 @@ public class EncodeUtil {
         }
     }
 
-    public static int actualSizeOfBytes(int pbIndex, List<byte[]> list) {
+    public static int sizeOfBytesListField(int pbIndex, List<byte[]> list) {
         if (list == null || list.isEmpty()) {
             return 0;
         }
@@ -206,7 +206,7 @@ public class EncodeUtil {
         return size;
     }
 
-    public static boolean encodeBytes(EncodeContext c, ByteBuffer dest, int pbIndex, List<byte[]> list) {
+    public static boolean encodeBytesList(EncodeContext c, ByteBuffer dest, int pbIndex, List<byte[]> list) {
         if (list == null || list.isEmpty()) {
             c.stage = pbIndex;
             c.pending = 0;
@@ -227,7 +227,7 @@ public class EncodeUtil {
         return true;
     }
 
-    public static int actualSizeOfObjs(int pbIndex, List<? extends Encodable> list) {
+    public static int sizeOfEncodableListField(int pbIndex, List<? extends Encodable> list) {
         if (list == null || list.isEmpty()) {
             return 0;
         }
@@ -241,7 +241,7 @@ public class EncodeUtil {
         return size;
     }
 
-    public static boolean encodeObjs(EncodeContext c, ByteBuffer dest, int pbIndex, List<? extends Encodable> list) {
+    public static boolean encodeList(EncodeContext c, ByteBuffer dest, int pbIndex, List<? extends Encodable> list) {
         if (list == null || list.isEmpty()) {
             c.stage = pbIndex;
             c.pending = 0;
@@ -342,14 +342,14 @@ public class EncodeUtil {
             int r = dest.remaining();
             if (r >= PbUtil.MAX_TAG_INT32_LEN) {
                 PbUtil.writeTag(dest, PbUtil.TYPE_VAR_INT, pbIndex);
-                PbUtil.writeUnsignedInt32(dest, values[i]);
+                PbUtil.writeInt32(dest, values[i]);
             } else {
-                if (r < PbUtil.sizeOfTag(pbIndex) + PbUtil.sizeOfUnsignedInt32(values[i])) {
+                if (r < PbUtil.sizeOfTag(pbIndex) + PbUtil.sizeOfInt32(values[i])) {
                     c.pending = i;
                     return false;
                 } else {
                     PbUtil.writeTag(dest, PbUtil.TYPE_VAR_INT, pbIndex);
-                    PbUtil.writeUnsignedInt32(dest, values[i]);
+                    PbUtil.writeInt32(dest, values[i]);
                 }
             }
         }
