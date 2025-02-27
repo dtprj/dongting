@@ -228,7 +228,7 @@ public class AppendReq extends RaftRpcData {
             } else if (index == 8) {
                 if (begin) {
                     item.setActualBodySize(len);
-                    if (item.getType() == LogItem.TYPE_NORMAL) {
+                    if (item.getType() == LogItem.TYPE_NORMAL || item.getType() == LogItem.TYPE_LOG_READ) {
                         currentDecoderCallback = codecFactory.createBodyCallback(item.getBizType(), context.createOrGetNestedContext());
                     } else {
                         currentDecoderCallback = new ByteArray.Callback();
