@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RetryableWritePacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
@@ -76,7 +77,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
         switch (frame.getCommand()) {
             case Commands.DTKV_GET:
                 leaseRead(reqInfo, (dtKV, kvReq) -> {
-                    KvResult r = dtKV.get(new ByteArray(kvReq.key));
+                    KvResult r = dtKV.get(kvReq.key == null ? null : new ByteArray(kvReq.key));
                     KvResp resp = new KvResp(Collections.singletonList(r));
                     EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
                     p.setRespCode(CmdCodes.SUCCESS);
@@ -84,36 +85,41 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                     return p;
                 });
                 break;
+            case Commands.DTKV_MGET:
+                leaseRead(reqInfo, (dtKV, kvReq) -> mgetResult(dtKV.mget(kvReq.keys)));
+                break;
             case Commands.DTKV_PUT:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, new ByteArray(req.key), new ByteArray(req.value));
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, null, req);
                 break;
             case Commands.DTKV_REMOVE:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, new ByteArray(req.key), null);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, null, req);
                 break;
             case Commands.DTKV_MKDIR:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, new ByteArray(req.key), null);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, null, req);
                 break;
             case Commands.DTKV_LIST:
-                leaseRead(reqInfo, (dtKV, kvReq) -> {
-                    Pair<Integer, List<KvResult>> r = dtKV.list(req.key == null ? null : new ByteArray(req.key));
-                    List<KvResult> results = r.getRight();
-                    if (results == null) {
-                        EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                        p.setBizCode(r.getLeft());
-                        return p;
-                    } else {
-                        KvResp resp = new KvResp(results);
-                        EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
-                        p.setRespCode(CmdCodes.SUCCESS);
-                        p.setBizCode(KvCodes.CODE_SUCCESS);
-                        return p;
-                    }
-                });
+                leaseRead(reqInfo, (dtKV, kvReq) -> mgetResult(dtKV.list(
+                        kvReq.key == null ? null : new ByteArray(kvReq.key))));
                 break;
             default:
                 throw new RaftException("unknown command: " + frame.getCommand());
         }
         return null;
+    }
+
+    private RetryableWritePacket mgetResult(Pair<Integer, List<KvResult>> r) {
+        List<KvResult> results = r.getRight();
+        if (results == null) {
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            p.setBizCode(r.getLeft());
+            return p;
+        } else {
+            KvResp resp = new KvResp(results);
+            EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
+            p.setRespCode(CmdCodes.SUCCESS);
+            p.setBizCode(KvCodes.CODE_SUCCESS);
+            return p;
+        }
     }
 
     private void leaseRead(ReqInfo<KvReq> reqInfo, BiFunction<DtKV, KvReq, WritePacket> f) {

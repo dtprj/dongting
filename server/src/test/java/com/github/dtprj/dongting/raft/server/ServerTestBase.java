@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
@@ -190,8 +190,9 @@ public class ServerTestBase {
     }
 
     protected long put(ServerInfo leader, String key, String value) {
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new ByteArray(key.getBytes()),
-                new ByteArray(value.getBytes()), new DtTime(3, TimeUnit.SECONDS), false);
+        KvReq req = new KvReq(1, key.getBytes(), value.getBytes());
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, null,
+                req, new DtTime(3, TimeUnit.SECONDS), false);
         CompletableFuture<Long> f = new CompletableFuture<>();
         leader.group.submitLinearTask(ri, new RaftCallback() {
             @Override

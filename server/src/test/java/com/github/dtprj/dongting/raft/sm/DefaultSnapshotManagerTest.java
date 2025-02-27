@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.sm;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvConfig;
@@ -111,9 +112,8 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 if (index > LOOP) {
                     return afterLoop();
                 }
-                ByteArray key = new ByteArray(("key" + index).getBytes());
-                ByteArray value = new ByteArray(("value" + index).getBytes());
-                RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, key, value,
+                KvReq req = new KvReq(1, ("key" + index).getBytes(), ("value" + index).getBytes());
+                RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
                         new DtTime(1, TimeUnit.SECONDS), false);
                 FiberFuture<Object> f = kv.exec(index++, i);
                 return f.await(this::afterPut);

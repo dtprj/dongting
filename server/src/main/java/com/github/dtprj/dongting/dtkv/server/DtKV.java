@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -32,6 +33,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
@@ -39,6 +41,7 @@ import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -77,22 +80,13 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     public DecoderCallback<? extends Encodable> createHeaderCallback(int bizType, DecodeContext context) {
-        return new ByteArray.Callback();
+        return null;
     }
 
     @Override
     public DecoderCallback<? extends Encodable> createBodyCallback(int bizType, DecodeContext context) {
-        switch (bizType) {
-            case BIZ_TYPE_GET:
-            case BIZ_TYPE_REMOVE:
-            case BIZ_TYPE_MKDIR:
-            case BIZ_TYPE_LIST:
-                return null;
-            case BIZ_TYPE_PUT:
-                return new ByteArray.Callback();
-            default:
-                throw new IllegalArgumentException("unknown bizType " + bizType);
-        }
+        DecodeContextEx e = (DecodeContextEx) context;
+        return context.toDecoderCallback(e.kvReqCallback());
     }
 
     @Override
@@ -122,16 +116,20 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             throw new DtBugException("dtkv is install snapshot");
         }
-        ByteArray key = input.getHeader() == null ? null : (ByteArray) input.getHeader();
+        KvReq req = (KvReq) input.getBody();
         switch (input.getBizType()) {
-            case BIZ_TYPE_PUT:
-                ByteArray body = (ByteArray) input.getBody();
-                byte[] bs = body == null ? null : body.getData();
-                return kvStatus.kvImpl.put(index, key, bs);
-            case BIZ_TYPE_REMOVE:
+            case BIZ_TYPE_PUT: {
+                ByteArray key = req.key == null ? null : new ByteArray(req.key);
+                return kvStatus.kvImpl.put(index, key, req.value);
+            }
+            case BIZ_TYPE_REMOVE: {
+                ByteArray key = req.key == null ? null : new ByteArray(req.key);
                 return kvStatus.kvImpl.remove(index, key);
-            case BIZ_TYPE_MKDIR:
+            }
+            case BIZ_TYPE_MKDIR: {
+                ByteArray key = req.key == null ? null : new ByteArray(req.key);
                 return kvStatus.kvImpl.mkdir(index, key);
+            }
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
@@ -151,6 +149,22 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             return new KvResult(KvCodes.CODE_INSTALL_SNAPSHOT);
         }
         return kvStatus.kvImpl.get(key);
+    }
+
+    /**
+     * raft lease read, can read in any threads.
+     * <p>
+     * For simplification, this method reads the latest snapshot, rather than the one specified by
+     * the raftIndex parameter, and this does not violate linearizability.
+     *
+     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(DtTime, FutureCallback)
+     */
+    public Pair<Integer, List<KvResult>> mget(ArrayList<byte[]> keys) {
+        KvStatus kvStatus = this.kvStatus;
+        if (kvStatus.installSnapshot) {
+            return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);
+        }
+        return kvStatus.kvImpl.mget(keys);
     }
 
     /**

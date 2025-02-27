@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -66,24 +67,27 @@ public class DtKVTest extends BaseFiberTest {
     }
 
     private KvResult put(int index, String key, String value) {
-        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, new ByteArray(key.getBytes()),
-                new ByteArray(value.getBytes()), new DtTime(1, TimeUnit.SECONDS), false);
+        KvReq req = new KvReq(1, key.getBytes(), value.getBytes());
+        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
+                new DtTime(1, TimeUnit.SECONDS), false);
         FiberFuture<Object> f = kv.exec(index, i);
         assertTrue(f.isDone());
         return (KvResult) f.getResult();
     }
 
     private KvResult remove(int index, String key) {
-        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_REMOVE, new ByteArray(key.getBytes()),
-                null, new DtTime(1, TimeUnit.SECONDS), false);
+        KvReq req = new KvReq(1, key.getBytes(), null);
+        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_REMOVE, null, req,
+                new DtTime(1, TimeUnit.SECONDS), false);
         FiberFuture<Object> f = kv.exec(index, i);
         assertTrue(f.isDone());
         return (KvResult) f.getResult();
     }
 
     private KvResult mkdir(int index, String key) {
-        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_MKDIR, new ByteArray(key.getBytes()),
-                null, new DtTime(1, TimeUnit.SECONDS), false);
+        KvReq req = new KvReq(1, key.getBytes(), null);
+        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_MKDIR, null,
+                req, new DtTime(1, TimeUnit.SECONDS), false);
         FiberFuture<Object> f = kv.exec(index, i);
         assertTrue(f.isDone());
         return (KvResult) f.getResult();

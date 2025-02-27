@@ -44,7 +44,7 @@ class KvImpl {
 
     private static final int MAX_KEY_SIZE = 8 * 1024;
     private static final int MAX_VALUE_SIZE = 1024 * 1024;
-    private static int GC_ITEMS = 3000;
+    private static final int GC_ITEMS = 3000;
 
     // only update int unit test
     int maxKeySize = MAX_KEY_SIZE;
@@ -114,23 +114,57 @@ class KvImpl {
         }
         readLock.lock();
         try {
-            KvNodeHolder h;
-            if (key == null || key.getData().length == 0) {
-                h = root;
-            } else {
-                h = map.get(key);
-            }
-            if (h == null) {
-                return KvResult.NOT_FOUND;
-            }
-            KvNodeEx kvNode = h.latest;
-            if (kvNode.removed) {
-                return KvResult.NOT_FOUND;
-            }
-            return new KvResult(KvCodes.CODE_SUCCESS, kvNode);
+            return get0(key);
         } finally {
             readLock.unlock();
         }
+    }
+
+    private KvResult get0(ByteArray key) {
+        KvNodeHolder h;
+        if (key == null || key.getData().length == 0) {
+            h = root;
+        } else {
+            h = map.get(key);
+        }
+        if (h == null) {
+            return KvResult.NOT_FOUND;
+        }
+        KvNodeEx kvNode = h.latest;
+        if (kvNode.removed) {
+            return KvResult.NOT_FOUND;
+        }
+        return new KvResult(KvCodes.CODE_SUCCESS, kvNode);
+    }
+
+    /**
+     * This method may be called in other threads.
+     * <p>
+     * For simplification, this method reads the latest snapshot, rather than the one specified by
+     * the raftIndex parameter, and this does not violate linearizability.
+     */
+    public Pair<Integer, List<KvResult>> mget(List<byte[]> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return new Pair<>(KvCodes.CODE_INVALID_KEY, null);
+        }
+        int s = keys.size();
+        ArrayList<KvResult> list = new ArrayList<>(s);
+        readLock.lock();
+        try {
+            for (int i = 0; i < s; i++) {
+                byte[] bs = keys.get(i);
+                ByteArray key = bs == null ? null : new ByteArray(bs);
+                int ck = checkKey(key, true);
+                if (ck != KvCodes.CODE_SUCCESS) {
+                    list.add(new KvResult(ck));
+                } else {
+                    list.add(get0(key));
+                }
+            }
+        } finally {
+            readLock.unlock();
+        }
+        return new Pair<>(KvCodes.CODE_SUCCESS, list);
     }
 
     /**
