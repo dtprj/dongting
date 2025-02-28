@@ -53,10 +53,17 @@ import java.util.function.Supplier;
  */
 public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_TYPE_PUT = 0;
+    @SuppressWarnings("unused")
     public static final int BIZ_TYPE_GET = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
     public static final int BIZ_TYPE_MKDIR = 3;
+    @SuppressWarnings("unused")
     public static final int BIZ_TYPE_LIST = 4;
+    @SuppressWarnings("unused")
+    public static final int BIZ_TYPE_BATCH_GET = 5;
+    public static final int BIZ_TYPE_BATCH_PUT = 6;
+    public static final int BIZ_TYPE_BATCH_REMOVE = 7;
+    public static final int BIZ_TYPE_CAS = 8;
 
     private Executor dtkvExecutor;
 
@@ -130,6 +137,12 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 ByteArray key = req.key == null ? null : new ByteArray(req.key);
                 return kvStatus.kvImpl.mkdir(index, key);
             }
+            case BIZ_TYPE_BATCH_PUT: {
+                return kvStatus.kvImpl.batchPut(index, req.keys,  req.values);
+            }
+            case BIZ_TYPE_BATCH_REMOVE: {
+                return kvStatus.kvImpl.batchRemove(index, req.keys);
+            }
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
@@ -164,7 +177,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);
         }
-        return kvStatus.kvImpl.mget(keys);
+        return kvStatus.kvImpl.batchGet(keys);
     }
 
     /**

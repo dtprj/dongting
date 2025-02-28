@@ -85,21 +85,27 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                     return p;
                 });
                 break;
-            case Commands.DTKV_MGET:
-                leaseRead(reqInfo, (dtKV, kvReq) -> mgetResult(dtKV.mget(kvReq.keys)));
-                break;
             case Commands.DTKV_PUT:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, null, req);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, req);
                 break;
             case Commands.DTKV_REMOVE:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, null, req);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_REMOVE, req);
                 break;
             case Commands.DTKV_MKDIR:
-                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, null, req);
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_MKDIR, req);
                 break;
             case Commands.DTKV_LIST:
                 leaseRead(reqInfo, (dtKV, kvReq) -> mgetResult(dtKV.list(
                         kvReq.key == null ? null : new ByteArray(kvReq.key))));
+                break;
+            case Commands.DTKV_BATCH_GET:
+                leaseRead(reqInfo, (dtKV, kvReq) -> mgetResult(dtKV.mget(kvReq.keys)));
+                break;
+            case Commands.DTKV_BATCH_PUT:
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_BATCH_PUT, req);
+                break;
+            case Commands.DTKV_BATCH_REMOVE:
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_BATCH_REMOVE, req);
                 break;
             default:
                 throw new RaftException("unknown command: " + frame.getCommand());
@@ -138,8 +144,8 @@ public class KvProcessor extends RaftProcessor<KvReq> {
         });
     }
 
-    private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, Encodable header, Encodable body) {
-        RaftInput ri = new RaftInput(bizType, header, body, reqInfo.reqContext.getTimeout(), false);
+    private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, Encodable body) {
+        RaftInput ri = new RaftInput(bizType, null, body, reqInfo.reqContext.getTimeout(), false);
         reqInfo.raftGroup.submitLinearTask(ri, new RC(reqInfo));
     }
 
@@ -153,9 +159,34 @@ public class KvProcessor extends RaftProcessor<KvReq> {
 
         @Override
         public void success(long raftIndex, Object result) {
-            KvResult r = (KvResult) result;
-            EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            resp.setBizCode(r.getBizCode());
+            WritePacket resp;
+            switch (reqInfo.reqFrame.getCommand()) {
+                case Commands.DTKV_PUT:
+                case Commands.DTKV_REMOVE:
+                case Commands.DTKV_MKDIR: {
+                    resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                    KvResult r = (KvResult) result;
+                    resp.setBizCode(r.getBizCode());
+                    break;
+                }
+                case Commands.DTKV_BATCH_PUT:
+                case Commands.DTKV_BATCH_REMOVE: {
+                    //noinspection unchecked
+                    Pair<Integer, List<KvResult>> p = (Pair<Integer, List<KvResult>>) result;
+                    if (p.getLeft() == KvCodes.CODE_SUCCESS) {
+                        int[] codes = p.getRight().stream().mapToInt(KvResult::getBizCode).toArray();
+                        resp = new EncodableBodyWritePacket(new KvResp(codes));
+                        resp.setRespCode(CmdCodes.SUCCESS);
+                    } else {
+                        resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                    }
+                    resp.setBizCode(p.getLeft());
+                    break;
+                }
+                default:
+                    resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+                    resp.setMsg("unknown command: " + reqInfo.reqFrame.getCommand());
+            }
             reqInfo.reqContext.writeRespInBizThreads(resp);
         }
 

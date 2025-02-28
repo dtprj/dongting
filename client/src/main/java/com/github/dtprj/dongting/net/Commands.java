@@ -49,8 +49,8 @@ public interface Commands {
     int DTKV_REMOVE = 80;
     int DTKV_MKDIR = 81;
     int DTKV_LIST = 82;
-    int DTKV_MGET = 83;
-    int DTKV_MPUT = 84;
-    int DTKV_MREMOVE = 85;
+    int DTKV_BATCH_GET = 83;
+    int DTKV_BATCH_PUT = 84;
+    int DTKV_BATCH_REMOVE = 85;
     int DTKV_CAS = 86;
 }

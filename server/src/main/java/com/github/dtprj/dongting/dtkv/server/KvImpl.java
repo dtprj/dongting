@@ -143,7 +143,7 @@ class KvImpl {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      */
-    public Pair<Integer, List<KvResult>> mget(List<byte[]> keys) {
+    public Pair<Integer, List<KvResult>> batchGet(List<byte[]> keys) {
         if (keys == null || keys.isEmpty()) {
             return new Pair<>(KvCodes.CODE_INVALID_KEY, null);
         }
@@ -228,10 +228,10 @@ class KvImpl {
         if (data.length > maxValueSize) {
             return new KvResult(KvCodes.CODE_VALUE_TOO_LONG);
         }
-        return doPut(index, key, data);
+        return doPut(index, key, data, true);
     }
 
-    private KvResult doPut(long index, ByteArray key, byte[] data) {
+    private KvResult doPut(long index, ByteArray key, byte[] data, boolean lock) {
         int ck = checkKey(key, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
@@ -251,8 +251,10 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        writeLock.lock();
         KvResult result;
+        if (lock) {
+            writeLock.lock();
+        }
         try {
             long timestamp = ts.getWallClockMillis();
             boolean newValueIsDir = data == null || data.length == 0;
@@ -289,9 +291,32 @@ class KvImpl {
             }
             updateParent(index, timestamp, parent);
         } finally {
-            writeLock.unlock();
+            if (lock) {
+                writeLock.unlock();
+            }
         }
         return result;
+    }
+
+    public Pair<Integer, List<KvResult>> batchPut(long index, List<byte[]> keys, List<byte[]> values) {
+        if (keys == null || keys.isEmpty()) {
+            return new Pair<>(KvCodes.CODE_INVALID_KEY, null);
+        }
+        int size = keys.size();
+        ArrayList<KvResult> list = new ArrayList<>(size);
+        if (values == null || values.size() != size) {
+            return new Pair<>(KvCodes.CODE_INVALID_VALUE, null);
+        }
+        writeLock.lock();
+        try {
+            for (int i = 0; i < size; i++) {
+                byte[] k = keys.get(i);
+                list.add(doPut(index, k == null ? null : new ByteArray(k), values.get(i), false));
+            }
+        } finally {
+            writeLock.unlock();
+        }
+        return new Pair<>(KvCodes.CODE_SUCCESS, list);
     }
 
     private void updateParent(long index, long timestamp, KvNodeHolder parent) {
@@ -403,6 +428,10 @@ class KvImpl {
     }
 
     public KvResult remove(long index, ByteArray key) {
+        return doRemove(index, key, true);
+    }
+
+    private KvResult doRemove(long index, ByteArray key, boolean lock) {
         int ck = checkKey(key, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
@@ -423,7 +452,9 @@ class KvImpl {
                 }
             }
         }
-        writeLock.lock();
+        if (lock) {
+            writeLock.lock();
+        }
         try {
             if (maxOpenSnapshotIndex > 0) {
                 KvNodeEx newKvNode = new KvNodeEx(n.getCreateIndex(), n.getCreateTime(), index,
@@ -437,13 +468,33 @@ class KvImpl {
             }
             updateParent(index, ts.getWallClockMillis(), h.parent);
         } finally {
-            writeLock.unlock();
+            if (lock) {
+                writeLock.unlock();
+            }
         }
         return KvResult.SUCCESS;
     }
 
+    public Pair<Integer, List<KvResult>> batchRemove(long index, List<byte[]> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return new Pair<>(KvCodes.CODE_INVALID_KEY, null);
+        }
+        int size = keys.size();
+        ArrayList<KvResult> list = new ArrayList<>(size);
+        writeLock.lock();
+        try {
+            for (int i = 0; i < size; i++) {
+                byte[] k = keys.get(i);
+                list.add(doRemove(index, k == null ? null : new ByteArray(k), false));
+            }
+        } finally {
+            writeLock.unlock();
+        }
+        return new Pair<>(KvCodes.CODE_SUCCESS, list);
+    }
+
     public KvResult mkdir(long index, ByteArray key) {
-        return doPut(index, key, null);
+        return doPut(index, key, null, true);
     }
 
     private void updateMinMax() {
