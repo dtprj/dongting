@@ -525,13 +525,14 @@ class KvImpl {
         try {
             if (expectedValue == null || expectedValue.length == 0) {
                 if (h == null || h.latest.removed) {
-                    return doPut(index, key, newValue, h, parent, lastIndexOfSep);
+                    KvResult r = doPut(index, key, newValue, h, parent, lastIndexOfSep);
+                    return r == KvResult.SUCCESS_OVERWRITE ? KvResult.SUCCESS : r;
                 } else {
                     return new KvResult(KvCodes.CODE_CAS_MISMATCH);
                 }
             } else {
                 if (h == null) {
-                    return new KvResult(KvCodes.CODE_DIR_EXISTS);
+                    return new KvResult(KvCodes.CODE_CAS_MISMATCH);
                 }
                 KvNodeEx n = h.latest;
                 if (n.removed || n.isDir()) {
@@ -546,7 +547,8 @@ class KvImpl {
                         return new KvResult(KvCodes.CODE_CAS_MISMATCH);
                     }
                 }
-                return doPut(index, key, newValue, h, parent, lastIndexOfSep);
+                KvResult r = doPut(index, key, newValue, h, parent, lastIndexOfSep);
+                return r == KvResult.SUCCESS_OVERWRITE ? KvResult.SUCCESS : r;
             }
         } finally {
             writeLock.unlock();

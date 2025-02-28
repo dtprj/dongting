@@ -377,5 +377,179 @@ class KvImplTest {
         assertNodeCount(2, "key1");
     }
 
+    @Test
+    void testBatchGetPut() {
+        // Test invalid input
+        assertEquals(KvCodes.CODE_INVALID_KEY, kv.batchGet(null).getLeft());
+        assertEquals(KvCodes.CODE_INVALID_KEY, kv.batchGet(List.of()).getLeft());
+        assertEquals(KvCodes.CODE_INVALID_KEY, kv.batchPut(1, null, List.of("a".getBytes())).getLeft());
+        assertEquals(KvCodes.CODE_INVALID_KEY, kv.batchPut(1, List.of(), List.of("a".getBytes())).getLeft());
+        assertEquals(KvCodes.CODE_INVALID_VALUE, kv.batchPut(1, List.of("a".getBytes()), null).getLeft());
+        assertEquals(KvCodes.CODE_INVALID_VALUE, kv.batchPut(1, List.of("a".getBytes()), List.of()).getLeft());
+
+        // Prepare test data
+        List<byte[]> keys = List.of(
+                "key1".getBytes(),
+                "key2".getBytes(),
+                "parent.key1".getBytes()
+        );
+        List<byte[]> values = List.of(
+                "value1".getBytes(),
+                "value2".getBytes(),
+                "value3".getBytes()
+        );
+
+        // Test initial get on non-existing keys
+        Pair<Integer, List<KvResult>> getResult = kv.batchGet(keys);
+        assertEquals(KvCodes.CODE_SUCCESS, getResult.getLeft());
+        assertEquals(3, getResult.getRight().size());
+        getResult.getRight().forEach(r -> assertEquals(KvCodes.CODE_NOT_FOUND, r.getBizCode()));
+
+        // Create parent directory for "parent.key1"
+        assertEquals(KvCodes.CODE_SUCCESS, kv.mkdir(1, ba("parent")).getBizCode());
+
+        // Test batch put
+        Pair<Integer, List<KvResult>> putResult = kv.batchPut(2, keys, values);
+        assertEquals(KvCodes.CODE_SUCCESS, putResult.getLeft());
+        assertEquals(3, putResult.getRight().size());
+        putResult.getRight().forEach(r -> assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode()));
+
+        // Verify values with batch get
+        getResult = kv.batchGet(keys);
+        assertEquals(KvCodes.CODE_SUCCESS, getResult.getLeft());
+        assertEquals(3, getResult.getRight().size());
+        List<KvResult> results = getResult.getRight();
+
+        // Verify individual results
+        assertEquals(KvCodes.CODE_SUCCESS, results.get(0).getBizCode());
+        assertArrayEquals("value1".getBytes(), results.get(0).getNode().getData());
+        assertEquals(2, results.get(0).getNode().getCreateIndex());
+
+        assertEquals(KvCodes.CODE_SUCCESS, results.get(1).getBizCode());
+        assertArrayEquals("value2".getBytes(), results.get(1).getNode().getData());
+        assertEquals(2, results.get(1).getNode().getCreateIndex());
+
+        assertEquals(KvCodes.CODE_SUCCESS, results.get(2).getBizCode());
+        assertArrayEquals("value3".getBytes(), results.get(2).getNode().getData());
+        assertEquals(2, results.get(2).getNode().getCreateIndex());
+
+        // Test batch put with updates
+        List<byte[]> newValues = List.of(
+                "updated1".getBytes(),
+                "updated2".getBytes(),
+                "updated3".getBytes()
+        );
+        putResult = kv.batchPut(3, keys, newValues);
+        assertEquals(KvCodes.CODE_SUCCESS, putResult.getLeft());
+        putResult.getRight().forEach(r -> assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, r.getBizCode()));
+
+        // Verify updated values
+        keys = List.of(
+                "key1".getBytes(),
+                "key2".getBytes(),
+                ".....".getBytes()
+        );
+        getResult = kv.batchGet(keys);
+        assertEquals(KvCodes.CODE_SUCCESS, getResult.getLeft());
+        results = getResult.getRight();
+
+        assertArrayEquals("updated1".getBytes(), results.get(0).getNode().getData());
+        assertEquals(2, results.get(0).getNode().getCreateIndex());
+        assertEquals(3, results.get(0).getNode().getUpdateIndex());
+
+        assertArrayEquals("updated2".getBytes(), results.get(1).getNode().getData());
+        assertEquals(2, results.get(1).getNode().getCreateIndex());
+        assertEquals(3, results.get(1).getNode().getUpdateIndex());
+
+        assertNull(results.get(2).getNode());
+        assertEquals(KvCodes.CODE_INVALID_KEY, results.get(2).getBizCode());
+    }
+
+    @Test
+    public void testBatchRemove() {
+        // Test invalid input
+        assertEquals(KvCodes.CODE_INVALID_KEY, kv.batchRemove(ver++, null).getLeft());
+        assertEquals(KvCodes.CODE_INVALID_KEY, kv.batchRemove(ver++, List.of()).getLeft());
+
+        // Prepare test data
+        kv.mkdir(ver++, ba("parent"));
+        List<byte[]> keys = List.of(
+                "key1".getBytes(),
+                "key2".getBytes(),
+                "parent.key1".getBytes()
+        );
+        List<byte[]> values = List.of(
+                "value1".getBytes(),
+                "value2".getBytes(),
+                "value3".getBytes()
+        );
+        kv.batchPut(ver++, keys, values);
+
+        // Test batch remove
+        List<byte[]> removeKeys = List.of(
+                "key1".getBytes(),
+                "nonexistent".getBytes(),
+                "parent.key1".getBytes()
+        );
+        Pair<Integer, List<KvResult>> removeResult = kv.batchRemove(ver++, removeKeys);
+        assertEquals(KvCodes.CODE_SUCCESS, removeResult.getLeft());
+        assertEquals(3, removeResult.getRight().size());
+
+        // Verify individual results
+        List<KvResult> results = removeResult.getRight();
+        assertEquals(KvCodes.CODE_SUCCESS, results.get(0).getBizCode());  // key1 removed
+        assertEquals(KvCodes.CODE_NOT_FOUND, results.get(1).getBizCode());  // nonexistent key
+        assertEquals(KvCodes.CODE_SUCCESS, results.get(2).getBizCode());  // parent.key1 removed
+
+        // Verify removals with gets
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("key1")).getBizCode());
+        assertEquals(KvCodes.CODE_SUCCESS, kv.get(ba("key2")).getBizCode());
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("parent.key1")).getBizCode());
+    }
+
+    @Test
+    public void testCompareAndSet() {
+        // Test initial CAS with null expected value (should succeed)
+        assertEquals(KvCodes.CODE_SUCCESS, kv.compareAndSet(ver++, ba("key1"), null, "value1".getBytes()).getBizCode());
+        assertArrayEquals("value1".getBytes(), kv.get(ba("key1")).getNode().getData());
+
+        // Test CAS with wrong expected value (should fail)
+        assertEquals(KvCodes.CODE_CAS_MISMATCH,
+                kv.compareAndSet(ver++, ba("key1"), "wrongvalue".getBytes(), "value2".getBytes()).getBizCode());
+        assertArrayEquals("value1".getBytes(), kv.get(ba("key1")).getNode().getData());
+
+        // Test CAS with correct expected value (should succeed)
+        assertEquals(KvCodes.CODE_SUCCESS,
+                kv.compareAndSet(ver++, ba("key1"), "value1".getBytes(), "value2".getBytes()).getBizCode());
+        assertArrayEquals("value2".getBytes(), kv.get(ba("key1")).getNode().getData());
+
+        // Test CAS with non-existent key
+        assertEquals(KvCodes.CODE_CAS_MISMATCH,
+                kv.compareAndSet(ver++, ba("nonexistent"), "any".getBytes(), "value".getBytes()).getBizCode());
+
+        // Test CAS with invalid inputs
+        assertEquals(KvCodes.CODE_INVALID_KEY,
+                kv.compareAndSet(ver++, null, "value1".getBytes(), "value2".getBytes()).getBizCode());
+        assertEquals(KvCodes.CODE_INVALID_VALUE,
+                kv.compareAndSet(ver++, ba("key1"), "value2".getBytes(), null).getBizCode());
+
+        // Test CAS on a directory
+        kv.mkdir(ver++, ba("dir1"));
+        assertEquals(KvCodes.CODE_CAS_MISMATCH,
+                kv.compareAndSet(8, ba("dir1"), "any".getBytes(), "value".getBytes()).getBizCode());
+
+        // Test CAS with parent dir checks
+        kv.mkdir(ver++, ba("parent"));
+        assertEquals(KvCodes.CODE_SUCCESS,
+                kv.compareAndSet(10, ba("parent.key1"), null, "value1".getBytes()).getBizCode());
+        assertEquals(KvCodes.CODE_SUCCESS,
+                kv.compareAndSet(11, ba("parent.key1"), "value1".getBytes(), "value2".getBytes()).getBizCode());
+        assertArrayEquals("value2".getBytes(), kv.get(ba("parent.key1")).getNode().getData());
+
+        // Test CAS with non-existent parent directory
+        assertEquals(KvCodes.CODE_PARENT_DIR_NOT_EXISTS,
+                kv.compareAndSet(12, ba("nonexistent.key1"), null, "value".getBytes()).getBizCode());
+    }
+
 }
 
