@@ -107,6 +107,9 @@ public class KvProcessor extends RaftProcessor<KvReq> {
             case Commands.DTKV_BATCH_REMOVE:
                 submitWriteTask(reqInfo, DtKV.BIZ_TYPE_BATCH_REMOVE, req);
                 break;
+            case Commands.DTKV_CAS:
+                submitWriteTask(reqInfo, DtKV.BIZ_TYPE_CAS, req);
+                break;
             default:
                 throw new RaftException("unknown command: " + frame.getCommand());
         }
@@ -163,7 +166,8 @@ public class KvProcessor extends RaftProcessor<KvReq> {
             switch (reqInfo.reqFrame.getCommand()) {
                 case Commands.DTKV_PUT:
                 case Commands.DTKV_REMOVE:
-                case Commands.DTKV_MKDIR: {
+                case Commands.DTKV_MKDIR:
+                case Commands.DTKV_CAS:{
                     resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
                     KvResult r = (KvResult) result;
                     resp.setBizCode(r.getBizCode());

@@ -251,50 +251,55 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        KvResult result;
         if (lock) {
             writeLock.lock();
         }
         try {
-            long timestamp = ts.getWallClockMillis();
-            boolean newValueIsDir = data == null || data.length == 0;
-            if (h == null) {
-                ByteArray keyInDir = key.sub(lastIndexOfSep + 1);
-                KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
-                h = new KvNodeHolder(key, keyInDir, newKvNode, parent);
-                map.put(key, h);
-                parent.latest.children.put(keyInDir, h);
-                result = KvResult.SUCCESS;
-            } else {
-                KvNodeEx oldNode = h.latest;
-                KvNodeEx newKvNode;
-                if (oldNode.removed) {
-                    newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
-                    result = KvResult.SUCCESS;
-                } else {
-                    // override
-                    boolean oldValueIsDir = oldNode.isDir();
-                    if (newValueIsDir != oldValueIsDir) {
-                        return new KvResult(oldValueIsDir ? KvCodes.CODE_DIR_EXISTS : KvCodes.CODE_VALUE_EXISTS);
-                    }
-                    newKvNode = new KvNodeEx(oldNode.getCreateIndex(), oldNode.getCreateTime(),
-                            index, timestamp, newValueIsDir, data);
-                    result = KvResult.SUCCESS_OVERWRITE;
-                }
-                if (maxOpenSnapshotIndex > 0) {
-                    newKvNode.previous = oldNode;
-                    h.latest = newKvNode;
-                    gc(h);
-                } else {
-                    h.latest = newKvNode;
-                }
-            }
-            updateParent(index, timestamp, parent);
+            return doPut(index, key, data, h, parent, lastIndexOfSep);
         } finally {
             if (lock) {
                 writeLock.unlock();
             }
         }
+    }
+
+    private KvResult doPut(long index, ByteArray key, byte[] data, KvNodeHolder current,
+                           KvNodeHolder parent, int lastIndexOfSep) {
+        KvResult result;
+        long timestamp = ts.getWallClockMillis();
+        boolean newValueIsDir = data == null || data.length == 0;
+        if (current == null) {
+            ByteArray keyInDir = key.sub(lastIndexOfSep + 1);
+            KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
+            current = new KvNodeHolder(key, keyInDir, newKvNode, parent);
+            map.put(key, current);
+            parent.latest.children.put(keyInDir, current);
+            result = KvResult.SUCCESS;
+        } else {
+            KvNodeEx oldNode = current.latest;
+            KvNodeEx newKvNode;
+            if (oldNode.removed) {
+                newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
+                result = KvResult.SUCCESS;
+            } else {
+                // override
+                boolean oldValueIsDir = oldNode.isDir();
+                if (newValueIsDir != oldValueIsDir) {
+                    return new KvResult(oldValueIsDir ? KvCodes.CODE_DIR_EXISTS : KvCodes.CODE_VALUE_EXISTS);
+                }
+                newKvNode = new KvNodeEx(oldNode.getCreateIndex(), oldNode.getCreateTime(),
+                        index, timestamp, newValueIsDir, data);
+                result = KvResult.SUCCESS_OVERWRITE;
+            }
+            if (maxOpenSnapshotIndex > 0) {
+                newKvNode.previous = oldNode;
+                current.latest = newKvNode;
+                gc(current);
+            } else {
+                current.latest = newKvNode;
+            }
+        }
+        updateParent(index, timestamp, parent);
         return result;
     }
 
@@ -491,6 +496,61 @@ class KvImpl {
             writeLock.unlock();
         }
         return new Pair<>(KvCodes.CODE_SUCCESS, list);
+    }
+
+    public KvResult compareAndSet(long index, ByteArray key, byte[] expectedValue, byte[] newValue) {
+        int ck = checkKey(key, false);
+        if (ck != KvCodes.CODE_SUCCESS) {
+            return new KvResult(ck);
+        }
+        KvNodeHolder parent;
+        int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
+        if (lastIndexOfSep > 0) {
+            ByteArray dirKey = key.sub(0, lastIndexOfSep);
+            parent = map.get(dirKey);
+            if (parent == null || parent.latest.removed) {
+                return new KvResult(KvCodes.CODE_PARENT_DIR_NOT_EXISTS);
+            }
+            if (!parent.latest.isDir()) {
+                return new KvResult(KvCodes.CODE_PARENT_NOT_DIR);
+            }
+        } else {
+            parent = root;
+        }
+        if (newValue == null || newValue.length == 0) {
+            return new KvResult(KvCodes.CODE_INVALID_VALUE);
+        }
+        KvNodeHolder h = map.get(key);
+        writeLock.lock();
+        try {
+            if (expectedValue == null || expectedValue.length == 0) {
+                if (h == null || h.latest.removed) {
+                    return doPut(index, key, newValue, h, parent, lastIndexOfSep);
+                } else {
+                    return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                }
+            } else {
+                if (h == null) {
+                    return new KvResult(KvCodes.CODE_DIR_EXISTS);
+                }
+                KvNodeEx n = h.latest;
+                if (n.removed || n.isDir()) {
+                    return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                }
+                byte[] bs = n.getData();
+                if (bs == null || bs.length != expectedValue.length) {
+                    return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                }
+                for (int i = 0; i < bs.length; i++) {
+                    if (bs[i] != expectedValue[i]) {
+                        return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                    }
+                }
+                return doPut(index, key, newValue, h, parent, lastIndexOfSep);
+            }
+        } finally {
+            writeLock.unlock();
+        }
     }
 
     public KvResult mkdir(long index, ByteArray key) {

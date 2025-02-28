@@ -33,6 +33,7 @@ public interface KvCodes {
     int CODE_KEY_TOO_LONG = 10;
     int CODE_VALUE_TOO_LONG = 11;
     int CODE_INSTALL_SNAPSHOT = 12;
+    int CODE_CAS_MISMATCH = 13;
 
     static String toStr(int code) {
         switch (code) {
