@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -119,6 +120,58 @@ public class DtKVTest extends BaseFiberTest {
             assertEquals(KvCodes.CODE_SUCCESS, remove(ver++, "parent.child1").getBizCode());
             assertEquals(KvCodes.CODE_SUCCESS, list("").getLeft());
             assertEquals(1, list("").getRight().size());
+
+            // batch put
+            ArrayList<byte[]> keys = new ArrayList<>();
+            ArrayList<byte[]> values = new ArrayList<>();
+            keys.add("batch1".getBytes());
+            keys.add("batch2".getBytes());
+            values.add("value1".getBytes());
+            values.add("value2".getBytes());
+            KvReq batchPutReq = new KvReq(1, keys, values);
+            RaftInput batchPutInput = new RaftInput(DtKV.BIZ_TYPE_BATCH_PUT, null, batchPutReq,
+                    new DtTime(1, TimeUnit.SECONDS), false);
+            FiberFuture<Object> batchPutFuture = kv.exec(ver++, batchPutInput);
+            assertTrue(batchPutFuture.isDone());
+            Pair<Integer, List<KvResult>> batchPutResult = (Pair<Integer, List<KvResult>>) batchPutFuture.getResult();
+            assertEquals(KvCodes.CODE_SUCCESS, batchPutResult.getLeft());
+
+            // batch get
+            ArrayList<byte[]> getKeys = new ArrayList<>();
+            getKeys.add("batch1".getBytes());
+            getKeys.add("batch2".getBytes());
+            Pair<Integer, List<KvResult>> batchGetResult = kv.mget(getKeys);
+            assertEquals(KvCodes.CODE_SUCCESS, batchGetResult.getLeft());
+            assertEquals(2, batchGetResult.getRight().size());
+            assertEquals("value1", new String(batchGetResult.getRight().get(0).getNode().getData()));
+            assertEquals("value2", new String(batchGetResult.getRight().get(1).getNode().getData()));
+
+            // batch remove
+            KvReq batchRemoveReq = new KvReq(1, getKeys, null);
+            RaftInput batchRemoveInput = new RaftInput(DtKV.BIZ_TYPE_BATCH_REMOVE, null, batchRemoveReq,
+                    new DtTime(1, TimeUnit.SECONDS), false);
+            FiberFuture<Object> batchRemoveFuture = kv.exec(ver++, batchRemoveInput);
+            assertTrue(batchRemoveFuture.isDone());
+            Pair<Integer, List<KvResult>> batchRemoveResult = (Pair<Integer, List<KvResult>>) batchRemoveFuture.getResult();
+            assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResult.getLeft());
+
+            // verify batch remove
+            batchGetResult = kv.mget(getKeys);
+            assertEquals(KvCodes.CODE_SUCCESS, batchGetResult.getLeft());
+            assertEquals(2, batchGetResult.getRight().size());
+            assertEquals(KvCodes.CODE_NOT_FOUND, batchGetResult.getRight().get(0).getBizCode());
+            assertEquals(KvCodes.CODE_NOT_FOUND, batchGetResult.getRight().get(1).getBizCode());
+
+            // compareAndSet
+            put(ver++, "cas_key", "old_value");
+            KvReq casReq = new KvReq(1, "cas_key".getBytes(), "new_value".getBytes(), "old_value".getBytes());
+            RaftInput casInput = new RaftInput(DtKV.BIZ_TYPE_CAS, null, casReq,
+                    new DtTime(1, TimeUnit.SECONDS), false);
+            FiberFuture<Object> casFuture = kv.exec(ver++, casInput);
+            assertTrue(casFuture.isDone());
+            KvResult casResult = (KvResult) casFuture.getResult();
+            assertEquals(KvCodes.CODE_SUCCESS, casResult.getBizCode());
+            assertEquals("new_value", new String(get("cas_key").getNode().getData()));
         });
     }
 

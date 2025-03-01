@@ -143,6 +143,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_BATCH_REMOVE: {
                 return kvStatus.kvImpl.batchRemove(index, req.keys);
             }
+            case BIZ_TYPE_CAS: {
+                ByteArray key = req.key == null ? null : new ByteArray(req.key);
+                return kvStatus.kvImpl.compareAndSet(index, key, req.expectValue, req.value);
+            }
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
