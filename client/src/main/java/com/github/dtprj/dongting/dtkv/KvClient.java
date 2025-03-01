@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
-import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
@@ -54,18 +53,14 @@ public class KvClient extends AbstractLifeCircle {
 
     private <T, T2> RpcCallback<T> wrap(FutureCallback<T2> c, int anotherSuccessCode, Function<T, T2> f) {
         return (result, ex) -> {
-            T2 finalResult = null;
-            if (ex == null) {
-                int bc = result.getBizCode();
-                if (bc != KvCodes.CODE_SUCCESS && bc != anotherSuccessCode) {
-                    ex = new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode()));
-                } else {
-                    finalResult = f.apply(result.getBody());
-                }
-            } else if (ex instanceof NetTimeoutException) {
-                ex = new RaftTimeoutException(ex.getMessage(), ex);
+            int bc = result.getBizCode();
+            if (ex != null) {
+                FutureCallback.callFail(c, ex);
+            } else if (bc == KvCodes.CODE_SUCCESS && bc == anotherSuccessCode) {
+                FutureCallback.callFail(c, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+            } else {
+                FutureCallback.callSuccess(c, f.apply(result.getBody()));
             }
-            c.call(finalResult, ex);
         };
     }
 
@@ -96,7 +91,7 @@ public class KvClient extends AbstractLifeCircle {
         KvReq r = new KvReq(groupId, key, value);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
-        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_SUCCESS_OVERWRITE, v -> v);
+        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_SUCCESS_OVERWRITE, Function.identity());
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
     }
 
@@ -153,7 +148,7 @@ public class KvClient extends AbstractLifeCircle {
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_REMOVE);
-        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_NOT_FOUND, v -> v);
+        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_NOT_FOUND, Function.identity());
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
     }
 
@@ -168,8 +163,29 @@ public class KvClient extends AbstractLifeCircle {
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_MKDIR);
-        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_DIR_EXISTS, v -> v);
+        RpcCallback<Void> c = wrap(callback, KvCodes.CODE_DIR_EXISTS, Function.identity());
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
+    }
+
+    public int[] batchPut(int groupId, List<byte[]> keys, List<byte[]> values, DtTime timeout) {
+        CompletableFuture<int[]> f = new CompletableFuture<>();
+        batchPut(groupId, keys, values, timeout, FutureCallback.fromFuture(f));
+        return waitFuture(f, timeout);
+    }
+
+    public void batchPut(int groupId, List<byte[]> keys, List<byte[]> values,
+                         DtTime timeout, FutureCallback<int[]> callback) {
+        Objects.requireNonNull(keys);
+        Objects.requireNonNull(values);
+        if (keys.isEmpty() || keys.size() != values.size()) {
+            throw new IllegalArgumentException("keys and values must be same size and not empty");
+        }
+        KvReq r = new KvReq(groupId, keys, values);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
+        wf.setCommand(Commands.DTKV_BATCH_PUT);
+        RpcCallback<KvResp> c = wrap(callback, KvCodes.CODE_SUCCESS, resp -> resp.codes);
+        DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
+        raftClient.sendRequest(groupId, wf, dc, timeout, c);
     }
 
     @Override
