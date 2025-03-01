@@ -41,7 +41,6 @@ import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -176,7 +175,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(DtTime, FutureCallback)
      */
-    public Pair<Integer, List<KvResult>> mget(ArrayList<byte[]> keys) {
+    public Pair<Integer, List<KvResult>> batchGet(List<byte[]> keys) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
             return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);

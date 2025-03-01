@@ -99,7 +99,7 @@ public class KvProcessor extends RaftProcessor<KvReq> {
                         kvReq.key == null ? null : new ByteArray(kvReq.key))));
                 break;
             case Commands.DTKV_BATCH_GET:
-                leaseRead(reqInfo, (dtKV, kvReq) -> mgetResult(dtKV.mget(kvReq.keys)));
+                leaseRead(reqInfo, (dtKV, kvReq) -> mgetResult(dtKV.batchGet(kvReq.keys)));
                 break;
             case Commands.DTKV_BATCH_PUT:
                 submitWriteTask(reqInfo, DtKV.BIZ_TYPE_BATCH_PUT, req);

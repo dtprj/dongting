@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author huangli
@@ -40,14 +40,14 @@ public class KvReq extends RaftRpcData implements Encodable {
 
     public final byte[] key;
     public final byte[] value;
-    public final ArrayList<byte[]> keys;
-    public final ArrayList<byte[]> values;
+    public final List<byte[]> keys;
+    public final List<byte[]> values;
     public final byte[] expectValue;
 
     private int encodeSize;
 
-    public KvReq(int groupId, byte[] key, byte[] value, ArrayList<byte[]> keys,
-                 ArrayList<byte[]> values, byte[] expectValue) {
+    public KvReq(int groupId, byte[] key, byte[] value, List<byte[]> keys,
+                 List<byte[]> values, byte[] expectValue) {
         this.groupId = groupId;
         this.key = key;
         this.value = value;
@@ -74,7 +74,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.expectValue = expectValue;
     }
 
-    public KvReq(int groupId, ArrayList<byte[]> keys, ArrayList<byte[]> values) {
+    public KvReq(int groupId, List<byte[]> keys, List<byte[]> values) {
         this.groupId = groupId;
         this.key = null;
         this.value = null;

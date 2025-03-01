@@ -140,7 +140,7 @@ public class DtKVTest extends BaseFiberTest {
             ArrayList<byte[]> getKeys = new ArrayList<>();
             getKeys.add("batch1".getBytes());
             getKeys.add("batch2".getBytes());
-            Pair<Integer, List<KvResult>> batchGetResult = kv.mget(getKeys);
+            Pair<Integer, List<KvResult>> batchGetResult = kv.batchGet(getKeys);
             assertEquals(KvCodes.CODE_SUCCESS, batchGetResult.getLeft());
             assertEquals(2, batchGetResult.getRight().size());
             assertEquals("value1", new String(batchGetResult.getRight().get(0).getNode().getData()));
@@ -156,7 +156,7 @@ public class DtKVTest extends BaseFiberTest {
             assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResult.getLeft());
 
             // verify batch remove
-            batchGetResult = kv.mget(getKeys);
+            batchGetResult = kv.batchGet(getKeys);
             assertEquals(KvCodes.CODE_SUCCESS, batchGetResult.getLeft());
             assertEquals(2, batchGetResult.getRight().size());
             assertEquals(KvCodes.CODE_NOT_FOUND, batchGetResult.getRight().get(0).getBizCode());
