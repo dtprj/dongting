@@ -44,19 +44,19 @@ public class DtKVServerTest extends ServerTestBase {
         client.start();
         client.getRaftClient().clientAddNode("1, 127.0.0.1:5001");
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1});
-        client.mkdir(groupId, "dir1", timeout);
-        client.put(groupId, "dir1.k1", "v1".getBytes(), timeout);
+        client.mkdir(groupId, "dir1".getBytes(), timeout);
+        client.put(groupId, "dir1.k1".getBytes(), "v1".getBytes(), timeout);
 
-        KvNode result = client.get(groupId, "dir1.k1", timeout);
+        KvNode result = client.get(groupId, "dir1.k1".getBytes(), timeout);
         assertEquals("v1", new String(result.getData()));
 
-        List<KvResult> listResult = client.list(groupId, "", timeout);
+        List<KvResult> listResult = client.list(groupId, "".getBytes(), timeout);
         assertEquals(groupId, listResult.size());
         assertEquals(KvCodes.CODE_SUCCESS, listResult.get(0).getBizCode());
         assertEquals("dir1", listResult.get(0).getKeyInDir().toString());
 
-        client.remove(groupId, "dir1.k1", timeout);
-        result = client.get(groupId, "dir1.k1", timeout);
+        client.remove(groupId, "dir1.k1".getBytes(), timeout);
+        result = client.get(groupId, "dir1.k1".getBytes(), timeout);
         assertNull(result);
 
         client.stop(timeout);

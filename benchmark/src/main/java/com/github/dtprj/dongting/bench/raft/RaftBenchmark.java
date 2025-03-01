@@ -198,10 +198,10 @@ public class RaftBenchmark extends BenchBase {
             final DtTime timeout = new DtTime(2500, TimeUnit.MILLISECONDS);
 
             if (SYNC) {
-                clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout);
+                clients[threadIndex].put(GROUP_ID, String.valueOf(k).getBytes(), DATA, timeout);
                 success(state);
             } else {
-                clients[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout, (result, ex) -> {
+                clients[threadIndex].put(GROUP_ID, String.valueOf(k).getBytes(), DATA, timeout, (result, ex) -> {
                     if (ex == null) {
                         logRt(startTime, state);
                         RaftBenchmark.this.success(state);

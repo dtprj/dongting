@@ -49,7 +49,7 @@ public abstract class DemoClientBase {
         for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
             DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-            kvClient.put(groupId, key, DATA, timeout, (result, ex) -> {
+            kvClient.put(groupId, key.getBytes(), DATA, timeout, (result, ex) -> {
                 if (ex == null) {
                     latch1.countDown();
                 } else {
@@ -66,7 +66,7 @@ public abstract class DemoClientBase {
         for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
             DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-            kvClient.get(groupId, key, timeout, (result, ex) -> {
+            kvClient.get(groupId, key.getBytes(), timeout, (result, ex) -> {
                 if (ex == null) {
                     latch2.countDown();
                 } else {

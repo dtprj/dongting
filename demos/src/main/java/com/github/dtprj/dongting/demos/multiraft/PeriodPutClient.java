@@ -52,7 +52,7 @@ public class PeriodPutClient implements GroupId {
         try {
             String key = "key" + ((count++) % 10_000);
             long t = System.currentTimeMillis();
-            kvClient.put(groupId, key, "value".getBytes(), new DtTime(10, TimeUnit.SECONDS));
+            kvClient.put(groupId, key.getBytes(), "value".getBytes(), new DtTime(10, TimeUnit.SECONDS));
             log.info("group " + groupId + " put key " + key + " cost " + (System.currentTimeMillis() - t) + "ms");
         } catch (Exception e) {
             log.error("group " + groupId + " put key fail: {}", e.toString());

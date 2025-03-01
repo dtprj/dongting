@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -85,31 +84,31 @@ public class KvClient extends AbstractLifeCircle {
         }
     }
 
-    public void put(int groupId, String key, byte[] value, DtTime timeout) {
+    public void put(int groupId, byte[] key, byte[] value, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         put(groupId, key, value, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
-    public void put(int groupId, String key, byte[] value, DtTime timeout, FutureCallback<Void> callback) {
+    public void put(int groupId, byte[] key, byte[] value, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), value);
+        KvReq r = new KvReq(groupId, key, value);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
         RpcCallback<Void> c = wrap(callback, KvCodes.CODE_SUCCESS_OVERWRITE, v -> v);
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
     }
 
-    public KvNode get(int groupId, String key, DtTime timeout) {
+    public KvNode get(int groupId, byte[] key, DtTime timeout) {
         CompletableFuture<KvNode> f = new CompletableFuture<>();
         get(groupId, key, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
-    public void get(int groupId, String key, DtTime timeout, FutureCallback<KvNode> callback) {
+    public void get(int groupId, byte[] key, DtTime timeout, FutureCallback<KvNode> callback) {
         Objects.requireNonNull(key);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), null);
+        KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_GET);
 
@@ -125,15 +124,15 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, dc, timeout, c);
     }
 
-    public List<KvResult> list(int groupId, String key, DtTime timeout) {
+    public List<KvResult> list(int groupId, byte[] key, DtTime timeout) {
         CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
         list(groupId, key, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
-    public void list(int groupId, String key, DtTime timeout, FutureCallback<List<KvResult>> callback) {
+    public void list(int groupId, byte[] key, DtTime timeout, FutureCallback<List<KvResult>> callback) {
         Objects.requireNonNull(key);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), null);
+        KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_LIST);
 
@@ -143,30 +142,30 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, dc, timeout, c);
     }
 
-    public void remove(int groupId, String key, DtTime timeout) {
+    public void remove(int groupId, byte[] key, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         remove(groupId, key, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
-    public void remove(int groupId, String key, DtTime timeout, FutureCallback<Void> callback) {
+    public void remove(int groupId, byte[] key, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), null);
+        KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_REMOVE);
         RpcCallback<Void> c = wrap(callback, KvCodes.CODE_NOT_FOUND, v -> v);
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
     }
 
-    public void mkdir(int groupId, String key, DtTime timeout) {
+    public void mkdir(int groupId, byte[] key, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         mkdir(groupId, key, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
-    public void mkdir(int groupId, String key, DtTime timeout, FutureCallback<Void> callback) {
+    public void mkdir(int groupId, byte[] key, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
-        KvReq r = new KvReq(groupId, key.getBytes(StandardCharsets.UTF_8), null);
+        KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_MKDIR);
         RpcCallback<Void> c = wrap(callback, KvCodes.CODE_DIR_EXISTS, v -> v);
