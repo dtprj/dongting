@@ -59,7 +59,7 @@ public class KvClient extends AbstractLifeCircle {
             if (ex == null) {
                 int bc = result.getBizCode();
                 if (bc != KvCodes.CODE_SUCCESS && bc != anotherSuccessCode) {
-                    ex = new NetBizCodeException(bc, result.getMsg());
+                    ex = new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode()));
                 } else {
                     finalResult = f.apply(result.getBody());
                 }
