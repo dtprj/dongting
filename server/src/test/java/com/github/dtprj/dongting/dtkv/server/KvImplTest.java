@@ -523,6 +523,11 @@ class KvImplTest {
                 kv.compareAndSet(ver++, ba("key1"), "value1".getBytes(), "value2".getBytes()).getBizCode());
         assertArrayEquals("value2".getBytes(), kv.get(ba("key1")).getNode().getData());
 
+        // test CAS delete
+        assertEquals(KvCodes.CODE_SUCCESS,
+                kv.compareAndSet(ver++, ba("key1"), "value2".getBytes(), null).getBizCode());
+        assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("key1")).getBizCode());
+
         // Test CAS with non-existent key
         assertEquals(KvCodes.CODE_CAS_MISMATCH,
                 kv.compareAndSet(ver++, ba("nonexistent"), "any".getBytes(), "value".getBytes()).getBizCode());
@@ -530,8 +535,6 @@ class KvImplTest {
         // Test CAS with invalid inputs
         assertEquals(KvCodes.CODE_INVALID_KEY,
                 kv.compareAndSet(ver++, null, "value1".getBytes(), "value2".getBytes()).getBizCode());
-        assertEquals(KvCodes.CODE_INVALID_VALUE,
-                kv.compareAndSet(ver++, ba("key1"), "value2".getBytes(), null).getBizCode());
 
         // Test CAS on a directory
         kv.mkdir(ver++, ba("dir1"));

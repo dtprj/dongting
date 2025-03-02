@@ -92,11 +92,11 @@ class KvImpl {
                 return KvCodes.CODE_INVALID_KEY;
             }
         }
-        if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
-            return KvCodes.CODE_INVALID_KEY;
-        }
         if (bs.length > maxKeySize) {
             return KvCodes.CODE_KEY_TOO_LONG;
+        }
+        if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
+            return KvCodes.CODE_INVALID_KEY;
         }
         return KvCodes.CODE_SUCCESS;
     }
@@ -461,22 +461,27 @@ class KvImpl {
             writeLock.lock();
         }
         try {
-            if (maxOpenSnapshotIndex > 0) {
-                KvNodeEx newKvNode = new KvNodeEx(n.getCreateIndex(), n.getCreateTime(), index,
-                        ts.getWallClockMillis(), n.isDir(), null);
-                newKvNode.removed = true;
-                h.latest = newKvNode;
-                newKvNode.previous = n;
-                gc(h);
-            } else {
-                removeFromMap(h);
-            }
-            updateParent(index, ts.getWallClockMillis(), h.parent);
+            return doRemoveInLock(index, h);
         } finally {
             if (lock) {
                 writeLock.unlock();
             }
         }
+    }
+
+    private KvResult doRemoveInLock(long index, KvNodeHolder h) {
+        if (maxOpenSnapshotIndex > 0) {
+            KvNodeEx n = h.latest;
+            KvNodeEx newKvNode = new KvNodeEx(n.getCreateIndex(), n.getCreateTime(), index,
+                    ts.getWallClockMillis(), n.isDir(), null);
+            newKvNode.removed = true;
+            h.latest = newKvNode;
+            newKvNode.previous = n;
+            gc(h);
+        } else {
+            removeFromMap(h);
+        }
+        updateParent(index, ts.getWallClockMillis(), h.parent);
         return KvResult.SUCCESS;
     }
 
@@ -517,9 +522,6 @@ class KvImpl {
         } else {
             parent = root;
         }
-        if (newValue == null || newValue.length == 0) {
-            return new KvResult(KvCodes.CODE_INVALID_VALUE);
-        }
         KvNodeHolder h = map.get(key);
         writeLock.lock();
         try {
@@ -547,8 +549,12 @@ class KvImpl {
                         return new KvResult(KvCodes.CODE_CAS_MISMATCH);
                     }
                 }
-                KvResult r = doPut(index, key, newValue, h, parent, lastIndexOfSep);
-                return r == KvResult.SUCCESS_OVERWRITE ? KvResult.SUCCESS : r;
+                if (newValue == null || newValue.length == 0) {
+                    return doRemoveInLock(index, h);
+                } else {
+                    KvResult r = doPut(index, key, newValue, h, parent, lastIndexOfSep);
+                    return r == KvResult.SUCCESS_OVERWRITE ? KvResult.SUCCESS : r;
+                }
             }
         } finally {
             writeLock.unlock();
