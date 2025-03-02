@@ -22,11 +22,11 @@ import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -58,6 +58,39 @@ public class DtKVServerTest extends ServerTestBase {
         client.remove(groupId, "dir1.k1".getBytes(), timeout);
         result = client.get(groupId, "dir1.k1".getBytes(), timeout);
         assertNull(result);
+
+        // Test batchPut
+        int[] batchPutResults = client.batchPut(groupId, Arrays.asList("batchK1".getBytes(), "batchK2".getBytes()),
+                Arrays.asList("v1".getBytes(), "v2".getBytes()), timeout);
+        assertEquals(2, batchPutResults.length);
+        assertEquals(KvCodes.CODE_SUCCESS, batchPutResults[0]);
+        assertEquals(KvCodes.CODE_SUCCESS, batchPutResults[1]);
+
+        // Verify batchPut results
+        List<KvNode> batchGetResults = client.batchGet(groupId, Arrays.asList(
+                "batchK1".getBytes(), "batchK2".getBytes()), timeout);
+        assertEquals(2, batchGetResults.size());
+        assertEquals("v1", new String(batchGetResults.get(0).getData()));
+        assertEquals("v2", new String(batchGetResults.get(1).getData()));
+
+        // Test batchRemove
+        int[] batchRemoveResults = client.batchRemove(groupId, Arrays.asList(
+                "batchK1".getBytes(), "batchK2".getBytes()), timeout);
+        assertEquals(2, batchRemoveResults.length);
+        assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResults[0]);
+        assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResults[1]);
+
+        // Verify batchRemove results
+        batchGetResults = client.batchGet(groupId, Arrays.asList(
+                "batchK1".getBytes(), "batchK2".getBytes()), timeout);
+        assertEquals(2, batchGetResults.size());
+        assertNull(batchGetResults.get(0));
+        assertNull(batchGetResults.get(1));
+
+        // Test compareAndSet
+        boolean casResult = client.compareAndSet(groupId, "casKey1".getBytes(), null, "value1".getBytes(), timeout);
+        assertTrue(casResult);
+        assertEquals("value1", new String(client.get(groupId, "casKey1".getBytes(), timeout).getData()));
 
         client.stop(timeout);
         waitStop(s1);
