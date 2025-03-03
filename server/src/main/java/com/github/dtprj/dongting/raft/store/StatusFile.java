@@ -139,13 +139,13 @@ public class StatusFile implements AutoCloseable {
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
-                DtUtil.close(lock, dtFile.getChannel());
+                close();
                 throw new RaftException(ex);
             }
         };
     }
 
-    public static void writeToBuffer(Map<String,String> properties, ByteBuffer buf, CRC32C crc32c) {
+    public static void writeToBuffer(Map<String, String> properties, ByteBuffer buf, CRC32C crc32c) {
         buf.position(CRC_HEX_LENGTH);
         buf.put((byte) '\n');
         for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -198,8 +198,13 @@ public class StatusFile implements AutoCloseable {
 
     @Override
     public void close() {
-        if (dtFile.getChannel().isOpen()) {
-            DtUtil.close(lock, dtFile.getChannel());
+        if (lock != null && lock.isValid()) {
+            DtUtil.close(lock);
+            lock = null;
+        }
+        if (dtFile != null) {
+            DtUtil.close(dtFile.getChannel());
+            dtFile = null;
         }
     }
 
