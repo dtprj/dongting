@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -68,8 +69,9 @@ public abstract class DefaultRaftFactory implements RaftFactory {
     }
 
     @Override
-    public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine) {
-        return new DefaultSnapshotManager(groupConfig, stateMachine);
+    public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine,
+                                                 Consumer<Long> logDeleter) {
+        return new DefaultSnapshotManager(groupConfig, stateMachine, logDeleter);
     }
 
     @Override

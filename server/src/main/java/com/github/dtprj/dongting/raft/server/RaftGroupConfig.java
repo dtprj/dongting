@@ -58,6 +58,8 @@ public class RaftGroupConfig extends ConfigBase {
 
     private boolean saveSnapshotWhenClose = true;
 
+    private boolean deleteLogsAfterTakeSnapshot = true;
+
     RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
@@ -254,5 +256,13 @@ public class RaftGroupConfig extends ConfigBase {
 
     public void setDisableConfigChange(boolean disableConfigChange) {
         this.disableConfigChange = disableConfigChange;
+    }
+
+    public boolean isDeleteLogsAfterTakeSnapshot() {
+        return deleteLogsAfterTakeSnapshot;
+    }
+
+    public void setDeleteLogsAfterTakeSnapshot(boolean deleteLogsAfterTakeSnapshot) {
+        this.deleteLogsAfterTakeSnapshot = deleteLogsAfterTakeSnapshot;
     }
 }

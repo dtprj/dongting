@@ -73,7 +73,8 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         kvConfig.setUseSeparateExecutor(separateExecutor);
         kvConfig.setInitMapCapacity(16);
         kv = new DtKV(groupConfig, kvConfig);
-        m = new DefaultSnapshotManager(groupConfig, kv);
+        m = new DefaultSnapshotManager(groupConfig, kv, idx -> {
+        });
     }
 
     @Test
