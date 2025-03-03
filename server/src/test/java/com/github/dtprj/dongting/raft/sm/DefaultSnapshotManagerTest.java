@@ -100,12 +100,12 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 kv.start();
-                m.startFiber();
                 return Fiber.call(m.init(), this::afterInit);
             }
 
             private FrameCallResult afterInit(Snapshot snapshot) {
                 assertNull(snapshot);
+                m.startFiber();
                 return beforePut(null);
             }
 
