@@ -142,7 +142,6 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
                 createManager(separateExecutor, dataDir, false);
                 kv.start();
-                m.startFiber();
                 return Fiber.call(m.init(), this::afterInit2);
             }
 
@@ -150,6 +149,9 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 assertNotNull(snapshot);
                 assertEquals(1, snapshot.getSnapshotInfo().getLastIncludedTerm());
                 assertEquals(LOOP, snapshot.getSnapshotInfo().getLastIncludedIndex());
+
+                m.startFiber();
+
                 FiberFrame<Void> f = m.recover(snapshot);
                 return Fiber.call(f, this::afterRecover);
             }
