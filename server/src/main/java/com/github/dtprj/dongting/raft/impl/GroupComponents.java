@@ -29,157 +29,26 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
  * @author huangli
  */
 public class GroupComponents {
-    private RaftServerConfig serverConfig;
-    private RaftGroupConfigEx groupConfig;
-    private RaftStatusImpl raftStatus;
-    private MemberManager memberManager;
-    private VoteManager voteManager;
-    private LinearTaskRunner linearTaskRunner;
-    private CommitManager commitManager;
-    private ApplyManager applyManager;
-    private SnapshotManager snapshotManager;
-    private StatusManager statusManager;
-    private ReplicateManager replicateManager;
+    public RaftServerConfig serverConfig;
+    public RaftGroupConfigEx groupConfig;
+    public RaftStatusImpl raftStatus;
+    public MemberManager memberManager;
+    public VoteManager voteManager;
+    public LinearTaskRunner linearTaskRunner;
+    public CommitManager commitManager;
+    public ApplyManager applyManager;
+    public SnapshotManager snapshotManager;
+    public StatusManager statusManager;
+    public ReplicateManager replicateManager;
 
-    private NodeManager nodeManager;
-    private PendingStat serverStat;
+    public NodeManager nodeManager;
+    public PendingStat serverStat;
 
-    private RaftLog raftLog;
-    private StateMachine stateMachine;
+    public RaftLog raftLog;
+    public StateMachine stateMachine;
 
-    private FiberGroup fiberGroup;
+    public FiberGroup fiberGroup;
 
-    private final IntObjMap<FiberChannel<Object>> processorChannels = new IntObjMap<>();
+    public final IntObjMap<FiberChannel<Object>> processorChannels = new IntObjMap<>();
 
-    public RaftServerConfig getServerConfig() {
-        return serverConfig;
-    }
-
-    public void setServerConfig(RaftServerConfig serverConfig) {
-        this.serverConfig = serverConfig;
-    }
-
-    public RaftGroupConfigEx getGroupConfig() {
-        return groupConfig;
-    }
-
-    public void setGroupConfig(RaftGroupConfigEx groupConfig) {
-        this.groupConfig = groupConfig;
-    }
-
-    public RaftStatusImpl getRaftStatus() {
-        return raftStatus;
-    }
-
-    public void setRaftStatus(RaftStatusImpl raftStatus) {
-        this.raftStatus = raftStatus;
-    }
-
-    public MemberManager getMemberManager() {
-        return memberManager;
-    }
-
-    public void setMemberManager(MemberManager memberManager) {
-        this.memberManager = memberManager;
-    }
-
-    public VoteManager getVoteManager() {
-        return voteManager;
-    }
-
-    public void setVoteManager(VoteManager voteManager) {
-        this.voteManager = voteManager;
-    }
-
-    public LinearTaskRunner getLinearTaskRunner() {
-        return linearTaskRunner;
-    }
-
-    public void setLinearTaskRunner(LinearTaskRunner linearTaskRunner) {
-        this.linearTaskRunner = linearTaskRunner;
-    }
-
-    public CommitManager getCommitManager() {
-        return commitManager;
-    }
-
-    public void setCommitManager(CommitManager commitManager) {
-        this.commitManager = commitManager;
-    }
-
-    public ApplyManager getApplyManager() {
-        return applyManager;
-    }
-
-    public void setApplyManager(ApplyManager applyManager) {
-        this.applyManager = applyManager;
-    }
-
-    public SnapshotManager getSnapshotManager() {
-        return snapshotManager;
-    }
-
-    public void setSnapshotManager(SnapshotManager snapshotManager) {
-        this.snapshotManager = snapshotManager;
-    }
-
-    public StatusManager getStatusManager() {
-        return statusManager;
-    }
-
-    public void setStatusManager(StatusManager statusManager) {
-        this.statusManager = statusManager;
-    }
-
-    public NodeManager getNodeManager() {
-        return nodeManager;
-    }
-
-    public void setNodeManager(NodeManager nodeManager) {
-        this.nodeManager = nodeManager;
-    }
-
-    public PendingStat getServerStat() {
-        return serverStat;
-    }
-
-    public void setServerStat(PendingStat serverStat) {
-        this.serverStat = serverStat;
-    }
-
-    public RaftLog getRaftLog() {
-        return raftLog;
-    }
-
-    public void setRaftLog(RaftLog raftLog) {
-        this.raftLog = raftLog;
-    }
-
-    public StateMachine getStateMachine() {
-        return stateMachine;
-    }
-
-    public void setStateMachine(StateMachine stateMachine) {
-        this.stateMachine = stateMachine;
-    }
-
-    public FiberGroup getFiberGroup() {
-        return fiberGroup;
-    }
-
-    public void setFiberGroup(FiberGroup fiberGroup) {
-        this.fiberGroup = fiberGroup;
-    }
-
-    public ReplicateManager getReplicateManager() {
-        return replicateManager;
-    }
-
-    public void setReplicateManager(ReplicateManager replicateManager) {
-        this.replicateManager = replicateManager;
-    }
-
-    public IntObjMap<FiberChannel<Object>> getProcessorChannels() {
-        return processorChannels;
-    }
 }

@@ -51,17 +51,17 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
         ReadPacket<TransferLeaderReq> frame = reqInfo.reqFrame;
         TransferLeaderReq req = frame.getBody();
         GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
-        RaftStatusImpl raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.raftStatus;
         if (raftStatus.getRole() != RaftRole.follower) {
             log.error("not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());
             throw new RaftException("not follower");
         }
-        if(req.newLeaderId != gc.getServerConfig().getNodeId()) {
+        if(req.newLeaderId != gc.serverConfig.getNodeId()) {
             log.error("new leader id mismatch, groupId={}, newLeaderId={}, localId={}",
-                    req.groupId, req.newLeaderId, gc.getServerConfig().getNodeId());
+                    req.groupId, req.newLeaderId, gc.serverConfig.getNodeId());
             throw new RaftException("new leader id mismatch");
         }
-        if (!gc.getMemberManager().isValidCandidate(req.oldLeaderId) || !gc.getMemberManager().isValidCandidate(req.newLeaderId)) {
+        if (!gc.memberManager.isValidCandidate(req.oldLeaderId) || !gc.memberManager.isValidCandidate(req.newLeaderId)) {
             log.error("old leader or new leader is not valid candidate, groupId={}, old={}, new={}", req.groupId, req.oldLeaderId, req.newLeaderId);
             throw new RaftException("old leader or new leader is not valid candidate");
         }
@@ -77,11 +77,11 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             throw new RaftException("logIndex check fail");
         }
         raftStatus.commitIndex = req.logIndex;
-        gc.getApplyManager().wakeupApply();
+        gc.applyManager.wakeupApply();
 
         RaftUtil.changeToLeader(raftStatus);
-        gc.getVoteManager().cancelVote("transfer leader");
-        gc.getLinearTaskRunner().issueHeartBeat();
+        gc.voteManager.cancelVote("transfer leader");
+        gc.linearTaskRunner.issueHeartBeat();
         reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SUCCESS));
         return FiberFrame.voidCompletedFrame();
     }

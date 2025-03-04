@@ -71,13 +71,13 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             return errorResp;
         }
         GroupComponents gc = g.getGroupComponents();
-        if (!gc.getRaftStatus().initialized) {
+        if (!gc.raftStatus.initialized) {
             invokeCleanReq(reqInfo);
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
             wf.setMsg("raft group not initialized: " + groupId);
             return wf;
         }
-        if (gc.getFiberGroup().isShouldStop()) {
+        if (gc.fiberGroup.isShouldStop()) {
             invokeCleanReq(reqInfo);
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
             wf.setMsg("raft group is stopped: " + groupId);

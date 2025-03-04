@@ -82,9 +82,9 @@ public class MemberManager {
     public MemberManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
-        this.serverConfig = gc.getServerConfig();
-        this.groupConfig = gc.getGroupConfig();
-        this.raftStatus = gc.getRaftStatus();
+        this.serverConfig = gc.serverConfig;
+        this.groupConfig = gc.groupConfig;
+        this.raftStatus = gc.raftStatus;
         this.groupId = raftStatus.groupId;
 
         if (raftStatus.nodeIdOfMembers.isEmpty()) {
@@ -97,8 +97,8 @@ public class MemberManager {
     }
 
     public void postInit() {
-        this.replicateManager = gc.getReplicateManager();
-        this.nodeManager = gc.getNodeManager();
+        this.replicateManager = gc.replicateManager;
+        this.nodeManager = gc.nodeManager;
     }
 
     /**
@@ -583,7 +583,7 @@ public class MemberManager {
         RaftInput input = new RaftInput(0, null, data == null ? null : new ByteArray(data),
                 null, false);
         // use runner fiber to execute to avoid race condition
-        gc.getLinearTaskRunner().submitRaftTaskInBizThread(type, input, new RaftCallback() {
+        gc.linearTaskRunner.submitRaftTaskInBizThread(type, input, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {
                 if (type == LogItem.TYPE_PREPARE_CONFIG_CHANGE) {
@@ -591,7 +591,7 @@ public class MemberManager {
                     // manager does not check prepare members since they are not active).
                     // If we call commit config change immediately after prepareIndex applied, the prepareIndex
                     // check will fail, so we issue a heartbeat and wait to prepareIndex + 1 to be applied.
-                    gc.getLinearTaskRunner().issueHeartBeat();
+                    gc.linearTaskRunner.issueHeartBeat();
                     Fiber fiber = new Fiber("finishPrepareFuture", groupConfig.getFiberGroup(),
                             finishPrepareFuture(f, raftIndex));
                     fiber.start();
@@ -612,7 +612,7 @@ public class MemberManager {
             @Override
             public FrameCallResult execute(Void input) {
                 if (raftStatus.getLastApplied() < prepareIndex + 1) {
-                    return gc.getApplyManager().applyFinishCond.await(100, this);
+                    return gc.applyManager.applyFinishCond.await(100, this);
                 }
                 f.complete(prepareIndex);
                 return Fiber.frameReturn();
@@ -799,7 +799,7 @@ public class MemberManager {
                 }
             }
 
-            gc.getVoteManager().cancelVote("config change");
+            gc.voteManager.cancelVote("config change");
             log.info("{} success, groupId={}", msg, groupId);
             return Fiber.frameReturn();
         }

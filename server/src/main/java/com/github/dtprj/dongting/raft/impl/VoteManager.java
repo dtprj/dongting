@@ -67,15 +67,15 @@ public class VoteManager {
     public VoteManager(NioClient client, GroupComponents gc) {
         this.gc = gc;
         this.client = client;
-        this.groupConfig = gc.getGroupConfig();
-        this.raftStatus = gc.getRaftStatus();
-        this.config = gc.getServerConfig();
+        this.groupConfig = gc.groupConfig;
+        this.raftStatus = gc.raftStatus;
+        this.config = gc.serverConfig;
         this.groupId = groupConfig.getGroupId();
     }
 
     public void postInit() {
-        this.linearTaskRunner = gc.getLinearTaskRunner();
-        this.statusManager = gc.getStatusManager();
+        this.linearTaskRunner = gc.linearTaskRunner;
+        this.statusManager = gc.statusManager;
     }
 
     public void startVoteFiber() {

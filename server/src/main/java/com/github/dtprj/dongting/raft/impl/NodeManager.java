@@ -115,7 +115,7 @@ public class NodeManager extends AbstractLifeCircle {
         }
 
         raftGroups.forEach((groupId, g) -> {
-            RaftStatusImpl raftStatus = g.getGroupComponents().getRaftStatus();
+            RaftStatusImpl raftStatus = g.getGroupComponents().raftStatus;
             for (int nodeId : raftStatus.nodeIdOfMembers) {
                 RaftNodeEx nodeEx = allNodesEx.get(nodeId);
                 nodeEx.setUseCount(nodeEx.getUseCount() + 1);

@@ -99,9 +99,9 @@ public class ServerTestBase {
 
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         GroupComponents gc = g.getGroupComponents();
-        ImplAccessor.updateNodeManager(gc.getNodeManager());
-        ImplAccessor.updateMemberManager(gc.getMemberManager());
-        ImplAccessor.updateVoteManager(gc.getVoteManager());
+        ImplAccessor.updateNodeManager(gc.nodeManager);
+        ImplAccessor.updateMemberManager(gc.memberManager);
+        ImplAccessor.updateVoteManager(gc.voteManager);
 
         if (initTerm > 0 || initVoteFor > 0 || initCommitIndex > 0 || initSnapshot) {
             File dir = new File(groupConfig.getDataDir());

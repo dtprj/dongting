@@ -46,8 +46,8 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     public InitFiberFrame(GroupComponents gc, Set<RaftSequenceProcessor<?>> raftSequenceProcessors) {
         this.gc = gc;
-        this.raftStatus = gc.getRaftStatus();
-        this.groupConfig = gc.getGroupConfig();
+        this.raftStatus = gc.raftStatus;
+        this.groupConfig = gc.groupConfig;
         this.raftSequenceProcessors = raftSequenceProcessors;
     }
 
@@ -69,20 +69,20 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
-        gc.getStateMachine().start(); // stop in apply manager
+        gc.stateMachine.start(); // stop in apply manager
         FiberGroup fg = getFiberGroup();
-        initRaftStatus(raftStatus, fg, gc.getServerConfig());
+        initRaftStatus(raftStatus, fg, gc.serverConfig);
 
         for (RaftSequenceProcessor<?> processor : raftSequenceProcessors) {
             @SuppressWarnings("rawtypes")
-            FiberChannel channel = gc.getProcessorChannels().get(processor.getTypeId());
+            FiberChannel channel = gc.processorChannels.get(processor.getTypeId());
             //noinspection unchecked
             processor.startProcessFiber(channel);
         }
 
-        gc.getLinearTaskRunner().init(fg.newChannel());
+        gc.linearTaskRunner.init(fg.newChannel());
 
-        return Fiber.call(gc.getStatusManager().initStatusFile(), this::afterInitStatusFile);
+        return Fiber.call(gc.statusManager.initStatusFile(), this::afterInitStatusFile);
     }
 
     public static void initRaftStatus(RaftStatusImpl raftStatus, FiberGroup fg, RaftServerConfig serverConfig) {
@@ -98,7 +98,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         if (cancelInit()) {
             return Fiber.frameReturn();
         }
-        if (raftStatus.installSnapshot || gc.getSnapshotManager() == null) {
+        if (raftStatus.installSnapshot || gc.snapshotManager == null) {
             if (raftStatus.installSnapshot) {
                 log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
             } else {
@@ -107,7 +107,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
             }
             return afterRecoverStateMachine(null);
         } else {
-            FiberFrame<Snapshot> f = gc.getSnapshotManager().init();
+            FiberFrame<Snapshot> f = gc.snapshotManager.init();
             return Fiber.call(f, this::afterSnapshotManagerInit);
         }
     }
@@ -134,9 +134,9 @@ public class InitFiberFrame extends FiberFrame<Void> {
                     si.getLastIncludedTerm(), raftStatus.currentTerm);
             throw new RaftException("snapshot term greater than current term");
         }
-        gc.getRaftStatus().lastConfigChangeIndex = si.getLastConfigChangeIndex();
+        gc.raftStatus.lastConfigChangeIndex = si.getLastConfigChangeIndex();
 
-        FiberFrame<Void> f = gc.getMemberManager().applyConfigFrame(
+        FiberFrame<Void> f = gc.memberManager.applyConfigFrame(
                 "state machine recover apply config change",
                 si.getMembers(), si.getObservers(), si.getPreparedMembers(), si.getPreparedObservers());
         return Fiber.call(f, v -> afterApplyConfigChange(snapshot));
@@ -146,7 +146,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         if (cancelInit()) {
             return Fiber.frameReturn();
         }
-        FiberFrame<Void> f = gc.getSnapshotManager().recover(snapshot);
+        FiberFrame<Void> f = gc.snapshotManager.recover(snapshot);
         return Fiber.call(f, v -> afterRecoverStateMachine(snapshot));
     }
 
@@ -165,7 +165,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
             raftStatus.commitIndex = snapshotIndex;
         }
 
-        return Fiber.call(gc.getRaftLog().init(),
+        return Fiber.call(gc.raftLog.init(),
                 initResult -> afterRaftLogInit(initResult, snapshotTerm, snapshotIndex));
     }
 
@@ -203,10 +203,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
         }
 
         raftStatus.copyShareStatus();
-        gc.getCommitManager().startCommitFiber();
-        gc.getVoteManager().startVoteFiber();
-        gc.getApplyManager().init(getFiberGroup());
-        gc.getSnapshotManager().startFiber();
+        gc.commitManager.startCommitFiber();
+        gc.voteManager.startVoteFiber();
+        gc.applyManager.init(getFiberGroup());
+        gc.snapshotManager.startFiber();
         return Fiber.frameReturn();
     }
 

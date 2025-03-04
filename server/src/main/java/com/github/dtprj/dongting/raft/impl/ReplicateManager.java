@@ -81,17 +81,17 @@ public class ReplicateManager {
     public ReplicateManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
-        this.groupConfig = gc.getGroupConfig();
+        this.groupConfig = gc.groupConfig;
         this.groupId = groupConfig.getGroupId();
-        this.raftStatus = gc.getRaftStatus();
-        this.serverConfig = gc.getServerConfig();
+        this.raftStatus = gc.raftStatus;
+        this.serverConfig = gc.serverConfig;
     }
 
     public void postInit() {
-        this.raftLog = gc.getRaftLog();
-        this.stateMachine = gc.getStateMachine();
-        this.commitManager = gc.getCommitManager();
-        this.statusManager = gc.getStatusManager();
+        this.raftLog = gc.raftLog;
+        this.stateMachine = gc.stateMachine;
+        this.commitManager = gc.commitManager;
+        this.statusManager = gc.statusManager;
     }
 
     public void tryStartReplicateFibers() {
@@ -107,7 +107,7 @@ public class ReplicateManager {
             if (!m.isReady()) {
                 continue;
             }
-            if (gc.getMemberManager().inLegacyMember(m)) {
+            if (gc.memberManager.inLegacyMember(m)) {
                 continue;
             }
             if (m.getReplicateFiber() == null || m.getReplicateFiber().isFinished()) {

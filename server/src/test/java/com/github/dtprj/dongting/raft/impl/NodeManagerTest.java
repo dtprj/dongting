@@ -79,8 +79,8 @@ public class NodeManagerTest {
         raftStatus.nodeIdOfObservers = RaftUtil.strToIdSet(observers);
 
         GroupComponents gc = new GroupComponents();
-        gc.setRaftStatus(raftStatus);
-        gc.setGroupConfig(new RaftGroupConfigEx(1, members, observers));
+        gc.raftStatus = raftStatus;
+        gc.groupConfig = new RaftGroupConfigEx(1, members, observers);
         ConcurrentHashMap<Integer, RaftGroupImpl> raftGroups = new ConcurrentHashMap<>();
         raftGroups.put(1, new RaftGroupImpl(gc));
 

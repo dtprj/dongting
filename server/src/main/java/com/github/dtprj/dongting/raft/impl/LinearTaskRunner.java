@@ -62,15 +62,15 @@ public class LinearTaskRunner {
 
     public LinearTaskRunner(GroupComponents gc) {
         this.gc = gc;
-        this.serverConfig = gc.getServerConfig();
-        this.groupConfig = gc.getGroupConfig();
-        this.raftStatus = gc.getRaftStatus();
+        this.serverConfig = gc.serverConfig;
+        this.groupConfig = gc.groupConfig;
+        this.raftStatus = gc.raftStatus;
         this.ts = raftStatus.ts;
-        this.perfCallback = gc.getGroupConfig().getPerfCallback();
+        this.perfCallback = gc.groupConfig.getPerfCallback();
     }
 
     public void postInit() {
-        this.raftLog = gc.getRaftLog();
+        this.raftLog = gc.raftLog;
     }
 
     public void init(FiberChannel<RaftTask> taskChannel) {

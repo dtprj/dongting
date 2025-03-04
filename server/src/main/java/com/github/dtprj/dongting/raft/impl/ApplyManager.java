@@ -83,11 +83,11 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     private Fiber applyFiber;
 
     public ApplyManager(GroupComponents gc) {
-        this.ts = gc.getRaftStatus().ts;
-        this.raftStatus = gc.getRaftStatus();
+        this.ts = gc.raftStatus.ts;
+        this.raftStatus = gc.raftStatus;
         this.gc = gc;
-        this.fiberGroup = gc.getFiberGroup();
-        this.perfCallback = gc.getGroupConfig().getPerfCallback();
+        this.fiberGroup = gc.fiberGroup;
+        this.perfCallback = gc.groupConfig.getPerfCallback();
         this.waitReadyQueue = new PriorityQueue<>(this);
         this.needApplyCond = fiberGroup.newCondition("needApply");
         this.applyFinishCond = fiberGroup.newCondition("applyFinish");
@@ -101,8 +101,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     public void postInit() {
-        this.raftLog = gc.getRaftLog();
-        this.stateMachine = gc.getStateMachine();
+        this.raftLog = gc.raftLog;
+        this.stateMachine = gc.stateMachine;
     }
 
     public void init(FiberGroup fiberGroup) {
@@ -458,15 +458,15 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
         private FrameCallResult afterApplyFinish(Void unused) {
             waitApply = false;
-            StatusManager statusManager = gc.getStatusManager();
+            StatusManager statusManager = gc.statusManager;
             statusManager.persistAsync(true);
             switch (rt.getType()) {
                 case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);
                 case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    return gc.getMemberManager().doAbort(rt.getItem().getIndex());
+                    return gc.memberManager.doAbort(rt.getItem().getIndex());
                 case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    return gc.getMemberManager().doCommit(rt.getItem().getIndex());
+                    return gc.memberManager.doCommit(rt.getItem().getIndex());
                 default:
                     throw Fiber.fatal(new RaftException("unknown config change type"));
             }
@@ -488,7 +488,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
                         oldObserverIds, raftStatus.nodeIdOfObservers, raftStatus.groupId);
             }
-            return gc.getMemberManager().doPrepare(rt.getItem().getIndex(), newMemberIds, newObserverIds);
+            return gc.memberManager.doPrepare(rt.getItem().getIndex(), newMemberIds, newObserverIds);
         }
 
         private Set<Integer> parseSet(String s) {

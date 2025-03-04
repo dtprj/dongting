@@ -39,12 +39,12 @@ public class CommitManager {
 
     public CommitManager(GroupComponents gc) {
         this.gc = gc;
-        this.raftStatus = gc.getRaftStatus();
-        this.syncForce = gc.getGroupConfig().isSyncForce();
+        this.raftStatus = gc.raftStatus;
+        this.syncForce = gc.groupConfig.isSyncForce();
     }
 
     public void postInit() {
-        this.applyManager = gc.getApplyManager();
+        this.applyManager = gc.applyManager;
     }
 
     public void startCommitFiber() {

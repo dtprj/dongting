@@ -64,7 +64,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private VoteFiberFrame(ReqInfoEx<VoteReq> reqInfo) {
             this.reqInfo = reqInfo;
-            this.raftStatus = reqInfo.raftGroup.getGroupComponents().getRaftStatus();
+            this.raftStatus = reqInfo.raftGroup.getGroupComponents().raftStatus;
             this.voteReq = reqInfo.reqFrame.getBody();
         }
 
@@ -127,14 +127,14 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
         }
 
         private FrameCallResult updateStatusFile(boolean grant) {
-            StatusManager statusManager = reqInfo.raftGroup.getGroupComponents().getStatusManager();
+            StatusManager statusManager = reqInfo.raftGroup.getGroupComponents().statusManager;
             int expectTerm = raftStatus.currentTerm;
 
             boolean notPreVoteAndGrant = !voteReq.preVote && grant;
             if (notPreVoteAndGrant) {
                 RaftUtil.resetElectTimer(raftStatus);
                 raftStatus.votedFor = voteReq.candidateId;
-                reqInfo.raftGroup.getGroupComponents().getVoteManager().cancelVote(
+                reqInfo.raftGroup.getGroupComponents().voteManager.cancelVote(
                         "vote for node " + voteReq.candidateId);
             }
             if (termUpdated || notPreVoteAndGrant) {

@@ -180,8 +180,8 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
         }
         int remoteTerm = getRemoteTerm();
         int leaderId = getLeaderId();
-        RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (gc.getMemberManager().isValidCandidate(leaderId)) {
+        RaftStatusImpl raftStatus = gc.raftStatus;
+        if (gc.memberManager.isValidCandidate(leaderId)) {
             int localTerm = raftStatus.currentTerm;
             if (remoteTerm == localTerm) {
                 switch (raftStatus.getRole()) {
@@ -191,7 +191,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                         return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "leader receive raft install snapshot request");
                     case candidate:
                         String r = "candidate receive append request from leader";
-                        gc.getVoteManager().cancelVote(r);
+                        gc.voteManager.cancelVote(r);
                         RaftUtil.resetElectTimer(raftStatus);
                         RaftUtil.changeToFollower(raftStatus, leaderId, r);
                         if (reqInfo.reqContext.getTimeout().isTimeout(raftStatus.ts)) {
@@ -201,7 +201,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                         }
                         return process();
                     default:
-                        gc.getVoteManager().cancelVote("receive append request from leader");
+                        gc.voteManager.cancelVote("receive append request from leader");
                         RaftUtil.resetElectTimer(raftStatus);
                         RaftUtil.updateLeader(raftStatus, leaderId);
                         if (reqInfo.reqContext.getTimeout().isTimeout(raftStatus.ts)) {
@@ -212,11 +212,11 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                         return process();
                 }
             } else if (remoteTerm > localTerm) {
-                gc.getVoteManager().cancelVote("receive append request with larger term");
+                gc.voteManager.cancelVote("receive append request with larger term");
                 RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId, "receive append request with larger term");
                 RaftUtil.resetElectTimer(raftStatus);
-                gc.getStatusManager().persistAsync(true);
-                return gc.getStatusManager().waitUpdateFinish(this);
+                gc.statusManager.persistAsync(true);
+                return gc.statusManager.waitUpdateFinish(this);
             } else {
                 log.info("receive {} request with a smaller term, ignore, remoteTerm={}, localTerm={}",
                         appendType, remoteTerm, localTerm);
@@ -231,7 +231,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
 
     protected FrameCallResult writeAppendResp(int code, int suggestTerm, long suggestIndex, String msg) {
         AppendResp resp = new AppendResp();
-        resp.term = gc.getRaftStatus().currentTerm;
+        resp.term = gc.raftStatus.currentTerm;
         if (code == AppendProcessor.APPEND_SUCCESS) {
             resp.success = true;
         } else {
@@ -264,9 +264,9 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
     @Override
     protected FrameCallResult handle(Throwable ex) {
-        gc.getRaftStatus().truncating = false;
+        gc.raftStatus.truncating = false;
         // to notify RaftUtil.waitWriteFinish() to resume
-        gc.getRaftStatus().logForceFinishCondition.signalAll();
+        gc.raftStatus.logForceFinishCondition.signalAll();
 
         log.error("append error", ex);
         writeAppendResp(AppendProcessor.APPEND_SERVER_ERROR, ex.toString());
@@ -275,7 +275,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
     @Override
     protected FrameCallResult doFinally() {
-        gc.getRaftStatus().copyShareStatus();
+        gc.raftStatus.copyShareStatus();
         AppendReq req = reqInfo.reqFrame.getBody();
         if (needRelease) {
             RaftUtil.release(req.logs);
@@ -296,7 +296,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     @Override
     protected FrameCallResult process() {
         AppendReq req = reqInfo.reqFrame.getBody();
-        RaftStatusImpl raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.raftStatus;
         if (raftStatus.installSnapshot) {
             writeAppendResp(AppendProcessor.APPEND_INSTALL_SNAPSHOT, null);
             return Fiber.frameReturn();
@@ -311,7 +311,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
                     raftStatus.lastLogTerm, req.logs.size(), req.leaderId, raftStatus.groupId);
             int currentTerm = raftStatus.currentTerm;
             Supplier<Boolean> cancelIndicator = () -> raftStatus.currentTerm != currentTerm;
-            FiberFrame<Pair<Integer, Long>> replicatePosFrame = gc.getRaftLog().tryFindMatchPos(
+            FiberFrame<Pair<Integer, Long>> replicatePosFrame = gc.raftLog.tryFindMatchPos(
                     req.prevLogTerm, req.prevLogIndex, cancelIndicator);
             return Fiber.call(replicatePosFrame, pos -> resumeWhenFindReplicatePosFinish(pos, currentTerm));
         } else {
@@ -320,7 +320,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     }
 
     private FrameCallResult doAppend(AppendReq req) {
-        RaftStatusImpl raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.raftStatus;
         if (req.prevLogIndex < raftStatus.commitIndex) {
             BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
                     req.leaderId, req.prevLogIndex, raftStatus.commitIndex, raftStatus.groupId);
@@ -357,7 +357,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             }
         }
         needRelease = false;
-        FiberFrame<Void> f = gc.getLinearTaskRunner().append(raftStatus, list);
+        FiberFrame<Void> f = gc.linearTaskRunner.append(raftStatus, list);
         // success response write in CommitManager fiber
         return Fiber.call(f, this::justReturn);
     }
@@ -370,14 +370,14 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         }
         if (req.leaderCommit > raftStatus.leaderCommit) {
             raftStatus.leaderCommit = req.leaderCommit;
-            gc.getCommitManager().followerTryCommit(raftStatus);
+            gc.commitManager.followerTryCommit(raftStatus);
         }
     }
 
     private void registerRespWriter(RaftStatusImpl raftStatus, long index) {
         int term = raftStatus.currentTerm;
         // register write response callback
-        gc.getCommitManager().registerRespWriter(lastPersistIndex -> {
+        gc.commitManager.registerRespWriter(lastPersistIndex -> {
             if (raftStatus.currentTerm == term) {
                 if (lastPersistIndex >= index) {
                     writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
@@ -393,7 +393,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
     private FrameCallResult resumeWhenFindReplicatePosFinish(Pair<Integer, Long> pos, int oldTerm) {
         GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
-        RaftStatusImpl raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.raftStatus;
         if (oldTerm != raftStatus.currentTerm) {
             log.info("term changed when find replicate pos, ignore result. oldTerm={}, newTerm={}, groupId={}",
                     oldTerm, raftStatus.currentTerm, raftStatus.groupId);
@@ -414,14 +414,14 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
                 // resume to this::execute to re-run all check
                 return RaftUtil.waitWriteFinish(raftStatus, this);
             } else {
-                gc.getRaftStatus().truncating = true;
+                gc.raftStatus.truncating = true;
                 long truncateIndex = req.prevLogIndex + 1;
 
                 log.info("local log truncate to {}(inclusive)", truncateIndex);
 
-                TailCache tailCache = reqInfo.raftGroup.getGroupComponents().getRaftStatus().tailCache;
+                TailCache tailCache = reqInfo.raftGroup.getGroupComponents().raftStatus.tailCache;
                 tailCache.truncate(truncateIndex);
-                return Fiber.call(gc.getRaftLog().truncateTail(truncateIndex),
+                return Fiber.call(gc.raftLog.truncateTail(truncateIndex),
                         v -> afterTruncate(req.prevLogIndex, req.prevLogTerm));
             }
         } else {
@@ -432,11 +432,11 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     }
 
     private FrameCallResult afterTruncate(long matchIndex, int matchTerm) {
-        RaftStatusImpl raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.raftStatus;
 
         raftStatus.truncating = false;
         // to notify RaftUtil.waitWriteFinish() to resume
-        gc.getRaftStatus().logForceFinishCondition.signalAll();
+        gc.raftStatus.logForceFinishCondition.signalAll();
 
         raftStatus.lastWriteLogIndex = matchIndex;
         raftStatus.lastForceLogIndex = matchIndex;
@@ -449,7 +449,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
 class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private static final DtLog log = DtLogs.getLogger(InstallFiberFrame.class);
-    private final int groupId = gc.getRaftStatus().groupId;
+    private final int groupId = gc.raftStatus.groupId;
     private boolean markInstall = false;
 
     public InstallFiberFrame(ReqInfoEx<InstallSnapshotReq> reqInfo, AppendProcessor processor) {
@@ -465,7 +465,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     @Override
     protected FrameCallResult doFinally() {
         GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
-        gc.getRaftStatus().copyShareStatus();
+        gc.raftStatus.copyShareStatus();
         return Fiber.frameReturn();
     }
 
@@ -480,7 +480,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
     @Override
     protected FrameCallResult process() {
-        RaftStatusImpl raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.raftStatus;
         InstallSnapshotReq req = reqInfo.reqFrame.getBody();
         if (!req.members.isEmpty()) {
             return startInstall(raftStatus);
@@ -493,11 +493,11 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         if (!markInstall) {
             log.info("start install snapshot, groupId={}", groupId);
             raftStatus.installSnapshot = true;
-            gc.getApplyManager().wakeupApply(); // wakeup apply fiber to exit
-            gc.getStatusManager().persistAsync(true);
+            gc.applyManager.wakeupApply(); // wakeup apply fiber to exit
+            gc.statusManager.persistAsync(true);
             markInstall = true;
         }
-        Fiber applyFiber = gc.getApplyManager().getApplyFiber();
+        Fiber applyFiber = gc.applyManager.getApplyFiber();
         if (!applyFiber.isFinished()) {
             return applyFiber.join(this::afterApplyExit);
         }
@@ -505,18 +505,18 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult afterApplyExit(Void v) {
-        return gc.getStatusManager().waitUpdateFinish(this::afterBeginStatusPersist);
+        return gc.statusManager.waitUpdateFinish(this::afterBeginStatusPersist);
     }
 
     private FrameCallResult afterBeginStatusPersist(Void v) throws Exception {
-        return Fiber.call(gc.getRaftLog().beginInstall(), this::applyConfigChange);
+        return Fiber.call(gc.raftLog.beginInstall(), this::applyConfigChange);
     }
 
     private FrameCallResult applyConfigChange(Void unused) {
-        MemberManager mm = reqInfo.raftGroup.getGroupComponents().getMemberManager();
+        MemberManager mm = reqInfo.raftGroup.getGroupComponents().memberManager;
         InstallSnapshotReq req = reqInfo.reqFrame.getBody();
 
-        reqInfo.raftGroup.getGroupComponents().getRaftStatus().lastConfigChangeIndex = req.lastIncludedIndex;
+        reqInfo.raftGroup.getGroupComponents().raftStatus.lastConfigChangeIndex = req.lastIncludedIndex;
 
         FiberFrame<Void> f = mm.applyConfigFrame("install snapshot config change",
                 req.members, req.observers, req.preparedMembers, req.preparedObservers);
@@ -532,7 +532,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         ByteBuffer buf = req.data == null ? null : req.data.getBuffer();
         log.info("apply snapshot, groupId={}, offset={}, bytes={}, done={}", groupId,
                 req.offset, buf == null ? 0 : buf.remaining(), done);
-        FiberFuture<Void> f = gc.getStateMachine().installSnapshot(req.lastIncludedIndex,
+        FiberFuture<Void> f = gc.stateMachine.installSnapshot(req.lastIncludedIndex,
                 req.lastIncludedTerm, req.offset, done, buf);
         if (done) {
             return f.await(v -> finishInstall(req, raftStatus));
@@ -558,25 +558,25 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         raftStatus.lastForceLogIndex = req.lastIncludedIndex;
 
         long nextIdx = req.lastIncludedIndex + 1;
-        FiberFrame<Void> ff = gc.getRaftLog().finishInstall(nextIdx, req.nextWritePos);
+        FiberFrame<Void> ff = gc.raftLog.finishInstall(nextIdx, req.nextWritePos);
         return Fiber.call(ff, v -> afterRaftLogFinishInstall(nextIdx));
     }
 
     private FrameCallResult afterRaftLogFinishInstall(long nextLogIndex) {
-        gc.getRaftStatus().firstValidIndex = nextLogIndex;
-        StatusManager sm = gc.getStatusManager();
+        gc.raftStatus.firstValidIndex = nextLogIndex;
+        StatusManager sm = gc.statusManager;
         sm.persistAsync(true);
         return sm.waitUpdateFinish(this::afterFinishStatusSaved);
     }
 
     private FrameCallResult afterFinishStatusSaved(Void v) {
-        gc.getApplyManager().signalStartApply();
+        gc.applyManager.signalStartApply();
         log.info("apply snapshot finish, groupId={}", groupId);
 
         // Have no logs before lastIncludedIndex, so save snapshot immediately.
         // Restart before snapshot is saved will cause install snapshot (since it can't recover state machine).
         // The save is async and FiberFuture returned by saveSnapshot() is not used.
-        gc.getSnapshotManager().saveSnapshot();
+        gc.snapshotManager.saveSnapshot();
 
         return releaseAndWriteResp(null);
     }

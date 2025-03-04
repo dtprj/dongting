@@ -63,7 +63,7 @@ public class ConfigChangeTest extends ServerTestBase {
         ServerInfo s4 = createServer(4, "2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004", "2,3,4", "");
         waitStart(s4);
 
-        assertTrue(() -> s4.group.getGroupComponents().getRaftStatus().getShareStatus().lastApplied >= prepareIndex);
+        assertTrue(() -> s4.group.getGroupComponents().raftStatus.getShareStatus().lastApplied >= prepareIndex);
 
         waitStop(s2);
         waitStop(s3);

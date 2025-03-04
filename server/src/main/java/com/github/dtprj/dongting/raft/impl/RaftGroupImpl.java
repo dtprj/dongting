@@ -57,13 +57,13 @@ public class RaftGroupImpl extends RaftGroup {
 
     public RaftGroupImpl(GroupComponents gc) {
         this.gc = gc;
-        this.groupId = gc.getGroupConfig().getGroupId();
+        this.groupId = gc.groupConfig.getGroupId();
 
-        this.raftStatus = gc.getRaftStatus();
-        this.groupConfig = gc.getGroupConfig();
-        this.serverStat = gc.getServerStat();
-        this.stateMachine = gc.getStateMachine();
-        this.fiberGroup = gc.getFiberGroup();
+        this.raftStatus = gc.raftStatus;
+        this.groupConfig = gc.groupConfig;
+        this.serverStat = gc.serverStat;
+        this.stateMachine = gc.stateMachine;
+        this.fiberGroup = gc.fiberGroup;
     }
 
     @Override
@@ -123,7 +123,7 @@ public class RaftGroupImpl extends RaftGroup {
             }
         };
         int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
-        gc.getLinearTaskRunner().submitRaftTaskInBizThread(type, input, wrapper);
+        gc.linearTaskRunner.submitRaftTaskInBizThread(type, input, wrapper);
     }
 
     @Override
@@ -150,7 +150,7 @@ public class RaftGroupImpl extends RaftGroup {
             }
         } else {
             // wait group ready
-            CompletableFuture<Long> f = gc.getApplyManager().addToWaitReadyQueue(deadline);
+            CompletableFuture<Long> f = gc.applyManager.addToWaitReadyQueue(deadline);
             f.whenComplete((idx, ex) -> {
                 if (ex != null) {
                     FutureCallback.callFail(callback, ex);
@@ -163,23 +163,23 @@ public class RaftGroupImpl extends RaftGroup {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        ExecutorService executor = gc.getFiberGroup().getExecutor();
-        executor.execute(() -> gc.getRaftLog().markTruncateByIndex(index, delayMillis));
+        ExecutorService executor = gc.fiberGroup.getExecutor();
+        executor.execute(() -> gc.raftLog.markTruncateByIndex(index, delayMillis));
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
-        ExecutorService executor = gc.getFiberGroup().getExecutor();
-        executor.execute(() -> gc.getRaftLog().markTruncateByTimestamp(timestampMillis, delayMillis));
+        ExecutorService executor = gc.fiberGroup.getExecutor();
+        executor.execute(() -> gc.raftLog.markTruncateByTimestamp(timestampMillis, delayMillis));
     }
 
     @Override
     public CompletableFuture<Long> fireSaveSnapshot() {
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
-        gc.getFiberGroup().getExecutor().execute(() -> {
+        gc.fiberGroup.getExecutor().execute(() -> {
             try {
-                FiberFuture<Long> ff = gc.getSnapshotManager().saveSnapshot();
+                FiberFuture<Long> ff = gc.snapshotManager.saveSnapshot();
                 ff.registerCallback((idx, ex) -> {
                     if (ex != null) {
                         f.completeExceptionally(ex);
@@ -199,12 +199,12 @@ public class RaftGroupImpl extends RaftGroup {
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
         DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
-        gc.getMemberManager().transferLeadership(nodeId, f, deadline);
+        gc.memberManager.transferLeadership(nodeId, f, deadline);
         return f;
     }
 
     private void checkStatus() {
-        CompletableFuture<Void> f = gc.getMemberManager().getPingReadyFuture();
+        CompletableFuture<Void> f = gc.memberManager.getPingReadyFuture();
         if (!f.isDone() || f.isCompletedExceptionally()) {
             throw new RaftException("not initialized");
         }
@@ -227,8 +227,8 @@ public class RaftGroupImpl extends RaftGroup {
             }
         }
         CompletableFuture<Long> f = new CompletableFuture<>();
-        FiberFrame<Void> ff = gc.getMemberManager().leaderPrepareJointConsensus(members, observers, preparedMembers, prepareObservers, f);
-        gc.getFiberGroup().fireFiber("leaderPrepareJointConsensus", ff);
+        FiberFrame<Void> ff = gc.memberManager.leaderPrepareJointConsensus(members, observers, preparedMembers, prepareObservers, f);
+        gc.fiberGroup.fireFiber("leaderPrepareJointConsensus", ff);
         return f;
     }
 
@@ -236,8 +236,8 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Long> leaderAbortJointConsensus() {
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
-        FiberFrame<Void> ff = gc.getMemberManager().leaderAbortJointConsensus(f);
-        gc.getFiberGroup().fireFiber("leaderAbortJointConsensus", ff);
+        FiberFrame<Void> ff = gc.memberManager.leaderAbortJointConsensus(f);
+        gc.fiberGroup.fireFiber("leaderAbortJointConsensus", ff);
         return f;
     }
 
@@ -245,8 +245,8 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Long> leaderCommitJointConsensus(long prepareIndex) {
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
-        FiberFrame<Void> ff = gc.getMemberManager().leaderCommitJointConsensus(f, prepareIndex);
-        gc.getFiberGroup().fireFiber("leaderCommitJointConsensus", ff);
+        FiberFrame<Void> ff = gc.memberManager.leaderCommitJointConsensus(f, prepareIndex);
+        gc.fiberGroup.fireFiber("leaderCommitJointConsensus", ff);
         return f;
     }
 
