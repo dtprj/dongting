@@ -12,9 +12,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 public interface RaftFactory {
-    ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig);
+    ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig);
 
-    void shutdownBlockIoExecutor();
+    void shutdownBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig, ExecutorService executor);
 
     StateMachine createStateMachine(RaftGroupConfigEx groupConfig);
 
@@ -22,7 +22,7 @@ public interface RaftFactory {
 
     SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine, Consumer<Long> logDeleter);
 
-    Dispatcher createDispatcher(RaftGroupConfig groupConfig);
+    Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig);
 
     void startDispatcher(Dispatcher dispatcher);
 

@@ -141,14 +141,14 @@ public class ServerTestBase {
             }
 
             @Override
-            public Dispatcher createDispatcher(RaftGroupConfig groupConfig) {
+            public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
                 return new Dispatcher("node-" + nodeId + "-dispatcher", new DefaultPoolFactory(),
                         groupConfig.getPerfCallback());
             }
 
             @Override
-            public ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig) {
+            public ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig) {
                 return MockExecutors.ioExecutor();
             }
 

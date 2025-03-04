@@ -250,7 +250,7 @@ public class RaftServer extends AbstractLifeCircle {
             log.warn("node {} is not member or observer of group {}", serverConfig.getNodeId(), rgc.getGroupId());
         }
 
-        Dispatcher dispatcher = raftFactory.createDispatcher(rgc);
+        Dispatcher dispatcher = raftFactory.createDispatcher(serverConfig, rgc);
         FiberGroup fiberGroup = new FiberGroup("group-" + rgc.getGroupId(), dispatcher);
         RaftStatusImpl raftStatus = new RaftStatusImpl(fiberGroup.getDispatcher().getTs());
         raftStatus.setTailCache(new TailCache(rgc, raftStatus));
@@ -310,8 +310,8 @@ public class RaftServer extends AbstractLifeCircle {
         RaftGroupConfigEx rgcEx = (RaftGroupConfigEx) rgc;
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setRaftStatus(raftStatus);
-        rgcEx.setBlockIoExecutor(raftFactory.createBlockIoExecutor(serverConfig));
         rgcEx.setFiberGroup(fiberGroup);
+        rgcEx.setBlockIoExecutor(raftFactory.createBlockIoExecutor(serverConfig, rgcEx));
         return rgcEx;
     }
 
@@ -506,7 +506,6 @@ public class RaftServer extends AbstractLifeCircle {
                 if (replicateNioClient != null) {
                     replicateNioClient.stop(timeout, true);
                 }
-                raftFactory.shutdownBlockIoExecutor();
             }
         } catch (RuntimeException | Error e) {
             log.error("stop raft server failed", e);
@@ -544,7 +543,13 @@ public class RaftServer extends AbstractLifeCircle {
 
             private FrameCallResult afterRaftLogClose(Void unused) {
                 g.getGroupComponents().getRaftStatus().getTailCache().cleanAll();
-                return g.getGroupComponents().getStatusManager().close().await(this::justReturn);
+                return g.getGroupComponents().getStatusManager().close().await(this::afterStatusManagerClose);
+            }
+
+            private FrameCallResult afterStatusManagerClose(Void unused) {
+                raftFactory.shutdownBlockIoExecutor(serverConfig, gc.getGroupConfig(),
+                        gc.getGroupConfig().getBlockIoExecutor());
+                return Fiber.frameReturn();
             }
         });
 
