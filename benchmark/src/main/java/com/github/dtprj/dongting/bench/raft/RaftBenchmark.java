@@ -116,7 +116,7 @@ public class RaftBenchmark extends BenchBase {
             }
 
             @Override
-            public Dispatcher createDispatcher(RaftGroupConfig groupConfig) {
+            public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
                 return new Dispatcher("node-" + nodeId + "-dispatcher", new DefaultPoolFactory(),
                         groupConfig.getPerfCallback());
