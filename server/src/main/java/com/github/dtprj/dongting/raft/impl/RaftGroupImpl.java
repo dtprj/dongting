@@ -208,7 +208,7 @@ public class RaftGroupImpl extends RaftGroup {
         if (!f.isDone() || f.isCompletedExceptionally()) {
             throw new RaftException("not initialized");
         }
-        if (raftStatus.getFiberGroup().isShouldStop()) {
+        if (raftStatus.fiberGroup.isShouldStop()) {
             throw new RaftException("raft group is not running");
         }
     }

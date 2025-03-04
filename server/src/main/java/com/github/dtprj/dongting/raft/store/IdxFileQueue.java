@@ -108,8 +108,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         long restoreIndex = persistedIndexInStatusFile;
 
         log.info("load raft status file. firstIndex={}, {}={}, {}={}", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
-                StatusManager.FIRST_VALID_IDX, raftStatus.getFirstValidIndex());
-        firstIndex = Math.max(firstIndex, raftStatus.getFirstValidIndex());
+                StatusManager.FIRST_VALID_IDX, raftStatus.firstValidIndex);
+        firstIndex = Math.max(firstIndex, raftStatus.firstValidIndex);
         restoreIndex = Math.max(restoreIndex, firstIndex);
 
         if (restoreIndex == 1) {
@@ -131,7 +131,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             return new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
-                    if (finalRestoreIndex == raftStatus.getFirstValidIndex()) {
+                    if (finalRestoreIndex == raftStatus.firstValidIndex) {
                         // return null will cause install snapshot
                         setResult(null);
                         return Fiber.frameReturn();
@@ -159,7 +159,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private void forceFinish(ChainWriter.WriteTask writeTask) {
         flushDoneCondition.signalAll();
         // if we set syncForce to false, lastRaftIndex(committed) may less than lastForceLogIndex
-        long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.getLastForceLogIndex());
+        long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.lastForceLogIndex);
         if (idx > persistedIndexInStatusFile) {
             statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(idx));
             statusManager.persistAsync(true);
@@ -182,7 +182,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         if (itemIndex > nextIndex) {
             throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
         }
-        if (initialized && itemIndex <= raftStatus.getCommitIndex()) {
+        if (initialized && itemIndex <= raftStatus.commitIndex) {
             throw new RaftException("try update committed index: " + itemIndex);
         }
         if (itemIndex < nextIndex) {
@@ -199,7 +199,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private void flush(LogFile logFile, boolean suggestForce) {
         long startIdx = nextPersistIndex;
-        long lastIdx = Math.min(raftStatus.getCommitIndex(), cache.getLastKey());
+        long lastIdx = Math.min(raftStatus.commitIndex, cache.getLastKey());
         if (lastIdx < startIdx) {
             submitForceOnlyTask();
             return;
@@ -267,8 +267,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     long last = cache.getLastKey();
                     log.warn("group {} cache size {} exceed {}, may cause block. cache from {} to {}, idxPersistedIndex={}," +
                                     " commitIndex={}, lastWriteIndex={}, lastForceIndex={}",
-                            raftStatus.getGroupId(), cache.size(), blockCacheItems, first, last, persistedIndex,
-                            raftStatus.getCommitIndex(), raftStatus.getLastWriteLogIndex(), raftStatus.getLastForceLogIndex());
+                            raftStatus.groupId, cache.size(), blockCacheItems, first, last, persistedIndex,
+                            raftStatus.commitIndex, raftStatus.lastWriteLogIndex, raftStatus.lastForceLogIndex);
                     needFlushCondition.signalAll();
                     return flushDoneCondition.await(1000, this);
                 }
@@ -279,7 +279,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private long getDiff() {
         // in recovery, the commit index may be larger than last key, lastKey may be -1
-        long lastNeedFlushItem = Math.min(cache.getLastKey(), raftStatus.getCommitIndex());
+        long lastNeedFlushItem = Math.min(cache.getLastKey(), raftStatus.commitIndex);
         return Math.max(lastNeedFlushItem - nextPersistIndex + 1, 0);
     }
 
@@ -297,7 +297,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (raftStatus.isInstallSnapshot()) {
+            if (raftStatus.installSnapshot) {
                 return Fiber.frameReturn();
             }
             long diff = getDiff();
@@ -341,7 +341,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
 
         private FrameCallResult afterPosReady(boolean suggestForce) {
-            if (raftStatus.isInstallSnapshot()) {
+            if (raftStatus.installSnapshot) {
                 return Fiber.frameReturn();
             }
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
@@ -355,7 +355,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            if (raftStatus.isInstallSnapshot()) {
+            if (raftStatus.installSnapshot) {
                 log.error("install snapshot and idx flush fiber exit, groupId={}", groupConfig.getGroupId(), ex);
                 return Fiber.frameReturn();
             } else {
@@ -408,7 +408,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
      */
     public void truncateTail(long index) {
         DtUtil.checkPositive(index, "index");
-        if (index <= raftStatus.getCommitIndex()) {
+        if (index <= raftStatus.commitIndex) {
             throw new RaftException("truncateTail index is too small: " + index);
         }
         if (cache.size() == 0) {

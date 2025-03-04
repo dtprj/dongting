@@ -80,11 +80,11 @@ public class StatusManager {
             protected FrameCallResult postProcess(Void result) {
                 Map<String, String> loadedProps = statusFile.getProperties();
 
-                raftStatus.setCurrentTerm(RaftUtil.parseInt(loadedProps, CURRENT_TERM, 0));
-                raftStatus.setVotedFor(RaftUtil.parseInt(loadedProps, VOTED_FOR, 0));
-                raftStatus.setCommitIndex(RaftUtil.parseInt(loadedProps, COMMIT_INDEX, 0));
-                raftStatus.setInstallSnapshot(RaftUtil.parseBoolean(loadedProps, INSTALL_SNAPSHOT, false));
-                raftStatus.setFirstValidIndex(RaftUtil.parseLong(loadedProps, FIRST_VALID_IDX, 1));
+                raftStatus.currentTerm = RaftUtil.parseInt(loadedProps, CURRENT_TERM, 0);
+                raftStatus.votedFor = RaftUtil.parseInt(loadedProps, VOTED_FOR, 0);
+                raftStatus.commitIndex = RaftUtil.parseInt(loadedProps, COMMIT_INDEX, 0);
+                raftStatus.installSnapshot = RaftUtil.parseBoolean(loadedProps, INSTALL_SNAPSHOT, false);
+                raftStatus.firstValidIndex = RaftUtil.parseLong(loadedProps, FIRST_VALID_IDX, 1);
 
                 updateFiber.start();
                 return Fiber.frameReturn();
@@ -134,7 +134,7 @@ public class StatusManager {
                 }
             };
             RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame, groupConfig.getIoRetryInterval(),
-                    true, raftStatus::isInstallSnapshot);
+                    true, () -> raftStatus.installSnapshot);
             return Fiber.call(retryFrame, this::resumeOnUpdateDone);
         }
 
@@ -162,11 +162,11 @@ public class StatusManager {
         private void copyWriteData() {
             Map<String, String> destMap = statusFile.getProperties();
 
-            destMap.put(CURRENT_TERM, String.valueOf(raftStatus.getCurrentTerm()));
-            destMap.put(VOTED_FOR, String.valueOf(raftStatus.getVotedFor()));
-            destMap.put(COMMIT_INDEX, String.valueOf(raftStatus.getCommitIndex()));
-            destMap.put(INSTALL_SNAPSHOT, String.valueOf(raftStatus.isInstallSnapshot()));
-            destMap.put(FIRST_VALID_IDX, String.valueOf(raftStatus.getFirstValidIndex()));
+            destMap.put(CURRENT_TERM, String.valueOf(raftStatus.currentTerm));
+            destMap.put(VOTED_FOR, String.valueOf(raftStatus.votedFor));
+            destMap.put(COMMIT_INDEX, String.valueOf(raftStatus.commitIndex));
+            destMap.put(INSTALL_SNAPSHOT, String.valueOf(raftStatus.installSnapshot));
+            destMap.put(FIRST_VALID_IDX, String.valueOf(raftStatus.firstValidIndex));
         }
     }
 

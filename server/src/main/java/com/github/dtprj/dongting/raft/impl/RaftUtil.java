@@ -106,19 +106,19 @@ public final class RaftUtil {
         LinkedList<Pair<RaftTask, NotLeaderException>> failList = new LinkedList<>();
         if (oldRole != RaftRole.observer && oldRole != RaftRole.none) {
             log.info("update term from {} to {}, change to follower, oldRole={}, reason: {}",
-                    raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole(), reason);
+                    raftStatus.currentTerm, remoteTerm, raftStatus.getRole(), reason);
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
-                TailCache oldPending = raftStatus.getTailCache();
+                TailCache oldPending = raftStatus.tailCache;
                 NotLeaderException e = new NotLeaderException(raftStatus.getCurrentLeaderNode());
                 oldPending.forEach((idx, task) -> failList.add(new Pair<>(task, e)));
             }
         } else {
-            log.info("update term from {} to {}, reason: {}", raftStatus.getCurrentTerm(), remoteTerm, reason);
+            log.info("update term from {} to {}, reason: {}", raftStatus.currentTerm, remoteTerm, reason);
         }
         resetStatus(raftStatus);
-        raftStatus.setCurrentTerm(remoteTerm);
-        raftStatus.setVotedFor(0);
+        raftStatus.currentTerm = remoteTerm;
+        raftStatus.votedFor = 0;
         raftStatus.copyShareStatus();
         // copy share status should happen before callback invocation
         for (Pair<RaftTask, NotLeaderException> pair : failList) {
@@ -131,25 +131,25 @@ public final class RaftUtil {
     }
 
     private static void resetStatus(RaftStatusImpl raftStatus, boolean cleanLastConfirmReqNanos) {
-        raftStatus.setGroupReadyIndex(Long.MAX_VALUE);
+        raftStatus.groupReadyIndex = Long.MAX_VALUE;
         raftStatus.setGroupReady(false);
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setCurrentLeader(null);
-        raftStatus.setLeaderCommit(0);
+        raftStatus.leaderCommit = 0;
 
         // wake up replicate fiber if it is waiting on this condition
-        raftStatus.getNeedRepCondition().signalAll();
+        raftStatus.needRepCondition.signalAll();
 
         clearTransferLeaderCondition(raftStatus);
 
-        for (RaftMember member : raftStatus.getReplicateList()) {
+        for (RaftMember member : raftStatus.replicateList) {
             member.setMatchIndex(0);
             member.setNextIndex(0);
             member.repCommitIndex = 0;
             member.repCommitIndexAcked = 0;
             if (cleanLastConfirmReqNanos) {
-                member.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
+                member.setLastConfirmReqNanos(raftStatus.ts.getNanoTime() - Duration.ofDays(1).toNanos());
             }
 
             member.setInstallSnapshot(false);
@@ -160,9 +160,9 @@ public final class RaftUtil {
     }
 
     public static void clearTransferLeaderCondition(RaftStatusImpl raftStatus) {
-        if (raftStatus.getTransferLeaderCondition() != null) {
-            raftStatus.getTransferLeaderCondition().signalAll();
-            raftStatus.setTransferLeaderCondition(null);
+        if (raftStatus.transferLeaderCondition != null) {
+            raftStatus.transferLeaderCondition.signalAll();
+            raftStatus.transferLeaderCondition = null;
         }
     }
 
@@ -172,14 +172,14 @@ public final class RaftUtil {
             return;
         }
         boolean found = false;
-        for (RaftMember node : raftStatus.getMembers()) {
+        for (RaftMember node : raftStatus.members) {
             if (node.getNode().getNodeId() == leaderId) {
                 raftStatus.setCurrentLeader(node);
                 found = true;
             }
         }
         if (!found) {
-            for (RaftMember node : raftStatus.getPreparedMembers()) {
+            for (RaftMember node : raftStatus.preparedMembers) {
                 if (node.getNode().getNodeId() == leaderId) {
                     raftStatus.setCurrentLeader(node);
                     found = true;
@@ -192,12 +192,12 @@ public final class RaftUtil {
     }
 
     public static void resetElectTimer(RaftStatusImpl raftStatus) {
-        raftStatus.setLastElectTime(raftStatus.getTs().getNanoTime());
+        raftStatus.lastElectTime = raftStatus.ts.getNanoTime();
     }
 
     public static void updateLease(RaftStatusImpl raftStatus) {
-        long leaseStartTime = computeLease(raftStatus, raftStatus.getRwQuorum(), raftStatus.getMembers());
-        List<RaftMember> jointMembers = raftStatus.getPreparedMembers();
+        long leaseStartTime = computeLease(raftStatus, raftStatus.rwQuorum, raftStatus.members);
+        List<RaftMember> jointMembers = raftStatus.preparedMembers;
         if (!jointMembers.isEmpty()) {
             long lease2 = computeLease(raftStatus, RaftUtil.getRwQuorum(jointMembers.size()), jointMembers);
             if (lease2 - leaseStartTime < 0) {
@@ -215,10 +215,10 @@ public final class RaftUtil {
         if (len == 1) {
             return list.get(0).getLastConfirmReqNanos();
         }
-        long[] arr = raftStatus.getLeaseComputeArray();
+        long[] arr = raftStatus.leaseComputeArray;
         if (arr.length != len) {
             arr = new long[len];
-            raftStatus.setLeaseComputeArray(arr);
+            raftStatus.leaseComputeArray = arr;
         }
         for (int i = 0; i < len; i++) {
             RaftMember m = list.get(i);
@@ -247,7 +247,7 @@ public final class RaftUtil {
     }
 
     public static void changeToFollower(RaftStatusImpl raftStatus, int leaderId, String reason) {
-        log.info("change to follower. term={}, oldRole={}, reason: {}", raftStatus.getCurrentTerm(),
+        log.info("change to follower. term={}, oldRole={}, reason: {}", raftStatus.currentTerm,
                 raftStatus.getRole(), reason);
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
@@ -256,7 +256,7 @@ public final class RaftUtil {
     }
 
     public static void changeToObserver(RaftStatusImpl raftStatus, int leaderId) {
-        log.info("change to observer. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
+        log.info("change to observer. term={}, oldRole={}", raftStatus.currentTerm, raftStatus.getRole());
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
         raftStatus.setRole(RaftRole.observer);
@@ -264,7 +264,7 @@ public final class RaftUtil {
     }
 
     public static void changeToNone(RaftStatusImpl raftStatus, int leaderId) {
-        log.info("change to none. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
+        log.info("change to none. term={}, oldRole={}", raftStatus.currentTerm, raftStatus.getRole());
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
         raftStatus.setRole(RaftRole.none);
@@ -272,27 +272,28 @@ public final class RaftUtil {
     }
 
     public static void changeToLeader(RaftStatusImpl raftStatus) {
-        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
+        log.info("change to leader. term={}", raftStatus.currentTerm);
         resetStatus(raftStatus, false);
         raftStatus.setRole(RaftRole.leader);
-        raftStatus.setCurrentLeader(raftStatus.getSelf());
-        raftStatus.setGroupReadyIndex(raftStatus.getLastLogIndex() + 1);
-        for (RaftMember node : raftStatus.getReplicateList()) {
-            node.setNextIndex(raftStatus.getLastLogIndex() + 1);
+        raftStatus.setCurrentLeader(raftStatus.self);
+        raftStatus.groupReadyIndex = raftStatus.lastLogIndex + 1;
+        log.info("set groupReadyIndex to {}, groupId={}", raftStatus.groupReadyIndex, raftStatus.groupId);
+        for (RaftMember node : raftStatus.replicateList) {
+            node.setNextIndex(raftStatus.lastLogIndex + 1);
         }
         updateLease(raftStatus);
         raftStatus.copyShareStatus();
     }
 
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
-        return raftStatus.getLastForceLogIndex() != raftStatus.getLastLogIndex() || raftStatus.isTruncating();
+        return raftStatus.lastForceLogIndex != raftStatus.lastLogIndex || raftStatus.truncating;
     }
 
     public static FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
         if (writeNotFinished(raftStatus)) {
             log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}, truncating={}",
-                    raftStatus.getLastForceLogIndex(), raftStatus.getLastLogIndex(), raftStatus.isTruncating());
-            return raftStatus.getLogForceFinishCondition().await(10 * 1000,
+                    raftStatus.lastForceLogIndex, raftStatus.lastLogIndex, raftStatus.truncating);
+            return raftStatus.logForceFinishCondition.await(10 * 1000,
                     v -> waitWriteFinish(raftStatus, resumePoint));
         } else {
             return Fiber.resume(null, resumePoint);
@@ -346,13 +347,13 @@ public final class RaftUtil {
 
     public static SimpleWritePacket buildRaftPingPacket(int nodeId, RaftStatusImpl raftStatus) {
         RaftPing raftPing = new RaftPing();
-        raftPing.groupId = raftStatus.getGroupId();
+        raftPing.groupId = raftStatus.groupId;
         raftPing.nodeId = nodeId;
         Function<RaftMember, RaftNodeEx> mapper = RaftMember::getNode;
-        raftPing.members = RaftNode.formatServers(raftStatus.getMembers(), mapper);
-        raftPing.observers = RaftNode.formatServers(raftStatus.getObservers(), mapper);
-        raftPing.preparedMembers = RaftNode.formatServers(raftStatus.getPreparedMembers(), mapper);
-        raftPing.preparedObservers = RaftNode.formatServers(raftStatus.getPreparedObservers(), mapper);
+        raftPing.members = RaftNode.formatServers(raftStatus.members, mapper);
+        raftPing.observers = RaftNode.formatServers(raftStatus.observers, mapper);
+        raftPing.preparedMembers = RaftNode.formatServers(raftStatus.preparedMembers, mapper);
+        raftPing.preparedObservers = RaftNode.formatServers(raftStatus.preparedObservers, mapper);
         return new SimpleWritePacket(raftPing);
     }
 }

@@ -105,7 +105,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setBlockIoExecutor(MockExecutors.ioExecutor());
         config.setFiberGroup(fiberGroup);
-        config.setTs(raftStatus.getTs());
+        config.setTs(raftStatus.ts);
         config.setRaftStatus(raftStatus);
 
         logFileQueue = new LogFileQueue(dir, config, idxOps, fileSize);
@@ -199,15 +199,15 @@ public class LogFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult waitWriteFinish(Void v) {
-                if (raftStatus.getLastForceLogIndex() < index - 1) {
-                    return raftStatus.getLogForceFinishCondition().await(1000, this::waitWriteFinish);
+                if (raftStatus.lastForceLogIndex < index - 1) {
+                    return raftStatus.logForceFinishCondition.await(1000, this::waitWriteFinish);
                 } else {
                     return Fiber.frameReturn();
                 }
             }
         });
 
-        assertEquals(items[items.length - 1].getIndex(), raftStatus.getLastForceLogIndex());
+        assertEquals(items[items.length - 1].getIndex(), raftStatus.lastForceLogIndex);
 
         if (!check) {
             return;

@@ -68,9 +68,9 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config.setFiberGroup(fiberGroup);
         config.setDataDir(dataDir);
         config.setBlockIoExecutor(MockExecutors.ioExecutor());
-        config.setTs(raftStatus.getTs());
+        config.setTs(raftStatus.ts);
         config.setRaftStatus(raftStatus);
-        raftStatus.setTailCache(new TailCache(config, raftStatus));
+        raftStatus.tailCache = new TailCache(config, raftStatus);
         statusManager = new StatusManager(config);
         doInFiber(new FiberFrame<>() {
             @Override
@@ -131,8 +131,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
 
             private FrameCallResult waitWriteFinish(Void v) {
-                if (raftStatus.getLastForceLogIndex() < lastIdx) {
-                    return raftStatus.getLogForceFinishCondition().await(1000, this::waitWriteFinish);
+                if (raftStatus.lastForceLogIndex < lastIdx) {
+                    return raftStatus.logForceFinishCondition.await(1000, this::waitWriteFinish);
                 } else {
                     return Fiber.frameReturn();
                 }
@@ -154,9 +154,9 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         int[] totalSizes = new int[]{400, 400, 512, 200, 400};
         int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
         append(1, totalSizes, bizHeaderLen);
-        raftStatus.setCommitIndex(5);
+        raftStatus.commitIndex = 5;
         raftStatus.setLastApplied(5);
-        raftStatus.setLastLogIndex(5);
+        raftStatus.lastLogIndex = 5;
         append(6, totalSizes, bizHeaderLen);
 
         doInFiber(new FiberFrame<>() {
@@ -172,10 +172,10 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         });
 
         init();
-        raftStatus.setCommitIndex(5);
+        raftStatus.commitIndex = 5;
         raftStatus.setLastApplied(5);
-        raftStatus.setLastLogIndex(5);
-        raftStatus.setLastForceLogIndex(5);
+        raftStatus.lastLogIndex = 5;
+        raftStatus.lastForceLogIndex = 5;
 
         // test delete
         File dir = new File(new File(dataDir), "log");
@@ -190,7 +190,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         }
         {
             plus1Hour();
-            doInFiber(() -> raftLog.markTruncateByTimestamp(raftStatus.getTs().getWallClockMillis(), 0));
+            doInFiber(() -> raftLog.markTruncateByTimestamp(raftStatus.ts.getWallClockMillis(), 0));
 
             // can't delete after next persist index and apply index, so only delete to index 4
             Supplier<Boolean> deleted = fileDeleted(dir, 1024);
@@ -215,7 +215,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     private void plus1Hour() throws Exception {
-        doInFiber(() -> TestUtil.plus1Hour(raftStatus.getTs()));
+        doInFiber(() -> TestUtil.plus1Hour(raftStatus.ts));
     }
 
     @Test
@@ -223,7 +223,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         int[] totalSizes = new int[]{800, 512, 256, 256, 512};
         int[] bizHeaderLen = new int[]{10, 10, 10, 10, 10};
         append(1, totalSizes, bizHeaderLen);
-        raftStatus.setCommitIndex(1);
+        raftStatus.commitIndex = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -323,7 +323,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         });
 
         RaftInput input = new RaftInput(0, null, null, null, false);
-        raftStatus.getTailCache().put(3, new RaftTask(raftStatus.getTs(), 0, input, null));
+        raftStatus.tailCache.put(3, new RaftTask(raftStatus.ts, 0, input, null));
         doInFiber(new FiberFrame<>() {
             final RaftLog.LogIterator it = raftLog.openIterator(() -> false);
 
@@ -427,14 +427,14 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         list.add(createItem(config, 5, 4, 11, 256, 50));// change term
         list.add(createItem(config, 5, 5, 12, 256, 50));
         append(list);
-        raftStatus.setLastLogIndex(list.get(list.size() - 1).getIndex());
+        raftStatus.lastLogIndex = list.get(list.size() - 1).getIndex();
 
-        TailCache tailCache = raftStatus.getTailCache();
+        TailCache tailCache = raftStatus.tailCache;
         for (int i = 0; i <= list.size(); i++) {
             tailCache.cleanAll();
             for (int j = list.size() - i; j < list.size(); j++) {
                 RaftInput ri = new RaftInput(0, null, null, null, false);
-                RaftTask t = new RaftTask(raftStatus.getTs(), 0, ri, null);
+                RaftTask t = new RaftTask(raftStatus.ts, 0, ri, null);
                 LogItem li = list.get(j);
                 t.setItem(li);
                 tailCache.put(li.getIndex(), t);

@@ -48,7 +48,7 @@ public class CommitManager {
     }
 
     public void startCommitFiber() {
-        Fiber fiber = new Fiber("commit" + raftStatus.getGroupId(), FiberGroup.currentGroup(),
+        Fiber fiber = new Fiber("commit" + raftStatus.groupId, FiberGroup.currentGroup(),
                 new CommitFiberFrame(), true, 50);
         fiber.start();
     }
@@ -67,27 +67,27 @@ public class CommitManager {
         @Override
         public FrameCallResult execute(Void input) {
             RaftStatusImpl raftStatus = CommitManager.this.raftStatus;
-            long idx = syncForce ? raftStatus.getLastForceLogIndex() : raftStatus.getLastWriteLogIndex();
-            if (idx > raftStatus.getCommitIndex()) {
+            long idx = syncForce ? raftStatus.lastForceLogIndex : raftStatus.lastWriteLogIndex;
+            if (idx > raftStatus.commitIndex) {
                 CommitManager.this.logWriteFinish(idx);
             }
-            FiberCondition c = syncForce ? raftStatus.getLogForceFinishCondition()
-                    : raftStatus.getLogWriteFinishCondition();
+            FiberCondition c = syncForce ? raftStatus.logForceFinishCondition
+                    : raftStatus.logWriteFinishCondition;
             return c.await(1000, this);
         }
     }
 
     private void logWriteFinish(long lastPersistIndex) {
         RaftStatusImpl raftStatus = this.raftStatus;
-        if (lastPersistIndex > raftStatus.getLastLogIndex()) {
+        if (lastPersistIndex > raftStatus.lastLogIndex) {
             throw Fiber.fatal(new RaftException("lastPersistIndex > lastLogIndex. lastPersistIndex="
-                    + lastPersistIndex + ", lastLogIndex=" + raftStatus.getLastLogIndex()));
+                    + lastPersistIndex + ", lastLogIndex=" + raftStatus.lastLogIndex));
         }
         if (raftStatus.getRole() == RaftRole.leader) {
-            RaftMember self = raftStatus.getSelf();
+            RaftMember self = raftStatus.self;
             self.setNextIndex(lastPersistIndex + 1);
             self.setMatchIndex(lastPersistIndex);
-            self.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime());
+            self.setLastConfirmReqNanos(raftStatus.ts.getNanoTime());
 
             RaftUtil.updateLease(raftStatus);
             // not call raftStatus.copyShareStatus(), invoke after apply
@@ -107,13 +107,13 @@ public class CommitManager {
     }
 
     public void followerTryCommit(RaftStatusImpl raftStatus) {
-        long lastPersistIndex = syncForce ? raftStatus.getLastForceLogIndex() : raftStatus.getLastWriteLogIndex();
-        long leaderCommit = raftStatus.getLeaderCommit();
-        long oldCommitIndex = raftStatus.getCommitIndex();
+        long lastPersistIndex = syncForce ? raftStatus.lastForceLogIndex : raftStatus.lastWriteLogIndex;
+        long leaderCommit = raftStatus.leaderCommit;
+        long oldCommitIndex = raftStatus.commitIndex;
         if (leaderCommit > oldCommitIndex) {
             long newCommitIndex = Math.min(lastPersistIndex, leaderCommit);
             if (newCommitIndex > oldCommitIndex) {
-                raftStatus.setCommitIndex(newCommitIndex);
+                raftStatus.commitIndex = newCommitIndex;
                 applyManager.wakeupApply();
             }
         }
@@ -126,19 +126,19 @@ public class CommitManager {
             return;
         }
         // leader can only commit log in current term, see raft paper 5.4.2
-        if (recentMatchIndex < raftStatus.getGroupReadyIndex()) {
+        if (recentMatchIndex < raftStatus.groupReadyIndex) {
             return;
         }
-        raftStatus.setCommitIndex(recentMatchIndex);
+        raftStatus.commitIndex = recentMatchIndex;
         applyManager.wakeupApply();
     }
 
     private static boolean needCommit(long recentMatchIndex, RaftStatusImpl raftStatus) {
-        boolean needCommit = needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
-                raftStatus.getMembers(), raftStatus.getRwQuorum());
-        if (needCommit && !raftStatus.getPreparedMembers().isEmpty()) {
-            needCommit = needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
-                    raftStatus.getPreparedMembers(), raftStatus.getRwQuorum());
+        boolean needCommit = needCommit(raftStatus.commitIndex, recentMatchIndex,
+                raftStatus.members, raftStatus.rwQuorum);
+        if (needCommit && !raftStatus.preparedMembers.isEmpty()) {
+            needCommit = needCommit(raftStatus.commitIndex, recentMatchIndex,
+                    raftStatus.preparedMembers, raftStatus.rwQuorum);
         }
         return needCommit;
     }

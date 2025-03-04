@@ -54,14 +54,14 @@ public class InitFiberFrame extends FiberFrame<Void> {
     @Override
     protected FrameCallResult handle(Throwable ex) {
         log.error("raft group init failed, groupId={}", groupConfig.getGroupId(), ex);
-        raftStatus.getInitFuture().completeExceptionally(ex);
+        raftStatus.initFuture.completeExceptionally(ex);
         getFiberGroup().requestShutdown();
         return Fiber.frameReturn();
     }
 
     private boolean cancelInit() {
         if (isGroupShouldStopPlain()) {
-            raftStatus.getInitFuture().completeExceptionally(new RaftException("group should stop"));
+            raftStatus.initFuture.completeExceptionally(new RaftException("group should stop"));
             return true;
         }
         return false;
@@ -87,22 +87,22 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     public static void initRaftStatus(RaftStatusImpl raftStatus, FiberGroup fg, RaftServerConfig serverConfig) {
         raftStatus.setElectTimeoutNanos(Duration.ofMillis(serverConfig.getElectTimeout()).toNanos());
-        raftStatus.setFiberGroup(fg);
-        int groupId = raftStatus.getGroupId();
-        raftStatus.setNeedRepCondition(fg.newCondition("needRep" + groupId));
-        raftStatus.setLogForceFinishCondition(fg.newCondition("logSyncFinish" + groupId));
-        raftStatus.setLogWriteFinishCondition(fg.newCondition("logWriteFinish" + groupId));
+        raftStatus.fiberGroup = fg;
+        int groupId = raftStatus.groupId;
+        raftStatus.needRepCondition = fg.newCondition("needRep" + groupId);
+        raftStatus.logForceFinishCondition = fg.newCondition("logSyncFinish" + groupId);
+        raftStatus.logWriteFinishCondition = fg.newCondition("logWriteFinish" + groupId);
     }
 
     private FrameCallResult afterInitStatusFile(Void unused) {
         if (cancelInit()) {
             return Fiber.frameReturn();
         }
-        if (raftStatus.isInstallSnapshot() || gc.getSnapshotManager() == null) {
-            if (raftStatus.isInstallSnapshot()) {
+        if (raftStatus.installSnapshot || gc.getSnapshotManager() == null) {
+            if (raftStatus.installSnapshot) {
                 log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
             } else {
-                raftStatus.setInstallSnapshot(true);
+                raftStatus.installSnapshot = true;
                 log.info("no snapshot manager, mark install snapshot, groupId={}", groupConfig.getGroupId());
             }
             return afterRecoverStateMachine(null);
@@ -117,24 +117,24 @@ public class InitFiberFrame extends FiberFrame<Void> {
             return Fiber.frameReturn();
         }
         if (snapshot == null) {
-            if (raftStatus.getFirstValidIndex() > 1) {
-                raftStatus.setInstallSnapshot(true);
+            if (raftStatus.firstValidIndex > 1) {
+                raftStatus.installSnapshot = true;
                 log.warn("no snapshot and firstValidIndex>1, mark install snapshot");
             }
             return afterRecoverStateMachine(null);
-        } else if (snapshot.getSnapshotInfo().getLastIncludedIndex() < raftStatus.getFirstValidIndex()) {
-            raftStatus.setInstallSnapshot(true);
+        } else if (snapshot.getSnapshotInfo().getLastIncludedIndex() < raftStatus.firstValidIndex) {
+            raftStatus.installSnapshot = true;
             log.warn("snapshot lastIncludedIndex({}) less than firstValidIndex({}), mark install snapshot",
-                    snapshot.getSnapshotInfo().getLastIncludedIndex(), raftStatus.getFirstValidIndex());
+                    snapshot.getSnapshotInfo().getLastIncludedIndex(), raftStatus.firstValidIndex);
             return afterRecoverStateMachine(null);
         }
         SnapshotInfo si = snapshot.getSnapshotInfo();
-        if (si.getLastIncludedTerm() > raftStatus.getCurrentTerm()) {
+        if (si.getLastIncludedTerm() > raftStatus.currentTerm) {
             log.error("snapshot term greater than current term, snapshot={}, current={}",
-                    si.getLastIncludedTerm(), raftStatus.getCurrentTerm());
+                    si.getLastIncludedTerm(), raftStatus.currentTerm);
             throw new RaftException("snapshot term greater than current term");
         }
-        gc.getRaftStatus().setLastConfigChangeIndex(si.getLastConfigChangeIndex());
+        gc.getRaftStatus().lastConfigChangeIndex = si.getLastConfigChangeIndex();
 
         FiberFrame<Void> f = gc.getMemberManager().applyConfigFrame(
                 "state machine recover apply config change",
@@ -159,10 +159,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
         long snapshotIndex = snapshot == null ? 0 : snapshot.getSnapshotInfo().getLastIncludedIndex();
         log.info("load snapshot to term={}, index={}, groupId={}", snapshotTerm, snapshotIndex, groupConfig.getGroupId());
         raftStatus.setLastApplied(snapshotIndex);
-        raftStatus.setLastAppliedTerm(snapshotTerm);
-        raftStatus.setLastApplying(snapshotIndex);
-        if (snapshotIndex > raftStatus.getCommitIndex()) {
-            raftStatus.setCommitIndex(snapshotIndex);
+        raftStatus.lastAppliedTerm = snapshotTerm;
+        raftStatus.lastApplying = snapshotIndex;
+        if (snapshotIndex > raftStatus.commitIndex) {
+            raftStatus.commitIndex = snapshotIndex;
         }
 
         return Fiber.call(gc.getRaftLog().init(),
@@ -176,30 +176,30 @@ public class InitFiberFrame extends FiberFrame<Void> {
         if (logInitResult != null) {
             int logInitResultTerm = logInitResult.getLeft();
             long logInitResultIndex = logInitResult.getRight();
-            if (logInitResultIndex < snapshotIndex || logInitResultIndex < raftStatus.getCommitIndex()) {
-                log.error("raft log last index invalid, {}, {}, {}", logInitResultIndex, snapshotIndex, raftStatus.getCommitIndex());
+            if (logInitResultIndex < snapshotIndex || logInitResultIndex < raftStatus.commitIndex) {
+                log.error("raft log last index invalid, {}, {}, {}", logInitResultIndex, snapshotIndex, raftStatus.commitIndex);
                 throw new RaftException("raft log last index invalid");
             }
             if (logInitResultTerm < snapshotTerm) {
                 log.error("raft log last term invalid, {}, {}", logInitResultTerm, snapshotTerm);
                 throw new RaftException("raft log last term invalid");
             }
-            if (logInitResultTerm > raftStatus.getCurrentTerm()) {
+            if (logInitResultTerm > raftStatus.currentTerm) {
                 log.error("raft log last term({}) greater than current term({})",
-                        logInitResultTerm, raftStatus.getCurrentTerm());
+                        logInitResultTerm, raftStatus.currentTerm);
                 throw new RaftException("raft log last term greater than current term");
             }
 
-            raftStatus.setLastLogTerm(logInitResultTerm);
+            raftStatus.lastLogTerm = logInitResultTerm;
 
-            raftStatus.setLastLogIndex(logInitResultIndex);
-            raftStatus.setLastWriteLogIndex(logInitResultIndex);
-            raftStatus.setLastForceLogIndex(logInitResultIndex);
+            raftStatus.lastLogIndex = logInitResultIndex;
+            raftStatus.lastWriteLogIndex = logInitResultIndex;
+            raftStatus.lastForceLogIndex = logInitResultIndex;
 
             log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
                     logInitResult.getLeft(), logInitResult.getRight(), groupConfig.getGroupId());
         } else {
-            raftStatus.setInstallSnapshot(true);
+            raftStatus.installSnapshot = true;
         }
 
         raftStatus.copyShareStatus();

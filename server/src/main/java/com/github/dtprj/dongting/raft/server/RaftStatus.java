@@ -20,42 +20,14 @@ package com.github.dtprj.dongting.raft.server;
  */
 public abstract class RaftStatus {
     // in raft paper: persistent state on all servers
-    protected int currentTerm;
-    protected int votedFor;
+    public int currentTerm;
+    public int votedFor;
 
     // in raft paper: volatile state on all servers
-    protected long commitIndex;
+    public long commitIndex;
     protected long lastApplied; // shared
 
-    protected int groupId;
-
-    public int getGroupId() {
-        return groupId;
-    }
-
-    public int getCurrentTerm() {
-        return currentTerm;
-    }
-
-    public void setCurrentTerm(int currentTerm) {
-        this.currentTerm = currentTerm;
-    }
-
-    public int getVotedFor() {
-        return votedFor;
-    }
-
-    public void setVotedFor(int votedFor) {
-        this.votedFor = votedFor;
-    }
-
-    public long getCommitIndex() {
-        return commitIndex;
-    }
-
-    public void setCommitIndex(long commitIndex) {
-        this.commitIndex = commitIndex;
-    }
+    public int groupId;
 
     public long getLastApplied() {
         return lastApplied;

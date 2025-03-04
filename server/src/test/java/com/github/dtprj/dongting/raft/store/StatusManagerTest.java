@@ -51,7 +51,7 @@ public class StatusManagerTest extends BaseFiberTest {
         groupConfig.setRaftStatus(raftStatus);
         groupConfig.setBlockIoExecutor(MockExecutors.ioExecutor());
         groupConfig.setFiberGroup(fiberGroup);
-        raftStatus.setTailCache(new TailCache(groupConfig, raftStatus));
+        raftStatus.tailCache = new TailCache(groupConfig, raftStatus);
         statusManager = new StatusManager(groupConfig);
     }
 
@@ -60,9 +60,9 @@ public class StatusManagerTest extends BaseFiberTest {
         File f = new File(groupConfig.getDataDir(), groupConfig.getStatusFile());
         p.load(new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8));
 
-        assertEquals(raftStatus.getCommitIndex() + "", p.getProperty(StatusManager.COMMIT_INDEX));
-        assertEquals(raftStatus.getVotedFor() + "", p.getProperty(StatusManager.VOTED_FOR));
-        assertEquals(raftStatus.getCurrentTerm() + "", p.getProperty(StatusManager.CURRENT_TERM));
+        assertEquals(raftStatus.commitIndex + "", p.getProperty(StatusManager.COMMIT_INDEX));
+        assertEquals(raftStatus.votedFor + "", p.getProperty(StatusManager.VOTED_FOR));
+        assertEquals(raftStatus.currentTerm + "", p.getProperty(StatusManager.CURRENT_TERM));
         statusManager.getProperties().forEach((k, v) -> assertEquals(v, p.get(k)));
     }
 
@@ -88,9 +88,9 @@ public class StatusManagerTest extends BaseFiberTest {
     }
 
     private void initData() {
-        raftStatus.setCommitIndex(100);
-        raftStatus.setVotedFor(200);
-        raftStatus.setCurrentTerm(300);
+        raftStatus.commitIndex = 100;
+        raftStatus.votedFor = 200;
+        raftStatus.currentTerm = 300;
         statusManager.getProperties().put("k1", "v1");
     }
 
@@ -104,9 +104,9 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             private FrameCallResult afterInit(Void unused) {
                 for (int i = 0; i < 5; i++) {
-                    raftStatus.setCommitIndex(100 + i);
-                    raftStatus.setVotedFor(200 + i);
-                    raftStatus.setCurrentTerm(300 + i);
+                    raftStatus.commitIndex = 100 + i;
+                    raftStatus.votedFor = 200 + i;
+                    raftStatus.currentTerm = 300 + i;
                     statusManager.getProperties().put("k1", "v1" + i);
                     statusManager.persistAsync(false);
                 }
@@ -133,7 +133,7 @@ public class StatusManagerTest extends BaseFiberTest {
                 initData();
                 statusManager.persistAsync(false);
 
-                raftStatus.setCommitIndex(100000);
+                raftStatus.commitIndex = 100000;
                 statusManager.persistAsync(true);
                 return statusManager.waitUpdateFinish(this::justReturn);
             }

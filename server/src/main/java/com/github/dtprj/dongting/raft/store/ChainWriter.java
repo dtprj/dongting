@@ -85,7 +85,7 @@ public class ChainWriter {
     }
 
     private boolean shouldCancelRetry() {
-        return error || raftStatus.isInstallSnapshot();
+        return error || raftStatus.installSnapshot;
     }
 
     public FiberFuture<Void> stop() {
@@ -169,7 +169,7 @@ public class ChainWriter {
             directPool.release(task.buf);
         }
         writeTaskCount--;
-        if (error || raftStatus.isInstallSnapshot()) {
+        if (error || raftStatus.installSnapshot) {
             return;
         }
         if (ioEx != null) {
@@ -206,7 +206,7 @@ public class ChainWriter {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             error = true;
-            if (raftStatus.isInstallSnapshot()) {
+            if (raftStatus.installSnapshot) {
                 log.info("install snapshot, force fiber exit: {}", forceFiber.getName(), ex);
                 return Fiber.frameReturn();
             } else {
@@ -216,7 +216,7 @@ public class ChainWriter {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (error || raftStatus.isInstallSnapshot()) {
+            if (error || raftStatus.installSnapshot) {
                 log.info("force fiber exit: {}", forceFiber.getName());
                 return Fiber.frameReturn();
             }
@@ -261,7 +261,7 @@ public class ChainWriter {
             perfCallback.fireTime(forcePerfType, perfStartTime, task.perfForceItemCount, task.perfForceBytes);
             forceTaskCount--;
 
-            if (error || raftStatus.isInstallSnapshot()) {
+            if (error || raftStatus.installSnapshot) {
                 return Fiber.frameReturn();
             }
 

@@ -97,7 +97,7 @@ class LogAppender {
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            if (raftStatus.isInstallSnapshot()) {
+            if (raftStatus.installSnapshot) {
                 log.error("log writer error, ignore it since install snapshot is true", ex);
                 return Fiber.frameReturn();
             } else {
@@ -106,7 +106,7 @@ class LogAppender {
         }
 
         private boolean shouldReturn() {
-            return logFileQueue.isMarkClose() || raftStatus.isInstallSnapshot();
+            return logFileQueue.isMarkClose() || raftStatus.installSnapshot;
         }
 
         @Override

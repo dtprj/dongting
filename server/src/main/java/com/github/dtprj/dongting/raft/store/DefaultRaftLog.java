@@ -97,7 +97,7 @@ public class DefaultRaftLog implements RaftLog {
                 idxFiles.initQueue();
                 RaftUtil.checkStop(fiberGroup);
 
-                if (raftStatus.isInstallSnapshot()) {
+                if (raftStatus.installSnapshot) {
                     idxFiles.initialized = true;
                     logFiles.initialized = true;
                     startQueueDeleteFiber();
@@ -201,8 +201,8 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public FiberFrame<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
                                                            Supplier<Boolean> cancelIndicator) {
-        return new MatchPosFinder(groupConfig, logFiles.queue, idxFiles, cancelIndicator, raftStatus.getTailCache(),
-                logFiles.fileLenMask, suggestTerm, suggestIndex, raftStatus.getLastLogIndex());
+        return new MatchPosFinder(groupConfig, logFiles.queue, idxFiles, cancelIndicator, raftStatus.tailCache,
+                logFiles.fileLenMask, suggestTerm, suggestIndex, raftStatus.lastLogIndex);
     }
 
     @Override
@@ -346,7 +346,7 @@ public class DefaultRaftLog implements RaftLog {
                 return false;
             }
             if (raftStatus.getLastApplied() < second.firstIndex ||
-                    raftStatus.getLastForceLogIndex() < second.firstIndex) {
+                    raftStatus.lastForceLogIndex < second.firstIndex) {
                 return false;
             }
             return !first.inUse();

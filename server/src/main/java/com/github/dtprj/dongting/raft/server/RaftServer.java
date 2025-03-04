@@ -253,10 +253,10 @@ public class RaftServer extends AbstractLifeCircle {
         Dispatcher dispatcher = raftFactory.createDispatcher(serverConfig, rgc);
         FiberGroup fiberGroup = new FiberGroup("group-" + rgc.getGroupId(), dispatcher);
         RaftStatusImpl raftStatus = new RaftStatusImpl(fiberGroup.getDispatcher().getTs());
-        raftStatus.setTailCache(new TailCache(rgc, raftStatus));
-        raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
-        raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
-        raftStatus.setGroupId(rgc.getGroupId());
+        raftStatus.tailCache = new TailCache(rgc, raftStatus);
+        raftStatus.nodeIdOfMembers = nodeIdOfMembers;
+        raftStatus.nodeIdOfObservers = nodeIdOfObservers;
+        raftStatus.groupId = rgc.getGroupId();
 
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, fiberGroup);
 
@@ -308,7 +308,7 @@ public class RaftServer extends AbstractLifeCircle {
     private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
                                                   FiberGroup fiberGroup) {
         RaftGroupConfigEx rgcEx = (RaftGroupConfigEx) rgc;
-        rgcEx.setTs(raftStatus.getTs());
+        rgcEx.setTs(raftStatus.ts);
         rgcEx.setRaftStatus(raftStatus);
         rgcEx.setFiberGroup(fiberGroup);
         rgcEx.setBlockIoExecutor(raftFactory.createBlockIoExecutor(serverConfig, rgcEx));
@@ -360,7 +360,7 @@ public class RaftServer extends AbstractLifeCircle {
             futures.clear();
             raftGroups.forEach((groupId, g) -> {
                 initRaftGroup(g);
-                futures.add(g.getGroupComponents().getRaftStatus().getInitFuture());
+                futures.add(g.getGroupComponents().getRaftStatus().initFuture);
             });
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
@@ -542,7 +542,7 @@ public class RaftServer extends AbstractLifeCircle {
             }
 
             private FrameCallResult afterRaftLogClose(Void unused) {
-                g.getGroupComponents().getRaftStatus().getTailCache().cleanAll();
+                g.getGroupComponents().getRaftStatus().tailCache.cleanAll();
                 return g.getGroupComponents().getStatusManager().close().await(this::afterStatusManagerClose);
             }
 
@@ -606,7 +606,7 @@ public class RaftServer extends AbstractLifeCircle {
                 raftGroups.put(groupConfig.getGroupId(), g);
                 initRaftGroup(g);
                 RaftStatusImpl raftStatus = g.getGroupComponents().getRaftStatus();
-                raftStatus.getInitFuture().whenComplete((v, ex) -> {
+                raftStatus.initFuture.whenComplete((v, ex) -> {
                     if (ex != null) {
                         f.completeExceptionally(ex);
                     } else {

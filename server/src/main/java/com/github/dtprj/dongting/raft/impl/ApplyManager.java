@@ -83,7 +83,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     private Fiber applyFiber;
 
     public ApplyManager(GroupComponents gc) {
-        this.ts = gc.getRaftStatus().getTs();
+        this.ts = gc.getRaftStatus().ts;
         this.raftStatus = gc.getRaftStatus();
         this.gc = gc;
         this.fiberGroup = gc.getFiberGroup();
@@ -106,7 +106,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     public void init(FiberGroup fiberGroup) {
-        this.initCommitIndex = raftStatus.getCommitIndex();
+        this.initCommitIndex = raftStatus.commitIndex;
         startApplyFiber(fiberGroup);
         new Fiber("waitGroupReadyTimeout", fiberGroup, new WaitGroupReadyTimeoutFrame(), true).start();
         new Fiber("applyFiberMonitor", fiberGroup, new FiberFrame<>() {
@@ -118,13 +118,13 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 return applyMonitorCond.await(1000, this);
             }
         }, true).start();
-        if (raftStatus.getLastApplied() >= raftStatus.getCommitIndex()) {
+        if (raftStatus.getLastApplied() >= raftStatus.commitIndex) {
             log.info("apply manager init complete");
-            raftStatus.getInitFuture().complete(null);
+            raftStatus.initFuture.complete(null);
             this.initFutureComplete = true;
-        } else if (raftStatus.isInstallSnapshot()) {
+        } else if (raftStatus.installSnapshot) {
             log.info("install snapshot, apply manager init complete");
-            raftStatus.getInitFuture().complete(null);
+            raftStatus.initFuture.complete(null);
             this.initFutureComplete = true;
         }
     }
@@ -150,14 +150,14 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
-        raftStatus.setLastApplying(index);
+        raftStatus.lastApplying = index;
         switch (rt.getType()) {
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
             case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
                 // block apply fiber util config change complete
                 return Fiber.call(new ConfigChangeFrame(rt), unused -> {
-                    raftStatus.setLastConfigChangeIndex(index);
+                    raftStatus.lastConfigChangeIndex = index;
                     afterExec(index, rt, null, null);
                     return Fiber.resume(null, resumePoint);
                 });
@@ -248,7 +248,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         boolean b = fiberGroup.fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                if (t.isTimeout(raftStatus.getTs())) {
+                if (t.isTimeout(raftStatus.ts)) {
                     RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
                             + t.getTimeout(TimeUnit.MILLISECONDS) + "ms");
                     completeWaitReadyFuture(f, null, e);
@@ -275,15 +275,15 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
-        raftStatus.setLastAppliedTerm(rt.getItem().getTerm());
+        raftStatus.lastAppliedTerm = rt.getItem().getTerm();
 
         if (!raftStatus.isGroupReady() && raftStatus.getRole() != RaftRole.none
-                && index >= raftStatus.getGroupReadyIndex()) {
+                && index >= raftStatus.groupReadyIndex) {
             raftStatus.setGroupReady(true);
             // copy share status should happen before group ready notifications
             raftStatus.copyShareStatus();
             log.info("{} mark group ready: groupId={}, groupReadyIndex={}",
-                    raftStatus.getRole(), raftStatus.getGroupId(), raftStatus.getGroupReadyIndex());
+                    raftStatus.getRole(), raftStatus.groupId, raftStatus.groupReadyIndex);
             processWaitGroupReadyQueue(true, index);
         } else {
             raftStatus.copyShareStatus();
@@ -292,7 +292,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         if (!initFutureComplete && index >= initCommitIndex) {
             log.info("apply manager init complete, initCommitIndex={}", initCommitIndex);
             initFutureComplete = true;
-            raftStatus.getInitFuture().complete(null);
+            raftStatus.initFuture.complete(null);
         }
         if (execEx == null) {
             rt.callSuccess(execResult);
@@ -315,7 +315,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private boolean shouldStopApply() {
-        return raftStatus.isInstallSnapshot() || fiberGroup.isShouldStop();
+        return raftStatus.installSnapshot || fiberGroup.isShouldStop();
     }
 
     public Fiber getApplyFiber() {
@@ -330,7 +330,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
         private RaftLog.LogIterator logIterator;
 
-        private final TailCache tailCache = raftStatus.getTailCache();
+        private final TailCache tailCache = raftStatus.tailCache;
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -340,7 +340,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
         @Override
         protected FrameCallResult doFinally() {
-            log.info("apply fiber exit: groupId={}", raftStatus.getGroupId());
+            log.info("apply fiber exit: groupId={}", raftStatus.groupId);
             closeIterator();
             return Fiber.frameReturn();
         }
@@ -359,18 +359,18 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 return Fiber.yield(this);
             }
             RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
-            long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplying();
+            long diff = raftStatus.commitIndex - raftStatus.lastApplying;
             if (diff == 0) {
                 return needApplyCond.await(this);
             }
-            long index = raftStatus.getLastApplying() + 1;
+            long index = raftStatus.lastApplying + 1;
             RaftTask rt = tailCache.get(index);
             if (rt == null) {
                 int limit = (int) Math.min(diff, 1024L);
                 if (log.isDebugEnabled()) {
                     log.debug("load from {}, diff={}, limit={}, cacheSize={}, cacheFirstIndex={},commitIndex={},lastApplying={}",
                             index, diff, limit, tailCache.size(), tailCache.getFirstIndex(),
-                            raftStatus.getCommitIndex(), raftStatus.getLastApplying());
+                            raftStatus.commitIndex, raftStatus.lastApplying);
                 }
                 if (logIterator == null) {
                     logIterator = raftLog.openIterator(null);
@@ -480,13 +480,13 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             Set<Integer> oldObserverIds = parseSet(fields[1]);
             Set<Integer> newMemberIds = parseSet(fields[2]);
             Set<Integer> newObserverIds = parseSet(fields[3]);
-            if (!oldMemberIds.equals(raftStatus.getNodeIdOfMembers())) {
+            if (!oldMemberIds.equals(raftStatus.nodeIdOfMembers)) {
                 log.error("oldMemberIds not match, oldMemberIds={}, currentMembers={}, groupId={}",
-                        oldMemberIds, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
+                        oldMemberIds, raftStatus.nodeIdOfMembers, raftStatus.groupId);
             }
-            if (!oldObserverIds.equals(raftStatus.getNodeIdOfObservers())) {
+            if (!oldObserverIds.equals(raftStatus.nodeIdOfObservers)) {
                 log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
-                        oldObserverIds, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
+                        oldObserverIds, raftStatus.nodeIdOfObservers, raftStatus.groupId);
             }
             return gc.getMemberManager().doPrepare(rt.getItem().getIndex(), newMemberIds, newObserverIds);
         }

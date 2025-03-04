@@ -62,9 +62,9 @@ public class IdxFileQueueTest extends BaseFiberTest {
         c.setIdxFlushThreshold(2);
         c.setBlockIoExecutor(MockExecutors.ioExecutor());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
-        raftStatus.setTailCache(new TailCache(c, raftStatus));
+        raftStatus.tailCache = new TailCache(c, raftStatus);
         c.setRaftStatus(raftStatus);
-        c.setTs(raftStatus.getTs());
+        c.setTs(raftStatus.ts);
         c.setFiberGroup(fiberGroup);
         c.setDataDir(dir.getAbsolutePath());
         statusManager = new StatusManager(c);
@@ -137,12 +137,12 @@ public class IdxFileQueueTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 for (int i = 1; i <= 30; i++) {
-                    raftStatus.setCommitIndex(i - 1);
-                    raftStatus.setLastForceLogIndex(i - 1);
+                    raftStatus.commitIndex = i - 1;
+                    raftStatus.lastForceLogIndex = i - 1;
                     idxFileQueue.put(i, i * 100);
                 }
-                raftStatus.setCommitIndex(30);
-                raftStatus.setLastForceLogIndex(30);
+                raftStatus.commitIndex = 30;
+                raftStatus.lastForceLogIndex = 30;
                 return waitFlush(null);
             }
 
@@ -177,8 +177,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 for (int i = 1; i <= 10; i++) {
-                    raftStatus.setCommitIndex(i - 1);
-                    raftStatus.setLastForceLogIndex(i - 1);
+                    raftStatus.commitIndex = i - 1;
+                    raftStatus.lastForceLogIndex = i - 1;
                     idxFileQueue.put(i, i * 100);
                 }
                 assertThrows(RaftException.class, () -> idxFileQueue.put(5, 500));
@@ -228,8 +228,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 idxFileQueue.truncateTail(5);
                 assertEquals(4, idxFileQueue.cache.size());
 
-                raftStatus.setCommitIndex(3);
-                raftStatus.setLastForceLogIndex(3);
+                raftStatus.commitIndex = 3;
+                raftStatus.lastForceLogIndex = 3;
                 assertThrows(RaftException.class, () -> idxFileQueue.truncateTail(3));
                 assertThrows(RaftException.class, () -> idxFileQueue.truncateTail(5));
                 idxFileQueue.truncateTail(4);
@@ -244,8 +244,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 for (int i = 1; i <= 30; i++) {
-                    raftStatus.setCommitIndex(i - 1);
-                    raftStatus.setLastForceLogIndex(i - 1);
+                    raftStatus.commitIndex = i - 1;
+                    raftStatus.lastForceLogIndex = i - 1;
                     idxFileQueue.put(i, i * 100);
                 }
                 return idxFileQueue.close().await(this::afterIdxClose);
@@ -295,8 +295,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 for (int i = 1; i <= 30; i++) {
-                    raftStatus.setCommitIndex(i - 1);
-                    raftStatus.setLastForceLogIndex(i - 1);
+                    raftStatus.commitIndex = i - 1;
+                    raftStatus.lastForceLogIndex = i - 1;
                     idxFileQueue.put(i, i * 100);
                 }
                 return waitFlush(null);
@@ -339,8 +339,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 for (int i = 1; i <= 30; i++) {
-                    raftStatus.setCommitIndex(i - 1);
-                    raftStatus.setLastForceLogIndex(i - 1);
+                    raftStatus.commitIndex = i - 1;
+                    raftStatus.lastForceLogIndex = i - 1;
                     idxFileQueue.put(i, i * 100);
                 }
                 return waitFlush(null);

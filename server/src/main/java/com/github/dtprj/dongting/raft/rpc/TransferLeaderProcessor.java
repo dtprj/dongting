@@ -66,17 +66,17 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             throw new RaftException("old leader or new leader is not valid candidate");
         }
 
-        if (raftStatus.getCurrentTerm() != req.term) {
+        if (raftStatus.currentTerm != req.term) {
             log.error("term check fail, groupId={}, reqTerm={}, localTerm={}",
-                    req.groupId, req.term, raftStatus.getCurrentTerm());
+                    req.groupId, req.term, raftStatus.currentTerm);
             throw new RaftException("term check fail");
         }
-        if (raftStatus.getLastLogIndex() != req.logIndex || raftStatus.getLastForceLogIndex() != req.logIndex) {
+        if (raftStatus.lastLogIndex != req.logIndex || raftStatus.lastForceLogIndex != req.logIndex) {
             log.error("logIndex check fail, groupId={}, reqIndex={}, lastIndex={}, lastPersistIndex={}",
-                    req.groupId, req.logIndex, raftStatus.getLastLogIndex(), raftStatus.getLastForceLogIndex());
+                    req.groupId, req.logIndex, raftStatus.lastLogIndex, raftStatus.lastForceLogIndex);
             throw new RaftException("logIndex check fail");
         }
-        raftStatus.setCommitIndex(req.logIndex);
+        raftStatus.commitIndex = req.logIndex;
         gc.getApplyManager().wakeupApply();
 
         RaftUtil.changeToLeader(raftStatus);

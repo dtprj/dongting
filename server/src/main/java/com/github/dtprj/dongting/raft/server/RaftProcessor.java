@@ -71,7 +71,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             return errorResp;
         }
         GroupComponents gc = g.getGroupComponents();
-        if (!gc.getRaftStatus().isInitialized()) {
+        if (!gc.getRaftStatus().initialized) {
             invokeCleanReq(reqInfo);
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
             wf.setMsg("raft group not initialized: " + groupId);

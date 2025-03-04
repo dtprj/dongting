@@ -90,7 +90,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.groupConfig = groupConfig;
         this.codecFactory = codecFactory;
         this.cancelIndicator = cancelIndicator;
-        this.tailCache = ((RaftStatusImpl) groupConfig.getRaftStatus()).getTailCache();
+        this.tailCache = ((RaftStatusImpl) groupConfig.getRaftStatus()).tailCache;
 
         DispatcherThread t = groupConfig.getFiberGroup().getThread();
         this.directPool = t.getDirectPool();

@@ -92,8 +92,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 log.info("receive {} request from node {}. groupId={}, voteFor={}, reqTerm={}, currentTerm={}, " +
                                 "reqLastLogTerm={}, localLastLogTerm={}, reqIndex={}, localLastLogIndex={}",
                         voteReq.preVote ? "pre-vote" : "vote", voteReq.candidateId, voteReq.groupId,
-                        raftStatus.getVotedFor(), voteReq.term, raftStatus.getCurrentTerm(), voteReq.lastLogTerm,
-                        raftStatus.getLastLogTerm(), voteReq.lastLogIndex, raftStatus.getLastLogIndex());
+                        raftStatus.votedFor, voteReq.term, raftStatus.currentTerm, voteReq.lastLogTerm,
+                        raftStatus.lastLogTerm, voteReq.lastLogIndex, raftStatus.lastLogIndex);
                 logReceiveInfo = true;
             }
             if (isGroupShouldStopPlain()) {
@@ -105,12 +105,12 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
             }
-            if (voteReq.term > raftStatus.getCurrentTerm()) {
+            if (voteReq.term > raftStatus.currentTerm) {
                 String msg = (voteReq.preVote ? "pre-vote" : "vote") + " request term greater than local";
                 RaftUtil.incrTerm(voteReq.term, raftStatus, -1, msg);
                 termUpdated = true;
             }
-            if (raftStatus.isInstallSnapshot()) {
+            if (raftStatus.installSnapshot) {
                 log.info("receive vote/preVote request during install snapshot. remoteId={}, group={}",
                         voteReq.candidateId, voteReq.groupId);
                 return updateStatusFile(false);
@@ -128,12 +128,12 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private FrameCallResult updateStatusFile(boolean grant) {
             StatusManager statusManager = reqInfo.raftGroup.getGroupComponents().getStatusManager();
-            int expectTerm = raftStatus.getCurrentTerm();
+            int expectTerm = raftStatus.currentTerm;
 
             boolean notPreVoteAndGrant = !voteReq.preVote && grant;
             if (notPreVoteAndGrant) {
                 RaftUtil.resetElectTimer(raftStatus);
-                raftStatus.setVotedFor(voteReq.candidateId);
+                raftStatus.votedFor = voteReq.candidateId;
                 reqInfo.raftGroup.getGroupComponents().getVoteManager().cancelVote(
                         "vote for node " + voteReq.candidateId);
             }
@@ -148,15 +148,15 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
         }
 
         private FrameCallResult afterStatusFileUpdated(int expectTerm, boolean grant) {
-            if (expectTerm != raftStatus.getCurrentTerm()) {
+            if (expectTerm != raftStatus.currentTerm) {
                 log.warn("localTerm changed, ignore vote response. expectTerm={}, currentTerm={}",
-                        expectTerm, raftStatus.getCurrentTerm());
+                        expectTerm, raftStatus.currentTerm);
                 return Fiber.frameReturn();
             }
 
             VoteResp resp = new VoteResp();
             resp.voteGranted = grant;
-            resp.term = raftStatus.getCurrentTerm();
+            resp.term = raftStatus.currentTerm;
             SimpleWritePacket wf = new SimpleWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
             reqInfo.reqContext.writeRespInBizThreads(wf);
@@ -167,19 +167,19 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private boolean shouldGrant() {
             boolean result;
-            if (voteReq.term < raftStatus.getCurrentTerm()) {
+            if (voteReq.term < raftStatus.currentTerm) {
                 result = false;
             } else {
                 // pre-vote not save voteFor state, so not check it
-                if (voteReq.preVote || raftStatus.getVotedFor() == 0
-                        || raftStatus.getVotedFor() == voteReq.candidateId) {
-                    if (voteReq.lastLogTerm > raftStatus.getLastLogTerm()) {
+                if (voteReq.preVote || raftStatus.votedFor == 0
+                        || raftStatus.votedFor == voteReq.candidateId) {
+                    if (voteReq.lastLogTerm > raftStatus.lastLogTerm) {
                         result = true;
-                    } else if (voteReq.lastLogTerm == raftStatus.getLastLogTerm()) {
+                    } else if (voteReq.lastLogTerm == raftStatus.lastLogTerm) {
                         if (voteReq.preVote && raftStatus.getRole() == RaftRole.leader) {
-                            result = voteReq.lastLogIndex > raftStatus.getLastLogIndex();
+                            result = voteReq.lastLogIndex > raftStatus.lastLogIndex;
                         } else {
-                            result = voteReq.lastLogIndex >= raftStatus.getLastLogIndex();
+                            result = voteReq.lastLogIndex >= raftStatus.lastLogIndex;
                         }
                     } else {
                         result = false;
@@ -191,8 +191,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             log.info("{} grant check {}. candidateId={}, groupId={}, voteFor={}, reqTerm={}, currentTerm={}, " +
                             "reqLastLogTerm={}, localLastLogTerm={}, reqIndex={}, localLastLogIndex={}",
                     voteReq.preVote ? "pre-vote" : "vote", result, voteReq.candidateId, voteReq.groupId,
-                    raftStatus.getVotedFor(), voteReq.term, raftStatus.getCurrentTerm(), voteReq.lastLogTerm,
-                    raftStatus.getLastLogTerm(), voteReq.lastLogIndex, raftStatus.getLastLogIndex());
+                    raftStatus.votedFor, voteReq.term, raftStatus.currentTerm, voteReq.lastLogTerm,
+                    raftStatus.lastLogTerm, voteReq.lastLogIndex, raftStatus.lastLogIndex);
             return result;
         }
     }

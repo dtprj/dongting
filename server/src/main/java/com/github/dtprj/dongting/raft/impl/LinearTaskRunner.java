@@ -65,7 +65,7 @@ public class LinearTaskRunner {
         this.serverConfig = gc.getServerConfig();
         this.groupConfig = gc.getGroupConfig();
         this.raftStatus = gc.getRaftStatus();
-        this.ts = raftStatus.getTs();
+        this.ts = raftStatus.ts;
         this.perfCallback = gc.getGroupConfig().getPerfCallback();
     }
 
@@ -105,11 +105,11 @@ public class LinearTaskRunner {
                 // fiber exit
                 return Fiber.frameReturn();
             }
-            if (raftStatus.getTransferLeaderCondition() != null) {
+            if (raftStatus.transferLeaderCondition != null) {
                 FiberFrame<Void> f = new FiberFrame<>() {
                     @Override
                     public FrameCallResult execute(Void input) {
-                        return raftStatus.getTransferLeaderCondition().await(this::justReturn);
+                        return raftStatus.transferLeaderCondition.await(this::justReturn);
                     }
                 };
                 // transfer leader future may complete exceptionally.
@@ -129,7 +129,7 @@ public class LinearTaskRunner {
     }
 
     public void submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {
-        RaftTask t = new RaftTask(raftStatus.getTs(), raftLogType, input, callback);
+        RaftTask t = new RaftTask(raftStatus.ts, raftLogType, input, callback);
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
         if (!taskChannel.fireOffer(t, true)) {
             RaftUtil.release(input);
@@ -138,10 +138,10 @@ public class LinearTaskRunner {
     }
 
     public static long lastIndex(RaftStatusImpl raftStatus) {
-        TailCache tailCache = raftStatus.getTailCache();
+        TailCache tailCache = raftStatus.tailCache;
         if (tailCache.size() == 0) {
-            log.info("tail cache is empty, use last log index {}", raftStatus.getLastLogIndex());
-            return raftStatus.getLastLogIndex();
+            log.info("tail cache is empty, use last log index {}", raftStatus.lastLogIndex);
+            return raftStatus.lastLogIndex;
         } else {
             return tailCache.getLastIndex();
         }
@@ -158,8 +158,8 @@ public class LinearTaskRunner {
         }
         long newIndex = lastIndex(raftStatus);
 
-        int prevTerm = raftStatus.getLastLogTerm();
-        int currentTerm = raftStatus.getCurrentTerm();
+        int prevTerm = raftStatus.lastLogTerm;
+        int currentTerm = raftStatus.currentTerm;
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.getInput();
@@ -197,7 +197,7 @@ public class LinearTaskRunner {
     }
 
     public FiberFrame<Void> append(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
-        TailCache tailCache = raftStatus.getTailCache();
+        TailCache tailCache = raftStatus.tailCache;
         ArrayList<LogItem> logItems = new ArrayList<>(inputs.size());
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
@@ -214,11 +214,11 @@ public class LinearTaskRunner {
             logItems.add(li);
 
             if (i == len - 1) {
-                raftStatus.setLastLogIndex(index);
-                raftStatus.setLastLogTerm(li.getTerm());
+                raftStatus.lastLogIndex = index;
+                raftStatus.lastLogTerm = li.getTerm();
             }
         }
-        raftStatus.getNeedRepCondition().signalAll();
+        raftStatus.needRepCondition.signalAll();
         return raftLog.append(logItems);
     }
 

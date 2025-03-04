@@ -152,7 +152,7 @@ public class TailCache {
             return;
         }
         long boundIndex = raftStatus.getLastApplied();
-        long timeBound = raftStatus.getTs().getNanoTime() - TIMEOUT;
+        long timeBound = raftStatus.ts.getNanoTime() - TIMEOUT;
         int len = cache.size();
         long index = firstIndex;
         for (int i = 0; i < len; i++, index++) {

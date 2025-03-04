@@ -420,7 +420,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private boolean checkCancel() {
             // do not check isGroupShouldStopPlain() here
 
-            if (raftStatus.isInstallSnapshot()) {
+            if (raftStatus.installSnapshot) {
                 if (!cancel) {
                     log.warn("install snapshot, cancel save snapshot task");
                     cancel = true;

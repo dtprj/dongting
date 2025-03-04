@@ -52,7 +52,7 @@ public class InstallTest extends ServerTestBase {
         ShareStatus ss = g.getGroupComponents().getRaftStatus().getShareStatus();
         assertEquals(RaftRole.follower, ss.role);
         assertTrue(ss.lastApplied >= 1);
-        assertTrue(g.getGroupComponents().getRaftStatus().getCurrentTerm() > 2);
+        assertTrue(g.getGroupComponents().getRaftStatus().currentTerm > 2);
 
         waitStop(s1);
         waitStop(s2);

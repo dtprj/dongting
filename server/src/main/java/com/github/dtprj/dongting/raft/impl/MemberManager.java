@@ -85,13 +85,13 @@ public class MemberManager {
         this.serverConfig = gc.getServerConfig();
         this.groupConfig = gc.getGroupConfig();
         this.raftStatus = gc.getRaftStatus();
-        this.groupId = raftStatus.getGroupId();
+        this.groupId = raftStatus.groupId;
 
-        if (raftStatus.getNodeIdOfMembers().isEmpty()) {
+        if (raftStatus.nodeIdOfMembers.isEmpty()) {
             this.pingReadyFuture = CompletableFuture.completedFuture(null);
             this.startReadyQuorum = 0;
         } else {
-            this.startReadyQuorum = RaftUtil.getElectQuorum(raftStatus.getNodeIdOfMembers().size());
+            this.startReadyQuorum = RaftUtil.getElectQuorum(raftStatus.nodeIdOfMembers.size());
             this.pingReadyFuture = new CompletableFuture<>();
         }
     }
@@ -105,26 +105,26 @@ public class MemberManager {
      * invoke by RaftServer init thread or schedule thread
      */
     public void init() {
-        raftStatus.setMembers(new ArrayList<>());
-        for (int nodeId : raftStatus.getNodeIdOfMembers()) {
+        raftStatus.members = new ArrayList<>();
+        for (int nodeId : raftStatus.nodeIdOfMembers) {
             RaftNodeEx node = nodeManager.allNodesEx.get(nodeId);
             RaftMember m = createMember(node, RaftRole.follower);
-            raftStatus.getMembers().add(m);
+            raftStatus.members.add(m);
         }
-        if (!raftStatus.getNodeIdOfObservers().isEmpty()) {
+        if (!raftStatus.nodeIdOfObservers.isEmpty()) {
             List<RaftMember> observers = new ArrayList<>();
-            for (int nodeId : raftStatus.getNodeIdOfObservers()) {
+            for (int nodeId : raftStatus.nodeIdOfObservers) {
                 RaftNodeEx node = nodeManager.allNodesEx.get(nodeId);
                 RaftMember m = createMember(node, RaftRole.observer);
                 observers.add(m);
             }
-            raftStatus.setObservers(observers);
+            raftStatus.observers = observers;
         } else {
-            raftStatus.setObservers(emptyList());
+            raftStatus.observers = emptyList();
         }
-        raftStatus.setPreparedMembers(emptyList());
-        raftStatus.setPreparedObservers(emptyList());
-        if (raftStatus.getSelf() == null) {
+        raftStatus.preparedMembers = emptyList();
+        raftStatus.preparedObservers = emptyList();
+        if (raftStatus.self == null) {
             // the current node is not in members and observers
             RaftNodeEx node = nodeManager.allNodesEx.get(serverConfig.getNodeId());
             createMember(node, RaftRole.none);
@@ -134,7 +134,7 @@ public class MemberManager {
         computeDuplicatedData(raftStatus);
 
         // to update startReadyFuture
-        setReady(raftStatus.getSelf(), true);
+        setReady(raftStatus.self, true);
     }
 
     static void computeDuplicatedData(RaftStatusImpl raftStatus) {
@@ -143,29 +143,29 @@ public class MemberManager {
         Set<Integer> observerIds = new HashSet<>();
         Set<Integer> jointMemberIds = new HashSet<>();
         Set<Integer> jointObserverIds = new HashSet<>();
-        for (RaftMember m : raftStatus.getMembers()) {
+        for (RaftMember m : raftStatus.members) {
             replicateList.add(m);
             memberIds.add(m.getNode().getNodeId());
         }
-        for (RaftMember m : raftStatus.getObservers()) {
+        for (RaftMember m : raftStatus.observers) {
             replicateList.add(m);
             observerIds.add(m.getNode().getNodeId());
         }
-        for (RaftMember m : raftStatus.getPreparedMembers()) {
+        for (RaftMember m : raftStatus.preparedMembers) {
             replicateList.add(m);
             jointMemberIds.add(m.getNode().getNodeId());
         }
-        for (RaftMember m : raftStatus.getPreparedObservers()) {
+        for (RaftMember m : raftStatus.preparedObservers) {
             jointObserverIds.add(m.getNode().getNodeId());
         }
-        raftStatus.setReplicateList(replicateList.isEmpty() ? emptyList() : replicateList);
-        raftStatus.setNodeIdOfMembers(memberIds.isEmpty() ? emptySet() : memberIds);
-        raftStatus.setNodeIdOfObservers(observerIds.isEmpty() ? emptySet() : observerIds);
-        raftStatus.setNodeIdOfPreparedMembers(jointMemberIds.isEmpty() ? emptySet() : jointMemberIds);
-        raftStatus.setNodeIdOfPreparedObservers(jointObserverIds.isEmpty() ? emptySet() : jointObserverIds);
+        raftStatus.replicateList = replicateList.isEmpty() ? emptyList() : replicateList;
+        raftStatus.nodeIdOfMembers = memberIds.isEmpty() ? emptySet() : memberIds;
+        raftStatus.nodeIdOfObservers = observerIds.isEmpty() ? emptySet() : observerIds;
+        raftStatus.nodeIdOfPreparedMembers = jointMemberIds.isEmpty() ? emptySet() : jointMemberIds;
+        raftStatus.nodeIdOfPreparedObservers = jointObserverIds.isEmpty() ? emptySet() : jointObserverIds;
 
-        raftStatus.setElectQuorum(RaftUtil.getElectQuorum(raftStatus.getMembers().size()));
-        raftStatus.setRwQuorum(RaftUtil.getRwQuorum(raftStatus.getMembers().size()));
+        raftStatus.electQuorum = RaftUtil.getElectQuorum(raftStatus.members.size());
+        raftStatus.rwQuorum = RaftUtil.getRwQuorum(raftStatus.members.size());
     }
 
     public Fiber createRaftPingFiber() {
@@ -189,7 +189,7 @@ public class MemberManager {
     }
 
     public void ensureRaftMemberStatus() {
-        List<RaftMember> replicateList = raftStatus.getReplicateList();
+        List<RaftMember> replicateList = raftStatus.replicateList;
         for (RaftMember member : replicateList) {
             check(member);
         }
@@ -271,19 +271,19 @@ public class MemberManager {
     }
 
     private String checkRemoteConfig(RaftPing ping) {
-        String s = checkRemoteConfig("members", raftStatus.getMembers(), ping.members);
+        String s = checkRemoteConfig("members", raftStatus.members, ping.members);
         if (s != null) {
             return s;
         }
-        s = checkRemoteConfig("observers", raftStatus.getObservers(), ping.observers);
+        s = checkRemoteConfig("observers", raftStatus.observers, ping.observers);
         if (s != null) {
             return s;
         }
-        s = checkRemoteConfig("preparedMembers", raftStatus.getPreparedMembers(), ping.preparedMembers);
+        s = checkRemoteConfig("preparedMembers", raftStatus.preparedMembers, ping.preparedMembers);
         if (s != null) {
             return s;
         }
-        return checkRemoteConfig("preparedObservers", raftStatus.getPreparedObservers(), ping.preparedObservers);
+        return checkRemoteConfig("preparedObservers", raftStatus.preparedObservers, ping.preparedObservers);
     }
 
     private String checkRemoteConfig(String s, List<RaftMember> localServers, String remoteServers) {
@@ -316,7 +316,7 @@ public class MemberManager {
     public void setReady(RaftMember member, boolean ready) {
         member.setReady(ready);
         if (ready && !pingReadyFuture.isDone()) {
-            int readyCount = getReadyCount(raftStatus.getMembers());
+            int readyCount = getReadyCount(raftStatus.members);
             if (readyCount >= startReadyQuorum) {
                 log.info("member manager is ready: groupId={}", groupId);
                 pingReadyFuture.complete(null);
@@ -347,8 +347,8 @@ public class MemberManager {
 
             @Override
             public FrameCallResult execute(Void input) {
-                if (!raftStatus.getNodeIdOfMembers().equals(members)
-                        || !raftStatus.getNodeIdOfObservers().equals(observers)) {
+                if (!raftStatus.nodeIdOfMembers.equals(members)
+                        || !raftStatus.nodeIdOfObservers.equals(observers)) {
                     log.error("old members or observers not match, groupId={}", groupId);
                     f.completeExceptionally(new RaftException("old members or observers not match"));
                     return Fiber.frameReturn();
@@ -410,10 +410,10 @@ public class MemberManager {
                 return Fiber.frameReturn();
             }
 
-            for (RaftMember m : raftStatus.getMembers()) {
+            for (RaftMember m : raftStatus.members) {
                 queryPrepareStatus(m);
             }
-            for (RaftMember m : raftStatus.getPreparedMembers()) {
+            for (RaftMember m : raftStatus.preparedMembers) {
                 if (resultMap.containsKey(m.getNode().getNodeId())) {
                     continue;
                 }
@@ -462,11 +462,11 @@ public class MemberManager {
         }
 
         private boolean lastConfigIndexNotMatch() {
-            if (prepareIndex != raftStatus.getLastConfigChangeIndex()) {
+            if (prepareIndex != raftStatus.lastConfigChangeIndex) {
                 log.error("prepareIndex not match. prepareIndex={}, lastConfigChangeIndex={}",
-                        prepareIndex, raftStatus.getLastConfigChangeIndex());
+                        prepareIndex, raftStatus.lastConfigChangeIndex);
                 finalFuture.completeExceptionally(new RaftException("prepareIndex not match. prepareIndex="
-                        + prepareIndex + ", lastConfigChangeIndex=" + raftStatus.getLastConfigChangeIndex()));
+                        + prepareIndex + ", lastConfigChangeIndex=" + raftStatus.lastConfigChangeIndex));
                 return true;
             }
             return false;
@@ -483,7 +483,7 @@ public class MemberManager {
                 }
                 int memberReadyCount = 0;
                 int memberNotReadyCount = 0;
-                for (RaftMember m : raftStatus.getMembers()) {
+                for (RaftMember m : raftStatus.members) {
                     CompletableFuture<Boolean> queryResult = resultMap.get(m.getNode().getNodeId());
                     if (queryResult == null) {
                         BugLog.getLog().error("queryResult is null");
@@ -502,7 +502,7 @@ public class MemberManager {
                 }
                 int preparedMemberReadyCount = 0;
                 int preparedMemberNotReadyCount = 0;
-                for (RaftMember m : raftStatus.getPreparedMembers()) {
+                for (RaftMember m : raftStatus.preparedMembers) {
                     CompletableFuture<Boolean> queryResult = resultMap.get(m.getNode().getNodeId());
                     if (queryResult == null) {
                         BugLog.getLog().error("queryResult is null");
@@ -519,14 +519,14 @@ public class MemberManager {
                         }
                     }
                 }
-                int prepareMemberCount = raftStatus.getPreparedMembers().size();
+                int prepareMemberCount = raftStatus.preparedMembers.size();
                 int prepareQuorum = prepareMemberCount == 0 ? 0 : RaftUtil.getElectQuorum(prepareMemberCount);
-                if (memberReadyCount >= raftStatus.getElectQuorum() && preparedMemberReadyCount >= prepareQuorum) {
+                if (memberReadyCount >= raftStatus.electQuorum && preparedMemberReadyCount >= prepareQuorum) {
                     log.info("members prepare status check success, groupId={}, memberReadyCount={}, preparedMemberReadyCount={}",
                             groupId, memberReadyCount, preparedMemberReadyCount);
                     fireCommit = true;
                     leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
-                } else if (memberNotReadyCount >= raftStatus.getElectQuorum() ||
+                } else if (memberNotReadyCount >= raftStatus.electQuorum ||
                         (prepareQuorum > 0 && preparedMemberNotReadyCount >= prepareQuorum)) {
                     log.error("members prepare status check failed, groupId={}, memberNotReadyCount={}, preparedMemberNotReadyCount={}",
                             groupId, memberNotReadyCount, preparedMemberNotReadyCount);
@@ -542,8 +542,8 @@ public class MemberManager {
 
     private byte[] getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
         StringBuilder sb = new StringBuilder(64);
-        appendSet(sb, raftStatus.getNodeIdOfMembers());
-        appendSet(sb, raftStatus.getNodeIdOfObservers());
+        appendSet(sb, raftStatus.nodeIdOfMembers);
+        appendSet(sb, raftStatus.nodeIdOfObservers);
         appendSet(sb, newMemberNodes);
         appendSet(sb, newObserverNodes);
         sb.deleteCharAt(sb.length() - 1);
@@ -621,22 +621,22 @@ public class MemberManager {
     }
 
     private RaftMember findExistMember(int nodeId) {
-        for (RaftMember m : raftStatus.getMembers()) {
+        for (RaftMember m : raftStatus.members) {
             if (m.getNode().getNodeId() == nodeId) {
                 return m;
             }
         }
-        for (RaftMember m : raftStatus.getObservers()) {
+        for (RaftMember m : raftStatus.observers) {
             if (m.getNode().getNodeId() == nodeId) {
                 return m;
             }
         }
-        for (RaftMember m : raftStatus.getPreparedMembers()) {
+        for (RaftMember m : raftStatus.preparedMembers) {
             if (m.getNode().getNodeId() == nodeId) {
                 return m;
             }
         }
-        for (RaftMember m : raftStatus.getPreparedObservers()) {
+        for (RaftMember m : raftStatus.preparedObservers) {
             if (m.getNode().getNodeId() == nodeId) {
                 return m;
             }
@@ -648,7 +648,7 @@ public class MemberManager {
         RaftMember m = new RaftMember(node, groupConfig.getFiberGroup());
         if (node.isSelf()) {
             m.setReady(true);
-            raftStatus.setSelf(m);
+            raftStatus.self = m;
             raftStatus.setRole(role);
             raftStatus.copyShareStatus();
         }
@@ -657,32 +657,32 @@ public class MemberManager {
 
     public FrameCallResult doPrepare(long raftIndex, Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") prepare config change",
-                raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(), newMemberIds, newObserverIds);
+                raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers, newMemberIds, newObserverIds);
         f.raftIndex = raftIndex;
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
     public FrameCallResult doAbort(long raftIndex) {
-        HashSet<Integer> preparedMemberIds = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
+        HashSet<Integer> preparedMemberIds = new HashSet<>(raftStatus.nodeIdOfPreparedMembers);
         if (preparedMemberIds.isEmpty()) {
             log.info("no pending config change, ignore abort, raftIndex={} groupId={}",
-                    raftIndex, raftStatus.getGroupId());
+                    raftIndex, raftStatus.groupId);
             return Fiber.frameReturn();
         }
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") abort config change",
-                raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(), emptySet(), emptySet());
+                raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers, emptySet(), emptySet());
         f.raftIndex = raftIndex;
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
     public FrameCallResult doCommit(long raftIndex) {
-        if (raftStatus.getPreparedMembers().isEmpty()) {
+        if (raftStatus.preparedMembers.isEmpty()) {
             log.warn("no prepared config change, ignore commit, raftIndex={}, groupId={}",
-                    raftIndex, raftStatus.getGroupId());
+                    raftIndex, raftStatus.groupId);
             return Fiber.frameReturn();
         }
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") commit config change",
-                raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
+                raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
                 emptySet(), emptySet());
         f.raftIndex = raftIndex;
         return Fiber.call(f, v -> Fiber.frameReturn());
@@ -718,20 +718,20 @@ public class MemberManager {
                 log.warn("ignore apply config change, groupId={}", groupId);
                 return Fiber.frameReturn();
             }
-            if (raftStatus.getNodeIdOfMembers().equals(members)
-                    && raftStatus.getNodeIdOfObservers().equals(observers)
-                    && raftStatus.getNodeIdOfPreparedMembers().equals(preparedMembers)
-                    && raftStatus.getNodeIdOfPreparedObservers().equals(preparedObservers)) {
+            if (raftStatus.nodeIdOfMembers.equals(members)
+                    && raftStatus.nodeIdOfObservers.equals(observers)
+                    && raftStatus.nodeIdOfPreparedMembers.equals(preparedMembers)
+                    && raftStatus.nodeIdOfPreparedObservers.equals(preparedObservers)) {
                 return Fiber.frameReturn();
             }
             log.info("{} begin, groupId={}, oldMember={}, oldObserver={}, oldPreparedMember={}, oldPreparedObserver={}," +
                             " newMember={}, newObserver={}, newPreparedMember={}, newPreparedObserver={}",
-                    msg, groupId, raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
-                    raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
+                    msg, groupId, raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
+                    raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
                     members, observers, preparedMembers, preparedObservers);
             return nodeManager.doApplyConfig(
-                            raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
-                            raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
+                            raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
+                            raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
                             members, observers, preparedMembers, preparedObservers)
                     .await(result -> postConfigChange(msg, result));
         }
@@ -747,20 +747,20 @@ public class MemberManager {
             List<RaftMember> newPreparedMembers = createMembersInConfigChange(newPreparedMemberNodes);
             List<RaftMember> newPreparedObservers = createMembersInConfigChange(newPreparedObserverNodes);
 
-            List<RaftMember> oldRepList = raftStatus.getReplicateList();
+            List<RaftMember> oldRepList = raftStatus.replicateList;
 
-            raftStatus.setMembers(newMembers);
-            raftStatus.setObservers(newObservers);
-            raftStatus.setPreparedMembers(newPreparedMembers);
-            raftStatus.setPreparedObservers(newPreparedObservers);
+            raftStatus.members = newMembers;
+            raftStatus.observers = newObservers;
+            raftStatus.preparedMembers = newPreparedMembers;
+            raftStatus.preparedObservers = newPreparedObservers;
             computeDuplicatedData(raftStatus);
 
             int selfNodeId = serverConfig.getNodeId();
             int newLeaderId = -1;
             if (raftStatus.getCurrentLeader() != null) {
                 newLeaderId = raftStatus.getCurrentLeader().getNode().getNodeId();
-                if (!raftStatus.getNodeIdOfMembers().contains(newLeaderId)
-                        && !raftStatus.getNodeIdOfPreparedMembers().contains(newLeaderId)) {
+                if (!raftStatus.nodeIdOfMembers.contains(newLeaderId)
+                        && !raftStatus.nodeIdOfPreparedMembers.contains(newLeaderId)) {
                     newLeaderId = -1;
                 }
             }
@@ -768,10 +768,10 @@ public class MemberManager {
                 raftStatus.setCurrentLeader(null);
             }
 
-            boolean selfIsMember = raftStatus.getNodeIdOfMembers().contains(selfNodeId)
-                    || raftStatus.getNodeIdOfPreparedMembers().contains(selfNodeId);
-            boolean selfIsObserver = raftStatus.getNodeIdOfObservers().contains(selfNodeId)
-                    || raftStatus.getNodeIdOfPreparedObservers().contains(selfNodeId);
+            boolean selfIsMember = raftStatus.nodeIdOfMembers.contains(selfNodeId)
+                    || raftStatus.nodeIdOfPreparedMembers.contains(selfNodeId);
+            boolean selfIsObserver = raftStatus.nodeIdOfObservers.contains(selfNodeId)
+                    || raftStatus.nodeIdOfPreparedObservers.contains(selfNodeId);
             RaftRole r = raftStatus.getRole();
             if (selfIsMember) {
                 if (r != RaftRole.leader && r != RaftRole.follower) {
@@ -787,7 +787,7 @@ public class MemberManager {
                 }
             }
             if (r == RaftRole.leader) {
-                List<RaftMember> newRepList = raftStatus.getReplicateList();
+                List<RaftMember> newRepList = raftStatus.replicateList;
                 for (RaftMember m : oldRepList) {
                     if (!newRepList.contains(m) && m.getReplicateFiber() != null && !m.getReplicateFiber().isFinished()) {
                         legacyMembers.add(m);
@@ -814,7 +814,7 @@ public class MemberManager {
         private RemoveLegacyFrame(RaftMember m, long raftIndex) {
             this.m = m;
             this.raftIndex = raftIndex;
-            this.startNanos = raftStatus.getTs().getNanoTime();
+            this.startNanos = raftStatus.ts.getNanoTime();
         }
 
         @Override
@@ -822,7 +822,7 @@ public class MemberManager {
             // delay stop replicate to ensure the commit config change log is replicate to the legacy member.
             // otherwise the legacy member may start pre-vote and generate WARN logs in other members.
             // however this is not necessary.
-            boolean timeout = raftStatus.getTs().getNanoTime() - startNanos > 5000L * 1000 * 1000;
+            boolean timeout = raftStatus.ts.getNanoTime() - startNanos > 5000L * 1000 * 1000;
             if ((m.getMatchIndex() >= raftIndex && m.repCommitIndexAcked >= raftIndex) || timeout) {
                 return afterSleep();
             }
@@ -846,7 +846,7 @@ public class MemberManager {
             RaftMember m = findExistMember(node.getNodeId());
             if (m == null) {
                 m = createMember(node, RaftRole.observer);
-                m.setNextIndex(raftStatus.getLastLogIndex() + 1);
+                m.setNextIndex(raftStatus.lastLogIndex + 1);
             }
             newMembers.add(m);
         }
@@ -863,8 +863,8 @@ public class MemberManager {
     }
 
     public static boolean validCandidate(RaftStatusImpl raftStatus, int nodeId) {
-        return raftStatus.getNodeIdOfMembers().contains(nodeId)
-                || raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
+        return raftStatus.nodeIdOfMembers.contains(nodeId)
+                || raftStatus.nodeIdOfPreparedMembers.contains(nodeId);
     }
 
     public void transferLeadership(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
@@ -895,11 +895,11 @@ public class MemberManager {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (raftStatus.getTransferLeaderCondition() != null) {
+            if (raftStatus.transferLeaderCondition != null) {
                 f.completeExceptionally(new RaftException("transfer leader in progress"));
                 return Fiber.frameReturn();
             }
-            raftStatus.setTransferLeaderCondition(groupConfig.getFiberGroup().newCondition("transferLeader"));
+            raftStatus.transferLeaderCondition = groupConfig.getFiberGroup().newCondition("transferLeader");
             return checkBeforeTransferLeader(null);
         }
 
@@ -910,14 +910,14 @@ public class MemberManager {
                 return Fiber.frameReturn();
             }
             RaftMember newLeader = null;
-            for (RaftMember m : raftStatus.getMembers()) {
+            for (RaftMember m : raftStatus.members) {
                 if (m.getNode().getNodeId() == nodeId) {
                     newLeader = m;
                     break;
                 }
             }
             if (newLeader == null) {
-                for (RaftMember m : raftStatus.getPreparedMembers()) {
+                for (RaftMember m : raftStatus.preparedMembers) {
                     if (m.getNode().getNodeId() == nodeId) {
                         newLeader = m;
                         break;
@@ -940,8 +940,8 @@ public class MemberManager {
                 return Fiber.frameReturn();
             }
 
-            boolean lastLogCommit = raftStatus.getCommitIndex() == raftStatus.getLastLogIndex();
-            boolean newLeaderHasLastLog = newLeader.getMatchIndex() == raftStatus.getLastLogIndex();
+            boolean lastLogCommit = raftStatus.commitIndex == raftStatus.lastLogIndex;
+            boolean newLeaderHasLastLog = newLeader.getMatchIndex() == raftStatus.lastLogIndex;
 
             if (newLeader.isReady() && lastLogCommit && newLeaderHasLastLog) {
                 PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
@@ -967,10 +967,10 @@ public class MemberManager {
                                     CompletableFuture<Void> finalFuture) {
         try {
             QueryStatusResp s = resp.getBody();
-            if (!s.members.equals(raftStatus.getNodeIdOfMembers())
-                    || !s.observers.equals(raftStatus.getNodeIdOfObservers())
-                    || !s.preparedMembers.equals(raftStatus.getNodeIdOfPreparedMembers())
-                    || !s.preparedObservers.equals(raftStatus.getNodeIdOfPreparedObservers())) {
+            if (!s.members.equals(raftStatus.nodeIdOfMembers)
+                    || !s.observers.equals(raftStatus.nodeIdOfObservers)
+                    || !s.preparedMembers.equals(raftStatus.nodeIdOfPreparedMembers)
+                    || !s.preparedObservers.equals(raftStatus.nodeIdOfPreparedObservers)) {
                 log.error("config not match, groupId={}", groupId);
                 finalFuture.completeExceptionally(new RaftException("config not match"));
                 return;
@@ -978,8 +978,8 @@ public class MemberManager {
             RaftUtil.clearTransferLeaderCondition(raftStatus);
             RaftUtil.changeToFollower(raftStatus, newLeader.getNodeId(), "transfer leader");
             TransferLeaderReq req = new TransferLeaderReq();
-            req.term = raftStatus.getCurrentTerm();
-            req.logIndex = raftStatus.getLastLogIndex();
+            req.term = raftStatus.currentTerm;
+            req.logIndex = raftStatus.lastLogIndex;
             req.oldLeaderId = serverConfig.getNodeId();
             req.newLeaderId = newLeader.getNodeId();
             req.groupId = groupId;

@@ -50,19 +50,12 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
     private RaftStatusImpl raftStatus;
 
     private void createManager(boolean separateExecutor, String dataDir, boolean mockInstall) {
-        raftStatus = new RaftStatusImpl(dispatcher.getTs()) {
-            private int count;
-
-            @Override
-            public boolean isInstallSnapshot() {
-                return mockInstall && count++ >= 2;
-            }
-        };
-        raftStatus.setNodeIdOfMembers(Set.of(1));
-        raftStatus.setNodeIdOfObservers(Set.of());
-        raftStatus.setNodeIdOfPreparedMembers(Set.of());
-        raftStatus.setNodeIdOfPreparedObservers(Set.of());
-        raftStatus.setLastAppliedTerm(1);
+        raftStatus = new RaftStatusImpl(dispatcher.getTs());
+        raftStatus.nodeIdOfMembers = Set.of(1);
+        raftStatus.nodeIdOfObservers = Set.of();
+        raftStatus.nodeIdOfPreparedMembers = Set.of();
+        raftStatus.nodeIdOfPreparedObservers = Set.of();
+        raftStatus.lastAppliedTerm = 1;
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.setFiberGroup(fiberGroup);
         groupConfig.setRaftStatus(raftStatus);
@@ -72,7 +65,15 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         KvConfig kvConfig = new KvConfig();
         kvConfig.setUseSeparateExecutor(separateExecutor);
         kvConfig.setInitMapCapacity(16);
-        kv = new DtKV(groupConfig, kvConfig);
+        kv = new DtKV(groupConfig, kvConfig) {
+            @Override
+            public Snapshot takeSnapshot(SnapshotInfo si) {
+                if (mockInstall) {
+                    raftStatus.installSnapshot = true;
+                }
+                return super.takeSnapshot(si);
+            }
+        };
         m = new DefaultSnapshotManager(groupConfig, kv, idx -> {
         });
     }

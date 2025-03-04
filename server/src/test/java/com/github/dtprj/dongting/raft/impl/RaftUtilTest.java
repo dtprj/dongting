@@ -48,48 +48,48 @@ public class RaftUtilTest {
         m4.setLastConfirmReqNanos(300);
         m5.setLastConfirmReqNanos(100);
 
-        rs.setPreparedMembers(Collections.emptyList());
+        rs.preparedMembers = Collections.emptyList();
 
-        rs.setMembers(List.of(m1));
+        rs.members = List.of(m1);
         updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(-100, rs.getLeaseStartNanos());
 
-        rs.setMembers(List.of(m1, m2));
+        rs.members = List.of(m1, m2);
         updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(-200, rs.getLeaseStartNanos());
 
-        rs.setMembers(List.of(m1, m2, m3));
+        rs.members = List.of(m1, m2, m3);
         updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(-100, rs.getLeaseStartNanos());
 
-        rs.setMembers(List.of(m1, m2, m3, m4));
+        rs.members = List.of(m1, m2, m3, m4);
         updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(200, rs.getLeaseStartNanos());
 
-        rs.setMembers(List.of(m1, m2, m3, m4, m5));
+        rs.members = List.of(m1, m2, m3, m4, m5);
         updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(100, rs.getLeaseStartNanos());
 
-        rs.setMembers(List.of(m1, m2, m3, m4, m5));
+        rs.members = List.of(m1, m2, m3, m4, m5);
         updateQuorum(rs);
-        rs.setPreparedMembers(List.of(m1));
+        rs.preparedMembers = List.of(m1);
         RaftUtil.updateLease(rs);
         assertEquals(-100, rs.getLeaseStartNanos());
 
-        rs.setMembers(List.of(m1, m2, m3, m4, m5));
+        rs.members = List.of(m1, m2, m3, m4, m5);
         updateQuorum(rs);
-        rs.setPreparedMembers(List.of(m3));
+        rs.preparedMembers = List.of(m3);
         RaftUtil.updateLease(rs);
         assertEquals(100, rs.getLeaseStartNanos());
     }
 
     private void updateQuorum(RaftStatusImpl rs) {
-        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
-        rs.setRwQuorum(RaftUtil.getRwQuorum(rs.getMembers().size()));
+        rs.electQuorum = RaftUtil.getElectQuorum(rs.members.size());
+        rs.rwQuorum = RaftUtil.getRwQuorum(rs.members.size());
     }
 }

@@ -300,7 +300,7 @@ abstract class FileQueue {
             }
         };
         f = new RetryFrame<>(f, groupConfig.getIoRetryInterval(), true,
-                () -> !initialized || raftStatus.isInstallSnapshot());
+                () -> !initialized || raftStatus.installSnapshot);
         f = new PostFiberFrame<>(f) {
             @Override
             protected FrameCallResult postProcess(Void v) {
@@ -325,7 +325,7 @@ abstract class FileQueue {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (raftStatus.isInstallSnapshot() || stopAlloc) {
+            if (raftStatus.installSnapshot || stopAlloc) {
                 log.info("{} queue alloc fiber exit", FileQueue.this instanceof IdxFileQueue ? "idx" : "log");
                 return Fiber.frameReturn();
             }
@@ -339,7 +339,7 @@ abstract class FileQueue {
 
         private FrameCallResult afterAlloc(FileAllocFrame f) {
             if (!f.result) {
-                if (raftStatus.isInstallSnapshot() || stopAlloc) {
+                if (raftStatus.installSnapshot || stopAlloc) {
                     allocDoneCond.signalAll();
                     return Fiber.resume(null, this);
                 } else {

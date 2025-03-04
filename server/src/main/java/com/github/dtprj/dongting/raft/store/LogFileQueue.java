@@ -79,15 +79,15 @@ class LogFileQueue extends FileQueue {
 
     private void writeFinish(ChainWriter.WriteTask writeTask) {
         if (writeTask.getLastRaftIndex() > 0) {
-            raftStatus.getLogWriteFinishCondition().signalAll();
-            raftStatus.setLastWriteLogIndex(writeTask.getLastRaftIndex());
+            raftStatus.logWriteFinishCondition.signalAll();
+            raftStatus.lastWriteLogIndex = writeTask.getLastRaftIndex();
         }
     }
 
     private void forceFinish(ChainWriter.WriteTask writeTask) {
         // assert lastRaftIndex > 0
-        raftStatus.setLastForceLogIndex(writeTask.getLastRaftIndex());
-        raftStatus.getLogForceFinishCondition().signalAll();
+        raftStatus.lastForceLogIndex = writeTask.getLastRaftIndex();
+        raftStatus.logForceFinishCondition.signalAll();
     }
 
     public long fileLength() {
@@ -216,8 +216,8 @@ class LogFileQueue extends FileQueue {
 
     public FiberFuture<Void> close() {
         markClose = true;
-        raftStatus.getLogWriteFinishCondition().signalAll();
-        raftStatus.getLogForceFinishCondition().signalAll();
+        raftStatus.logWriteFinishCondition.signalAll();
+        raftStatus.logForceFinishCondition.signalAll();
         FiberFuture<Void> f = logAppender.close();
         return f.compose("logAllocStop", v -> stopFileQueue());
     }

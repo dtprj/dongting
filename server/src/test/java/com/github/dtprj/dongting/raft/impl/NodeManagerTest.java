@@ -75,8 +75,8 @@ public class NodeManagerTest {
         client.waitStart();
 
         RaftStatusImpl raftStatus = new RaftStatusImpl(new Timestamp());
-        raftStatus.setNodeIdOfMembers(RaftUtil.strToIdSet(members));
-        raftStatus.setNodeIdOfObservers(RaftUtil.strToIdSet(observers));
+        raftStatus.nodeIdOfMembers = RaftUtil.strToIdSet(members);
+        raftStatus.nodeIdOfObservers = RaftUtil.strToIdSet(observers);
 
         GroupComponents gc = new GroupComponents();
         gc.setRaftStatus(raftStatus);
