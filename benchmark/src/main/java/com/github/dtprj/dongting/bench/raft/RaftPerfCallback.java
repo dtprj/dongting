@@ -42,8 +42,8 @@ public class RaftPerfCallback extends PrometheusPerfCallback {
     private final Summary raftIdxBlock;
     private final Summary raftIdxWriteTime;
     private final Summary raftIdxWriteBytes;
-    private final Summary raftIdxWriteAndForceTime;
-    private final Summary raftIdxWriteAndForceBytes;
+    private final Summary raftIdxForceTime;
+    private final Summary raftIdxForceBytes;
     private final Summary raftReplicateRpcTime;
     private final Summary raftReplicateRpcItems;
     private final Summary raftReplicateRpcBytes;
@@ -69,8 +69,8 @@ public class RaftPerfCallback extends PrometheusPerfCallback {
         this.raftIdxBlock = createSummary(prefix + "raft_idx_block");
         this.raftIdxWriteTime = createSummary(prefix + "raft_idx_write_time");
         this.raftIdxWriteBytes = createSummary(prefix + "raft_idx_write_bytes");
-        this.raftIdxWriteAndForceTime = createSummary(prefix + "raft_idx_write_and_force_time");
-        this.raftIdxWriteAndForceBytes = createSummary(prefix + "raft_idx_write_and_force_bytes");
+        this.raftIdxForceTime = createSummary(prefix + "raft_idx_force_time");
+        this.raftIdxForceBytes = createSummary(prefix + "raft_idx_force_bytes");
         this.raftReplicateRpcTime = createSummary(prefix + "raft_replicate_rpc_time");
         this.raftReplicateRpcItems = createSummary(prefix + "raft_replicate_rpc_items");
         this.raftReplicateRpcBytes = createSummary(prefix + "raft_replicate_rpc_bytes");
@@ -133,8 +133,8 @@ public class RaftPerfCallback extends PrometheusPerfCallback {
                 raftIdxWriteBytes.observe(sum);
                 break;
             case RAFT_D_IDX_FORCE:
-                raftIdxWriteAndForceTime.observe(costTime);
-                raftIdxWriteAndForceBytes.observe(sum);
+                raftIdxForceTime.observe(costTime);
+                raftIdxForceBytes.observe(sum);
                 break;
             case RAFT_D_REPLICATE_RPC:
                 raftReplicateRpcTime.observe(costTime);
@@ -166,8 +166,8 @@ public class RaftPerfCallback extends PrometheusPerfCallback {
         printTime(raftIdxBlock);
         printTime(raftIdxWriteTime);
         printValue(raftIdxWriteBytes);
-        printTime(raftIdxWriteAndForceTime);
-        printValue(raftIdxWriteAndForceBytes);
+        printTime(raftIdxForceTime);
+        printValue(raftIdxForceBytes);
         printTime(raftReplicateRpcTime);
         printValue(raftReplicateRpcItems);
         printValue(raftReplicateRpcBytes);
