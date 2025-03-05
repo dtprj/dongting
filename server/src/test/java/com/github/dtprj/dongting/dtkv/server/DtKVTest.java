@@ -52,8 +52,8 @@ public class DtKVTest extends BaseFiberTest {
 
     private DtKV createAndStart() {
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
-        groupConfig.setFiberGroup(fiberGroup);
-        groupConfig.setTs(fiberGroup.getDispatcher().getTs());
+        groupConfig.fiberGroup = fiberGroup;
+        groupConfig.ts = fiberGroup.getDispatcher().getTs();
         KvConfig kvConfig = new KvConfig();
         kvConfig.setUseSeparateExecutor(false);
         kvConfig.setInitMapCapacity(16);

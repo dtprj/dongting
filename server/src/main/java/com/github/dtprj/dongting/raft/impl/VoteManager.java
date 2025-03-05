@@ -70,7 +70,7 @@ public class VoteManager {
         this.groupConfig = gc.groupConfig;
         this.raftStatus = gc.raftStatus;
         this.config = gc.serverConfig;
-        this.groupId = groupConfig.getGroupId();
+        this.groupId = groupConfig.groupId;
     }
 
     public void postInit() {
@@ -80,7 +80,7 @@ public class VoteManager {
 
     public void startVoteFiber() {
         VoteFiberFrame ff = new VoteFiberFrame();
-        Fiber f = new Fiber("vote-" + groupId, groupConfig.getFiberGroup(), ff, true);
+        Fiber f = new Fiber("vote-" + groupId, groupConfig.fiberGroup, ff, true);
         f.start();
     }
 
@@ -201,7 +201,7 @@ public class VoteManager {
     private void fireRespProcessFiber(VoteReq req, VoteResp resp, Throwable ex, RaftMember member, int voteIdOfRequest) {
         String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.getNode().getNodeId() + ")";
         RespProcessFiberFrame initFrame = new RespProcessFiberFrame(resp, ex, member, req, voteIdOfRequest);
-        groupConfig.getFiberGroup().fireFiber(fiberName, initFrame);
+        groupConfig.fiberGroup.fireFiber(fiberName, initFrame);
     }
 
     private static int getVoteCount(Set<Integer> members, Set<Integer> votes) {

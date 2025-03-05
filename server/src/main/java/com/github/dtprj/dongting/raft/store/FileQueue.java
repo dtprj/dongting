@@ -81,19 +81,19 @@ abstract class FileQueue {
             throw new IllegalArgumentException("fileSize not power of 2: " + fileSize);
         }
         this.dir = dir;
-        this.ioExecutor = groupConfig.getBlockIoExecutor();
+        this.ioExecutor = groupConfig.blockIoExecutor;
         this.groupConfig = groupConfig;
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
 
         this.fileSize = fileSize;
         this.fileLenMask = fileSize - 1;
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(fileSize);
         this.mainLogFile = mainLogFile;
 
-        this.needAllocCond = groupConfig.getFiberGroup().newCondition("needAllocCond");
-        this.allocDoneCond = groupConfig.getFiberGroup().newCondition("allocDoneCond");
-        this.queueAllocFiber = new Fiber("queueAlloc" + groupConfig.getGroupId(),
-                groupConfig.getFiberGroup(), new QueueAllocFrame(), true);
+        this.needAllocCond = groupConfig.fiberGroup.newCondition("needAllocCond");
+        this.allocDoneCond = groupConfig.fiberGroup.newCondition("allocDoneCond");
+        this.queueAllocFiber = new Fiber("queueAlloc" + groupConfig.groupId,
+                groupConfig.fiberGroup, new QueueAllocFrame(), true);
     }
 
     protected final long getFileSize() {
@@ -124,10 +124,10 @@ abstract class FileQueue {
                 HashSet<OpenOption> openOptions = new HashSet<>();
                 openOptions.add(StandardOpenOption.READ);
                 openOptions.add(StandardOpenOption.WRITE);
-                ExecutorService executor = groupConfig.isIoCallbackUseGroupExecutor() ?
-                        groupConfig.getFiberGroup().getExecutor() : ioExecutor;
+                ExecutorService executor = groupConfig.ioCallbackUseGroupExecutor ?
+                        groupConfig.fiberGroup.getExecutor() : ioExecutor;
                 AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, executor);
-                queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f, groupConfig.getFiberGroup()));
+                queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f, groupConfig.fiberGroup));
                 count++;
             }
         }
@@ -156,7 +156,7 @@ abstract class FileQueue {
     protected FiberFuture<Void> stopFileQueue() {
         stopAlloc = true;
         needAllocCond.signal();
-        FiberFuture<Void> f = groupConfig.getFiberGroup().newFuture("fileQueueClose");
+        FiberFuture<Void> f = groupConfig.fiberGroup.newFuture("fileQueueClose");
         queueAllocFiber.join().registerCallback((v, ex) -> {
             closeChannel();
             if (ex != null) {
@@ -223,7 +223,7 @@ abstract class FileQueue {
                 if (pos >= queueEndPosition) {
                     if (!block) {
                         block = true;
-                        blockPerfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
+                        blockPerfStartTime = groupConfig.perfCallback.takeTime(perfType);
                     }
                     if (queueAllocFiber.isFinished()) {
                         throw new RaftException("ensureWritePosReady " + pos + " failed because queueAllocFiber is finished");
@@ -231,7 +231,7 @@ abstract class FileQueue {
                     return allocDoneCond.await(this);
                 } else {
                     if (block) {
-                        groupConfig.getPerfCallback().fireTime(perfType, blockPerfStartTime);
+                        groupConfig.perfCallback.fireTime(perfType, blockPerfStartTime);
                     }
                     return Fiber.frameReturn();
                 }
@@ -257,7 +257,7 @@ abstract class FileQueue {
 
         @Override
         public FrameCallResult execute(Void input) {
-            FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture("deleteFile");
+            FiberFuture<Void> deleteFuture = groupConfig.fiberGroup.newFuture("deleteFile");
             try {
                 ioExecutor.execute(() -> {
                     try {
@@ -299,7 +299,7 @@ abstract class FileQueue {
                 return Fiber.call(new DeleteFrame(first.getFile(), first.getChannel()), this::justReturn);
             }
         };
-        f = new RetryFrame<>(f, groupConfig.getIoRetryInterval(), true,
+        f = new RetryFrame<>(f, groupConfig.ioRetryInterval, true,
                 () -> !initialized || raftStatus.installSnapshot);
         f = new PostFiberFrame<>(f) {
             @Override
@@ -369,7 +369,7 @@ abstract class FileQueue {
 
         public FileAllocFrame() {
             this.perfType = mainLogFile ? PerfConsts.RAFT_D_LOG_FILE_ALLOC : PerfConsts.RAFT_D_IDX_FILE_ALLOC;
-            this.perfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
+            this.perfStartTime = groupConfig.perfCallback.takeTime(perfType);
         }
 
         @Override
@@ -389,8 +389,8 @@ abstract class FileQueue {
                     openOptions.add(StandardOpenOption.READ);
                     openOptions.add(StandardOpenOption.WRITE);
                     openOptions.add(StandardOpenOption.CREATE);
-                    ExecutorService executor = groupConfig.isIoCallbackUseGroupExecutor() ?
-                            groupConfig.getFiberGroup().getExecutor() : ioExecutor;
+                    ExecutorService executor = groupConfig.ioCallbackUseGroupExecutor ?
+                            groupConfig.fiberGroup.getExecutor() : ioExecutor;
                     channel = AsynchronousFileChannel.open(file.toPath(), openOptions, executor);
                     long time = System.currentTimeMillis() - startTime;
                     createFileFuture.fireComplete(null);
@@ -406,7 +406,7 @@ abstract class FileQueue {
 
         private FrameCallResult afterCreateFile(Void unused) {
             result = true;
-            groupConfig.getPerfCallback().fireTime(perfType, perfStartTime);
+            groupConfig.perfCallback.fireTime(perfType, perfStartTime);
             return Fiber.frameReturn();
         }
 

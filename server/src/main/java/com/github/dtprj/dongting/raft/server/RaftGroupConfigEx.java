@@ -25,44 +25,12 @@ import java.util.concurrent.ExecutorService;
  */
 public class RaftGroupConfigEx extends RaftGroupConfig {
 
-    private Timestamp ts;
-    private RaftStatus raftStatus;
-    private ExecutorService blockIoExecutor;
-    private FiberGroup fiberGroup;
+    public Timestamp ts;
+    public RaftStatus raftStatus;
+    public ExecutorService blockIoExecutor;
+    public FiberGroup fiberGroup;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         super(groupId, nodeIdOfMembers, nodeIdOfObservers);
-    }
-
-    public Timestamp getTs() {
-        return ts;
-    }
-
-    public void setTs(Timestamp ts) {
-        this.ts = ts;
-    }
-
-    public FiberGroup getFiberGroup() {
-        return fiberGroup;
-    }
-
-    public void setFiberGroup(FiberGroup fiberGroup) {
-        this.fiberGroup = fiberGroup;
-    }
-
-    public RaftStatus getRaftStatus() {
-        return raftStatus;
-    }
-
-    public void setRaftStatus(RaftStatus raftStatus) {
-        this.raftStatus = raftStatus;
-    }
-
-    public ExecutorService getBlockIoExecutor() {
-        return blockIoExecutor;
-    }
-
-    public void setBlockIoExecutor(ExecutorService blockIoExecutor) {
-        this.blockIoExecutor = blockIoExecutor;
     }
 }

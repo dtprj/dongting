@@ -68,15 +68,15 @@ public class ChainWriter {
     public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config, Consumer<WriteTask> writeCallback,
                        Consumer<WriteTask> forceCallback) {
         this.config = config;
-        this.perfCallback = config.getPerfCallback();
+        this.perfCallback = config.perfCallback;
         this.writeCallback = writeCallback;
         this.forceCallback = forceCallback;
-        this.raftStatus = (RaftStatusImpl) config.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) config.raftStatus;
 
-        DispatcherThread t = config.getFiberGroup().getThread();
+        DispatcherThread t = config.fiberGroup.getThread();
         this.directPool = t.getDirectPool();
-        this.needForceCondition = config.getFiberGroup().newCondition("needForceCond");
-        this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.getGroupId(), config.getFiberGroup(),
+        this.needForceCondition = config.fiberGroup.newCondition("needForceCond");
+        this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.groupId, config.fiberGroup,
                 new ForceLoopFrame());
     }
 
@@ -94,7 +94,7 @@ public class ChainWriter {
         if (forceFiber.isStarted()) {
             return forceFiber.join();
         } else {
-            return FiberFuture.completedFuture(config.getFiberGroup(), null);
+            return FiberFuture.completedFuture(config.fiberGroup, null);
         }
     }
 
@@ -137,8 +137,8 @@ public class ChainWriter {
             log.warn("in error state, ignore write");
             return;
         }
-        int[] retryInterval = initialized ? config.getIoRetryInterval() : null;
-        WriteTask task = new WriteTask(config.getFiberGroup(), dtFile, retryInterval, true,
+        int[] retryInterval = initialized ? config.ioRetryInterval : null;
+        WriteTask task = new WriteTask(config.fiberGroup, dtFile, retryInterval, true,
                 this::shouldCancelRetry, buf, posInFile, force, perfItemCount, lastRaftIndex);
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
@@ -248,8 +248,8 @@ public class ChainWriter {
                     log.warn("file {} should delete or deleted, ignore force", logFile.getFile());
                     return Fiber.resume(null, this);
                 }
-                ForceFrame ff = new ForceFrame(task.getDtFile().getChannel(), config.getBlockIoExecutor(), false);
-                RetryFrame<Void> rf = new RetryFrame<>(ff, config.getIoRetryInterval(),
+                ForceFrame ff = new ForceFrame(task.getDtFile().getChannel(), config.blockIoExecutor, false);
+                RetryFrame<Void> rf = new RetryFrame<>(ff, config.ioRetryInterval,
                         true, ChainWriter.this::shouldCancelRetry);
                 WriteTask finalTask = task;
                 long perfStartTime = perfCallback.takeTime(forcePerfType);

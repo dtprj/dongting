@@ -185,7 +185,7 @@ public class MemberManager {
             }
         };
         // daemon fiber
-        return new Fiber("raftPing", groupConfig.getFiberGroup(), fiberFrame, true);
+        return new Fiber("raftPing", groupConfig.fiberGroup, fiberFrame, true);
     }
 
     public void ensureRaftMemberStatus() {
@@ -224,7 +224,7 @@ public class MemberManager {
             SimpleWritePacket f = RaftUtil.buildRaftPingPacket(serverConfig.getNodeId(), raftStatus);
             f.setCommand(Commands.RAFT_PING);
 
-            Executor executor = groupConfig.getFiberGroup().getExecutor();
+            Executor executor = groupConfig.fiberGroup.getExecutor();
             RpcCallback<RaftPing> callback = (result, ex) -> executor.execute(
                     () -> processPingResult(raftNodeEx, member, result, ex, nodeEpochWhenStartPing));
             client.sendRequest(raftNodeEx.getPeer(), f, ctx -> ctx.toDecoderCallback(new RaftPing()),
@@ -288,7 +288,7 @@ public class MemberManager {
 
     private String checkRemoteConfig(String s, List<RaftMember> localServers, String remoteServers) {
         List<RaftNode> remotes = RaftNode.parseServers(remoteServers);
-        int check = groupConfig.getRaftPingCheck();
+        int check = groupConfig.raftPingCheck;
         if (check > 0) {
             if (localServers.size() != remotes.size()) {
                 return s + " size not match, local=" + RaftNode.formatServers(localServers, RaftMember::getNode)
@@ -422,7 +422,7 @@ public class MemberManager {
 
             List<CompletableFuture<Boolean>> list = new ArrayList<>(resultMap.values());
             for (CompletableFuture<Boolean> resultFuture : list) {
-                resultFuture.thenRunAsync(this::checkPrepareStatus, groupConfig.getFiberGroup().getExecutor());
+                resultFuture.thenRunAsync(this::checkPrepareStatus, groupConfig.fiberGroup.getExecutor());
             }
             return Fiber.frameReturn();
         }
@@ -592,7 +592,7 @@ public class MemberManager {
                     // If we call commit config change immediately after prepareIndex applied, the prepareIndex
                     // check will fail, so we issue a heartbeat and wait to prepareIndex + 1 to be applied.
                     gc.linearTaskRunner.issueHeartBeat();
-                    Fiber fiber = new Fiber("finishPrepareFuture", groupConfig.getFiberGroup(),
+                    Fiber fiber = new Fiber("finishPrepareFuture", groupConfig.fiberGroup,
                             finishPrepareFuture(f, raftIndex));
                     fiber.start();
                 } else {
@@ -645,7 +645,7 @@ public class MemberManager {
     }
 
     private RaftMember createMember(RaftNodeEx node, RaftRole role) {
-        RaftMember m = new RaftMember(node, groupConfig.getFiberGroup());
+        RaftMember m = new RaftMember(node, groupConfig.fiberGroup);
         if (node.isSelf()) {
             m.setReady(true);
             raftStatus.self = m;
@@ -714,7 +714,7 @@ public class MemberManager {
         @Override
         public FrameCallResult execute(Void v) {
             groupConfig.readFence();
-            if (groupConfig.isDisableConfigChange()) {
+            if (groupConfig.disableConfigChange) {
                 log.warn("ignore apply config change, groupId={}", groupId);
                 return Fiber.frameReturn();
             }
@@ -793,7 +793,7 @@ public class MemberManager {
                         legacyMembers.add(m);
                         RemoveLegacyFrame ff = new RemoveLegacyFrame(m, raftIndex);
                         Fiber f = new Fiber("remove-legacy-" + m.getNode().getNodeId(),
-                                groupConfig.getFiberGroup(), ff, true);
+                                groupConfig.fiberGroup, ff, true);
                         f.start();
                     }
                 }
@@ -868,7 +868,7 @@ public class MemberManager {
     }
 
     public void transferLeadership(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
-        if (!groupConfig.getFiberGroup().fireFiber("transfer-leader",
+        if (!groupConfig.fiberGroup.fireFiber("transfer-leader",
                 new TranferLeaderFiberFrame(nodeId, f, deadline))) {
             f.completeExceptionally(new RaftException("fire transfer leader fiber failed"));
         }
@@ -899,7 +899,7 @@ public class MemberManager {
                 f.completeExceptionally(new RaftException("transfer leader in progress"));
                 return Fiber.frameReturn();
             }
-            raftStatus.transferLeaderCondition = groupConfig.getFiberGroup().newCondition("transferLeader");
+            raftStatus.transferLeaderCondition = groupConfig.fiberGroup.newCondition("transferLeader");
             return checkBeforeTransferLeader(null);
         }
 
@@ -955,7 +955,7 @@ public class MemberManager {
                     } else {
                         execTransferLeader(newLeaderNode, resp, f);
                     }
-                }, groupConfig.getFiberGroup().getExecutor());
+                }, groupConfig.fiberGroup.getExecutor());
                 return Fiber.frameReturn();
             } else {
                 return Fiber.sleep(1, this::checkBeforeTransferLeader);

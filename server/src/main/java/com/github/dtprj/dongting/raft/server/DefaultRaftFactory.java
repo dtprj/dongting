@@ -98,8 +98,8 @@ public abstract class DefaultRaftFactory implements RaftFactory {
 
     @Override
     public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
-        return new Dispatcher("raft-dispatcher-" + groupConfig.getGroupId(), poolFactory,
-                groupConfig.getPerfCallback());
+        return new Dispatcher("raft-dispatcher-" + groupConfig.groupId, poolFactory,
+                groupConfig.perfCallback);
     }
 
     @Override

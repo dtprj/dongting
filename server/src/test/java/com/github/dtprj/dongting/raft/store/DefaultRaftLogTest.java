@@ -65,11 +65,11 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         RaftServerConfig serverConfig = new RaftServerConfig();
         config = new RaftGroupConfigEx(1, "1", "1");
-        config.setFiberGroup(fiberGroup);
-        config.setDataDir(dataDir);
-        config.setBlockIoExecutor(MockExecutors.ioExecutor());
-        config.setTs(raftStatus.ts);
-        config.setRaftStatus(raftStatus);
+        config.fiberGroup = fiberGroup;
+        config.dataDir = dataDir;
+        config.blockIoExecutor = MockExecutors.ioExecutor();
+        config.ts = raftStatus.ts;
+        config.raftStatus = raftStatus;
         raftStatus.tailCache = new TailCache(config, raftStatus);
         statusManager = new StatusManager(config);
         doInFiber(new FiberFrame<>() {
@@ -85,8 +85,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
         raftLog = new DefaultRaftLog(config, statusManager, null, 1);
         raftLog.idxItemsPerFile = 8;
-        config.setIdxCacheSize(4);
-        config.setIdxFlushThreshold(2);
+        config.idxCacheSize = 4;
+        config.idxFlushThreshold = 2;
         raftLog.logFileSize = 1024;
         doInFiber(new FiberFrame<>() {
             @Override

@@ -66,7 +66,7 @@ public class LinearTaskRunner {
         this.groupConfig = gc.groupConfig;
         this.raftStatus = gc.raftStatus;
         this.ts = raftStatus.ts;
-        this.perfCallback = gc.groupConfig.getPerfCallback();
+        this.perfCallback = gc.groupConfig.perfCallback;
     }
 
     public void postInit() {
@@ -75,7 +75,7 @@ public class LinearTaskRunner {
 
     public void init(FiberChannel<RaftTask> taskChannel) {
         this.taskChannel = taskChannel;
-        Fiber f = new Fiber("linearTaskRunner", groupConfig.getFiberGroup(),
+        Fiber f = new Fiber("linearTaskRunner", groupConfig.fiberGroup,
                 new RunnerFrame(), false, 50);
         f.start();
     }

@@ -44,15 +44,15 @@ public class FileSnapshot extends Snapshot {
 
     public FileSnapshot(RaftGroupConfigEx groupConfig, SnapshotInfo si, File dataFile, int bufferSize) throws IOException {
         super(si);
-        this.fiberGroup = groupConfig.getFiberGroup();
+        this.fiberGroup = groupConfig.fiberGroup;
         this.fileSize = dataFile.length();
         this.bufferSize = bufferSize;
 
         HashSet<StandardOpenOption> options = new HashSet<>();
         options.add(StandardOpenOption.READ);
         AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options,
-                groupConfig.getBlockIoExecutor());
-        this.dtFile = new DtFile(dataFile, channel, groupConfig.getFiberGroup());
+                groupConfig.blockIoExecutor);
+        this.dtFile = new DtFile(dataFile, channel, groupConfig.fiberGroup);
     }
 
     @Override

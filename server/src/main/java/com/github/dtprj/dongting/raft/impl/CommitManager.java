@@ -40,7 +40,7 @@ public class CommitManager {
     public CommitManager(GroupComponents gc) {
         this.gc = gc;
         this.raftStatus = gc.raftStatus;
-        this.syncForce = gc.groupConfig.isSyncForce();
+        this.syncForce = gc.groupConfig.syncForce;
     }
 
     public void postInit() {

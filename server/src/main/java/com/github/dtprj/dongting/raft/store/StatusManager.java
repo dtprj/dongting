@@ -63,14 +63,14 @@ public class StatusManager {
 
     public StatusManager(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
-        File dir = FileUtil.ensureDir(groupConfig.getDataDir());
-        File file = new File(dir, groupConfig.getStatusFile());
-        FiberGroup fg = groupConfig.getFiberGroup();
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
+        File dir = FileUtil.ensureDir(groupConfig.dataDir);
+        File file = new File(dir, groupConfig.statusFile);
+        FiberGroup fg = groupConfig.fiberGroup;
         this.statusFile = new StatusFile(file, groupConfig);
-        this.updateFiber = new Fiber("status-update-" + groupConfig.getGroupId(), fg, new UpdateFiberFrame());
-        this.needUpdateCondition = fg.newCondition("StatusNeedUpdate" + groupConfig.getGroupId());
-        this.updateDoneCondition = fg.newCondition("StatusUpdateDone" + groupConfig.getGroupId());
+        this.updateFiber = new Fiber("status-update-" + groupConfig.groupId, fg, new UpdateFiberFrame());
+        this.needUpdateCondition = fg.newCondition("StatusNeedUpdate" + groupConfig.groupId);
+        this.updateDoneCondition = fg.newCondition("StatusUpdateDone" + groupConfig.groupId);
     }
 
     public FiberFrame<Void> initStatusFile() {
@@ -100,7 +100,7 @@ public class StatusManager {
         if (updateFiber.isStarted()) {
             return updateFiber.join();
         } else {
-            return FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
+            return FiberFuture.completedFuture(groupConfig.fiberGroup, null);
         }
     }
 
@@ -114,7 +114,7 @@ public class StatusManager {
                 return doUpdate(null);
             } else {
                 if (closed) {
-                    log.info("status update fiber exit, groupId={}", groupConfig.getGroupId());
+                    log.info("status update fiber exit, groupId={}", groupConfig.groupId);
                     updateDoneCondition.signalAll();
                     return Fiber.frameReturn();
                 }
@@ -133,7 +133,7 @@ public class StatusManager {
                     return f.await(this::justReturn);
                 }
             };
-            RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame, groupConfig.getIoRetryInterval(),
+            RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame, groupConfig.ioRetryInterval,
                     true, () -> raftStatus.installSnapshot);
             return Fiber.call(retryFrame, this::resumeOnUpdateDone);
         }
@@ -149,7 +149,7 @@ public class StatusManager {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             updateDoneCondition.signalAll();
-            log.error("update status file error, groupId={}", groupConfig.getGroupId(), ex);
+            log.error("update status file error, groupId={}", groupConfig.groupId, ex);
             throw Fiber.fatal(ex);
         }
 

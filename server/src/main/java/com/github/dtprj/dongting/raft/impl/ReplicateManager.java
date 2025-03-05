@@ -82,7 +82,7 @@ public class ReplicateManager {
         this.client = client;
         this.gc = gc;
         this.groupConfig = gc.groupConfig;
-        this.groupId = groupConfig.getGroupId();
+        this.groupId = groupConfig.groupId;
         this.raftStatus = gc.raftStatus;
         this.serverConfig = gc.serverConfig;
     }
@@ -115,11 +115,11 @@ public class ReplicateManager {
                 if (m.isInstallSnapshot()) {
                     LeaderInstallFrame ff = new LeaderInstallFrame(this, m);
                     f = new Fiber("install-" + m.getNode().getNodeId() + "-" + m.getReplicateEpoch(),
-                            groupConfig.getFiberGroup(), ff, true);
+                            groupConfig.fiberGroup, ff, true);
                 } else {
                     LeaderRepFrame ff = new LeaderRepFrame(this, commitManager, m);
                     f = new Fiber("replicate-" + m.getNode().getNodeId() + "-" + m.getReplicateEpoch(),
-                            groupConfig.getFiberGroup(), ff, true);
+                            groupConfig.fiberGroup, ff, true);
                 }
                 f.start();
                 m.setReplicateFiber(f);
@@ -157,7 +157,7 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
         this.groupId = replicateManager.groupId;
         this.member = member;
         RaftGroupConfigEx groupConfig = replicateManager.groupConfig;
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.replicateEpoch = member.getReplicateEpoch();
         this.term = raftStatus.currentTerm;
     }
@@ -231,8 +231,8 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         super(replicateManager, member);
         this.groupConfig = replicateManager.groupConfig;
         this.serverConfig = replicateManager.serverConfig;
-        this.ts = groupConfig.getTs();
-        this.perfCallback = groupConfig.getPerfCallback();
+        this.ts = groupConfig.ts;
+        this.perfCallback = groupConfig.perfCallback;
         this.repDoneCondition = member.getRepDoneCondition();
         this.needRepCondition = raftStatus.needRepCondition;
 
@@ -241,8 +241,8 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         this.replicateManager = replicateManager;
         this.commitManager = commitManager;
 
-        this.maxReplicateItems = groupConfig.getMaxReplicateItems();
-        this.maxReplicateBytes = groupConfig.getMaxReplicateBytes();
+        this.maxReplicateItems = groupConfig.maxReplicateItems;
+        this.maxReplicateBytes = groupConfig.maxReplicateBytes;
         this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
     }
 
@@ -328,7 +328,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         RaftTask first = tailCache.get(nextIndex);
         if (first != null) {
             closeIterator();
-            long sizeLimit = groupConfig.getSingleReplicateLimit();
+            long sizeLimit = groupConfig.singleReplicateLimit;
             ArrayList<LogItem> items = new ArrayList<>(limit);
             long size = 0;
             long leaseStartNanos = 0;
@@ -350,7 +350,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 replicateIterator = raftLog.openIterator(this::epochChange);
             }
             FiberFrame<List<LogItem>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
-                    groupConfig.getSingleReplicateLimit());
+                    groupConfig.singleReplicateLimit);
             return Fiber.call(nextFrame, this::resumeAfterLogLoad);
         }
     }
@@ -406,7 +406,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             bytes += item.getActualBodySize();
         }
         long finalBytes = bytes;
-        Executor ge = groupConfig.getFiberGroup().getExecutor();
+        Executor ge = groupConfig.fiberGroup.getExecutor();
         RpcCallback<AppendResp> c = (result, ex) ->
                 ge.execute(() -> afterAppendRpc(result, ex, req, leaseStartNanos, finalBytes, perfStartTime));
         // release in AppendReqWritePacket
@@ -522,7 +522,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         FiberFrame<Void> ff = new LeaderFindMatchPosFrame(replicateManager, member,
                 body.suggestTerm, body.suggestIndex);
         Fiber f = new Fiber("find-match-pos-" + member.getNode().getNodeId()
-                + "-" + member.getReplicateEpoch(), groupConfig.getFiberGroup(), ff, true);
+                + "-" + member.getReplicateEpoch(), groupConfig.fiberGroup, ff, true);
         member.setReplicateFiber(f);
         f.start();
     }
@@ -625,7 +625,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
-        this.heapPool = groupConfig.getFiberGroup().getThread().getHeapPool();
+        this.heapPool = groupConfig.fiberGroup.getThread().getHeapPool();
     }
 
     @Override
@@ -674,10 +674,10 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        Supplier<RefBuffer> bufferCreator = () -> heapPool.create(groupConfig.getReplicateSnapshotBufferSize());
+        Supplier<RefBuffer> bufferCreator = () -> heapPool.create(groupConfig.replicateSnapshotBufferSize);
 
-        int readConcurrency = groupConfig.getSnapshotConcurrency();
-        int writeConcurrency = groupConfig.getReplicateSnapshotConcurrency();
+        int readConcurrency = groupConfig.snapshotConcurrency;
+        int writeConcurrency = groupConfig.replicateSnapshotConcurrency;
         SnapshotReader r = new SnapshotReader(snapshot, readConcurrency, writeConcurrency, this::readerCallback,
                 this::shouldStopReplicate, bufferCreator);
         return Fiber.call(r, this::afterReaderFinish);
@@ -731,7 +731,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         // data buffer released in WritePacket
         InstallSnapshotReq.InstallReqWritePacket wf = new InstallSnapshotReq.InstallReqWritePacket(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
-        FiberGroup fg = groupConfig.getFiberGroup();
+        FiberGroup fg = groupConfig.fiberGroup;
         FiberFuture<Void> f = fg.newFuture("install-" + groupId + "-" + req.offset);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         RpcCallback<AppendResp> callback = (resp, ex) ->

@@ -74,8 +74,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), s, fiberGroup.getExecutor());
         dtFile = new DtFile(file, channel, fiberGroup);
         groupConfig = new RaftGroupConfigEx(0, "1", "");
-        groupConfig.setIoRetryInterval(new int[]{1});
-        groupConfig.setFiberGroup(fiberGroup);
+        groupConfig.ioRetryInterval = new int[]{1};
+        groupConfig.fiberGroup = fiberGroup;
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
@@ -197,7 +197,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         IOException ex = new IOException("mock error");
 
         public ReadFailTask(int failCount, boolean retry, boolean retryForever, Supplier<Boolean> cancelIndicator) {
-            super(groupConfig.getFiberGroup(), dtFile, retry ? groupConfig.getIoRetryInterval() : null,
+            super(groupConfig.fiberGroup, dtFile, retry ? groupConfig.ioRetryInterval : null,
                     retryForever, cancelIndicator);
             this.failCount = failCount;
         }
@@ -235,7 +235,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
         public FlushFailTask(int failCount, boolean retry, boolean retryForever,
                              Supplier<Boolean> cancelIndicator) {
-            super(groupConfig.getFiberGroup(), dtFile, retry ? groupConfig.getIoRetryInterval() : null,
+            super(groupConfig.fiberGroup, dtFile, retry ? groupConfig.ioRetryInterval : null,
                     retryForever, cancelIndicator);
             this.failCount = failCount;
         }

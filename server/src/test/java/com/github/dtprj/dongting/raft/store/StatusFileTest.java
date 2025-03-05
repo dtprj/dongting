@@ -45,8 +45,8 @@ public class StatusFileTest extends BaseFiberTest {
 
     private static RaftGroupConfigEx createGroupConfig() {
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
-        groupConfig.setFiberGroup(fiberGroup);
-        groupConfig.setBlockIoExecutor(MockExecutors.ioExecutor());
+        groupConfig.fiberGroup = fiberGroup;
+        groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
         return groupConfig;
     }
 

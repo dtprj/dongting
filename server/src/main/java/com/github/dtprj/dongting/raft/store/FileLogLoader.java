@@ -90,9 +90,9 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.groupConfig = groupConfig;
         this.codecFactory = codecFactory;
         this.cancelIndicator = cancelIndicator;
-        this.tailCache = ((RaftStatusImpl) groupConfig.getRaftStatus()).tailCache;
+        this.tailCache = ((RaftStatusImpl) groupConfig.raftStatus).tailCache;
 
-        DispatcherThread t = groupConfig.getFiberGroup().getThread();
+        DispatcherThread t = groupConfig.fiberGroup.getThread();
         this.directPool = t.getDirectPool();
         this.readBuffer = directPool.borrow(readBufferSize);
         this.decodeContext = new DecodeContextEx();
@@ -227,7 +227,7 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
             bufferStartPos = pos - buf.position();
             bufferEndPos = pos + buf.remaining();
-            AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile);
+            AsyncIoTask t = new AsyncIoTask(groupConfig.fiberGroup, logFile);
             return t.read(buf, fileStartPos).await(this::resumeAfterLoad);
         }
 

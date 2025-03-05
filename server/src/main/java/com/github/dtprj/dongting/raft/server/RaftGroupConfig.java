@@ -22,43 +22,42 @@ import com.github.dtprj.dongting.common.PerfCallback;
 /**
  * @author huangli
  */
-@SuppressWarnings("unused")
 public class RaftGroupConfig extends ConfigBase {
-    private final int groupId;
-    private final String nodeIdOfMembers;
-    private final String nodeIdOfObservers;
-    private String dataDir = "./data";
-    private String statusFile = "raft.status";
-    private int[] ioRetryInterval = new int[]{100, 1000, 3000, 5000, 10000, 20000};
-    private boolean syncForce = true;
-    private int raftPingCheck = 0;
-    private boolean disableConfigChange;
+    public final int groupId;
+    public final String nodeIdOfMembers;
+    public final String nodeIdOfObservers;
+    public String dataDir = "./data";
+    public String statusFile = "raft.status";
+    public int[] ioRetryInterval = new int[]{100, 1000, 3000, 5000, 10000, 20000};
+    public boolean syncForce = true;
+    public int raftPingCheck = 0;
+    public boolean disableConfigChange;
 
-    private int maxReplicateItems = 50000;
-    private long maxReplicateBytes = 16 * 1024 * 1024;
-    private int singleReplicateLimit = 1800 * 1024;
+    public int maxReplicateItems = 50000;
+    public long maxReplicateBytes = 16 * 1024 * 1024;
+    public int singleReplicateLimit = 1800 * 1024;
 
-    private int maxPendingRaftTasks = 50000;
-    private long maxPendingTaskBytes = 256 * 1024 * 1024;
+    public int maxPendingRaftTasks = 50000;
+    public long maxPendingTaskBytes = 256 * 1024 * 1024;
 
-    private int idxCacheSize = 16 * 1024;
-    private int idxFlushThreshold = 8 * 1024;
+    public int idxCacheSize = 16 * 1024;
+    public int idxFlushThreshold = 8 * 1024;
 
-    private boolean ioCallbackUseGroupExecutor = false;
+    public boolean ioCallbackUseGroupExecutor = false;
 
-    private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
+    public PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
 
-    private long saveSnapshotMillis = 60 * 60 * 1000;
+    public long saveSnapshotMillis = 60 * 60 * 1000;
     // greater than 1 require state machine support
-    private int snapshotConcurrency = 1;
-    private int diskSnapshotConcurrency = 4;
-    private int diskSnapshotBufferSize = 64 * 1024;
-    private int replicateSnapshotConcurrency = 4;
-    private int replicateSnapshotBufferSize = 64 * 1024;
+    public int snapshotConcurrency = 1;
+    public int diskSnapshotConcurrency = 4;
+    public int diskSnapshotBufferSize = 64 * 1024;
+    public int replicateSnapshotConcurrency = 4;
+    public int replicateSnapshotBufferSize = 64 * 1024;
 
-    private boolean saveSnapshotWhenClose = true;
+    public boolean saveSnapshotWhenClose = true;
 
-    private boolean deleteLogsAfterTakeSnapshot = true;
+    public boolean deleteLogsAfterTakeSnapshot = true;
 
     RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -68,201 +67,5 @@ public class RaftGroupConfig extends ConfigBase {
 
     public static RaftGroupConfig newInstance(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         return new RaftGroupConfigEx(groupId, nodeIdOfMembers, nodeIdOfObservers);
-    }
-
-    public int getGroupId() {
-        return groupId;
-    }
-
-    public String getNodeIdOfMembers() {
-        return nodeIdOfMembers;
-    }
-
-    public String getNodeIdOfObservers() {
-        return nodeIdOfObservers;
-    }
-
-    public String getDataDir() {
-        return dataDir;
-    }
-
-    public void setDataDir(String dataDir) {
-        this.dataDir = dataDir;
-    }
-
-    public String getStatusFile() {
-        return statusFile;
-    }
-
-    public void setStatusFile(String statusFile) {
-        this.statusFile = statusFile;
-    }
-
-    public int[] getIoRetryInterval() {
-        return ioRetryInterval;
-    }
-
-    public void setIoRetryInterval(int[] ioRetryInterval) {
-        this.ioRetryInterval = ioRetryInterval;
-    }
-
-    public boolean isSyncForce() {
-        return syncForce;
-    }
-
-    public void setSyncForce(boolean syncForce) {
-        this.syncForce = syncForce;
-    }
-
-    public int getMaxReplicateItems() {
-        return maxReplicateItems;
-    }
-
-    public void setMaxReplicateItems(int maxReplicateItems) {
-        this.maxReplicateItems = maxReplicateItems;
-    }
-
-    public long getMaxReplicateBytes() {
-        return maxReplicateBytes;
-    }
-
-    public void setMaxReplicateBytes(long maxReplicateBytes) {
-        this.maxReplicateBytes = maxReplicateBytes;
-    }
-
-    public int getSingleReplicateLimit() {
-        return singleReplicateLimit;
-    }
-
-    public void setSingleReplicateLimit(int singleReplicateLimit) {
-        this.singleReplicateLimit = singleReplicateLimit;
-    }
-
-    public int getMaxPendingRaftTasks() {
-        return maxPendingRaftTasks;
-    }
-
-    public void setMaxPendingRaftTasks(int maxPendingRaftTasks) {
-        this.maxPendingRaftTasks = maxPendingRaftTasks;
-    }
-
-    public long getMaxPendingTaskBytes() {
-        return maxPendingTaskBytes;
-    }
-
-    public void setMaxPendingTaskBytes(long maxPendingTaskBytes) {
-        this.maxPendingTaskBytes = maxPendingTaskBytes;
-    }
-
-    public int getRaftPingCheck() {
-        return raftPingCheck;
-    }
-
-    public void setRaftPingCheck(int raftPingCheck) {
-        this.raftPingCheck = raftPingCheck;
-    }
-
-    public int getIdxCacheSize() {
-        return idxCacheSize;
-    }
-
-    public void setIdxCacheSize(int idxCacheSize) {
-        this.idxCacheSize = idxCacheSize;
-    }
-
-    public int getIdxFlushThreshold() {
-        return idxFlushThreshold;
-    }
-
-    public void setIdxFlushThreshold(int idxFlushThreshold) {
-        this.idxFlushThreshold = idxFlushThreshold;
-    }
-
-    public boolean isIoCallbackUseGroupExecutor() {
-        return ioCallbackUseGroupExecutor;
-    }
-
-    public void setIoCallbackUseGroupExecutor(boolean ioCallbackUseGroupExecutor) {
-        this.ioCallbackUseGroupExecutor = ioCallbackUseGroupExecutor;
-    }
-
-    public PerfCallback getPerfCallback() {
-        return perfCallback;
-    }
-
-    public void setPerfCallback(PerfCallback perfCallback) {
-        this.perfCallback = perfCallback;
-    }
-
-    public long getSaveSnapshotMillis() {
-        return saveSnapshotMillis;
-    }
-
-    public void setSaveSnapshotMillis(long saveSnapshotMillis) {
-        this.saveSnapshotMillis = saveSnapshotMillis;
-    }
-
-    public int getDiskSnapshotConcurrency() {
-        return diskSnapshotConcurrency;
-    }
-
-    public void setDiskSnapshotConcurrency(int diskSnapshotConcurrency) {
-        this.diskSnapshotConcurrency = diskSnapshotConcurrency;
-    }
-
-    public int getDiskSnapshotBufferSize() {
-        return diskSnapshotBufferSize;
-    }
-
-    public void setDiskSnapshotBufferSize(int diskSnapshotBufferSize) {
-        this.diskSnapshotBufferSize = diskSnapshotBufferSize;
-    }
-
-    public int getReplicateSnapshotConcurrency() {
-        return replicateSnapshotConcurrency;
-    }
-
-    public void setReplicateSnapshotConcurrency(int replicateSnapshotConcurrency) {
-        this.replicateSnapshotConcurrency = replicateSnapshotConcurrency;
-    }
-
-    public int getReplicateSnapshotBufferSize() {
-        return replicateSnapshotBufferSize;
-    }
-
-    public void setReplicateSnapshotBufferSize(int replicateSnapshotBufferSize) {
-        this.replicateSnapshotBufferSize = replicateSnapshotBufferSize;
-    }
-
-    public int getSnapshotConcurrency() {
-        return snapshotConcurrency;
-    }
-
-    public void setSnapshotConcurrency(int snapshotConcurrency) {
-        this.snapshotConcurrency = snapshotConcurrency;
-    }
-
-    public boolean isSaveSnapshotWhenClose() {
-        return saveSnapshotWhenClose;
-    }
-
-    public void setSaveSnapshotWhenClose(boolean saveSnapshotWhenClose) {
-        this.saveSnapshotWhenClose = saveSnapshotWhenClose;
-    }
-
-    public boolean isDisableConfigChange() {
-        return disableConfigChange;
-    }
-
-    public void setDisableConfigChange(boolean disableConfigChange) {
-        this.disableConfigChange = disableConfigChange;
-    }
-
-    public boolean isDeleteLogsAfterTakeSnapshot() {
-        return deleteLogsAfterTakeSnapshot;
-    }
-
-    public void setDeleteLogsAfterTakeSnapshot(boolean deleteLogsAfterTakeSnapshot) {
-        this.deleteLogsAfterTakeSnapshot = deleteLogsAfterTakeSnapshot;
     }
 }

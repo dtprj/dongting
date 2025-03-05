@@ -64,8 +64,8 @@ class LogFileQueue extends FileQueue {
         super(dir, groupConfig, fileSize, true);
         this.groupConfig = groupConfig;
         this.idxOps = idxOps;
-        this.ts = groupConfig.getTs();
-        this.fiberGroup = groupConfig.getFiberGroup();
+        this.ts = groupConfig.ts;
+        this.fiberGroup = groupConfig.fiberGroup;
         DispatcherThread t = fiberGroup.getThread();
         this.heapPool = t.getHeapPool();
         this.directPool = t.getDirectPool();

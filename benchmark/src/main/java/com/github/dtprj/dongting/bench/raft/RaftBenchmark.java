@@ -88,12 +88,12 @@ public class RaftBenchmark extends BenchBase {
         serverConfig.setServicePort(servicePort);
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(GROUP_ID, nodeIdOfMembers, "");
-        groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
-        groupConfig.setSyncForce(SYNC_FORCE);
-        groupConfig.setSaveSnapshotMillis(Long.MAX_VALUE);
+        groupConfig.dataDir = DATA_DIR + "-" + nodeId;
+        groupConfig.syncForce = SYNC_FORCE;
+        groupConfig.saveSnapshotMillis = Long.MAX_VALUE;
 
         if (PERF) {
-            groupConfig.setPerfCallback(new RaftPerfCallback(true, "node" + nodeId + "_"));
+            groupConfig.perfCallback = new RaftPerfCallback(true, "node" + nodeId + "_");
         }
 
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
@@ -119,7 +119,7 @@ public class RaftBenchmark extends BenchBase {
             public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
                 return new Dispatcher("node-" + nodeId + "-dispatcher", new DefaultPoolFactory(),
-                        groupConfig.getPerfCallback());
+                        groupConfig.perfCallback);
             }
         };
     }
@@ -168,7 +168,7 @@ public class RaftBenchmark extends BenchBase {
     @Override
     protected void afterWarmup() {
         for (RaftGroupConfig groupConfig : groupConfigs) {
-            PerfCallback c = groupConfig.getPerfCallback();
+            PerfCallback c = groupConfig.perfCallback;
             if (c instanceof PrometheusPerfCallback) {
                 ((PrometheusPerfCallback) c).start();
             }
@@ -182,9 +182,9 @@ public class RaftBenchmark extends BenchBase {
         DtUtil.stop(timeout, raftServers.toArray(new RaftServer[0]));
 
         for (RaftGroupConfig config : groupConfigs) {
-            if (config.getPerfCallback() instanceof RaftPerfCallback) {
+            if (config.perfCallback instanceof RaftPerfCallback) {
                 System.out.println("----------------------- raft perf stats----------------------");
-                ((RaftPerfCallback) config.getPerfCallback()).printStats();
+                ((RaftPerfCallback) config.perfCallback).printStats();
                 System.out.println("-------------------------------------------------------------");
             }
         }

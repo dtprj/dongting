@@ -64,14 +64,14 @@ class LogAppender {
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig, ChainWriter chainWriter) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.chainWriter = chainWriter;
 
-        DispatcherThread thread = groupConfig.getFiberGroup().getThread();
+        DispatcherThread thread = groupConfig.fiberGroup.getThread();
         this.directPool = thread.getDirectPool();
         this.encodeContext = new EncodeContext(thread.getHeapPool());
         this.fileLenMask = logFileQueue.fileLength() - 1;
-        this.perfCallback = groupConfig.getPerfCallback();
+        this.perfCallback = groupConfig.perfCallback;
     }
 
     public void startFiber() {

@@ -66,10 +66,10 @@ public class DefaultRaftLog implements RaftLog {
     DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory raftCodecFactory,
                    long deleteIntervalMillis) {
         this.groupConfig = groupConfig;
-        this.ts = groupConfig.getTs();
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.ts = groupConfig.ts;
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.statusManager = statusManager;
-        this.fiberGroup = groupConfig.getFiberGroup();
+        this.fiberGroup = groupConfig.fiberGroup;
         this.raftCodecFactory = raftCodecFactory;
         this.deleteIntervalMillis = deleteIntervalMillis;
     }
@@ -79,7 +79,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     private void createFiles() {
-        File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
+        File dataDir = FileUtil.ensureDir(groupConfig.dataDir);
 
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
                 statusManager, groupConfig, idxItemsPerFile);
@@ -157,7 +157,7 @@ public class DefaultRaftLog implements RaftLog {
 
     private void startQueueDeleteFiber() {
         deleteFrame = new QueueDeleteFiberFrame();
-        Fiber deleteFiber = new Fiber("delete-" + groupConfig.getGroupId(),
+        Fiber deleteFiber = new Fiber("delete-" + groupConfig.groupId,
                 fiberGroup, deleteFrame, true);
         deleteFiber.start();
     }

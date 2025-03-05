@@ -46,18 +46,18 @@ public class StatusManagerTest extends BaseFiberTest {
         File dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         groupConfig = new RaftGroupConfigEx(1, "1", "1");
-        groupConfig.setDataDir(dir.getAbsolutePath());
-        groupConfig.setStatusFile("status.test");
-        groupConfig.setRaftStatus(raftStatus);
-        groupConfig.setBlockIoExecutor(MockExecutors.ioExecutor());
-        groupConfig.setFiberGroup(fiberGroup);
+        groupConfig.dataDir = dir.getAbsolutePath();
+        groupConfig.statusFile = "status.test";
+        groupConfig.raftStatus = raftStatus;
+        groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
+        groupConfig.fiberGroup = fiberGroup;
         raftStatus.tailCache = new TailCache(groupConfig, raftStatus);
         statusManager = new StatusManager(groupConfig);
     }
 
     private void check() throws Exception {
         Properties p = new Properties();
-        File f = new File(groupConfig.getDataDir(), groupConfig.getStatusFile());
+        File f = new File(groupConfig.dataDir, groupConfig.statusFile);
         p.load(new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8));
 
         assertEquals(raftStatus.commitIndex + "", p.getProperty(StatusManager.COMMIT_INDEX));

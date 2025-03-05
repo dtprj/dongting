@@ -105,8 +105,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine, Consumer<Long> logDeleter) {
         this.groupConfig = groupConfig;
-        this.ioExecutor = groupConfig.getBlockIoExecutor();
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.ioExecutor = groupConfig.blockIoExecutor;
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.stateMachine = stateMachine;
         this.logDeleter = logDeleter;
         this.saveLoopFrame = new SaveSnapshotLoopFrame();
@@ -132,7 +132,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         @Override
         public FrameCallResult execute(Void input) throws Exception {
-            File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
+            File dataDir = FileUtil.ensureDir(groupConfig.dataDir);
             snapshotDir = FileUtil.ensureDir(dataDir, SNAPSHOT_DIR);
             File[] files = snapshotDir.listFiles(f -> f.isFile() && f.getName().endsWith(IDX_SUFFIX));
             if (files == null || files.length == 0) {
@@ -230,7 +230,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     @Override
     public void startFiber() {
-        Fiber f = new Fiber("save-snapshot-" + groupConfig.getGroupId(), groupConfig.getFiberGroup(),
+        Fiber f = new Fiber("save-snapshot-" + groupConfig.groupId, groupConfig.fiberGroup,
                 saveLoopFrame, true);
         f.start();
     }
@@ -252,7 +252,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         SaveSnapshotLoopFrame() {
-            this.saveSnapshotCond = groupConfig.getFiberGroup().newCondition("saveSnapshotLoop");
+            this.saveSnapshotCond = groupConfig.fiberGroup.newCondition("saveSnapshotLoop");
         }
 
         @Override
@@ -262,7 +262,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
             deleteOldFiles();
             if (saveRequest.isEmpty()) {
-                return saveSnapshotCond.await(groupConfig.getSaveSnapshotMillis(), this::doSave);
+                return saveSnapshotCond.await(groupConfig.saveSnapshotMillis, this::doSave);
             } else {
                 return doSave(null);
             }
@@ -292,7 +292,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     @Override
     public FiberFuture<Long> saveSnapshot() {
-        FiberFuture<Long> f = groupConfig.getFiberGroup().newFuture("saveSnapshot-" + groupConfig.getGroupId());
+        FiberFuture<Long> f = groupConfig.fiberGroup.newFuture("saveSnapshot-" + groupConfig.groupId);
         saveRequest.addLast(new Pair<>(raftStatus.getLastApplied(), f));
         saveLoopFrame.saveSnapshotCond.signal();
         return f;
@@ -305,7 +305,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private final SnapshotInfo snapshotInfo = new SnapshotInfo(raftStatus);
 
-        private final int bufferSize = groupConfig.getDiskSnapshotBufferSize();
+        private final int bufferSize = groupConfig.diskSnapshotBufferSize;
         private final long id;
         private RefBufferFactory directBufferFactory;
 
@@ -371,7 +371,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             this.directBufferFactory = new RefBufferFactory(getFiberGroup().getThread().getDirectPool(), 0);
             readSnapshot = stateMachine.takeSnapshot(snapshotInfo);
             log.info("begin save snapshot {}. groupId={}, lastIndex={}, lastTerm={}", id,
-                    groupConfig.getGroupId(), snapshotInfo.getLastIncludedIndex(), snapshotInfo.getLastIncludedTerm());
+                    groupConfig.groupId, snapshotInfo.getLastIncludedIndex(), snapshotInfo.getLastIncludedTerm());
 
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
             String baseName = sdf.format(new Date()) + "_" + id;
@@ -383,10 +383,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
             options.add(StandardOpenOption.WRITE);
             AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options,
                     getFiberGroup().getExecutor());
-            this.newDataFile = new DtFile(dataFile, channel, groupConfig.getFiberGroup());
+            this.newDataFile = new DtFile(dataFile, channel, groupConfig.fiberGroup);
 
-            int readConcurrency = groupConfig.getSnapshotConcurrency();
-            int writeConcurrency = groupConfig.getDiskSnapshotConcurrency();
+            int readConcurrency = groupConfig.snapshotConcurrency;
+            int writeConcurrency = groupConfig.diskSnapshotConcurrency;
             SnapshotReader reader = new SnapshotReader(readSnapshot, readConcurrency, writeConcurrency,
                     this::writeCallback, this::checkCancel, this::createBuffer);
             return Fiber.call(reader, this::finishDataFile);
@@ -409,7 +409,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             buf.putInt(size + 4, (int) crc32c.getValue());
             buf.position(0);
             buf.limit(size + 8);
-            AsyncIoTask writeTask = new AsyncIoTask(groupConfig.getFiberGroup(), newDataFile);
+            AsyncIoTask writeTask = new AsyncIoTask(groupConfig.fiberGroup, newDataFile);
             long newWritePos = currentWritePos + buf.capacity();
             FiberFuture<Void> writeFuture = writeTask.write(buf, currentWritePos);
             currentWritePos = newWritePos;
@@ -479,7 +479,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
             savedSnapshots.addLast(fileSnapshot);
 
-            if (!isGroupShouldStopPlain() && groupConfig.isDeleteLogsAfterTakeSnapshot() && !savedSnapshots.isEmpty()) {
+            if (!isGroupShouldStopPlain() && groupConfig.deleteLogsAfterTakeSnapshot && !savedSnapshots.isEmpty()) {
                 long lastIncludeIndex = savedSnapshots.getFirst().lastIncludeIndex;
                 if (lastIncludeIndex > 0) {
                     logDeleter.accept(lastIncludeIndex);
@@ -525,7 +525,7 @@ class RecoverFiberFrame extends FiberFrame<Void> {
         this.stateMachine = stateMachine;
         this.groupConfig = groupConfig;
         this.snapshot = snapshot;
-        ByteBufferPool p = groupConfig.getFiberGroup().getThread().getDirectPool();
+        ByteBufferPool p = groupConfig.fiberGroup.getThread().getDirectPool();
         RefBufferFactory f = new RefBufferFactory(p, 0);
         this.bufferCreator = () -> f.create(snapshot.getBufferSize());
     }
@@ -540,8 +540,8 @@ class RecoverFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) {
-        int readConcurrency = groupConfig.getDiskSnapshotConcurrency();
-        int writeConcurrency = groupConfig.getSnapshotConcurrency();
+        int readConcurrency = groupConfig.diskSnapshotConcurrency;
+        int writeConcurrency = groupConfig.snapshotConcurrency;
         SnapshotReader reader = new SnapshotReader(snapshot, readConcurrency, writeConcurrency, this::apply,
                 this::isGroupShouldStopPlain, bufferCreator);
         return Fiber.call(reader, this::finish);

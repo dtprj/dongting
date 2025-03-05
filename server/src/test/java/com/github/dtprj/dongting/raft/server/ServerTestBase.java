@@ -87,8 +87,8 @@ public class ServerTestBase {
         serverConfig.setRpcTimeout(tick(100));
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
-        groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
-        groupConfig.setSaveSnapshotWhenClose(false);
+        groupConfig.dataDir = DATA_DIR + "-" + nodeId;
+        groupConfig.saveSnapshotWhenClose = false;
 
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
 
@@ -104,10 +104,10 @@ public class ServerTestBase {
         ImplAccessor.updateVoteManager(gc.voteManager);
 
         if (initTerm > 0 || initVoteFor > 0 || initCommitIndex > 0 || initSnapshot) {
-            File dir = new File(groupConfig.getDataDir());
+            File dir = new File(groupConfig.dataDir);
             //noinspection ResultOfMethodCallIgnored
             dir.mkdirs();
-            File file = new File(dir, groupConfig.getStatusFile());
+            File file = new File(dir, groupConfig.statusFile);
             ByteBuffer buf = ByteBuffer.allocate(StatusFile.FILE_LENGTH);
             Map<String, String> props = new HashMap<>();
             props.put(StatusManager.CURRENT_TERM, String.valueOf(initTerm));
@@ -144,7 +144,7 @@ public class ServerTestBase {
             public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
                 return new Dispatcher("node-" + nodeId + "-dispatcher", new DefaultPoolFactory(),
-                        groupConfig.getPerfCallback());
+                        groupConfig.perfCallback);
             }
 
             @Override
@@ -154,8 +154,8 @@ public class ServerTestBase {
 
             @Override
             public RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory codecFactory) {
-                groupConfig.setIdxCacheSize(128);
-                groupConfig.setIdxFlushThreshold(64);
+                groupConfig.idxCacheSize = 128;
+                groupConfig.idxFlushThreshold = 64;
                 DefaultRaftLog raftLog = new DefaultRaftLog(groupConfig, statusManager, codecFactory);
                 StoreAccessor.updateRaftLog(raftLog, 1024, 512 * 1024);
                 return raftLog;

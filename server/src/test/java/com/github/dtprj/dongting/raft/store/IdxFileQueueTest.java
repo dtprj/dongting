@@ -58,15 +58,15 @@ public class IdxFileQueueTest extends BaseFiberTest {
     private IdxFileQueue createFileQueue(boolean init) throws Exception {
 
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
-        c.setIdxCacheSize(4);
-        c.setIdxFlushThreshold(2);
-        c.setBlockIoExecutor(MockExecutors.ioExecutor());
+        c.idxCacheSize = 4;
+        c.idxFlushThreshold = 2;
+        c.blockIoExecutor = MockExecutors.ioExecutor();
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         raftStatus.tailCache = new TailCache(c, raftStatus);
-        c.setRaftStatus(raftStatus);
-        c.setTs(raftStatus.ts);
-        c.setFiberGroup(fiberGroup);
-        c.setDataDir(dir.getAbsolutePath());
+        c.raftStatus = raftStatus;
+        c.ts = raftStatus.ts;
+        c.fiberGroup = fiberGroup;
+        c.dataDir = dir.getAbsolutePath();
         statusManager = new StatusManager(c);
         AtomicReference<IdxFileQueue> result = new AtomicReference<>();
         doInFiber(new FiberFrame<>() {

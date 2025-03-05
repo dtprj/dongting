@@ -53,7 +53,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     protected FrameCallResult handle(Throwable ex) {
-        log.error("raft group init failed, groupId={}", groupConfig.getGroupId(), ex);
+        log.error("raft group init failed, groupId={}", groupConfig.groupId, ex);
         raftStatus.initFuture.completeExceptionally(ex);
         getFiberGroup().requestShutdown();
         return Fiber.frameReturn();
@@ -100,10 +100,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
         }
         if (raftStatus.installSnapshot || gc.snapshotManager == null) {
             if (raftStatus.installSnapshot) {
-                log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
+                log.info("install snapshot, skip recover, groupId={}", groupConfig.groupId);
             } else {
                 raftStatus.installSnapshot = true;
-                log.info("no snapshot manager, mark install snapshot, groupId={}", groupConfig.getGroupId());
+                log.info("no snapshot manager, mark install snapshot, groupId={}", groupConfig.groupId);
             }
             return afterRecoverStateMachine(null);
         } else {
@@ -157,7 +157,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
         int snapshotTerm = snapshot == null ? 0 : snapshot.getSnapshotInfo().getLastIncludedTerm();
         long snapshotIndex = snapshot == null ? 0 : snapshot.getSnapshotInfo().getLastIncludedIndex();
-        log.info("load snapshot to term={}, index={}, groupId={}", snapshotTerm, snapshotIndex, groupConfig.getGroupId());
+        log.info("load snapshot to term={}, index={}, groupId={}", snapshotTerm, snapshotIndex, groupConfig.groupId);
         raftStatus.setLastApplied(snapshotIndex);
         raftStatus.lastAppliedTerm = snapshotTerm;
         raftStatus.lastApplying = snapshotIndex;
@@ -197,7 +197,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
             raftStatus.lastForceLogIndex = logInitResultIndex;
 
             log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
-                    logInitResult.getLeft(), logInitResult.getRight(), groupConfig.getGroupId());
+                    logInitResult.getLeft(), logInitResult.getRight(), groupConfig.groupId);
         } else {
             raftStatus.installSnapshot = true;
         }

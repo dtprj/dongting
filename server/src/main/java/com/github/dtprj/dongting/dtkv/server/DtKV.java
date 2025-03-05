@@ -75,11 +75,11 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private EncodeStatus encodeStatus;
 
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
-        this.mainFiberGroup = config.getFiberGroup();
+        this.mainFiberGroup = config.fiberGroup;
         this.config = config;
         this.useSeparateExecutor = kvConfig.isUseSeparateExecutor();
         this.kvConfig = kvConfig;
-        KvImpl kvImpl = new KvImpl(config.getTs(), config.getGroupId(), kvConfig.getInitMapCapacity(),
+        KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.getInitMapCapacity(),
                 kvConfig.getLoadFactor());
         updateStatus(false, kvImpl);
     }
@@ -225,7 +225,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
-            KvImpl kvImpl = new KvImpl(config.getTs(), config.getGroupId(), kvConfig.getInitMapCapacity(),
+            KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.getInitMapCapacity(),
                     kvConfig.getLoadFactor());
             updateStatus(true, kvImpl);
             encodeStatus = new EncodeStatus();
@@ -262,7 +262,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     protected Executor createExecutor() {
         return Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r);
-            t.setName("DtKV-" + config.getGroupId());
+            t.setName("DtKV-" + config.groupId);
             return t;
         });
     }
@@ -279,7 +279,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 }
             });
         } else {
-            Fiber f = new Fiber("gcTask" + config.getGroupId(), mainFiberGroup, new FiberFrame<>() {
+            Fiber f = new Fiber("gcTask" + config.groupId, mainFiberGroup, new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
                     if (gcTask.get()) {

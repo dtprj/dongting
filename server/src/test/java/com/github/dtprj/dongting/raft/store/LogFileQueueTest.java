@@ -103,10 +103,10 @@ public class LogFileQueueTest extends BaseFiberTest {
         RaftServerConfig serverConfig = new RaftServerConfig();
 
         config = new RaftGroupConfigEx(1, "1", "1");
-        config.setBlockIoExecutor(MockExecutors.ioExecutor());
-        config.setFiberGroup(fiberGroup);
-        config.setTs(raftStatus.ts);
-        config.setRaftStatus(raftStatus);
+        config.blockIoExecutor = MockExecutors.ioExecutor();
+        config.fiberGroup = fiberGroup;
+        config.ts = raftStatus.ts;
+        config.raftStatus = raftStatus;
 
         logFileQueue = new LogFileQueue(dir, config, idxOps, fileSize);
         logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
@@ -161,7 +161,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         item.setTerm(term);
         item.setPrevLogTerm(prevTerm);
         item.setIndex(index);
-        item.setTimestamp(config.getTs().getWallClockMillis());
+        item.setTimestamp(config.ts.getWallClockMillis());
         byte[] bs = new byte[bizHeaderLen];
         for (int i = 0; i < bizHeaderLen; i++) {
             bs[i] = (byte) i;

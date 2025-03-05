@@ -62,7 +62,7 @@ public class StatusFile implements AutoCloseable {
 
     public StatusFile(File file, RaftGroupConfigEx groupConfig) {
         this.file = file;
-        this.fiberGroup = groupConfig.getFiberGroup();
+        this.fiberGroup = groupConfig.fiberGroup;
         this.groupConfig = groupConfig;
     }
 
@@ -184,7 +184,7 @@ public class StatusFile implements AutoCloseable {
             AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
             FiberFuture<Void> f;
             if (sync) {
-                f = task.writeAndForce(buf, 0, false, groupConfig.getBlockIoExecutor());
+                f = task.writeAndForce(buf, 0, false, groupConfig.blockIoExecutor);
             } else {
                 f = task.write(buf, 0);
             }

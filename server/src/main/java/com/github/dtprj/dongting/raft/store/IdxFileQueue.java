@@ -81,19 +81,19 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             throw new IllegalArgumentException("itemsPerFile not power of 2: " + itemsPerFile);
         }
         this.statusManager = statusManager;
-        this.ts = groupConfig.getTs();
+        this.ts = groupConfig.ts;
         this.lastFlushNanos = ts.getNanoTime();
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
 
-        this.maxCacheItems = groupConfig.getIdxCacheSize();
-        this.flushThreshold = groupConfig.getIdxFlushThreshold();
+        this.maxCacheItems = groupConfig.idxCacheSize;
+        this.flushThreshold = groupConfig.idxFlushThreshold;
         this.blockCacheItems = maxCacheItems << 2;
         this.cache = new LongLongSeqMap(maxCacheItems);
 
-        this.flushFiber = new Fiber("idxFlush-" + groupConfig.getGroupId(),
-                groupConfig.getFiberGroup(), new FlushLoopFrame());
-        this.needFlushCondition = groupConfig.getFiberGroup().newCondition("IdxNeedFlush-" + groupConfig.getGroupId());
-        this.flushDoneCondition = groupConfig.getFiberGroup().newCondition("IdxFlushDone-" + groupConfig.getGroupId());
+        this.flushFiber = new Fiber("idxFlush-" + groupConfig.groupId,
+                groupConfig.fiberGroup, new FlushLoopFrame());
+        this.needFlushCondition = groupConfig.fiberGroup.newCondition("IdxNeedFlush-" + groupConfig.groupId);
+        this.flushDoneCondition = groupConfig.fiberGroup.newCondition("IdxFlushDone-" + groupConfig.groupId);
 
         this.chainWriter = new ChainWriter("IdxForce", groupConfig, null, this::forceFinish);
         chainWriter.setWritePerfType1(0);
@@ -219,7 +219,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             // don't cross file
             len = (int) (logFile.endPos - startIdxPos);
         }
-        DispatcherThread t = groupConfig.getFiberGroup().getThread();
+        DispatcherThread t = groupConfig.fiberGroup.getThread();
         ByteBuffer buf = t.getDirectPool().borrow(len);
         buf.limit(len);
         fillAndSubmit(buf, startIdx, logFile, suggestForce);
@@ -332,7 +332,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 resumePoint = v -> afterPosReady(true);
             } else {
                 resumePoint = v -> {
-                    log.info("idx flush fiber exit, groupId={}", groupConfig.getGroupId());
+                    log.info("idx flush fiber exit, groupId={}", groupConfig.groupId);
                     submitForceOnlyTask();
                     return Fiber.frameReturn();
                 };
@@ -356,7 +356,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             if (raftStatus.installSnapshot) {
-                log.error("install snapshot and idx flush fiber exit, groupId={}", groupConfig.getGroupId(), ex);
+                log.error("install snapshot and idx flush fiber exit, groupId={}", groupConfig.groupId, ex);
                 return Fiber.frameReturn();
             } else {
                 throw Fiber.fatal(ex);
@@ -391,7 +391,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     throw new RaftException("file deleted: " + lf.getFile().getPath());
                 }
                 long filePos = pos & fileLenMask;
-                AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), lf);
+                AsyncIoTask t = new AsyncIoTask(groupConfig.fiberGroup, lf);
                 return t.read(buffer, filePos).await(this::afterLoad);
             }
 
@@ -448,7 +448,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         if (flushFiber.isStarted() && !flushFiber.isFinished()) {
             f = flushFiber.join();
         } else {
-            f = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
+            f = FiberFuture.completedFuture(groupConfig.fiberGroup, null);
         }
         f = f.compose("idxChainStop", v -> chainWriter.stop());
         return f.compose("idxAllocStop", v -> stopFileQueue());

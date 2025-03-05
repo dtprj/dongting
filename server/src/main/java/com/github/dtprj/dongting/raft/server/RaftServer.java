@@ -214,27 +214,27 @@ public class RaftServer extends AbstractLifeCircle {
     private void createRaftGroups(RaftServerConfig serverConfig,
                                   List<RaftGroupConfig> groupConfig, HashSet<Integer> allNodeIds) {
         for (RaftGroupConfig rgc : groupConfig) {
-            if (raftGroups.get(rgc.getGroupId()) != null) {
-                throw new IllegalArgumentException("duplicate group id: " + rgc.getGroupId());
+            if (raftGroups.get(rgc.groupId) != null) {
+                throw new IllegalArgumentException("duplicate group id: " + rgc.groupId);
             }
             RaftGroupImpl g = createRaftGroup(serverConfig, allNodeIds, rgc);
-            raftGroups.put(rgc.getGroupId(), g);
+            raftGroups.put(rgc.groupId, g);
         }
     }
 
     private RaftGroupImpl createRaftGroup(RaftServerConfig serverConfig, Set<Integer> allNodeIds, RaftGroupConfig rgc) {
-        Objects.requireNonNull(rgc.getNodeIdOfMembers());
+        Objects.requireNonNull(rgc.nodeIdOfMembers);
 
         GroupComponents gc = new GroupComponents();
 
-        Set<Integer> nodeIdOfMembers = parseMemberIds(allNodeIds, rgc.getNodeIdOfMembers(), rgc.getGroupId());
+        Set<Integer> nodeIdOfMembers = parseMemberIds(allNodeIds, rgc.nodeIdOfMembers, rgc.groupId);
         if (nodeIdOfMembers.isEmpty()) {
-            throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
+            throw new IllegalArgumentException("no member in group: " + rgc.groupId);
         }
 
         Set<Integer> nodeIdOfObservers;
-        if (rgc.getNodeIdOfObservers() != null && !rgc.getNodeIdOfObservers().trim().isEmpty()) {
-            nodeIdOfObservers = parseMemberIds(allNodeIds, rgc.getNodeIdOfObservers(), rgc.getGroupId());
+        if (rgc.nodeIdOfObservers != null && !rgc.nodeIdOfObservers.trim().isEmpty()) {
+            nodeIdOfObservers = parseMemberIds(allNodeIds, rgc.nodeIdOfObservers, rgc.groupId);
             for (int id : nodeIdOfMembers) {
                 if (nodeIdOfObservers.contains(id)) {
                     throw new IllegalArgumentException("member and observer has same node: " + id);
@@ -247,16 +247,16 @@ public class RaftServer extends AbstractLifeCircle {
         boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
         boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
         if (!isMember && !isObserver) {
-            log.warn("node {} is not member or observer of group {}", serverConfig.getNodeId(), rgc.getGroupId());
+            log.warn("node {} is not member or observer of group {}", serverConfig.getNodeId(), rgc.groupId);
         }
 
         Dispatcher dispatcher = raftFactory.createDispatcher(serverConfig, rgc);
-        FiberGroup fiberGroup = new FiberGroup("group-" + rgc.getGroupId(), dispatcher);
+        FiberGroup fiberGroup = new FiberGroup("group-" + rgc.groupId, dispatcher);
         RaftStatusImpl raftStatus = new RaftStatusImpl(fiberGroup.getDispatcher().getTs());
         raftStatus.tailCache = new TailCache(rgc, raftStatus);
         raftStatus.nodeIdOfMembers = nodeIdOfMembers;
         raftStatus.nodeIdOfObservers = nodeIdOfObservers;
-        raftStatus.groupId = rgc.getGroupId();
+        raftStatus.groupId = rgc.groupId;
 
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, fiberGroup);
 
@@ -308,10 +308,10 @@ public class RaftServer extends AbstractLifeCircle {
     private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
                                                   FiberGroup fiberGroup) {
         RaftGroupConfigEx rgcEx = (RaftGroupConfigEx) rgc;
-        rgcEx.setTs(raftStatus.ts);
-        rgcEx.setRaftStatus(raftStatus);
-        rgcEx.setFiberGroup(fiberGroup);
-        rgcEx.setBlockIoExecutor(raftFactory.createBlockIoExecutor(serverConfig, rgcEx));
+        rgcEx.ts = raftStatus.ts;
+        rgcEx.raftStatus = raftStatus;
+        rgcEx.fiberGroup = fiberGroup;
+        rgcEx.blockIoExecutor = raftFactory.createBlockIoExecutor(serverConfig, rgcEx);
         return rgcEx;
     }
 
@@ -488,7 +488,7 @@ public class RaftServer extends AbstractLifeCircle {
             }
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout,
-                    g.getGroupComponents().groupConfig.isSaveSnapshotWhenClose())));
+                    g.getGroupComponents().groupConfig.saveSnapshotWhenClose)));
             nodeManager.stop(timeout, true);
 
             try {
@@ -548,7 +548,7 @@ public class RaftServer extends AbstractLifeCircle {
 
             private FrameCallResult afterStatusManagerClose(Void unused) {
                 raftFactory.shutdownBlockIoExecutor(serverConfig, gc.groupConfig,
-                        gc.groupConfig.getBlockIoExecutor());
+                        gc.groupConfig.blockIoExecutor);
                 return Fiber.frameReturn();
             }
         });
@@ -591,8 +591,8 @@ public class RaftServer extends AbstractLifeCircle {
                     f.completeExceptionally(new RaftException("raft server is not running"));
                     return;
                 }
-                if (raftGroups.get(groupConfig.getGroupId()) != null) {
-                    f.completeExceptionally(new RaftException("group already exist: " + groupConfig.getGroupId()));
+                if (raftGroups.get(groupConfig.groupId) != null) {
+                    f.completeExceptionally(new RaftException("group already exist: " + groupConfig.groupId));
                     return;
                 }
                 RaftGroupImpl g = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
@@ -603,7 +603,7 @@ public class RaftServer extends AbstractLifeCircle {
                 raftFactory.startDispatcher(fg.getDispatcher());
                 fg.getDispatcher().startGroup(fg).get(3, TimeUnit.SECONDS);
 
-                raftGroups.put(groupConfig.getGroupId(), g);
+                raftGroups.put(groupConfig.groupId, g);
                 initRaftGroup(g);
                 RaftStatusImpl raftStatus = g.getGroupComponents().raftStatus;
                 raftStatus.initFuture.whenComplete((v, ex) -> {

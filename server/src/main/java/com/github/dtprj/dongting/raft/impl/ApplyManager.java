@@ -87,7 +87,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         this.raftStatus = gc.raftStatus;
         this.gc = gc;
         this.fiberGroup = gc.fiberGroup;
-        this.perfCallback = gc.groupConfig.getPerfCallback();
+        this.perfCallback = gc.groupConfig.perfCallback;
         this.waitReadyQueue = new PriorityQueue<>(this);
         this.needApplyCond = fiberGroup.newCondition("needApply");
         this.applyFinishCond = fiberGroup.newCondition("applyFinish");

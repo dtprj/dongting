@@ -57,7 +57,7 @@ public class RaftGroupImpl extends RaftGroup {
 
     public RaftGroupImpl(GroupComponents gc) {
         this.gc = gc;
-        this.groupId = gc.groupConfig.getGroupId();
+        this.groupId = gc.groupConfig.groupId;
 
         this.raftStatus = gc.raftStatus;
         this.groupConfig = gc.groupConfig;
@@ -90,7 +90,7 @@ public class RaftGroupImpl extends RaftGroup {
             throw new RaftException("raft group thread is stop");
         }
         int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
-        if (currentPendingWrites >= groupConfig.getMaxPendingRaftTasks()) {
+        if (currentPendingWrites >= groupConfig.maxPendingRaftTasks) {
             RaftUtil.release(input);
             String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
             log.warn(msg);
@@ -99,7 +99,7 @@ public class RaftGroupImpl extends RaftGroup {
         }
         long size = input.getFlowControlSize();
         long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
-        if (currentPendingWriteBytes >= groupConfig.getMaxPendingTaskBytes()) {
+        if (currentPendingWriteBytes >= groupConfig.maxPendingTaskBytes) {
             RaftUtil.release(input);
             String msg = "too many pending write bytes,currentPendingWriteBytes="
                     + currentPendingWriteBytes + ", currentRequestBytes=" + size;
