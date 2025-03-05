@@ -56,14 +56,14 @@ public class NioServer extends NioNet implements Runnable {
     public NioServer(NioServerConfig config) {
         super(config);
         this.config = config;
-        if (config.getPort() <= 0) {
+        if (config.port <= 0) {
             throw new IllegalArgumentException("no port");
         }
         acceptThread = new Thread(this);
-        acceptThread.setName(config.getName() + "IoAccept");
-        workers = new NioWorker[config.getIoThreads()];
+        acceptThread.setName(config.name + "IoAccept");
+        workers = new NioWorker[config.ioThreads];
         for (int i = 0; i < workers.length; i++) {
-            workers[i] = new NioWorker(nioStatus, config.getName() + "IoWorker" + i, config, null);
+            workers[i] = new NioWorker(nioStatus, config.name + "IoWorker" + i, config, null);
         }
         register(Commands.CMD_PING, new PingProcessor());
         register(Commands.CMD_HANDSHAKE, new HandshakeProcessor(config), null);
@@ -75,11 +75,11 @@ public class NioServer extends NioNet implements Runnable {
             ssc = ServerSocketChannel.open();
             ssc.configureBlocking(false);
             ssc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-            ssc.bind(new InetSocketAddress(config.getPort()), config.getBacklog());
+            ssc.bind(new InetSocketAddress(config.port), config.backlog);
             selector = SelectorProvider.provider().openSelector();
             ssc.register(selector, SelectionKey.OP_ACCEPT);
 
-            log.info("{} listen at port {}", config.getName(), config.getPort());
+            log.info("{} listen at port {}", config.name, config.port);
 
             initBizExecutor();
             for (NioWorker worker : workers) {
@@ -98,9 +98,9 @@ public class NioServer extends NioNet implements Runnable {
         try {
             selector.close();
             ssc.close();
-            log.info("accept thread finished: {}", config.getName());
+            log.info("accept thread finished: {}", config.name);
         } catch (Exception e) {
-            log.error("close error. name={}, port={}", config.getName(), config.getPort(), e);
+            log.error("close error. name={}, port={}", config.name, config.port, e);
         }
     }
 
@@ -114,7 +114,7 @@ public class NioServer extends NioNet implements Runnable {
                 if (!key.isValid()) {
                     if (log.isDebugEnabled()) {
                         log.debug("Accept SelectionKey is invalid, name={}, port= {}"
-                                , config.getName(), config.getPort());
+                                , config.name, config.port);
                     }
                     continue;
                 }
@@ -125,9 +125,9 @@ public class NioServer extends NioNet implements Runnable {
                 }
             }
         } catch (ClosedSelectorException e) {
-            log.warn("selector closed. name={}, port={}", config.getName(), config.getPort());
+            log.warn("selector closed. name={}, port={}", config.name, config.port);
         } catch (Throwable e) {
-            log.error("accept thread failed. name={}, port={}", config.getName(), config.getPort(), e);
+            log.error("accept thread failed. name={}, port={}", config.name, config.port, e);
         }
     }
 
@@ -146,16 +146,16 @@ public class NioServer extends NioNet implements Runnable {
         try {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
             f.get(rest, TimeUnit.MILLISECONDS);
-            log.info("server {} pre-stop done", config.getName());
+            log.info("server {} pre-stop done", config.name);
         } catch (Exception e) {
             Throwable root = DtUtil.rootCause(e);
             if (root instanceof InterruptedException) {
                 log.warn("nio server pre-stop interrupted");
                 DtUtil.restoreInterruptStatus();
             } else if (root instanceof TimeoutException) {
-                log.warn("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                log.warn("server {} pre-stop timeout. {}ms", config.name, timeout.getTimeout(TimeUnit.MILLISECONDS));
             } else {
-                log.error("server {} pre-stop error", config.getName(), e);
+                log.error("server {} pre-stop error", config.name, e);
             }
         }
 
@@ -175,7 +175,7 @@ public class NioServer extends NioNet implements Runnable {
         }
         shutdownBizExecutor(timeout);
 
-        log.info("server {} stopped", config.getName());
+        log.info("server {} stopped", config.name);
     }
 
     private void stopAcceptThread() {

@@ -101,7 +101,7 @@ public class Peer {
 
     void markNotConnect(NioConfig config, WorkerStatus workerStatus, boolean byAutoRetry) {
         NioClientConfig c = (NioClientConfig) config;
-        if (autoReconnect && c.getConnectRetryIntervals() != null) {
+        if (autoReconnect && c.connectRetryIntervals != null) {
             long base;
             int index;
             if (retry == 0) {
@@ -111,14 +111,14 @@ public class Peer {
             } else {
                 if (byAutoRetry) {
                     base = lastRetryNanos;
-                    index = Math.min(retry, c.getConnectRetryIntervals().length - 1);
+                    index = Math.min(retry, c.connectRetryIntervals.length - 1);
                 } else {
                     base = 0;
                     index = -1;
                 }
             }
             if (index != -1) {
-                long millis = c.getConnectRetryIntervals()[index];
+                long millis = c.connectRetryIntervals[index];
                 lastRetryNanos = base + millis * 1_000_000;
                 retry = retry + 1 > 0 ? retry + 1 : Integer.MAX_VALUE;
                 log.info("peer {} connect fail, {}th retry after {}ms", endPoint, retry, millis);

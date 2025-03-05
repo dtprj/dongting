@@ -130,8 +130,8 @@ public class RaftServer extends AbstractLifeCircle {
         }
 
         NioClientConfig repClientConfig = new NioClientConfig();
-        repClientConfig.setName("RaftRepClient" + serverConfig.getNodeId());
-        repClientConfig.setConnectRetryIntervals(null); //use node ping
+        repClientConfig.name = "RaftRepClient" + serverConfig.getNodeId();
+        repClientConfig.connectRetryIntervals = null; //use node ping
         setupNioConfig(repClientConfig);
         customReplicateNioClient(repClientConfig);
         replicateNioClient = new NioClient(repClientConfig);
@@ -140,9 +140,9 @@ public class RaftServer extends AbstractLifeCircle {
                 RaftUtil.getElectQuorum(allRaftServers.size()));
 
         NioServerConfig repServerConfig = new NioServerConfig();
-        repServerConfig.setPort(serverConfig.getReplicatePort());
-        repServerConfig.setName("RaftRepServer" + serverConfig.getNodeId());
-        repServerConfig.setBizThreads(0);
+        repServerConfig.port = serverConfig.getReplicatePort();
+        repServerConfig.name = "RaftRepServer" + serverConfig.getNodeId();
+        repServerConfig.bizThreads = 0;
         // use multi io threads
         setupNioConfig(repServerConfig);
         customReplicateNioServer(repServerConfig);
@@ -170,11 +170,11 @@ public class RaftServer extends AbstractLifeCircle {
 
         if (serverConfig.getServicePort() > 0) {
             NioServerConfig serviceServerConfig = new NioServerConfig();
-            serviceServerConfig.setPort(serverConfig.getServicePort());
-            serviceServerConfig.setName("RaftServiceServer" + serverConfig.getNodeId());
-            serviceServerConfig.setBizThreads(0);
+            serviceServerConfig.port = serverConfig.getServicePort();
+            serviceServerConfig.name = "RaftServiceServer" + serverConfig.getNodeId();
+            serviceServerConfig.bizThreads = 0;
             // use multi io threads
-            serviceServerConfig.setDecodeContextFactory(DecodeContextEx::new);
+            serviceServerConfig.decodeContextFactory = DecodeContextEx::new;
             customServiceNioServer(serviceServerConfig);
             serviceNioServer = new NioServer(serviceServerConfig);
             addRaftGroupProcessor(serviceNioServer, Commands.RAFT_QUERY_STATUS, queryStatusProcessor);
@@ -192,14 +192,14 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void setupNioConfig(NioConfig nc) {
-        nc.setFinishPendingImmediatelyWhenChannelClose(true);
-        nc.setMaxOutRequests(0);
-        nc.setMaxOutBytes(0);
-        nc.setMaxInRequests(0);
-        nc.setMaxInBytes(0);
-        nc.setMaxBodySize(Integer.MAX_VALUE);
-        nc.setMaxPacketSize(Integer.MAX_VALUE);
-        nc.setDecodeContextFactory(DecodeContextEx::new);
+        nc.finishPendingImmediatelyWhenChannelClose = true;
+        nc.maxOutRequests = 0;
+        nc.maxOutBytes = 0;
+        nc.maxInRequests = 0;
+        nc.maxInBytes = 0;
+        nc.maxBodySize = Integer.MAX_VALUE;
+        nc.maxPacketSize = Integer.MAX_VALUE;
+        nc.decodeContextFactory = DecodeContextEx::new;
     }
 
     protected void customReplicateNioClient(@SuppressWarnings("unused") NioClientConfig c) {

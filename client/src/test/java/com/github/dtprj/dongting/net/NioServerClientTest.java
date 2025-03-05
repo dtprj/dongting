@@ -39,12 +39,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class NioServerClientTest {
 
     @Test
-    public void simpleTest() throws Exception {
+    public void simpleTest() {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.setPort(9000);
+        serverConfig.port = 9000;
         NioServer server = new NioServer(serverConfig);
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
         NioClient client = new NioClient(clientConfig);
         try {
             server.start();
@@ -78,7 +78,7 @@ public class NioServerClientTest {
     @Test
     public void testSeqProblem() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.setPort(9000);
+        serverConfig.port = 9000;
         NioServer server = new NioServer(serverConfig);
         server.register(12345, new NioServer.PingProcessor() {
             @Override
@@ -94,7 +94,7 @@ public class NioServerClientTest {
 
         NioClientConfig clientConfig = new NioClientConfig();
 
-        clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
         NioClient client = new NioClient(clientConfig);
         try {
             server.start();

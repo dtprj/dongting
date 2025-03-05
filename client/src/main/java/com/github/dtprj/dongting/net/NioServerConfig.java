@@ -19,21 +19,20 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public class NioServerConfig extends NioConfig {
-    private int port;
-    private int ioThreads;
-    private int backlog = 4096;
+    public int port;
+    public int ioThreads;
+    public int backlog = 4096;
 
     public NioServerConfig() {
-        setIoThreads(calcIoThreads());
-        int bizThreads = Runtime.getRuntime().availableProcessors() * 4;
-        setBizThreads(bizThreads);
-        setName("DtNioServer");
+        this.ioThreads = calcIoThreads();
+        this.bizThreads = Runtime.getRuntime().availableProcessors() * 4;
+        this.name = "DtNioServer";
 
         // back pressure config
-        setMaxOutRequests(0);
-        setMaxOutBytes(0);
-        setMaxInRequests(100_000);
-        setMaxInBytes(512 * 1024 * 1024);
+        this.maxOutRequests = 0;
+        this.maxOutBytes = 0;
+        this.maxInRequests = 100_000;
+        this.maxInBytes = 512 * 1024 * 1024;
     }
 
     private int calcIoThreads() {
@@ -57,28 +56,4 @@ public class NioServerConfig extends NioConfig {
         }
     }
 
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public int getIoThreads() {
-        return ioThreads;
-    }
-
-    public void setIoThreads(int ioThreads) {
-        this.ioThreads = ioThreads;
-    }
-
-    public int getBacklog() {
-        return backlog;
-    }
-
-    public void setBacklog(int backlog) {
-        this.backlog = backlog;
-    }
 }

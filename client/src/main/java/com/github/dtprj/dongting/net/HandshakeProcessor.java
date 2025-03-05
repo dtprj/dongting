@@ -50,7 +50,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         hb.majorVersion = DtUtil.RPC_MAJOR_VER;
         hb.minorVersion = DtUtil.RPC_MINOR_VER;
 
-        if (config.isServerHint()) {
+        if (config.serverHint) {
             hb.config = buildServerHint();
         }
 
@@ -64,10 +64,10 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
 
     protected ConfigBody buildServerHint() {
         ConfigBody cb = new ConfigBody();
-        cb.maxPacketSize = config.getMaxPacketSize();
-        cb.maxBodySize = config.getMaxBodySize();
-        cb.maxOutPending = config.getMaxInRequests() >>> 3;
-        cb.maxOutPendingBytes = config.getMaxInBytes() >>> 3;
+        cb.maxPacketSize = config.maxPacketSize;
+        cb.maxBodySize = config.maxBodySize;
+        cb.maxOutPending = config.maxInRequests >>> 3;
+        cb.maxOutPendingBytes = config.maxInBytes >>> 3;
         return cb;
     }
 

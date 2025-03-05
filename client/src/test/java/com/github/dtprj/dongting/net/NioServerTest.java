@@ -85,7 +85,7 @@ public class NioServerTest {
 
     private void setupServer(Consumer<NioServerConfig> consumer) {
         NioServerConfig c = new NioServerConfig();
-        c.setPort(PORT);
+        c.port = PORT;
         if (consumer != null) {
             consumer.accept(c);
         }
@@ -398,9 +398,9 @@ public class NioServerTest {
     @Test
     public void flowControlTest1() throws Exception {
         setupServer(c -> {
-            c.setMaxInRequests(1);
-            c.setBizThreads(1);
-            c.setMaxInBytes(10000);
+            c.maxInRequests = 1;
+            c.bizThreads = 1;
+            c.maxInBytes = 10000;
         });
         server.register(50000, new SleepPingProcessor(Tick.tick(25)));
         server.start();
@@ -427,9 +427,9 @@ public class NioServerTest {
     @Test
     public void flowControlTest2() throws Exception {
         setupServer(c -> {
-            c.setMaxInRequests(100);
-            c.setBizThreads(1);
-            c.setMaxInBytes(10000);
+            c.maxInRequests = 100;
+            c.bizThreads = 1;
+            c.maxInBytes = 10000;
         });
         server.register(50000, new SleepPingProcessor(Tick.tick(25)));
         server.start();
@@ -670,8 +670,8 @@ public class NioServerTest {
     @Test
     public void handshakeTest2() throws Exception {
         setupServer(c -> {
-            c.setSelectTimeout(1);
-            c.setCleanInterval(0);
+            c.selectTimeout = 1;
+            c.cleanInterval = 0;
         });
         server.start();
         Socket s = new Socket("127.0.0.1", PORT);

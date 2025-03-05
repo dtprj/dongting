@@ -38,7 +38,7 @@ class IoWorkerQueue {
 
     public IoWorkerQueue(NioWorker worker, NioConfig config) {
         this.worker = worker;
-        this.perfCallback = config.getPerfCallback();
+        this.perfCallback = config.perfCallback;
     }
 
     public void writeFromBizThread(WriteData data) {

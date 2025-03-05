@@ -29,168 +29,31 @@ import java.util.function.Supplier;
  */
 public abstract class NioConfig extends ConfigBase {
 
-    private int bizThreads;
-    private String name;
+    public int bizThreads;
+    public String name;
 
     // back pressure config
-    private int maxOutRequests;
-    private long maxOutBytes;
-    private int maxInRequests;
-    private long maxInBytes;
+    public int maxOutRequests;
+    public long maxOutBytes;
+    public int maxInRequests;
+    public long maxInBytes;
 
-    private long selectTimeout = 50;
-    private long cleanInterval = 100;
+    public long selectTimeout = 50;
+    public long cleanInterval = 100;
 
-    private int maxPacketSize = 5 * 1024 * 1024;
-    private int maxBodySize = 4 * 1024 * 1024;
+    public int maxPacketSize = 5 * 1024 * 1024;
+    public int maxBodySize = 4 * 1024 * 1024;
 
-    private PoolFactory poolFactory = new DefaultPoolFactory();
+    public PoolFactory poolFactory = new DefaultPoolFactory();
 
-    private int readBufferSize = 128 * 1024;
+    public int readBufferSize = 128 * 1024;
 
-    private boolean finishPendingImmediatelyWhenChannelClose = false;
+    public boolean finishPendingImmediatelyWhenChannelClose = false;
 
-    private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
-    private Supplier<DecodeContext> decodeContextFactory = DecodeContext::new;
+    public PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
+    public Supplier<DecodeContext> decodeContextFactory = DecodeContext::new;
 
-    private ChannelListener channelListener;
+    public ChannelListener channelListener;
 
-    private boolean serverHint = true;
-
-    public int getBizThreads() {
-        return bizThreads;
-    }
-
-    public void setBizThreads(int bizThreads) {
-        this.bizThreads = bizThreads;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public int getMaxOutRequests() {
-        return maxOutRequests;
-    }
-
-    public void setMaxOutRequests(int maxOutRequests) {
-        this.maxOutRequests = maxOutRequests;
-    }
-
-    public long getSelectTimeout() {
-        return selectTimeout;
-    }
-
-    public void setSelectTimeout(long selectTimeout) {
-        this.selectTimeout = selectTimeout;
-    }
-
-    public long getCleanInterval() {
-        return cleanInterval;
-    }
-
-    public void setCleanInterval(long cleanInterval) {
-        this.cleanInterval = cleanInterval;
-    }
-
-    public int getMaxInRequests() {
-        return maxInRequests;
-    }
-
-    public void setMaxInRequests(int maxInRequests) {
-        this.maxInRequests = maxInRequests;
-    }
-
-    public long getMaxInBytes() {
-        return maxInBytes;
-    }
-
-    public void setMaxInBytes(long maxInBytes) {
-        this.maxInBytes = maxInBytes;
-    }
-
-    public PoolFactory getPoolFactory() {
-        return poolFactory;
-    }
-
-    public void setPoolFactory(PoolFactory poolFactory) {
-        this.poolFactory = poolFactory;
-    }
-
-    public int getMaxPacketSize() {
-        return maxPacketSize;
-    }
-
-    public void setMaxPacketSize(int maxPacketSize) {
-        this.maxPacketSize = maxPacketSize;
-    }
-
-    public int getMaxBodySize() {
-        return maxBodySize;
-    }
-
-    public void setMaxBodySize(int maxBodySize) {
-        this.maxBodySize = maxBodySize;
-    }
-
-    public int getReadBufferSize() {
-        return readBufferSize;
-    }
-
-    public void setReadBufferSize(int readBufferSize) {
-        this.readBufferSize = readBufferSize;
-    }
-
-    public boolean isFinishPendingImmediatelyWhenChannelClose() {
-        return finishPendingImmediatelyWhenChannelClose;
-    }
-
-    public void setFinishPendingImmediatelyWhenChannelClose(boolean finishPendingImmediatelyWhenChannelClose) {
-        this.finishPendingImmediatelyWhenChannelClose = finishPendingImmediatelyWhenChannelClose;
-    }
-
-    public PerfCallback getPerfCallback() {
-        return perfCallback;
-    }
-
-    public void setPerfCallback(PerfCallback perfCallback) {
-        this.perfCallback = perfCallback;
-    }
-
-    public long getMaxOutBytes() {
-        return maxOutBytes;
-    }
-
-    public void setMaxOutBytes(long maxOutBytes) {
-        this.maxOutBytes = maxOutBytes;
-    }
-
-    public Supplier<DecodeContext> getDecodeContextFactory() {
-        return decodeContextFactory;
-    }
-
-    public void setDecodeContextFactory(Supplier<DecodeContext> decodeContextFactory) {
-        this.decodeContextFactory = decodeContextFactory;
-    }
-
-    public ChannelListener getChannelListener() {
-        return channelListener;
-    }
-
-    public void setChannelListener(ChannelListener channelListener) {
-        this.channelListener = channelListener;
-    }
-
-    public boolean isServerHint() {
-        return serverHint;
-    }
-
-    public void setServerHint(boolean serverHint) {
-        this.serverHint = serverHint;
-    }
-
+    public boolean serverHint = true;
 }

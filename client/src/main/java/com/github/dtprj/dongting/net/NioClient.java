@@ -54,19 +54,19 @@ public class NioClient extends NioNet {
         super(config);
         this.config = config;
         ArrayList<Peer> list = new ArrayList<>();
-        if (config.getHostPorts() != null) {
-            for (HostPort hp : config.getHostPorts()) {
+        if (config.hostPorts != null) {
+            for (HostPort hp : config.hostPorts) {
                 Peer p = new Peer(hp, this);
                 list.add(p);
             }
         }
         this.peers = new CopyOnWriteArrayList<>(list);
-        this.worker = new NioWorker(nioStatus, config.getName() + "IoWorker", config, this);
+        this.worker = new NioWorker(nioStatus, config.name + "IoWorker", config, this);
     }
 
     @Override
     protected void doStart() {
-        startDeadline = new DtTime(config.getWaitStartTimeout(), TimeUnit.MILLISECONDS);
+        startDeadline = new DtTime(config.waitStartTimeout, TimeUnit.MILLISECONDS);
         startFutures = new ArrayList<>();
         initBizExecutor();
         worker.start();
@@ -81,7 +81,7 @@ public class NioClient extends NioNet {
         int failCount = 0;
         List<Peer> peers = this.peers;
         if (peers.isEmpty()) {
-            log.info("[{}] started", config.getName());
+            log.info("[{}] started", config.name);
             return;
         }
         StringBuilder sb = new StringBuilder(startFutures.size() * 32);
@@ -126,12 +126,12 @@ public class NioClient extends NioNet {
 
         if (successCount == 0 && !peers.isEmpty()) {
             log.error("[{}] start fail: timeoutPeerCount={},failPeerCount={}\n{}",
-                    config.getName(), timeoutCount, failCount, sb);
-            throw new NetException("init NioClient fail:timeout=" + config.getWaitStartTimeout()
+                    config.name, timeoutCount, failCount, sb);
+            throw new NetException("init NioClient fail:timeout=" + config.waitStartTimeout
                     + "ms, timeoutConnectionCount=" + timeoutCount + ", failConnectionCount=" + failCount);
         } else {
             log.info("[{}] started: connectPeerCount={}, timeoutPeerCount={}, failPeerCount={}\n{}",
-                    config.getName(), successCount, timeoutCount, failCount, sb);
+                    config.name, successCount, timeoutCount, failCount, sb);
         }
         this.startFutures = null;
     }
@@ -188,15 +188,15 @@ public class NioClient extends NioNet {
                 long rest = timeout.rest(TimeUnit.MILLISECONDS);
                 if (rest > 0) {
                     pf.get(rest, TimeUnit.MILLISECONDS);
-                    log.info("client {} pre-stop done", config.getName());
+                    log.info("client {} pre-stop done", config.name);
                 } else {
-                    log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                    log.warn("client {} pre-stop timeout. {}ms", config.name, timeout.getTimeout(TimeUnit.MILLISECONDS));
                     worker.logWorkerStatus();
                 }
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
             } catch (TimeoutException e) {
-                log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                log.warn("client {} pre-stop timeout. {}ms", config.name, timeout.getTimeout(TimeUnit.MILLISECONDS));
                 worker.logWorkerStatus();
             } catch (ExecutionException e) {
                 BugLog.log(e);
@@ -213,7 +213,7 @@ public class NioClient extends NioNet {
         }
         shutdownBizExecutor(timeout);
 
-        log.info("client {} stopped", config.getName());
+        log.info("client {} stopped", config.name);
     }
 
     public List<Peer> getPeers() {
@@ -317,20 +317,20 @@ public class NioClient extends NioNet {
     protected void processServerConfigHint(@SuppressWarnings("unused") Peer peer, ConfigBody cb) {
         int serverCount = peers.size();
         int v = computeHint(cb.maxPacketSize, serverCount);
-        if (v > 0 && v < config.getMaxPacketSize()) {
-            config.setMaxPacketSize(v);
+        if (v > 0 && v < config.maxPacketSize) {
+            config.maxPacketSize = v;
         }
         v = computeHint(cb.maxBodySize, serverCount);
-        if (v > 0 && v < config.getMaxBodySize()) {
-            config.setMaxBodySize(v);
+        if (v > 0 && v < config.maxBodySize) {
+            config.maxBodySize = v;
         }
         v = computeHint(cb.maxOutPending, serverCount);
-        if (v > 0 && v < config.getMaxOutRequests()) {
-            config.setMaxOutRequests(v);
+        if (v > 0 && v < config.maxOutRequests) {
+            config.maxOutRequests = v;
         }
         long v2 = computeHint(cb.maxOutPendingBytes, serverCount);
-        if (v2 > 0 && v2 < config.getMaxOutBytes()) {
-            config.setMaxOutBytes(v2);
+        if (v2 > 0 && v2 < config.maxOutBytes) {
+            config.maxOutBytes = v2;
         }
     }
 

@@ -64,7 +64,7 @@ class IoChannelQueue {
         this.workerStatus = workerStatus;
         this.dtc = dtc;
         this.encodeContext = new EncodeContext(heapPool);
-        this.perfCallback = config.getPerfCallback();
+        this.perfCallback = config.perfCallback;
     }
 
     public void setRegisterForWrite(Runnable registerForWrite) {

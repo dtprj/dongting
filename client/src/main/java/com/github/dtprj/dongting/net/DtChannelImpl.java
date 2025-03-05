@@ -80,10 +80,10 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.peer = peer;
         this.createTimeNanos = workerStatus.ts.getNanoTime();
 
-        this.decodeContext = nioConfig.getDecodeContextFactory().get();
+        this.decodeContext = nioConfig.decodeContextFactory.get();
         this.decodeContext.setHeapPool(workerStatus.getHeapPool());
 
-        this.parser = new MultiParser(decodeContext, this, nioConfig.getMaxPacketSize());
+        this.parser = new MultiParser(decodeContext, this, nioConfig.maxPacketSize);
 
         this.remoteAddr = channel.getRemoteAddress();
         this.localAddr = channel.getLocalAddress();
@@ -308,8 +308,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private void processIncomingRequest(ReadPacket req, ReqProcessor p, Timestamp roundTime) {
-        int maxReq = nioConfig.getMaxInRequests();
-        long maxBytes = nioConfig.getMaxInBytes();
+        int maxReq = nioConfig.maxInRequests;
+        long maxBytes = nioConfig.maxInBytes;
         boolean flowControl;
         if (maxReq <= 0 && maxBytes <= 0) {
             flowControl = false;
@@ -318,16 +318,16 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             try {
                 if (maxReq > 0 && nioStatus.pendingRequests + 1 > maxReq) {
                     log.debug("pendingRequests({})>maxInRequests({}), write response code FLOW_CONTROL to client",
-                            nioStatus.pendingRequests + 1, nioConfig.getMaxInRequests());
+                            nioStatus.pendingRequests + 1, nioConfig.maxInRequests);
                     writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
-                            "max incoming request: " + nioConfig.getMaxInRequests());
+                            "max incoming request: " + nioConfig.maxInRequests);
                     return;
                 }
                 if (maxBytes > 0 && nioStatus.pendingBytes + currentReadPacketSize > maxBytes) {
                     log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
-                            nioStatus.pendingBytes + currentReadPacketSize, nioConfig.getMaxInBytes());
+                            nioStatus.pendingBytes + currentReadPacketSize, nioConfig.maxInBytes);
                     writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
-                            "max incoming request bytes: " + nioConfig.getMaxInBytes());
+                            "max incoming request bytes: " + nioConfig.maxInBytes);
                     return;
                 }
                 nioStatus.pendingRequests++;
@@ -372,9 +372,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                         req, p, currentReadPacketSize, this, flowControl, reqContext));
             } catch (RejectedExecutionException e) {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
-                        nioConfig.getMaxInRequests());
+                        nioConfig.maxInRequests);
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
-                        "max incoming request: " + nioConfig.getMaxInRequests(), reqContext.getTimeout());
+                        "max incoming request: " + nioConfig.maxInRequests, reqContext.getTimeout());
                 if (flowControl) {
                     releasePending(currentReadPacketSize);
                 }

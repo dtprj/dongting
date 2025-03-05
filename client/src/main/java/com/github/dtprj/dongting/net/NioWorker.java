@@ -102,8 +102,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.client = client;
         this.thread = new Thread(this, workerName);
         this.workerName = workerName;
-        this.cleanIntervalNanos = config.getCleanInterval() * 1000 * 1000;
-        this.perfCallback = config.getPerfCallback();
+        this.cleanIntervalNanos = config.cleanInterval * 1000 * 1000;
+        this.perfCallback = config.perfCallback;
 
         this.channels = new IntObjMap<>();
         this.ioWorkerQueue = new IoWorkerQueue(this, config);
@@ -117,8 +117,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.incomingConnects = null;
         }
 
-        this.directPool = config.getPoolFactory().createPool(timestamp, true);
-        this.heapPool = config.getPoolFactory().createPool(timestamp, false);
+        this.directPool = config.poolFactory.createPool(timestamp, true);
+        this.heapPool = config.poolFactory.createPool(timestamp, false);
 
         ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
         RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 800);
@@ -172,8 +172,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 releaseReadBuffer();
             }
 
-            config.getPoolFactory().destroyPool(directPool);
-            config.getPoolFactory().destroyPool(heapPool);
+            config.poolFactory.destroyPool(directPool);
+            config.poolFactory.destroyPool(heapPool);
 
             log.info("worker thread [{}] finished.", thread.getName());
             if (DtUtil.DEBUG >= 2) {
@@ -256,7 +256,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (selNow) {
                 selector.selectNow();
             } else {
-                long selectTimeoutMillis = config.getSelectTimeout();
+                long selectTimeoutMillis = config.selectTimeout;
                 if (selectTimeoutMillis > 0) {
                     selector.select(selectTimeoutMillis);
                 } else {
@@ -284,7 +284,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void prepareReadBuffer(Timestamp roundTime) {
         if (readBuffer == null) {
-            readBuffer = directPool.borrow(config.getReadBufferSize());
+            readBuffer = directPool.borrow(config.readBufferSize);
         }
         readBuffer.clear();
         readBufferUseTime = roundTime.getNanoTime();
@@ -436,9 +436,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             //server side
             incomingConnects.remove(dtc);
         }
-        if (config.getChannelListener() != null) {
+        if (config.channelListener != null) {
             try {
-                config.getChannelListener().onConnected(dtc);
+                config.channelListener.onConnected(dtc);
             } catch (Throwable e) {
                 log.error("channelListener.onConnected error: {}", e);
             } finally {
@@ -573,12 +573,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         hb.majorVersion = DtUtil.RPC_MAJOR_VER;
         hb.minorVersion = DtUtil.RPC_MINOR_VER;
         ConfigBody cb = new ConfigBody();
-        cb.maxPacketSize = config.getMaxPacketSize();
-        cb.maxBodySize = config.getMaxBodySize();
-        cb.maxOutPending = config.getMaxOutRequests();
-        cb.maxOutPendingBytes = config.getMaxOutBytes();
-        cb.maxInPending = config.getMaxInRequests();
-        cb.maxInPendingBytes = config.getMaxInBytes();
+        cb.maxPacketSize = config.maxPacketSize;
+        cb.maxBodySize = config.maxBodySize;
+        cb.maxOutPending = config.maxOutRequests;
+        cb.maxOutPendingBytes = config.maxOutBytes;
+        cb.maxInPending = config.maxInRequests;
+        cb.maxInPendingBytes = config.maxInBytes;
         hb.config = cb;
         SimpleWritePacket p = new SimpleWritePacket(hb);
 
@@ -604,7 +604,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         ConfigBody cb = resp.getBody().config;
-        if (config != null && config.isServerHint()) {
+        if (config != null && config.serverHint) {
             client.processServerConfigHint(dtc.peer, cb);
             config.writeFence();
         }
@@ -739,9 +739,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         dtc.close();
 
-        if (config.getChannelListener() != null && dtc.listenerOnConnectedCalled) {
+        if (config.channelListener != null && dtc.listenerOnConnectedCalled) {
             try {
-                config.getChannelListener().onDisconnected(dtc);
+                config.channelListener.onDisconnected(dtc);
             } catch (Throwable e) {
                 log.error("channelListener.onDisconnected error: {}", e);
             }
@@ -761,7 +761,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             incomingConnects.remove(dtc);
         }
         closeChannel0(dtc.getChannel());
-        if (config.isFinishPendingImmediatelyWhenChannelClose()) {
+        if (config.finishPendingImmediatelyWhenChannelClose) {
             cleanPendingOutgoingRequests(dtc, 1);
         }
         dtc.getSubQueue().cleanChannelQueue();

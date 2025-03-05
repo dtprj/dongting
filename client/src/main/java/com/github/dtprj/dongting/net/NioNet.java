@@ -61,9 +61,9 @@ public abstract class NioNet extends AbstractLifeCircle {
     public NioNet(NioConfig config) {
         this.config = config;
         this.nioStatus = new NioStatus();
-        this.perfCallback = config.getPerfCallback();
+        this.perfCallback = config.perfCallback;
         this.server = config instanceof NioServerConfig;
-        if (config.getMaxPacketSize() < config.getMaxBodySize() + 128 * 1024) {
+        if (config.maxPacketSize < config.maxBodySize + 128 * 1024) {
             throw new IllegalArgumentException("maxPacketSize should greater than maxBodySize plus 128KB.");
         }
     }
@@ -140,8 +140,8 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     public boolean acquirePermit(WritePacket request, DtTime timeout) throws InterruptedException {
         while (true) {
-            int maxPending = config.getMaxOutRequests();
-            long maxPendingBytes = config.getMaxOutBytes();
+            int maxPending = config.maxOutRequests;
+            long maxPendingBytes = config.maxOutBytes;
             if (maxPending <= 0 && maxPendingBytes <= 0) {
                 return false;
             }
@@ -192,13 +192,13 @@ public abstract class NioNet extends AbstractLifeCircle {
 
         // can't invoke actualSize() here because seq and timeout field is not set yet
         int estimateSize = request.calcMaxPacketSize();
-        if (estimateSize > config.getMaxPacketSize() || estimateSize < 0) {
+        if (estimateSize > config.maxPacketSize || estimateSize < 0) {
             throw new NetException("estimateSize overflow");
         }
         int bodySize = request.actualBodySize();
-        if (bodySize > config.getMaxBodySize() || bodySize < 0) {
+        if (bodySize > config.maxBodySize || bodySize < 0) {
             throw new NetException("packet body size " + bodySize
-                    + " exceeds max body size " + config.getMaxBodySize());
+                    + " exceeds max body size " + config.maxBodySize);
         }
     }
 
@@ -229,10 +229,10 @@ public abstract class NioNet extends AbstractLifeCircle {
     }
 
     protected void initBizExecutor() {
-        if (config.getBizThreads() > 0) {
-            bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizThreads(),
+        if (config.bizThreads > 0) {
+            bizExecutor = new ThreadPoolExecutor(config.bizThreads, config.bizThreads,
                     1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
-                    new DtThreadFactory(config.getName() + "Biz", false));
+                    new DtThreadFactory(config.name + "Biz", false));
         }
         nioStatus.getProcessors().forEach((command, p) -> {
             if (p.useDefaultExecutor) {

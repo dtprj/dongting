@@ -65,7 +65,7 @@ public class NodeManagerTest {
         RaftServerConfig raftServerConfig = new RaftServerConfig();
         raftServerConfig.setNodeId(nodeId);
         NioServerConfig nioServerConfig = new NioServerConfig();
-        nioServerConfig.setPort(15200 + nodeId);
+        nioServerConfig.port = 15200 + nodeId;
         NioServer server = new NioServer(nioServerConfig);
         NodeManager nodeManager = new NodeManager(raftServerConfig, nodes, client, nodes.size());
         nodeManager.pingIntervalMillis = 1;

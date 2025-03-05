@@ -43,7 +43,7 @@ public class CloseTest {
     private void setup(int sleepTime, boolean finishWhenClose, int cleanInterval) {
         received = false;
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.setPort(9000);
+        serverConfig.port = 9000;
         server = new NioServer(serverConfig);
         server.register(CMD, new NioServer.PingProcessor() {
             @Override
@@ -59,9 +59,9 @@ public class CloseTest {
         });
 
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setCleanInterval(cleanInterval);
-        clientConfig.setFinishPendingImmediatelyWhenChannelClose(finishWhenClose);
-        clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        clientConfig.cleanInterval = cleanInterval;
+        clientConfig.finishPendingImmediatelyWhenChannelClose = finishWhenClose;
+        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
         client = new NioClient(clientConfig);
 
         server.start();

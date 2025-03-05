@@ -21,41 +21,17 @@ import java.util.List;
  * @author huangli
  */
 public class NioClientConfig extends NioConfig {
-    private List<HostPort> hostPorts;
-    private int waitStartTimeout = 2000;
-    private int[] connectRetryIntervals = {100, 1000, 5000, 10 * 1000, 20 * 1000, 30 * 1000, 60 * 1000};
+    public List<HostPort> hostPorts;
+    public int waitStartTimeout = 2000;
+    public int[] connectRetryIntervals = {100, 1000, 5000, 10 * 1000, 20 * 1000, 30 * 1000, 60 * 1000};
 
     public NioClientConfig() {
-        setName("DtNioClient");
-        setBizThreads(Runtime.getRuntime().availableProcessors());
+        this.name = "DtNioClient";
+        this.bizThreads = Runtime.getRuntime().availableProcessors();
 
-        setMaxOutRequests(2000);
-        setMaxOutBytes(32 * 1024 * 1024);
-        setMaxInRequests(100);
-        setMaxInBytes(32 * 1024 * 1024);
-    }
-
-    public List<HostPort> getHostPorts() {
-        return hostPorts;
-    }
-
-    public void setHostPorts(List<HostPort> hostPorts) {
-        this.hostPorts = hostPorts;
-    }
-
-    public int getWaitStartTimeout() {
-        return waitStartTimeout;
-    }
-
-    public void setWaitStartTimeout(int waitStartTimeout) {
-        this.waitStartTimeout = waitStartTimeout;
-    }
-
-    public int[] getConnectRetryIntervals() {
-        return connectRetryIntervals;
-    }
-
-    public void setConnectRetryIntervals(int[] connectRetryIntervals) {
-        this.connectRetryIntervals = connectRetryIntervals;
+        this.maxOutRequests = 2000;
+        this.maxOutBytes = 32 * 1024 * 1024;
+        this.maxInRequests = 100;
+        this.maxInBytes = 32 * 1024 * 1024;
     }
 }

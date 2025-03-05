@@ -32,11 +32,11 @@ public class ConnectTest {
     @Test
     public void connectTimeoutAndManualReconnect() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.setPort(8888);
+        serverConfig.port = 8888;
         NioServer server = new NioServer(serverConfig);
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setCleanInterval(0);
-        clientConfig.setSelectTimeout(1);
+        clientConfig.cleanInterval = 0;
+        clientConfig.selectTimeout = 1;
         NioClient client = new NioClient(clientConfig);
         try {
             server.start();
@@ -64,12 +64,12 @@ public class ConnectTest {
     @Test
     public void connectAutoReconnect1() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.setPort(8888);
+        serverConfig.port = 8888;
         NioServer server = new NioServer(serverConfig);
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setCleanInterval(0);
-        clientConfig.setSelectTimeout(1);
-        clientConfig.setConnectRetryIntervals(new int[]{0});
+        clientConfig.cleanInterval = 0;
+        clientConfig.selectTimeout = 1;
+        clientConfig.connectRetryIntervals = new int[]{0};
         NioClient client = new NioClient(clientConfig);
         try {
             server.start();
@@ -95,9 +95,9 @@ public class ConnectTest {
     @Test
     public void connectAutoReconnect2() throws Exception {
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setCleanInterval(0);
-        clientConfig.setSelectTimeout(1);
-        clientConfig.setConnectRetryIntervals(new int[]{0});
+        clientConfig.cleanInterval = 0;
+        clientConfig.selectTimeout = 1;
+        clientConfig.connectRetryIntervals = new int[]{0};
         NioClient client = new NioClient(clientConfig);
         NioServer server = null;
         try {
@@ -116,7 +116,7 @@ public class ConnectTest {
             assertEquals(PeerStatus.not_connect, peer.getStatus());
 
             NioServerConfig serverConfig = new NioServerConfig();
-            serverConfig.setPort(8888);
+            serverConfig.port = 8888;
             server = new NioServer(serverConfig);
             server.start();
 
