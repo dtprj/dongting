@@ -15,7 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.DtTime;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,7 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class VoteTest extends ServerTestBase {
 
     @Test
-    void test() throws Exception {
+    void testSimpleVote() throws Exception {
+        // simple vote
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
         String members = "1,2,3";
         String observers = "4";
@@ -38,12 +43,23 @@ public class VoteTest extends ServerTestBase {
             waitStart(si);
         }
 
-        int leader = waitLeaderElectAndGetLeaderId(sis).nodeId;
-        assertTrue(leader != 4);
-        // DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        // sis[leader-1].raftServer.stop(timeout);
+        ServerInfo leader = waitLeaderElectAndGetLeaderId(sis);
+        assertTrue(leader.nodeId != 4);
 
+        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+        leader.raftServer.stop(timeout);
+
+        ArrayList<ServerInfo> restServers = new ArrayList<>();
         for (ServerInfo si : sis) {
+            if (si.nodeId != leader.nodeId) {
+                restServers.add(si);
+            }
+        }
+
+        ServerInfo newLeader = waitLeaderElectAndGetLeaderId(restServers.toArray(new ServerInfo[0]));
+        assertTrue(newLeader.nodeId != leader.nodeId);
+
+        for (ServerInfo si : restServers) {
             waitStop(si);
         }
     }
