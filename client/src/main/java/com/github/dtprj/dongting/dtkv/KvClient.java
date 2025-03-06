@@ -53,14 +53,17 @@ public class KvClient extends AbstractLifeCircle {
 
     private static RpcCallback<Void> voidCallback(FutureCallback<Void> c, int anotherSuccessCode) {
         return (result, ex) -> {
-            int bc = result.getBizCode();
             if (ex != null) {
                 FutureCallback.callFail(c, ex);
-            } else if (bc == KvCodes.CODE_SUCCESS || bc == anotherSuccessCode) {
-                FutureCallback.callSuccess(c, null);
             } else {
-                FutureCallback.callFail(c, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                int bc = result.getBizCode();
+                if (bc == KvCodes.CODE_SUCCESS || bc == anotherSuccessCode) {
+                    FutureCallback.callSuccess(c, null);
+                } else {
+                    FutureCallback.callFail(c, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                }
             }
+
         };
     }
 
@@ -109,15 +112,17 @@ public class KvClient extends AbstractLifeCircle {
 
         DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
         raftClient.sendRequest(groupId, wf, dc, timeout, (result, ex) -> {
-            int bc = result.getBizCode();
             if (ex != null) {
                 FutureCallback.callFail(callback, ex);
-            } else if (bc == KvCodes.CODE_SUCCESS || bc == KvCodes.CODE_NOT_FOUND) {
-                KvResp resp = result.getBody();
-                KvNode n = (resp == null || resp.results == null || resp.results.isEmpty()) ? null : resp.results.get(0).getNode();
-                FutureCallback.callSuccess(callback, n);
             } else {
-                FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                int bc = result.getBizCode();
+                if (bc == KvCodes.CODE_SUCCESS || bc == KvCodes.CODE_NOT_FOUND) {
+                    KvResp resp = result.getBody();
+                    KvNode n = (resp == null || resp.results == null || resp.results.isEmpty()) ? null : resp.results.get(0).getNode();
+                    FutureCallback.callSuccess(callback, n);
+                } else {
+                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                }
             }
         });
     }
@@ -136,14 +141,16 @@ public class KvClient extends AbstractLifeCircle {
 
         DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
         raftClient.sendRequest(groupId, wf, dc, timeout, (result, ex) -> {
-            int bc = result.getBizCode();
             if (ex != null) {
                 FutureCallback.callFail(callback, ex);
-            } else if (bc == KvCodes.CODE_SUCCESS) {
-                KvResp resp = result.getBody();
-                FutureCallback.callSuccess(callback, resp == null ? null : resp.results);
             } else {
-                FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                int bc = result.getBizCode();
+                if (bc == KvCodes.CODE_SUCCESS) {
+                    KvResp resp = result.getBody();
+                    FutureCallback.callSuccess(callback, resp == null ? null : resp.results);
+                } else {
+                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                }
             }
         });
     }
@@ -200,14 +207,16 @@ public class KvClient extends AbstractLifeCircle {
 
     private static RpcCallback<KvResp> batchCodesCallback(FutureCallback<int[]> callback) {
         return (result, ex) -> {
-            int bc = result.getBizCode();
             if (ex != null) {
                 FutureCallback.callFail(callback, ex);
-            } else if (bc == KvCodes.CODE_SUCCESS) {
-                KvResp resp = result.getBody();
-                FutureCallback.callSuccess(callback, resp == null ? null : resp.codes);
-            } else {
-                FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+            } else{
+                int bc = result.getBizCode();
+                if (bc == KvCodes.CODE_SUCCESS) {
+                    KvResp resp = result.getBody();
+                    FutureCallback.callSuccess(callback, resp == null ? null : resp.codes);
+                } else {
+                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                }
             }
         };
     }
@@ -230,16 +239,18 @@ public class KvClient extends AbstractLifeCircle {
 
         DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
         raftClient.sendRequest(groupId, wf, dc, timeout, (result, ex) -> {
-            int bc = result.getBizCode();
             if (ex != null) {
                 FutureCallback.callFail(callback, ex);
-            } else if (bc == KvCodes.CODE_SUCCESS) {
-                KvResp resp = result.getBody();
-                List<KvNode> nodes = (resp == null || resp.results == null) ? null : resp.results.stream().map(
-                        kvResult -> kvResult.getNode()).collect(Collectors.toList());
-                FutureCallback.callSuccess(callback, nodes);
-            } else {
-                FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+            } else{
+                int bc = result.getBizCode();
+                if (bc == KvCodes.CODE_SUCCESS) {
+                    KvResp resp = result.getBody();
+                    List<KvNode> nodes = (resp == null || resp.results == null) ? null : resp.results.stream().map(
+                            KvResult::getNode).collect(Collectors.toList());
+                    FutureCallback.callSuccess(callback, nodes);
+                } else {
+                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                }
             }
         });
     }
