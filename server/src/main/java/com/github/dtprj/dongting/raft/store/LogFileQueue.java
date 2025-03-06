@@ -40,7 +40,7 @@ import java.util.List;
 /**
  * @author huangli
  */
-class LogFileQueue extends FileQueue {
+final class LogFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
     public static final long DEFAULT_LOG_FILE_SIZE = 1024 * 1024 * 1024;
@@ -49,8 +49,8 @@ class LogFileQueue extends FileQueue {
     private final RaftGroupConfigEx groupConfig;
     private final FiberGroup fiberGroup;
 
-    protected final RefBufferFactory heapPool;
-    protected final ByteBufferPool directPool;
+    private final RefBufferFactory heapPool;
+    private final ByteBufferPool directPool;
 
     private final IdxOps idxOps;
 

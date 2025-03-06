@@ -27,7 +27,12 @@ public abstract class RaftStatus {
     public long commitIndex;
     protected long lastApplied; // shared
 
-    public int groupId;
+    public final int groupId;
+
+    protected RaftStatus(int groupId) {
+        this.groupId = groupId;
+    }
+
 
     public long getLastApplied() {
         return lastApplied;

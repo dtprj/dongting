@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class RaftGroupImpl extends RaftGroup {
+public final class RaftGroupImpl extends RaftGroup {
     private static final DtLog log = DtLogs.getLogger(RaftGroupImpl.class);
     private final int groupId;
     private final RaftStatusImpl raftStatus;

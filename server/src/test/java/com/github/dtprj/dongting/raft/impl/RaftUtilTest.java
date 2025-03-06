@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class RaftUtilTest {
     @Test
     public void testUpdateLease() {
-        RaftStatusImpl rs = new RaftStatusImpl(new Timestamp());
+        RaftStatusImpl rs = new RaftStatusImpl(0, new Timestamp());
         RaftNodeEx n1 = new RaftNodeEx(1, new HostPort("127.0.0.1", 10001), false, null);
         RaftNodeEx n2 = new RaftNodeEx(2, new HostPort("127.0.0.1", 10002), false, null);
         RaftNodeEx n3 = new RaftNodeEx(3, new HostPort("127.0.0.1", 10003), false, null);

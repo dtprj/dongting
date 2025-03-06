@@ -44,7 +44,7 @@ import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFT
 /**
  * @author huangli
  */
-public class DefaultRaftLog implements RaftLog {
+public final class DefaultRaftLog implements RaftLog {
     private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;

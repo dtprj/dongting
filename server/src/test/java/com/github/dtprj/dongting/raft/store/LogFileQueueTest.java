@@ -99,7 +99,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         idxMap.clear();
 
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
-        raftStatus = new RaftStatusImpl(dispatcher.getTs());
+        raftStatus = new RaftStatusImpl(0, dispatcher.getTs());
         RaftServerConfig serverConfig = new RaftServerConfig();
 
         config = new RaftGroupConfigEx(1, "1", "1");

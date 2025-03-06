@@ -50,7 +50,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
     private RaftStatusImpl raftStatus;
 
     private void createManager(boolean separateExecutor, String dataDir, boolean mockInstall) {
-        raftStatus = new RaftStatusImpl(dispatcher.getTs());
+        raftStatus = new RaftStatusImpl(0, dispatcher.getTs());
         raftStatus.nodeIdOfMembers = Set.of(1);
         raftStatus.nodeIdOfObservers = Set.of();
         raftStatus.nodeIdOfPreparedMembers = Set.of();

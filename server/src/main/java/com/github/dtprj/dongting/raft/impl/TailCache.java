@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class TailCache {
+public final class TailCache {
     private static final DtLog log = DtLogs.getLogger(TailCache.class);
     private static final long TIMEOUT = TimeUnit.SECONDS.toNanos(10);
     private final RaftGroupConfig groupConfig;

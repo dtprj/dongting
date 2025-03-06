@@ -252,11 +252,10 @@ public class RaftServer extends AbstractLifeCircle {
 
         Dispatcher dispatcher = raftFactory.createDispatcher(serverConfig, rgc);
         FiberGroup fiberGroup = new FiberGroup("group-" + rgc.groupId, dispatcher);
-        RaftStatusImpl raftStatus = new RaftStatusImpl(fiberGroup.getDispatcher().getTs());
+        RaftStatusImpl raftStatus = new RaftStatusImpl(rgc.groupId, fiberGroup.getDispatcher().getTs());
         raftStatus.tailCache = new TailCache(rgc, raftStatus);
         raftStatus.nodeIdOfMembers = nodeIdOfMembers;
         raftStatus.nodeIdOfObservers = nodeIdOfObservers;
-        raftStatus.groupId = rgc.groupId;
 
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, fiberGroup);
 

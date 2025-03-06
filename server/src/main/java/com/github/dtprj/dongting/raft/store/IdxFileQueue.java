@@ -41,7 +41,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-class IdxFileQueue extends FileQueue implements IdxOps {
+final class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";

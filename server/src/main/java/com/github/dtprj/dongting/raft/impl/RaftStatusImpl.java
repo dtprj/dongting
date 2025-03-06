@@ -29,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-public class RaftStatusImpl extends RaftStatus {
+public final class RaftStatusImpl extends RaftStatus {
 
     private volatile ShareStatus shareStatus;
 
@@ -101,7 +101,8 @@ public class RaftStatusImpl extends RaftStatus {
     public final CompletableFuture<Void> initFuture = new CompletableFuture<>();
     public volatile boolean initialized;
 
-    public RaftStatusImpl(Timestamp ts) {
+    public RaftStatusImpl(int groupId, Timestamp ts) {
+        super(groupId);
         this.ts = ts;
         lastElectTime = ts.getNanoTime() - Duration.ofDays(1).toNanos();
         initFuture.thenRun(() -> this.initialized = true);
