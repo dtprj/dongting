@@ -137,8 +137,9 @@ public class CommitManager {
         boolean needCommit = needCommit(raftStatus.commitIndex, recentMatchIndex,
                 raftStatus.members, raftStatus.rwQuorum);
         if (needCommit && !raftStatus.preparedMembers.isEmpty()) {
+            int prepareRwQuorum = RaftUtil.getRwQuorum(raftStatus.preparedMembers.size());
             needCommit = needCommit(raftStatus.commitIndex, recentMatchIndex,
-                    raftStatus.preparedMembers, raftStatus.rwQuorum);
+                    raftStatus.preparedMembers, prepareRwQuorum);
         }
         return needCommit;
     }

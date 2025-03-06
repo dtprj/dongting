@@ -48,13 +48,18 @@ public class ConfigChangeTest extends ServerTestBase {
         c.clientAddOrUpdateGroup(groupId, new int[]{2, 3});
         c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
 
+        CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2), Set.of(), timeout);
+        f.get(5, TimeUnit.SECONDS);
+
+        f = c.abortChange(groupId, timeout);
+        f.get(5, TimeUnit.SECONDS);
+
         CompletableFuture<Void> f1 = c.serverAddNode(2, 4, "127.0.0.1", 4004, timeout);
         CompletableFuture<Void> f2 = c.serverAddNode(3, 4, "127.0.0.1", 4004, timeout);
         f1.get(5, TimeUnit.SECONDS);
         f2.get(5, TimeUnit.SECONDS);
 
-        CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(),
-                Set.of(2, 3, 4), Set.of(), timeout);
+        f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2, 3, 4), Set.of(), timeout);
         long prepareIndex = f.get(5, TimeUnit.SECONDS);
 
         f = c.commitChange(groupId, prepareIndex, timeout);
@@ -63,7 +68,14 @@ public class ConfigChangeTest extends ServerTestBase {
         ServerInfo s4 = createServer(4, "2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004", "2,3,4", "");
         waitStart(s4);
 
-        assertTrue(() -> s4.group.getGroupComponents().raftStatus.getShareStatus().lastApplied >= prepareIndex);
+        long finalPrepareIndex = prepareIndex;
+        assertTrue(() -> s4.group.getGroupComponents().raftStatus.getShareStatus().lastApplied >= finalPrepareIndex);
+
+        f = c.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(2, 3), Set.of(), timeout);
+        prepareIndex = f.get(5, TimeUnit.SECONDS);
+
+        f = c.commitChange(groupId, prepareIndex, timeout);
+        f.get(5, TimeUnit.SECONDS);
 
         waitStop(s2);
         waitStop(s3);
