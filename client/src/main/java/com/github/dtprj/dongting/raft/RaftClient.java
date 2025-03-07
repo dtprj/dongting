@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -72,20 +73,19 @@ public class RaftClient extends AbstractLifeCircle {
     public void clientAddNode(List<RaftNode> nodes) {
         lock.lock();
         try {
-            for (RaftNode n : nodes) {
-                RaftNode e = allNodes.get(n.getNodeId());
-                if (e != null) {
-                    if (!e.getHostPort().equals(n.getHostPort())) {
-                        throw new RaftException("node " + n.getNodeId() + " already exist with different hostPort: "
-                                + e.getHostPort() + " , " + n.getHostPort());
+            for (Map.Entry<Integer, RaftNode> e : allNodes.entrySet()) {
+                for (RaftNode newNode : nodes) {
+                    if (e.getKey() == newNode.getNodeId()) {
+                        throw new RaftException("node " + e.getKey() + " already exists");
+                    }
+                    if (e.getValue().getHostPort().equals(newNode.getHostPort())) {
+                        throw new RaftException("node " + e.getValue().getHostPort() + " already exists");
                     }
                 }
             }
-            ArrayList<RaftNode> needAddList = new ArrayList<>();
             ArrayList<CompletableFuture<RaftNode>> futures = new ArrayList<>();
             for (RaftNode n : nodes) {
                 if (allNodes.get(n.getNodeId()) == null) {
-                    needAddList.add(n);
                     CompletableFuture<Peer> f = nioClient.addPeer(n.getHostPort());
                     futures.add(f.thenApply(peer -> new RaftNode(n.getNodeId(), n.getHostPort(), peer)));
                 }
@@ -105,7 +105,7 @@ public class RaftClient extends AbstractLifeCircle {
                 throw new NetException(e);
             } finally {
                 if (!success) {
-                    for (RaftNode n : needAddList) {
+                    for (RaftNode n : nodes) {
                         nioClient.removePeer(n.getHostPort());
                         allNodes.remove(n.getNodeId());
                     }
