@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,7 @@ public class TransferLeaderTest extends ServerTestBase {
 
     @Test
     void test() throws Exception {
+        servicePortBase = 5000;
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "1,2,3";
         String observers = "";
@@ -45,6 +47,14 @@ public class TransferLeaderTest extends ServerTestBase {
 
         ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
 
+        KvClient client = new KvClient();
+        client.start();
+        client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
+        client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+
+        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+        client.put(groupId, "key".getBytes(), "value".getBytes(), timeout);
+
         ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
 
         AdminRaftClient c = new AdminRaftClient();
@@ -52,15 +62,14 @@ public class TransferLeaderTest extends ServerTestBase {
         c.clientAddNode("1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003");
         c.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
         c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
-        CompletableFuture<Void> f = c.transferLeader(groupId, leader.nodeId, newLeader.nodeId,
-                new DtTime(5, TimeUnit.SECONDS));
+        CompletableFuture<Void> f = c.transferLeader(groupId, leader.nodeId, newLeader.nodeId, timeout);
 
         f.get(5, TimeUnit.SECONDS);
 
         assertEquals(RaftRole.follower, leader.group.getGroupComponents().raftStatus.getShareStatus().role);
         assertEquals(RaftRole.leader, newLeader.group.getGroupComponents().raftStatus.getShareStatus().role);
 
-        put(newLeader, "k1", "v1");
+        client.put(groupId, "key".getBytes(), "value".getBytes(), timeout);
 
         for (ServerInfo si : sis) {
             waitStop(si);
