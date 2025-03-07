@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -78,6 +79,8 @@ public class ReplicateManager {
     private CommitManager commitManager;
     private StatusManager statusManager;
 
+    final IntObjMap<Fiber> replicateFibers = new IntObjMap<>();
+
     public ReplicateManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
@@ -107,10 +110,8 @@ public class ReplicateManager {
             if (!m.isReady()) {
                 continue;
             }
-            if (gc.memberManager.inLegacyMember(m)) {
-                continue;
-            }
-            if (m.getReplicateFiber() == null || m.getReplicateFiber().isFinished()) {
+            Fiber currentFiber = replicateFibers.get(m.getNode().getNodeId());
+            if (currentFiber == null || currentFiber.isFinished()) {
                 Fiber f;
                 if (m.isInstallSnapshot()) {
                     LeaderInstallFrame ff = new LeaderInstallFrame(this, m);
@@ -122,7 +123,7 @@ public class ReplicateManager {
                             groupConfig.fiberGroup, ff, true);
                 }
                 f.start();
-                m.setReplicateFiber(f);
+                replicateFibers.put(m.getNode().getNodeId(), f);
             }
         }
     }
@@ -334,6 +335,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             long leaseStartNanos = 0;
             for (int i = 0; i < limit; i++) {
                 RaftTask rt = tailCache.get(nextIndex + i);
+                //noinspection DataFlowIssue
                 LogItem li = rt.getItem();
                 size += li.getActualBodySize();
                 if (i > 0 && size > sizeLimit) {
@@ -523,7 +525,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 body.suggestTerm, body.suggestIndex);
         Fiber f = new Fiber("find-match-pos-" + member.getNode().getNodeId()
                 + "-" + member.getReplicateEpoch(), groupConfig.fiberGroup, ff, true);
-        member.setReplicateFiber(f);
+        replicateManager.replicateFibers.put(member.getNode().getNodeId(), f);
         f.start();
     }
 

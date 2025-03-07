@@ -77,8 +77,6 @@ public class MemberManager {
 
     int daemonSleepInterval = 1000;
 
-    final ArrayList<RaftMember> legacyMembers = new ArrayList<>();
-
     public MemberManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
@@ -789,12 +787,14 @@ public class MemberManager {
             if (r == RaftRole.leader) {
                 List<RaftMember> newRepList = raftStatus.replicateList;
                 for (RaftMember m : oldRepList) {
-                    if (!newRepList.contains(m) && m.getReplicateFiber() != null && !m.getReplicateFiber().isFinished()) {
-                        legacyMembers.add(m);
-                        RemoveLegacyFrame ff = new RemoveLegacyFrame(m, raftIndex);
-                        Fiber f = new Fiber("remove-legacy-" + m.getNode().getNodeId(),
-                                groupConfig.fiberGroup, ff, true);
-                        f.start();
+                    if (!newRepList.contains(m)) {
+                        Fiber repFiber = replicateManager.replicateFibers.get(m.getNode().getNodeId());
+                        if (repFiber != null && !repFiber.isFinished()) {
+                            RemoveLegacyFrame ff = new RemoveLegacyFrame(m, raftIndex, repFiber);
+                            Fiber f = new Fiber("remove-legacy-" + m.getNode().getNodeId(),
+                                    groupConfig.fiberGroup, ff, true);
+                            f.start();
+                        }
                     }
                 }
             }
@@ -809,11 +809,13 @@ public class MemberManager {
 
         private final RaftMember m;
         private final long raftIndex;
+        private final Fiber repFiber;
         private final long startNanos;
 
-        private RemoveLegacyFrame(RaftMember m, long raftIndex) {
+        private RemoveLegacyFrame(RaftMember m, long raftIndex, Fiber repFiber) {
             this.m = m;
             this.raftIndex = raftIndex;
+            this.repFiber = repFiber;
             this.startNanos = raftStatus.ts.getNanoTime();
         }
 
@@ -831,11 +833,11 @@ public class MemberManager {
 
         private FrameCallResult afterSleep() {
             m.incrementReplicateEpoch(m.getReplicateEpoch());
-            return m.getReplicateFiber().join(this::afterJoin);
+            return repFiber.join(this::afterJoin);
         }
 
         private FrameCallResult afterJoin(Void v) {
-            legacyMembers.remove(m);
+            replicateManager.replicateFibers.remove(m.getNode().getNodeId());
             return Fiber.frameReturn();
         }
     }
@@ -1005,14 +1007,5 @@ public class MemberManager {
 
     public CompletableFuture<Void> getPingReadyFuture() {
         return pingReadyFuture;
-    }
-
-    public boolean inLegacyMember(RaftMember m) {
-        for (int size = legacyMembers.size(), i = 0; i < size; i++) {
-            if (legacyMembers.get(i).getNode().getNodeId() == m.getNode().getNodeId()) {
-                return true;
-            }
-        }
-        return false;
     }
 }
