@@ -48,40 +48,52 @@ public class ConfigChangeTest extends ServerTestBase {
         c.clientAddOrUpdateGroup(groupId, new int[]{2, 3});
         c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
 
+        // prepare config change, remove one member
         CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2), Set.of(), timeout);
         f.get(5, TimeUnit.SECONDS);
 
+        // abort config change
         f = c.abortChange(groupId, timeout);
         f.get(5, TimeUnit.SECONDS);
 
+        // add new node
         CompletableFuture<Void> f1 = c.serverAddNode(2, 4, "127.0.0.1", 4004, timeout);
         CompletableFuture<Void> f2 = c.serverAddNode(3, 4, "127.0.0.1", 4004, timeout);
         f1.get(5, TimeUnit.SECONDS);
         f2.get(5, TimeUnit.SECONDS);
 
+        // prepare config change, add one member
         f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2, 3, 4), Set.of(), timeout);
         long prepareIndex = f.get(5, TimeUnit.SECONDS);
-
+        // commit config change
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
 
+        // start the new node
         ServerInfo s4 = createServer(4, "2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004", "2,3,4", "");
         waitStart(s4);
 
+        c.clientAddNode("4,127.0.0.1:4004");
+
+        // mark sure the new node has catch up
         long finalPrepareIndex = prepareIndex;
         assertTrue(() -> s4.group.getGroupComponents().raftStatus.getShareStatus().lastApplied >= finalPrepareIndex);
 
+        // config change, remove the new added member
         f = c.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(2, 3), Set.of(), timeout);
         prepareIndex = f.get(5, TimeUnit.SECONDS);
-
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
 
+        // remove the new node from server and client side
         f1 = c.serverRemoveNode(2, 4, timeout);
         f2 = c.serverRemoveNode(3, 4, timeout);
         f1.get(5, TimeUnit.SECONDS);
         f2.get(5, TimeUnit.SECONDS);
 
+        c.clientRemoveNode(4);
+
+        c.stop(timeout);
         waitStop(s2);
         waitStop(s3);
         waitStop(s4);

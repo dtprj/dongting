@@ -74,6 +74,8 @@ public class MultiRaftTest extends ServerTestBase {
         f1.get(5, TimeUnit.SECONDS);
         f2.get(5, TimeUnit.SECONDS);
 
+        client.getRaftClient().clientRemoveGroup(groupId2);
+
         adminClient.stop(timeout);
         client.stop(timeout);
         waitStop(s1);
