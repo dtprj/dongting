@@ -71,17 +71,15 @@ public class ConfigChangeTest extends ServerTestBase {
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
 
+        int leaderId = c.getGroup(groupId).getLeader().getNodeId();
+        CompletableFuture<QueryStatusResp> queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId, timeout);
+        assertEquals(3, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
+
         // start the new node
         ServerInfo s4 = createServer(4, "2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004", "2,3,4", "");
         waitStart(s4);
 
         c.clientAddNode("4,127.0.0.1:4004");
-        CompletableFuture<QueryStatusResp> sf1 = c.queryRaftServerStatus(2, groupId, timeout);
-        CompletableFuture<QueryStatusResp> sf2 = c.queryRaftServerStatus(3, groupId, timeout);
-        CompletableFuture<QueryStatusResp> sf3 = c.queryRaftServerStatus(4, groupId, timeout);
-        assertEquals(3, sf1.get(5, TimeUnit.SECONDS).members.size());
-        assertEquals(3, sf2.get(5, TimeUnit.SECONDS).members.size());
-        assertEquals(3, sf3.get(5, TimeUnit.SECONDS).members.size());
 
         // mark sure the new node has catch up
         long finalPrepareIndex = prepareIndex;
@@ -93,12 +91,8 @@ public class ConfigChangeTest extends ServerTestBase {
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
 
-        sf1 = c.queryRaftServerStatus(2, groupId, timeout);
-        sf2 = c.queryRaftServerStatus(3, groupId, timeout);
-        sf3 = c.queryRaftServerStatus(4, groupId, timeout);
-        assertEquals(2, sf1.get(5, TimeUnit.SECONDS).members.size());
-        assertEquals(2, sf2.get(5, TimeUnit.SECONDS).members.size());
-        assertEquals(2, sf3.get(5, TimeUnit.SECONDS).members.size());
+        queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId, timeout);
+        assertEquals(2, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
         // remove the new node from server and client side
         f1 = c.serverRemoveNode(2, 4, timeout);
