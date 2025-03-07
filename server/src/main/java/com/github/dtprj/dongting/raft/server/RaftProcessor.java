@@ -121,7 +121,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             errorResp = new EmptyBodyRespPacket(CmdCodes.NOT_RAFT_LEADER);
             RaftNode leader = ((NotLeaderException) root).getCurrentLeader();
             if (leader != null) {
-                errorResp.setExtra(String.valueOf(leader.getNodeId()).getBytes(StandardCharsets.UTF_8));
+                errorResp.setExtra(String.valueOf(leader.nodeId).getBytes(StandardCharsets.UTF_8));
             }
             log.warn("not leader, current leader is {}", leader);
         } else {

@@ -127,11 +127,11 @@ public class RaftServer extends AbstractLifeCircle {
         HashSet<Integer> allNodeIds = new HashSet<>();
         HashSet<HostPort> allNodeHosts = new HashSet<>();
         for (RaftNode rn : allRaftServers) {
-            if (!allNodeIds.add(rn.getNodeId())) {
-                throw new IllegalArgumentException("duplicate server id: " + rn.getNodeId());
+            if (!allNodeIds.add(rn.nodeId)) {
+                throw new IllegalArgumentException("duplicate server id: " + rn.nodeId);
             }
-            if (!allNodeHosts.add(rn.getHostPort())) {
-                throw new IllegalArgumentException("duplicate server host: " + rn.getHostPort());
+            if (!allNodeHosts.add(rn.hostPort)) {
+                throw new IllegalArgumentException("duplicate server host: " + rn.hostPort);
             }
         }
         if (!allNodeIds.contains(serverConfig.nodeId)) {

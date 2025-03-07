@@ -42,14 +42,14 @@ public class ChangeTo234Client implements GroupId {
 
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         QueryStatusResp status = adminClient.queryRaftServerStatus(
-                leader.getNodeId(), GROUP_ID, timeout).get();
+                leader.nodeId, GROUP_ID, timeout).get();
         if (status.members.contains(4)) {
             System.out.println("current member is [2,3,4], try run ChangeTo123Client.");
             System.exit(1);
         }
 
-        if (leader.getNodeId() == 1) {
-            CompletableFuture<Void> f = adminClient.transferLeader(GROUP_ID, leader.getNodeId(), 2, timeout);
+        if (leader.nodeId == 1) {
+            CompletableFuture<Void> f = adminClient.transferLeader(GROUP_ID, leader.nodeId, 2, timeout);
             f.get();
             System.out.println("transfer leader to node 2 success");
         }

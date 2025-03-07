@@ -74,7 +74,7 @@ public final class RaftGroupImpl extends RaftGroup {
     @Override
     public boolean isLeader() {
         RaftMember leader = raftStatus.getShareStatus().currentLeader;
-        return leader != null && leader.getNode().isSelf();
+        return leader != null && leader.getNode().self;
     }
 
     @Override

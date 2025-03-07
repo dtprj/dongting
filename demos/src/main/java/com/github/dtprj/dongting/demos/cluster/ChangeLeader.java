@@ -36,10 +36,10 @@ public class ChangeLeader implements GroupId {
         adminClient.clientAddOrUpdateGroup(GROUP_ID, new int[]{1, 2, 3});
         RaftNode leader = adminClient.fetchLeader(GROUP_ID).get();
 
-        System.out.println("current leader is node " + leader.getNodeId());
-        int newLeaderNodeId = leader.getNodeId() == 1 ? 2 : 1;
+        System.out.println("current leader is node " + leader.nodeId);
+        int newLeaderNodeId = leader.nodeId == 1 ? 2 : 1;
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        CompletableFuture<Void> f = adminClient.transferLeader(GROUP_ID, leader.getNodeId(), newLeaderNodeId, timeout);
+        CompletableFuture<Void> f = adminClient.transferLeader(GROUP_ID, leader.nodeId, newLeaderNodeId, timeout);
         f.get();
         System.out.println("transfer leader success");
     }

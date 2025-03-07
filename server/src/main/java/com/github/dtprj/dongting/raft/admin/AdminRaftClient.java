@@ -58,12 +58,12 @@ public class AdminRaftClient extends RaftClient {
                     "old and new leader id equals: " + oldLeader));
         }
         return updateLeaderInfo(groupId).thenCompose(leaderGroup -> {
-            if (leaderGroup.getLeader().getNodeId() != oldLeader) {
+            if (leaderGroup.getLeader().nodeId != oldLeader) {
                 throw new RaftException("old leader not match");
             }
             boolean foundNewLeader = false;
             for (RaftNode n : leaderGroup.getServers()) {
-                if (n.getNodeId() == newLeader) {
+                if (n.nodeId == newLeader) {
                     foundNewLeader = true;
                     break;
                 }
@@ -79,7 +79,7 @@ public class AdminRaftClient extends RaftClient {
             p.setCommand(Commands.RAFT_ADMIN_TRANSFER_LEADER);
             DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
             CompletableFuture<ReadPacket<Void>> f = new CompletableFuture<>();
-            nioClient.sendRequest(leaderGroup.getLeader().getPeer(), p, dc, timeout, RpcCallback.fromFuture(f));
+            nioClient.sendRequest(leaderGroup.getLeader().peer, p, dc, timeout, RpcCallback.fromFuture(f));
             return f.thenApply(rp -> null);
         });
     }
@@ -132,7 +132,7 @@ public class AdminRaftClient extends RaftClient {
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
         CompletableFuture<QueryStatusResp> f = new CompletableFuture<>();
         RpcCallback<QueryStatusResp> callback = RpcCallback.fromUnwrapFuture(f);
-        nioClient.sendRequest(n.getPeer(), req, QueryStatusResp.DECODER, timeout, callback);
+        nioClient.sendRequest(n.peer, req, QueryStatusResp.DECODER, timeout, callback);
         return f;
     }
 
@@ -142,7 +142,7 @@ public class AdminRaftClient extends RaftClient {
             return DtUtil.failedFuture(new RaftException("node not found: " + nodeId));
         }
         CompletableFuture<Void> f = new CompletableFuture<>();
-        nioClient.sendRequest(n.getPeer(), p, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
+        nioClient.sendRequest(n.peer, p, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
                 timeout, RpcCallback.fromUnwrapFuture(f));
         return f;
     }

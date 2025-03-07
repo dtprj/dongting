@@ -28,13 +28,13 @@ import java.util.function.Function;
  * @author huangli
  */
 public class RaftNode {
-    private final int nodeId;
-    private final HostPort hostPort;
-    private final Peer peer;
+    public final int nodeId;
+    public final HostPort hostPort;
+    public final Peer peer;
+
+    public int useCount;
 
     private String str;
-
-    protected int useCount;
 
     public RaftNode(int nodeId, HostPort hostPort) {
         this(nodeId, hostPort, null);
@@ -44,18 +44,6 @@ public class RaftNode {
         this.nodeId = nodeId;
         this.hostPort = hostPort;
         this.peer = peer;
-    }
-
-    public int getNodeId() {
-        return nodeId;
-    }
-
-    public HostPort getHostPort() {
-        return hostPort;
-    }
-
-    public Peer getPeer() {
-        return peer;
     }
 
     @Override
@@ -100,8 +88,8 @@ public class RaftNode {
         StringBuilder sb = new StringBuilder();
         for (T s : servers) {
             RaftNode n = mapper.apply(s);
-            HostPort hp = n.getHostPort();
-            sb.append(n.getNodeId()).append(",").append(hp.getHost()).append(":").append(hp.getPort()).append(";");
+            HostPort hp = n.hostPort;
+            sb.append(n.nodeId).append(",").append(hp.getHost()).append(":").append(hp.getPort()).append(";");
         }
         return sb.toString();
     }

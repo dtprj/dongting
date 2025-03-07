@@ -178,7 +178,7 @@ public class VoteManager {
 
         final int voteIdOfRequest = this.currentVoteId;
 
-        if (member.getNode().isSelf()) {
+        if (member.getNode().self) {
             VoteResp resp = new VoteResp();
             resp.voteGranted = true;
             resp.term = currentTerm;
@@ -187,10 +187,10 @@ public class VoteManager {
             try {
                 RpcCallback<VoteResp> c = (rf, ex) ->
                         fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest);
-                client.sendRequest(member.getNode().getPeer(), wf,ctx -> ctx.toDecoderCallback(new VoteResp.Callback()),
+                client.sendRequest(member.getNode().peer, wf,ctx -> ctx.toDecoderCallback(new VoteResp.Callback()),
                         timeout, c);
                 log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
-                        preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
+                        preVote ? "pre-vote" : "vote", member.getNode().nodeId, groupId,
                         currentTerm, req.lastLogIndex, req.lastLogTerm);
             } catch (Exception e) {
                 fireRespProcessFiber(req, null, e, member, voteIdOfRequest);
@@ -199,7 +199,7 @@ public class VoteManager {
     }
 
     private void fireRespProcessFiber(VoteReq req, VoteResp resp, Throwable ex, RaftMember member, int voteIdOfRequest) {
-        String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.getNode().getNodeId() + ")";
+        String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.getNode().nodeId + ")";
         RespProcessFiberFrame initFrame = new RespProcessFiberFrame(resp, ex, member, req, voteIdOfRequest);
         groupConfig.fiberGroup.fireFiber(fiberName, initFrame);
     }
@@ -347,7 +347,7 @@ public class VoteManager {
                 return Fiber.frameReturn();
             }
             String voteType = req.preVote ? "pre-vote" : "vote";
-            int remoteId = remoteMember.getNode().getNodeId();
+            int remoteId = remoteMember.getNode().nodeId;
             if (ex != null) {
                 log.warn("{} rpc fail. groupId={}, term={}, remote={}, error={}", voteType,
                         groupId, req.term, remoteId, ex.toString());
@@ -403,7 +403,7 @@ public class VoteManager {
         private boolean voteCheckFail(long oldVoteId) {
             if (oldVoteId != currentVoteId) {
                 log.info("vote id changed, ignore {} response. remoteNode={}, grant={}",
-                        req.preVote ? "preVote" : "vote", remoteMember.getNode().getNodeId(),
+                        req.preVote ? "preVote" : "vote", remoteMember.getNode().nodeId,
                         resp.voteGranted);
                 return true;
             }

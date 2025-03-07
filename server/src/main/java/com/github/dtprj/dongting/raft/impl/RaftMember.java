@@ -42,7 +42,7 @@ public class RaftMember {
 
     public RaftMember(RaftNodeEx node, FiberGroup fg) {
         this.node = node;
-        this.repDoneCondition = fg.newCondition("repDone-" + node.getNodeId());
+        this.repDoneCondition = fg.newCondition("repDone-" + node.nodeId);
     }
 
     public void incrementReplicateEpoch(int oldEpoch) {

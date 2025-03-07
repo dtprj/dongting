@@ -154,7 +154,7 @@ public class CommitManager {
         int count = 0;
         for (int i = 0; i < servers.size(); i++) {
             RaftMember member = servers.get(i);
-            if (member.getNode().isSelf()) {
+            if (member.getNode().self) {
                 if (recentMatchIndex > member.getMatchIndex()) {
                     return false;
                 }

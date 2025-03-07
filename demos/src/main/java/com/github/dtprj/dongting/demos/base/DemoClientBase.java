@@ -40,7 +40,7 @@ public abstract class DemoClientBase {
         kvClient.start();
         List<RaftNode> nodes = RaftNode.parseServers(servers);
         kvClient.getRaftClient().clientAddNode(servers);
-        int[] nodeIds = nodes.stream().mapToInt(RaftNode::getNodeId).toArray();
+        int[] nodeIds = nodes.stream().mapToInt(n -> n.nodeId).toArray();
         kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, nodeIds);
         kvClient.getRaftClient().fetchLeader(groupId).get();
 
