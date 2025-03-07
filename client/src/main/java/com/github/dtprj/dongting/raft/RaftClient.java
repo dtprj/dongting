@@ -202,7 +202,6 @@ public class RaftClient extends AbstractLifeCircle {
         return nextEpoch++;
     }
 
-    @SuppressWarnings("unused")
     public void clientRemoveGroup(int groupId) throws NetException {
         lock.lock();
         try {

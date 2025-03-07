@@ -55,8 +55,6 @@ import static com.github.dtprj.dongting.util.Tick.tick;
  */
 public class ServerTestBase {
 
-    protected final String DATA_DIR = TestDir.testDir("raftlog");
-
     protected int servicePortBase = 0;
     protected boolean startAfterCreate = true;
     protected int initTerm = 0;
@@ -86,13 +84,15 @@ public class ServerTestBase {
         serverConfig.setHeartbeatInterval(tick(7));
         serverConfig.setRpcTimeout(tick(100));
 
-        RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
-        groupConfig.dataDir = DATA_DIR + "-" + nodeId;
-        groupConfig.saveSnapshotWhenClose = false;
+        RaftGroupConfig groupConfig = config(nodeId, groupId, nodeIdOfMembers, nodeIdOfObservers);
 
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
 
-        RaftServer raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig), raftFactory);
+        RaftServer raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig),
+                raftFactory, g -> {
+            ImplAccessor.updateMemberManager(g.getGroupComponents().memberManager);
+            ImplAccessor.updateVoteManager(g.getGroupComponents().voteManager);
+        });
         if (servicePortBase > 0) {
             KvServerUtil.initKvServer(raftServer);
         }
@@ -100,8 +100,6 @@ public class ServerTestBase {
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         GroupComponents gc = g.getGroupComponents();
         ImplAccessor.updateNodeManager(gc.nodeManager);
-        ImplAccessor.updateMemberManager(gc.memberManager);
-        ImplAccessor.updateVoteManager(gc.voteManager);
 
         if (initTerm > 0 || initVoteFor > 0 || initCommitIndex > 0 || initSnapshot) {
             File dir = new File(groupConfig.dataDir);
@@ -133,6 +131,13 @@ public class ServerTestBase {
         return serverInfo;
     }
 
+    private static RaftGroupConfig config(int nodeId, int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
+        RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
+        groupConfig.dataDir = TestDir.testDir("raftlog") + "-" + nodeId;
+        groupConfig.saveSnapshotWhenClose = false;
+        return groupConfig;
+    }
+
     private DefaultRaftFactory createRaftFactory(int nodeId) {
         return new DefaultRaftFactory() {
             @Override
@@ -143,8 +148,8 @@ public class ServerTestBase {
             @Override
             public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
-                return new Dispatcher("node-" + nodeId + "-dispatcher", new DefaultPoolFactory(),
-                        groupConfig.perfCallback);
+                return new Dispatcher("node-" + nodeId + "-" + groupConfig.groupId +
+                        "-dispatcher", new DefaultPoolFactory(), groupConfig.perfCallback);
             }
 
             @Override
@@ -160,6 +165,11 @@ public class ServerTestBase {
                 StoreAccessor.updateRaftLog(raftLog, 1024, 512 * 1024);
                 return raftLog;
             }
+
+            @Override
+            public RaftGroupConfig createConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
+                return config(nodeId, groupId, nodeIdOfMembers, nodeIdOfObservers);
+            }
         };
     }
 
@@ -171,12 +181,12 @@ public class ServerTestBase {
         si.raftServer.stop(new DtTime(5, TimeUnit.SECONDS));
     }
 
-    protected ServerInfo waitLeaderElectAndGetLeaderId(ServerInfo... servers) {
+    protected ServerInfo waitLeaderElectAndGetLeaderId(int groupId, ServerInfo... servers) {
         AtomicReference<ServerInfo> si = new AtomicReference<>();
         TestUtil.waitUtil(() -> {
             int leader = 0;
             for (ServerInfo server : servers) {
-                if (server.raftServer.getRaftGroup(1).isLeader()) {
+                if (server.raftServer.getRaftGroup(groupId).isLeader()) {
                     leader++;
                     si.set(server);
                 }
@@ -190,7 +200,7 @@ public class ServerTestBase {
     }
 
     protected long put(ServerInfo leader, String key, String value) {
-        KvReq req = new KvReq(1, key.getBytes(), value.getBytes());
+        KvReq req = new KvReq(groupId, key.getBytes(), value.getBytes());
         RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, null,
                 req, new DtTime(3, TimeUnit.SECONDS), false);
         CompletableFuture<Long> f = new CompletableFuture<>();

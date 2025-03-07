@@ -43,7 +43,7 @@ public class VoteTest extends ServerTestBase {
             waitStart(si);
         }
 
-        ServerInfo leader = waitLeaderElectAndGetLeaderId(sis);
+        ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
         assertTrue(leader.nodeId != 4);
 
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
@@ -56,7 +56,7 @@ public class VoteTest extends ServerTestBase {
             }
         }
 
-        ServerInfo newLeader = waitLeaderElectAndGetLeaderId(restServers.toArray(new ServerInfo[0]));
+        ServerInfo newLeader = waitLeaderElectAndGetLeaderId(groupId, restServers.toArray(new ServerInfo[0]));
         assertTrue(newLeader.nodeId != leader.nodeId);
 
         for (ServerInfo si : restServers) {

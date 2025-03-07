@@ -43,7 +43,7 @@ public class TransferLeaderTest extends ServerTestBase {
             waitStart(si);
         }
 
-        ServerInfo leader = waitLeaderElectAndGetLeaderId(sis);
+        ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
 
         ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
 

@@ -75,6 +75,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -103,12 +104,20 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final Set<RaftSequenceProcessor<?>> raftSequenceProcessors = new HashSet<>();
 
+    final Consumer<RaftGroupImpl> groupCustomizer;
+
     public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
+        this(serverConfig, groupConfig, raftFactory, null);
+    }
+
+    RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory,
+                      Consumer<RaftGroupImpl> groupCustomizer) {
         Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
         Objects.requireNonNull(raftFactory);
         this.serverConfig = serverConfig;
         this.raftFactory = raftFactory;
+        this.groupCustomizer = groupCustomizer;
 
         Objects.requireNonNull(serverConfig.getServers());
         DtUtil.checkPositive(serverConfig.getNodeId(), "id");
@@ -301,7 +310,11 @@ public class RaftServer extends AbstractLifeCircle {
             gc.processorChannels.put(processor.getTypeId(), channel);
         }
 
-        return new RaftGroupImpl(gc);
+        RaftGroupImpl g = new RaftGroupImpl(gc);
+        if (groupCustomizer != null) {
+            groupCustomizer.accept(g);
+        }
+        return g;
     }
 
     private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,

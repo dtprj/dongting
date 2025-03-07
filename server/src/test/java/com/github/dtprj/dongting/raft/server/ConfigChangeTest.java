@@ -40,11 +40,11 @@ public class ConfigChangeTest extends ServerTestBase {
         waitStart(s2);
         waitStart(s3);
 
-        waitLeaderElectAndGetLeaderId(s2, s3);
+        waitLeaderElectAndGetLeaderId(groupId, s2, s3);
 
         AdminRaftClient c = new AdminRaftClient();
         c.start();
-        c.clientAddNode("2,127.0.0.1:4002;3,127.0.0.1:4003");
+        c.clientAddNode(servers);
         c.clientAddOrUpdateGroup(groupId, new int[]{2, 3});
         c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
 
@@ -76,6 +76,11 @@ public class ConfigChangeTest extends ServerTestBase {
 
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
+
+        f1 = c.serverRemoveNode(2, 4, timeout);
+        f2 = c.serverRemoveNode(3, 4, timeout);
+        f1.get(5, TimeUnit.SECONDS);
+        f2.get(5, TimeUnit.SECONDS);
 
         waitStop(s2);
         waitStop(s3);

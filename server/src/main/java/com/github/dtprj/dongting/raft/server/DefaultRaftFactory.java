@@ -114,6 +114,6 @@ public abstract class DefaultRaftFactory implements RaftFactory {
 
     @Override
     public RaftGroupConfig createConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
-        return RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
+        throw new UnsupportedOperationException();
     }
 }
