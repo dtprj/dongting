@@ -385,7 +385,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.groupId = groupId;
         req.term = raftStatus.currentTerm;
-        req.leaderId = serverConfig.getNodeId();
+        req.leaderId = serverConfig.nodeId;
         req.leaderCommit = raftStatus.commitIndex;
 
         if (!items.isEmpty()) {
@@ -400,7 +400,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
 
 
-        DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
@@ -712,7 +712,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         InstallSnapshotReq req = new InstallSnapshotReq();
         req.groupId = groupId;
         req.term = raftStatus.currentTerm;
-        req.leaderId = serverConfig.getNodeId();
+        req.leaderId = serverConfig.nodeId;
         req.lastIncludedIndex = si.getLastIncludedIndex();
         req.lastIncludedTerm = si.getLastIncludedTerm();
         req.offset = snapshotOffset;
@@ -735,7 +735,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         FiberGroup fg = groupConfig.fiberGroup;
         FiberFuture<Void> f = fg.newFuture("install-" + groupId + "-" + req.offset);
-        DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        DtTime timeout = new DtTime(serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
         RpcCallback<AppendResp> callback = (resp, ex) ->
                 fg.getExecutor().execute(() -> afterInstallRpc(resp, ex, req, f));
         client.sendRequest(member.getNode().getPeer(), wf, APPEND_RESP_DECODER_CALLBACK_CREATOR,

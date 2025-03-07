@@ -63,7 +63,7 @@ public class NodeManagerTest {
         }
         NioClient client = new NioClient(new NioClientConfig());
         RaftServerConfig raftServerConfig = new RaftServerConfig();
-        raftServerConfig.setNodeId(nodeId);
+        raftServerConfig.nodeId = nodeId;
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.port = 15200 + nodeId;
         NioServer server = new NioServer(nioServerConfig);

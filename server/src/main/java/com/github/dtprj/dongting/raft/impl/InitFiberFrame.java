@@ -86,7 +86,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     public static void initRaftStatus(RaftStatusImpl raftStatus, FiberGroup fg, RaftServerConfig serverConfig) {
-        raftStatus.setElectTimeoutNanos(Duration.ofMillis(serverConfig.getElectTimeout()).toNanos());
+        raftStatus.setElectTimeoutNanos(Duration.ofMillis(serverConfig.electTimeout).toNanos());
         raftStatus.fiberGroup = fg;
         int groupId = raftStatus.groupId;
         raftStatus.needRepCondition = fg.newCondition("needRep" + groupId);

@@ -134,7 +134,7 @@ public class VoteManager {
     }
 
     private void tryStartPreVote() {
-        if (!MemberManager.validCandidate(raftStatus, config.getNodeId())) {
+        if (!MemberManager.validCandidate(raftStatus, config.nodeId)) {
             log.info("not valid candidate, can't start pre vote. groupId={}, term={}",
                     groupId, raftStatus.currentTerm);
             return;
@@ -168,13 +168,13 @@ public class VoteManager {
         int currentTerm = raftStatus.currentTerm;
         req.groupId = groupId;
         req.term = currentTerm;
-        req.candidateId = config.getNodeId();
+        req.candidateId = config.nodeId;
         req.lastLogIndex = raftStatus.lastLogIndex;
         req.lastLogTerm = raftStatus.lastLogTerm;
         req.preVote = preVote;
         SimpleWritePacket wf = new SimpleWritePacket(req);
         wf.setCommand(Commands.RAFT_REQUEST_VOTE);
-        DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        DtTime timeout = new DtTime(config.rpcTimeout, TimeUnit.MILLISECONDS);
 
         final int voteIdOfRequest = this.currentVoteId;
 
@@ -377,7 +377,7 @@ public class VoteManager {
                         r, voteType, resp.term, req.term, remoteId, groupId);
                 return Fiber.frameReturn();
             }
-            if (remoteId != config.getNodeId()) {
+            if (remoteId != config.nodeId) {
                 log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
                         resp.voteGranted, resp.term, req.term, remoteId, groupId);
             }
@@ -407,7 +407,7 @@ public class VoteManager {
                         resp.voteGranted);
                 return true;
             }
-            if (MemberManager.validCandidate(raftStatus, config.getNodeId())) {
+            if (MemberManager.validCandidate(raftStatus, config.nodeId)) {
                 return false;
             } else {
                 log.error("not valid candidate, cancel vote. groupId={}, term={}",
@@ -440,7 +440,7 @@ public class VoteManager {
             }
 
             raftStatus.currentTerm = raftStatus.currentTerm + 1;
-            raftStatus.votedFor = config.getNodeId();
+            raftStatus.votedFor = config.nodeId;
             raftStatus.copyShareStatus();
             log.info("set currentTerm to {}, groupId={}", raftStatus.currentTerm, groupId);
 

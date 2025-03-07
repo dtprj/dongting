@@ -60,7 +60,7 @@ public abstract class DefaultRaftFactory implements RaftFactory {
             if (sharedIoExecutor == null) {
                 executorUseCount = 1;
                 AtomicInteger count = new AtomicInteger();
-                sharedIoExecutor = Executors.newFixedThreadPool(serverConfig.getBlockIoThreads(),
+                sharedIoExecutor = Executors.newFixedThreadPool(serverConfig.blockIoThreads,
                         r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
             } else {
                 executorUseCount++;

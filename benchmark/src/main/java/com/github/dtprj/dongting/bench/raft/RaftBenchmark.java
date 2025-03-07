@@ -82,10 +82,10 @@ public class RaftBenchmark extends BenchBase {
 
     private void createServer(int nodeId, int replicatePort, int servicePort, String servers, String nodeIdOfMembers) {
         RaftServerConfig serverConfig = new RaftServerConfig();
-        serverConfig.setServers(servers);
-        serverConfig.setNodeId(nodeId);
-        serverConfig.setReplicatePort(replicatePort);
-        serverConfig.setServicePort(servicePort);
+        serverConfig.servers = servers;
+        serverConfig.nodeId = nodeId;
+        serverConfig.replicatePort = replicatePort;
+        serverConfig.servicePort = servicePort;
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(GROUP_ID, nodeIdOfMembers, "");
         groupConfig.dataDir = DATA_DIR + "-" + nodeId;

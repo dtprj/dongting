@@ -119,11 +119,11 @@ public class RaftServer extends AbstractLifeCircle {
         this.raftFactory = raftFactory;
         this.groupCustomizer = groupCustomizer;
 
-        Objects.requireNonNull(serverConfig.getServers());
-        DtUtil.checkPositive(serverConfig.getNodeId(), "id");
-        DtUtil.checkPositive(serverConfig.getReplicatePort(), "replicatePort");
+        Objects.requireNonNull(serverConfig.servers);
+        DtUtil.checkPositive(serverConfig.nodeId, "id");
+        DtUtil.checkPositive(serverConfig.replicatePort, "replicatePort");
 
-        List<RaftNode> allRaftServers = RaftNode.parseServers(serverConfig.getServers());
+        List<RaftNode> allRaftServers = RaftNode.parseServers(serverConfig.servers);
         HashSet<Integer> allNodeIds = new HashSet<>();
         HashSet<HostPort> allNodeHosts = new HashSet<>();
         for (RaftNode rn : allRaftServers) {
@@ -134,12 +134,12 @@ public class RaftServer extends AbstractLifeCircle {
                 throw new IllegalArgumentException("duplicate server host: " + rn.getHostPort());
             }
         }
-        if (!allNodeIds.contains(serverConfig.getNodeId())) {
-            throw new IllegalArgumentException("self id not found in servers list: " + serverConfig.getNodeId());
+        if (!allNodeIds.contains(serverConfig.nodeId)) {
+            throw new IllegalArgumentException("self id not found in servers list: " + serverConfig.nodeId);
         }
 
         NioClientConfig repClientConfig = new NioClientConfig();
-        repClientConfig.name = "RaftRepClient" + serverConfig.getNodeId();
+        repClientConfig.name = "RaftRepClient" + serverConfig.nodeId;
         repClientConfig.connectRetryIntervals = null; //use node ping
         setupNioConfig(repClientConfig);
         customReplicateNioClient(repClientConfig);
@@ -149,15 +149,15 @@ public class RaftServer extends AbstractLifeCircle {
                 RaftUtil.getElectQuorum(allRaftServers.size()));
 
         NioServerConfig repServerConfig = new NioServerConfig();
-        repServerConfig.port = serverConfig.getReplicatePort();
-        repServerConfig.name = "RaftRepServer" + serverConfig.getNodeId();
+        repServerConfig.port = serverConfig.replicatePort;
+        repServerConfig.name = "RaftRepServer" + serverConfig.nodeId;
         repServerConfig.bizThreads = 0;
         // use multi io threads
         setupNioConfig(repServerConfig);
         customReplicateNioServer(repServerConfig);
         replicateNioServer = new NioServer(repServerConfig);
 
-        replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager));
+        replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.nodeId, nodeManager));
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_PING, new RaftPingProcessor(this));
         AppendProcessor appendProcessor = new AppendProcessor(this);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_APPEND_ENTRIES, appendProcessor);
@@ -177,10 +177,10 @@ public class RaftServer extends AbstractLifeCircle {
         replicateNioServer.register(Commands.RAFT_ADMIN_ADD_NODE, adminGroupAndNodeProcessor);
         replicateNioServer.register(Commands.RAFT_ADMIN_REMOVE_NODE, adminGroupAndNodeProcessor);
 
-        if (serverConfig.getServicePort() > 0) {
+        if (serverConfig.servicePort > 0) {
             NioServerConfig serviceServerConfig = new NioServerConfig();
-            serviceServerConfig.port = serverConfig.getServicePort();
-            serviceServerConfig.name = "RaftServiceServer" + serverConfig.getNodeId();
+            serviceServerConfig.port = serverConfig.servicePort;
+            serviceServerConfig.name = "RaftServiceServer" + serverConfig.nodeId;
             serviceServerConfig.bizThreads = 0;
             // use multi io threads
             serviceServerConfig.decodeContextFactory = DecodeContextEx::new;
@@ -253,10 +253,10 @@ public class RaftServer extends AbstractLifeCircle {
             nodeIdOfObservers = Collections.emptySet();
         }
 
-        boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
-        boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
+        boolean isMember = nodeIdOfMembers.contains(serverConfig.nodeId);
+        boolean isObserver = nodeIdOfObservers.contains(serverConfig.nodeId);
         if (!isMember && !isObserver) {
-            log.warn("node {} is not member or observer of group {}", serverConfig.getNodeId(), rgc.groupId);
+            log.warn("node {} is not member or observer of group {}", serverConfig.nodeId, rgc.groupId);
         }
 
         Dispatcher dispatcher = raftFactory.createDispatcher(serverConfig, rgc);

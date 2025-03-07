@@ -124,7 +124,7 @@ public class MemberManager {
         raftStatus.preparedObservers = emptyList();
         if (raftStatus.self == null) {
             // the current node is not in members and observers
-            RaftNodeEx node = nodeManager.allNodesEx.get(serverConfig.getNodeId());
+            RaftNodeEx node = nodeManager.allNodesEx.get(serverConfig.nodeId);
             createMember(node, RaftRole.none);
             // for RaftRole.none, don't ping member when init
             pingReadyFuture.complete(null);
@@ -217,9 +217,9 @@ public class MemberManager {
 
         member.setPinging(true);
         try {
-            DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            DtTime timeout = new DtTime(serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
 
-            SimpleWritePacket f = RaftUtil.buildRaftPingPacket(serverConfig.getNodeId(), raftStatus);
+            SimpleWritePacket f = RaftUtil.buildRaftPingPacket(serverConfig.nodeId, raftStatus);
             f.setCommand(Commands.RAFT_PING);
 
             Executor executor = groupConfig.fiberGroup.getExecutor();
@@ -753,7 +753,7 @@ public class MemberManager {
             raftStatus.preparedObservers = newPreparedObservers;
             computeDuplicatedData(raftStatus);
 
-            int selfNodeId = serverConfig.getNodeId();
+            int selfNodeId = serverConfig.nodeId;
             int newLeaderId = -1;
             if (raftStatus.getCurrentLeader() != null) {
                 newLeaderId = raftStatus.getCurrentLeader().getNode().getNodeId();
@@ -982,7 +982,7 @@ public class MemberManager {
             TransferLeaderReq req = new TransferLeaderReq();
             req.term = raftStatus.currentTerm;
             req.logIndex = raftStatus.lastLogIndex;
-            req.oldLeaderId = serverConfig.getNodeId();
+            req.oldLeaderId = serverConfig.nodeId;
             req.newLeaderId = newLeader.getNodeId();
             req.groupId = groupId;
             SimpleWritePacket frame = new SimpleWritePacket(req);

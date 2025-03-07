@@ -56,9 +56,9 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             log.error("not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());
             throw new RaftException("not follower");
         }
-        if(req.newLeaderId != gc.serverConfig.getNodeId()) {
+        if(req.newLeaderId != gc.serverConfig.nodeId) {
             log.error("new leader id mismatch, groupId={}, newLeaderId={}, localId={}",
-                    req.groupId, req.newLeaderId, gc.serverConfig.getNodeId());
+                    req.groupId, req.newLeaderId, gc.serverConfig.nodeId);
             throw new RaftException("new leader id mismatch");
         }
         if (!gc.memberManager.isValidCandidate(req.oldLeaderId) || !gc.memberManager.isValidCandidate(req.newLeaderId)) {

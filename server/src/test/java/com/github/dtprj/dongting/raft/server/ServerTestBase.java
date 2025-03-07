@@ -72,15 +72,15 @@ public class ServerTestBase {
                                       String nodeIdOfObservers) throws Exception {
         int replicatePort = 4000 + nodeId;
         RaftServerConfig serverConfig = new RaftServerConfig();
-        serverConfig.setServers(servers);
-        serverConfig.setNodeId(nodeId);
-        serverConfig.setReplicatePort(replicatePort);
+        serverConfig.servers = servers;
+        serverConfig.nodeId = nodeId;
+        serverConfig.replicatePort = replicatePort;
         if (servicePortBase > 0) {
-            serverConfig.setServicePort(servicePortBase + nodeId);
+            serverConfig.servicePort = servicePortBase + nodeId;
         }
-        serverConfig.setElectTimeout(tick(25));
-        serverConfig.setHeartbeatInterval(tick(7));
-        serverConfig.setRpcTimeout(tick(100));
+        serverConfig.electTimeout = tick(25);
+        serverConfig.heartbeatInterval = tick(7);
+        serverConfig.rpcTimeout = tick(100);
 
         RaftGroupConfig groupConfig = config(nodeId, groupId, nodeIdOfMembers, nodeIdOfObservers);
 

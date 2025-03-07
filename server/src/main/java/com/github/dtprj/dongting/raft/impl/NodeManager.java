@@ -71,7 +71,7 @@ public class NodeManager extends AbstractLifeCircle {
     int pingIntervalMillis = 2000;
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client, int startReadyQuorum) {
-        this.selfNodeId = config.getNodeId();
+        this.selfNodeId = config.nodeId;
         this.client = client;
         this.config = config;
         this.startReadyQuorum = startReadyQuorum;
@@ -109,7 +109,7 @@ public class NodeManager extends AbstractLifeCircle {
         for (CompletableFuture<RaftNodeEx> f : futures) {
             RaftNodeEx nodeEx = f.join();
             allNodesEx.put(nodeEx.getNodeId(), nodeEx);
-            if (nodeEx.isSelf() && config.isCheckSelf()) {
+            if (nodeEx.isSelf() && config.checkSelf) {
                 doCheckSelf(nodeEx);
             }
         }
@@ -130,7 +130,7 @@ public class NodeManager extends AbstractLifeCircle {
     private void doCheckSelf(RaftNodeEx nodeEx) {
         try {
             CompletableFuture<Void> f = nodePing(nodeEx);
-            f.get(config.getConnectTimeout() + config.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            f.get(config.connectTimeout + config.rpcTimeout, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             throw new RaftException(e);
         } finally {
@@ -158,7 +158,7 @@ public class NodeManager extends AbstractLifeCircle {
     private CompletableFuture<Void> nodePing(RaftNodeEx nodeEx) {
         nodeEx.setPinging(true);
 
-        DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        DtTime timeout = new DtTime(config.rpcTimeout, TimeUnit.MILLISECONDS);
         SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, nodeEx.getNodeId(), uuid));
         packet.setCommand(Commands.NODE_PING);
         CompletableFuture<ReadPacket<NodePing>> f = new CompletableFuture<>();

@@ -92,7 +92,7 @@ public class LinearTaskRunner {
         @Override
         public FrameCallResult execute(Void input) {
             list.clear();
-            return taskChannel.takeAll(list, serverConfig.getHeartbeatInterval(),
+            return taskChannel.takeAll(list, serverConfig.heartbeatInterval,
                     true, this::afterTakeAll);
         }
 

@@ -51,9 +51,9 @@ public class AdminTransferLeaderProcessor extends RaftProcessor<TransferLeaderRe
     protected WritePacket doProcess(ReqInfo<TransferLeaderReq> reqInfo) {
         ReadPacket<TransferLeaderReq> frame = reqInfo.reqFrame;
         TransferLeaderReq req = frame.getBody();
-        if (req.oldLeaderId != raftServer.getServerConfig().getNodeId()) {
+        if (req.oldLeaderId != raftServer.getServerConfig().nodeId) {
             log.error("old leader id mismatch, groupId={}, oldLeaderId={}, localId={}",
-                    req.groupId, req.oldLeaderId, raftServer.getServerConfig().getNodeId());
+                    req.groupId, req.oldLeaderId, raftServer.getServerConfig().nodeId);
             throw new RaftException("new leader id mismatch");
         }
         CompletableFuture<Void> f = reqInfo.raftGroup.transferLeadership(req.newLeaderId,

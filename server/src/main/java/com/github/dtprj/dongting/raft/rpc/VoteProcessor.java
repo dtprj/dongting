@@ -79,7 +79,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
             }
-            if (!MemberManager.validCandidate(raftStatus, raftServer.getServerConfig().getNodeId())) {
+            if (!MemberManager.validCandidate(raftStatus, raftServer.getServerConfig().nodeId)) {
                 log.warn("current node is not members and can't process vote. remoteId={}, group={}, remote={}",
                         voteReq.candidateId, voteReq.groupId,
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());

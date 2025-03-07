@@ -36,14 +36,14 @@ public abstract class DemoKvServerBase {
     public static RaftServer startServer(int nodeId, String servers, String members,
                                             String observers, int[] groupIds) {
         RaftServerConfig serverConfig = new RaftServerConfig();
-        serverConfig.setServers(servers);
-        serverConfig.setNodeId(nodeId);
+        serverConfig.servers = servers;
+        serverConfig.nodeId = nodeId;
         // internal use for raft log replication (server to server), and admin commands
-        serverConfig.setReplicatePort(4000 + nodeId);
-        serverConfig.setServicePort(5000 + nodeId); // use for client access
+        serverConfig.replicatePort = 4000 + nodeId;
+        serverConfig.servicePort = 5000 + nodeId; // use for client access
         // since it is demo, use little timeout values to make election faster
-        serverConfig.setElectTimeout(3000);
-        serverConfig.setHeartbeatInterval(1000);
+        serverConfig.electTimeout = 3000;
+        serverConfig.heartbeatInterval = 1000;
 
         // multi raft group support
         List<RaftGroupConfig> groupConfigs = new ArrayList<>();
