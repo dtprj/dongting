@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import org.junit.jupiter.api.Test;
 
@@ -23,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -74,6 +76,12 @@ public class ConfigChangeTest extends ServerTestBase {
         waitStart(s4);
 
         c.clientAddNode("4,127.0.0.1:4004");
+        CompletableFuture<QueryStatusResp> sf1 = c.queryRaftServerStatus(2, groupId, timeout);
+        CompletableFuture<QueryStatusResp> sf2 = c.queryRaftServerStatus(3, groupId, timeout);
+        CompletableFuture<QueryStatusResp> sf3 = c.queryRaftServerStatus(4, groupId, timeout);
+        assertEquals(3, sf1.get(5, TimeUnit.SECONDS).members.size());
+        assertEquals(3, sf2.get(5, TimeUnit.SECONDS).members.size());
+        assertEquals(3, sf3.get(5, TimeUnit.SECONDS).members.size());
 
         // mark sure the new node has catch up
         long finalPrepareIndex = prepareIndex;
@@ -84,6 +92,13 @@ public class ConfigChangeTest extends ServerTestBase {
         prepareIndex = f.get(5, TimeUnit.SECONDS);
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
+
+        sf1 = c.queryRaftServerStatus(2, groupId, timeout);
+        sf2 = c.queryRaftServerStatus(3, groupId, timeout);
+        sf3 = c.queryRaftServerStatus(4, groupId, timeout);
+        assertEquals(2, sf1.get(5, TimeUnit.SECONDS).members.size());
+        assertEquals(2, sf2.get(5, TimeUnit.SECONDS).members.size());
+        assertEquals(2, sf3.get(5, TimeUnit.SECONDS).members.size());
 
         // remove the new node from server and client side
         f1 = c.serverRemoveNode(2, 4, timeout);
