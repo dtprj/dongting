@@ -42,11 +42,11 @@ public class RaftUtilTest {
         RaftMember m3 = new RaftMember(n3, FiberTestUtil.FIBER_GROUP);
         RaftMember m4 = new RaftMember(n4, FiberTestUtil.FIBER_GROUP);
         RaftMember m5 = new RaftMember(n5, FiberTestUtil.FIBER_GROUP);
-        m1.setLastConfirmReqNanos(-100);
-        m2.setLastConfirmReqNanos(-200);
-        m3.setLastConfirmReqNanos(200);
-        m4.setLastConfirmReqNanos(300);
-        m5.setLastConfirmReqNanos(100);
+        m1.lastConfirmReqNanos = -100;
+        m2.lastConfirmReqNanos = -200;
+        m3.lastConfirmReqNanos = 200;
+        m4.lastConfirmReqNanos = 300;
+        m5.lastConfirmReqNanos = 100;
 
         rs.preparedMembers = Collections.emptyList();
 

@@ -22,100 +22,27 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
  * @author huangli
  */
 public class RaftMember {
-    private final RaftNodeEx node;
-    private final FiberCondition repDoneCondition;
-    private boolean ready;
-    private boolean pinging;
+    public final RaftNodeEx node;
+    public final FiberCondition repDoneCondition;
+    public boolean ready;
+    public boolean pinging;
 
-    private long lastConfirmReqNanos;
+    public long lastConfirmReqNanos;
 
     // in raft paper: volatile state on leaders
-    private long nextIndex;
-    private long matchIndex;
+    public long nextIndex;
+    public long matchIndex;
 
     public long repCommitIndex;
     public long repCommitIndexAcked;
 
-    private int replicateEpoch;
-    private int nodeEpoch;
-    private boolean installSnapshot;
+    public int replicateEpoch;
+    public int nodeEpoch;
+    public boolean installSnapshot;
 
     public RaftMember(RaftNodeEx node, FiberGroup fg) {
         this.node = node;
         this.repDoneCondition = fg.newCondition("repDone-" + node.nodeId);
     }
 
-    public void incrementReplicateEpoch(int oldEpoch) {
-        if (replicateEpoch == oldEpoch) {
-            replicateEpoch++;
-        }
-    }
-
-    public void setLastConfirmReqNanos(long lastConfirmReqNanos) {
-        this.lastConfirmReqNanos = lastConfirmReqNanos;
-    }
-
-    public RaftNodeEx getNode() {
-        return node;
-    }
-
-    public boolean isReady() {
-        return ready;
-    }
-
-    public void setReady(boolean ready) {
-        this.ready = ready;
-    }
-
-    public long getNextIndex() {
-        return nextIndex;
-    }
-
-    public void setNextIndex(long nextIndex) {
-        this.nextIndex = nextIndex;
-    }
-
-    public long getMatchIndex() {
-        return matchIndex;
-    }
-
-    public void setMatchIndex(long matchIndex) {
-        this.matchIndex = matchIndex;
-    }
-
-    public boolean isPinging() {
-        return pinging;
-    }
-
-    public void setPinging(boolean pinging) {
-        this.pinging = pinging;
-    }
-
-    public long getLastConfirmReqNanos() {
-        return lastConfirmReqNanos;
-    }
-
-    public int getReplicateEpoch() {
-        return replicateEpoch;
-    }
-
-    public FiberCondition getRepDoneCondition() {
-        return repDoneCondition;
-    }
-
-    public boolean isInstallSnapshot() {
-        return installSnapshot;
-    }
-
-    public void setInstallSnapshot(boolean installSnapshot) {
-        this.installSnapshot = installSnapshot;
-    }
-
-    public int getNodeEpoch() {
-        return nodeEpoch;
-    }
-
-    public void setNodeEpoch(int nodeEpoch) {
-        this.nodeEpoch = nodeEpoch;
-    }
 }

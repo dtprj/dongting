@@ -144,18 +144,18 @@ public final class RaftUtil {
         clearTransferLeaderCondition(raftStatus);
 
         for (RaftMember member : raftStatus.replicateList) {
-            member.setMatchIndex(0);
-            member.setNextIndex(0);
+            member.matchIndex = 0;
+            member.nextIndex = 0;
             member.repCommitIndex = 0;
             member.repCommitIndexAcked = 0;
             if (cleanLastConfirmReqNanos) {
-                member.setLastConfirmReqNanos(raftStatus.ts.getNanoTime() - Duration.ofDays(1).toNanos());
+                member.lastConfirmReqNanos = raftStatus.ts.getNanoTime() - Duration.ofDays(1).toNanos();
             }
 
-            member.setInstallSnapshot(false);
-            member.incrementReplicateEpoch(member.getReplicateEpoch());
+            member.installSnapshot = false;
+            member.replicateEpoch++;
             // wake up replicate fiber if it is waiting on this condition
-            member.getRepDoneCondition().signalAll();
+            member.repDoneCondition.signalAll();
         }
     }
 
@@ -168,19 +168,19 @@ public final class RaftUtil {
 
     public static void updateLeader(RaftStatusImpl raftStatus, int leaderId) {
         RaftMember leader = raftStatus.getCurrentLeader();
-        if (leader != null && leader.getNode().nodeId == leaderId) {
+        if (leader != null && leader.node.nodeId == leaderId) {
             return;
         }
         boolean found = false;
         for (RaftMember node : raftStatus.members) {
-            if (node.getNode().nodeId == leaderId) {
+            if (node.node.nodeId == leaderId) {
                 raftStatus.setCurrentLeader(node);
                 found = true;
             }
         }
         if (!found) {
             for (RaftMember node : raftStatus.preparedMembers) {
-                if (node.getNode().nodeId == leaderId) {
+                if (node.node.nodeId == leaderId) {
                     raftStatus.setCurrentLeader(node);
                     found = true;
                 }
@@ -213,7 +213,7 @@ public final class RaftUtil {
     private static long computeLease(RaftStatusImpl raftStatus, int quorum, List<RaftMember> list) {
         int len = list.size();
         if (len == 1) {
-            return list.get(0).getLastConfirmReqNanos();
+            return list.get(0).lastConfirmReqNanos;
         }
         long[] arr = raftStatus.leaseComputeArray;
         if (arr.length != len) {
@@ -222,7 +222,7 @@ public final class RaftUtil {
         }
         for (int i = 0; i < len; i++) {
             RaftMember m = list.get(i);
-            arr[i] = m.getLastConfirmReqNanos();
+            arr[i] = m.lastConfirmReqNanos;
         }
         for (int i = 0; i < quorum; i++) {
             // sort desc
@@ -279,7 +279,7 @@ public final class RaftUtil {
         raftStatus.groupReadyIndex = raftStatus.lastLogIndex + 1;
         log.info("set groupReadyIndex to {}, groupId={}", raftStatus.groupReadyIndex, raftStatus.groupId);
         for (RaftMember node : raftStatus.replicateList) {
-            node.setNextIndex(raftStatus.lastLogIndex + 1);
+            node.nextIndex = raftStatus.lastLogIndex + 1;
         }
         updateLease(raftStatus);
         raftStatus.copyShareStatus();
@@ -349,7 +349,7 @@ public final class RaftUtil {
         RaftPing raftPing = new RaftPing();
         raftPing.groupId = raftStatus.groupId;
         raftPing.nodeId = nodeId;
-        Function<RaftMember, RaftNodeEx> mapper = RaftMember::getNode;
+        Function<RaftMember, RaftNodeEx> mapper = m -> m.node;
         raftPing.members = RaftNode.formatServers(raftStatus.members, mapper);
         raftPing.observers = RaftNode.formatServers(raftStatus.observers, mapper);
         raftPing.preparedMembers = RaftNode.formatServers(raftStatus.preparedMembers, mapper);

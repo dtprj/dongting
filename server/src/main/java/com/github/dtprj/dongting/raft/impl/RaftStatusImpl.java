@@ -123,7 +123,7 @@ public final class RaftStatusImpl extends RaftStatus {
     }
 
     public RaftNode getCurrentLeaderNode() {
-        return currentLeader == null ? null : currentLeader.getNode();
+        return currentLeader == null ? null : currentLeader.node;
     }
 
     public void setLastApplied(long lastApplied) {

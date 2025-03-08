@@ -85,9 +85,9 @@ public class CommitManager {
         }
         if (raftStatus.getRole() == RaftRole.leader) {
             RaftMember self = raftStatus.self;
-            self.setNextIndex(lastPersistIndex + 1);
-            self.setMatchIndex(lastPersistIndex);
-            self.setLastConfirmReqNanos(raftStatus.ts.getNanoTime());
+            self.nextIndex = lastPersistIndex + 1;
+            self.matchIndex = lastPersistIndex;
+            self.lastConfirmReqNanos = raftStatus.ts.getNanoTime();
 
             RaftUtil.updateLease(raftStatus);
             // not call raftStatus.copyShareStatus(), invoke after apply
@@ -154,12 +154,12 @@ public class CommitManager {
         int count = 0;
         for (int i = 0; i < servers.size(); i++) {
             RaftMember member = servers.get(i);
-            if (member.getNode().self) {
-                if (recentMatchIndex > member.getMatchIndex()) {
+            if (member.node.self) {
+                if (recentMatchIndex > member.matchIndex) {
                     return false;
                 }
             }
-            if (member.getMatchIndex() >= recentMatchIndex) {
+            if (member.matchIndex >= recentMatchIndex) {
                 count++;
             }
         }
