@@ -70,7 +70,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             log.error(errorResp.getMsg());
             return errorResp;
         }
-        GroupComponents gc = g.getGroupComponents();
+        GroupComponents gc = g.groupComponents;
         if (!gc.raftStatus.initialized) {
             invokeCleanReq(reqInfo);
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);

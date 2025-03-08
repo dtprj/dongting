@@ -113,7 +113,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
     @Override
     protected final WritePacket doProcess(ReqInfo<T> reqInfo) {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
-        FiberChannel<Object> c = rix.raftGroup.getGroupComponents().processorChannels.get(typeId);
+        FiberChannel<Object> c = rix.raftGroup.groupComponents.processorChannels.get(typeId);
         if (!c.fireOffer(reqInfo, true)) {
             invokeCleanReq(reqInfo);
             log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());

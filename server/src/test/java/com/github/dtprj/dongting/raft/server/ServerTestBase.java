@@ -88,15 +88,15 @@ public class ServerTestBase {
 
         RaftServer raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig),
                 raftFactory, g -> {
-            ImplAccessor.updateMemberManager(g.getGroupComponents().memberManager);
-            ImplAccessor.updateVoteManager(g.getGroupComponents().voteManager);
+            ImplAccessor.updateMemberManager(g.groupComponents.memberManager);
+            ImplAccessor.updateVoteManager(g.groupComponents.voteManager);
         });
         if (servicePortBase > 0) {
             KvServerUtil.initKvServer(raftServer);
         }
 
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
-        GroupComponents gc = g.getGroupComponents();
+        GroupComponents gc = g.groupComponents;
         ImplAccessor.updateNodeManager(gc.nodeManager);
 
         if (initTerm > 0 || initVoteFor > 0 || initCommitIndex > 0 || initSnapshot) {

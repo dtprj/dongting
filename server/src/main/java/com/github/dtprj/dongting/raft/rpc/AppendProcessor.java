@@ -159,7 +159,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
 
     public AbstractAppendFrame(String appendType, AppendProcessor processor, ReqInfoEx<C> reqInfo) {
         this.appendType = appendType;
-        this.gc = reqInfo.raftGroup.getGroupComponents();
+        this.gc = reqInfo.raftGroup.groupComponents;
         this.processor = processor;
         this.reqInfo = reqInfo;
     }
@@ -392,7 +392,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     }
 
     private FrameCallResult resumeWhenFindReplicatePosFinish(Pair<Integer, Long> pos, int oldTerm) {
-        GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
+        GroupComponents gc = reqInfo.raftGroup.groupComponents;
         RaftStatusImpl raftStatus = gc.raftStatus;
         if (oldTerm != raftStatus.currentTerm) {
             log.info("term changed when find replicate pos, ignore result. oldTerm={}, newTerm={}, groupId={}",
@@ -419,7 +419,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
                 log.info("local log truncate to {}(inclusive)", truncateIndex);
 
-                TailCache tailCache = reqInfo.raftGroup.getGroupComponents().raftStatus.tailCache;
+                TailCache tailCache = reqInfo.raftGroup.groupComponents.raftStatus.tailCache;
                 tailCache.truncate(truncateIndex);
                 return Fiber.call(gc.raftLog.truncateTail(truncateIndex),
                         v -> afterTruncate(req.prevLogIndex, req.prevLogTerm));
@@ -464,7 +464,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
     @Override
     protected FrameCallResult doFinally() {
-        GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
+        GroupComponents gc = reqInfo.raftGroup.groupComponents;
         gc.raftStatus.copyShareStatus();
         return Fiber.frameReturn();
     }
@@ -513,10 +513,10 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult applyConfigChange(Void unused) {
-        MemberManager mm = reqInfo.raftGroup.getGroupComponents().memberManager;
+        MemberManager mm = reqInfo.raftGroup.groupComponents.memberManager;
         InstallSnapshotReq req = reqInfo.reqFrame.getBody();
 
-        reqInfo.raftGroup.getGroupComponents().raftStatus.lastConfigChangeIndex = req.lastIncludedIndex;
+        reqInfo.raftGroup.groupComponents.raftStatus.lastConfigChangeIndex = req.lastIncludedIndex;
 
         FiberFrame<Void> f = mm.applyConfigFrame("install snapshot config change",
                 req.members, req.observers, req.preparedMembers, req.preparedObservers);

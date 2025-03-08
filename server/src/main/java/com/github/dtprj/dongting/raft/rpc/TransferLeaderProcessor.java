@@ -50,7 +50,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<TransferLeaderReq> reqInfo) {
         ReadPacket<TransferLeaderReq> frame = reqInfo.reqFrame;
         TransferLeaderReq req = frame.getBody();
-        GroupComponents gc = reqInfo.raftGroup.getGroupComponents();
+        GroupComponents gc = reqInfo.raftGroup.groupComponents;
         RaftStatusImpl raftStatus = gc.raftStatus;
         if (raftStatus.getRole() != RaftRole.follower) {
             log.error("not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());

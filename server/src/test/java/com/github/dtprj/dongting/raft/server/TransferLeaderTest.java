@@ -66,8 +66,8 @@ public class TransferLeaderTest extends ServerTestBase {
 
         f.get(5, TimeUnit.SECONDS);
 
-        assertEquals(RaftRole.follower, leader.group.getGroupComponents().raftStatus.getShareStatus().role);
-        assertEquals(RaftRole.leader, newLeader.group.getGroupComponents().raftStatus.getShareStatus().role);
+        assertEquals(RaftRole.follower, leader.group.groupComponents.raftStatus.getShareStatus().role);
+        assertEquals(RaftRole.leader, newLeader.group.groupComponents.raftStatus.getShareStatus().role);
 
         client.put(groupId, "key".getBytes(), "value".getBytes(), timeout);
 

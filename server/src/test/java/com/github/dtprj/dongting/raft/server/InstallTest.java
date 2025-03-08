@@ -49,10 +49,10 @@ public class InstallTest extends ServerTestBase {
         s1 = createServer(1, servers, members, observers);
         waitStart(s1);
         RaftGroupImpl g = (RaftGroupImpl) s1.raftServer.getRaftGroup(1);
-        ShareStatus ss = g.getGroupComponents().raftStatus.getShareStatus();
+        ShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
         assertEquals(RaftRole.follower, ss.role);
         assertTrue(ss.lastApplied >= 1);
-        assertTrue(g.getGroupComponents().raftStatus.currentTerm > 2);
+        assertTrue(g.groupComponents.raftStatus.currentTerm > 2);
 
         waitStop(s1);
         waitStop(s2);

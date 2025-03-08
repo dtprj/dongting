@@ -83,7 +83,7 @@ public class ConfigChangeTest extends ServerTestBase {
 
         // mark sure the new node has catch up
         long finalPrepareIndex = prepareIndex;
-        assertTrue(() -> s4.group.getGroupComponents().raftStatus.getShareStatus().lastApplied >= finalPrepareIndex);
+        assertTrue(() -> s4.group.groupComponents.raftStatus.getShareStatus().lastApplied >= finalPrepareIndex);
 
         // config change, remove the new added member
         f = c.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(2, 3), Set.of(), timeout);

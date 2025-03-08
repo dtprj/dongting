@@ -356,7 +356,7 @@ public class RaftServer extends AbstractLifeCircle {
             // start all fiber group
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> {
-                GroupComponents gc = g.getGroupComponents();
+                GroupComponents gc = g.groupComponents;
                 // nodeManager.getAllNodesEx() is not thread safe
                 gc.memberManager.init();
 
@@ -372,7 +372,7 @@ public class RaftServer extends AbstractLifeCircle {
             futures.clear();
             raftGroups.forEach((groupId, g) -> {
                 initRaftGroup(g);
-                futures.add(g.getGroupComponents().raftStatus.initFuture);
+                futures.add(g.groupComponents.raftStatus.initFuture);
             });
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
@@ -396,7 +396,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void initRaftGroup(RaftGroupImpl g) {
-        GroupComponents gc = g.getGroupComponents();
+        GroupComponents gc = g.groupComponents;
         InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftSequenceProcessors);
         Fiber initFiber = new Fiber("init-raft-group-" + g.getGroupId(),
                 gc.fiberGroup, initFiberFrame);
@@ -448,9 +448,9 @@ public class RaftServer extends AbstractLifeCircle {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             DtTime deadline = new DtTime(1000, TimeUnit.DAYS);
             raftGroups.forEach((groupId, g) -> {
-                ShareStatus ss = g.getGroupComponents().raftStatus.getShareStatus();
+                ShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
                 if (!ss.groupReady) {
-                    futures.add(g.getGroupComponents().applyManager
+                    futures.add(g.groupComponents.applyManager
                             .addToWaitReadyQueue(deadline).thenApply(idx -> null));
                 }
             });
@@ -476,7 +476,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private CompletableFuture<Void> startMemberPing(RaftGroupImpl g) {
-        GroupComponents gc = g.getGroupComponents();
+        GroupComponents gc = g.groupComponents;
         if (!gc.fiberGroup.fireFiber(gc.memberManager.createRaftPingFiber())) {
             return CompletableFuture.failedFuture(new RaftException("fire raft ping fiber failed"));
         }
@@ -500,7 +500,7 @@ public class RaftServer extends AbstractLifeCircle {
             }
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout,
-                    g.getGroupComponents().groupConfig.saveSnapshotWhenClose)));
+                    g.groupComponents.groupConfig.saveSnapshotWhenClose)));
             nodeManager.stop(timeout, true);
 
             try {
@@ -526,11 +526,11 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private CompletableFuture<Void> stopGroup(RaftGroupImpl g, DtTime timeout, boolean saveSnapshot) {
-        if (g.getShutdownFuture() != null) {
-            return g.getShutdownFuture();
+        if (g.shutdownFuture != null) {
+            return g.shutdownFuture;
         }
-        FiberGroup fiberGroup = g.getFiberGroup();
-        GroupComponents gc = g.getGroupComponents();
+        FiberGroup fiberGroup = g.fiberGroup;
+        GroupComponents gc = g.groupComponents;
         fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -554,8 +554,8 @@ public class RaftServer extends AbstractLifeCircle {
             }
 
             private FrameCallResult afterRaftLogClose(Void unused) {
-                g.getGroupComponents().raftStatus.tailCache.cleanAll();
-                return g.getGroupComponents().statusManager.close().await(this::afterStatusManagerClose);
+                g.groupComponents.raftStatus.tailCache.cleanAll();
+                return g.groupComponents.statusManager.close().await(this::afterStatusManagerClose);
             }
 
             private FrameCallResult afterStatusManagerClose(Void unused) {
@@ -568,8 +568,8 @@ public class RaftServer extends AbstractLifeCircle {
         // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
         raftFactory.stopDispatcher(fiberGroup.getDispatcher(), timeout);
 
-        CompletableFuture<Void> f = g.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(g.getGroupId()));
-        g.setShutdownFuture(f);
+        CompletableFuture<Void> f = g.fiberGroup.getShutdownFuture().thenRun(() -> raftGroups.remove(g.getGroupId()));
+        g.shutdownFuture = f;
         return f;
     }
 
@@ -608,16 +608,16 @@ public class RaftServer extends AbstractLifeCircle {
                     return;
                 }
                 RaftGroupImpl g = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
-                g.getGroupComponents().memberManager.init();
+                g.groupComponents.memberManager.init();
 
-                GroupComponents gc = g.getGroupComponents();
+                GroupComponents gc = g.groupComponents;
                 FiberGroup fg = gc.fiberGroup;
                 raftFactory.startDispatcher(fg.getDispatcher());
                 fg.getDispatcher().startGroup(fg).get(3, TimeUnit.SECONDS);
 
                 raftGroups.put(groupConfig.groupId, g);
                 initRaftGroup(g);
-                RaftStatusImpl raftStatus = g.getGroupComponents().raftStatus;
+                RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
                 raftStatus.initFuture.whenComplete((v, ex) -> {
                     if (ex != null) {
                         f.completeExceptionally(ex);
