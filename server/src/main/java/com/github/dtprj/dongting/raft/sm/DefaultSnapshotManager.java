@@ -368,7 +368,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
-            this.directBufferFactory = new RefBufferFactory(getFiberGroup().getThread().getDirectPool(), 0);
+            this.directBufferFactory = new RefBufferFactory(getFiberGroup().dispatcher.thread.directPool, 0);
             readSnapshot = stateMachine.takeSnapshot(snapshotInfo);
             log.info("begin save snapshot {}. groupId={}, lastIndex={}, lastTerm={}", id,
                     groupConfig.groupId, snapshotInfo.getLastIncludedIndex(), snapshotInfo.getLastIncludedTerm());
@@ -525,7 +525,7 @@ class RecoverFiberFrame extends FiberFrame<Void> {
         this.stateMachine = stateMachine;
         this.groupConfig = groupConfig;
         this.snapshot = snapshot;
-        ByteBufferPool p = groupConfig.fiberGroup.getThread().getDirectPool();
+        ByteBufferPool p = groupConfig.fiberGroup.dispatcher.thread.directPool;
         RefBufferFactory f = new RefBufferFactory(p, 0);
         this.bufferCreator = () -> f.create(snapshot.getBufferSize());
     }

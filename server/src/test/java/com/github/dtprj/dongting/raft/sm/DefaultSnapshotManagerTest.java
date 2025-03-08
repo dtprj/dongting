@@ -50,7 +50,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
     private RaftStatusImpl raftStatus;
 
     private void createManager(boolean separateExecutor, String dataDir, boolean mockInstall) {
-        raftStatus = new RaftStatusImpl(0, dispatcher.getTs());
+        raftStatus = new RaftStatusImpl(0, dispatcher.ts);
         raftStatus.nodeIdOfMembers = Set.of(1);
         raftStatus.nodeIdOfObservers = Set.of();
         raftStatus.nodeIdOfPreparedMembers = Set.of();
@@ -59,7 +59,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.fiberGroup = fiberGroup;
         groupConfig.raftStatus = raftStatus;
-        groupConfig.ts = dispatcher.getTs();
+        groupConfig.ts = dispatcher.ts;
         groupConfig.dataDir = dataDir;
         groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
         KvConfig kvConfig = new KvConfig();

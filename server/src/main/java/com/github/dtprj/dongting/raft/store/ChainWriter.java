@@ -73,8 +73,8 @@ public class ChainWriter {
         this.forceCallback = forceCallback;
         this.raftStatus = (RaftStatusImpl) config.raftStatus;
 
-        DispatcherThread t = config.fiberGroup.getThread();
-        this.directPool = t.getDirectPool();
+        DispatcherThread t = config.fiberGroup.dispatcher.thread;
+        this.directPool = t.directPool;
         this.needForceCondition = config.fiberGroup.newCondition("needForceCond");
         this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.groupId, config.fiberGroup,
                 new ForceLoopFrame());
@@ -207,7 +207,7 @@ public class ChainWriter {
         protected FrameCallResult handle(Throwable ex) {
             error = true;
             if (raftStatus.installSnapshot) {
-                log.info("install snapshot, force fiber exit: {}", forceFiber.getName(), ex);
+                log.info("install snapshot, force fiber exit: {}", forceFiber.name, ex);
                 return Fiber.frameReturn();
             } else {
                 throw Fiber.fatal(ex);
@@ -217,11 +217,11 @@ public class ChainWriter {
         @Override
         public FrameCallResult execute(Void input) {
             if (error || raftStatus.installSnapshot) {
-                log.info("force fiber exit: {}", forceFiber.getName());
+                log.info("force fiber exit: {}", forceFiber.name);
                 return Fiber.frameReturn();
             }
             if (markStop && writeTaskCount <= 0 && forceTaskCount <= 0) {
-                log.debug("force fiber exit normally: {}", forceFiber.getName());
+                log.debug("force fiber exit normally: {}", forceFiber.name);
                 return Fiber.frameReturn();
             }
             LinkedList<WriteTask> forceTasks = ChainWriter.this.forceTasks;

@@ -47,7 +47,7 @@ public class FiberReadLock extends Lock {
 
     @Override
     public FrameCallResult lock(FrameCall<Void> resumePoint) {
-        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(group);
         if (shouldWait(fiber)) {
             return Dispatcher.awaitOn(fiber, this, -1, resumePoint);
         } else {
@@ -59,7 +59,7 @@ public class FiberReadLock extends Lock {
     @Override
     public FrameCallResult tryLock(long millis, FrameCall<Boolean> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(group);
         if (shouldWait(fiber)) {
             return Dispatcher.awaitOn(fiber, this, millis, resumePoint);
         } else {
@@ -70,7 +70,7 @@ public class FiberReadLock extends Lock {
 
     @Override
     public boolean tryLock() {
-        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(group);
         if (shouldWait(fiber)) {
             return false;
         } else {
@@ -81,7 +81,7 @@ public class FiberReadLock extends Lock {
 
     @Override
     public void unlock() {
-        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        Dispatcher.getCurrentFiberAndCheck(group);
         // check fiber held this read lock?
         heldCount--;
         if (heldCount <= 0) {

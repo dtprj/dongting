@@ -106,7 +106,7 @@ public class FiberChannel<T> {
         } else {
             if (returnOnShouldStop) {
                 if (notEmptyAndShouldStop == null) {
-                    notEmptyAndShouldStop = new FiberCondition[]{notEmptyCondition, groupOfConsumer.getShouldStopCondition()};
+                    notEmptyAndShouldStop = new FiberCondition[]{notEmptyCondition, groupOfConsumer.shouldStopCondition};
                 }
                 return Dispatcher.awaitOn(notEmptyAndShouldStop, millis, noUseVoid -> afterTake(resumePoint));
             } else {
@@ -155,7 +155,7 @@ public class FiberChannel<T> {
         } else {
             if (returnOnShouldStop) {
                 if (notEmptyAndShouldStop == null) {
-                    notEmptyAndShouldStop = new FiberCondition[]{notEmptyCondition, groupOfConsumer.getShouldStopCondition()};
+                    notEmptyAndShouldStop = new FiberCondition[]{notEmptyCondition, groupOfConsumer.shouldStopCondition};
                 }
                 return Dispatcher.awaitOn(notEmptyAndShouldStop, millis, noUseVoid -> afterTakeAll(c, resumePoint));
             } else {

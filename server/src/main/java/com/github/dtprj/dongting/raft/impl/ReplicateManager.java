@@ -629,7 +629,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
-        this.heapPool = groupConfig.fiberGroup.getThread().getHeapPool();
+        this.heapPool = groupConfig.fiberGroup.dispatcher.thread.heapPool;
     }
 
     @Override

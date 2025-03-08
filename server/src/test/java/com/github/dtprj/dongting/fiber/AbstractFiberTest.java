@@ -53,7 +53,7 @@ class AbstractFiberTest {
                 @Override
                 protected void run() {
                     // fix time if it's updated by TestUtil.updateTimestamp()
-                    TestUtil.updateTimestamp(dispatcher.getTs(), System.nanoTime(), System.currentTimeMillis());
+                    TestUtil.updateTimestamp(dispatcher.ts, System.nanoTime(), System.currentTimeMillis());
                     dispatcher.stop(new DtTime(1000, TimeUnit.MILLISECONDS));
                 }
             });

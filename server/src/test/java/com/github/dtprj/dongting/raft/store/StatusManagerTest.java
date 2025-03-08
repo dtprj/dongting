@@ -44,7 +44,7 @@ public class StatusManagerTest extends BaseFiberTest {
 
     public void setup() {
         File dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
-        raftStatus = new RaftStatusImpl(0, dispatcher.getTs());
+        raftStatus = new RaftStatusImpl(0, dispatcher.ts);
         groupConfig = new RaftGroupConfigEx(1, "1", "1");
         groupConfig.dataDir = dir.getAbsolutePath();
         groupConfig.statusFile = "status.test";

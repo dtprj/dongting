@@ -67,9 +67,9 @@ class LogAppender {
         this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.chainWriter = chainWriter;
 
-        DispatcherThread thread = groupConfig.fiberGroup.getThread();
-        this.directPool = thread.getDirectPool();
-        this.encodeContext = new EncodeContext(thread.getHeapPool());
+        DispatcherThread thread = groupConfig.fiberGroup.dispatcher.thread;
+        this.directPool = thread.directPool;
+        this.encodeContext = new EncodeContext(thread.heapPool);
         this.fileLenMask = logFileQueue.fileLength() - 1;
         this.perfCallback = groupConfig.perfCallback;
     }

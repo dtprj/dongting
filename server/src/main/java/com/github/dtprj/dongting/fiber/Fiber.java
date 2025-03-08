@@ -131,8 +131,8 @@ public class Fiber extends WaitSource {
     }
 
     public void interrupt() {
-        fiberGroup.checkGroup();
-        Dispatcher dispatcher = fiberGroup.dispatcher;
+        group.checkGroup();
+        Dispatcher dispatcher = group.dispatcher;
         dispatcher.interrupt(this);
     }
 
@@ -166,10 +166,10 @@ public class Fiber extends WaitSource {
     public FiberFuture<Void> join() {
         check();
         if (!started || finished) {
-            return FiberFuture.completedFuture(fiberGroup, null);
+            return FiberFuture.completedFuture(group, null);
         }
         Fiber waitSource = this;
-        FiberFuture<Void> fu = fiberGroup.newFuture("join-" + this);
+        FiberFuture<Void> fu = group.newFuture("join-" + this);
         FiberFrame<Void> entryFrame = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -181,7 +181,7 @@ public class Fiber extends WaitSource {
                 return Fiber.frameReturn();
             }
         };
-        Fiber f = new Fiber("wait-finish", fiberGroup, entryFrame, true) {
+        Fiber f = new Fiber("wait-finish", group, entryFrame, true) {
             private String toStr;
 
             @Override
@@ -192,12 +192,12 @@ public class Fiber extends WaitSource {
                 return toStr;
             }
         };
-        fiberGroup.start(f, false);
+        group.start(f, false);
         return fu;
     }
 
     private Fiber check() {
-        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(group);
         if (fiber == this) {
             throw new FiberException("can't join self");
         }
@@ -205,27 +205,23 @@ public class Fiber extends WaitSource {
     }
 
     public void start() {
-        fiberGroup.checkGroup();
-        fiberGroup.start(Fiber.this, false);
+        group.checkGroup();
+        group.start(Fiber.this, false);
     }
 
     public boolean isStarted() {
-        fiberGroup.checkGroup();
+        group.checkGroup();
         return started;
     }
 
     public boolean isFinished() {
-        fiberGroup.checkGroup();
+        group.checkGroup();
         return finished;
     }
 
     void cleanSchedule() {
         scheduleTimeoutMillis = 0;
         scheduleNanoTime = 0;
-    }
-
-    public FiberGroup getFiberGroup() {
-        return fiberGroup;
     }
 
     @Override

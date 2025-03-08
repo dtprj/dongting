@@ -21,19 +21,20 @@ import java.util.LinkedList;
  * @author huangli
  */
 abstract class WaitSource {
-    protected final String name;
+    public final String name;
+
+    final FiberGroup group;
     LinkedList<Fiber> waiters;
-    protected final FiberGroup fiberGroup;
 
     public WaitSource(String name, FiberGroup group) {
-        this.fiberGroup = group;
+        this.group = group;
         this.name = name;
     }
 
     protected abstract void prepare(Fiber waitFiber, boolean timeout);
 
     boolean signal0(boolean addFirst) {
-        if (fiberGroup.finished) {
+        if (group.finished) {
             return false;
         }
         Fiber f;
@@ -47,15 +48,15 @@ abstract class WaitSource {
 
     void signalFiber(Fiber f, boolean addFirst) {
         if (f.scheduleTimeoutMillis > 0) {
-            fiberGroup.dispatcher.removeFromScheduleQueue(f);
+            group.dispatcher.removeFromScheduleQueue(f);
         }
         prepare(f, false);
         f.cleanSchedule();
-        fiberGroup.tryMakeFiberReady(f, addFirst);
+        group.tryMakeFiberReady(f, addFirst);
     }
 
     void signalAll0(boolean addFirst) {
-        if (fiberGroup.finished) {
+        if (group.finished) {
             return;
         }
         LinkedList<Fiber> waiters = this.waiters;
@@ -72,13 +73,5 @@ abstract class WaitSource {
                 signalFiber(f, false);
             }
         }
-    }
-
-    public FiberGroup getGroup() {
-        return fiberGroup;
-    }
-
-    public String getName() {
-        return name;
     }
 }

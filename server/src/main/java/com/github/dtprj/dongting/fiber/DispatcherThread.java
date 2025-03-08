@@ -25,11 +25,13 @@ public final class DispatcherThread extends Thread {
 
     FiberGroup currentGroup;
 
-    private ByteBufferPool directPool;
-    private RefBufferFactory heapPool;
+    public final ByteBufferPool directPool;
+    public final RefBufferFactory heapPool;
 
-    DispatcherThread(Runnable r, String name) {
+    DispatcherThread(Runnable r, String name, RefBufferFactory heapPool, ByteBufferPool directPool) {
         super(r, name);
+        this.heapPool = heapPool;
+        this.directPool = directPool;
     }
 
     static DispatcherThread currentDispatcherThread() {
@@ -44,23 +46,4 @@ public final class DispatcherThread extends Thread {
         return currentDispatcherThread().currentGroup;
     }
 
-    static Fiber currentFiber() {
-        return currentDispatcherThread().currentGroup.currentFiber;
-    }
-
-    public ByteBufferPool getDirectPool() {
-        return directPool;
-    }
-
-    public void setDirectPool(ByteBufferPool directPool) {
-        this.directPool = directPool;
-    }
-
-    public RefBufferFactory getHeapPool() {
-        return heapPool;
-    }
-
-    public void setHeapPool(RefBufferFactory heapPool) {
-        this.heapPool = heapPool;
-    }
 }

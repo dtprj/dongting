@@ -77,14 +77,14 @@ public class StatusFile implements AutoCloseable {
             @Override
             protected FrameCallResult doFinally() {
                 if (buf != null) {
-                    getFiberGroup().getThread().getHeapPool().getPool().release(buf);
+                    getFiberGroup().dispatcher.thread.heapPool.getPool().release(buf);
                 }
                 return Fiber.frameReturn();
             }
 
             @Override
             public FrameCallResult execute(Void input) throws Exception {
-                buf = getFiberGroup().getThread().getHeapPool().getPool().allocate(FILE_LENGTH);
+                buf = getFiberGroup().dispatcher.thread.heapPool.getPool().allocate(FILE_LENGTH);
                 boolean needLoad = file.exists() && file.length() != 0;
                 HashSet<OpenOption> options = new HashSet<>();
                 options.add(StandardOpenOption.CREATE);
@@ -176,7 +176,7 @@ public class StatusFile implements AutoCloseable {
 
     public FiberFuture<Void> update(boolean sync) {
         try {
-            ByteBufferPool directPool = fiberGroup.getThread().getDirectPool();
+            ByteBufferPool directPool = fiberGroup.dispatcher.thread.directPool;
             ByteBuffer buf = directPool.borrow(FILE_LENGTH);
             writeToBuffer(properties, buf, crc32c);
 

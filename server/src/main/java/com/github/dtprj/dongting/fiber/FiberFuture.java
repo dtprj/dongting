@@ -83,12 +83,12 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public void complete(T result) {
-        fiberGroup.checkGroup();
+        group.checkGroup();
         complete0(result, null);
     }
 
     public void completeExceptionally(Throwable ex) {
-        fiberGroup.checkGroup();
+        group.checkGroup();
         complete0(null, ex);
     }
 
@@ -101,19 +101,19 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void fireComplete0(T r, Throwable ex) {
-        DispatcherThread dispatcherThread = fiberGroup.dispatcher.thread;
+        DispatcherThread dispatcherThread = group.dispatcher.thread;
         if (Thread.currentThread() == dispatcherThread) {
-            if (fiberGroup.finished) {
+            if (group.finished) {
                 log.warn("group is stopped, ignore fireComplete");
                 return;
             }
-            if (dispatcherThread.currentGroup == fiberGroup) {
+            if (dispatcherThread.currentGroup == group) {
                 complete0(r, ex);
             } else {
-                fiberGroup.sysChannel.offer0(() -> complete0(r, ex));
+                group.sysChannel.offer0(() -> complete0(r, ex));
             }
         } else {
-            if (!fiberGroup.sysChannel.fireOffer(() -> complete0(r, ex))) {
+            if (!group.sysChannel.fireOffer(() -> complete0(r, ex))) {
                 log.warn("dispatcher is shutdown, ignore fireComplete");
             }
         }
@@ -130,7 +130,7 @@ public class FiberFuture<T> extends WaitSource {
         }
         this.done = true;
         // if group finished, no ops
-        if (fiberGroup.finished) {
+        if (group.finished) {
             return;
         }
         tryRunCallbacks();
@@ -165,8 +165,8 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void startCallbackFiber(FiberFrame<Void> ff) {
-        Fiber f = new Fiber("future-callback", fiberGroup, ff);
-        fiberGroup.start(f, true);
+        Fiber f = new Fiber("future-callback", group, ff);
+        group.start(f, true);
     }
 
     public FrameCallResult await(FrameCall<T> resumePoint) {
@@ -188,7 +188,7 @@ public class FiberFuture<T> extends WaitSource {
      * this method should call in dispatcher thread
      */
     public void registerCallback(FiberFutureCallback<T> callback) {
-        fiberGroup.checkGroup();
+        group.checkGroup();
         callback.future = this;
         if (done) {
             startCallbackFiber(callback);
@@ -224,7 +224,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public void registerCallback(BiConsumer<T, Throwable> callback) {
-        fiberGroup.checkGroup();
+        group.checkGroup();
         if (done) {
             runSimpleCallback(callback);
         } else {
@@ -246,7 +246,7 @@ public class FiberFuture<T> extends WaitSource {
      * and the new future will be complete exceptionally with the same exception.
      */
     public <T2> FiberFuture<T2> convert(String name, Function<T, T2> converter) {
-        FiberFuture<T2> newFuture = new FiberFuture<>(name, fiberGroup);
+        FiberFuture<T2> newFuture = new FiberFuture<>(name, group);
         registerCallback((r, ex) -> {
             if (ex != null) {
                 newFuture.complete0(null, ex);
@@ -267,7 +267,7 @@ public class FiberFuture<T> extends WaitSource {
      * this method should call in dispatcher thread
      */
     public <T2> FiberFuture<T2> convertWithHandle(String name, BiFunction<T, Throwable, T2> converter) {
-        FiberFuture<T2> newFuture = new FiberFuture<>(name, fiberGroup);
+        FiberFuture<T2> newFuture = new FiberFuture<>(name, group);
         registerCallback((r, ex) -> {
             try {
                 T2 t2 = converter.apply(r, ex);
@@ -282,7 +282,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public <T2> FiberFuture<T2> compose(String name, Function<T, FiberFuture<T2>> fn) {
-        FiberFuture<T2> newFuture = new FiberFuture<>(name, fiberGroup);
+        FiberFuture<T2> newFuture = new FiberFuture<>(name, group);
         registerCallback((r, ex) -> {
             if (ex != null) {
                 newFuture.complete0(null, ex);

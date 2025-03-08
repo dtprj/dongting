@@ -35,9 +35,10 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class FiberGroup {
     private static final DtLog log = DtLogs.getLogger(FiberGroup.class);
-    private final String name;
-    final Dispatcher dispatcher;
-    final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
+    public final String name;
+    public final Dispatcher dispatcher;
+    public final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
+    public final FiberCondition shouldStopCondition;
 
     final IndexedQueue<Fiber> readyFibers = new IndexedQueue<>(64);
     final IndexedQueue<Fiber> readyFibersNextRound1 = new IndexedQueue<>(16);
@@ -65,7 +66,6 @@ public class FiberGroup {
 
     Fiber currentFiber;
 
-    final FiberCondition shouldStopCondition;
     private final GroupExecutor executor;
 
     public FiberGroup(String name, Dispatcher dispatcher) {
@@ -80,7 +80,7 @@ public class FiberGroup {
      * can call in any thread
      */
     public boolean fireFiber(Fiber fiber) {
-        if (fiber.fiberGroup != this) {
+        if (fiber.group != this) {
             throw new DtException("fiber not in group");
         }
         return dispatcher.doInDispatcherThread(new FiberQueueTask(this) {
@@ -122,10 +122,6 @@ public class FiberGroup {
         return DispatcherThread.currentGroup();
     }
 
-    public String getName() {
-        return name;
-    }
-
     public FiberCondition newCondition(String name) {
         return new FiberCondition(name, this);
     }
@@ -155,12 +151,12 @@ public class FiberGroup {
     }
 
     void start(Fiber f, boolean addFirst) {
-        if (f.fiberGroup.finished) {
-            log.warn("group finished, ignore fiber start: {}", f.getName());
+        if (f.group.finished) {
+            log.warn("group finished, ignore fiber start: {}", f.name);
             return;
         }
         if (f.started) {
-            BugLog.getLog().error("fiber already started: {}", f.getName());
+            BugLog.getLog().error("fiber already started: {}", f.name);
             return;
         }
         f.started = true;
@@ -180,17 +176,17 @@ public class FiberGroup {
             removed = normalFibers.remove(f) != null;
         }
         if (!removed) {
-            BugLog.getLog().error("fiber is not in set: {}", f.getName());
+            BugLog.getLog().error("fiber is not in set: {}", f.name);
         }
     }
 
     void tryMakeFiberReady(Fiber f, boolean addFirst) {
         if (finished) {
-            log.warn("group finished, ignore makeReady: {}", f.getName());
+            log.warn("group finished, ignore makeReady: {}", f.name);
             return;
         }
         if (f.finished) {
-            log.warn("fiber already finished, ignore makeReady: {}", f.getName());
+            log.warn("fiber already finished, ignore makeReady: {}", f.name);
             return;
         }
         if (!f.ready) {
@@ -333,27 +329,11 @@ public class FiberGroup {
     }
 
     private void concatFiberName(StringBuilder sb, Fiber f) {
-        sb.append(f.getName()).append("(").append(Integer.toHexString(f.hashCode())).append(")");
-    }
-
-    public Dispatcher getDispatcher() {
-        return dispatcher;
-    }
-
-    public DispatcherThread getThread() {
-        return dispatcher.thread;
-    }
-
-    public CompletableFuture<Void> getShutdownFuture() {
-        return shutdownFuture;
+        sb.append(f.name).append("(").append(Integer.toHexString(f.hashCode())).append(")");
     }
 
     public ExecutorService getExecutor() {
         return executor;
-    }
-
-    public FiberCondition getShouldStopCondition() {
-        return shouldStopCondition;
     }
 }
 

@@ -261,7 +261,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         Dispatcher dispatcher = raftFactory.createDispatcher(serverConfig, rgc);
         FiberGroup fiberGroup = new FiberGroup("group-" + rgc.groupId, dispatcher);
-        RaftStatusImpl raftStatus = new RaftStatusImpl(rgc.groupId, fiberGroup.getDispatcher().getTs());
+        RaftStatusImpl raftStatus = new RaftStatusImpl(rgc.groupId, fiberGroup.dispatcher.ts);
         raftStatus.tailCache = new TailCache(rgc, raftStatus);
         raftStatus.nodeIdOfMembers = nodeIdOfMembers;
         raftStatus.nodeIdOfObservers = nodeIdOfObservers;
@@ -361,8 +361,8 @@ public class RaftServer extends AbstractLifeCircle {
                 gc.memberManager.init();
 
                 FiberGroup fg = gc.fiberGroup;
-                raftFactory.startDispatcher(fg.getDispatcher());
-                CompletableFuture<Void> f = fg.getDispatcher().startGroup(fg);
+                raftFactory.startDispatcher(fg.dispatcher);
+                CompletableFuture<Void> f = fg.dispatcher.startGroup(fg);
                 futures.add(f);
             });
             // should complete soon, so we wait here
@@ -535,7 +535,7 @@ public class RaftServer extends AbstractLifeCircle {
             @Override
             public FrameCallResult execute(Void input) {
                 fiberGroup.requestShutdown();
-                return fiberGroup.getShouldStopCondition().await(this::afterShouldShutdown);
+                return fiberGroup.shouldStopCondition.await(this::afterShouldShutdown);
             }
 
             private FrameCallResult afterShouldShutdown(Void v) {
@@ -566,9 +566,9 @@ public class RaftServer extends AbstractLifeCircle {
         });
 
         // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
-        raftFactory.stopDispatcher(fiberGroup.getDispatcher(), timeout);
+        raftFactory.stopDispatcher(fiberGroup.dispatcher, timeout);
 
-        CompletableFuture<Void> f = g.fiberGroup.getShutdownFuture().thenRun(() -> raftGroups.remove(g.getGroupId()));
+        CompletableFuture<Void> f = g.fiberGroup.shutdownFuture.thenRun(() -> raftGroups.remove(g.getGroupId()));
         g.shutdownFuture = f;
         return f;
     }
@@ -612,8 +612,8 @@ public class RaftServer extends AbstractLifeCircle {
 
                 GroupComponents gc = g.groupComponents;
                 FiberGroup fg = gc.fiberGroup;
-                raftFactory.startDispatcher(fg.getDispatcher());
-                fg.getDispatcher().startGroup(fg).get(3, TimeUnit.SECONDS);
+                raftFactory.startDispatcher(fg.dispatcher);
+                fg.dispatcher.startGroup(fg).get(3, TimeUnit.SECONDS);
 
                 raftGroups.put(groupConfig.groupId, g);
                 initRaftGroup(g);

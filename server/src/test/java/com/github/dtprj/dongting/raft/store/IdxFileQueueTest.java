@@ -61,7 +61,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
         c.idxCacheSize = 4;
         c.idxFlushThreshold = 2;
         c.blockIoExecutor = MockExecutors.ioExecutor();
-        raftStatus = new RaftStatusImpl(0, dispatcher.getTs());
+        raftStatus = new RaftStatusImpl(0, dispatcher.ts);
         raftStatus.tailCache = new TailCache(c, raftStatus);
         c.raftStatus = raftStatus;
         c.ts = raftStatus.ts;

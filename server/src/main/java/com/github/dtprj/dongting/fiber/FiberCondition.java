@@ -44,18 +44,18 @@ public class FiberCondition extends WaitSource {
     }
 
     public void signal() {
-        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        Dispatcher.getCurrentFiberAndCheck(group);
         signal0(true);
     }
 
     public void signalLater() {
-        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        Dispatcher.getCurrentFiberAndCheck(group);
         signal0(false);
     }
 
     public void signal(Fiber targetFiber) {
-        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-        if (fiberGroup.finished) {
+        Dispatcher.getCurrentFiberAndCheck(group);
+        if (group.finished) {
             return;
         }
         if (targetFiber.source != this) {
@@ -67,7 +67,7 @@ public class FiberCondition extends WaitSource {
     }
 
     public void signalAll() {
-        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        Dispatcher.getCurrentFiberAndCheck(group);
         signalAll0(true);
     }
 
@@ -87,7 +87,7 @@ public class FiberCondition extends WaitSource {
         if (another == this) {
             throw new IllegalArgumentException("same condition");
         }
-        if (another.fiberGroup != this.fiberGroup) {
+        if (another.group != this.group) {
             throw new IllegalArgumentException("not in same group");
         }
         return Dispatcher.awaitOn(new FiberCondition[]{this, another}, millis, resumePoint);
