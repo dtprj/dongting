@@ -295,7 +295,7 @@ public class RaftClient extends AbstractLifeCircle {
         lock.lock();
         try {
             GroupInfo currentGroupInfo = groups.get(groupInfo.groupId);
-            if (currentGroupInfo == null || currentGroupInfo.epoch != groupInfo.epoch) {
+            if (currentGroupInfo != groupInfo) {
                 // group info changed, drop the result
                 return null;
             }
@@ -369,7 +369,7 @@ public class RaftClient extends AbstractLifeCircle {
                 gi.leaderFuture.completeExceptionally(new RaftException("group removed " + gi.groupId));
                 return;
             }
-            if (currentGroupInfo.epoch != gi.epoch) {
+            if (currentGroupInfo != gi) {
                 // group info changed, stop current find process
                 updateLeaderInfo(gi.groupId).whenComplete((ld, e) -> {
                     if (e != null) {
