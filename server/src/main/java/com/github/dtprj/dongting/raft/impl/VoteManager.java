@@ -187,7 +187,7 @@ public class VoteManager {
             try {
                 RpcCallback<VoteResp> c = (rf, ex) ->
                         fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest);
-                client.sendRequest(member.node.peer, wf,ctx -> ctx.toDecoderCallback(new VoteResp.Callback()),
+                client.sendRequest(member.node.peer, wf, ctx -> ctx.toDecoderCallback(new VoteResp.Callback()),
                         timeout, c);
                 log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                         preVote ? "pre-vote" : "vote", member.node.nodeId, groupId,
@@ -282,6 +282,9 @@ public class VoteManager {
                 return sleepAwhile();
             }
             if (timeout) {
+                if (raftStatus.getRole() == RaftRole.leader) {
+                    RaftUtil.changeToFollower(raftStatus, -1, "leader timeout");
+                }
                 if (RaftUtil.writeNotFinished(raftStatus)) {
                     log.info("elect timer timeout and write not finished, groupId={}, term={}", groupId, raftStatus.currentTerm);
                     return sleepAwhile();

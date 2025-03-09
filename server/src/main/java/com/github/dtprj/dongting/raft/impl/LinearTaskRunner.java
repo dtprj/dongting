@@ -191,8 +191,6 @@ public class LinearTaskRunner {
             rt.setItem(item);
         }
 
-        RaftUtil.resetElectTimer(raftStatus);
-
         return append(raftStatus, inputs);
     }
 

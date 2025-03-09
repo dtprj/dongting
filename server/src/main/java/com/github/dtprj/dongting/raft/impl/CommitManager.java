@@ -125,6 +125,7 @@ public class CommitManager {
         if (!needCommit(recentMatchIndex, raftStatus)) {
             return;
         }
+        RaftUtil.resetElectTimer(raftStatus);
         // leader can only commit log in current term, see raft paper 5.4.2
         if (recentMatchIndex < raftStatus.groupReadyIndex) {
             return;
