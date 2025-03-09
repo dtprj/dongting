@@ -59,7 +59,6 @@ public class RaftClient extends AbstractLifeCircle {
     private final ConcurrentHashMap<Integer, GroupInfo> groups = new ConcurrentHashMap<>();
 
     private final ReentrantLock lock = new ReentrantLock();
-    private long nextEpoch = 0;
 
     public RaftClient(NioClientConfig nioClientConfig) {
         this.nioClient = new NioClient(nioClientConfig);
@@ -179,8 +178,7 @@ public class RaftClient extends AbstractLifeCircle {
 
         GroupInfo gi;
         if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
-            gi = new GroupInfo(groupId, generateNextEpoch(), Collections.unmodifiableList(managedServers),
-                    leader, true);
+            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers), leader, true);
             findLeader(gi, gi.servers.iterator());
             // use new leader future to complete the old one
             //noinspection DataFlowIssue
@@ -192,14 +190,9 @@ public class RaftClient extends AbstractLifeCircle {
                 }
             });
         } else {
-            gi = new GroupInfo(groupId, generateNextEpoch(), Collections.unmodifiableList(managedServers),
-                    leader, false);
+            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers), leader, false);
         }
         groups.put(groupId, gi);
-    }
-
-    private long generateNextEpoch() {
-        return nextEpoch++;
     }
 
     public void clientRemoveGroup(int groupId) throws NetException {
@@ -231,7 +224,7 @@ public class RaftClient extends AbstractLifeCircle {
             nioClient.getConfig().readFence();
             getPermit = nioClient.acquirePermit(request, timeout);
             if (groupInfo.leader != null && groupInfo.leader.peer.getStatus() == PeerStatus.connected) {
-                send(groupId, request, decoder, timeout, callback, groupInfo.leader, 0, getPermit);
+                send(groupInfo, request, decoder, timeout, callback, 0, getPermit);
             } else {
                 CompletableFuture<GroupInfo> leaderFuture;
                 if (groupInfo.leaderFuture == null) {
@@ -252,7 +245,7 @@ public class RaftClient extends AbstractLifeCircle {
                             nioClient.releasePermit(request);
                         }
                     } else {
-                        send(groupId, request, decoder, timeout, callback, gi.leader, 0, finalGetPermit);
+                        send(gi, request, decoder, timeout, callback, 0, finalGetPermit);
                     }
                 });
             }
@@ -267,23 +260,20 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private <T> void send(Integer groupId, WritePacket request, DecoderCallbackCreator<T> decoder,
-                          DtTime timeout, RpcCallback<T> c, RaftNode leader, int retry, boolean getPermit) {
+    private <T> void send(GroupInfo groupInfo, WritePacket request, DecoderCallbackCreator<T> decoder,
+                          DtTime timeout, RpcCallback<T> c, int retry, boolean getPermit) {
         RpcCallback<T> newCallback = (result, ex) -> {
             if (ex != null) {
                 if (request.canRetry() && retry == 0 && ex instanceof NetCodeException) {
                     NetCodeException ncEx = (NetCodeException) ex;
                     if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
-                        GroupInfo gi = groups.get(groupId);
-                        if (gi != null) {
-                            RaftNode newLeader = updateLeaderFromExtra(ncEx.getExtra(), gi);
-                            if (newLeader != null && !timeout.isTimeout()) {
-                                FutureCallback.log.info("leader changed, update leader from node {} to {}, request will auto retry",
-                                        leader.nodeId, newLeader.nodeId);
-                                request.prepareRetry();
-                                send(groupId, request, decoder, timeout, c, newLeader, 1, getPermit);
-                                return;
-                            }
+                        GroupInfo newGroupInfo = updateLeaderFromExtra(ncEx.getExtra(), groupInfo);
+                        if (newGroupInfo != null && newGroupInfo.leader != null && !timeout.isTimeout()) {
+                            log.info("leader changed, update leader from node {} to {}, request will auto retry",
+                                    groupInfo.leader.nodeId, newGroupInfo.leader.nodeId);
+                            request.prepareRetry();
+                            send(newGroupInfo, request, decoder, timeout, c, 1, getPermit);
+                            return;
                         }
                     }
                 }
@@ -295,10 +285,10 @@ public class RaftClient extends AbstractLifeCircle {
                 c.call(result, ex);
             }
         };
-        nioClient.sendRequest(leader.peer, request, decoder, timeout, newCallback);
+        nioClient.sendRequest(groupInfo.leader.peer, request, decoder, timeout, newCallback);
     }
 
-    private RaftNode updateLeaderFromExtra(byte[] extra, GroupInfo groupInfo) {
+    private GroupInfo updateLeaderFromExtra(byte[] extra, GroupInfo groupInfo) {
         if (extra == null) {
             return null;
         }
@@ -312,11 +302,12 @@ public class RaftClient extends AbstractLifeCircle {
             String s = new String(extra, StandardCharsets.UTF_8);
             RaftNode leader = parseLeader(groupInfo, Integer.parseInt(s));
             if (leader != null) {
-                GroupInfo newGroupInfo = new GroupInfo(groupInfo.groupId, groupInfo.epoch,
-                        groupInfo.servers, leader, false);
+                GroupInfo newGroupInfo = new GroupInfo(groupInfo.groupId, groupInfo.servers, leader, false);
                 groups.put(groupInfo.groupId, newGroupInfo);
+                return newGroupInfo;
+            } else {
+                return null;
             }
-            return leader;
         } finally {
             lock.unlock();
         }
@@ -339,7 +330,7 @@ public class RaftClient extends AbstractLifeCircle {
             if (gi.leaderFuture != null) {
                 return gi.leaderFuture;
             }
-            GroupInfo newGroupInfo = new GroupInfo(groupId, generateNextEpoch(), gi.servers, null, true);
+            GroupInfo newGroupInfo = new GroupInfo(groupId, gi.servers, null, true);
             groups.put(groupId, newGroupInfo);
             Iterator<RaftNode> it = newGroupInfo.servers.iterator();
             log.info("try find leader for group {}", groupId);
@@ -356,7 +347,7 @@ public class RaftClient extends AbstractLifeCircle {
             gi.leaderFuture.completeExceptionally(new RaftException("can't find leader for group " + gi.groupId));
 
             // set new group info, to trigger next find
-            GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.epoch, gi.servers, null, false);
+            GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.servers, null, false);
             groups.put(gi.groupId, newGroupInfo);
             return;
         }
@@ -401,7 +392,13 @@ public class RaftClient extends AbstractLifeCircle {
                     RaftNode leader = parseLeader(gi, rf.getBody().getLeaderId());
                     if (leader != null) {
                         log.debug("find leader for group {}: {}", gi.groupId, leader.peer.getEndPoint());
-                        connectToLeader(gi, leader);
+                        try {
+                            nioClient.connect(leader.peer, new DtTime(5, TimeUnit.SECONDS))
+                                    .whenComplete((v, e) -> connectToLeaderCallback(gi, leader, e));
+                        } catch (Exception e) {
+                            log.error("", e);
+                            connectToLeaderCallback(gi, leader, e);
+                        }
                     } else {
                         findLeader(gi, it);
                     }
@@ -412,24 +409,24 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private void connectToLeader(GroupInfo gi, RaftNode leader) {
+    private void connectToLeaderCallback(GroupInfo gi, RaftNode leader, Throwable e) {
         assert gi.leaderFuture != null;
+        lock.lock();
         try {
             Peer leaderPeer = leader.peer;
-            nioClient.connect(leaderPeer, new DtTime(5, TimeUnit.SECONDS)).whenComplete((v, e) -> {
-                if (e != null) {
-                    log.warn("connect to leader {} fail: {}", leaderPeer.getEndPoint(), e.toString());
-                    gi.leaderFuture.completeExceptionally(new RaftException("connect to leader " + leaderPeer.getEndPoint() + " fail"));
-                } else {
-                    log.info("group {} connected to leader: {}", gi.groupId, leaderPeer.getEndPoint());
-                    GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.epoch, gi.servers, leader, false);
-                    groups.put(gi.groupId, newGroupInfo);
-                    gi.leaderFuture.complete(newGroupInfo);
-                }
-            });
-        } catch (Exception e) {
-            log.error("", e);
-            gi.leaderFuture.completeExceptionally(e);
+            if (e != null) {
+                log.warn("connect to leader {} fail: {}", leaderPeer.getEndPoint(), e.toString());
+                groups.put(gi.groupId, new GroupInfo(gi.groupId, gi.servers, null, false));
+                RaftException re = new RaftException("connect to leader " + leaderPeer.getEndPoint() + " fail");
+                gi.leaderFuture.completeExceptionally(re);
+            } else {
+                log.info("group {} connected to leader: {}", gi.groupId, leaderPeer.getEndPoint());
+                GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.servers, leader, false);
+                groups.put(gi.groupId, newGroupInfo);
+                gi.leaderFuture.complete(newGroupInfo);
+            }
+        } finally {
+            lock.unlock();
         }
     }
 

@@ -22,15 +22,17 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 public class GroupInfo {
+    private static int nextEpoch = 1;
+
     final int groupId;
     final List<RaftNode> servers;
     final RaftNode leader;
     final CompletableFuture<GroupInfo> leaderFuture;
-    long epoch;
+    final long epoch;
 
-    public GroupInfo(int groupId, long epoch, List<RaftNode> servers, RaftNode leader, boolean createFuture) {
+    public GroupInfo(int groupId, List<RaftNode> servers, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
-        this.epoch = epoch;
+        this.epoch = nextEpoch++;
         this.servers = servers;
         if (createFuture) {
             this.leaderFuture = new CompletableFuture<>();
