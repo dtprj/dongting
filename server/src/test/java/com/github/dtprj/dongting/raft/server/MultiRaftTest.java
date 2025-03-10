@@ -62,10 +62,10 @@ public class MultiRaftTest extends ServerTestBase {
         client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002");
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2});
         client.getRaftClient().clientAddOrUpdateGroup(groupId2, new int[]{1, 2});
-        client.put(groupId, "key".getBytes(), "value1".getBytes(), timeout);
-        client.put(groupId2, "key".getBytes(), "value2".getBytes(), timeout);
-        KvNode n1 = client.get(groupId, "key".getBytes(), timeout);
-        KvNode n2 = client.get(groupId2, "key".getBytes(), timeout);
+        client.put(groupId, "key".getBytes(), "value1".getBytes());
+        client.put(groupId2, "key".getBytes(), "value2".getBytes());
+        KvNode n1 = client.get(groupId, "key".getBytes());
+        KvNode n2 = client.get(groupId2, "key".getBytes());
         assertEquals("value1", new String(n1.getData()));
         assertEquals("value2", new String(n2.getData()));
 

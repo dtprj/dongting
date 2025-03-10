@@ -15,12 +15,9 @@
  */
 package com.github.dtprj.dongting.demos.cluster;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -42,7 +39,7 @@ public class PeriodPutClient implements GroupId {
             try {
                 String key = "key" + ((count++) % 10_000);
                 long t = System.currentTimeMillis();
-                kvClient.put(GROUP_ID, key.getBytes(), "value".getBytes(), new DtTime(10, TimeUnit.SECONDS));
+                kvClient.put(GROUP_ID, key.getBytes(), "value".getBytes());
                 log.info("put key " + key + " cost " + (System.currentTimeMillis() - t) + "ms");
             } catch (Exception e) {
                 log.error("put key fail: {}", e.toString());

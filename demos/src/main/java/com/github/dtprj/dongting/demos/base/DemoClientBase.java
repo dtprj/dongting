@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.demos.base;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.log.DtLog;
@@ -24,7 +23,6 @@ import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -48,8 +46,7 @@ public abstract class DemoClientBase {
         CountDownLatch latch1 = new CountDownLatch(loopCount);
         for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
-            DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-            kvClient.put(groupId, key.getBytes(), DATA, timeout, (result, ex) -> {
+            kvClient.put(groupId, key.getBytes(), DATA, (result, ex) -> {
                 if (ex == null) {
                     latch1.countDown();
                 } else {
@@ -65,8 +62,7 @@ public abstract class DemoClientBase {
         CountDownLatch latch2 = new CountDownLatch(loopCount);
         for (int i = 0; i < loopCount; i++) {
             String key = "key" + (i % 10_000);
-            DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-            kvClient.get(groupId, key.getBytes(), timeout, (result, ex) -> {
+            kvClient.get(groupId, key.getBytes(), (result, ex) -> {
                 if (ex == null) {
                     latch2.countDown();
                 } else {

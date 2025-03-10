@@ -195,13 +195,12 @@ public class RaftBenchmark extends BenchBase {
         try {
             int k = Integer.reverse((int) startTime);
             k = Math.abs(k % KEYS);
-            final DtTime timeout = new DtTime(2500, TimeUnit.MILLISECONDS);
 
             if (SYNC) {
-                clients[threadIndex].put(GROUP_ID, String.valueOf(k).getBytes(), DATA, timeout);
+                clients[threadIndex].put(GROUP_ID, String.valueOf(k).getBytes(), DATA);
                 success(state);
             } else {
-                clients[threadIndex].put(GROUP_ID, String.valueOf(k).getBytes(), DATA, timeout, (result, ex) -> {
+                clients[threadIndex].put(GROUP_ID, String.valueOf(k).getBytes(), DATA, (result, ex) -> {
                     if (ex == null) {
                         logRt(startTime, state);
                         RaftBenchmark.this.success(state);

@@ -59,8 +59,8 @@ public class ConfigChangeTest extends ServerTestBase {
         f.get(5, TimeUnit.SECONDS);
 
         // add new node
-        CompletableFuture<Void> f1 = c.serverAddNode(2, 4, "127.0.0.1", 4004, timeout);
-        CompletableFuture<Void> f2 = c.serverAddNode(3, 4, "127.0.0.1", 4004, timeout);
+        CompletableFuture<Void> f1 = c.serverAddNode(2, 4, "127.0.0.1", 4004);
+        CompletableFuture<Void> f2 = c.serverAddNode(3, 4, "127.0.0.1", 4004);
         f1.get(5, TimeUnit.SECONDS);
         f2.get(5, TimeUnit.SECONDS);
 
@@ -95,8 +95,8 @@ public class ConfigChangeTest extends ServerTestBase {
         assertEquals(2, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
         // remove the new node from server and client side
-        f1 = c.serverRemoveNode(2, 4, timeout);
-        f2 = c.serverRemoveNode(3, 4, timeout);
+        f1 = c.serverRemoveNode(2, 4);
+        f2 = c.serverRemoveNode(3, 4);
         f1.get(5, TimeUnit.SECONDS);
         f2.get(5, TimeUnit.SECONDS);
 

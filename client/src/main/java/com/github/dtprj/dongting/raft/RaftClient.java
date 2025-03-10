@@ -221,8 +221,7 @@ public class RaftClient extends AbstractLifeCircle {
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
         CompletableFuture<QueryStatusResp> f = new CompletableFuture<>();
         RpcCallback<QueryStatusResp> callback = RpcCallback.fromUnwrapFuture(f);
-        nioClient.sendRequest(n.peer, req, QueryStatusResp.DECODER,
-                new DtTime(rpcTimeoutMillis, TimeUnit.MILLISECONDS), callback);
+        nioClient.sendRequest(n.peer, req, QueryStatusResp.DECODER, createDefaultTimeout(), callback);
         return f;
     }
 
@@ -433,7 +432,7 @@ public class RaftClient extends AbstractLifeCircle {
                     if (leader != null) {
                         log.debug("find leader for group {}: {}", gi.groupId, leader.peer.getEndPoint());
                         try {
-                            nioClient.connect(leader.peer, new DtTime(rpcTimeoutMillis, TimeUnit.MILLISECONDS))
+                            nioClient.connect(leader.peer, createDefaultTimeout())
                                     .whenComplete((v, e) -> connectToLeaderCallback(gi, leader, e));
                         } catch (Exception e) {
                             log.error("", e);
@@ -501,5 +500,9 @@ public class RaftClient extends AbstractLifeCircle {
 
     public NioClient getNioClient() {
         return nioClient;
+    }
+
+    public DtTime createDefaultTimeout() {
+        return new DtTime(rpcTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 }

@@ -153,17 +153,17 @@ public class AdminRaftClient extends RaftClient {
         return sendByNodeId(nodeId, timeout, p);
     }
 
-    public CompletableFuture<Void> serverAddNode(int nodeIdToInvoke, int nodeIdToAdd, String host, int port, DtTime timeout) {
+    public CompletableFuture<Void> serverAddNode(int nodeIdToInvoke, int nodeIdToAdd, String host, int port) {
         AdminAddNodeReq req = new AdminAddNodeReq();
         req.nodeId = nodeIdToAdd;
         req.host = host;
         req.port = port;
         SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_ADD_NODE, req);
-        return sendByNodeId(nodeIdToInvoke, timeout, p);
+        return sendByNodeId(nodeIdToInvoke, createDefaultTimeout(), p);
     }
 
-    public CompletableFuture<Void> serverRemoveNode(int nodeIdToInvoke, int nodeIdToRemove, DtTime timeout) {
+    public CompletableFuture<Void> serverRemoveNode(int nodeIdToInvoke, int nodeIdToRemove) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_NODE, nodeIdToRemove);
-        return sendByNodeId(nodeIdToInvoke, timeout, p);
+        return sendByNodeId(nodeIdToInvoke, createDefaultTimeout(), p);
     }
 }

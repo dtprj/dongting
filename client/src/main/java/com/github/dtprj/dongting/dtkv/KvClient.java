@@ -82,13 +82,18 @@ public class KvClient extends AbstractLifeCircle {
         }
     }
 
-    public void put(int groupId, byte[] key, byte[] value, DtTime timeout) {
+    public void put(int groupId, byte[] key, byte[] value) {
         CompletableFuture<Void> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         put(groupId, key, value, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
-    public void put(int groupId, byte[] key, byte[] value, DtTime timeout, FutureCallback<Void> callback) {
+    public void put(int groupId, byte[] key, byte[] value, FutureCallback<Void> callback) {
+        put(groupId, key, value, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void put(int groupId, byte[] key, byte[] value, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
         KvReq r = new KvReq(groupId, key, value);
@@ -98,13 +103,18 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
     }
 
-    public KvNode get(int groupId, byte[] key, DtTime timeout) {
+    public KvNode get(int groupId, byte[] key) {
         CompletableFuture<KvNode> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         get(groupId, key, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
-    public void get(int groupId, byte[] key, DtTime timeout, FutureCallback<KvNode> callback) {
+    public void get(int groupId, byte[] key, FutureCallback<KvNode> callback) {
+        get(groupId, key, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void get(int groupId, byte[] key, DtTime timeout, FutureCallback<KvNode> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -127,13 +137,18 @@ public class KvClient extends AbstractLifeCircle {
         });
     }
 
-    public List<KvResult> list(int groupId, byte[] key, DtTime timeout) {
+    public List<KvResult> list(int groupId, byte[] key) {
         CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         list(groupId, key, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
-    public void list(int groupId, byte[] key, DtTime timeout, FutureCallback<List<KvResult>> callback) {
+    public void list(int groupId, byte[] key, FutureCallback<List<KvResult>> callback) {
+        list(groupId, key, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void list(int groupId, byte[] key, DtTime timeout, FutureCallback<List<KvResult>> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -155,13 +170,18 @@ public class KvClient extends AbstractLifeCircle {
         });
     }
 
-    public void remove(int groupId, byte[] key, DtTime timeout) {
+    public void remove(int groupId, byte[] key) {
         CompletableFuture<Void> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         remove(groupId, key, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
-    public void remove(int groupId, byte[] key, DtTime timeout, FutureCallback<Void> callback) {
+    public void remove(int groupId, byte[] key, FutureCallback<Void> callback) {
+        remove(groupId, key, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void remove(int groupId, byte[] key, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -170,13 +190,18 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
     }
 
-    public void mkdir(int groupId, byte[] key, DtTime timeout) {
+    public void mkdir(int groupId, byte[] key) {
         CompletableFuture<Void> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         mkdir(groupId, key, timeout, FutureCallback.fromFuture(f));
         waitFuture(f, timeout);
     }
 
-    public void mkdir(int groupId, byte[] key, DtTime timeout, FutureCallback<Void> callback) {
+    public void mkdir(int groupId, byte[] key, FutureCallback<Void> callback) {
+        mkdir(groupId, key, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void mkdir(int groupId, byte[] key, DtTime timeout, FutureCallback<Void> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -185,13 +210,18 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, timeout, c);
     }
 
-    public int[] batchPut(int groupId, List<byte[]> keys, List<byte[]> values, DtTime timeout) {
+    public int[] batchPut(int groupId, List<byte[]> keys, List<byte[]> values) {
         CompletableFuture<int[]> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         batchPut(groupId, keys, values, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
-    public void batchPut(int groupId, List<byte[]> keys, List<byte[]> values,
+    public void batchPut(int groupId, List<byte[]> keys, List<byte[]> values, FutureCallback<int[]> callback) {
+        batchPut(groupId, keys, values, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void batchPut(int groupId, List<byte[]> keys, List<byte[]> values,
                          DtTime timeout, FutureCallback<int[]> callback) {
         Objects.requireNonNull(keys);
         Objects.requireNonNull(values);
@@ -221,14 +251,18 @@ public class KvClient extends AbstractLifeCircle {
         };
     }
 
-    public List<KvNode> batchGet(int groupId, List<byte[]> keys, DtTime timeout) {
+    public List<KvNode> batchGet(int groupId, List<byte[]> keys) {
         CompletableFuture<List<KvNode>> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         batchGet(groupId, keys, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
-    public void batchGet(int groupId, List<byte[]> keys, DtTime timeout,
-                         FutureCallback<List<KvNode>> callback) {
+    public void batchGet(int groupId, List<byte[]> keys, FutureCallback<List<KvNode>> callback) {
+        batchGet(groupId, keys, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void batchGet(int groupId, List<byte[]> keys, DtTime timeout, FutureCallback<List<KvNode>> callback) {
         Objects.requireNonNull(keys);
         if (keys.isEmpty()) {
             throw new IllegalArgumentException("keys must not be empty");
@@ -255,13 +289,18 @@ public class KvClient extends AbstractLifeCircle {
         });
     }
 
-    public int[] batchRemove(int groupId, List<byte[]> keys, DtTime timeout) {
+    public int[] batchRemove(int groupId, List<byte[]> keys) {
         CompletableFuture<int[]> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         batchRemove(groupId, keys, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
-    public void batchRemove(int groupId, List<byte[]> keys, DtTime timeout, FutureCallback<int[]> callback) {
+    public void batchRemove(int groupId, List<byte[]> keys, FutureCallback<int[]> callback) {
+        batchRemove(groupId, keys, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void batchRemove(int groupId, List<byte[]> keys, DtTime timeout, FutureCallback<int[]> callback) {
         Objects.requireNonNull(keys);
         if (keys.isEmpty()) {
             throw new IllegalArgumentException("keys must not be empty");
@@ -273,13 +312,18 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, dc, timeout, batchCodesCallback(callback));
     }
 
-    public boolean compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue, DtTime timeout) {
+    public boolean compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) {
         CompletableFuture<Boolean> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
         compareAndSet(groupId, key, expectValue, newValue, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
-    public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
+    public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue, FutureCallback<Boolean> callback) {
+        compareAndSet(groupId, key, expectValue, newValue, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
                               DtTime timeout, FutureCallback<Boolean> callback) {
         Objects.requireNonNull(key);
         KvReq r = new KvReq(groupId, key, newValue, null, null, expectValue);

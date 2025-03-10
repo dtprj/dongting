@@ -53,7 +53,7 @@ public class TransferLeaderTest extends ServerTestBase {
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        client.put(groupId, "key".getBytes(), "value".getBytes(), timeout);
+        client.put(groupId, "key".getBytes(), "value".getBytes());
 
         ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
 
@@ -69,7 +69,7 @@ public class TransferLeaderTest extends ServerTestBase {
         assertEquals(RaftRole.follower, leader.group.groupComponents.raftStatus.getShareStatus().role);
         assertEquals(RaftRole.leader, newLeader.group.groupComponents.raftStatus.getShareStatus().role);
 
-        client.put(groupId, "key".getBytes(), "value".getBytes(), timeout);
+        client.put(groupId, "key".getBytes(), "value".getBytes());
 
         for (ServerInfo si : sis) {
             waitStop(si);
