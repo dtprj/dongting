@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.demos.base;
 
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -50,7 +49,7 @@ public abstract class DemoClientBase {
                 if (ex == null) {
                     latch1.countDown();
                 } else {
-                    FutureCallback.log.error("", ex);
+                    log.error("", ex);
                     System.exit(1);
                 }
             });

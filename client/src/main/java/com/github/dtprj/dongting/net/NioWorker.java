@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Pair;
@@ -562,7 +561,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void sendHandshake(DtChannelImpl dtc, ConnectInfo ci) {
         RpcCallback<HandshakeBody> rpcCallback = (resp, ex) -> {
             if (ex != null) {
-                FutureCallback.log.error("handshake fail: {}", ex);
+                log.error("handshake fail: {}", ex);
                 close(dtc);
             } else {
                 handshakeSuccess(dtc, ci, resp);
