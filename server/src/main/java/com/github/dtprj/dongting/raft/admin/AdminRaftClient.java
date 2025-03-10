@@ -52,6 +52,10 @@ public class AdminRaftClient extends RaftClient {
         super(nioClientConfig);
     }
 
+    public CompletableFuture<QueryStatusResp> queryRaftServerStatus(int nodeId, int groupId) {
+        return super.queryRaftServerStatus(nodeId, groupId);
+    }
+
     public CompletableFuture<Void> transferLeader(int groupId, int oldLeader, int newLeader, DtTime timeout) {
         if (oldLeader == newLeader) {
             return CompletableFuture.failedFuture(new IllegalArgumentException(
@@ -122,18 +126,6 @@ public class AdminRaftClient extends RaftClient {
         CompletableFuture<Long> r = new CompletableFuture<>();
         sendRequest(groupId, p, dc, timeout, RpcCallback.fromUnwrapFuture(r));
         return r;
-    }
-
-    public CompletableFuture<QueryStatusResp> queryRaftServerStatus(int nodeId, int groupId, DtTime timeout) {
-        RaftNode n = getNode(nodeId);
-        if (n == null) {
-            return DtUtil.failedFuture(new RaftException("node not found: " + nodeId));
-        }
-        PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
-        CompletableFuture<QueryStatusResp> f = new CompletableFuture<>();
-        RpcCallback<QueryStatusResp> callback = RpcCallback.fromUnwrapFuture(f);
-        nioClient.sendRequest(n.peer, req, QueryStatusResp.DECODER, timeout, callback);
-        return f;
     }
 
     private CompletableFuture<Void> sendByNodeId(int nodeId, DtTime timeout, WritePacket p) {

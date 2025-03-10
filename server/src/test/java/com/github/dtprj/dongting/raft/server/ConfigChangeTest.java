@@ -72,7 +72,7 @@ public class ConfigChangeTest extends ServerTestBase {
         f.get(5, TimeUnit.SECONDS);
 
         int leaderId = c.getGroup(groupId).getLeader().nodeId;
-        CompletableFuture<QueryStatusResp> queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId, timeout);
+        CompletableFuture<QueryStatusResp> queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId);
         assertEquals(3, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
         // start the new node
@@ -91,7 +91,7 @@ public class ConfigChangeTest extends ServerTestBase {
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
 
-        queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId, timeout);
+        queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId);
         assertEquals(2, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
         // remove the new node from server and client side

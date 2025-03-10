@@ -42,7 +42,7 @@ public class ChangeTo123Client implements GroupId {
 
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         QueryStatusResp status = adminClient.queryRaftServerStatus(
-                leader.nodeId, GROUP_ID, timeout).get();
+                leader.nodeId, GROUP_ID).get();
         if (status.members.contains(1)) {
             System.out.println("current member is [1,2,3], try run ChangeTo123Client.");
             System.exit(1);

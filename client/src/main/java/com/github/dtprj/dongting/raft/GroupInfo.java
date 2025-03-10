@@ -28,7 +28,9 @@ public class GroupInfo {
     final RaftNode leader;
     final CompletableFuture<GroupInfo> leaderFuture;
 
-    public GroupInfo(int groupId, List<RaftNode> servers, RaftNode leader, boolean createFuture) {
+    final long lastLeaderFailTime;
+
+    GroupInfo(int groupId, List<RaftNode> servers, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
         this.servers = servers;
         if (createFuture) {
@@ -37,6 +39,19 @@ public class GroupInfo {
             this.leaderFuture = null;
         }
         this.leader = leader;
+        this.lastLeaderFailTime = 0;
+    }
+
+    GroupInfo(GroupInfo old, RaftNode leader, boolean createFuture) {
+        this(old.groupId, old.servers, leader, createFuture);
+    }
+
+    GroupInfo(GroupInfo old, long lastLeaderFailTime) {
+        this.groupId = old.groupId;
+        this.servers = old.servers;
+        this.leader = old.leader;
+        this.leaderFuture = old.leaderFuture;
+        this.lastLeaderFailTime = lastLeaderFailTime;
     }
 
     public RaftNode getLeader() {
