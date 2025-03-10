@@ -278,7 +278,7 @@ public class RaftClient extends AbstractLifeCircle {
     private <T> void send(GroupInfo groupInfo, WritePacket request, DecoderCallbackCreator<T> decoder,
                           DtTime timeout, RpcCallback<T> c, int retry, boolean getPermit) {
         RpcCallback<T> newCallback = (result, ex) -> {
-            if (ex instanceof NetException) {
+            if (ex instanceof NetCodeException) {
                 NetCodeException ncEx = (NetCodeException) ex;
                 if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER && request.canRetry()
                         && retry == 0 && ncEx.getExtra() != null) {
