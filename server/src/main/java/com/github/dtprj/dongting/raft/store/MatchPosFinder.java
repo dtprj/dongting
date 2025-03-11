@@ -80,14 +80,14 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
             setResult(r);
             return Fiber.frameReturn();
         }
-        if (tailCache.getFirstIndex() > 0) {
-            rightIndex = tailCache.getFirstIndex();
-        }
-        logFile = findMatchLogFile(suggestTerm, suggestIndex);
+        logFile = findMatchLogFile();
         if (logFile == null) {
             setResult(null);
             return Fiber.frameReturn();
         } else {
+            if (tailCache.getFirstIndex() > 0) {
+                rightIndex = Math.min(tailCache.getFirstIndex(), rightIndex);
+            }
             this.leftIndex = logFile.firstIndex;
             this.leftTerm = logFile.firstTerm;
             buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
@@ -129,7 +129,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     }
 
 
-    private LogFile findMatchLogFile(int suggestTerm, long suggestIndex) {
+    private LogFile findMatchLogFile() {
         if (queue.size() == 0) {
             return null;
         }
@@ -146,13 +146,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
                 right = mid - 1;
                 continue;
             }
-            if (logFile.firstIndex > suggestIndex) {
-                right = mid - 1;
-                continue;
-            }
-            if (logFile.firstIndex == suggestIndex && logFile.firstTerm == suggestTerm) {
-                return logFile;
-            } else if (logFile.firstIndex < suggestIndex && logFile.firstTerm <= suggestTerm) {
+            if (valid(logFile.firstTerm, logFile.firstIndex)) {
                 if (left == right) {
                     return logFile;
                 } else {
