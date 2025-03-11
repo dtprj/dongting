@@ -62,7 +62,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     private long persistedIndexInStatusFile;
     private long nextPersistIndex;
-    private long persistedIndex;
+    private long writeFinishIndex;
+    long persistedIndex;
     private long nextIndex;
     private long firstIndex;
 
@@ -95,7 +96,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         this.needFlushCondition = groupConfig.fiberGroup.newCondition("IdxNeedFlush-" + groupConfig.groupId);
         this.flushDoneCondition = groupConfig.fiberGroup.newCondition("IdxFlushDone-" + groupConfig.groupId);
 
-        this.chainWriter = new ChainWriter("IdxForce", groupConfig, null, this::forceFinish);
+        this.chainWriter = new ChainWriter("IdxForce", groupConfig, this::writeFinish, this::forceFinish);
         chainWriter.setWritePerfType1(0);
         chainWriter.setWritePerfType2(PerfConsts.RAFT_D_IDX_WRITE);
         chainWriter.setForcePerfType(PerfConsts.RAFT_D_IDX_FORCE);
@@ -116,6 +117,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             long restoreStartPos = 0;
             nextIndex = 1;
             nextPersistIndex = 1;
+            writeFinishIndex = 0;
             persistedIndex = 0;
 
             if (queueEndPosition == 0) {
@@ -126,6 +128,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         } else {
             nextIndex = restoreIndex + 1;
             nextPersistIndex = restoreIndex + 1;
+            writeFinishIndex = restoreIndex;
             persistedIndex = restoreIndex;
             final long finalRestoreIndex = restoreIndex;
             return new FiberFrame<>() {
@@ -153,6 +156,11 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         flushFiber.start();
         chainWriter.start();
         startQueueAllocFiber();
+    }
+
+    // run in Future callback
+    private void writeFinish(ChainWriter.WriteTask writeTask) {
+        writeFinishIndex = writeTask.getLastRaftIndex();
     }
 
     // run in Future callback
@@ -265,9 +273,9 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 if (needWaitFlush()) {
                     long first = cache.getFirstKey();
                     long last = cache.getLastKey();
-                    log.warn("group {} cache size {} exceed {}, may cause block. cache from {} to {}, idxPersistedIndex={}," +
+                    log.warn("group {} cache size {} exceed {}, may cause block. cache from {} to {}, idxWriteFinishIndex={}," +
                                     " commitIndex={}, lastWriteIndex={}, lastForceIndex={}",
-                            raftStatus.groupId, cache.size(), blockCacheItems, first, last, persistedIndex,
+                            raftStatus.groupId, cache.size(), blockCacheItems, first, last, writeFinishIndex,
                             raftStatus.commitIndex, raftStatus.lastWriteLogIndex, raftStatus.lastForceLogIndex);
                     needFlushCondition.signalAll();
                     return flushDoneCondition.await(1000, this);
@@ -286,9 +294,9 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private void removeHead() {
         LongLongSeqMap cache = this.cache;
         long maxCacheItems = this.maxCacheItems;
-        long nextPersistIndex = this.nextPersistIndex;
+        long writeFinishIndex = this.writeFinishIndex;
         // notice: we are not write no-commited logs to the idx file
-        while (cache.size() >= maxCacheItems && cache.getFirstKey() < nextPersistIndex) {
+        while (cache.size() >= maxCacheItems && cache.getFirstKey() < writeFinishIndex) {
             cache.remove();
         }
     }
@@ -377,7 +385,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                     BugLog.getLog().error("load index is too small: index={}, firstIndex={}", itemIndex, firstIndex);
                     throw new RaftException("index too small");
                 }
-                if (itemIndex > persistedIndex) {
+                if (itemIndex > writeFinishIndex) {
                     if (itemIndex >= cache.getFirstKey() && itemIndex <= cache.getLastKey()) {
                         setResult(cache.get(itemIndex));
                         return Fiber.frameReturn();
@@ -437,10 +445,6 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         return nextPersistIndex;
     }
 
-    public long getPersistedIndex() {
-        return persistedIndex;
-    }
-
     public FiberFuture<Void> close() {
         markClose = true;
         needFlushCondition.signal();
@@ -461,6 +465,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         firstIndex = nextLogIndex;
         nextIndex = nextLogIndex;
         nextPersistIndex = nextLogIndex;
+        writeFinishIndex = nextLogIndex - 1;
         persistedIndex = nextLogIndex - 1;
         initQueue();
         startFibers();

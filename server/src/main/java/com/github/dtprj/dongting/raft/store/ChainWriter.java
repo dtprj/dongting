@@ -185,8 +185,8 @@ public class ChainWriter {
             FiberFuture<Void> f = t.getFuture();
             if (f.isDone()) {
                 writeTasks.removeFirst();
+                lastTaskNeedCallback = t;
                 if (t.force) {
-                    lastTaskNeedCallback = t;
                     forceTasks.add(t);
                     forceTaskCount++;
                 }

@@ -207,14 +207,14 @@ public final class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getPersistedIndex());
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.persistedIndex);
         bound = Math.min(bound, index);
         logFiles.markDelete(bound, Long.MAX_VALUE, delayMillis);
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampBound, long delayMillis) {
-        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getPersistedIndex());
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.persistedIndex);
         logFiles.markDelete(bound, timestampBound, delayMillis);
     }
 
@@ -380,7 +380,7 @@ public final class DefaultRaftLog implements RaftLog {
             if (logFiles.getFirstIndex() < firstIndexOfNextFile) {
                 return false;
             }
-            if (idxFiles.getPersistedIndex() < firstIndexOfNextFile) {
+            if (idxFiles.persistedIndex < firstIndexOfNextFile) {
                 return false;
             }
             return !first.inUse();
