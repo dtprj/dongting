@@ -514,9 +514,9 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
     private void processLogNotMatch(long prevLogIndex, int prevLogTerm, AppendResp body,
                                     RaftStatusImpl raftStatus) {
-        log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}",
+        log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteSuggestTerm={}, remoteSuggestIndex={}, localLastTerm={}, localLastIndex={}",
                 member.node.nodeId, groupId, member.matchIndex, prevLogIndex, prevLogTerm, body.suggestTerm,
-                body.suggestIndex, raftStatus.currentTerm);
+                body.suggestIndex, raftStatus.currentTerm, raftStatus.lastLogIndex);
         if (body.suggestTerm == 0 && body.suggestIndex == 0) {
             log.info("remote has no suggest match index, begin install snapshot. remoteId={}, groupId={}",
                     member.node.nodeId, groupId);
