@@ -247,7 +247,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             if (header.bodyLen > 0) {
                 int bodyLen = header.bodyLen;
                 for (int j = 0; j < bodyLen; j++) {
-                    assertEquals(((ByteArray)item.getBody()).getData()[j], buf.get());
+                    assertEquals(((ByteArray) item.getBody()).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bodyLen, bodyLen);
@@ -358,11 +358,11 @@ public class LogFileQueueTest extends BaseFiberTest {
     }
 
     private void closeThenRestore(int maxWriteBufferSize, long expectIndex, long expectPos) throws Exception {
-        closeThenRestore(maxWriteBufferSize, expectIndex, expectPos, 1, 0, 0);
+        closeThenRestore(maxWriteBufferSize, expectIndex, expectPos, 1, 0, 0, null);
     }
 
     private void closeThenRestore(int maxWriteBufferSize, long expectIndex, long expectPos, long restoreIndex,
-                                  long restorePos, long firstValidPos) throws Exception {
+                                  long restorePos, long firstValidPos, RunnableEx<Exception> updater) throws Exception {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -370,7 +370,11 @@ public class LogFileQueueTest extends BaseFiberTest {
 
             }
 
-            private FrameCallResult afterClose(Void unused) throws IOException {
+            private FrameCallResult afterClose(Void unused) throws Exception {
+                if (updater != null) {
+                    updater.run();
+                }
+
                 logFileQueue = new LogFileQueue(dir, config, idxOps, 1024);
                 logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
                 logFileQueue.initQueue();
@@ -423,7 +427,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 1024);
         append(false, 0L, 200, 200, 1024);
 
-        closeThenRestore(1024, 4, 2048, 3, 1024, 0);
+        closeThenRestore(1024, 4, 2048, 3, 1024, 0, null);
         // restore from second file, first item of first file crc fail
         closeUpdateRestore(3, 1024, () -> {
             ByteBuffer data = load(0);
@@ -510,29 +514,27 @@ public class LogFileQueueTest extends BaseFiberTest {
 
     @Test
     public void testRestore9() throws Exception {
+        // prevLogTerm not match
         setup(1024, 1024);
         append(false, 0L, 200, 200);
-        closeUpdateRestore(1, 0,
-                () -> updateHeader(0, 200, h -> h.prevLogTerm--),
-                e -> assertTrue(e.getMessage().startsWith("prevLogTerm not match")));
+        closeThenRestore(1024, 2, 200, 1, 0, 0,
+                () -> updateHeader(0, 200, h -> h.prevLogTerm--));
     }
 
     @Test
     public void testRestore10() throws Exception {
         setup(1024, 1024);
         append(false, 0L, 200, 200);
-        closeUpdateRestore(1, 0,
-                () -> updateHeader(0, 200, h -> h.index--),
-                e -> assertTrue(e.getMessage().startsWith("index not match")));
+        closeThenRestore(1024, 2, 200, 1, 0, 0,
+                () -> updateHeader(0, 200, h -> h.index--));
     }
 
     @Test
     public void testRestore11() throws Exception {
         setup(1024, 1024);
         append(false, 0L, 200, 200);
-        closeUpdateRestore(1, 0,
-                () -> updateHeader(0, 200, h -> h.term = h.prevLogTerm - 1),
-                e -> assertTrue(e.getMessage().startsWith("term less than previous term")));
+        closeThenRestore(1024, 2, 200, 1, 0, 0,
+                () -> updateHeader(0, 200, h -> h.term = h.prevLogTerm - 1));
     }
 
     @Test
@@ -557,7 +559,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         // zero biz header len
         bizHeaderLen = 0;
         append(false, 0L, 200, 200);
-        closeThenRestore(1024, 3, 400, 1, 0, 0);
+        closeThenRestore(1024, 3, 400, 1, 0, 0, null);
     }
 
     @Test
@@ -566,20 +568,20 @@ public class LogFileQueueTest extends BaseFiberTest {
         // zero biz body len
         int len = LogHeader.ITEM_HEADER_SIZE + bizHeaderLen + 4;
         append(false, 0L, len, len);
-        closeThenRestore(1024, 3, len + len, 1, 0, 0);
+        closeThenRestore(1024, 3, len + len, 1, 0, 0, null);
     }
 
     @Test
     public void testRestore16() throws Exception {
-        setup(1024, 200);
-        append(false, 0L, 201);
+        setup(1024, 1024);
+        append(false, 0L, 200, 300, 300);
 
-        closeUpdateRestore(1, 0, () -> {
+        closeThenRestore(1024, 3, 500, 1, 0, 0, () -> {
             ByteBuffer buf = load(0);
-            int bizHeaderCrcPos = LogHeader.ITEM_HEADER_SIZE + bizHeaderLen;
+            int bizHeaderCrcPos = 500 + LogHeader.ITEM_HEADER_SIZE + bizHeaderLen;
             buf.putInt(bizHeaderCrcPos, buf.getInt(bizHeaderCrcPos) + 1);
             write(0, buf.array());
-        }, e -> assertTrue(e.getMessage().startsWith("restore index crc not match")));
+        });
     }
 
 }

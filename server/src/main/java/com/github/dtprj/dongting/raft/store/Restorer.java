@@ -205,18 +205,19 @@ class Restorer {
         }
     } //end of class RestoreFileFrame
 
-    private int crcFail(LogFile lf) {
+    private int itemCheckFail(LogFile lf, String reason) {
         if (restoreIndexChecked) {
-            if (header.totalLen == 0) {
+            if (header.totalLen == 0 && header.headerCrc == 0) {
                 log.info("reach end of file. file={}, pos={}, index={}, term={}",
                         lf.getFile().getPath(), itemStartPosOfFile, header.index, header.term);
             } else {
-                log.warn("reach end of file. last write maybe not finished. file={}, pos={}, index={}, term={}",
-                        lf.getFile().getPath(), itemStartPosOfFile, header.index, header.term);
+                log.warn("reach end of file. last write maybe not finished or truncated. file={}, pos={}, index={}, term={}, reason={}",
+                        lf.getFile().getPath(), itemStartPosOfFile, header.index, header.term, reason);
             }
             return RT_RESTORE_FINISHED;
         } else {
-            throw new RaftException("restore index crc not match. " + restoreIndex + "," + restoreStartPos);
+            throw new RaftException("item check fail: " + reason + ". restoreIndex="
+                    + restoreIndex + ",restoreStartPos" + restoreStartPos);
         }
     }
 
@@ -227,10 +228,10 @@ class Restorer {
                 result = restoreHeader(buf, lf);
             } else if (state == STATE_BIZ_HEADER) {
                 int dataLen = header.bizHeaderLen;
-                result = restoreData(buf, dataLen, lf, STATE_BIZ_BODY);
+                result = restoreData(buf, dataLen, lf, STATE_BIZ_BODY, "biz header");
             } else if (state == STATE_BIZ_BODY) {
                 int dataLen = header.bodyLen;
-                result = restoreData(buf, dataLen, lf, STATE_ITEM_HEADER);
+                result = restoreData(buf, dataLen, lf, STATE_ITEM_HEADER, "biz body");
                 if (result == RT_CONTINUE_READ) {
                     if (!restoreIndexChecked) {
                         restoreIndexChecked = true;
@@ -254,7 +255,7 @@ class Restorer {
         }
         header.read(buf);
         if (!header.crcMatch()) {
-            return crcFail(lf);
+            return itemCheckFail(lf, "header crc not match");
         }
         if (header.isEndMagic()) {
             return RT_CURRENT_FILE_FINISHED;
@@ -264,13 +265,13 @@ class Restorer {
         }
         if (restoreIndexChecked) {
             if (header.prevLogTerm != previousTerm) {
-                throwEx("prevLogTerm not match", lf, itemStartPosOfFile);
+                return itemCheckFail(lf, "prevLogTerm not match");
             }
             if (this.previousIndex + 1 != header.index) {
-                throwEx("index not match", lf, itemStartPosOfFile);
+                return itemCheckFail(lf, "index not match");
             }
             if (header.term < this.previousTerm) {
-                throwEx("term less than previous term", lf, itemStartPosOfFile);
+                return itemCheckFail(lf, "term less than previous term");
             }
         } else {
             if (header.index != restoreIndex) {
@@ -285,7 +286,7 @@ class Restorer {
         return RT_CONTINUE_READ;
     }
 
-    private int restoreData(ByteBuffer buf, int dataLen, LogFile lf, int newState) {
+    private int restoreData(ByteBuffer buf, int dataLen, LogFile lf, int newState, String dataType) {
         if (dataLen == 0) {
             changeState(newState);
             return RT_CONTINUE_READ;
@@ -300,7 +301,7 @@ class Restorer {
         needRead = dataLen - dataReadLength;
         if (needRead == 0 && buf.remaining() >= 4) {
             if (buf.getInt() != (int) crc32c.getValue()) {
-                return crcFail(lf);
+                return itemCheckFail(lf, dataType + "crc not match");
             }
             changeState(newState);
             return RT_CONTINUE_READ;
