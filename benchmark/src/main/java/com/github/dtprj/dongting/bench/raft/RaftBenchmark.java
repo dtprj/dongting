@@ -86,6 +86,8 @@ public class RaftBenchmark extends BenchBase {
         serverConfig.nodeId = nodeId;
         serverConfig.replicatePort = replicatePort;
         serverConfig.servicePort = servicePort;
+        serverConfig.electTimeout = 3000;
+        serverConfig.heartbeatInterval = 1000;
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(GROUP_ID, nodeIdOfMembers, "");
         groupConfig.dataDir = DATA_DIR + "-" + nodeId;
