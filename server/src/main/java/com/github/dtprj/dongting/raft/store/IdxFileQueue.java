@@ -45,7 +45,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
-    static final String KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT = "nextPosAfterInstallSnapshot";
+    static final String KEY_FIRST_VALID_POS = "firstValidPos";
 
     public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
     public static final int MAX_BATCH_ITEMS = 16 * 1024;

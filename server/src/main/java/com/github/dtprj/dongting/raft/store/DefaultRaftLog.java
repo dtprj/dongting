@@ -39,7 +39,7 @@ import java.io.File;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT;
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_FIRST_VALID_POS;
 
 /**
  * @author huangli
@@ -120,7 +120,7 @@ public final class DefaultRaftLog implements RaftLog {
                 long restoreIndex = p.getLeft();
                 long restoreStartPos = p.getRight();
                 long firstValidPos = RaftUtil.parseLong(statusManager.getProperties(),
-                        KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, 0);
+                        KEY_FIRST_VALID_POS, 0);
 
                 // restore will cause idx write, so start idx fibers
                 idxFiles.startFibers();
@@ -288,7 +288,7 @@ public final class DefaultRaftLog implements RaftLog {
                 idxFiles.initialized = true;
                 logFiles.initialized = true;
                 startQueueDeleteFiber();
-                statusManager.getProperties().put(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
+                statusManager.getProperties().put(KEY_FIRST_VALID_POS, String.valueOf(nextLogPos));
                 return Fiber.frameReturn();
             }
         };
