@@ -48,24 +48,6 @@ public class FiberCondition extends WaitSource {
         signal0(true);
     }
 
-    public void signalLater() {
-        Dispatcher.getCurrentFiberAndCheck(group);
-        signal0(false);
-    }
-
-    public void signal(Fiber targetFiber) {
-        Dispatcher.getCurrentFiberAndCheck(group);
-        if (group.finished) {
-            return;
-        }
-        if (targetFiber.source != this) {
-            return;
-        }
-        // assert waiters not null
-        waiters.remove(targetFiber);
-        signalFiber(targetFiber, true);
-    }
-
     public void signalAll() {
         Dispatcher.getCurrentFiberAndCheck(group);
         signalAll0(true);
