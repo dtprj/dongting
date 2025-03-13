@@ -80,27 +80,35 @@ public class ConfigChangeTest extends ServerTestBase {
         waitStart(s4);
 
         c.clientAddNode("4,127.0.0.1:4004");
+        c.clientAddOrUpdateGroup(groupId, new int[]{2, 3, 4});
 
         // mark sure the new node has catch up
         long finalPrepareIndex = prepareIndex;
         assertTrue(() -> s4.group.groupComponents.raftStatus.getShareStatus().lastApplied >= finalPrepareIndex);
 
-        // config change, remove the new added member
-        f = c.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(2, 3), Set.of(), timeout);
+        // config change, remove the old members
+        f = c.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(4), Set.of(), timeout);
         prepareIndex = f.get(5, TimeUnit.SECONDS);
+
+        // before commit, transfer leader to new node
+        c.transferLeader(groupId, leaderId, 4, timeout).get(5, TimeUnit.SECONDS);
+        leaderId = 4;
+
+        // commit config change
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
 
         queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId);
-        assertEquals(2, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
+        assertEquals(1, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
         // remove the new node from server and client side
-        f1 = c.serverRemoveNode(2, 4);
-        f2 = c.serverRemoveNode(3, 4);
+        f1 = c.serverRemoveNode(4, 2);
+        f2 = c.serverRemoveNode(4, 3);
         f1.get(5, TimeUnit.SECONDS);
         f2.get(5, TimeUnit.SECONDS);
 
-        c.clientRemoveNode(4);
+        c.clientAddOrUpdateGroup(groupId, new int[]{4});
+        c.clientRemoveNode(2, 3);
 
         c.stop(timeout);
         waitStop(s2);
