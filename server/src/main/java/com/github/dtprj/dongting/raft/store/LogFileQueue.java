@@ -123,7 +123,7 @@ final class LogFileQueue extends FileQueue {
 
             private FrameCallResult afterRestoreSingleFile(Pair<Boolean, Long> r) {
                 if (r.getLeft()) {
-                    if (r.getRight() > startPosOfFile(r.getRight()) || writePos == 0) {
+                    if (r.getRight() != startPosOfFile(r.getRight()) || writePos == 0) {
                         writePos = r.getRight();
                     }
                     // break for loop

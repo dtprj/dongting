@@ -523,6 +523,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
     @Test
     public void testRestore10() throws Exception {
+        // index not match
         setup(1024, 1024);
         append(false, 0L, 200, 200);
         closeThenRestore(1024, 2, 200, 1, 0, 0,
@@ -531,6 +532,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
     @Test
     public void testRestore11() throws Exception {
+        // term less than previous term
         setup(1024, 1024);
         append(false, 0L, 200, 200);
         closeThenRestore(1024, 2, 200, 1, 0, 0,
@@ -582,6 +584,41 @@ public class LogFileQueueTest extends BaseFiberTest {
             buf.putInt(bizHeaderCrcPos, buf.getInt(bizHeaderCrcPos) + 1);
             write(0, buf.array());
         });
+    }
+
+    @Test
+    public void testRestore17() throws Exception {
+        setup(1024, 1024);
+        append(false, 0L, 500, 500, 200, 200);
+        closeThenRestore(1024, 5, 1424, 4, 1224, 500, null);
+        LogFile lf = logFileQueue.getLogFile(0);
+        assertEquals(2, lf.firstIndex);
+
+        closeThenRestore(1024, 5, 1424, 4, 1224, 1000, null);
+        assertNull(logFileQueue.getLogFile(0));
+        assertEquals(3, logFileQueue.getLogFile(1024).firstIndex);
+    }
+
+    @Test
+    public void testRestore18() throws Exception {
+        setup(1024, 1024);
+        append(false, 0L, 500, 400, 200, 200);
+        closeThenRestore(1024, 5, 1424, 4, 1224, 900, null);
+        assertNull(logFileQueue.getLogFile(0));
+        assertEquals(3, logFileQueue.getLogFile(1024).firstIndex);
+    }
+
+    @Test
+    public void testRestore19() throws Exception {
+        setup(1024, 1024);
+        append(false, 0L, 1020);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(logFileQueue.ensureWritePosReady(1024), this::justReturn);
+            }
+        });
+        closeThenRestore(1024, 2, 1024, 1, 0, 0, null);
     }
 
 }
