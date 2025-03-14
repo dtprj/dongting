@@ -47,14 +47,16 @@ public class RaftGroupConfig extends ConfigBase {
 
     public PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
 
-    public long saveSnapshotMillis = 60 * 60 * 1000;
-    // greater than 1 require state machine support
+    // leader replicate/install read concurrency, or recovering write concurrency.
+    // greater than 1 require state machine support.
     public int snapshotConcurrency = 1;
-    public int diskSnapshotConcurrency = 4;
+    public int diskSnapshotConcurrency = 4; // disk snapshot read/write concurrency
     public int diskSnapshotBufferSize = 64 * 1024;
     public int replicateSnapshotConcurrency = 4;
     public int replicateSnapshotBufferSize = 64 * 1024;
 
+    public long saveSnapshotMillis = 60 * 60 * 1000;
+    public int maxKeepSnapshots = 2;
     public boolean saveSnapshotWhenClose = true;
 
     public boolean deleteLogsAfterTakeSnapshot = true;

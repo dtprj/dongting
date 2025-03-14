@@ -48,6 +48,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
     private DefaultSnapshotManager m;
     private DtKV kv;
     private RaftStatusImpl raftStatus;
+    private RaftGroupConfigEx groupConfig;
 
     private void createManager(boolean separateExecutor, String dataDir, boolean mockInstall) {
         raftStatus = new RaftStatusImpl(0, dispatcher.ts);
@@ -56,7 +57,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         raftStatus.nodeIdOfPreparedMembers = Set.of();
         raftStatus.nodeIdOfPreparedObservers = Set.of();
         raftStatus.lastAppliedTerm = 1;
-        RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
+        groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.fiberGroup = fiberGroup;
         groupConfig.raftStatus = raftStatus;
         groupConfig.ts = dispatcher.ts;
@@ -168,7 +169,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 File dir = new File(dataDir);
                 dir = new File(dir, DefaultSnapshotManager.SNAPSHOT_DIR);
                 File[] files = dir.listFiles();
-                assertEquals(DefaultSnapshotManager.KEEP * 2, files == null ? 0 : files.length);
+                assertEquals(groupConfig.maxKeepSnapshots * 2, files == null ? 0 : files.length);
 
                 return Fiber.frameReturn();
             }

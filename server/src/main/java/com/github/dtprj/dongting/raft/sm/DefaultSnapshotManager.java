@@ -64,7 +64,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     private static final DtLog log = DtLogs.getLogger(DefaultSnapshotManager.class);
 
-    static final int KEEP = 2;
     public static final String SNAPSHOT_DIR = "snapshot";
 
     private static final String DATA_SUFFIX = ".data";
@@ -282,7 +281,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private void deleteOldFiles() {
-            while (savedSnapshots.size() > KEEP) {
+            while (savedSnapshots.size() > groupConfig.maxKeepSnapshots) {
                 FileSnapshotInfo s = savedSnapshots.removeFirst();
                 deleteInIoExecutor(s.dataFile);
                 deleteInIoExecutor(s.idxFile);
