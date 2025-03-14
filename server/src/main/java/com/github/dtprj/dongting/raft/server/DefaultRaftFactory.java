@@ -91,8 +91,9 @@ public abstract class DefaultRaftFactory implements RaftFactory {
     }
 
     @Override
-    public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine,
-                                                 Consumer<Long> logDeleter) {
+    public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine, RaftLog raftLog) {
+        Consumer<Long> logDeleter = lastIncludeIndex-> raftLog.markTruncateByIndex(
+                lastIncludeIndex, groupConfig.autoDeleteLogDelayMillis);
         return new DefaultSnapshotManager(groupConfig, stateMachine, logDeleter);
     }
 

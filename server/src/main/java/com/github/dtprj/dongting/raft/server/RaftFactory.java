@@ -9,7 +9,6 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 
 public interface RaftFactory {
     ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig);
@@ -20,7 +19,7 @@ public interface RaftFactory {
 
     RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory codecFactory);
 
-    SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine, Consumer<Long> logDeleter);
+    SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine, RaftLog raftLog);
 
     Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig);
 

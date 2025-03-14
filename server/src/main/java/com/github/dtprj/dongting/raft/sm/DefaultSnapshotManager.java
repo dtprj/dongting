@@ -281,7 +281,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private void deleteOldFiles() {
-            while (savedSnapshots.size() > groupConfig.maxKeepSnapshots) {
+            int keep = Math.max(1, groupConfig.maxKeepSnapshots);
+            while (savedSnapshots.size() > keep) {
                 FileSnapshotInfo s = savedSnapshots.removeFirst();
                 deleteInIoExecutor(s.dataFile);
                 deleteInIoExecutor(s.idxFile);
@@ -480,7 +481,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
             if (!isGroupShouldStopPlain() && groupConfig.deleteLogsAfterTakeSnapshot && !savedSnapshots.isEmpty()) {
                 long lastIncludeIndex = savedSnapshots.getFirst().lastIncludeIndex;
-                if (lastIncludeIndex > 0) {
+                if (lastIncludeIndex > 0 && logDeleter != null) {
                     logDeleter.accept(lastIncludeIndex);
                 }
             }

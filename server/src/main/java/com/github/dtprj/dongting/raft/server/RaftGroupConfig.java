@@ -58,6 +58,7 @@ public class RaftGroupConfig extends ConfigBase {
     public long saveSnapshotMillis = 60 * 60 * 1000;
     public int maxKeepSnapshots = 2;
     public boolean saveSnapshotWhenClose = true;
+    public long autoDeleteLogDelayMillis = 60 * 1000;
 
     public boolean deleteLogsAfterTakeSnapshot = true;
 
