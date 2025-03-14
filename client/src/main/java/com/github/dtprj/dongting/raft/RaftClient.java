@@ -65,12 +65,19 @@ public class RaftClient extends AbstractLifeCircle {
         this.nioClient = new NioClient(nioClientConfig);
     }
 
+    private void checkStatus() {
+        if (status != AbstractLifeCircle.STATUS_RUNNING) {
+            throw new IllegalStateException("RaftClient is not running");
+        }
+    }
+
     public void clientAddNode(String servers) {
         List<RaftNode> list = RaftNode.parseServers(servers);
         clientAddNode(list);
     }
 
     public void clientAddNode(List<RaftNode> nodes) {
+        checkStatus();
         lock.lock();
         try {
             for (Map.Entry<Integer, RaftNode> e : allNodes.entrySet()) {
@@ -117,6 +124,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public void clientRemoveNode(int... nodeIds) {
+        checkStatus();
         lock.lock();
         try {
             for (int id : nodeIds) {
@@ -138,6 +146,7 @@ public class RaftClient extends AbstractLifeCircle {
 
     public void clientAddOrUpdateGroup(int groupId, int[] serverIds) throws NetException {
         Objects.requireNonNull(serverIds);
+        checkStatus();
         if (serverIds.length == 0) {
             throw new IllegalArgumentException("servers is empty");
         }
@@ -197,6 +206,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public void clientRemoveGroup(int groupId) throws NetException {
+        checkStatus();
         lock.lock();
         try {
             GroupInfo oldGroupInfo = groups.remove(groupId);
@@ -214,6 +224,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     protected CompletableFuture<QueryStatusResp> queryRaftServerStatus(int nodeId, int groupId) {
+        checkStatus();
         RaftNode n = getNode(nodeId);
         if (n == null) {
             return DtUtil.failedFuture(new RaftException("node not found: " + nodeId));
@@ -227,6 +238,7 @@ public class RaftClient extends AbstractLifeCircle {
 
     public <T> void sendRequest(Integer groupId, WritePacket request, DecoderCallbackCreator<T> decoder,
                                 DtTime timeout, RpcCallback<T> callback) {
+        checkStatus();
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
             FutureCallback.callFail(callback, new NoSuchGroupException(groupId));
@@ -356,6 +368,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public CompletableFuture<RaftNode> fetchLeader(int groupId) {
+        checkStatus();
         return updateLeaderInfo(groupId).thenApply(gi -> gi.leader);
     }
 
