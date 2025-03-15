@@ -178,29 +178,30 @@ public class VoteManager {
 
         final int voteIdOfRequest = this.currentVoteId;
 
+        long reqStartNanos = raftStatus.ts.getNanoTime();
         if (member.node.self) {
             VoteResp resp = new VoteResp();
             resp.voteGranted = true;
             resp.term = currentTerm;
-            fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
+            fireRespProcessFiber(req, resp, null, member, voteIdOfRequest, reqStartNanos);
         } else {
             try {
                 RpcCallback<VoteResp> c = (rf, ex) ->
-                        fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest);
+                        fireRespProcessFiber(req, rf == null ? null : rf.getBody(), ex, member, voteIdOfRequest, reqStartNanos);
                 client.sendRequest(member.node.peer, wf, ctx -> ctx.toDecoderCallback(new VoteResp.Callback()),
                         timeout, c);
                 log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                         preVote ? "pre-vote" : "vote", member.node.nodeId, groupId,
                         currentTerm, req.lastLogIndex, req.lastLogTerm);
             } catch (Exception e) {
-                fireRespProcessFiber(req, null, e, member, voteIdOfRequest);
+                fireRespProcessFiber(req, null, e, member, voteIdOfRequest, reqStartNanos);
             }
         }
     }
 
-    private void fireRespProcessFiber(VoteReq req, VoteResp resp, Throwable ex, RaftMember member, int voteIdOfRequest) {
+    private void fireRespProcessFiber(VoteReq req, VoteResp resp, Throwable ex, RaftMember member, int voteIdOfRequest, long reqStartNanos) {
         String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.node.nodeId + ")";
-        RespProcessFiberFrame initFrame = new RespProcessFiberFrame(resp, ex, member, req, voteIdOfRequest);
+        RespProcessFiberFrame initFrame = new RespProcessFiberFrame(resp, ex, member, req, voteIdOfRequest, reqStartNanos);
         groupConfig.fiberGroup.fireFiber(fiberName, initFrame);
     }
 
@@ -333,14 +334,16 @@ public class VoteManager {
         private final RaftMember remoteMember;
         private final VoteReq req;
         private final int voteIdOfRequest;
+        private final long reqStartNanos;
 
         private RespProcessFiberFrame(VoteResp resp, Throwable ex, RaftMember remoteMember, VoteReq req,
-                                      int voteIdOfRequest) {
+                                      int voteIdOfRequest, long reqStartNanos) {
             this.resp = resp;
             this.ex = ex;
             this.remoteMember = remoteMember;
             this.req = req;
             this.voteIdOfRequest = voteIdOfRequest;
+            this.reqStartNanos = reqStartNanos;
         }
 
         @Override
@@ -385,6 +388,9 @@ public class VoteManager {
                         resp.voteGranted, resp.term, req.term, remoteId, groupId);
             }
             if (resp.voteGranted) {
+                if (!req.preVote) {
+                    remoteMember.lastConfirmReqNanos = reqStartNanos;
+                }
                 if (isElectedAfterVote(remoteId, req.preVote)) {
                     if (req.preVote) {
                         log.info("pre-vote success. groupId={}, term={}, lastLogTerm={}, lastLogIndex={}", groupId,
