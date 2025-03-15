@@ -31,6 +31,11 @@ public class NotLeaderException extends RaftException {
         this.currentLeader = currentLeader;
     }
 
+    public NotLeaderException(RaftNode currentLeader, String message) {
+        super(message);
+        this.currentLeader = currentLeader;
+    }
+
     /**
      * get current known leader, may be null.
      */

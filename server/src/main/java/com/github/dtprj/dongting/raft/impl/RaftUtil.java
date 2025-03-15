@@ -272,7 +272,6 @@ public final class RaftUtil {
     }
 
     public static void changeToLeader(RaftStatusImpl raftStatus) {
-        log.info("change to leader. term={}", raftStatus.currentTerm);
         resetStatus(raftStatus, false);
         raftStatus.setRole(RaftRole.leader);
         raftStatus.setCurrentLeader(raftStatus.self);
@@ -283,6 +282,8 @@ public final class RaftUtil {
         }
         updateLease(raftStatus);
         raftStatus.copyShareStatus();
+        log.info("change to leader. term={}, lease rest {}ms", raftStatus.currentTerm,
+                (raftStatus.getShareStatus().leaseEndNanos - raftStatus.ts.getNanoTime()) / 1_000_000);
     }
 
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
