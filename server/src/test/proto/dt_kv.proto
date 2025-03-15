@@ -41,8 +41,7 @@ message KvReq {
 }
 
 message KvResp {
-  int32 results_size = 1;
-  repeated KvResult results = 2[packed = false];
-  int32 codes_size = 3;
-  repeated fixed32 codes = 4[packed = false];
+  fixed64 raft_index = 1;
+  int32 results_size = 2;
+  repeated KvResult results = 3[packed = false];
 }

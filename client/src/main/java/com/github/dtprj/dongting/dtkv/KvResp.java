@@ -30,38 +30,26 @@ import java.util.List;
  * @author huangli
  */
 public class KvResp implements Encodable {
-    private static final int IDX_RESULTS_SIZE = 1;
-    private static final int IDX_RESULTS = 2;
-    private static final int IDX_CODES_SIZE = 3;
-    private static final int IDX_CODES = 4;
+    private static final int IDX_RAFT_INDEX = 1;
+    private static final int IDX_RESULTS_SIZE = 2;
+    private static final int IDX_RESULTS = 3;
 
+    public final long raftIndex;
     public final List<KvResult> results;
-    public final int[] codes;
 
     private int encodeSize;
 
-    public KvResp(List<KvResult> results, int[] codes) {
+    public KvResp(long raftIndex, List<KvResult> results) {
+        this.raftIndex = raftIndex;
         this.results = results;
-        this.codes = codes;
-    }
-
-    public KvResp(List<KvResult> results) {
-        this.results = results;
-        this.codes = null;
-    }
-
-    public KvResp(int[] codes) {
-        this.results = null;
-        this.codes = codes;
     }
 
     @Override
     public int actualSize() {
         if (encodeSize == 0) {
-            this.encodeSize = PbUtil.sizeOfInt32Field(IDX_RESULTS_SIZE, results == null ? 0 : results.size())
-                    + EncodeUtil.sizeOfEncodableListField(IDX_RESULTS, results)
-                    + PbUtil.sizeOfInt32Field(IDX_CODES_SIZE, codes == null ? 0 : codes.length)
-                    + PbUtil.sizeOfFix32Field(IDX_CODES, codes);
+            this.encodeSize = PbUtil.sizeOfFix64Field(IDX_RAFT_INDEX, raftIndex)
+                    + PbUtil.sizeOfInt32Field(IDX_RESULTS_SIZE, results == null ? 0 : results.size())
+                    + EncodeUtil.sizeOfEncodableListField(IDX_RESULTS, results);
         }
         return encodeSize;
     }
@@ -70,22 +58,17 @@ public class KvResp implements Encodable {
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         switch (context.stage) {
             case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_RAFT_INDEX, raftIndex)) {
+                    return false;
+                }
+                // fall through
+            case IDX_RAFT_INDEX:
                 if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_RESULTS_SIZE, results == null ? 0 : results.size())) {
                     return false;
                 }
                 // fall through
             case IDX_RESULTS_SIZE:
-                if (!EncodeUtil.encodeList(context, destBuffer, IDX_RESULTS, results)) {
-                    return false;
-                }
-                // fall through
-            case IDX_RESULTS:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_CODES_SIZE, codes == null ? 0 : codes.length)) {
-                    return false;
-                }
-                // fall through
-            case IDX_CODES_SIZE:
-                return EncodeUtil.encodeFix32s(context, destBuffer, IDX_CODES, codes);
+                return EncodeUtil.encodeList(context, destBuffer, IDX_RESULTS, results);
             default:
                 throw new CodecException(context);
 
@@ -95,18 +78,14 @@ public class KvResp implements Encodable {
     public static class Callback extends PbCallback<KvResp> {
         private final KvResult.Callback resultCallback = new KvResult.Callback();
 
+        private long raftIndex;
         private int resultsSize;
         private ArrayList<KvResult> results;
-        private int codesSize;
-        private int[] codes;
-        private int codesIdx;
 
         @Override
         public boolean readVarNumber(int index, long value) {
             if (index == IDX_RESULTS_SIZE) {
                 resultsSize = (int) value;
-            } else if (index == IDX_CODES_SIZE) {
-                codesSize = (int) value;
             }
             return true;
         }
@@ -125,20 +104,17 @@ public class KvResp implements Encodable {
             return true;
         }
 
-        public boolean readFix32(int index, int value) {
-            if (index == IDX_CODES) {
-                if (codes == null) {
-                    codes = new int[codesSize];
-                }
-                codes[codesIdx] = value;
-                codesIdx++;
+        @Override
+        public boolean readFix64(int index, long value) {
+            if (index == IDX_RAFT_INDEX) {
+                this.raftIndex = value;
             }
             return true;
         }
 
         @Override
         protected KvResp getResult() {
-            return new KvResp(results, codes);
+            return new KvResp(raftIndex, results);
         }
     }
 

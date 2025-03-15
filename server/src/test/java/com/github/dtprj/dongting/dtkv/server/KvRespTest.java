@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * @author huangli
@@ -36,9 +36,7 @@ public class KvRespTest {
 
     @Test
     public void testFullBuffer() throws Exception {
-        KvResp resp = new KvResp(Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
-        testFullBuffer0(resp);
-        resp = new KvResp(new int[]{0, 2, 3, 4, 5, 6});
+        KvResp resp = new KvResp(100, Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
         testFullBuffer0(resp);
     }
 
@@ -60,9 +58,7 @@ public class KvRespTest {
 
     @Test
     public void testSmallBuffer() {
-        KvResp resp = new KvResp(Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
-        testSmallBuffer0(resp);
-        resp = new KvResp(new int[]{0, 2, 3, 4, 5, 6});
+        KvResp resp = new KvResp(100, Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
         testSmallBuffer0(resp);
     }
 
@@ -78,22 +74,20 @@ public class KvRespTest {
     }
 
     private void compare1(KvResp expect, DtKv.KvResp resp) {
+        assertEquals(expect.raftIndex, resp.getRaftIndex());
         if (expect.results != null) {
             for (int i = 0; i < expect.results.size(); i++) {
                 KvResultTest.compare1(expect.results.get(i), resp.getResults(i));
             }
         }
-        if (expect.codes != null) {
-            assertArrayEquals(expect.codes, resp.getCodesList().stream().mapToInt(Integer::intValue).toArray());
-        }
     }
 
     private void compare2(KvResp expect, KvResp r) {
+        assertEquals(expect.raftIndex, r.raftIndex);
         if (expect.results != null) {
             for (int i = 0; i < expect.results.size(); i++) {
                 KvResultTest.compare2(expect.results.get(i), r.results.get(i));
             }
         }
-        assertArrayEquals(expect.codes, r.codes);
     }
 }
