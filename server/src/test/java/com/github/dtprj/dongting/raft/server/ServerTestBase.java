@@ -34,6 +34,7 @@ import com.github.dtprj.dongting.raft.store.StoreAccessor;
 import com.github.dtprj.dongting.raft.store.TestDir;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import org.junit.jupiter.api.BeforeEach;
 
 import java.io.File;
 import java.io.RandomAccessFile;
@@ -41,6 +42,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,6 +63,22 @@ public class ServerTestBase {
     protected boolean initSnapshot = false;
     protected int groupId = 1;
 
+    protected int electTimeout = 25;
+    protected int heartbeatInterval = 7;
+    protected int rpcTimeout = 100;
+
+    protected int idxCacheSize = 128;
+    protected int idxFlushThreshold = 64;
+    protected int idxItemsPerFile = 1024;
+    protected int logFileSize = 512 * 1024;
+
+    protected final Map<String, String> dirMap = new ConcurrentHashMap<>();
+
+    @BeforeEach
+    public void init() {
+        dirMap.clear();
+    }
+
     protected static class ServerInfo {
         public RaftServer raftServer;
         public int nodeId;
@@ -78,9 +96,9 @@ public class ServerTestBase {
         if (servicePortBase > 0) {
             serverConfig.servicePort = servicePortBase + nodeId;
         }
-        serverConfig.electTimeout = tick(25);
-        serverConfig.heartbeatInterval = tick(7);
-        serverConfig.rpcTimeout = tick(100);
+        serverConfig.electTimeout = tick(electTimeout);
+        serverConfig.heartbeatInterval = tick(heartbeatInterval);
+        serverConfig.rpcTimeout = tick(rpcTimeout);
 
         RaftGroupConfig groupConfig = config(nodeId, groupId, nodeIdOfMembers, nodeIdOfObservers);
 
@@ -129,11 +147,16 @@ public class ServerTestBase {
         return serverInfo;
     }
 
-    private static RaftGroupConfig config(int nodeId, int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
+    private RaftGroupConfig config(int nodeId, int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
-        groupConfig.dataDir = TestDir.testDir("raftlog") + "-" + nodeId;
+        String mapKey = groupId + "-" + nodeId;
+        groupConfig.dataDir = dirMap.computeIfAbsent(mapKey, k -> TestDir.testDir("raftlog") + "-" + k);
         groupConfig.saveSnapshotWhenClose = false;
+        config(groupConfig);
         return groupConfig;
+    }
+
+    protected void config(RaftGroupConfig config) {
     }
 
     private DefaultRaftFactory createRaftFactory(int nodeId) {
@@ -157,10 +180,10 @@ public class ServerTestBase {
 
             @Override
             public RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory codecFactory) {
-                groupConfig.idxCacheSize = 128;
-                groupConfig.idxFlushThreshold = 64;
+                groupConfig.idxCacheSize = idxCacheSize;
+                groupConfig.idxFlushThreshold = idxFlushThreshold;
                 DefaultRaftLog raftLog = new DefaultRaftLog(groupConfig, statusManager, codecFactory);
-                StoreAccessor.updateRaftLog(raftLog, 1024, 512 * 1024);
+                StoreAccessor.updateRaftLog(raftLog, idxItemsPerFile, logFileSize);
                 return raftLog;
             }
 
