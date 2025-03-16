@@ -61,7 +61,7 @@ public class AdminRaftClient extends RaftClient {
             return CompletableFuture.failedFuture(new IllegalArgumentException(
                     "old and new leader id equals: " + oldLeader));
         }
-        return updateLeaderInfo(groupId).thenCompose(leaderGroup -> {
+        return updateLeaderInfo(groupId, true).thenCompose(leaderGroup -> {
             if (leaderGroup.getLeader().nodeId != oldLeader) {
                 throw new RaftException("old leader not match");
             }

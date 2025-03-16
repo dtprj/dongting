@@ -255,7 +255,7 @@ public class RaftClient extends AbstractLifeCircle {
             } else {
                 CompletableFuture<GroupInfo> leaderFuture;
                 if (groupInfo.leaderFuture == null) {
-                    leaderFuture = updateLeaderInfo(groupId);
+                    leaderFuture = updateLeaderInfo(groupId, false);
                 } else {
                     leaderFuture = groupInfo.leaderFuture;
                 }
@@ -369,17 +369,18 @@ public class RaftClient extends AbstractLifeCircle {
 
     public CompletableFuture<RaftNode> fetchLeader(int groupId) {
         checkStatus();
-        return updateLeaderInfo(groupId).thenApply(gi -> gi.leader);
+        return updateLeaderInfo(groupId, true).thenApply(gi -> gi.leader);
     }
 
-    protected CompletableFuture<GroupInfo> updateLeaderInfo(Integer groupId) {
+    protected CompletableFuture<GroupInfo> updateLeaderInfo(Integer groupId, boolean force) {
         lock.lock();
         try {
             GroupInfo gi = groups.get(groupId);
             if (gi == null) {
                 return DtUtil.failedFuture(new NoSuchGroupException(groupId));
             }
-            if (gi.leader != null && gi.leader.peer.getStatus() == PeerStatus.connected && gi.lastLeaderFailTime == 0) {
+            if (gi.leader != null && gi.leader.peer.getStatus() == PeerStatus.connected
+                    && gi.lastLeaderFailTime == 0 && !force) {
                 return CompletableFuture.completedFuture(gi);
             }
             if (gi.leaderFuture != null) {
@@ -423,7 +424,7 @@ public class RaftClient extends AbstractLifeCircle {
             }
             if (currentGroupInfo != gi) {
                 // group info changed, stop current find process
-                updateLeaderInfo(gi.groupId).whenComplete((ld, e) -> {
+                updateLeaderInfo(gi.groupId, false).whenComplete((ld, e) -> {
                     if (e != null) {
                         gi.leaderFuture.completeExceptionally(e);
                     } else {
