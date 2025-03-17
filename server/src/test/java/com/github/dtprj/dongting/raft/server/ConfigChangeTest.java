@@ -42,8 +42,6 @@ public class ConfigChangeTest extends ServerTestBase {
         waitStart(s2);
         waitStart(s3);
 
-        waitLeaderElectAndGetLeaderId(groupId, s2, s3);
-
         AdminRaftClient c = new AdminRaftClient();
         c.start();
         c.clientAddNode(servers);

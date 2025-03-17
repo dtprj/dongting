@@ -42,8 +42,6 @@ public class MultiRaftTest extends ServerTestBase {
         waitStart(s1);
         waitStart(s2);
 
-        waitLeaderElectAndGetLeaderId(groupId, s1, s2);
-
         int groupId2 = groupId + 1;
 
         AdminRaftClient adminClient = new AdminRaftClient();
