@@ -292,8 +292,7 @@ public class RaftClient extends AbstractLifeCircle {
         RpcCallback<T> newCallback = (result, ex) -> {
             if (ex instanceof NetCodeException) {
                 NetCodeException ncEx = (NetCodeException) ex;
-                if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER && request.canRetry()
-                        && retry == 0 && ncEx.getExtra() != null) {
+                if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER && request.canRetry() && retry == 0) {
                     GroupInfo newGroupInfo = updateLeaderFromExtra(ncEx.getExtra(), groupInfo);
                     if (newGroupInfo != null && newGroupInfo.leader != null && !timeout.isTimeout()) {
                         log.info("leader changed, update leader from node {} to {}, request will auto retry",
@@ -340,24 +339,40 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private GroupInfo updateLeaderFromExtra(byte[] extra, GroupInfo groupInfo) {
-        GroupInfo currentGroupInfo = groups.get(groupInfo.groupId);
-        if (currentGroupInfo != groupInfo) {
-            // group info changed, drop the result
+    private GroupInfo updateLeaderFromExtra(byte[] extra, GroupInfo lastReqGroupInfo) {
+        if (extra == null) {
+            log.warn("leader changed, but no new leader info, groupId={}", lastReqGroupInfo.groupId);
             return null;
+        }
+        GroupInfo currentGroupInfo = groups.get(lastReqGroupInfo.groupId);
+        if (currentGroupInfo == null) {
+            log.error("group {} is removed", lastReqGroupInfo.groupId);
+            return null;
+        }
+        int suggestLeaderId = Integer.parseInt(new String(extra, StandardCharsets.UTF_8));
+        if (currentGroupInfo != lastReqGroupInfo && currentGroupInfo.leader.nodeId == suggestLeaderId) {
+            return currentGroupInfo;
         }
         lock.lock();
         try {
-            currentGroupInfo = groups.get(groupInfo.groupId);
-            if (currentGroupInfo != groupInfo) {
-                // group info changed, drop the result
+            currentGroupInfo = groups.get(lastReqGroupInfo.groupId);
+            if (currentGroupInfo == null) {
+                log.error("group {} is removed", lastReqGroupInfo.groupId);
                 return null;
             }
-            String s = new String(extra, StandardCharsets.UTF_8);
-            RaftNode leader = parseLeader(groupInfo, Integer.parseInt(s));
+            if (currentGroupInfo != lastReqGroupInfo) {
+                if (currentGroupInfo.leader.nodeId == suggestLeaderId) {
+                    return currentGroupInfo;
+                } else {
+                    // group info changed, drop the result
+                    log.warn("groupInfo changed, groupId={}", lastReqGroupInfo.groupId);
+                    return null;
+                }
+            }
+            RaftNode leader = parseLeader(lastReqGroupInfo, suggestLeaderId);
             if (leader != null) {
-                GroupInfo newGroupInfo = new GroupInfo(groupInfo, leader, false);
-                groups.put(groupInfo.groupId, newGroupInfo);
+                GroupInfo newGroupInfo = new GroupInfo(lastReqGroupInfo, leader, false);
+                groups.put(lastReqGroupInfo.groupId, newGroupInfo);
                 return newGroupInfo;
             } else {
                 return null;
