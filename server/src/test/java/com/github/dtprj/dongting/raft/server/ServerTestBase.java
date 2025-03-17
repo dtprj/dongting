@@ -97,7 +97,7 @@ public class ServerTestBase {
             serverConfig.servicePort = servicePortBase + nodeId;
         }
         serverConfig.electTimeout = tick(electTimeout);
-        serverConfig.heartbeatInterval = tick(heartbeatInterval);
+        serverConfig.heartbeatInterval = heartbeatInterval;
         serverConfig.rpcTimeout = tick(rpcTimeout);
 
         RaftGroupConfig groupConfig = config(nodeId, groupId, nodeIdOfMembers, nodeIdOfObservers);
