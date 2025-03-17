@@ -64,7 +64,7 @@ public class ServerTestBase {
     protected int groupId = 1;
 
     protected int electTimeout = 25;
-    protected int heartbeatInterval = 7;
+    protected int heartbeatInterval = 10;
     protected int rpcTimeout = 100;
 
     protected int idxCacheSize = 128;
