@@ -48,7 +48,6 @@ public class InstallTest extends ServerTestBase {
         this.idxItemsPerFile = 8;
         this.logFileSize = 1024;
         this.electTimeout = 35;
-        this.heartbeatInterval = 20;
     }
 
     @Override

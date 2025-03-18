@@ -64,7 +64,6 @@ public class ServerTestBase {
     protected int groupId = 1;
 
     protected int electTimeout = 25;
-    protected int heartbeatInterval = 10;
     protected int rpcTimeout = 100;
 
     protected int idxCacheSize = 128;
@@ -97,7 +96,7 @@ public class ServerTestBase {
             serverConfig.servicePort = servicePortBase + nodeId;
         }
         serverConfig.electTimeout = tick(electTimeout);
-        serverConfig.heartbeatInterval = heartbeatInterval;
+        serverConfig.heartbeatInterval = (long) (serverConfig.electTimeout * 0.4);
         serverConfig.rpcTimeout = tick(rpcTimeout);
 
         RaftGroupConfig groupConfig = config(nodeId, groupId, nodeIdOfMembers, nodeIdOfObservers);
