@@ -56,7 +56,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             log.error("not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());
             throw new RaftException("not follower");
         }
-        if(req.newLeaderId != gc.serverConfig.nodeId) {
+        if (req.newLeaderId != gc.serverConfig.nodeId) {
             log.error("new leader id mismatch, groupId={}, newLeaderId={}, localId={}",
                     req.groupId, req.newLeaderId, gc.serverConfig.nodeId);
             throw new RaftException("new leader id mismatch");
@@ -71,10 +71,16 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
                     req.groupId, req.term, raftStatus.currentTerm);
             throw new RaftException("term check fail");
         }
-        if (raftStatus.lastLogIndex != req.logIndex || raftStatus.lastWriteLogIndex != req.logIndex) {
-            log.error("logIndex check fail, groupId={}, reqIndex={}, lastIndex={}, lastWriteLogIndex={}",
-                    req.groupId, req.logIndex, raftStatus.lastLogIndex, raftStatus.lastWriteLogIndex);
+        if (raftStatus.lastLogIndex != req.logIndex) {
+            log.error("logIndex check fail, groupId={}, reqIndex={}, lastIndex={}", req.groupId,
+                    req.logIndex, raftStatus.lastLogIndex);
             throw new RaftException("logIndex check fail");
+        }
+        if (req.logIndex != (gc.groupConfig.syncForce ? raftStatus.lastForceLogIndex : raftStatus.lastWriteLogIndex)) {
+            log.error("persist index check fail, groupId={}, reqIndex={}, sync={}, lastForce={}, lastWrite={}",
+                    req.groupId, req.logIndex, gc.groupConfig.syncForce,
+                    raftStatus.lastForceLogIndex, raftStatus.lastWriteLogIndex);
+            throw new RaftException("persist index check fail");
         }
         raftStatus.commitIndex = req.logIndex;
         gc.applyManager.wakeupApply();
