@@ -42,12 +42,11 @@ public class InstallTest extends ServerTestBase {
 
     @BeforeEach
     public void beforeEach() {
-        this.servicePortBase = 5000;
         this.idxCacheSize = 4;
         this.idxFlushThreshold = 2;
         this.idxItemsPerFile = 8;
         this.logFileSize = 1024;
-        this.electTimeout = 35;
+        this.electTimeout = 50;
     }
 
     @Override
@@ -87,7 +86,7 @@ public class InstallTest extends ServerTestBase {
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
         HashMap<String, byte[]> expectMap = new HashMap<>();
-        long raftIndex1 = putValues(client, "beforeInstallKey", count, bodySize, expectMap);
+        long raftIndex1 = putValues(groupId, client, "beforeInstallKey", count, bodySize, expectMap);
 
         // transfer leader make nextIndex to lastLogIndex + 1, then trigger install
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
@@ -107,14 +106,14 @@ public class InstallTest extends ServerTestBase {
         TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
 
         // put after install
-        long raftIndex2 = putValues(client, "afterInstallKey", count, bodySize, expectMap);
+        long raftIndex2 = putValues(groupId, client, "afterInstallKey", count, bodySize, expectMap);
         TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
 
         // transfer leader to server 3
         adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
 
         // check data in server 3
-        check(client, expectMap);
+        check(groupId, client, expectMap);
 
         // restart to check restore after install snapshot
         waitStop(s1);
@@ -131,7 +130,7 @@ public class InstallTest extends ServerTestBase {
         if (leader.nodeId != 3) {
             adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
         }
-        check(client, expectMap);
+        check(groupId, client, expectMap);
 
         // stop all
         waitStop(s1);
@@ -141,7 +140,7 @@ public class InstallTest extends ServerTestBase {
         adminClient.stop(timeout);
     }
 
-    private long putValues(KvClient client, String keyPrefix, int count, int bodySize,
+    static long putValues(int groupId, KvClient client, String keyPrefix, int count, int bodySize,
                            HashMap<String, byte[]> expectMap) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(count);
         AtomicLong lastRaftIndex = new AtomicLong(0);
@@ -161,7 +160,7 @@ public class InstallTest extends ServerTestBase {
     }
 
 
-    private void check(KvClient client, HashMap<String, byte[]> expectMap) {
+    static void check(int groupId, KvClient client, HashMap<String, byte[]> expectMap) {
         HashMap<String, byte[]> actualMap = new HashMap<>();
         List<byte[]> keys = expectMap.keySet().stream().map(String::getBytes).collect(Collectors.toList());
         List<KvNode> list = client.batchGet(groupId, keys);
@@ -206,15 +205,15 @@ public class InstallTest extends ServerTestBase {
         }
 
         HashMap<String, byte[]> expectMap = new HashMap<>();
-        long raftIndex1 = putValues(client, "before", 4, 400, expectMap);
+        long raftIndex1 = putValues(groupId, client, "before", 4, 400, expectMap);
 
-        // wait server 3 install snapshot and catch up
+        // wait server 3 catch up
         RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
         TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
 
         waitStop(s3);
 
-        long raftIndex2 = putValues(client, "after", 4,400, expectMap);
+        long raftIndex2 = putValues(groupId, client, "after", 4,400, expectMap);
 
         // save snapshot and truncate logs, since
         // config.autoDeleteLogDelayMillis = 0 and config.maxKeepSnapshots = 1
@@ -228,7 +227,8 @@ public class InstallTest extends ServerTestBase {
         RaftGroupImpl g3New = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
         TestUtil.waitUtil(() -> g3New.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
 
-        check(client, expectMap);
+        adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
+        check(groupId, client, expectMap);
 
         // stop all
         waitStop(s1);

@@ -33,7 +33,6 @@ public class TransferLeaderTest extends ServerTestBase {
 
     @Test
     void test() throws Exception {
-        servicePortBase = 5000;
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String members = "1,2,3";
         String observers = "";

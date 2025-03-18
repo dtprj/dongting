@@ -33,7 +33,6 @@ public class MultiRaftTest extends ServerTestBase {
 
     @Test
     void test() throws Exception {
-        servicePortBase = 5000;
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002";
         String members = "1,2";

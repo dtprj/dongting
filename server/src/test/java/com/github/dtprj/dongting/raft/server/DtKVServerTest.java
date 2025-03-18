@@ -35,7 +35,6 @@ import static org.junit.jupiter.api.Assertions.*;
 public class DtKVServerTest extends ServerTestBase {
     @Test
     void test() throws Exception {
-        servicePortBase = 5000;
         ServerInfo s1 = createServer(1, "1, 127.0.0.1:4001", "1", "");
 
         waitStart(s1);

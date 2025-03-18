@@ -28,6 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class VoteTest extends ServerTestBase {
 
+    public VoteTest() {
+        super(false);
+    }
+
     @Test
     void testSimpleVote() throws Exception {
         // simple vote

@@ -55,7 +55,8 @@ import static com.github.dtprj.dongting.util.Tick.tick;
  */
 public class ServerTestBase {
 
-    protected int servicePortBase = 0;
+    private final boolean openServicePort;
+
     protected boolean startAfterCreate = true;
     protected int initTerm = 0;
     protected int initVoteFor = 0;
@@ -63,7 +64,7 @@ public class ServerTestBase {
     protected boolean initSnapshot = false;
     protected int groupId = 1;
 
-    protected int electTimeout = 25;
+    protected int electTimeout = 30;
     protected int rpcTimeout = 100;
 
     protected int idxCacheSize = 128;
@@ -72,6 +73,14 @@ public class ServerTestBase {
     protected int logFileSize = 512 * 1024;
 
     protected final Map<String, String> dirMap = new ConcurrentHashMap<>();
+
+    ServerTestBase(boolean openServicePort) {
+        this.openServicePort = openServicePort;
+    }
+
+    ServerTestBase() {
+        this(true);
+    }
 
     @BeforeEach
     public void init() {
@@ -92,8 +101,8 @@ public class ServerTestBase {
         serverConfig.servers = servers;
         serverConfig.nodeId = nodeId;
         serverConfig.replicatePort = replicatePort;
-        if (servicePortBase > 0) {
-            serverConfig.servicePort = servicePortBase + nodeId;
+        if (openServicePort) {
+            serverConfig.servicePort = 5000 + nodeId;
         }
         serverConfig.electTimeout = tick(electTimeout);
         serverConfig.heartbeatInterval = (long) (serverConfig.electTimeout * 0.4);
@@ -108,7 +117,7 @@ public class ServerTestBase {
             ImplAccessor.updateMemberManager(g.groupComponents.memberManager);
             ImplAccessor.updateVoteManager(g.groupComponents.voteManager);
         });
-        if (servicePortBase > 0) {
+        if (openServicePort) {
             KvServerUtil.initKvServer(raftServer);
         }
 

@@ -32,6 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class ConfigChangeTest extends ServerTestBase {
 
+    public ConfigChangeTest() {
+        super(false);
+    }
+
     @Test
     void test() throws Exception {
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
