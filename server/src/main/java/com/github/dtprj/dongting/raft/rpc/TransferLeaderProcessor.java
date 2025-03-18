@@ -71,9 +71,9 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
                     req.groupId, req.term, raftStatus.currentTerm);
             throw new RaftException("term check fail");
         }
-        if (raftStatus.lastLogIndex != req.logIndex || raftStatus.lastForceLogIndex != req.logIndex) {
-            log.error("logIndex check fail, groupId={}, reqIndex={}, lastIndex={}, lastPersistIndex={}",
-                    req.groupId, req.logIndex, raftStatus.lastLogIndex, raftStatus.lastForceLogIndex);
+        if (raftStatus.lastLogIndex != req.logIndex || raftStatus.lastWriteLogIndex != req.logIndex) {
+            log.error("logIndex check fail, groupId={}, reqIndex={}, lastIndex={}, lastWriteLogIndex={}",
+                    req.groupId, req.logIndex, raftStatus.lastLogIndex, raftStatus.lastWriteLogIndex);
             throw new RaftException("logIndex check fail");
         }
         raftStatus.commitIndex = req.logIndex;

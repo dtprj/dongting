@@ -152,6 +152,7 @@ public class ServerTestBase {
         String mapKey = groupId + "-" + nodeId;
         groupConfig.dataDir = dirMap.computeIfAbsent(mapKey, k -> TestDir.testDir("raftlog") + "-" + k);
         groupConfig.saveSnapshotWhenClose = false;
+        // groupConfig.syncForce = false;
         config(groupConfig);
         return groupConfig;
     }
