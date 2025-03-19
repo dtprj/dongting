@@ -91,12 +91,17 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private File snapshotDir;
 
     private static class FileSnapshotInfo {
-        File idxFile;
-        File dataFile;
+        final File idxFile;
+        final File dataFile;
 
         long lastIncludeIndex;
 
         SnapshotInfo si;
+
+        FileSnapshotInfo(File idxFile, File dataFile) {
+            this.idxFile = idxFile;
+            this.dataFile = dataFile;
+        }
     }
 
     private final LinkedList<FileSnapshotInfo> savedSnapshots = new LinkedList<>();
@@ -150,9 +155,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     continue;
                 }
                 if (dataFile.exists()) {
-                    FileSnapshotInfo fsi = new FileSnapshotInfo();
-                    fsi.idxFile = f;
-                    fsi.dataFile = dataFile;
+                    FileSnapshotInfo fsi = new FileSnapshotInfo(f, dataFile);
                     savedSnapshots.addFirst(fsi);
                 } else {
                     log.error("missing data file: {}", f.getPath());
@@ -461,9 +464,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             p.put(KEY_BUFFER_SIZE, String.valueOf(bufferSize));
             p.put(KEY_NEXT_ID, String.valueOf(id + 1));
 
-            fileSnapshot = new FileSnapshotInfo();
-            fileSnapshot.idxFile = newIdxFile;
-            fileSnapshot.dataFile = newDataFile.getFile();
+            fileSnapshot = new FileSnapshotInfo(newIdxFile, newDataFile.getFile());
             fileSnapshot.lastIncludeIndex = snapshotInfo.getLastIncludedIndex();
 
             // just for human reading
