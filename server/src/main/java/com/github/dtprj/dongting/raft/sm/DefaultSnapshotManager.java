@@ -174,7 +174,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private FrameCallResult loadIdxInfo(Iterator<FileSnapshotInfo> it) throws Exception {
             if (it.hasNext()) {
                 FileSnapshotInfo fsi = it.next();
-                log.debug("load snapshot info: {}", fsi.dataFile);
+                log.info("load snapshot info: {}", fsi.idxFile);
 
                 currentStatusFile = new StatusFile(fsi.idxFile, groupConfig);
 
