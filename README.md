@@ -113,8 +113,9 @@ but the entire project requires further internal testing and is not production-r
 
 Additionally, the following features have not yet been implemented:
 
-* (DtKV) Configuration change notifications like value watch.
-* Message queues.
+* (DtKV) configuration change notifications like value watch.
+* (DtKV) implement distribute lock.
+* (MQ) message queues.
 
 ## About me
 if you can read Chinese, you can visit my project Weibo:

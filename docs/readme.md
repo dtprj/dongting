@@ -1,4 +1,4 @@
-In the current version (0.8.x-ALPHA), Dongting provides a general Raft framework and a built-in state machine 
+In the current version (0.8.x), Dongting provides a general Raft framework and a built-in state machine 
 called `DtKV`. `DtKV` supports a tree-structured K-V configuration, making it suitable as a distributed 
 configuration center. The current `DtKV` supports the following commands:
 
