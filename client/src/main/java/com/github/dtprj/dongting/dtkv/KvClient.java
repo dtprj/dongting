@@ -39,6 +39,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
+ * DtKv client, all read operations are lease-read and still linearizable.
+ *
  * @author huangli
  */
 public class KvClient extends AbstractLifeCircle {
@@ -82,6 +84,20 @@ public class KvClient extends AbstractLifeCircle {
         }
     }
 
+    private void notNullOrEmpty(byte[] key) {
+        Objects.requireNonNull(key);
+        if (key.length == 0) {
+            throw new IllegalArgumentException("key must not be null or empty");
+        }
+    }
+
+    /**
+     * synchronously put a key-value pair into the kv store.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param value not null or empty
+     * @return raft index of this write operation, it is useless in most cases.
+     */
     public long put(int groupId, byte[] key, byte[] value) {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -89,13 +105,22 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously put a key-value pair into the kv store.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param value not null or empty
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     */
     public void put(int groupId, byte[] key, byte[] value, FutureCallback<Long> callback) {
         put(groupId, key, value, raftClient.createDefaultTimeout(), callback);
     }
 
     private void put(int groupId, byte[] key, byte[] value, DtTime timeout, FutureCallback<Long> callback) {
-        Objects.requireNonNull(key);
-        Objects.requireNonNull(value);
+        notNullOrEmpty(key);
+        notNullOrEmpty(value);
         KvReq r = new KvReq(groupId, key, value);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
@@ -103,6 +128,12 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
     }
 
+    /**
+     * synchronously get operation from the kv store.
+     * @param groupId the raft group id
+     * @param key use '.' as path separator, null or empty indicates the root node
+     * @return the KvNode contains value and meta information, return null if not found
+     */
     public KvNode get(int groupId, byte[] key) {
         CompletableFuture<KvNode> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -110,6 +141,14 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously get operation from the kv store.
+     * @param groupId the raft group id
+     * @param key use '.' as path separator, null or empty indicates the root node
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     */
     public void get(int groupId, byte[] key, FutureCallback<KvNode> callback) {
         get(groupId, key, raftClient.createDefaultTimeout(), callback);
     }
@@ -136,6 +175,12 @@ public class KvClient extends AbstractLifeCircle {
         });
     }
 
+    /**
+     * synchronously list operation from the kv store.
+     * @param groupId the raft group id
+     * @param key use '.' as path separator, null or empty indicates the root node
+     * @return the KvNode contains value and meta information, return null if the key is not found
+     */
     public List<KvResult> list(int groupId, byte[] key) {
         CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -143,6 +188,14 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously list operation from the kv store.
+     * @param groupId the raft group id
+     * @param key use '.' as path separator, null or empty indicates the root node
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     */
     public void list(int groupId, byte[] key, FutureCallback<List<KvResult>> callback) {
         list(groupId, key, raftClient.createDefaultTimeout(), callback);
     }
@@ -169,6 +222,12 @@ public class KvClient extends AbstractLifeCircle {
         });
     }
 
+    /**
+     * synchronously remove a key from the kv store.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @return raft index of this write operation, it is useless in most cases.
+     */
     public long remove(int groupId, byte[] key) {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -176,6 +235,14 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously remove a key from the kv store.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     */
     public void remove(int groupId, byte[] key, FutureCallback<Long> callback) {
         remove(groupId, key, raftClient.createDefaultTimeout(), callback);
     }
@@ -189,6 +256,12 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
     }
 
+    /**
+     * synchronously create a directory.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @return raft index of this write operation, it is useless in most cases.
+     */
     public long mkdir(int groupId, byte[] key) {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -196,12 +269,20 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously create a directory.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     */
     public void mkdir(int groupId, byte[] key, FutureCallback<Long> callback) {
         mkdir(groupId, key, raftClient.createDefaultTimeout(), callback);
     }
 
     private void mkdir(int groupId, byte[] key, DtTime timeout, FutureCallback<Long> callback) {
-        Objects.requireNonNull(key);
+        notNullOrEmpty(key);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_MKDIR);
@@ -209,6 +290,15 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
     }
 
+    /**
+     * synchronously batch put operation.
+     * @param groupId the raft group id
+     * @param keys list of keys, key should not null or empty, use '.' as path separator
+     * @param values list of values, not null or empty
+     * @return KvResp contains raft index of this operation and a list of KvResult,
+     *         you may check bizCode of each KvResult
+     * @see KvCodes
+     */
     public KvResp batchPut(int groupId, List<byte[]> keys, List<byte[]> values) {
         CompletableFuture<KvResp> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -216,6 +306,17 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously batch put operation. The KvResp in callback contains raft index of this operation and
+     * a list of KvResult, you may check bizCode of each KvResult.
+     * @param groupId the raft group id
+     * @param keys list of keys, key should not null or empty, use '.' as path separator
+     * @param values list of values, not null or empty
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     * @see KvCodes
+     */
     public void batchPut(int groupId, List<byte[]> keys, List<byte[]> values, FutureCallback<KvResp> callback) {
         batchPut(groupId, keys, values, raftClient.createDefaultTimeout(), callback);
     }
@@ -226,6 +327,12 @@ public class KvClient extends AbstractLifeCircle {
         Objects.requireNonNull(values);
         if (keys.isEmpty() || keys.size() != values.size()) {
             throw new IllegalArgumentException("keys and values must be same size and not empty");
+        }
+        for (byte[] key : keys) {
+            notNullOrEmpty(key);
+        }
+        for (byte[] value : values) {
+            notNullOrEmpty(value);
         }
         KvReq r = new KvReq(groupId, keys, values);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -249,6 +356,13 @@ public class KvClient extends AbstractLifeCircle {
         };
     }
 
+    /**
+     * synchronously batch get operation.
+     * @param groupId the raft group id
+     * @param keys list of keys, use '.' as path separator
+     * @return list of KvNode contains values and meta information, if a key not found,
+     *         the corresponding KvNode will be null.
+     */
     public List<KvNode> batchGet(int groupId, List<byte[]> keys) {
         CompletableFuture<List<KvNode>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -256,6 +370,15 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously batch get operation. The callback gives a list of KvNode contains values and meta information,
+     * if a key not found, the corresponding KvNode will be null.
+     * @param groupId the raft group id
+     * @param keys list of keys, use '.' as path separator
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     */
     public void batchGet(int groupId, List<byte[]> keys, FutureCallback<List<KvNode>> callback) {
         batchGet(groupId, keys, raftClient.createDefaultTimeout(), callback);
     }
@@ -264,6 +387,9 @@ public class KvClient extends AbstractLifeCircle {
         Objects.requireNonNull(keys);
         if (keys.isEmpty()) {
             throw new IllegalArgumentException("keys must not be empty");
+        }
+        for (byte[] key : keys) {
+            Objects.requireNonNull(key);
         }
         KvReq r = new KvReq(groupId, keys, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -289,6 +415,14 @@ public class KvClient extends AbstractLifeCircle {
         });
     }
 
+    /**
+     * synchronously batch remove operation.
+     * @param groupId the raft group id
+     * @param keys list of keys, key should not null or empty, use '.' as path separator
+     * @return KvResp contains raft index of this operation and a list of KvResult,
+     *         you may check bizCode of each KvResult
+     * @see KvCodes
+     */
     public KvResp batchRemove(int groupId, List<byte[]> keys) {
         CompletableFuture<KvResp> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -296,6 +430,16 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously batch remove operation. The KvResp in callback contains raft index of this operation
+     * and a list of KvResult, you may check bizCode of each KvResult.
+     * @param groupId the raft group id
+     * @param keys list of keys, key should not null or empty, use '.' as path separator
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     * @see KvCodes
+     */
     public void batchRemove(int groupId, List<byte[]> keys, FutureCallback<KvResp> callback) {
         batchRemove(groupId, keys, raftClient.createDefaultTimeout(), callback);
     }
@@ -305,12 +449,23 @@ public class KvClient extends AbstractLifeCircle {
         if (keys.isEmpty()) {
             throw new IllegalArgumentException("keys must not be empty");
         }
+        for (byte[] key : keys) {
+            notNullOrEmpty(key);
+        }
         KvReq r = new KvReq(groupId, keys, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_BATCH_REMOVE);
         raftClient.sendRequest(groupId, wf, DECODER, timeout, kvRespCallback(callback));
     }
 
+    /**
+     * synchronously compare and set operation.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param expectValue the expected value, null or empty indicates the key not exist
+     * @param newValue the new value, null or empty indicates delete the key
+     * @return raft index of this write operation, it is useless in most cases.
+     */
     public long compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
@@ -318,13 +473,23 @@ public class KvClient extends AbstractLifeCircle {
         return waitFuture(f, timeout);
     }
 
+    /**
+     * asynchronously compare and set operation.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param expectValue the expected value, null or empty indicates the key not exist
+     * @param newValue the new value, null or empty indicates delete the key
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
+     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     */
     public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue, FutureCallback<Long> callback) {
         compareAndSet(groupId, key, expectValue, newValue, raftClient.createDefaultTimeout(), callback);
     }
 
     private void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
                                DtTime timeout, FutureCallback<Long> callback) {
-        Objects.requireNonNull(key);
+        notNullOrEmpty(key);
         KvReq r = new KvReq(groupId, key, newValue, null, null, expectValue);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_CAS);
