@@ -110,6 +110,7 @@ Executing ```RemoveGroup103Demo``` will remove raft group 103.
 
 Unfortunately, the project is still under development. All current demos can run, 
 but the entire project requires further internal testing and is not production-ready.
+The latest version is v0.8.0-ALPHA, you can check out it by git tag.
 
 Additionally, the following features have not yet been implemented:
 
