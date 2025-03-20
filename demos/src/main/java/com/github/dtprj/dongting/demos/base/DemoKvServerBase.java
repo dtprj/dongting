@@ -76,6 +76,8 @@ public abstract class DemoKvServerBase {
     private static RaftGroupConfig raftConfig(int nodeId, int groupId, String members, String observers) {
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, members, observers);
         groupConfig.dataDir = "target/raft_data_group" + groupId + "_node" + nodeId;
+        // set syncForce to false will significantly improve performance
+        // groupConfig.syncForce = false;
         return groupConfig;
     }
 }
