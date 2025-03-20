@@ -68,10 +68,12 @@ Dongting does not require you to adjust Linux kernel parameters to achieve optim
 
 ## Try it
 
-All the examples are in the ```demos``` directory. 
-They require no configuration and can be run directly by executing the ```main``` method.
+All the examples are in the `demos` directory. 
+They require no configuration and can be run directly by executing the `main` method.
 It is recommended to run them in an IDE for easier breakpoint setting and observation.
 All demos use DtKV as the Raft state machine, which is an in-memory KV database.
+
+To set up the IDE you can follow the [develop guide](docs/developer.md).
 
 The [cluster](demos/src/main/java/com/github/dtprj/dongting/demos/cluster) directory contains an example of
 running a 3-node raft cluster.
