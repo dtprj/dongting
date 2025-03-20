@@ -44,7 +44,7 @@ public class ChangeTo123Client implements GroupId {
         QueryStatusResp status = adminClient.queryRaftServerStatus(
                 leader.nodeId, GROUP_ID).get();
         if (status.members.contains(1)) {
-            System.out.println("current member is [1,2,3], try run ChangeTo123Client.");
+            System.out.println("current member is [1,2,3], try run ChangeTo234Client.");
             System.exit(1);
         }
 
