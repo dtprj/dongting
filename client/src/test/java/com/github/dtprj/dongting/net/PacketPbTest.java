@@ -105,9 +105,8 @@ public class PacketPbTest {
         buf.put(encodeBytes);
         buf.flip();
 
-        WorkerStatus workerStatus = new WorkerStatus(null);
-        workerStatus.setTs(new Timestamp());
-        workerStatus.setHeapPool(CodecTestUtil.createContext().getHeapPool());
+        WorkerStatus workerStatus = new WorkerStatus(null, null ,null,
+                null, CodecTestUtil.createContext().getHeapPool(), new Timestamp());
 
         DtChannelImpl dtc = new DtChannelImpl(new NioStatus(), workerStatus,
                 new NioClientConfig(), null, SocketChannel.open(), 0) {

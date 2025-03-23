@@ -122,12 +122,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
         RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 800);
 
-        workerStatus = new WorkerStatus(this);
-        workerStatus.setIoQueue(ioWorkerQueue);
-        workerStatus.setPendingRequests(pendingOutgoingRequests);
-        workerStatus.setDirectPool(directPool);
-        workerStatus.setHeapPool(refBufferFactory);
-        workerStatus.setTs(timestamp);
+        workerStatus = new WorkerStatus(this, ioWorkerQueue, pendingOutgoingRequests, directPool,
+                refBufferFactory, timestamp);
     }
 
     private ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoWorkerQueue ioWorkerQueue) {
@@ -203,7 +199,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             if (status >= STATUS_PREPARE_STOP) {
                 ioWorkerQueue.dispatchActions();
-                if (workerStatus.getPacketsToWrite() == 0 && pendingOutgoingRequests.size() == 0) {
+                if (workerStatus.packetsToWrite == 0 && pendingOutgoingRequests.size() == 0) {
                     prepareStopFuture.complete(null);
                 }
             }

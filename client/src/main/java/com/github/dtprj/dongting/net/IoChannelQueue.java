@@ -60,7 +60,7 @@ class IoChannelQueue {
     private final PerfCallback perfCallback;
 
     public IoChannelQueue(NioConfig config, WorkerStatus workerStatus, DtChannelImpl dtc, RefBufferFactory heapPool) {
-        this.directPool = workerStatus.getDirectPool();
+        this.directPool = workerStatus.directPool;
         this.workerStatus = workerStatus;
         this.dtc = dtc;
         this.encodeContext = new EncodeContext(heapPool);
@@ -162,7 +162,7 @@ class IoChannelQueue {
                         WritePacket f = wd.getData();
                         if (f.getPacketType() == PacketType.TYPE_REQ) {
                             long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
-                            WriteData old = workerStatus.getPendingRequests().put(key, wd);
+                            WriteData old = workerStatus.pendingRequests.put(key, wd);
                             if (old != null) {
                                 String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
                                 BugLog.getLog().error(errMsg);

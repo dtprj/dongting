@@ -81,7 +81,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.createTimeNanos = workerStatus.ts.getNanoTime();
 
         this.decodeContext = nioConfig.decodeContextFactory.get();
-        this.decodeContext.setHeapPool(workerStatus.getHeapPool());
+        this.decodeContext.setHeapPool(workerStatus.heapPool);
 
         this.parser = new MultiParser(decodeContext, this, nioConfig.maxPacketSize);
 
@@ -89,7 +89,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.localAddr = channel.getLocalAddress();
 
 
-        this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, workerStatus.getHeapPool());
+        this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, workerStatus.heapPool);
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -141,7 +141,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             processIncomingResponse(packet, requestForResp);
         } else {
             // req or one way
-            processIncomingRequest(packet, processorForRequest, workerStatus.getTs());
+            processIncomingRequest(packet, processorForRequest, workerStatus.ts);
         }
         return true;
     }
@@ -256,7 +256,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (packet.getPacketType() == PacketType.TYPE_RESP) {
             WriteData requestForResp = this.requestForResp;
             if (requestForResp == null) {
-                requestForResp = this.workerStatus.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, packet.getSeq()));
+                requestForResp = this.workerStatus.pendingRequests.remove(BitUtil.toLong(channelIndexInWorker, packet.getSeq()));
                 if (requestForResp == null) {
                     log.info("pending request not found. channel={}, resp={}", channel, packet);
                     return false;

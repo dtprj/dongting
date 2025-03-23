@@ -25,68 +25,28 @@ import com.github.dtprj.dongting.common.Timestamp;
  */
 class WorkerStatus {
     final NioWorker worker;
-    IoWorkerQueue ioWorkerQueue;
-    LongObjMap<WriteData> pendingRequests;
-    ByteBufferPool directPool;
-    RefBufferFactory heapPool;
-    int packetsToWrite;
-    Timestamp ts;
+    final IoWorkerQueue ioWorkerQueue;
+    final LongObjMap<WriteData> pendingRequests;
+    final ByteBufferPool directPool;
+    final RefBufferFactory heapPool;
+    final Timestamp ts;
 
     int retryConnect;
 
-    public WorkerStatus(NioWorker worker) {
+    int packetsToWrite;
+
+    public WorkerStatus(NioWorker worker, IoWorkerQueue ioWorkerQueue,
+                        LongObjMap<WriteData> pendingRequests, ByteBufferPool directPool,
+                        RefBufferFactory heapPool, Timestamp ts) {
         this.worker = worker;
-    }
-
-    public NioWorker getWorker() {
-        return worker;
-    }
-
-    public IoWorkerQueue getIoQueue() {
-        return ioWorkerQueue;
-    }
-
-    public void setIoQueue(IoWorkerQueue ioWorkerQueue) {
         this.ioWorkerQueue = ioWorkerQueue;
-    }
-
-    public LongObjMap<WriteData> getPendingRequests() {
-        return pendingRequests;
-    }
-
-    public void setPendingRequests(LongObjMap<WriteData> pendingRequests) {
         this.pendingRequests = pendingRequests;
-    }
-
-    public ByteBufferPool getDirectPool() {
-        return directPool;
-    }
-
-    public void setDirectPool(ByteBufferPool directPool) {
         this.directPool = directPool;
-    }
-
-    public RefBufferFactory getHeapPool() {
-        return heapPool;
-    }
-
-    public void setHeapPool(RefBufferFactory heapPool) {
         this.heapPool = heapPool;
-    }
-
-    public int getPacketsToWrite() {
-        return packetsToWrite;
+        this.ts = ts;
     }
 
     public void addPacketsToWrite(int delta) {
         this.packetsToWrite = Math.max(packetsToWrite + delta, 0);
-    }
-
-    public Timestamp getTs() {
-        return ts;
-    }
-
-    public void setTs(Timestamp ts) {
-        this.ts = ts;
     }
 }

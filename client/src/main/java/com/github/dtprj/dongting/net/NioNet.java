@@ -97,7 +97,7 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     <T> void push(DtChannelImpl dtc, WritePacket request, DecoderCallbackCreator<T> decoder,
                   DtTime timeout, RpcCallback<T> callback) {
-        send0(dtc.workerStatus.getWorker(), null, dtc, request, decoder, timeout, callback);
+        send0(dtc.workerStatus.worker, null, dtc, request, decoder, timeout, callback);
     }
 
     private <T> void send0(NioWorker worker, Peer peer, DtChannelImpl dtc, WritePacket request,
