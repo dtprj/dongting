@@ -84,7 +84,7 @@ class IoWorkerQueue {
         } else {
             DtChannelImpl dtc = wo.getDtc();
             if (dtc == null) {
-                if (!worker.isServer() && packet.getPacketType() != PacketType.TYPE_RESP) {
+                if (!worker.server && packet.getPacketType() != PacketType.TYPE_RESP) {
                     dtc = selectChannel();
                     if (dtc == null) {
                         wo.callFail(true, new NetException("no available channel"));

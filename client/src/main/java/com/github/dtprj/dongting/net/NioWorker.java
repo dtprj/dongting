@@ -67,6 +67,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final AtomicInteger wakeupCalledInOtherThreads = new AtomicInteger(0);
     private boolean wakeupCalled;
 
+    final boolean server;
+
     private final CompletableFuture<Void> prepareStopFuture = new CompletableFuture<>();
 
     private int channelIndex;
@@ -105,8 +107,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.perfCallback = config.perfCallback;
 
         this.channels = new IntObjMap<>();
+        this.server = client == null;
         this.ioWorkerQueue = new IoWorkerQueue(this, config);
-        if (client == null) {
+        if (server) {
             this.channelsList = null;
             this.outgoingConnects = null;
             this.incomingConnects = new LinkedList<>();
@@ -160,7 +163,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 close(dtc);
             }
 
-            if (client != null) {
+            if (!server) {
                 cleanOutgoingTimeoutConnect(ts);
             }
             if (readBuffer != null) {
@@ -208,13 +211,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     releaseReadBuffer();
                 }
                 cleanTimeoutReq();
-                if (client != null) {
-                    cleanOutgoingTimeoutConnect(ts);
-                } else {
+                if (server) {
                     cleanIncomingConnects(ts);
-                }
-                if (status == STATUS_RUNNING) {
-                    tryReconnect(ts);
+                } else {
+                    cleanOutgoingTimeoutConnect(ts);
+                    if (status == STATUS_RUNNING) {
+                        tryReconnect(ts);
+                    }
                 }
                 directPool.clean();
                 heapPool.clean();
@@ -776,7 +779,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void cleanTimeoutReq() {
         cleanPendingOutgoingRequests(null, 2);
 
-        if (client != null) {
+        if (!server) {
             client.cleanWaitConnectReq(wd -> {
                 if (wd.getTimeout().isTimeout(timestamp)) {
                     return new NetTimeoutException("wait connect timeout");
@@ -825,7 +828,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void tryReconnect(Timestamp ts) {
-        if (client == null || workerStatus.retryConnect <= 0) {
+        if (workerStatus.retryConnect <= 0) {
             return;
         }
         List<Peer> peers = client.getPeers();
@@ -870,10 +873,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     public Thread getThread() {
         return thread;
-    }
-
-    public boolean isServer() {
-        return client == null;
     }
 
     public ArrayList<DtChannelImpl> getChannelsList() {
