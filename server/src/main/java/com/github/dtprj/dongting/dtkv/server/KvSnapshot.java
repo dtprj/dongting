@@ -18,8 +18,12 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
@@ -28,7 +32,7 @@ import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 /**
@@ -36,8 +40,9 @@ import java.util.function.Supplier;
  */
 class KvSnapshot extends Snapshot {
     final Supplier<Boolean> cancel;
+    private final int groupId;
     private final KvImpl kv;
-    private final Consumer<Supplier<Boolean>> gcExecutor;
+    private final Executor dtkvExecutor;
     private final long lastIncludeRaftIndex;
 
     private final Iterator<KvNodeHolder> iterator;
@@ -47,40 +52,64 @@ class KvSnapshot extends Snapshot {
 
     private final EncodeStatus encodeStatus = new EncodeStatus();
 
-    public KvSnapshot(SnapshotInfo si, KvImpl kv, Supplier<Boolean> cancel, Consumer<Supplier<Boolean>> gcExecutor) {
+    public KvSnapshot(int groupId, SnapshotInfo si, KvImpl kv,
+                      Supplier<Boolean> cancel, Executor dtkvExecutor) {
         super(si);
+        this.groupId = groupId;
         this.kv = kv;
         this.cancel = cancel;
-        this.gcExecutor = gcExecutor;
         this.lastIncludeRaftIndex = si.getLastIncludedIndex();
         this.iterator = kv.map.values().iterator();
+        this.dtkvExecutor = dtkvExecutor;
+        run(() -> kv.openSnapshot(this));
+    }
+
+    private void run(Runnable r) {
+        if (dtkvExecutor != null) {
+            try {
+                dtkvExecutor.execute(r);
+            } catch (Exception ex) {
+                BugLog.log(ex);
+            }
+        } else {
+            r.run();
+        }
     }
 
     @Override
     public FiberFuture<Integer> readNext(ByteBuffer buffer) {
         FiberGroup fiberGroup = FiberGroup.currentGroup();
-        if (cancel.get()) {
-            return FiberFuture.failedFuture(fiberGroup, new RaftException("canceled"));
-        }
-
-        int startPos = buffer.position();
-        while (true) {
-            if (currentKvNode == null) {
-                loadNextNode();
-            }
-            if (currentKvNode == null) {
-                // no more data
-                return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
+        FiberFuture<Integer> f = fiberGroup.newFuture("readNext");
+        // no read lock, since we run in dtKvExecutor or raft thread.
+        run(() -> {
+            if (cancel.get()) {
+                f.fireCompleteExceptionally(new RaftException("canceled"));
+                return;
             }
 
-            if (encodeStatus.writeToBuffer(buffer)) {
-                encodeStatus.reset();
-                currentKvNode = null;
-            } else {
-                // buffer is full
-                return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
+            int startPos = buffer.position();
+            while (true) {
+                if (currentKvNode == null) {
+                    loadNextNode();
+                }
+                if (currentKvNode == null) {
+                    // no more data
+                    f.fireComplete(buffer.position() - startPos);
+                    return;
+                }
+
+                if (encodeStatus.writeToBuffer(buffer)) {
+                    encodeStatus.reset();
+                    currentKvNode = null;
+                } else {
+                    // buffer is full
+                    f.fireComplete(buffer.position() - startPos);
+                    return;
+                }
             }
-        }
+        });
+
+        return f;
     }
 
     private void loadNextNode() {
@@ -132,6 +161,29 @@ class KvSnapshot extends Snapshot {
 
     @Override
     protected void doClose() {
-        kv.closeSnapshot(this, gcExecutor);
+        run(() -> kv.closeSnapshot(this));
+        doGcInExecutor(kv.createGcTask(cancel));
+    }
+
+    private void doGcInExecutor(Supplier<Boolean> gcTask) {
+        if (dtkvExecutor != null) {
+            dtkvExecutor.execute(() -> {
+                if (gcTask.get()) {
+                    doGcInExecutor(gcTask);
+                }
+            });
+        } else {
+            Fiber f = new Fiber("gcTask" + groupId, FiberGroup.currentGroup(), new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    if (gcTask.get()) {
+                        return Fiber.yield(this);
+                    } else {
+                        return Fiber.frameReturn();
+                    }
+                }
+            }, true);
+            f.start();
+        }
     }
 }

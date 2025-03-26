@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
-import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -31,7 +30,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -407,7 +405,7 @@ class KvImpl {
         }
     }
 
-    private Supplier<Boolean> createGcTask(Supplier<Boolean> cancel) {
+    public Supplier<Boolean> createGcTask(Supplier<Boolean> cancel) {
         Iterator<KvNodeHolder> it = map.values().iterator();
         long t = System.currentTimeMillis();
         log.info("group {} start gc task", groupId);
@@ -580,16 +578,13 @@ class KvImpl {
         minOpenSnapshotIndex = min;
     }
 
-    public KvSnapshot takeSnapshot(SnapshotInfo si, Supplier<Boolean> cancel, Consumer<Supplier<Boolean>> gcExecutor) {
-        KvSnapshot snapshot = new KvSnapshot(si, this, cancel, gcExecutor);
+    void openSnapshot(KvSnapshot snapshot) {
         openSnapshots.add(snapshot);
         updateMinMax();
-        return snapshot;
     }
 
-    void closeSnapshot(KvSnapshot snapshot, Consumer<Supplier<Boolean>> gcExecutor) {
+    void closeSnapshot(KvSnapshot snapshot) {
         openSnapshots.remove(snapshot);
         updateMinMax();
-        gcExecutor.accept(createGcTask(snapshot.cancel));
     }
 }

@@ -241,10 +241,7 @@ class KvImplTest {
         long lastIndex = kv.root.latest.getUpdateIndex();
         SnapshotInfo si = new SnapshotInfo(lastIndex, 1, null, null,
                 null, null, 0);
-        return kv.takeSnapshot(si, () -> false, gcTask -> {
-            //noinspection StatementWithEmptyBody
-            while (gcTask.get()) ;
-        });
+        return new KvSnapshot(0, si, kv, () -> false, Runnable::run);
     }
 
     @Test

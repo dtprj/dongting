@@ -27,11 +27,8 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -137,7 +134,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 return kvStatus.kvImpl.mkdir(index, key);
             }
             case BIZ_TYPE_BATCH_PUT: {
-                return kvStatus.kvImpl.batchPut(index, req.keys,  req.values);
+                return kvStatus.kvImpl.batchPut(index, req.keys, req.values);
             }
             case BIZ_TYPE_BATCH_REMOVE: {
                 return kvStatus.kvImpl.batchRemove(index, req.keys);
@@ -254,9 +251,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             throw new RaftException("dtkv is install snapshot");
         }
-        int currentEpoch = kvStatus.epoch;
+        KvStatus currentKvStatus = kvStatus;
+        int currentEpoch = currentKvStatus.epoch;
         Supplier<Boolean> cancel = () -> kvStatus.epoch != currentEpoch;
-        return kvStatus.kvImpl.takeSnapshot(si, cancel, this::doGcInExecutor);
+        return new KvSnapshot(config.groupId, si, currentKvStatus.kvImpl, cancel, dtkvExecutor);
     }
 
     protected Executor createExecutor() {
@@ -269,28 +267,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     protected void stopExecutor(Executor executor) {
         ((ExecutorService) executor).shutdown();
-    }
-
-    private void doGcInExecutor(Supplier<Boolean> gcTask) {
-        if (useSeparateExecutor) {
-            dtkvExecutor.execute(() -> {
-                if (gcTask.get()) {
-                    doGcInExecutor(gcTask);
-                }
-            });
-        } else {
-            Fiber f = new Fiber("gcTask" + config.groupId, mainFiberGroup, new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    if (gcTask.get()) {
-                        return Fiber.yield(this);
-                    } else {
-                        return Fiber.frameReturn();
-                    }
-                }
-            }, true);
-            f.start();
-        }
     }
 
     @Override
