@@ -70,6 +70,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     boolean handshake;
     boolean listenerOnConnectedCalled;
 
+    long lastActiveTimeNanos;
+
     public DtChannelImpl(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig, Peer peer,
                          SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
@@ -88,8 +90,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.remoteAddr = channel.getRemoteAddress();
         this.localAddr = channel.getLocalAddress();
 
-
         this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, workerStatus.heapPool);
+        this.lastActiveTimeNanos = workerStatus.ts.getNanoTime();
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -143,6 +145,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             // req or one way
             processIncomingRequest(packet, processorForRequest, workerStatus.ts);
         }
+        this.lastActiveTimeNanos = workerStatus.ts.getNanoTime();
         return true;
     }
 
@@ -474,6 +477,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return packet;
     }
 
+    public long getLastActiveTimeNanos() {
+        return lastActiveTimeNanos;
+    }
 }
 
 @SuppressWarnings({"rawtypes", "unchecked"})

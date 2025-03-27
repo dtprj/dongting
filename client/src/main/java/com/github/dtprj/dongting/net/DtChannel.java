@@ -32,4 +32,6 @@ public interface DtChannel {
      * server side will return null.
      */
     Peer getPeer();
+
+    long getLastActiveTimeNanos();
 }
