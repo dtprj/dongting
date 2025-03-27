@@ -62,6 +62,7 @@ public class NioClient extends NioNet {
         }
         this.peers = new CopyOnWriteArrayList<>(list);
         this.worker = new NioWorker(nioStatus, config.name + "IoWorker", config, this);
+        register(Commands.CMD_PING, new NioServer.PingProcessor());
     }
 
     @Override
