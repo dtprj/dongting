@@ -132,6 +132,16 @@ public final class PbUtil {
         buf.putLong(Long.reverseBytes(value));
     }
 
+    public static void writeFix64Field(ByteBuffer buf, int index, long[] v) {
+        if (v == null) {
+            return;
+        }
+        for (long id : v) {
+            writeTag(buf, TYPE_FIX64, index);
+            buf.putLong(Long.reverseBytes(id));
+        }
+    }
+
     public static void writeInt64Field(ByteBuffer buf, int index, long value) {
         if (value == 0) {
             return;
@@ -175,15 +185,24 @@ public final class PbUtil {
     }
 
     public static void writeBytesField(ByteBuffer buf, int index, byte[] data) {
-        if (data == null) {
-            return;
-        }
-        if (data.length == 0) {
+        if (data == null || data.length == 0) {
             return;
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
         writeUnsignedInt32(buf, data.length);
         buf.put(data);
+    }
+
+    public static void writeBytesField(ByteBuffer buf, int index, byte[][] data) {
+        if (data == null) {
+            return;
+        }
+        for(byte[] d : data) {
+            Objects.requireNonNull(d);
+            writeTag(buf, TYPE_LENGTH_DELIMITED, index);
+            writeUnsignedInt32(buf, data.length);
+            buf.put(d);
+        }
     }
 
     static int readUnsignedInt32(ByteBuffer buf) {
@@ -341,6 +360,13 @@ public final class PbUtil {
         return sizeOfTag(index) + 8;
     }
 
+    public static int sizeOfFix64Field(int index, long[] v) {
+        if (v == null || v.length == 0) {
+            return 0;
+        }
+        return v.length * (sizeOfTag(index) + 8);
+    }
+
     public static int sizeOfBytesField(int index, byte[] bs) {
         if (bs == null || bs.length == 0) {
             return 0;
@@ -359,6 +385,20 @@ public final class PbUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             byte[] e = list.get(i);
+            Objects.requireNonNull(e);
+            int s = e.length;
+            size += sizeOfLenFieldPrefix(pbIndex, s) + s;
+        }
+        return size;
+    }
+
+    public static int sizeOfBytesField(int pbIndex, byte[][] arr) {
+        if (arr == null || arr.length == 0) {
+            return 0;
+        }
+        int size = 0;
+        for (int len = arr.length, i = 0; i < len; i++) {
+            byte[] e = arr[i];
             Objects.requireNonNull(e);
             int s = e.length;
             size += sizeOfLenFieldPrefix(pbIndex, s) + s;

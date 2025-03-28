@@ -493,8 +493,7 @@ public class KvClient extends AbstractLifeCircle {
         KvReq r = new KvReq(groupId, key, newValue, null, null, expectValue);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_CAS);
-        DecoderCallbackCreator<KvResp> dc = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
-        raftClient.sendRequest(groupId, wf, dc, timeout, (result, ex) -> {
+        raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
             if (ex != null) {
                 FutureCallback.callFail(callback, ex);
             } else {
