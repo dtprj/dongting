@@ -64,8 +64,8 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         groupConfig.dataDir = dataDir;
         groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
         KvConfig kvConfig = new KvConfig();
-        kvConfig.setUseSeparateExecutor(separateExecutor);
-        kvConfig.setInitMapCapacity(16);
+        kvConfig.useSeparateExecutor = separateExecutor;
+        kvConfig.initMapCapacity = 16;
         kv = new DtKV(groupConfig, kvConfig) {
             @Override
             public Snapshot takeSnapshot(SnapshotInfo si) {

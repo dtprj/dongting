@@ -63,7 +63,6 @@ public class RaftBenchmark extends BenchBase {
     private static final boolean SYNC_FORCE = true; // not wait for FileChannel.force after write
     // total different keys
     private static final int KEYS = 100_000;
-    private static final boolean STATEMACHINE_USE_SEPARATE_EXECUTOR = false;
 
     private static final byte[] DATA = new byte[DATA_LEN];
     private final List<RaftServer> raftServers = new ArrayList<>();
@@ -112,9 +111,7 @@ public class RaftBenchmark extends BenchBase {
         return new DefaultRaftFactory() {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
-                KvConfig kvConfig = new KvConfig();
-                kvConfig.setUseSeparateExecutor(STATEMACHINE_USE_SEPARATE_EXECUTOR);
-                return new DtKV(groupConfig, kvConfig);
+                return new DtKV(groupConfig, new KvConfig());
             }
 
             @Override

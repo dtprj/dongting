@@ -74,10 +74,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
         this.mainFiberGroup = config.fiberGroup;
         this.config = config;
-        this.useSeparateExecutor = kvConfig.isUseSeparateExecutor();
+        this.useSeparateExecutor = kvConfig.useSeparateExecutor;
         this.kvConfig = kvConfig;
-        KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.getInitMapCapacity(),
-                kvConfig.getLoadFactor());
+        KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.initMapCapacity,
+                kvConfig.loadFactor);
         updateStatus(false, kvImpl);
     }
 
@@ -222,8 +222,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
-            KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.getInitMapCapacity(),
-                    kvConfig.getLoadFactor());
+            KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.initMapCapacity,
+                    kvConfig.loadFactor);
             updateStatus(true, kvImpl);
             encodeStatus = new EncodeStatus();
         } else if (!kvStatus.installSnapshot) {

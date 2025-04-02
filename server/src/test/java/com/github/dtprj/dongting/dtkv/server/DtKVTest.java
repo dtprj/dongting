@@ -55,8 +55,8 @@ public class DtKVTest extends BaseFiberTest {
         groupConfig.fiberGroup = fiberGroup;
         groupConfig.ts = fiberGroup.dispatcher.ts;
         KvConfig kvConfig = new KvConfig();
-        kvConfig.setUseSeparateExecutor(false);
-        kvConfig.setInitMapCapacity(16);
+        kvConfig.useSeparateExecutor = false;
+        kvConfig.initMapCapacity = 16;
         DtKV kv = new DtKV(groupConfig, kvConfig);
         kv.start();
         return kv;

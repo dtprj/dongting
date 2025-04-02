@@ -19,32 +19,7 @@ package com.github.dtprj.dongting.dtkv.server;
  * @author huangli
  */
 public class KvConfig {
-    private boolean useSeparateExecutor = false;
-    private int initMapCapacity = 16 * 1024;
-    private float loadFactor = 0.75f;
-
-
-    public boolean isUseSeparateExecutor() {
-        return useSeparateExecutor;
-    }
-
-    public void setUseSeparateExecutor(boolean useSeparateExecutor) {
-        this.useSeparateExecutor = useSeparateExecutor;
-    }
-
-    public int getInitMapCapacity() {
-        return initMapCapacity;
-    }
-
-    public void setInitMapCapacity(int initMapCapacity) {
-        this.initMapCapacity = initMapCapacity;
-    }
-
-    public float getLoadFactor() {
-        return loadFactor;
-    }
-
-    public void setLoadFactor(float loadFactor) {
-        this.loadFactor = loadFactor;
-    }
+    public boolean useSeparateExecutor = false;
+    public int initMapCapacity = 16 * 1024;
+    public float loadFactor = 0.75f;
 }
