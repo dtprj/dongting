@@ -25,7 +25,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.IdentityHashMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
@@ -332,7 +332,7 @@ public class FiberGroup {
         sb.append(f.name).append("(").append(Integer.toHexString(f.hashCode())).append(")");
     }
 
-    public ExecutorService getExecutor() {
+    public ScheduledExecutorService getExecutor() {
         return executor;
     }
 }
