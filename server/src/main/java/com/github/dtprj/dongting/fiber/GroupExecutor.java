@@ -127,7 +127,7 @@ class GroupExecutor implements ScheduledExecutorService {
         private long nextRunTimeNanos;
 
         private final ReentrantLock lock;
-        private final Condition condition;
+        private Condition condition;
         private T result;
         private Throwable ex;
 
@@ -143,13 +143,7 @@ class GroupExecutor implements ScheduledExecutorService {
             this.fixedRate = fixedRate;
             this.r = r;
             this.c = c;
-            if (c != null) {
-                lock = new ReentrantLock();
-                condition = lock.newCondition();
-            } else {
-                lock = null;
-                condition = null;
-            }
+            this.lock = new ReentrantLock();
             this.nextRunTimeNanos = System.nanoTime() + initDelayNanos;
         }
 
@@ -162,6 +156,9 @@ class GroupExecutor implements ScheduledExecutorService {
         }
 
         private FrameCallResult executeOnce(Void v) {
+            if (state == CANCEL) {
+                return Fiber.frameReturn();
+            }
             Timestamp ts = fiber.group.dispatcher.ts;
             long n = ts.getNanoTime();
             run();
@@ -176,7 +173,7 @@ class GroupExecutor implements ScheduledExecutorService {
                 }
                 n = TimeUnit.NANOSECONDS.toMillis(n);
                 if (n > 0) {
-                    return Fiber.sleep(TimeUnit.NANOSECONDS.toMillis(n), this::executeOnce);
+                    return Fiber.sleep(n, this::executeOnce);
                 } else {
                     return Fiber.yield(this::executeOnce);
                 }
@@ -186,19 +183,15 @@ class GroupExecutor implements ScheduledExecutorService {
 
         @Override
         protected FrameCallResult handle(Throwable ex) throws Throwable {
-            if (c != null) {
+            if (state != CANCEL) {
                 this.ex = ex;
-            } else {
-                log.error("", ex);
             }
             return Fiber.frameReturn();
         }
 
         @Override
         protected FrameCallResult doFinally() {
-            if (state == INIT) {
-                state = FINISHED;
-            }
+            finish(false);
             return Fiber.frameReturn();
         }
 
@@ -208,22 +201,34 @@ class GroupExecutor implements ScheduledExecutorService {
                     r.run();
                 } else {
                     result = c.call();
-                    lock.lock();
-                    try {
-                        if (state == INIT) {
-                            state = FINISHED;
-                            condition.signalAll();
-                        }
-                    } finally {
-                        lock.unlock();
-                    }
                 }
             } catch (Throwable e) {
-                if (r != null) {
-                    log.error("", e);
+                ex = e;
+            }
+        }
+
+        private boolean finish(boolean cancel) {
+            if (state != INIT) {
+                return false;
+            }
+            lock.lock();
+            try {
+                if (state == INIT) {
+                    if (cancel) {
+                        ex = new CancellationException();
+                        state = CANCEL;
+                    } else {
+                        state = FINISHED;
+                    }
+                    if (condition != null) {
+                        condition.signalAll();
+                    }
+                    return true;
                 } else {
-                    ex = e;
+                    return false;
                 }
+            } finally {
+                lock.unlock();
             }
         }
 
@@ -245,12 +250,12 @@ class GroupExecutor implements ScheduledExecutorService {
             if (state != INIT) {
                 return false;
             }
-            return fiber.group.sysChannel.fireOffer(() -> {
-                if (state == INIT) {
-                    state = CANCEL;
-                    fiber.interrupt();
-                }
-            });
+            if (finish(true)) {
+                fiber.group.sysChannel.fireOffer(() -> fiber.interrupt());
+                return true;
+            } else {
+                return false;
+            }
         }
 
         @Override
@@ -265,19 +270,16 @@ class GroupExecutor implements ScheduledExecutorService {
 
         @Override
         public T get() throws InterruptedException, ExecutionException {
-            if (c == null) {
-                return null;
-            }
             lock.lock();
             try {
+                if (condition == null) {
+                    condition = lock.newCondition();
+                }
                 while (state == INIT) {
                     condition.await();
                 }
-                if (state == CANCEL) {
-                    ex = new CancellationException();
-                }
                 if (ex != null) {
-                    throw new ExecutionException(new CancellationException());
+                    throw new ExecutionException(ex);
                 } else {
                     return result;
                 }
@@ -288,23 +290,20 @@ class GroupExecutor implements ScheduledExecutorService {
 
         @Override
         public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-            if (c == null) {
-                return null;
-            }
             lock.lock();
             try {
                 long nanos = unit.toNanos(timeout);
+                if (condition == null) {
+                    condition = lock.newCondition();
+                }
                 while (state == INIT) {
                     if (nanos <= 0) {
                         throw new TimeoutException();
                     }
                     nanos = condition.awaitNanos(nanos);
                 }
-                if (state == CANCEL) {
-                    ex = new CancellationException();
-                }
                 if (ex != null) {
-                    throw new ExecutionException(new CancellationException());
+                    throw new ExecutionException(ex);
                 } else {
                     return result;
                 }
@@ -316,7 +315,7 @@ class GroupExecutor implements ScheduledExecutorService {
 
 
     private <V> ScheduledFuture<V> doSchedule(SF<V> sf) {
-        Fiber fiber = new Fiber("schedule-task", group, sf);
+        Fiber fiber = new Fiber("schedule-task", group, sf, sf.delayNanos != 0);
         if (group.fireFiber(fiber)) {
             return sf;
         } else {
@@ -326,13 +325,13 @@ class GroupExecutor implements ScheduledExecutorService {
 
     @Override
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        DtUtil.checkPositive(delay, "delay");
+        DtUtil.checkNotNegative(delay, "delay");
         return doSchedule(new SF<Void>(command, null, unit.toNanos(delay), 0, false));
     }
 
     @Override
     public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-        DtUtil.checkPositive(delay, "delay");
+        DtUtil.checkNotNegative(delay, "delay");
         return doSchedule(new SF<>(null, callable, unit.toNanos(delay), 0, false));
     }
 
