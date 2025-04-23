@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CancellationException;
@@ -26,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static com.github.dtprj.dongting.util.Tick.tick;
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,7 +40,7 @@ class GroupExecutorTest extends AbstractFiberTest {
         GroupExecutor e = (GroupExecutor) fiberGroup.getExecutor();
         AtomicBoolean run = new AtomicBoolean(false);
         e.execute(() -> run.set(true));
-        TestUtil.waitUtil(run::get);
+        waitUtil(run::get);
 
         assertThrows(UnsupportedOperationException.class, e::shutdown);
         assertThrows(UnsupportedOperationException.class, e::shutdownNow);
@@ -105,11 +105,11 @@ class GroupExecutorTest extends AbstractFiberTest {
         f1.get();
         assertEquals(1, result.get());
 
-        long t = System.currentTimeMillis();
+        long t = System.nanoTime();
         f1 = e.schedule(() -> result.set(2), 1, TimeUnit.MILLISECONDS);
         f1.get();
         assertEquals(2, result.get());
-        assertTrue(System.currentTimeMillis() - t >= 1);
+        assertTrue(System.nanoTime() - t >= 1_000_000);
 
         f1 = e.schedule(() -> {
             throw new ArrayStoreException();
@@ -130,10 +130,10 @@ class GroupExecutorTest extends AbstractFiberTest {
         ScheduledFuture<Integer> f2 = e.schedule(() -> 1, 0, TimeUnit.MILLISECONDS);
         assertEquals(1, f2.get());
 
-        t = System.currentTimeMillis();
+        t = System.nanoTime();
         f2 = e.schedule(() -> 2, 1, TimeUnit.MILLISECONDS);
         assertEquals(2, f2.get());
-        assertTrue(System.currentTimeMillis() - t >= 1);
+        assertTrue(System.nanoTime() - t >= 1_000_000);
 
         f2 = e.schedule(() -> {
             throw new ArrayStoreException();
@@ -160,19 +160,19 @@ class GroupExecutorTest extends AbstractFiberTest {
 
     private void testScheduleWithFixedDelay(long initDelay, TimeUnit unit) {
         GroupExecutor e = (GroupExecutor) fiberGroup.getExecutor();
-        AtomicLong lastRunTime = new AtomicLong(System.currentTimeMillis());
+        AtomicLong lastRunTime = new AtomicLong(System.nanoTime() - 1_000_000);
         AtomicInteger count = new AtomicInteger();
         Runnable r = () -> {
             count.incrementAndGet();
             if (unit == TimeUnit.MILLISECONDS) {
-                long now = System.currentTimeMillis();
+                long now = System.nanoTime();
                 long diff = now - lastRunTime.get();
-                assertTrue(diff > 0);
+                assertTrue(diff >= 1_000_000);
                 lastRunTime.set(now);
             }
         };
         ScheduledFuture<?> f = e.scheduleWithFixedDelay(r, initDelay, 1, unit);
-        TestUtil.waitUtil(() -> count.get() >= 3);
+        waitUtil(() -> count.get() >= 3);
         assertFalse(f.isDone());
         f.cancel(true);
         assertTrue(f.isCancelled());
@@ -182,25 +182,38 @@ class GroupExecutorTest extends AbstractFiberTest {
     @Test
     public void testScheduleAtFixedRate() {
         GroupExecutor e = (GroupExecutor) fiberGroup.getExecutor();
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         AtomicInteger count = new AtomicInteger();
         Runnable r = () -> {
             try {
-                Thread.sleep(tick(4));
+                Thread.sleep(tick(9));
                 count.incrementAndGet();
             } catch (InterruptedException ex) {
                 throw new RuntimeException(ex);
             }
         };
-        ScheduledFuture<?> f = e.scheduleAtFixedRate(r, 0, tick(5), TimeUnit.MILLISECONDS);
-        TestUtil.waitUtil(() -> count.get() >= 3);
-        long time = System.currentTimeMillis() - start;
-        assertTrue(time >= tick(4 + 2 * 5));
-        assertTrue(time <= tick(4 + 2 * 5) + tick(3));
+        ScheduledFuture<?> f = e.scheduleAtFixedRate(r, 0, tick(10), TimeUnit.MILLISECONDS);
+        waitUtil(() -> count.get() >= 3);
+        long time = System.nanoTime() - start;
+        long expectTime = (tick(9 + 10 + 9)) * 1_000_000L;
+        assertTrue(time >= expectTime);
+        assertTrue(time < expectTime + tick(7) * 1_000_000L);
 
         assertFalse(f.isDone());
         f.cancel(true);
         assertTrue(f.isCancelled());
         assertFutureFail(f, CancellationException.class);
+    }
+
+    private void waitUtil(Supplier<Boolean> cond) {
+        long t = System.currentTimeMillis();
+        while (!cond.get()) {
+            if (System.currentTimeMillis() - t < 5000) {
+                // no sleep
+                Thread.yield();
+            } else {
+                throw new RuntimeException("wait timeout");
+            }
+        }
     }
 }
