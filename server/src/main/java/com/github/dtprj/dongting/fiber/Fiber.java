@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * @author huangli
  */
@@ -26,7 +28,7 @@ public class Fiber extends WaitSource {
     private static final DtLog log = DtLogs.getLogger(Fiber.class);
     protected final boolean daemon;
 
-    long scheduleTimeoutMillis;
+    long scheduleTimeout;
     long scheduleNanoTime;
 
     boolean started;
@@ -83,19 +85,17 @@ public class Fiber extends WaitSource {
 
     public static FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Dispatcher.sleep(millis, resumePoint);
-        return FrameCallResult.SUSPEND;
+        return Dispatcher.sleep(TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
     }
 
     public static FrameCallResult sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Dispatcher.sleepUntilShouldStop(millis, resumePoint);
-        return FrameCallResult.SUSPEND;
+        return Dispatcher.sleepUntilShouldStop(TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
     }
 
     public static FrameCallResult yield(FrameCall<Void> resumePoint) {
         Dispatcher.yield(resumePoint);
-        return FrameCallResult.RETURN;
+        return FrameCallResult.SUSPEND;
     }
 
     public static FiberException fatal(Throwable ex) {
@@ -138,7 +138,7 @@ public class Fiber extends WaitSource {
 
     @Override
     protected void prepare(Fiber waitFiber, boolean timeout) {
-        if (waitFiber.scheduleTimeoutMillis > 0) {
+        if (waitFiber.scheduleTimeout > 0) {
             waitFiber.inputObj = timeout ? Boolean.FALSE : Boolean.TRUE;
         } else {
             waitFiber.inputObj = null;
@@ -160,7 +160,7 @@ public class Fiber extends WaitSource {
         if (finished) {
             return Fiber.resume(Boolean.TRUE, resumePoint);
         }
-        return Dispatcher.awaitOn(currentFiber, this, millis, resumePoint);
+        return Dispatcher.awaitOn(currentFiber, this, TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
     }
 
     public FiberFuture<Void> join() {
@@ -220,7 +220,7 @@ public class Fiber extends WaitSource {
     }
 
     void cleanSchedule() {
-        scheduleTimeoutMillis = 0;
+        scheduleTimeout = 0;
         scheduleNanoTime = 0;
     }
 

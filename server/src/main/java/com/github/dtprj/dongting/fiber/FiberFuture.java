@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -49,7 +50,7 @@ public class FiberFuture<T> extends WaitSource {
     protected void prepare(Fiber currentFiber, boolean timeout) {
         if (timeout) {
             currentFiber.inputEx = new FiberTimeoutException("wait "
-                    + currentFiber.source + " timeout:" + currentFiber.scheduleTimeoutMillis + "ms");
+                    + currentFiber.source + " timeout:" + currentFiber.scheduleTimeout + "ms");
             currentFiber.stackTop.resumePoint = null;
         } else {
             if (execEx != null) {
@@ -181,7 +182,7 @@ public class FiberFuture<T> extends WaitSource {
                 return Fiber.resumeEx(execEx);
             }
         }
-        return Dispatcher.awaitOn(this, millis, resumePoint);
+        return Dispatcher.awaitOn(this, TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
     }
 
     /**

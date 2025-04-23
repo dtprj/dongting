@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtUtil;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * @author huangli
  */
@@ -36,7 +38,7 @@ public class FiberLock extends Lock {
 
     @Override
     protected void prepare(Fiber fiber, boolean timeout) {
-        if (fiber.scheduleTimeoutMillis > 0) {
+        if (fiber.scheduleTimeout > 0) {
             fiber.inputObj = timeout ? Boolean.FALSE : Boolean.TRUE;
         } else {
             fiber.inputObj = null;
@@ -74,7 +76,7 @@ public class FiberLock extends Lock {
         DtUtil.checkPositive(millis, "millis");
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(group);
         if (shouldWait(fiber)) {
-            return Dispatcher.awaitOn(fiber, this, millis, resumePoint);
+            return Dispatcher.awaitOn(fiber, this, TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
         } else {
             updateOwnerAndHeldCount(fiber);
             return Fiber.resume(Boolean.TRUE, resumePoint);

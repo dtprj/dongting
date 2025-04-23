@@ -287,7 +287,7 @@ public class Dispatcher extends AbstractLifeCircle {
                     break;
                 }
                 if (!fiber.ready) {
-                    if (fiber.source == null && fiber.scheduleTimeoutMillis == 0) {
+                    if (fiber.source == null && fiber.scheduleTimeout == 0) {
                         // yield
                         fiber.cleanSchedule();
                         fiber.ready = true;
@@ -416,23 +416,23 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFrame.resumePoint = resumePoint;
     }
 
-    static FrameCallResult awaitOn(WaitSource c, long millis, FrameCall resumePoint) {
+    static FrameCallResult awaitOn(WaitSource c, long nanos, FrameCall resumePoint) {
         Fiber fiber = getCurrentFiberAndCheck(c.group);
-        return awaitOn(fiber, c, millis, resumePoint);
+        return awaitOn(fiber, c, nanos, resumePoint);
     }
 
-    static FrameCallResult awaitOn(Fiber fiber, WaitSource c, long millis, FrameCall resumePoint) {
+    static FrameCallResult awaitOn(Fiber fiber, WaitSource c, long nanos, FrameCall resumePoint) {
         checkInterrupt(fiber);
         checkReentry(fiber);
-        return awaitOn0(fiber, c, millis, resumePoint);
+        return awaitOn0(fiber, c, nanos, resumePoint);
     }
 
-    private static FrameCallResult awaitOn0(Fiber fiber, WaitSource c, long millis, FrameCall resumePoint) {
+    private static FrameCallResult awaitOn0(Fiber fiber, WaitSource c, long nanos, FrameCall resumePoint) {
         fiber.stackTop.resumePoint = resumePoint;
         fiber.source = c;
-        fiber.scheduleTimeoutMillis = millis;
+        fiber.scheduleTimeout = nanos;
         fiber.ready = false;
-        fiber.group.dispatcher.addToScheduleQueue(millis, fiber);
+        fiber.group.dispatcher.addToScheduleQueue(nanos, fiber);
         if (c.waiters == null) {
             c.waiters = new LinkedList<>();
         }
@@ -440,16 +440,16 @@ public class Dispatcher extends AbstractLifeCircle {
         return FrameCallResult.SUSPEND;
     }
 
-    static FrameCallResult awaitOn(FiberCondition[] cs, long millis, FrameCall resumePoint) {
+    static FrameCallResult awaitOn(FiberCondition[] cs, long nanos, FrameCall resumePoint) {
         Fiber fiber = getCurrentFiberAndCheck(cs[0].group);
         checkInterrupt(fiber);
         checkReentry(fiber);
         fiber.stackTop.resumePoint = resumePoint;
         fiber.source = cs[0];
         fiber.sourceConditions = cs;
-        fiber.scheduleTimeoutMillis = millis;
+        fiber.scheduleTimeout = nanos;
         fiber.ready = false;
-        fiber.group.dispatcher.addToScheduleQueue(millis, fiber);
+        fiber.group.dispatcher.addToScheduleQueue(nanos, fiber);
         for (FiberCondition c : cs) {
             if (c.waiters == null) {
                 c.waiters = new LinkedList<>();
@@ -459,18 +459,19 @@ public class Dispatcher extends AbstractLifeCircle {
         return FrameCallResult.SUSPEND;
     }
 
-    static void sleep(long millis, FrameCall<Void> resumePoint) {
+    static FrameCallResult sleep(long nanos, FrameCall<Void> resumePoint) {
         Fiber fiber = getCurrentFiberAndCheck(null);
         checkInterrupt(fiber);
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
-        fiber.scheduleTimeoutMillis = millis;
+        fiber.scheduleTimeout = nanos;
         fiber.ready = false;
-        fiber.group.dispatcher.addToScheduleQueue(millis, fiber);
+        fiber.group.dispatcher.addToScheduleQueue(nanos, fiber);
+        return FrameCallResult.SUSPEND;
     }
 
-    static void sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
+    static FrameCallResult sleepUntilShouldStop(long nanos, FrameCall<Void> resumePoint) {
         Fiber fiber = getCurrentFiberAndCheck(null);
         checkInterrupt(fiber);
         checkReentry(fiber);
@@ -481,8 +482,9 @@ public class Dispatcher extends AbstractLifeCircle {
             currentFrame.resumePoint = resumePoint;
             fiber.ready = false;
         } else {
-            awaitOn0(fiber, g.shouldStopCondition, millis, resumePoint);
+            awaitOn0(fiber, g.shouldStopCondition, nanos, resumePoint);
         }
+        return FrameCallResult.SUSPEND;
     }
 
     static void yield(FrameCall<Void> resumePoint) {
@@ -493,9 +495,9 @@ public class Dispatcher extends AbstractLifeCircle {
         fiber.ready = false;
     }
 
-    private void addToScheduleQueue(long millis, Fiber fiber) {
-        if (millis > 0) {
-            fiber.scheduleNanoTime = ts.getNanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
+    private void addToScheduleQueue(long nanoTime, Fiber fiber) {
+        if (nanoTime > 0) {
+            fiber.scheduleNanoTime = ts.getNanoTime() + nanoTime;
             scheduleQueue.add(fiber);
         }
     }
@@ -572,7 +574,7 @@ public class Dispatcher extends AbstractLifeCircle {
             fiber.stackTop.resumePoint = null;
             fiber.interrupted = false;
             fiber.inputEx = new FiberInterruptException("fiber is interrupted during wait " + str);
-            if (fiber.scheduleTimeoutMillis > 0) {
+            if (fiber.scheduleTimeout > 0) {
                 scheduleQueue.remove(fiber);
                 fiber.cleanSchedule();
             }

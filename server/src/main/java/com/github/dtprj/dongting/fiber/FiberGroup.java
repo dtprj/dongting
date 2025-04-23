@@ -306,7 +306,7 @@ public class FiberGroup {
         normalFibers.forEach((key, f) -> {
             if (!f.ready) {
                 concatFiberName(sb, f);
-                sb.append(", waitOn=").append(f.source).append(", timeout=").append(f.scheduleTimeoutMillis);
+                sb.append(", waitOn=").append(f.source).append(", timeout=").append(f.scheduleTimeout);
                 sb.append('\n');
             }
         });

@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * @author huangli
  */
@@ -63,7 +65,7 @@ public class FiberCondition extends WaitSource {
     }
 
     public FrameCallResult await(long millis, FrameCall<Void> resumePoint) {
-        return Dispatcher.awaitOn(this, millis, resumePoint);
+        return Dispatcher.awaitOn(this, TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
     }
 
     public FrameCallResult await(FiberCondition another, FrameCall<Void> resumePoint) {
@@ -77,6 +79,6 @@ public class FiberCondition extends WaitSource {
         if (another.group != this.group) {
             throw new IllegalArgumentException("not in same group");
         }
-        return Dispatcher.awaitOn(new FiberCondition[]{this, another}, millis, resumePoint);
+        return Dispatcher.awaitOn(new FiberCondition[]{this, another}, TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
     }
 }

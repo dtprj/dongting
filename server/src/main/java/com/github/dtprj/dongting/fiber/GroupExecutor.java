@@ -152,7 +152,7 @@ class GroupExecutor implements ScheduledExecutorService {
             if (initDelayNanos <= 0) {
                 return executeOnce(v);
             }
-            return Fiber.sleep(TimeUnit.NANOSECONDS.toMillis(initDelayNanos), this::executeOnce);
+            return Dispatcher.sleep(initDelayNanos, this::executeOnce);
         }
 
         private FrameCallResult executeOnce(Void v) {
@@ -171,9 +171,8 @@ class GroupExecutor implements ScheduledExecutorService {
                     nextRunTimeNanos = ts.getNanoTime() + delayNanos;
                     n = delayNanos;
                 }
-                n = TimeUnit.NANOSECONDS.toMillis(n);
                 if (n > 0) {
-                    return Fiber.sleep(n, this::executeOnce);
+                    return Dispatcher.sleep(n, this::executeOnce);
                 } else {
                     return Fiber.yield(this::executeOnce);
                 }

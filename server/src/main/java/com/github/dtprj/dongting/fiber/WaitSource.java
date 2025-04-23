@@ -47,7 +47,7 @@ abstract class WaitSource {
     }
 
     void signalFiber(Fiber f, boolean addFirst) {
-        if (f.scheduleTimeoutMillis > 0) {
+        if (f.scheduleTimeout > 0) {
             group.dispatcher.removeFromScheduleQueue(f);
         }
         prepare(f, false);

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.common.IndexedQueue;
 
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This queue is unbound and only block consumer.
@@ -108,7 +109,7 @@ public class FiberChannel<T> {
                 if (notEmptyAndShouldStop == null) {
                     notEmptyAndShouldStop = new FiberCondition[]{notEmptyCondition, groupOfConsumer.shouldStopCondition};
                 }
-                return Dispatcher.awaitOn(notEmptyAndShouldStop, millis, noUseVoid -> afterTake(resumePoint));
+                return Dispatcher.awaitOn(notEmptyAndShouldStop, TimeUnit.MILLISECONDS.toNanos(millis), noUseVoid -> afterTake(resumePoint));
             } else {
                 return notEmptyCondition.await(millis, noUseVoid -> afterTake(resumePoint));
             }
@@ -157,7 +158,8 @@ public class FiberChannel<T> {
                 if (notEmptyAndShouldStop == null) {
                     notEmptyAndShouldStop = new FiberCondition[]{notEmptyCondition, groupOfConsumer.shouldStopCondition};
                 }
-                return Dispatcher.awaitOn(notEmptyAndShouldStop, millis, noUseVoid -> afterTakeAll(c, resumePoint));
+                return Dispatcher.awaitOn(notEmptyAndShouldStop, TimeUnit.MILLISECONDS.toNanos(millis),
+                        noUseVoid -> afterTakeAll(c, resumePoint));
             } else {
                 return notEmptyCondition.await(millis, noUseVoid -> afterTakeAll(c, resumePoint));
             }
