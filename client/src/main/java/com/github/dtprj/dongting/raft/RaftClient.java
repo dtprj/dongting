@@ -350,9 +350,6 @@ public class RaftClient extends AbstractLifeCircle {
             return null;
         }
         int suggestLeaderId = Integer.parseInt(new String(extra, StandardCharsets.UTF_8));
-        if (currentGroupInfo != lastReqGroupInfo && currentGroupInfo.leader.nodeId == suggestLeaderId) {
-            return currentGroupInfo;
-        }
         lock.lock();
         try {
             currentGroupInfo = groups.get(lastReqGroupInfo.groupId);
@@ -361,7 +358,7 @@ public class RaftClient extends AbstractLifeCircle {
                 return null;
             }
             if (currentGroupInfo != lastReqGroupInfo) {
-                if (currentGroupInfo.leader.nodeId == suggestLeaderId) {
+                if (currentGroupInfo.leader != null && currentGroupInfo.leader.nodeId == suggestLeaderId) {
                     return currentGroupInfo;
                 } else {
                     // group info changed, drop the result
