@@ -126,6 +126,9 @@ class KvSnapshot extends Snapshot {
                 if (n == null) {
                     continue;
                 }
+                if (n.isDir() && processedDirs.contains(h.key)) {
+                    continue;
+                }
                 if (h.parent != null && !processedDirs.contains(h.parent.key)) {
                     while (h.parent != null && !processedDirs.contains(h.parent.key)) {
                         stack.addLast(h);
