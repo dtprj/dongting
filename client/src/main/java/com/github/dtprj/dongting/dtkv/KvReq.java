@@ -87,13 +87,13 @@ public class KvReq extends RaftRpcData implements Encodable {
     public int actualSize() {
         if (encodeSize == 0) {
             encodeSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
-                    + PbUtil.sizeOfBytesField(IDX_KEY, key)
-                    + PbUtil.sizeOfBytesField(IDX_VALUE, value)
+                    + EncodeUtil.sizeOfBytes(IDX_KEY, key)
+                    + EncodeUtil.sizeOfBytes(IDX_VALUE, value)
                     + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
-                    + PbUtil.sizeOfBytesListField(IDX_KEYS, keys)
+                    + EncodeUtil.sizeOfBytesList(IDX_KEYS, keys)
                     + PbUtil.sizeOfInt32Field(IDX_VALUES_SIZE, values == null ? 0 : values.size())
-                    + PbUtil.sizeOfBytesListField(IDX_VALUES, values)
-                    + PbUtil.sizeOfBytesField(IDX_EXPECT_VALUE, expectValue);
+                    + EncodeUtil.sizeOfBytesList(IDX_VALUES, values)
+                    + EncodeUtil.sizeOfBytes(IDX_EXPECT_VALUE, expectValue);
         }
         return encodeSize;
     }

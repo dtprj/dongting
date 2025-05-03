@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -118,9 +117,9 @@ public final class PbUtil {
         if (s == null || s.isEmpty()) {
             return;
         }
-        for (int id : s) {
+        for (Integer id : s) {
             writeTag(buf, TYPE_FIX32, index);
-            buf.putInt(Integer.reverseBytes(id));
+            buf.putInt(Integer.reverseBytes(id == null ? 0 : id));
         }
     }
 
@@ -197,11 +196,12 @@ public final class PbUtil {
         if (data == null) {
             return;
         }
-        for(byte[] d : data) {
-            Objects.requireNonNull(d);
+        for (byte[] d : data) {
             writeTag(buf, TYPE_LENGTH_DELIMITED, index);
-            writeUnsignedInt32(buf, data.length);
-            buf.put(d);
+            writeUnsignedInt32(buf, d == null ? 0 : d.length);
+            if (d != null) {
+                buf.put(d);
+            }
         }
     }
 
@@ -385,8 +385,7 @@ public final class PbUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             byte[] e = list.get(i);
-            Objects.requireNonNull(e);
-            int s = e.length;
+            int s = e == null ? 0 : e.length;
             size += sizeOfLenFieldPrefix(pbIndex, s) + s;
         }
         return size;
@@ -399,8 +398,7 @@ public final class PbUtil {
         int size = 0;
         for (int len = arr.length, i = 0; i < len; i++) {
             byte[] e = arr[i];
-            Objects.requireNonNull(e);
-            int s = e.length;
+            int s = e == null ? 0 : e.length;
             size += sizeOfLenFieldPrefix(pbIndex, s) + s;
         }
         return size;

@@ -19,12 +19,26 @@ import com.github.dtprj.dongting.common.ByteArray;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * @author huangli
  */
 public class EncodeUtil {
+
+    /**
+     * not encode null and empty object
+     */
+    private static final int MODE_CUT_0BYTE = 1;
+
+    /**
+     * not encode null object, but encode empty object
+     */
+    private static final int MODE_ENCODE_EMPTY_NOT_ENCODE_NULL = 2;
+
+    /**
+     * encode null and empty object
+     */
+    private static final int MODE_ENCODE_ALL = 3;
 
     public static int sizeOfSimpleEncodableField(int pbIndex, SimpleEncodable o) {
         if (o == null) {
@@ -50,6 +64,15 @@ public class EncodeUtil {
         return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
+    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
+        if (encode(c, destBuffer, pbIndex, o, MODE_ENCODE_EMPTY_NOT_ENCODE_NULL)) {
+            c.stage = pbIndex;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     public static int sizeOfByteArrayField(int pbIndex, ByteArray o) {
         if (o == null || o.actualSize() == 0) {
             return 0;
@@ -58,16 +81,17 @@ public class EncodeUtil {
         return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
-    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
-        return encode(c, destBuffer, pbIndex, o, true, true);
-    }
-
     public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, ByteArray o) {
-        return encode(c, destBuffer, pbIndex, o, false, true);
+        if (encode(c, destBuffer, pbIndex, o, MODE_CUT_0BYTE)) {
+            c.stage = pbIndex;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private static boolean writeObjPrefix(EncodeContext c, ByteBuffer dest, int pbIndex, int objSize) {
+    private static boolean writeObjPrefix(ByteBuffer dest, int pbIndex, int objSize) {
         if (dest.remaining() >= PbUtil.MAX_TAG_INT32_LEN) {
             PbUtil.writeLenFieldPrefix(dest, pbIndex, objSize);
         } else {
@@ -77,7 +101,6 @@ public class EncodeUtil {
                 PbUtil.writeLenFieldPrefix(dest, pbIndex, objSize);
             }
         }
-        c.pending = 1;
         return true;
     }
 
@@ -92,39 +115,32 @@ public class EncodeUtil {
         }
     }
 
-    private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o,
-                                  boolean encodeEmpty, boolean updateStage) {
-        if (o == null) {
-            if (updateStage) {
-                c.stage = pbIndex;
+    private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o, int mode) {
+        int size = o == null ? 0 : o.actualSize();
+        if (size == 0) {
+            if (mode == MODE_CUT_0BYTE) {
+                c.pending = 0;
+                return true;
             }
-            c.pending = 0;
-            return true;
-        }
-        int size = o.actualSize();
-        if (size == 0 && !encodeEmpty) {
-            if (updateStage) {
-                c.stage = pbIndex;
-            }
-            c.pending = 0;
-            return true;
-        }
-        if (c.pending == 0) {
-            if (!writeObjPrefix(c, destBuffer, pbIndex, size)) {
-                return false;
-            }
-            if (size == 0) {
-                if (updateStage) {
-                    c.stage = pbIndex;
-                }
+            if (o == null && mode == MODE_ENCODE_EMPTY_NOT_ENCODE_NULL) {
                 c.pending = 0;
                 return true;
             }
         }
-        if (o.encode(sub(c, 1, 2), destBuffer)) {
-            if (updateStage) {
-                c.stage = pbIndex;
+
+        if (c.pending == 0) {
+            if (!writeObjPrefix(destBuffer, pbIndex, size)) {
+                return false;
             }
+            if (size == 0) {
+                c.pending = 0;
+                return true;
+            }
+            c.pending = 1;
+        }
+        // assert o is not null
+        //noinspection DataFlowIssue
+        if (o.encode(sub(c, 1, 2), destBuffer)) {
             c.pending = 0;
             return true;
         } else {
@@ -132,49 +148,49 @@ public class EncodeUtil {
         }
     }
 
-    public static boolean encodeBytes(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
-        return encode(context, destBuffer, pbIndex, o, false, true);
+    public static int sizeOfBytes(int pbIndex, byte[] o) {
+        return PbUtil.sizeOfBytesField(pbIndex, o);
     }
 
-    private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, byte[] o,
-                                  boolean encodeEmpty, boolean updateStage) {
-        if (o == null) {
-            if (updateStage) {
-                c.stage = pbIndex;
-            }
-            c.pending = 0;
+    public static boolean encodeBytes(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
+        if (encode(context, destBuffer, pbIndex, o, MODE_CUT_0BYTE)) {
+            context.stage = pbIndex;
             return true;
+        } else {
+            return false;
         }
-        if (o.length == 0 && !encodeEmpty) {
-            if (updateStage) {
-                c.stage = pbIndex;
+    }
+
+    private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, byte[] o, int mode) {
+        int size = o == null ? 0 : o.length;
+        if (size == 0) {
+            if (mode == MODE_CUT_0BYTE) {
+                c.pending = 0;
+                return true;
             }
-            c.pending = 0;
-            return true;
-        }
-        if (c.pending == 0) {
-            if (!writeObjPrefix(c, destBuffer, pbIndex, o.length)) {
-                return false;
-            }
-            if (o.length == 0) {
-                if (updateStage) {
-                    c.stage = pbIndex;
-                }
+            if (o == null && mode == MODE_ENCODE_EMPTY_NOT_ENCODE_NULL) {
                 c.pending = 0;
                 return true;
             }
         }
+        if (c.pending == 0) {
+            if (!writeObjPrefix(destBuffer, pbIndex, size)) {
+                return false;
+            }
+            if (size == 0) {
+                c.pending = 0;
+                return true;
+            }
+            c.pending = 1;
+        }
         int arrOffset = c.pending - 1;
-        if (arrOffset < 0 || arrOffset >= o.length) {
+        if (arrOffset < 0 || arrOffset >= size) {
             throw new CodecException(c);
         }
         int r = destBuffer.remaining();
-        int needWrite = o.length - arrOffset;
+        int needWrite = size - arrOffset;
         if (r >= needWrite) {
             destBuffer.put(o, arrOffset, needWrite);
-            if (updateStage) {
-                c.stage = pbIndex;
-            }
             c.pending = 0;
             return true;
         } else {
@@ -182,6 +198,10 @@ public class EncodeUtil {
             c.pending += r;
             return false;
         }
+    }
+
+    public static int sizeOfBytesList(int pbIndex, List<byte[]> list) {
+        return PbUtil.sizeOfBytesListField(pbIndex, list);
     }
 
     public static boolean encodeBytesList(EncodeContext c, ByteBuffer dest, int pbIndex, List<byte[]> list) {
@@ -193,8 +213,7 @@ public class EncodeUtil {
         EncodeContext sub = sub(c, 0, 1);
         for (int count = list.size(), i = sub.stage; i < count; i++) {
             byte[] bs = list.get(i);
-            Objects.requireNonNull(bs);
-            if (!encode(sub, dest, pbIndex, bs, true, false)) {
+            if (!encode(sub, dest, pbIndex, bs, MODE_ENCODE_ALL)) {
                 sub.stage = i;
                 return false;
             }
@@ -212,8 +231,7 @@ public class EncodeUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             Encodable e = list.get(i);
-            Objects.requireNonNull(e);
-            int s = e.actualSize();
+            int s = e == null ? 0 : e.actualSize();
             size += PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
         }
         return size;
@@ -228,8 +246,7 @@ public class EncodeUtil {
         EncodeContext sub = sub(c, 0, 1);
         for (int count = list.size(), i = sub.stage; i < count; i++) {
             Encodable o = list.get(i);
-            Objects.requireNonNull(o);
-            if (!encode(sub, dest, pbIndex, o, true, false)) {
+            if (!encode(sub, dest, pbIndex, o, MODE_ENCODE_ALL)) {
                 sub.stage = i;
                 return false;
             }

@@ -71,19 +71,19 @@ class EncodeUtilTest {
         assertEquals(0, c.pending);
 
         byte[] data = new byte[]{1, 2, 3};
-        init(PbUtil.sizeOfBytesField(1, data));
+        init(EncodeUtil.sizeOfBytes(1, data));
         assertTrue(EncodeUtil.encodeBytes(c, buf, 1, data));
         assertFalse(buf.hasRemaining());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
         check(1, data);
 
-        init(PbUtil.sizeOfBytesField(1, data));
-        encodeUseSmallBuf(b -> EncodeUtil.encodeBytes(c, b, 1, data));
+        init(EncodeUtil.sizeOfBytes(2, data));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeBytes(c, b, 2, data));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
+        assertEquals(2, c.stage);
         assertEquals(0, c.pending);
-        check(1, data);
+        check(2, data);
     }
 
     private void check(int index, byte[] data) {
@@ -100,28 +100,31 @@ class EncodeUtilTest {
         ArrayList<byte[]> list = new ArrayList<>();
         list.add(new byte[]{1, 2, 3});
         list.add(new byte[]{});
+        list.add(null);
         list.add(new byte[]{4, 5, 6});
-        init(PbUtil.sizeOfBytesListField(1, list));
+        init(EncodeUtil.sizeOfBytesList(1, list));
         assertTrue(EncodeUtil.encodeBytesList(c, buf, 1, list));
         assertFalse(buf.hasRemaining());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
         check(1, list);
 
-        init(PbUtil.sizeOfBytesListField(1, list));
-        encodeUseSmallBuf(b -> EncodeUtil.encodeBytesList(c, b, 1, list));
+        init(EncodeUtil.sizeOfBytesList(2, list));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeBytesList(c, b, 2, list));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
+        assertEquals(2, c.stage);
         assertEquals(0, c.pending);
-        check(1, list);
+        check(2, list);
     }
 
     private void check(int index, ArrayList<byte[]> list) {
         buf.flip();
         ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
         for (byte[] data : list) {
-            PbUtil.writeLenFieldPrefix(buf2, index, data.length);
-            buf2.put(data);
+            PbUtil.writeLenFieldPrefix(buf2, index, data == null ? 0 : data.length);
+            if (data != null) {
+                buf2.put(data);
+            }
         }
         buf2.flip();
         assertEquals(buf2, buf);
@@ -139,11 +142,11 @@ class EncodeUtilTest {
         check(1, data);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeFix32s(c, b, 1, data));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeFix32s(c, b, 2, data));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
+        assertEquals(2, c.stage);
         assertEquals(0, c.pending);
-        check(1, data);
+        check(2, data);
     }
 
     private void check(int index, int[] data) {
@@ -169,11 +172,11 @@ class EncodeUtilTest {
         checkInt32s(1, data);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeInt32s(c, b, 1, data));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeInt32s(c, b, 2, data));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
+        assertEquals(2, c.stage);
         assertEquals(0, c.pending);
-        checkInt32s(1, data);
+        checkInt32s(2, data);
     }
 
     private void checkInt32s(int index, int[] data) {
@@ -199,17 +202,34 @@ class EncodeUtilTest {
         check(1, encodable);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encode(c, b, 1, encodable));
+        encodeUseSmallBuf(b -> EncodeUtil.encode(c, b, 2, encodable));
+        assertFalse(buf.hasRemaining());
+        assertEquals(2, c.stage);
+        assertEquals(0, c.pending);
+        check(2, encodable);
+
+        RefBuffer e2 = RefBuffer.wrap(ByteBuffer.wrap(new byte[]{}));
+        size = EncodeUtil.sizeOfEncodableField(1, e2);
+        init(size);
+        assertTrue(EncodeUtil.encode(c, buf, 1, e2));
         assertFalse(buf.hasRemaining());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
-        check(1, encodable);
+        check(1, e2);
+
+        e2 = null;
+        assertEquals(0, EncodeUtil.sizeOfEncodableField(1, e2));
+        init(0);
+        assertTrue(EncodeUtil.encode(c, buf, 1, e2));
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
     }
 
     private void check(int index, RefBuffer o) {
         buf.flip();
         ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
-        PbUtil.writeBytesField(buf2, index, o.getBuffer().array());
+        PbUtil.writeLenFieldPrefix(buf, index, o.getBuffer().capacity());
+        buf2.put(o.getBuffer().slice());
         buf2.flip();
         assertEquals(buf2, buf);
     }
@@ -227,11 +247,27 @@ class EncodeUtilTest {
         check(1, data);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encode(c, b, 1, data));
+        encodeUseSmallBuf(b -> EncodeUtil.encode(c, b, 2, data));
         assertFalse(buf.hasRemaining());
+        assertEquals(2, c.stage);
+        assertEquals(0, c.pending);
+        check(2, data);
+
+        ByteArray d2 = new ByteArray(new byte[]{});
+        size = EncodeUtil.sizeOfByteArrayField(1, d2);
+        assertEquals(0, size);
+        init(size);
+        assertTrue(EncodeUtil.encode(c, buf, 1, d2));
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
-        check(1, data);
+
+        d2 = null;
+        size = EncodeUtil.sizeOfByteArrayField(1, d2);
+        assertEquals(0, size);
+        init(size);
+        assertTrue(EncodeUtil.encode(c, buf, 1, d2));
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
     }
 
     private void check(int index, ByteArray data) {
@@ -248,6 +284,7 @@ class EncodeUtilTest {
         List<ByteArray> list = new ArrayList<>();
         list.add(new ByteArray(new byte[]{1, 2, 3}));
         list.add(new ByteArray(new byte[]{}));
+        list.add(null);
         list.add(new ByteArray(new byte[]{-1, -2, -3}));
         int size = EncodeUtil.sizeOfEncodableListField(1, list);
         init(size);
@@ -258,19 +295,22 @@ class EncodeUtilTest {
         check(1, list);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeList(c, b, 1, list));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeList(c, b, 2, list));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
+        assertEquals(2, c.stage);
         assertEquals(0, c.pending);
-        check(1, list);
+        check(2, list);
     }
 
     private void check(int index, List<ByteArray> list) {
         buf.flip();
         ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
         for (ByteArray data : list) {
-            PbUtil.writeLenFieldPrefix(buf2, index, data.getData().length);
-            buf2.put(data.getData());
+            int size = data == null ? 0 : data.getData().length;
+            PbUtil.writeLenFieldPrefix(buf2, index, size);
+            if (data != null) {
+                buf2.put(data.getData());
+            }
         }
         buf2.flip();
         assertEquals(buf2, buf);

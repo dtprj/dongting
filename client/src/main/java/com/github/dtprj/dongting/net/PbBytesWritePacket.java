@@ -34,7 +34,7 @@ public class PbBytesWritePacket extends RetryableWritePacket {
 
     @Override
     protected int calcActualBodySize() {
-        return bs == null ? 0 : bs.length;
+        return EncodeUtil.sizeOfBytes(1, bs);
     }
 
     @Override
