@@ -40,7 +40,9 @@ public class EncodeUtil {
      */
     private static final int MODE_ENCODE_ALL = 3;
 
-    public static int sizeOfSimpleEncodableField(int pbIndex, SimpleEncodable o) {
+    // ----------------------------------------------------------------------------
+
+    public static int sizeOf(int pbIndex, SimpleEncodable o) {
         if (o == null) {
             return 0;
         }
@@ -56,7 +58,9 @@ public class EncodeUtil {
         o.encode(destBuffer);
     }
 
-    public static int sizeOfEncodableField(int pbIndex, Encodable o) {
+    // ----------------------------------------------------------------------------
+
+    public static int sizeOf(int pbIndex, Encodable o) {
         if (o == null) {
             return 0;
         }
@@ -73,7 +77,9 @@ public class EncodeUtil {
         }
     }
 
-    public static int sizeOfByteArrayField(int pbIndex, ByteArray o) {
+    // ----------------------------------------------------------------------------
+
+    public static int sizeOf(int pbIndex, ByteArray o) {
         if (o == null || o.actualSize() == 0) {
             return 0;
         }
@@ -89,6 +95,8 @@ public class EncodeUtil {
             return false;
         }
     }
+
+    // ----------------------------------------------------------------------------
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private static boolean writeObjPrefix(ByteBuffer dest, int pbIndex, int objSize) {
@@ -148,11 +156,13 @@ public class EncodeUtil {
         }
     }
 
-    public static int sizeOfBytes(int pbIndex, byte[] o) {
+    // ----------------------------------------------------------------------------
+
+    public static int sizeOf(int pbIndex, byte[] o) {
         return PbUtil.sizeOfBytesField(pbIndex, o);
     }
 
-    public static boolean encodeBytes(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
+    public static boolean encode(EncodeContext context, ByteBuffer destBuffer, int pbIndex, byte[] o) {
         if (encode(context, destBuffer, pbIndex, o, MODE_CUT_0BYTE)) {
             context.stage = pbIndex;
             return true;
@@ -160,6 +170,8 @@ public class EncodeUtil {
             return false;
         }
     }
+
+    // ----------------------------------------------------------------------------
 
     private static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, byte[] o, int mode) {
         int size = o == null ? 0 : o.length;
@@ -200,6 +212,8 @@ public class EncodeUtil {
         }
     }
 
+    // ----------------------------------------------------------------------------
+
     public static int sizeOfBytesList(int pbIndex, List<byte[]> list) {
         return PbUtil.sizeOfBytesListField(pbIndex, list);
     }
@@ -224,7 +238,9 @@ public class EncodeUtil {
         return true;
     }
 
-    public static int sizeOfEncodableListField(int pbIndex, List<? extends Encodable> list) {
+    // ----------------------------------------------------------------------------
+
+    public static int sizeOfList(int pbIndex, List<? extends Encodable> list) {
         if (list == null || list.isEmpty()) {
             return 0;
         }
@@ -256,6 +272,8 @@ public class EncodeUtil {
         c.pending = 0;
         return true;
     }
+
+    // ----------------------------------------------------------------------------
 
     public static boolean encodeFix32(EncodeContext c, ByteBuffer dest, int pbIndex, int value) {
         int r = dest.remaining();

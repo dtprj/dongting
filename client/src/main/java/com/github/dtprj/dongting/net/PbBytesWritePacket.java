@@ -34,11 +34,11 @@ public class PbBytesWritePacket extends RetryableWritePacket {
 
     @Override
     protected int calcActualBodySize() {
-        return EncodeUtil.sizeOfBytes(1, bs);
+        return EncodeUtil.sizeOf(1, bs);
     }
 
     @Override
     protected boolean encodeBody(EncodeContext c, ByteBuffer dest) {
-        return EncodeUtil.encodeBytes(c, dest, 1, bs);
+        return EncodeUtil.encode(c, dest, 1, bs);
     }
 }

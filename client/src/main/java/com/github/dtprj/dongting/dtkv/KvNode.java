@@ -78,7 +78,7 @@ public class KvNode implements Encodable {
             }
         }
         if (context.stage == IDX_UPDATE_TIME) {
-            if (EncodeUtil.encodeBytes(context, destBuffer, IDX_DATA, data)) {
+            if (EncodeUtil.encode(context, destBuffer, IDX_DATA, data)) {
                 context.stage = EncodeContext.STAGE_END;
                 return true;
             } else {
@@ -91,7 +91,7 @@ public class KvNode implements Encodable {
 
     @Override
     public int actualSize() {
-        return EncodeUtil.sizeOfBytes(IDX_DATA, data) + headerSize;
+        return EncodeUtil.sizeOf(IDX_DATA, data) + headerSize;
     }
 
     // re-used

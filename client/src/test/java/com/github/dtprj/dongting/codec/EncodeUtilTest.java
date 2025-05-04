@@ -59,27 +59,27 @@ class EncodeUtilTest {
     @Test
     public void testEncodeBytes() {
         init(0);
-        assertTrue(EncodeUtil.encodeBytes(c, buf, 1, new byte[]{}));
+        assertTrue(EncodeUtil.encode(c, buf, 1, new byte[]{}));
         assertEquals(0, buf.position());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
 
         init(0);
-        assertTrue(EncodeUtil.encodeBytes(c, buf, 1, null));
+        assertTrue(EncodeUtil.encode(c, buf, 1, (byte[])null));
         assertEquals(0, buf.position());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
 
         byte[] data = new byte[]{1, 2, 3};
-        init(EncodeUtil.sizeOfBytes(1, data));
-        assertTrue(EncodeUtil.encodeBytes(c, buf, 1, data));
+        init(EncodeUtil.sizeOf(1, data));
+        assertTrue(EncodeUtil.encode(c, buf, 1, data));
         assertFalse(buf.hasRemaining());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
         check(1, data);
 
-        init(EncodeUtil.sizeOfBytes(2, data));
-        encodeUseSmallBuf(b -> EncodeUtil.encodeBytes(c, b, 2, data));
+        init(EncodeUtil.sizeOf(2, data));
+        encodeUseSmallBuf(b -> EncodeUtil.encode(c, b, 2, data));
         assertFalse(buf.hasRemaining());
         assertEquals(2, c.stage);
         assertEquals(0, c.pending);
@@ -193,7 +193,7 @@ class EncodeUtilTest {
     @Test
     public void testEncodeEncodable() {
         RefBuffer encodable = RefBuffer.wrap(ByteBuffer.wrap(new byte[]{10, 20, 30}));
-        int size = EncodeUtil.sizeOfEncodableField(1, encodable);
+        int size = EncodeUtil.sizeOf(1, encodable);
         init(size);
         assertTrue(EncodeUtil.encode(c, buf, 1, encodable));
         assertFalse(buf.hasRemaining());
@@ -209,7 +209,7 @@ class EncodeUtilTest {
         check(2, encodable);
 
         RefBuffer e2 = RefBuffer.wrap(ByteBuffer.wrap(new byte[]{}));
-        size = EncodeUtil.sizeOfEncodableField(1, e2);
+        size = EncodeUtil.sizeOf(1, e2);
         init(size);
         assertTrue(EncodeUtil.encode(c, buf, 1, e2));
         assertFalse(buf.hasRemaining());
@@ -218,7 +218,7 @@ class EncodeUtilTest {
         check(1, e2);
 
         e2 = null;
-        assertEquals(0, EncodeUtil.sizeOfEncodableField(1, e2));
+        assertEquals(0, EncodeUtil.sizeOf(1, e2));
         init(0);
         assertTrue(EncodeUtil.encode(c, buf, 1, e2));
         assertEquals(1, c.stage);
@@ -238,7 +238,7 @@ class EncodeUtilTest {
     @Test
     public void testEncodeByteArray() {
         ByteArray data = new ByteArray(new byte[]{1, 2, 3, 0, -1});
-        int size = EncodeUtil.sizeOfByteArrayField(1, data);
+        int size = EncodeUtil.sizeOf(1, data);
         init(size);
         assertTrue(EncodeUtil.encode(c, buf, 1, data));
         assertFalse(buf.hasRemaining());
@@ -254,7 +254,7 @@ class EncodeUtilTest {
         check(2, data);
 
         ByteArray d2 = new ByteArray(new byte[]{});
-        size = EncodeUtil.sizeOfByteArrayField(1, d2);
+        size = EncodeUtil.sizeOf(1, d2);
         assertEquals(0, size);
         init(size);
         assertTrue(EncodeUtil.encode(c, buf, 1, d2));
@@ -262,7 +262,7 @@ class EncodeUtilTest {
         assertEquals(0, c.pending);
 
         d2 = null;
-        size = EncodeUtil.sizeOfByteArrayField(1, d2);
+        size = EncodeUtil.sizeOf(1, d2);
         assertEquals(0, size);
         init(size);
         assertTrue(EncodeUtil.encode(c, buf, 1, d2));
@@ -286,7 +286,7 @@ class EncodeUtilTest {
         list.add(new ByteArray(new byte[]{}));
         list.add(null);
         list.add(new ByteArray(new byte[]{-1, -2, -3}));
-        int size = EncodeUtil.sizeOfEncodableListField(1, list);
+        int size = EncodeUtil.sizeOfList(1, list);
         init(size);
         assertTrue(EncodeUtil.encodeList(c, buf, 1, list));
         assertFalse(buf.hasRemaining());

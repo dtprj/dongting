@@ -87,13 +87,13 @@ public class KvReq extends RaftRpcData implements Encodable {
     public int actualSize() {
         if (encodeSize == 0) {
             encodeSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
-                    + EncodeUtil.sizeOfBytes(IDX_KEY, key)
-                    + EncodeUtil.sizeOfBytes(IDX_VALUE, value)
+                    + EncodeUtil.sizeOf(IDX_KEY, key)
+                    + EncodeUtil.sizeOf(IDX_VALUE, value)
                     + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
                     + EncodeUtil.sizeOfBytesList(IDX_KEYS, keys)
                     + PbUtil.sizeOfInt32Field(IDX_VALUES_SIZE, values == null ? 0 : values.size())
                     + EncodeUtil.sizeOfBytesList(IDX_VALUES, values)
-                    + EncodeUtil.sizeOfBytes(IDX_EXPECT_VALUE, expectValue);
+                    + EncodeUtil.sizeOf(IDX_EXPECT_VALUE, expectValue);
         }
         return encodeSize;
     }
@@ -107,12 +107,12 @@ public class KvReq extends RaftRpcData implements Encodable {
                 }
                 // fall through
             case IDX_GROUP_ID:
-                if (!EncodeUtil.encodeBytes(context, destBuffer, IDX_KEY, key)) {
+                if (!EncodeUtil.encode(context, destBuffer, IDX_KEY, key)) {
                     return false;
                 }
                 // fall through
             case IDX_KEY:
-                if (!EncodeUtil.encodeBytes(context, destBuffer, IDX_VALUE, value)) {
+                if (!EncodeUtil.encode(context, destBuffer, IDX_VALUE, value)) {
                     return false;
                 }
                 // fall through
@@ -137,7 +137,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                 }
                 // fall through
             case IDX_VALUES:
-                return expectValue == null || EncodeUtil.encodeBytes(context, destBuffer, IDX_EXPECT_VALUE, expectValue);
+                return expectValue == null || EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue);
             default:
                 throw new CodecException(context);
         }

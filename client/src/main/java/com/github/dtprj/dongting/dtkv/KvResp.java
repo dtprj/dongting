@@ -49,7 +49,7 @@ public class KvResp implements Encodable {
         if (encodeSize == 0) {
             this.encodeSize = PbUtil.sizeOfFix64Field(IDX_RAFT_INDEX, raftIndex)
                     + PbUtil.sizeOfInt32Field(IDX_RESULTS_SIZE, results == null ? 0 : results.size())
-                    + EncodeUtil.sizeOfEncodableListField(IDX_RESULTS, results);
+                    + EncodeUtil.sizeOfList(IDX_RESULTS, results);
         }
         return encodeSize;
     }
