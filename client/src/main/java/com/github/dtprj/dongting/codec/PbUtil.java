@@ -307,6 +307,18 @@ public final class PbUtil {
         return sizeOfTag(index) + sizeOfUnsignedInt64(value);
     }
 
+    public static int sizeOfInt64Field(int index, long[] values) {
+        if (values == null || values.length == 0) {
+            return 0;
+        }
+        int size = 0;
+        for (long value : values) {
+            size += sizeOfTag(index);
+            size += sizeOfUnsignedInt64(value);
+        }
+        return size;
+    }
+
     static int sizeOfUnsignedInt64(long value) {
         if (value < 0L) {
             return 10;

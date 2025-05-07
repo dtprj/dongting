@@ -398,4 +398,58 @@ public class EncodeUtil {
         return true;
     }
 
+    public static boolean encodeInt64s(EncodeContext c, ByteBuffer dest, int pbIndex, long[] values) {
+        if (values == null || values.length == 0) {
+            c.stage = pbIndex;
+            c.pending = 0;
+            return true;
+        }
+        int i = c.pending;
+        for (int l = values.length; i < l; i++) {
+            int r = dest.remaining();
+            if (r >= PbUtil.MAX_TAG_INT64_LEN) {
+                PbUtil.writeTag(dest, PbUtil.TYPE_VAR_INT, pbIndex);
+                PbUtil.writeUnsignedInt64(dest, values[i]);
+            } else {
+                if (r < PbUtil.sizeOfTag(pbIndex) + PbUtil.sizeOfUnsignedInt64(values[i])) {
+                    c.pending = i;
+                    return false;
+                } else {
+                    PbUtil.writeTag(dest, PbUtil.TYPE_VAR_INT, pbIndex);
+                    PbUtil.writeUnsignedInt64(dest, values[i]);
+                }
+            }
+        }
+        c.stage = pbIndex;
+        c.pending = 0;
+        return true;
+    }
+
+    public static boolean encodeFix64s(EncodeContext c, ByteBuffer dest, int pbIndex, long[] values) {
+        if (values == null || values.length == 0) {
+            c.stage = pbIndex;
+            c.pending = 0;
+            return true;
+        }
+        int i = c.pending;
+        for (int l = values.length; i < l; i++) {
+            int r = dest.remaining();
+            if (r >= PbUtil.MAX_TAG_FIX64_LEN) {
+                PbUtil.writeTag(dest, PbUtil.TYPE_FIX64, pbIndex);
+                dest.putLong(Long.reverseBytes(values[i]));
+            } else {
+                if (r < PbUtil.sizeOfTag(pbIndex) + 8) {
+                    c.pending = i;
+                    return false;
+                } else {
+                    PbUtil.writeTag(dest, PbUtil.TYPE_FIX64, pbIndex);
+                    dest.putLong(Long.reverseBytes(values[i]));
+                }
+            }
+        }
+        c.stage = pbIndex;
+        c.pending = 0;
+        return true;
+    }
+
 }

@@ -131,66 +131,6 @@ class EncodeUtilTest {
     }
 
     @Test
-    public void testEncodeFix32s() {
-        int[] data = new int[]{1, 2, 3, 0, -1, 100};
-        int size = PbUtil.sizeOfFix32Field(1, data);
-        init(size);
-        assertTrue(EncodeUtil.encodeFix32s(c, buf, 1, data));
-        assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
-        assertEquals(0, c.pending);
-        check(1, data);
-
-        init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeFix32s(c, b, 2, data));
-        assertFalse(buf.hasRemaining());
-        assertEquals(2, c.stage);
-        assertEquals(0, c.pending);
-        check(2, data);
-    }
-
-    private void check(int index, int[] data) {
-        buf.flip();
-        ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
-        for (int value : data) {
-            PbUtil.writeTag(buf2, PbUtil.TYPE_FIX32, index);
-            buf2.putInt(Integer.reverseBytes(value));
-        }
-        buf2.flip();
-        assertEquals(buf2, buf);
-    }
-
-    @Test
-    public void testEncodeInt32s() {
-        int[] data = new int[]{1, 2, 3, 0, -1, 100};
-        int size = PbUtil.sizeOfInt32Field(1, data);
-        init(size);
-        assertTrue(EncodeUtil.encodeInt32s(c, buf, 1, data));
-        assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
-        assertEquals(0, c.pending);
-        checkInt32s(1, data);
-
-        init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeInt32s(c, b, 2, data));
-        assertFalse(buf.hasRemaining());
-        assertEquals(2, c.stage);
-        assertEquals(0, c.pending);
-        checkInt32s(2, data);
-    }
-
-    private void checkInt32s(int index, int[] data) {
-        buf.flip();
-        ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
-        for (int value : data) {
-            PbUtil.writeTag(buf2, PbUtil.TYPE_VAR_INT, index);
-            PbUtil.writeInt32(buf2, value);
-        }
-        buf2.flip();
-        assertEquals(buf2, buf);
-    }
-
-    @Test
     public void testEncodeEncodable() {
         RefBuffer encodable = RefBuffer.wrap(ByteBuffer.wrap(new byte[]{10, 20, 30}));
         int size = EncodeUtil.sizeOf(1, encodable);
@@ -332,10 +272,10 @@ class EncodeUtilTest {
         checkFix32(1, value);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeFix32(c, b, 1, value));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeFix32(c, b, 2, value));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
-        checkFix32(1, value);
+        assertEquals(2, c.stage);
+        checkFix32(2, value);
     }
 
     private void checkFix32(int index, int value) {
@@ -362,10 +302,10 @@ class EncodeUtilTest {
         checkFix64(1, value);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeFix64(c, b, 1, value));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeFix64(c, b, 2, value));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
-        checkFix64(1, value);
+        assertEquals(2, c.stage);
+        checkFix64(2, value);
     }
 
     private void checkFix64(int index, long value) {
@@ -392,10 +332,10 @@ class EncodeUtilTest {
         checkInt32(1, value);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeInt32(c, b, 1, value));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeInt32(c, b, 2, value));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
-        checkInt32(1, value);
+        assertEquals(2, c.stage);
+        checkInt32(2, value);
     }
 
     private void checkInt32(int index, int value) {
@@ -422,16 +362,136 @@ class EncodeUtilTest {
         checkInt64(1, value);
 
         init(size);
-        encodeUseSmallBuf(b -> EncodeUtil.encodeInt64(c, b, 1, value));
+        encodeUseSmallBuf(b -> EncodeUtil.encodeInt64(c, b, 2, value));
         assertFalse(buf.hasRemaining());
-        assertEquals(1, c.stage);
-        checkInt64(1, value);
+        assertEquals(2, c.stage);
+        checkInt64(2, value);
     }
 
     private void checkInt64(int index, long value) {
         buf.flip();
         ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
         PbUtil.writeInt64Field(buf2, index, value);
+        buf2.flip();
+        assertEquals(buf2, buf);
+    }
+
+    @Test
+    public void testEncodeInt32s() {
+        int[] data = new int[]{1, 2, 3, 0, -1, -2, -3, 100, -100, Integer.MAX_VALUE, Integer.MIN_VALUE};
+        int size = PbUtil.sizeOfInt32Field(1, data);
+        init(size);
+        assertTrue(EncodeUtil.encodeInt32s(c, buf, 1, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        checkInt32s(1, data);
+
+        init(size);
+        encodeUseSmallBuf(b -> EncodeUtil.encodeInt32s(c, b, 2, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(2, c.stage);
+        assertEquals(0, c.pending);
+        checkInt32s(2, data);
+    }
+
+    private void checkInt32s(int index, int[] data) {
+        buf.flip();
+        ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
+        for (int value : data) {
+            PbUtil.writeTag(buf2, PbUtil.TYPE_VAR_INT, index);
+            PbUtil.writeInt32(buf2, value);
+        }
+        buf2.flip();
+        assertEquals(buf2, buf);
+    }
+
+    @Test
+    public void testEncodeFix32s() {
+        int[] data = new int[]{1, 2, 3, 0, -1, 100, Integer.MAX_VALUE, Integer.MIN_VALUE};
+        int size = PbUtil.sizeOfFix32Field(1, data);
+        init(size);
+        assertTrue(EncodeUtil.encodeFix32s(c, buf, 1, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        check(1, data);
+
+        init(size);
+        encodeUseSmallBuf(b -> EncodeUtil.encodeFix32s(c, b, 2, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(2, c.stage);
+        assertEquals(0, c.pending);
+        check(2, data);
+    }
+
+    private void check(int index, int[] data) {
+        buf.flip();
+        ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
+        for (int value : data) {
+            PbUtil.writeTag(buf2, PbUtil.TYPE_FIX32, index);
+            buf2.putInt(Integer.reverseBytes(value));
+        }
+        buf2.flip();
+        assertEquals(buf2, buf);
+    }
+
+    @Test
+    public void testEncodeInt64s() {
+        long[] data = new long[]{1, 2, 3, 0, -1, -2, -3, 100, -100, Long.MAX_VALUE, Long.MIN_VALUE};
+        int size = PbUtil.sizeOfInt64Field(1, data);
+        init(size);
+        assertTrue(EncodeUtil.encodeInt64s(c, buf, 1, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        checkInt32s(1, data);
+
+        init(size);
+        encodeUseSmallBuf(b -> EncodeUtil.encodeInt64s(c, b, 2, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(2, c.stage);
+        assertEquals(0, c.pending);
+        checkInt32s(2, data);
+    }
+
+    private void checkInt32s(int index, long[] data) {
+        buf.flip();
+        ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
+        for (long value : data) {
+            PbUtil.writeTag(buf2, PbUtil.TYPE_VAR_INT, index);
+            PbUtil.writeUnsignedInt64(buf2, value);
+        }
+        buf2.flip();
+        assertEquals(buf2, buf);
+    }
+
+    @Test
+    public void testEncodeFix64s() {
+        long[] data = new long[]{1, 2, 3, 0, -1, 100, Integer.MAX_VALUE, Integer.MIN_VALUE};
+        int size = PbUtil.sizeOfFix64Field(1, data);
+        init(size);
+        assertTrue(EncodeUtil.encodeFix64s(c, buf, 1, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        check(1, data);
+
+        init(size);
+        encodeUseSmallBuf(b -> EncodeUtil.encodeFix64s(c, b, 2, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(2, c.stage);
+        assertEquals(0, c.pending);
+        check(2, data);
+    }
+
+    private void check(int index, long[] data) {
+        buf.flip();
+        ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
+        for (long value : data) {
+            PbUtil.writeTag(buf2, PbUtil.TYPE_FIX64, index);
+            buf2.putLong(Long.reverseBytes(value));
+        }
         buf2.flip();
         assertEquals(buf2, buf);
     }
