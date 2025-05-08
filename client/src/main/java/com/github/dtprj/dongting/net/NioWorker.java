@@ -62,7 +62,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final Thread thread;
     private final NioStatus nioStatus;
     private final NioConfig config;
-    private final NioClient client;
+    final NioNet owner;
     private Selector selector;
     private final AtomicInteger wakeupCalledInOtherThreads = new AtomicInteger(0);
     private boolean wakeupCalled;
@@ -97,17 +97,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final ArrayList<Pair<Long, WriteData>> tempSortList = new ArrayList<>();
 
-    public NioWorker(NioStatus nioStatus, String workerName, NioConfig config, NioClient client) {
+    public NioWorker(NioStatus nioStatus, String workerName, NioConfig config, NioNet owner) {
         this.nioStatus = nioStatus;
         this.config = config;
-        this.client = client;
+        this.owner = owner;
         this.thread = new Thread(this, workerName);
         this.workerName = workerName;
         this.cleanIntervalNanos = config.cleanInterval * 1000 * 1000;
         this.perfCallback = config.perfCallback;
 
         this.channels = new IntObjMap<>();
-        this.server = client == null;
+        this.server = owner instanceof NioServer;
         this.ioWorkerQueue = new IoWorkerQueue(this, config);
         if (server) {
             this.channelsList = null;
@@ -603,7 +603,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         ConfigBody cb = resp.getBody().config;
         if (config != null && config.serverHint) {
-            client.processServerConfigHint(dtc.peer, cb);
+            ((NioClient) owner).processServerConfigHint(dtc.peer, cb);
             config.writeFence();
         }
 
@@ -780,7 +780,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         cleanPendingOutgoingRequests(null, 2);
 
         if (!server) {
-            client.cleanWaitConnectReq(wd -> {
+            ((NioClient) owner).cleanWaitConnectReq(wd -> {
                 if (wd.getTimeout().isTimeout(timestamp)) {
                     return new NetTimeoutException("wait connect timeout");
                 }
@@ -831,7 +831,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (workerStatus.retryConnect <= 0) {
             return;
         }
-        List<Peer> peers = client.getPeers();
+        List<Peer> peers = ((NioClient) owner).getPeers();
         for (Peer p : peers) {
             if (!p.autoReconnect || p.status != PeerStatus.not_connect) {
                 continue;

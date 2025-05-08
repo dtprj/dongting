@@ -480,6 +480,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     public long getLastActiveTimeNanos() {
         return lastActiveTimeNanos;
     }
+
+    @Override
+    public NioNet getOwner() {
+        return workerStatus.worker.owner;
+    }
 }
 
 @SuppressWarnings({"rawtypes", "unchecked"})

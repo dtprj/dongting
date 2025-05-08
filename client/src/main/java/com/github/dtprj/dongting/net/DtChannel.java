@@ -34,4 +34,6 @@ public interface DtChannel {
     Peer getPeer();
 
     long getLastActiveTimeNanos();
+
+    NioNet getOwner();
 }
