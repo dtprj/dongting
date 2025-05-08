@@ -62,7 +62,6 @@ class WatchManager {
     private final Supplier<KvStatus> kvStatusSupplier;
     private final Executor executor;
     private final long[] retryIntervalNanos;
-    private final long channelTimeoutNanos;
     private int epoch;
 
     static int maxBytesPerRequest = 80 * 1024; // may exceed
@@ -77,12 +76,11 @@ class WatchManager {
 
     WatchManager(int groupId, Timestamp ts, NioServer nioServer,
                  Supplier<KvStatus> kvStatusSupplier, Executor executor) {
-        this(groupId, ts, nioServer, kvStatusSupplier, executor,
-                new long[]{1000, 10_000, 30_000, 60_000}, 120_000L);
+        this(groupId, ts, nioServer, kvStatusSupplier, executor, new long[]{1000, 10_000, 30_000, 60_000});
     }
 
     WatchManager(int groupId, Timestamp ts, NioServer nioServer, Supplier<KvStatus> kvStatusSupplier,
-                 Executor executor, long[] retryIntervalMillis, long channelTimeoutMillis) {
+                 Executor executor, long[] retryIntervalMillis) {
         this.groupId = groupId;
         this.ts = ts;
         this.nioServer = nioServer;
@@ -92,7 +90,15 @@ class WatchManager {
         for (int i = 0; i < retryIntervalMillis.length; i++) {
             this.retryIntervalNanos[i] = TimeUnit.MILLISECONDS.toNanos(retryIntervalMillis[i]);
         }
-        this.channelTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(channelTimeoutMillis);
+    }
+
+    public void reset() {
+        epoch++;
+        needNotifyChannels.clear();
+        channelInfoMap.clear();
+        retryQueue.clear();
+        activeQueueHead = null;
+        activeQueueTail = null;
     }
 
     void addOrUpdateActiveQueue(ChannelInfo ci) {
@@ -102,43 +108,43 @@ class WatchManager {
         }
 
         // already in the queue
-        if (ci.activeNext != null) {
-            if (ci.activePrev != null) {
-                ci.activePrev.activeNext = ci.activeNext;
+        if (ci.next != null) {
+            if (ci.prev != null) {
+                ci.prev.next = ci.next;
             } else {
-                activeQueueHead = ci.activeNext;
+                activeQueueHead = ci.next;
             }
-            ci.activeNext.activePrev = ci.activePrev;
+            ci.next.prev = ci.prev;
         }
 
         // add to tail
         if (activeQueueHead == null) {
             activeQueueHead = ci;
         } else {
-            activeQueueTail.activeNext = ci;
-            ci.activePrev = activeQueueTail;
+            activeQueueTail.next = ci;
+            ci.prev = activeQueueTail;
         }
         activeQueueTail = ci;
-        ci.activeNext = null;
+        ci.next = null;
     }
 
     void removeFromActiveQueue(ChannelInfo ci) {
-        if (ci.activePrev == null && ci.activeNext == null && activeQueueHead != ci) {
+        if (ci.prev == null && ci.next == null && activeQueueHead != ci) {
             // not in the queue
             return;
         }
-        if (ci.activePrev != null) {
-            ci.activePrev.activeNext = ci.activeNext;
+        if (ci.prev != null) {
+            ci.prev.next = ci.next;
         } else {
-            activeQueueHead = ci.activeNext;
+            activeQueueHead = ci.next;
         }
-        if (ci.activeNext != null) {
-            ci.activeNext.activePrev = ci.activePrev;
+        if (ci.next != null) {
+            ci.next.prev = ci.prev;
         } else {
-            activeQueueTail = ci.activePrev;
+            activeQueueTail = ci.prev;
         }
-        ci.activePrev = null;
-        ci.activeNext = null;
+        ci.prev = null;
+        ci.next = null;
     }
 
     private boolean checkInstallSnapshot(FutureCallback<Integer> callback, KvStatus kvStatus) {
@@ -489,6 +495,13 @@ class WatchManager {
         }
     }
 
+    public void cleanTimeoutChannel(long timeoutNanos) {
+        while (activeQueueHead != null) {
+            if (ts.nanoTime - activeQueueHead.lastNotifyNanos > timeoutNanos) {
+                removeWatchByChannel(activeQueueHead.channel, defaultCallback);
+            }
+        }
+    }
 
 }
 
@@ -496,8 +509,8 @@ class ChannelInfo implements Comparable<ChannelInfo> {
     final DtChannel channel;
     final HashMap<ByteArray, Watch> watches = new HashMap<>(4);
 
-    ChannelInfo activePrev;
-    ChannelInfo activeNext;
+    ChannelInfo prev;
+    ChannelInfo next;
 
     boolean pending;
     long lastNotifyNanos;
