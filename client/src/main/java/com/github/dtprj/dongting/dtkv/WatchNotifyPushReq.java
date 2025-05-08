@@ -15,92 +15,85 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.codec.SimpleEncodable;
 
 import java.nio.ByteBuffer;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * @author huangli
  */
-public class WatchNotifyPushReq implements SimpleEncodable {
-    public static final int IDX_GROUP_ID = 1;
-    public static final int IDX_RAFT_INDEX = 2;
-    public static final int IDX_RESULT = 3;
-    public static final int IDX_KEY = 4;
-    public static final int IDX_VALUE = 5;
+public class WatchNotifyPushReq implements Encodable {
+    private static final int IDX_GROUP_ID = 1;
+    private static final int IDX_NOTIFY_LIST = 2;
 
     public final int groupId;
-    public final long raftIndex;
-    public final int result;
-    public final byte[] key;
-    public final byte[] value;
+    public final List<WatchNotify> notifyList;
 
-    public WatchNotifyPushReq(int groupId, long raftIndex, int result, byte[] key, byte[] value) {
+    private int encodeSize;
+
+    public WatchNotifyPushReq(int groupId, List< WatchNotify> notifyList) {
         this.groupId = groupId;
-        this.raftIndex = raftIndex;
-        this.result = result;
-        this.key = key;
-        this.value = value;
+        this.notifyList = notifyList;
     }
 
     @Override
-    public void encode(ByteBuffer buf) {
-        PbUtil.writeInt32Field(buf, IDX_GROUP_ID, groupId);
-        PbUtil.writeFix64Field(buf, IDX_RAFT_INDEX, raftIndex);
-        PbUtil.writeInt32Field(buf, IDX_RESULT, result);
-        PbUtil.writeBytesField(buf, IDX_KEY, key);
-        PbUtil.writeBytesField(buf, IDX_VALUE, value);
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        switch (context.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_GROUP_ID, groupId)) {
+                    return false;
+                }
+                // fall through
+            case IDX_GROUP_ID:
+                return EncodeUtil.encodeList(context, destBuffer, IDX_NOTIFY_LIST, notifyList);
+            default:
+                throw new CodecException(context);
+        }
     }
 
     @Override
     public int actualSize() {
-        return PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
-                + PbUtil.sizeOfFix64Field(IDX_RAFT_INDEX, raftIndex)
-                + PbUtil.sizeOfInt32Field(IDX_RESULT, result)
-                + PbUtil.sizeOfBytesField(IDX_KEY, key)
-                + PbUtil.sizeOfBytesField(IDX_VALUE, value);
+        if (encodeSize == 0) {
+            encodeSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
+                    + EncodeUtil.sizeOfList(IDX_NOTIFY_LIST, notifyList);
+        }
+        return encodeSize;
     }
 
     public static class Callback extends PbCallback<WatchNotifyPushReq> {
         private int groupId;
-        private long raftIndex;
-        private int result;
-        private byte[] key;
-        private byte[] value;
+        private final List<WatchNotify> notifyList = new LinkedList<>();
 
         @Override
         public boolean readVarNumber(int index, long value) {
             if (index == IDX_GROUP_ID) {
                 groupId = (int) value;
-            } else if (index == IDX_RESULT) {
-                result = (int) value;
-            }
-            return true;
-        }
-
-        @Override
-        public boolean readFix64(int index, long value) {
-            if(index == IDX_RAFT_INDEX) {
-                raftIndex = value;
             }
             return true;
         }
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == IDX_KEY) {
-                key = parseBytes(buf, fieldLen, currentPos);
-            } else if (index == IDX_VALUE) {
-                value = parseBytes(buf, fieldLen, currentPos);
+            if (index == IDX_NOTIFY_LIST) {
+                WatchNotify wn = parseNested(buf, fieldLen, currentPos, currentPos == 0 ?
+                        new WatchNotify.Callback() : null);
+                if (wn != null) {
+                    notifyList.add(wn);
+                }
             }
             return true;
         }
 
         @Override
         protected WatchNotifyPushReq getResult() {
-            return new WatchNotifyPushReq(groupId, raftIndex, result, key, value);
+            return new WatchNotifyPushReq(groupId, notifyList);
         }
     }
 }

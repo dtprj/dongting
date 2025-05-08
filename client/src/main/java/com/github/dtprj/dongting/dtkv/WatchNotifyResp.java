@@ -13,44 +13,37 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
+import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class EncodableBodyWritePacket extends RetryableWritePacket {
+public class WatchNotifyResp implements Encodable {
+    private static final int IDX_RESULTS = 1;
 
-    private final Encodable body;
+    private final int[] results;
 
-    public EncodableBodyWritePacket(Encodable body) {
-        this.body = body;
-    }
-
-    public EncodableBodyWritePacket(int cmd, Encodable body) {
-        this.body = body;
-        this.command = cmd;
+    public WatchNotifyResp(int[] results) {
+        this.results = results;
     }
 
     @Override
-    protected int calcActualBodySize() {
-        return body == null ? 0 : body.actualSize();
+    public int actualSize() {
+        return PbUtil.sizeOfInt32Field(IDX_RESULTS, results);
     }
 
     @Override
-    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
-        if (body == null) {
-            return true;
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        if (context.stage == EncodeContext.STAGE_BEGIN) {
+            return EncodeUtil.encodeInt32s(context, destBuffer, IDX_RESULTS, results);
         }
-        return body.encode(context, dest);
-    }
-
-    @Override
-    public String toString() {
-        return "EncodableBodyWritePacket{" + "body=" + body + '}';
+        throw new IllegalStateException("stage=" + context.stage);
     }
 }

@@ -48,18 +48,20 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class DtKV extends AbstractLifeCircle implements StateMachine {
+    // since we not implements raft log-read, all read biz type of read operation are reserved and not used
     public static final int BIZ_TYPE_PUT = 0;
-    @SuppressWarnings("unused")
-    public static final int BIZ_TYPE_GET = 1;
+    // public static final int BIZ_TYPE_GET = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
     public static final int BIZ_TYPE_MKDIR = 3;
-    @SuppressWarnings("unused")
-    public static final int BIZ_TYPE_LIST = 4;
-    @SuppressWarnings("unused")
-    public static final int BIZ_TYPE_BATCH_GET = 5;
+    // public static final int BIZ_TYPE_LIST = 4;
+    // public static final int BIZ_TYPE_BATCH_GET = 5;
     public static final int BIZ_TYPE_BATCH_PUT = 6;
     public static final int BIZ_TYPE_BATCH_REMOVE = 7;
     public static final int BIZ_TYPE_CAS = 8;
+    // Watch operations may update the state machine, but not persist to raft log, treat as read-only.
+    // After leadership transfer, the client should re-execute the watch operation (idempotent) to new leader.
+    // public static final int BIZ_TYPE_WATCH = 9;
+    // public static final int BIZ_TYPE_UNWATCH = 10;
 
     private Executor dtkvExecutor;
 
@@ -76,8 +78,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         this.config = config;
         this.useSeparateExecutor = kvConfig.useSeparateExecutor;
         this.kvConfig = kvConfig;
-        KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.initMapCapacity,
-                kvConfig.loadFactor);
+        KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
         updateStatus(false, kvImpl);
     }
 

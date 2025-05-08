@@ -21,8 +21,8 @@ import com.github.dtprj.dongting.log.BugLog;
  * @author huangli
  */
 public class Timestamp {
-    private long nanoTime;
-    private long wallClockMillis;
+    public long nanoTime;
+    public long wallClockMillis;
 
     public Timestamp() {
         nanoTime = System.nanoTime();

@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
 
+import java.util.HashMap;
+
 /**
  * @author huangli
  */
@@ -26,6 +28,9 @@ class KvNodeHolder {
     final KvNodeHolder parent;
 
     KvNodeEx latest;
+
+    WatchHolder watchHolder;
+    HashMap<ByteArray, WatchHolder> childrenWatchHolderMap;
 
     public KvNodeHolder(ByteArray key, ByteArray keyInDir, KvNodeEx n, KvNodeHolder parent) {
         this.key = key;

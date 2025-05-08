@@ -34,6 +34,9 @@ public interface KvCodes {
     int CODE_VALUE_TOO_LONG = 11;
     int CODE_INSTALL_SNAPSHOT = 12;
     int CODE_CAS_MISMATCH = 13;
+    int CODE_CLIENT_REQ_ERROR = 14;
+    int CODE_REMOVE_WATCH = 15;
+    int CODE_REMOVE_ALL_WATCH = 16;
 
     static String toStr(int code) {
         switch (code) {
@@ -63,6 +66,14 @@ public interface KvCodes {
                 return "value too long";
             case CODE_INSTALL_SNAPSHOT:
                 return "install snapshot";
+            case CODE_CAS_MISMATCH:
+                return "cas mismatch";
+            case CODE_CLIENT_REQ_ERROR:
+                return "client request error";
+            case CODE_REMOVE_WATCH:
+                return "remove watch";
+            case CODE_REMOVE_ALL_WATCH:
+                return "remove all watch";
             default:
                 return "unknown";
         }

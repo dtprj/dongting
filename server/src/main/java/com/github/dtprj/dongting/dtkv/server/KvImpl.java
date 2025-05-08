@@ -81,7 +81,11 @@ class KvImpl {
         writeLock = lock.writeLock();
     }
 
-    private int checkKey(ByteArray key, boolean allowEmpty) {
+    int checkKey(ByteArray key, boolean allowEmpty, boolean fullCheck) {
+        if (key.isSlice()) {
+            // slice key is not allowed
+            return KvCodes.CODE_INVALID_KEY;
+        }
         byte[] bs = key == null ? null : key.getData();
         if (bs == null || bs.length == 0) {
             if (allowEmpty) {
@@ -96,6 +100,17 @@ class KvImpl {
         if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
             return KvCodes.CODE_INVALID_KEY;
         }
+        if (fullCheck) {
+            int lastSep = -1;
+            for (int len = bs.length, i = 0; i < len; i++) {
+                if (bs[i] == SEPARATOR) {
+                    if (lastSep == i - 1) {
+                        return KvCodes.CODE_INVALID_KEY;
+                    }
+                    lastSep = i;
+                }
+            }
+        }
         return KvCodes.CODE_SUCCESS;
     }
 
@@ -106,7 +121,7 @@ class KvImpl {
      * the raftIndex parameter, and this does not violate linearizability.
      */
     public KvResult get(ByteArray key) {
-        int ck = checkKey(key, true);
+        int ck = checkKey(key, true, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
@@ -120,7 +135,7 @@ class KvImpl {
 
     private KvResult get0(ByteArray key) {
         KvNodeHolder h;
-        if (key == null || key.getData().length == 0) {
+        if (key == null || key.length == 0) {
             h = root;
         } else {
             h = map.get(key);
@@ -152,7 +167,7 @@ class KvImpl {
             for (int i = 0; i < s; i++) {
                 byte[] bs = keys.get(i);
                 ByteArray key = bs == null ? null : new ByteArray(bs);
-                int ck = checkKey(key, true);
+                int ck = checkKey(key, true, false);
                 if (ck != KvCodes.CODE_SUCCESS) {
                     list.add(new KvResult(ck));
                 } else {
@@ -172,7 +187,7 @@ class KvImpl {
      * the raftIndex parameter, and this does not violate linearizability.
      */
     public Pair<Integer, List<KvResult>> list(ByteArray key) {
-        int ck = checkKey(key, true);
+        int ck = checkKey(key, true, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new Pair<>(ck, null);
         }
@@ -230,7 +245,7 @@ class KvImpl {
     }
 
     private KvResult doPut(long index, ByteArray key, byte[] data, boolean lock) {
-        int ck = checkKey(key, false);
+        int ck = checkKey(key, false, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
@@ -435,7 +450,7 @@ class KvImpl {
     }
 
     private KvResult doRemove(long index, ByteArray key, boolean lock) {
-        int ck = checkKey(key, false);
+        int ck = checkKey(key, false, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
@@ -502,7 +517,7 @@ class KvImpl {
     }
 
     public KvResult compareAndSet(long index, ByteArray key, byte[] expectedValue, byte[] newValue) {
-        int ck = checkKey(key, false);
+        int ck = checkKey(key, false, false);
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
@@ -586,5 +601,14 @@ class KvImpl {
     void closeSnapshot(KvSnapshot snapshot) {
         openSnapshots.remove(snapshot);
         updateMinMax();
+    }
+
+    ByteArray parentKey(ByteArray key) {
+        int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
+        if (lastIndexOfSep > 0) {
+            return key.sub(0, lastIndexOfSep);
+        } else {
+            return ByteArray.EMPTY;
+        }
     }
 }

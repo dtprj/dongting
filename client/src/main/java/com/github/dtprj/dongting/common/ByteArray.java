@@ -27,8 +27,9 @@ import java.util.Objects;
  */
 public class ByteArray implements Encodable {
     private final byte[] data;
+    private byte[] copy;
     private final int startPos;
-    private final int len;
+    public final int length;
     private int hash;
 
     private String str;
@@ -39,22 +40,22 @@ public class ByteArray implements Encodable {
         this(data, 0, data.length);
     }
 
-    public ByteArray(byte[] data, int startPos, int len) {
+    public ByteArray(byte[] data, int startPos, int length) {
         Objects.requireNonNull(data);
         int l = data.length;
         if (startPos < 0 || startPos > l) {
             throw new IllegalArgumentException("startPos: " + startPos + ", array length: " + data.length);
         }
-        if (len < 0 || startPos + len > l) {
-            throw new IllegalArgumentException("len: " + len + ", startPos: " + startPos + ", array length: " + data.length);
+        if (length < 0 || startPos + length > l) {
+            throw new IllegalArgumentException("len: " + length + ", startPos: " + startPos + ", array length: " + data.length);
         }
         this.data = data;
         this.startPos = startPos;
-        this.len = len;
+        this.length = length;
     }
 
     public int lastIndexOf(byte b) {
-        for (int i = len - 1; i >= 0; i--) {
+        for (int i = length - 1; i >= 0; i--) {
             if (data[startPos + i] == b) {
                 return i;
             }
@@ -63,19 +64,29 @@ public class ByteArray implements Encodable {
     }
 
     public ByteArray sub(int begin) {
-        return new ByteArray(data, startPos + begin, len - begin);
+        return new ByteArray(data, startPos + begin, length - begin);
     }
 
     public ByteArray sub(int begin, int end) {
         return new ByteArray(data, startPos + begin, end - begin);
     }
 
+    public byte get(int i) {
+        if (i < 0 || i >= length) {
+            throw new IndexOutOfBoundsException(i);
+        }
+        return data[startPos + i];
+    }
+
     @Override
     public boolean equals(Object obj) {
+        if (obj == this) {
+            return true;
+        }
         if (obj instanceof ByteArray) {
             ByteArray x = (ByteArray) obj;
-            if (len == x.len) {
-                for (int i = len - 1; i >= 0; i--) {
+            if (length == x.length) {
+                for (int i = length - 1; i >= 0; i--) {
                     if (data[startPos + i] != x.data[x.startPos + i]) {
                         return false;
                     }
@@ -90,7 +101,7 @@ public class ByteArray implements Encodable {
     public int hashCode() {
         if (hash == 0) {
             int h = 1;
-            for (int i = 0; i < len; i++) {
+            for (int i = 0; i < length; i++) {
                 h = 31 * h + data[startPos + i];
             }
             if (h == 0) {
@@ -104,28 +115,33 @@ public class ByteArray implements Encodable {
     @Override
     public String toString() {
         if (str == null) {
-            str = new String(data, startPos, len);
+            str = new String(data, startPos, length);
         }
         return str;
     }
 
     public byte[] getData() {
-        if (startPos == 0 && len == data.length) {
+        if (startPos == 0 && length == data.length) {
             return data;
         } else {
-            byte[] ret = new byte[len];
-            System.arraycopy(data, startPos, ret, 0, len);
-            return ret;
+            if (copy != null) {
+                return copy;
+            } else {
+                byte[] ret = new byte[length];
+                System.arraycopy(data, startPos, ret, 0, length);
+                this.copy = ret;
+                return ret;
+            }
         }
     }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer buffer) {
-        if (len == 0) {
+        if (length == 0) {
             return true;
         }
         int remaining = buffer.remaining();
-        int needWrite = len - context.pending;
+        int needWrite = length - context.pending;
         if (remaining >= needWrite) {
             buffer.put(data, startPos + context.pending, needWrite);
             context.pending = 0;
@@ -137,9 +153,13 @@ public class ByteArray implements Encodable {
         }
     }
 
+    public boolean isSlice() {
+        return startPos > 0 || length < data.length;
+    }
+
     @Override
     public int actualSize() {
-        return len;
+        return length;
     }
 
     public static final class Callback extends DecoderCallback<ByteArray> {

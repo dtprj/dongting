@@ -192,19 +192,6 @@ public final class PbUtil {
         buf.put(data);
     }
 
-    public static void writeBytesField(ByteBuffer buf, int index, byte[][] data) {
-        if (data == null) {
-            return;
-        }
-        for (byte[] d : data) {
-            writeTag(buf, TYPE_LENGTH_DELIMITED, index);
-            writeUnsignedInt32(buf, d == null ? 0 : d.length);
-            if (d != null) {
-                buf.put(d);
-            }
-        }
-    }
-
     static int readUnsignedInt32(ByteBuffer buf) {
         int bitIndex = 0;
         int value = 0;
@@ -397,19 +384,6 @@ public final class PbUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             byte[] e = list.get(i);
-            int s = e == null ? 0 : e.length;
-            size += sizeOfLenFieldPrefix(pbIndex, s) + s;
-        }
-        return size;
-    }
-
-    public static int sizeOfBytesField(int pbIndex, byte[][] arr) {
-        if (arr == null || arr.length == 0) {
-            return 0;
-        }
-        int size = 0;
-        for (int len = arr.length, i = 0; i < len; i++) {
-            byte[] e = arr[i];
             int s = e == null ? 0 : e.length;
             size += sizeOfLenFieldPrefix(pbIndex, s) + s;
         }

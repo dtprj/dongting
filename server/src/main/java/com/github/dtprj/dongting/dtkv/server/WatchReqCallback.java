@@ -27,20 +27,31 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     public int groupId;
     public int operation;
     public long[] knownRaftIndexes;
+    public int[] states;
     public byte[][] keys;
 
     private int knownRaftIndexesIndex = 0;
     private int keysIndex = 0;
+    private int statesIndex = 0;
 
     @Override
     public boolean readVarNumber(int index, long value) {
-        if (index == WatchReq.IDX_GROUP_ID) {
-            this.groupId = (int) value;
-        } else if (index == WatchReq.IDX_OPERATION) {
-            this.operation = (int) value;
-        } else if (index == WatchReq.IDX_KEYS_SIZE) {
-            this.knownRaftIndexes = new long[(int) value];
-            this.keys = new byte[(int) value][];
+        switch (index) {
+            case WatchReq.IDX_GROUP_ID:
+                this.groupId = (int) value;
+                break;
+            case WatchReq.IDX_OPERATION:
+                this.operation = (int) value;
+                break;
+            case WatchReq.IDX_STATES:
+                this.states[statesIndex++] = (int) value;
+                break;
+            case WatchReq.IDX_KEYS_SIZE:
+                int len = (int) value;
+                this.knownRaftIndexes = new long[len];
+                this.states = new int[len];
+                this.keys = new byte[len][];
+                break;
         }
         return true;
     }
