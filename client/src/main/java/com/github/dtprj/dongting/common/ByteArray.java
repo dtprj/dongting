@@ -73,7 +73,7 @@ public class ByteArray implements Encodable {
 
     public byte get(int i) {
         if (i < 0 || i >= length) {
-            throw new IndexOutOfBoundsException(i);
+            throw new IndexOutOfBoundsException(String.valueOf(i));
         }
         return data[startPos + i];
     }
