@@ -82,7 +82,7 @@ class KvImpl {
     }
 
     int checkKey(ByteArray key, boolean allowEmpty, boolean fullCheck) {
-        if (key.isSlice()) {
+        if (key != null && key.isSlice()) {
             // slice key is not allowed
             return KvCodes.CODE_INVALID_KEY;
         }
