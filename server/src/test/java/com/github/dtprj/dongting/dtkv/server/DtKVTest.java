@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
+import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -45,12 +46,12 @@ public class DtKVTest extends BaseFiberTest {
     int ver;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         ver = 1;
         kv = createAndStart();
     }
 
-    private DtKV createAndStart() {
+    private DtKV createAndStart() throws Exception {
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.fiberGroup = fiberGroup;
         groupConfig.ts = fiberGroup.dispatcher.ts;
@@ -58,7 +59,11 @@ public class DtKVTest extends BaseFiberTest {
         kvConfig.useSeparateExecutor = false;
         kvConfig.initMapCapacity = 16;
         DtKV kv = new DtKV(groupConfig, kvConfig);
-        kv.start();
+        if (Thread.currentThread() instanceof DispatcherThread) {
+            kv.start();
+        } else {
+            doInFiber(kv::start);
+        }
         return kv;
     }
 
@@ -182,7 +187,7 @@ public class DtKVTest extends BaseFiberTest {
         return (KvSnapshot) kv.takeSnapshot(si);
     }
 
-    private DtKV copyTo(KvSnapshot s) {
+    private DtKV copyTo(KvSnapshot s) throws Exception {
         DtKV kv2 = createAndStart();
         copyTo(s, kv2);
         return kv2;

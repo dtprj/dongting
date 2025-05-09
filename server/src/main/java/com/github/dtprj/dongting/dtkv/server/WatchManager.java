@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyPushReq;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -58,7 +57,6 @@ class WatchManager {
 
     private final int groupId;
     private final Timestamp ts;
-    private final NioServer nioServer;
     private final Supplier<KvStatus> kvStatusSupplier;
     private final Executor executor;
     private final long[] retryIntervalNanos;
@@ -74,16 +72,14 @@ class WatchManager {
         }
     };
 
-    WatchManager(int groupId, Timestamp ts, NioServer nioServer,
-                 Supplier<KvStatus> kvStatusSupplier, Executor executor) {
-        this(groupId, ts, nioServer, kvStatusSupplier, executor, new long[]{1000, 10_000, 30_000, 60_000});
+    WatchManager(int groupId, Timestamp ts, Supplier<KvStatus> kvStatusSupplier, Executor executor) {
+        this(groupId, ts, kvStatusSupplier, executor, new long[]{1000, 10_000, 30_000, 60_000});
     }
 
-    WatchManager(int groupId, Timestamp ts, NioServer nioServer, Supplier<KvStatus> kvStatusSupplier,
-                 Executor executor, long[] retryIntervalMillis) {
+    WatchManager(int groupId, Timestamp ts, Supplier<KvStatus> kvStatusSupplier, Executor executor,
+                 long[] retryIntervalMillis) {
         this.groupId = groupId;
         this.ts = ts;
-        this.nioServer = nioServer;
         this.kvStatusSupplier = kvStatusSupplier;
         this.executor = executor;
         this.retryIntervalNanos = new long[retryIntervalMillis.length];
@@ -329,14 +325,18 @@ class WatchManager {
         });
     }
 
-    public void dispatch() {
+    public boolean dispatch() {
         try {
-            if (kvStatusSupplier.get().installSnapshot) {
-                return;
-            }
+            int count = 0;
             if (!needNotifyChannels.isEmpty()) {
-                for (ChannelInfo ci : needNotifyChannels) {
+                Iterator<ChannelInfo> it = needNotifyChannels.iterator();
+                while (it.hasNext()) {
+                    ChannelInfo ci = it.next();
                     if (ci.failCount == 0) {
+                        if (++count > 100) {
+                            return false;
+                        }
+                        it.remove();
                         pushNotify(ci);
                     }
                 }
@@ -344,13 +344,17 @@ class WatchManager {
             }
             ChannelInfo ci = retryQueue.peek();
             while (ci != null && ci.retryNanos - ts.nanoTime <= 0) {
+                if (++count > 100) {
+                    return false;
+                }
                 retryQueue.poll();
                 pushNotify(ci);
                 ci = retryQueue.peek();
             }
         } catch (Throwable e) {
-            BugLog.log(e);
+            log.error("", e);
         }
+        return true;
     }
 
     private void pushNotify(ChannelInfo ci) {
@@ -402,7 +406,7 @@ class WatchManager {
                 DecoderCallbackCreator<NotifyPushRespCallback> decoder =
                         ctx -> ctx.toDecoderCallback(new NotifyPushRespCallback(watchList.size()));
                 boolean fireNext = it.hasNext();
-                nioServer.sendRequest(ci.channel, r, decoder, timeout, (result, ex) ->
+                ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, r, decoder, timeout, (result, ex) ->
                         executor.execute(() -> processNotifyResult(ci, watchList, result, ex, requestEpoch, fireNext)));
             }
         } finally {
@@ -456,6 +460,7 @@ class WatchManager {
                 return;
             }
 
+            ci.failCount = 0;
             for (int size = watches.size(), i = 0; i < size; i++) {
                 int bizCode = callback.results.get(i);
                 Watch w = watches.get(i);
@@ -496,10 +501,14 @@ class WatchManager {
     }
 
     public void cleanTimeoutChannel(long timeoutNanos) {
-        while (activeQueueHead != null) {
-            if (ts.nanoTime - activeQueueHead.lastNotifyNanos > timeoutNanos) {
-                removeWatchByChannel(activeQueueHead.channel, defaultCallback);
+        try {
+            while (activeQueueHead != null) {
+                if (ts.nanoTime - activeQueueHead.lastNotifyNanos > timeoutNanos) {
+                    removeWatchByChannel(activeQueueHead.channel, defaultCallback);
+                }
             }
+        } catch (Throwable e) {
+            log.error("", e);
         }
     }
 

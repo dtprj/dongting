@@ -24,11 +24,15 @@ import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -39,9 +43,9 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -63,7 +67,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     // public static final int BIZ_TYPE_WATCH = 9;
     // public static final int BIZ_TYPE_UNWATCH = 10;
 
-    private Executor dtkvExecutor;
+    private final Timestamp ts;
+    private ScheduledExecutorService dtkvExecutor;
 
     private final FiberGroup mainFiberGroup;
     private final RaftGroupConfigEx config;
@@ -73,13 +78,19 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     volatile KvStatus kvStatus;
     private EncodeStatus encodeStatus;
 
+    private final WatchManager watchManager;
+    int dispatchIntervalMillis = 100;
+
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
         this.mainFiberGroup = config.fiberGroup;
         this.config = config;
         this.useSeparateExecutor = kvConfig.useSeparateExecutor;
         this.kvConfig = kvConfig;
-        KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
+        this.ts = useSeparateExecutor ? new Timestamp() : config.ts;
+        KvImpl kvImpl = new KvImpl(ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
         updateStatus(false, kvImpl);
+        this.watchManager = new WatchManager(config.groupId, ts, () -> kvStatus,
+                useSeparateExecutor ? dtkvExecutor : mainFiberGroup.getExecutor());
     }
 
     @Override
@@ -223,8 +234,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
-            KvImpl kvImpl = new KvImpl(config.ts, config.groupId, kvConfig.initMapCapacity,
-                    kvConfig.loadFactor);
+            KvImpl kvImpl = new KvImpl(ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
             updateStatus(true, kvImpl);
             encodeStatus = new EncodeStatus();
         } else if (!kvStatus.installSnapshot) {
@@ -258,22 +268,53 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         return new KvSnapshot(config.groupId, si, currentKvStatus.kvImpl, cancel, dtkvExecutor);
     }
 
-    protected Executor createExecutor() {
-        return Executors.newSingleThreadExecutor(r -> {
+    protected ScheduledExecutorService createExecutor() {
+        return Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r);
             t.setName("DtKV-" + config.groupId);
             return t;
         });
     }
 
-    protected void stopExecutor(Executor executor) {
-        ((ExecutorService) executor).shutdown();
+    protected void stopExecutor(ScheduledExecutorService executor) {
+        executor.shutdownNow();
     }
 
     @Override
     protected void doStart() {
         if (useSeparateExecutor) {
             dtkvExecutor = createExecutor();
+            dtkvExecutor.scheduleWithFixedDelay(ts::refresh, 1, 1, TimeUnit.MILLISECONDS);
+            dtkvExecutor.execute(this::watchDispatchInExecutor);
+        } else {
+            Fiber f = new Fiber("watch-dispatch", mainFiberGroup, new WatchDispatchFrame(), true);
+            f.start();
+        }
+    }
+
+    private boolean dispatchWatchTask() {
+        boolean b = watchManager.dispatch();
+        watchManager.cleanTimeoutChannel(120_000_000_000L); // 120 seconds
+        return b;
+    }
+
+    private void watchDispatchInExecutor() {
+        if (kvStatus.installSnapshot || dispatchWatchTask()) {
+            dtkvExecutor.schedule(this::watchDispatchInExecutor, dispatchIntervalMillis, TimeUnit.MILLISECONDS);
+        } else {
+            dtkvExecutor.execute(this::watchDispatchInExecutor);
+        }
+    }
+
+    private class WatchDispatchFrame extends FiberFrame<Void> {
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (kvStatus.installSnapshot || dispatchWatchTask()) {
+                return Fiber.sleepUntilShouldStop(dispatchIntervalMillis, this);
+            } else {
+                return Fiber.yield(this);
+            }
         }
     }
 

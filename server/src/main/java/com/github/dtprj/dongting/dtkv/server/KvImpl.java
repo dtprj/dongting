@@ -483,10 +483,11 @@ class KvImpl {
     }
 
     private KvResult doRemoveInLock(long index, KvNodeHolder h) {
+        long now = ts.wallClockMillis;
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx n = h.latest;
             KvNodeEx newKvNode = new KvNodeEx(n.getCreateIndex(), n.getCreateTime(), index,
-                    ts.getWallClockMillis(), n.isDir(), null);
+                    now, n.isDir(), null);
             newKvNode.removed = true;
             h.latest = newKvNode;
             newKvNode.previous = n;
@@ -494,7 +495,7 @@ class KvImpl {
         } else {
             removeFromMap(h);
         }
-        updateParent(index, ts.getWallClockMillis(), h.parent);
+        updateParent(index, now, h.parent);
         return KvResult.SUCCESS;
     }
 
