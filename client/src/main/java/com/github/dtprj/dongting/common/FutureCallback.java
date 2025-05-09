@@ -36,7 +36,7 @@ public interface FutureCallback<T> {
                 callback.call(null, ex);
             }
         } catch (Throwable ex2) {
-            log.error("RpcCallback error", ex2);
+            log.error("FutureCallback error", ex2);
         }
     }
 
@@ -46,7 +46,7 @@ public interface FutureCallback<T> {
                 callback.call(result, null);
             }
         } catch (Throwable ex) {
-            log.error("RpcCallback error", ex);
+            log.error("FutureCallback error", ex);
         }
     }
 
