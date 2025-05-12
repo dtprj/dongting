@@ -367,7 +367,7 @@ class KvImpl {
                     }
                     if (p == null) {
                         if (next == null) {
-                            removeFromMap(h);
+                            map.remove(h.key);
                         } else {
                             next.previous = null;
                         }
@@ -382,16 +382,11 @@ class KvImpl {
             }
         } else {
             if (n.removed) {
-                removeFromMap(h);
+                map.remove(h.key);
             } else {
                 n.previous = null;
             }
         }
-    }
-
-    private void removeFromMap(KvNodeHolder h) {
-        map.remove(h.key);
-        h.parent.latest.children.remove(h.keyInDir);
     }
 
     void installSnapshotPut(EncodeStatus encodeStatus) {
@@ -493,8 +488,11 @@ class KvImpl {
             newKvNode.previous = n;
             gc(h);
         } else {
-            removeFromMap(h);
+            map.remove(h.key);
         }
+        // The children list only used in list and remove check, and always read the latest data.
+        // So we can remove it from children list safely even if there is a snapshot being reading.
+        h.parent.latest.children.remove(h.keyInDir);
         updateParent(index, now, h.parent);
         return KvResult.SUCCESS;
     }
