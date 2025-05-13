@@ -205,7 +205,8 @@ class WatchManager {
         KvNodeHolder nodeHolder = kv.map.get(key);
         if (nodeHolder != null) {
             if (nodeHolder.watchHolder == null) {
-                nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder.parent.key, nodeHolder);
+                nodeHolder.watchHolder = new WatchHolder(nodeHolder.latest.getUpdateIndex(),
+                        nodeHolder.key, nodeHolder.parent.key, nodeHolder);
             }
             Watch w = new Watch(nodeHolder.watchHolder, ci, notifiedIndex, notifiedState);
             nodeHolder.watchHolder.watches.add(w);
@@ -223,7 +224,8 @@ class WatchManager {
                     HashMap<ByteArray, WatchHolder> sw = nodeHolder.childrenWatchHolderMap;
                     WatchHolder watchHolder = sw.get(key);
                     if (watchHolder == null) {
-                        watchHolder = new WatchHolder(key, new ByteArray(kv.parentKey(key).getData()), nodeHolder);
+                        watchHolder = new WatchHolder(kv.root.latest.getUpdateIndex(), key,
+                                new ByteArray(kv.parentKey(key).getData()), nodeHolder);
                         sw.put(key, watchHolder);
                     }
                     Watch w = new Watch(watchHolder, ci, notifiedIndex, notifiedState);
@@ -585,11 +587,11 @@ class WatchHolder {
     KvNodeHolder nodeHolder;
     long lastUpdateIndex;
 
-    WatchHolder(ByteArray key, ByteArray parentKey, KvNodeHolder nodeHolder) {
+    WatchHolder(long lastUpdateIndex, ByteArray key, ByteArray parentKey, KvNodeHolder nodeHolder) {
         this.key = key;
         this.parentKey = parentKey;
         this.nodeHolder = nodeHolder;
-        this.lastUpdateIndex = nodeHolder.latest.getUpdateIndex();
+        this.lastUpdateIndex = lastUpdateIndex;
     }
 }
 
