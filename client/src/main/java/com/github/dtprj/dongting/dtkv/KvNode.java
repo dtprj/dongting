@@ -40,10 +40,10 @@ public class KvNode implements Encodable {
     protected final long updateIndex;
     protected final long updateTime;
 
-    private final int headerSize;
-
-    protected boolean dir;
+    protected final boolean dir;
     protected final byte[] data;
+
+    private int encodeSize;
 
     public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
         this.createIndex = createIndex;
@@ -52,11 +52,6 @@ public class KvNode implements Encodable {
         this.updateTime = updateTime;
         this.dir = dir;
         this.data = data;
-
-        this.headerSize = PbUtil.sizeOfFix64Field(IDX_CREATE_INDEX, createIndex)
-                + PbUtil.sizeOfFix64Field(IDX_CREATE_TIME, createTime)
-                + PbUtil.sizeOfFix64Field(IDX_UPDATE_INDEX, updateIndex)
-                + PbUtil.sizeOfFix64Field(IDX_UPDATE_TIME, updateTime);
     }
 
     public boolean isDir() {
@@ -65,33 +60,44 @@ public class KvNode implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        int remaining = destBuffer.remaining();
-        if (context.stage == EncodeContext.STAGE_BEGIN) {
-            if (remaining < headerSize) {
-                return false;
-            } else {
-                PbUtil.writeFix64Field(destBuffer, IDX_CREATE_INDEX, createIndex);
-                PbUtil.writeFix64Field(destBuffer, IDX_CREATE_TIME, createTime);
-                PbUtil.writeFix64Field(destBuffer, IDX_UPDATE_INDEX, updateIndex);
-                PbUtil.writeFix64Field(destBuffer, IDX_UPDATE_TIME, updateTime);
-                context.stage = IDX_UPDATE_TIME;
-            }
+        switch (context.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_CREATE_INDEX, createIndex)) {
+                    return false;
+                }
+                // fall through
+            case IDX_CREATE_INDEX:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_CREATE_TIME, createTime)) {
+                    return false;
+                }
+                // fall through
+            case IDX_CREATE_TIME:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_UPDATE_INDEX, updateIndex)) {
+                    return false;
+                }
+                // fall through
+            case IDX_UPDATE_INDEX:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_UPDATE_TIME, updateTime)) {
+                    return false;
+                }
+                // fall through
+            case IDX_UPDATE_TIME:
+                return data == null || EncodeUtil.encode(context, destBuffer, IDX_DATA, data);
+            default:
+                throw new CodecException(context);
         }
-        if (context.stage == IDX_UPDATE_TIME) {
-            if (EncodeUtil.encode(context, destBuffer, IDX_DATA, data)) {
-                context.stage = EncodeContext.STAGE_END;
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        throw new CodecException(context);
     }
 
     @Override
     public int actualSize() {
-        return EncodeUtil.sizeOf(IDX_DATA, data) + headerSize;
+        if (encodeSize == 0) {
+            encodeSize = PbUtil.sizeOfFix64Field(IDX_CREATE_INDEX, createIndex)
+                    + PbUtil.sizeOfFix64Field(IDX_CREATE_TIME, createTime)
+                    + PbUtil.sizeOfFix64Field(IDX_UPDATE_INDEX, updateIndex)
+                    + PbUtil.sizeOfFix64Field(IDX_UPDATE_TIME, updateTime)
+                    + EncodeUtil.sizeOf(IDX_DATA, data);
+        }
+        return encodeSize;
     }
 
     // re-used
