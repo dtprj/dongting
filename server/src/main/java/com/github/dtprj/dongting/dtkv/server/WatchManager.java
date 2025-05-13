@@ -435,8 +435,12 @@ class WatchManager {
                         WatchNotify.RESULT_VALUE_EXISTS, key, node.latest.getData());
             }
         } else {
-            return new WatchNotify(node.latest.getUpdateIndex(),
-                    WatchNotify.RESULT_NOT_EXISTS, w.watchHolder.key.getData(), null);
+            if (w.notifiedIndex >= w.watchHolder.lastUpdateIndex) {
+                return null;
+            } else {
+                return new WatchNotify(node.latest.getUpdateIndex(),
+                        WatchNotify.RESULT_NOT_EXISTS, w.watchHolder.key.getData(), null);
+            }
         }
     }
 
