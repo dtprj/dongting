@@ -35,13 +35,13 @@ public class KvNode implements Encodable {
     private static final int IDX_UPDATE_TIME = 4;
     private static final int IDX_DATA = 15;
 
-    protected final long createIndex;
-    protected final long createTime;
-    protected final long updateIndex;
-    protected final long updateTime;
+    public final long createIndex;
+    public final long createTime;
+    public final long updateIndex;
+    public final long updateTime;
 
-    protected final boolean dir;
-    protected final byte[] data;
+    public final boolean isDir;
+    public final byte[] data;
 
     private int encodeSize;
 
@@ -50,12 +50,8 @@ public class KvNode implements Encodable {
         this.createTime = createTime;
         this.updateIndex = updateIndex;
         this.updateTime = updateTime;
-        this.dir = dir;
+        this.isDir = dir;
         this.data = data;
-    }
-
-    public boolean isDir() {
-        return dir;
     }
 
     @Override
@@ -150,25 +146,5 @@ public class KvNode implements Encodable {
         protected KvNode getResult() {
             return new KvNode(createIndex, createTime, updateIndex, updateTime, data == null || data.length == 0, data);
         }
-    }
-
-    public byte[] getData() {
-        return data;
-    }
-
-    public long getCreateIndex() {
-        return createIndex;
-    }
-
-    public long getUpdateIndex() {
-        return updateIndex;
-    }
-
-    public long getCreateTime() {
-        return createTime;
-    }
-
-    public long getUpdateTime() {
-        return updateTime;
     }
 }

@@ -205,7 +205,7 @@ class WatchManager {
         KvNodeHolder nodeHolder = kv.map.get(key);
         if (nodeHolder != null) {
             if (nodeHolder.watchHolder == null) {
-                nodeHolder.watchHolder = new WatchHolder(nodeHolder.latest.getUpdateIndex(),
+                nodeHolder.watchHolder = new WatchHolder(nodeHolder.latest.updateIndex,
                         nodeHolder.key, nodeHolder.parent.key, nodeHolder);
             }
             Watch w = new Watch(nodeHolder.watchHolder, ci, notifiedIndex, notifiedState);
@@ -224,7 +224,7 @@ class WatchManager {
                     HashMap<ByteArray, WatchHolder> sw = nodeHolder.childrenWatchHolderMap;
                     WatchHolder watchHolder = sw.get(key);
                     if (watchHolder == null) {
-                        watchHolder = new WatchHolder(kv.root.latest.getUpdateIndex(), key,
+                        watchHolder = new WatchHolder(kv.root.latest.updateIndex, key,
                                 new ByteArray(kv.parentKey(key).getData()), nodeHolder);
                         sw.put(key, watchHolder);
                     }
@@ -420,25 +420,25 @@ class WatchManager {
         // use identity equals
         KvNodeHolder node = w.watchHolder.nodeHolder;
         if (w.watchHolder.key == node.key) {
-            if (w.notifiedIndex >= node.latest.getUpdateIndex()) {
+            if (w.notifiedIndex >= node.latest.updateIndex) {
                 return null;
             }
             byte[] key = node.key.getData();
             if (node.latest.removed) {
-                return new WatchNotify(node.latest.getUpdateIndex(),
+                return new WatchNotify(node.latest.updateIndex,
                         WatchNotify.RESULT_NOT_EXISTS, key, null);
-            } else if (node.latest.isDir()) {
-                return new WatchNotify(node.latest.getUpdateIndex(),
+            } else if (node.latest.isDir) {
+                return new WatchNotify(node.latest.updateIndex,
                         WatchNotify.RESULT_DIRECTORY_EXISTS, key, null);
             } else {
-                return new WatchNotify(node.latest.getUpdateIndex(),
-                        WatchNotify.RESULT_VALUE_EXISTS, key, node.latest.getData());
+                return new WatchNotify(node.latest.updateIndex,
+                        WatchNotify.RESULT_VALUE_EXISTS, key, node.latest.data);
             }
         } else {
             if (w.notifiedIndex >= w.watchHolder.lastUpdateIndex) {
                 return null;
             } else {
-                return new WatchNotify(node.latest.getUpdateIndex(),
+                return new WatchNotify(node.latest.updateIndex,
                         WatchNotify.RESULT_NOT_EXISTS, w.watchHolder.key.getData(), null);
             }
         }

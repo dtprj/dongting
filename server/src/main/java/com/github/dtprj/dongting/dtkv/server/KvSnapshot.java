@@ -126,7 +126,7 @@ class KvSnapshot extends Snapshot {
                 if (n == null) {
                     continue;
                 }
-                if (n.isDir() && processedDirs.contains(h.key)) {
+                if (n.isDir && processedDirs.contains(h.key)) {
                     continue;
                 }
                 if (h.parent != null && !processedDirs.contains(h.parent.key)) {
@@ -137,15 +137,15 @@ class KvSnapshot extends Snapshot {
                     n = getNode(h);
                 }
             }
-            if (Objects.requireNonNull(n).isDir()) {
+            if (Objects.requireNonNull(n).isDir) {
                 processedDirs.add(h.key);
             }
             encodeStatus.keyBytes = h.key.getData();
-            encodeStatus.valueBytes = n.getData();
-            encodeStatus.createIndex = n.getCreateIndex();
-            encodeStatus.createTime = n.getCreateTime();
-            encodeStatus.updateIndex = n.getUpdateIndex();
-            encodeStatus.updateTime = n.getUpdateTime();
+            encodeStatus.valueBytes = n.data;
+            encodeStatus.createIndex = n.createIndex;
+            encodeStatus.createTime = n.createTime;
+            encodeStatus.updateIndex = n.updateIndex;
+            encodeStatus.updateTime = n.updateTime;
             currentKvNode = n;
             return;
         }
@@ -153,7 +153,7 @@ class KvSnapshot extends Snapshot {
 
     private KvNodeEx getNode(KvNodeHolder h) {
         KvNodeEx n = h.latest;
-        while (n != null && n.getUpdateIndex() > lastIncludeRaftIndex) {
+        while (n != null && n.updateIndex > lastIncludeRaftIndex) {
             n = n.previous;
         }
         if (n == null || n.removed) {

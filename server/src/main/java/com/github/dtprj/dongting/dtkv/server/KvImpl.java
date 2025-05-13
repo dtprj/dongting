@@ -208,7 +208,7 @@ class KvImpl {
             if (kvNode.removed) {
                 return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
             }
-            if (!kvNode.isDir()) {
+            if (!kvNode.isDir) {
                 return new Pair<>(KvCodes.CODE_PARENT_NOT_DIR, null);
             }
             if (kvNode.children.size() > 10) {
@@ -257,7 +257,7 @@ class KvImpl {
             if (parent == null || parent.latest.removed) {
                 return new KvResult(KvCodes.CODE_PARENT_DIR_NOT_EXISTS);
             }
-            if (!parent.latest.isDir()) {
+            if (!parent.latest.isDir) {
                 return new KvResult(KvCodes.CODE_PARENT_NOT_DIR);
             }
         } else {
@@ -296,11 +296,11 @@ class KvImpl {
                 result = KvResult.SUCCESS;
             } else {
                 // override
-                boolean oldValueIsDir = oldNode.isDir();
+                boolean oldValueIsDir = oldNode.isDir;
                 if (newValueIsDir != oldValueIsDir) {
                     return new KvResult(oldValueIsDir ? KvCodes.CODE_DIR_EXISTS : KvCodes.CODE_VALUE_EXISTS);
                 }
-                newKvNode = new KvNodeEx(oldNode.getCreateIndex(), oldNode.getCreateTime(),
+                newKvNode = new KvNodeEx(oldNode.createIndex, oldNode.createTime,
                         index, timestamp, newValueIsDir, data);
                 result = KvResult.SUCCESS_OVERWRITE;
             }
@@ -354,15 +354,15 @@ class KvImpl {
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx next = null;
             while (n != null) {
-                if (next != null && n.getUpdateIndex() > maxOpenSnapshotIndex) {
+                if (next != null && n.updateIndex > maxOpenSnapshotIndex) {
                     next.previous = n.previous;
-                } else if (next != null && next.getUpdateIndex() <= minOpenSnapshotIndex) {
+                } else if (next != null && next.updateIndex <= minOpenSnapshotIndex) {
                     next.previous = null;
                     return;
                 } else if (n.removed) {
                     KvNodeEx p;
-                    while ((p = n.previous) != null && (p.getUpdateIndex() > maxOpenSnapshotIndex
-                            || n.getUpdateIndex() <= minOpenSnapshotIndex)) {
+                    while ((p = n.previous) != null && (p.updateIndex > maxOpenSnapshotIndex
+                            || n.updateIndex <= minOpenSnapshotIndex)) {
                         n.previous = p.previous;
                     }
                     if (p == null) {
@@ -457,7 +457,7 @@ class KvImpl {
         if (n.removed) {
             return KvResult.NOT_FOUND;
         }
-        if (n.isDir() && !n.children.isEmpty()) {
+        if (n.isDir && !n.children.isEmpty()) {
             for (KvNodeHolder c : n.children.values()) {
                 KvNodeEx child = c.latest;
                 if (!child.removed) {
@@ -481,8 +481,8 @@ class KvImpl {
         long now = ts.wallClockMillis;
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx n = h.latest;
-            KvNodeEx newKvNode = new KvNodeEx(n.getCreateIndex(), n.getCreateTime(), index,
-                    now, n.isDir(), null);
+            KvNodeEx newKvNode = new KvNodeEx(n.createIndex, n.createTime, index,
+                    now, n.isDir, null);
             newKvNode.removed = true;
             h.latest = newKvNode;
             newKvNode.previous = n;
@@ -528,7 +528,7 @@ class KvImpl {
             if (parent == null || parent.latest.removed) {
                 return new KvResult(KvCodes.CODE_PARENT_DIR_NOT_EXISTS);
             }
-            if (!parent.latest.isDir()) {
+            if (!parent.latest.isDir) {
                 return new KvResult(KvCodes.CODE_PARENT_NOT_DIR);
             }
         } else {
@@ -549,10 +549,10 @@ class KvImpl {
                     return new KvResult(KvCodes.CODE_CAS_MISMATCH);
                 }
                 KvNodeEx n = h.latest;
-                if (n.removed || n.isDir()) {
+                if (n.removed || n.isDir) {
                     return new KvResult(KvCodes.CODE_CAS_MISMATCH);
                 }
-                byte[] bs = n.getData();
+                byte[] bs = n.data;
                 if (bs == null || bs.length != expectedValue.length) {
                     return new KvResult(KvCodes.CODE_CAS_MISMATCH);
                 }

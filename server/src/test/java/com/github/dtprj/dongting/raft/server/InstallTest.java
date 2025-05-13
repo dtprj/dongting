@@ -165,7 +165,7 @@ public class InstallTest extends ServerTestBase {
         List<byte[]> keys = expectMap.keySet().stream().map(String::getBytes).collect(Collectors.toList());
         List<KvNode> list = client.batchGet(groupId, keys);
         for (int i = 0; i < list.size(); i++) {
-            actualMap.put(new String(keys.get(i)), list.get(i).getData());
+            actualMap.put(new String(keys.get(i)), list.get(i).data);
         }
         for (String k : expectMap.keySet()) {
             byte[] expect = expectMap.get(k);

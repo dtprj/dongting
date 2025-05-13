@@ -69,18 +69,18 @@ public class KvNodeTest {
     }
 
     public static void compare1(KvNode expect, DtKv.KvNode node) {
-        Assertions.assertEquals(expect.getCreateIndex(), node.getCreateIndex());
-        Assertions.assertEquals(expect.getCreateTime(), node.getCreateTime());
-        Assertions.assertEquals(expect.getUpdateIndex(), node.getUpdateIndex());
-        Assertions.assertEquals(expect.getUpdateTime(), node.getUpdateTime());
-        Assertions.assertArrayEquals(expect.getData(), node.getValue().toByteArray());
+        Assertions.assertEquals(expect.createIndex, node.getCreateIndex());
+        Assertions.assertEquals(expect.createTime, node.getCreateTime());
+        Assertions.assertEquals(expect.updateIndex, node.getUpdateIndex());
+        Assertions.assertEquals(expect.updateTime, node.getUpdateTime());
+        Assertions.assertArrayEquals(expect.data, node.getValue().toByteArray());
     }
 
     public static void compare2(KvNode expect, KvNode n) {
-        Assertions.assertEquals(expect.getCreateIndex(), n.getCreateIndex());
-        Assertions.assertEquals(expect.getCreateTime(), n.getCreateTime());
-        Assertions.assertEquals(expect.getUpdateIndex(), n.getUpdateIndex());
-        Assertions.assertEquals(expect.getUpdateTime(), n.getUpdateTime());
-        Assertions.assertArrayEquals(expect.getData(), n.getData());
+        Assertions.assertEquals(expect.createIndex, n.createIndex);
+        Assertions.assertEquals(expect.createTime, n.createTime);
+        Assertions.assertEquals(expect.updateIndex, n.updateIndex);
+        Assertions.assertEquals(expect.updateTime, n.updateTime);
+        Assertions.assertArrayEquals(expect.data, n.data);
     }
 }

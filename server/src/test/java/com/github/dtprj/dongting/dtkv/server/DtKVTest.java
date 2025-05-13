@@ -123,7 +123,7 @@ public class DtKVTest extends BaseFiberTest {
     }
 
     private String getStr(DtKV dtkv, String key) {
-        return new String(dtkv.get(new ByteArray(key.getBytes())).getNode().getData());
+        return new String(dtkv.get(new ByteArray(key.getBytes())).getNode().data);
     }
 
     private Pair<Integer, List<KvResult>> list(String key) {
@@ -158,7 +158,7 @@ public class DtKVTest extends BaseFiberTest {
             private FrameCallResult afterPut(KvResult kvResult) {
                 assertEquals(KvCodes.CODE_SUCCESS, kvResult.getBizCode());
                 assertEquals(KvCodes.CODE_SUCCESS, get("parent.child1").getBizCode());
-                assertEquals("v1", new String(get("parent.child1").getNode().getData()));
+                assertEquals("v1", new String(get("parent.child1").getNode().data));
                 return remove(ver++, "parent.child1").await(this::afterRemove);
             }
 
@@ -183,8 +183,8 @@ public class DtKVTest extends BaseFiberTest {
                 Pair<Integer, List<KvResult>> batchGetResult = kv.batchGet(getKeys);
                 assertEquals(KvCodes.CODE_SUCCESS, batchGetResult.getLeft());
                 assertEquals(2, batchGetResult.getRight().size());
-                assertEquals("value1", new String(batchGetResult.getRight().get(0).getNode().getData()));
-                assertEquals("value2", new String(batchGetResult.getRight().get(1).getNode().getData()));
+                assertEquals("value1", new String(batchGetResult.getRight().get(0).getNode().data));
+                assertEquals("value2", new String(batchGetResult.getRight().get(1).getNode().data));
 
                 // batch remove
                 return batchRemove(ver++, List.of("batch1", "batch2")).await(this::afterBatchRemove);
@@ -214,7 +214,7 @@ public class DtKVTest extends BaseFiberTest {
             private FrameCallResult afterCas(Object result) {
                 KvResult casResult = (KvResult) result;
                 assertEquals(KvCodes.CODE_SUCCESS, casResult.getBizCode());
-                assertEquals("new_value", new String(get("cas_key").getNode().getData()));
+                assertEquals("new_value", new String(get("cas_key").getNode().data));
                 return Fiber.frameReturn();
             }
         });
@@ -282,19 +282,19 @@ public class DtKVTest extends BaseFiberTest {
     private long[] backupIndexAndTime(String key) {
         long[] result = new long[4];
         KvResult r = get(key);
-        result[0] = r.getNode().getCreateIndex();
-        result[1] = r.getNode().getCreateTime();
-        result[2] = r.getNode().getUpdateIndex();
-        result[3] = r.getNode().getUpdateTime();
+        result[0] = r.getNode().createIndex;
+        result[1] = r.getNode().createTime;
+        result[2] = r.getNode().updateIndex;
+        result[3] = r.getNode().updateTime;
         return result;
     }
 
     private void checkIndexAndTime(DtKV newKv, String key, long[] indexAndTime) {
         KvResult r = get(newKv, key);
-        assertEquals(indexAndTime[0], r.getNode().getCreateIndex());
-        assertEquals(indexAndTime[1], r.getNode().getCreateTime());
-        assertEquals(indexAndTime[2], r.getNode().getUpdateIndex());
-        assertEquals(indexAndTime[3], r.getNode().getUpdateTime());
+        assertEquals(indexAndTime[0], r.getNode().createIndex);
+        assertEquals(indexAndTime[1], r.getNode().createTime);
+        assertEquals(indexAndTime[2], r.getNode().updateIndex);
+        assertEquals(indexAndTime[3], r.getNode().updateTime);
     }
 
 
@@ -453,7 +453,7 @@ public class DtKVTest extends BaseFiberTest {
         }
         {
             DtKV newKv = copyTo(s3);
-            assertTrue(get(newKv, "k1").getNode().isDir());
+            assertTrue(get(newKv, "k1").getNode().isDir);
             assertEquals("k1.k1_v", getStr(newKv, "k1.k1"));
             assertEquals(KvCodes.CODE_NOT_FOUND, get(newKv, "d1.dd2.k1").getBizCode());
             assertEquals(KvCodes.CODE_NOT_FOUND, get(newKv, "d1.dd2.k2").getBizCode());

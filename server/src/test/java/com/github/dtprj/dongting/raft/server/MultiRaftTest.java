@@ -63,8 +63,8 @@ public class MultiRaftTest extends ServerTestBase {
         client.put(groupId2, "key".getBytes(), "value2".getBytes());
         KvNode n1 = client.get(groupId, "key".getBytes());
         KvNode n2 = client.get(groupId2, "key".getBytes());
-        assertEquals("value1", new String(n1.getData()));
-        assertEquals("value2", new String(n2.getData()));
+        assertEquals("value1", new String(n1.data));
+        assertEquals("value2", new String(n2.data));
 
         f1 = adminClient.serverRemoveGroup(1, groupId2, timeout);
         f2 = adminClient.serverRemoveGroup(2, groupId2, timeout);

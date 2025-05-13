@@ -163,7 +163,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                     ByteArray key = new ByteArray(("key" + index).getBytes());
                     KvResult r = kv.get(key);
                     assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
-                    assertEquals("value" + index, new String(r.getNode().getData()));
+                    assertEquals("value" + index, new String(r.getNode().data));
                 }
 
                 File dir = new File(dataDir);

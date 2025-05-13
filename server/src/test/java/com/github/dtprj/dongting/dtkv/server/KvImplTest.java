@@ -58,23 +58,23 @@ class KvImplTest {
         assertEquals(KvCodes.CODE_SUCCESS, kv.put(1, ba("key1"), "value1".getBytes()).getBizCode());
         r = kv.get(ba("key1"));
         assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
-        assertArrayEquals("value1".getBytes(), r.getNode().getData());
-        assertFalse(r.getNode().isDir());
-        assertEquals(ts.getWallClockMillis(), r.getNode().getCreateTime());
-        assertEquals(ts.getWallClockMillis(), r.getNode().getUpdateTime());
-        assertEquals(1, r.getNode().getCreateIndex());
-        assertEquals(1, r.getNode().getUpdateIndex());
+        assertArrayEquals("value1".getBytes(), r.getNode().data);
+        assertFalse(r.getNode().isDir);
+        assertEquals(ts.getWallClockMillis(), r.getNode().createTime);
+        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(1, r.getNode().createIndex);
+        assertEquals(1, r.getNode().updateIndex);
 
         TestUtil.updateTimestamp(ts, ts.getNanoTime() + 1, ts.getWallClockMillis() + 1);
         assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, kv.put(2, ba("key1"), "value2".getBytes()).getBizCode());
         r = kv.get(ba("key1"));
         assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
-        assertArrayEquals("value2".getBytes(), r.getNode().getData());
-        assertFalse(r.getNode().isDir());
-        assertEquals(ts.getWallClockMillis() - 1, r.getNode().getCreateTime());
-        assertEquals(ts.getWallClockMillis(), r.getNode().getUpdateTime());
-        assertEquals(1, r.getNode().getCreateIndex());
-        assertEquals(2, r.getNode().getUpdateIndex());
+        assertArrayEquals("value2".getBytes(), r.getNode().data);
+        assertFalse(r.getNode().isDir);
+        assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
+        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(1, r.getNode().createIndex);
+        assertEquals(2, r.getNode().updateIndex);
 
         assertEquals(KvCodes.CODE_VALUE_EXISTS, kv.mkdir(3, ba("key1")).getBizCode());
     }
@@ -90,19 +90,19 @@ class KvImplTest {
         assertEquals(KvCodes.CODE_PARENT_DIR_NOT_EXISTS, kv.put(3, ba("xxx.yyy"), "xxx".getBytes()).getBizCode());
         KvResult r = kv.get(ba("parent.key1"));
         assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
-        assertArrayEquals("value1".getBytes(), r.getNode().getData());
+        assertArrayEquals("value1".getBytes(), r.getNode().data);
         r = kv.get(ba("parent"));
         assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
-        assertTrue(r.getNode().isDir());
-        assertEquals(ts.getWallClockMillis() - 1, r.getNode().getCreateTime());
-        assertEquals(ts.getWallClockMillis(), r.getNode().getUpdateTime());
-        assertEquals(1, r.getNode().getCreateIndex());
-        assertEquals(2, r.getNode().getUpdateIndex());
+        assertTrue(r.getNode().isDir);
+        assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
+        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(1, r.getNode().createIndex);
+        assertEquals(2, r.getNode().updateIndex);
         r = kv.get(ba(""));
-        assertEquals(0, r.getNode().getCreateTime());
-        assertEquals(ts.getWallClockMillis(), r.getNode().getUpdateTime());
-        assertEquals(0, r.getNode().getCreateIndex());
-        assertEquals(2, r.getNode().getUpdateIndex());
+        assertEquals(0, r.getNode().createTime);
+        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(0, r.getNode().createIndex);
+        assertEquals(2, r.getNode().updateIndex);
     }
 
     @Test
@@ -117,23 +117,23 @@ class KvImplTest {
     void testRemoveInDir() {
         kv.mkdir(1, ba("parent"));
         assertEquals(KvCodes.CODE_NOT_FOUND, kv.remove(2, ba("parent.key1")).getBizCode());
-        assertEquals(1, kv.get(ba("parent")).getNode().getUpdateIndex());
-        assertEquals(1, kv.get(ba("")).getNode().getUpdateIndex());
+        assertEquals(1, kv.get(ba("parent")).getNode().updateIndex);
+        assertEquals(1, kv.get(ba("")).getNode().updateIndex);
 
         kv.put(3, ba("parent.key1"), "value1".getBytes());
         TestUtil.updateTimestamp(ts, ts.getNanoTime() + 1, ts.getWallClockMillis() + 1);
         assertEquals(KvCodes.CODE_SUCCESS, kv.remove(4, ba("parent.key1")).getBizCode());
         assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("parent.key1")).getBizCode());
 
-        assertEquals(1, kv.get(ba("parent")).getNode().getCreateIndex());
-        assertEquals(4, kv.get(ba("parent")).getNode().getUpdateIndex());
-        assertEquals(ts.getWallClockMillis() - 1, kv.get(ba("parent")).getNode().getCreateTime());
-        assertEquals(ts.getWallClockMillis(), kv.get(ba("parent")).getNode().getUpdateTime());
+        assertEquals(1, kv.get(ba("parent")).getNode().createIndex);
+        assertEquals(4, kv.get(ba("parent")).getNode().updateIndex);
+        assertEquals(ts.getWallClockMillis() - 1, kv.get(ba("parent")).getNode().createTime);
+        assertEquals(ts.getWallClockMillis(), kv.get(ba("parent")).getNode().updateTime);
 
-        assertEquals(0, kv.get(ba("")).getNode().getCreateIndex());
-        assertEquals(4, kv.get(ba("")).getNode().getUpdateIndex());
-        assertEquals(0, kv.get(ba("")).getNode().getCreateTime());
-        assertEquals(ts.getWallClockMillis(), kv.get(ba("")).getNode().getUpdateTime());
+        assertEquals(0, kv.get(ba("")).getNode().createIndex);
+        assertEquals(4, kv.get(ba("")).getNode().updateIndex);
+        assertEquals(0, kv.get(ba("")).getNode().createTime);
+        assertEquals(ts.getWallClockMillis(), kv.get(ba("")).getNode().updateTime);
     }
 
     @Test
@@ -203,11 +203,11 @@ class KvImplTest {
         assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, kv.mkdir(2, ba("dir1")).getBizCode());
         KvResult r = kv.get(ba("dir1"));
         assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
-        assertTrue(r.getNode().isDir());
-        assertEquals(ts.getWallClockMillis() - 1, r.getNode().getCreateTime());
-        assertEquals(ts.getWallClockMillis(), r.getNode().getUpdateTime());
-        assertEquals(1, r.getNode().getCreateIndex());
-        assertEquals(2, r.getNode().getUpdateIndex());
+        assertTrue(r.getNode().isDir);
+        assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
+        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(1, r.getNode().createIndex);
+        assertEquals(2, r.getNode().updateIndex);
 
         assertEquals(KvCodes.CODE_DIR_EXISTS, kv.put(3, ba("dir1"), "value1".getBytes()).getBizCode());
     }
@@ -215,9 +215,9 @@ class KvImplTest {
     @Test
     void testInvalidKeyValue() {
         assertEquals(KvCodes.CODE_SUCCESS, kv.get(ba("")).getBizCode());
-        assertTrue(kv.get(ba("")).getNode().isDir());
+        assertTrue(kv.get(ba("")).getNode().isDir);
         assertEquals(KvCodes.CODE_SUCCESS, kv.get(null).getBizCode());
-        assertTrue(kv.get(null).getNode().isDir());
+        assertTrue(kv.get(null).getNode().isDir);
 
         assertEquals(KvCodes.CODE_INVALID_KEY, kv.put(1, ba(""), "value1".getBytes()).getBizCode());
         assertEquals(KvCodes.CODE_INVALID_KEY, kv.put(1, null, "value1".getBytes()).getBizCode());
@@ -238,7 +238,7 @@ class KvImplTest {
     }
 
     private KvSnapshot takeSnapshot() {
-        long lastIndex = kv.root.latest.getUpdateIndex();
+        long lastIndex = kv.root.latest.updateIndex;
         SnapshotInfo si = new SnapshotInfo(lastIndex, 1, null, null,
                 null, null, 0);
         return new KvSnapshot(0, si, kv, () -> false, Runnable::run);
@@ -255,10 +255,10 @@ class KvImplTest {
         assertEquals(KvCodes.CODE_NOT_FOUND, kv.remove(ver++, ba("key1")).getBizCode());
         assertEquals(KvCodes.CODE_NOT_FOUND, kv.get(ba("key1")).getBizCode());
         assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, kv.put(ver++, ba("key2"), "b2".getBytes()).getBizCode());
-        assertArrayEquals("b2".getBytes(), kv.get(ba("key2")).getNode().getData());
+        assertArrayEquals("b2".getBytes(), kv.get(ba("key2")).getNode().data);
         takeSnapshot();
         assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, kv.put(ver++, ba("key2"), "b3".getBytes()).getBizCode());
-        assertArrayEquals("b3".getBytes(), kv.get(ba("key2")).getNode().getData());
+        assertArrayEquals("b3".getBytes(), kv.get(ba("key2")).getNode().data);
         takeSnapshot();
         assertEquals(KvCodes.CODE_SUCCESS, kv.remove(ver++, ba("key2")).getBizCode());
         assertEquals(KvCodes.CODE_SUCCESS, kv.remove(ver++, ba("parent.key1")).getBizCode());
@@ -271,10 +271,10 @@ class KvImplTest {
         // change key2 to dir
         assertEquals(KvCodes.CODE_SUCCESS, kv.mkdir(ver++, ba("key2")).getBizCode());
         assertEquals(KvCodes.CODE_SUCCESS, kv.put(ver++, ba("key2.key1"), "d".getBytes()).getBizCode());
-        assertEquals("d", new String(kv.get(ba("key2.key1")).getNode().getData()));
+        assertEquals("d", new String(kv.get(ba("key2.key1")).getNode().data));
         //change parent to string
         assertEquals(KvCodes.CODE_SUCCESS, kv.put(ver++, ba("parent"), "e".getBytes()).getBizCode());
-        assertEquals("e", new String(kv.get(ba("parent")).getNode().getData()));
+        assertEquals("e", new String(kv.get(ba("parent")).getNode().data));
     }
 
     private void assertNodeCount(int expect, String key) {
@@ -419,16 +419,16 @@ class KvImplTest {
 
         // Verify individual results
         assertEquals(KvCodes.CODE_SUCCESS, results.get(0).getBizCode());
-        assertArrayEquals("value1".getBytes(), results.get(0).getNode().getData());
-        assertEquals(2, results.get(0).getNode().getCreateIndex());
+        assertArrayEquals("value1".getBytes(), results.get(0).getNode().data);
+        assertEquals(2, results.get(0).getNode().createIndex);
 
         assertEquals(KvCodes.CODE_SUCCESS, results.get(1).getBizCode());
-        assertArrayEquals("value2".getBytes(), results.get(1).getNode().getData());
-        assertEquals(2, results.get(1).getNode().getCreateIndex());
+        assertArrayEquals("value2".getBytes(), results.get(1).getNode().data);
+        assertEquals(2, results.get(1).getNode().createIndex);
 
         assertEquals(KvCodes.CODE_SUCCESS, results.get(2).getBizCode());
-        assertArrayEquals("value3".getBytes(), results.get(2).getNode().getData());
-        assertEquals(2, results.get(2).getNode().getCreateIndex());
+        assertArrayEquals("value3".getBytes(), results.get(2).getNode().data);
+        assertEquals(2, results.get(2).getNode().createIndex);
 
         // Test batch put with updates
         List<byte[]> newValues = List.of(
@@ -450,13 +450,13 @@ class KvImplTest {
         assertEquals(KvCodes.CODE_SUCCESS, getResult.getLeft());
         results = getResult.getRight();
 
-        assertArrayEquals("updated1".getBytes(), results.get(0).getNode().getData());
-        assertEquals(2, results.get(0).getNode().getCreateIndex());
-        assertEquals(3, results.get(0).getNode().getUpdateIndex());
+        assertArrayEquals("updated1".getBytes(), results.get(0).getNode().data);
+        assertEquals(2, results.get(0).getNode().createIndex);
+        assertEquals(3, results.get(0).getNode().updateIndex);
 
-        assertArrayEquals("updated2".getBytes(), results.get(1).getNode().getData());
-        assertEquals(2, results.get(1).getNode().getCreateIndex());
-        assertEquals(3, results.get(1).getNode().getUpdateIndex());
+        assertArrayEquals("updated2".getBytes(), results.get(1).getNode().data);
+        assertEquals(2, results.get(1).getNode().createIndex);
+        assertEquals(3, results.get(1).getNode().updateIndex);
 
         assertNull(results.get(2).getNode());
         assertEquals(KvCodes.CODE_INVALID_KEY, results.get(2).getBizCode());
@@ -508,17 +508,17 @@ class KvImplTest {
     public void testCompareAndSet() {
         // Test initial CAS with null expected value (should succeed)
         assertEquals(KvCodes.CODE_SUCCESS, kv.compareAndSet(ver++, ba("key1"), null, "value1".getBytes()).getBizCode());
-        assertArrayEquals("value1".getBytes(), kv.get(ba("key1")).getNode().getData());
+        assertArrayEquals("value1".getBytes(), kv.get(ba("key1")).getNode().data);
 
         // Test CAS with wrong expected value (should fail)
         assertEquals(KvCodes.CODE_CAS_MISMATCH,
                 kv.compareAndSet(ver++, ba("key1"), "wrongvalue".getBytes(), "value2".getBytes()).getBizCode());
-        assertArrayEquals("value1".getBytes(), kv.get(ba("key1")).getNode().getData());
+        assertArrayEquals("value1".getBytes(), kv.get(ba("key1")).getNode().data);
 
         // Test CAS with correct expected value (should succeed)
         assertEquals(KvCodes.CODE_SUCCESS,
                 kv.compareAndSet(ver++, ba("key1"), "value1".getBytes(), "value2".getBytes()).getBizCode());
-        assertArrayEquals("value2".getBytes(), kv.get(ba("key1")).getNode().getData());
+        assertArrayEquals("value2".getBytes(), kv.get(ba("key1")).getNode().data);
 
         // test CAS delete
         assertEquals(KvCodes.CODE_SUCCESS,
@@ -544,7 +544,7 @@ class KvImplTest {
                 kv.compareAndSet(10, ba("parent.key1"), null, "value1".getBytes()).getBizCode());
         assertEquals(KvCodes.CODE_SUCCESS,
                 kv.compareAndSet(11, ba("parent.key1"), "value1".getBytes(), "value2".getBytes()).getBizCode());
-        assertArrayEquals("value2".getBytes(), kv.get(ba("parent.key1")).getNode().getData());
+        assertArrayEquals("value2".getBytes(), kv.get(ba("parent.key1")).getNode().data);
 
         // Test CAS with non-existent parent directory
         assertEquals(KvCodes.CODE_PARENT_DIR_NOT_EXISTS,

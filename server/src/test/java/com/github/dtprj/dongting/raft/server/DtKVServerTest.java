@@ -48,7 +48,7 @@ public class DtKVServerTest extends ServerTestBase {
         client.put(groupId, "dir1.k1".getBytes(), "v1".getBytes());
 
         KvNode result = client.get(groupId, "dir1.k1".getBytes());
-        assertEquals("v1", new String(result.getData()));
+        assertEquals("v1", new String(result.data));
 
         List<KvResult> listResult = client.list(groupId, "".getBytes());
         assertEquals(groupId, listResult.size());
@@ -70,8 +70,8 @@ public class DtKVServerTest extends ServerTestBase {
         List<KvNode> batchGetResults = client.batchGet(groupId, Arrays.asList(
                 "batchK1".getBytes(), "batchK2".getBytes()));
         assertEquals(2, batchGetResults.size());
-        assertEquals("v1", new String(batchGetResults.get(0).getData()));
-        assertEquals("v2", new String(batchGetResults.get(1).getData()));
+        assertEquals("v1", new String(batchGetResults.get(0).data));
+        assertEquals("v2", new String(batchGetResults.get(1).data));
 
         // Test batchRemove
         KvResp batchRemoveResults = client.batchRemove(groupId, Arrays.asList(
@@ -90,7 +90,7 @@ public class DtKVServerTest extends ServerTestBase {
         // Test compareAndSet
         long casResult = client.compareAndSet(groupId, "casKey1".getBytes(), null, "value1".getBytes());
         assertTrue(casResult > 0);
-        assertEquals("value1", new String(client.get(groupId, "casKey1".getBytes()).getData()));
+        assertEquals("value1", new String(client.get(groupId, "casKey1".getBytes()).data));
 
         client.stop(timeout);
         waitStop(s1);
