@@ -205,8 +205,7 @@ class WatchManager {
         KvNodeHolder nodeHolder = kv.map.get(key);
         if (nodeHolder != null) {
             if (nodeHolder.watchHolder == null) {
-                nodeHolder.watchHolder = new WatchHolder(nodeHolder.latest.updateIndex,
-                        nodeHolder.key, nodeHolder.parent.key, nodeHolder);
+                nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
             }
             Watch w = new Watch(nodeHolder.watchHolder, ci, notifiedIndex, notifiedState);
             nodeHolder.watchHolder.watches.add(w);
@@ -218,21 +217,27 @@ class WatchManager {
                 parentKey = kv.parentKey(parentKey);
                 nodeHolder = kv.map.get(parentKey);
                 if (nodeHolder != null) {
-                    if (nodeHolder.childrenWatchHolderMap == null) {
-                        nodeHolder.childrenWatchHolderMap = new HashMap<>();
+                    if (nodeHolder.watchHolder == null) {
+                        nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
                     }
-                    HashMap<ByteArray, WatchHolder> sw = nodeHolder.childrenWatchHolderMap;
-                    WatchHolder watchHolder = sw.get(key);
-                    if (watchHolder == null) {
-                        watchHolder = new WatchHolder(kv.root.latest.updateIndex, key,
-                                new ByteArray(kv.parentKey(key).getData()), nodeHolder);
-                        sw.put(key, watchHolder);
-                    }
-                    Watch w = new Watch(watchHolder, ci, notifiedIndex, notifiedState);
-                    watchHolder.watches.add(w);
-                    return w;
+                    break;
                 }
             }
+            WatchHolder watchHolder = nodeHolder.watchHolder;
+            ByteArray childKey = kv.next(key, parentKey);
+            while (true) {
+                WatchHolder subWatchHolder = new WatchHolder(childKey, null, watchHolder);
+                watchHolder.addChild(childKey, subWatchHolder);
+                watchHolder = subWatchHolder;
+                if (childKey == key) {
+                    break;
+                } else {
+                    childKey = kv.next(childKey, parentKey);
+                }
+            }
+            Watch w = new Watch(watchHolder, ci, notifiedIndex, notifiedState);
+            watchHolder.watches.add(w);
+            return w;
         }
     }
 
@@ -292,16 +297,14 @@ class WatchManager {
         w.removed = true;
         WatchHolder h = w.watchHolder;
         h.watches.remove(w);
-        if (h.watches.isEmpty()) {
+        while (h.isNoUse()) {
             // this key has no watches, remove watch holder from tree
-            if (h.key == h.nodeHolder.key) {// use identity equals
-                h.nodeHolder = null;
+            if (h.nodeHolder != null) {
+                h.nodeHolder.watchHolder = null;
+                break;
             } else {
-                // assert h.nodeHolder.childrenWatchHolderMap != null;
-                h.nodeHolder.childrenWatchHolderMap.remove(h.key);
-                if (h.nodeHolder.childrenWatchHolderMap.isEmpty()) {
-                    h.nodeHolder.childrenWatchHolderMap = null;
-                }
+                h.parentWatchHolder.removeChild(h.key);
+                h = h.parentWatchHolder;
             }
         }
     }
@@ -417,9 +420,8 @@ class WatchManager {
     }
 
     private WatchNotify createNotify(Watch w) {
-        // use identity equals
         KvNodeHolder node = w.watchHolder.nodeHolder;
-        if (w.watchHolder.key == node.key) {
+        if (node != null) {
             if (w.notifiedIndex >= node.latest.updateIndex) {
                 return null;
             }
@@ -435,10 +437,10 @@ class WatchManager {
                         WatchNotify.RESULT_VALUE_EXISTS, key, node.latest.data);
             }
         } else {
-            if (w.notifiedIndex >= w.watchHolder.lastUpdateIndex) {
+            if (w.notifiedIndex >= w.watchHolder.lastRemoveIndex) {
                 return null;
             } else {
-                return new WatchNotify(node.latest.updateIndex,
+                return new WatchNotify(w.watchHolder.lastRemoveIndex,
                         WatchNotify.RESULT_NOT_EXISTS, w.watchHolder.key.getData(), null);
             }
         }
@@ -587,15 +589,50 @@ class WatchHolder {
 
     // these fields may be updated
     ByteArray key;
-    ByteArray parentKey;
     KvNodeHolder nodeHolder;
-    long lastUpdateIndex;
+    WatchHolder parentWatchHolder;
+    long lastRemoveIndex; // only used when mount to parent dir
 
-    WatchHolder(long lastUpdateIndex, ByteArray key, ByteArray parentKey, KvNodeHolder nodeHolder) {
+    private HashMap<ByteArray, WatchHolder> children;
+
+    WatchHolder(ByteArray key, KvNodeHolder nodeHolder, WatchHolder parentWatchHolder) {
         this.key = key;
-        this.parentKey = parentKey;
         this.nodeHolder = nodeHolder;
-        this.lastUpdateIndex = lastUpdateIndex;
+        this.parentWatchHolder = parentWatchHolder;
+        if (nodeHolder == null) {
+            while (parentWatchHolder.nodeHolder == null) {
+                parentWatchHolder = parentWatchHolder.parentWatchHolder;
+            }
+            this.lastRemoveIndex = parentWatchHolder.nodeHolder.latest.updateIndex;
+        } else {
+            this.lastRemoveIndex = nodeHolder.latest.removed ? nodeHolder.latest.updateIndex : 0;
+        }
+    }
+
+    public boolean isNoUse() {
+        return watches.isEmpty() && (children == null || children.isEmpty());
+    }
+
+    public HashMap<ByteArray, WatchHolder> createOrGetSubWatchMap() {
+        if (children == null) {
+            children = new HashMap<>();
+        }
+        return children;
+    }
+
+    public void addChild(ByteArray key, WatchHolder child) {
+        if (children == null) {
+            children = new HashMap<>();
+        }
+        children.put(key, child);
+    }
+
+    public void removeChild(ByteArray key) {
+        // assert children != null;
+        children.remove(key);
+        if (children.isEmpty()) {
+            children = null;
+        }
     }
 }
 

@@ -610,4 +610,14 @@ class KvImpl {
             return ByteArray.EMPTY;
         }
     }
+
+    ByteArray next(ByteArray key, ByteArray parent) {
+        int sepIdx = parent.length;
+        for (int i = sepIdx + 1; i < key.length; i++) {
+            if (key.get(i) == SEPARATOR) {
+                return key.sub(0, i);
+            }
+        }
+        return key;
+    }
 }
