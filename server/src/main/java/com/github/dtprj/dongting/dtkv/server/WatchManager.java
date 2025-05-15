@@ -50,6 +50,7 @@ import java.util.function.Supplier;
 class WatchManager {
     private static final DtLog log = DtLogs.getLogger(WatchManager.class);
     private final LinkedHashSet<ChannelInfo> needNotifyChannels = new LinkedHashSet<>();
+    private final LinkedHashSet<WatchHolder> needDispatch = new LinkedHashSet<>();
     private final IdentityHashMap<DtChannel, ChannelInfo> channelInfoMap = new IdentityHashMap<>();
     private final PriorityQueue<ChannelInfo> retryQueue = new PriorityQueue<>();
     private ChannelInfo activeQueueHead;
@@ -247,12 +248,20 @@ class WatchManager {
             if (w.removed || w.pending) {
                 continue;
             }
-            ci.add(w);
+            ci.addToNeedNotify(w);
             add = true;
         }
         if (add && ci.failCount == 0 && !ci.pending) {
             needNotifyChannels.add(ci);
         }
+    }
+
+    public void prepareDispatch(WatchHolder wh) {
+        if (wh.waitingDispatch) {
+            return;
+        }
+        wh.waitingDispatch = true;
+        needDispatch.add(wh);
     }
 
 
@@ -331,26 +340,54 @@ class WatchManager {
     }
 
     public boolean dispatch() {
+        boolean result = true;
         try {
             int count = 0;
+            if (!needDispatch.isEmpty()) {
+                Iterator<WatchHolder> it = needDispatch.iterator();
+                while (it.hasNext()) {
+                    WatchHolder wh = it.next();
+                    if (++count > 100) {
+                        result = false;
+                        break;
+                    }
+                    for (Watch w : wh.watches) {
+                        if (w.removed || w.pending) {
+                            continue;
+                        }
+                        ChannelInfo ci = w.channelInfo;
+                        ci.addToNeedNotify(w);
+                        if (ci.failCount == 0 && !ci.pending) {
+                            needNotifyChannels.add(ci);
+                        }
+                    }
+                    wh.waitingDispatch = false;
+                    it.remove();
+                }
+            }
+
+            count = 0;
             if (!needNotifyChannels.isEmpty()) {
                 Iterator<ChannelInfo> it = needNotifyChannels.iterator();
                 while (it.hasNext()) {
                     ChannelInfo ci = it.next();
                     if (ci.failCount == 0) {
                         if (++count > 100) {
-                            return false;
+                            result = false;
+                            break;
                         }
                         it.remove();
                         pushNotify(ci);
                     }
                 }
-                needNotifyChannels.clear();
             }
+
+            count = 0;
             ChannelInfo ci = retryQueue.peek();
             while (ci != null && ci.retryNanos - ts.nanoTime <= 0) {
                 if (++count > 100) {
-                    return false;
+                    result = false;
+                    break;
                 }
                 retryQueue.poll();
                 pushNotify(ci);
@@ -359,7 +396,7 @@ class WatchManager {
         } catch (Throwable e) {
             log.error("", e);
         }
-        return true;
+        return result;
     }
 
     private void pushNotify(ChannelInfo ci) {
@@ -478,7 +515,7 @@ class WatchManager {
                     if (bizCode != KvCodes.CODE_SUCCESS) {
                         log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);
                     }
-                    ci.add(w); // remove in pushNotify(ChannelInfo) method
+                    ci.addToNeedNotify(w); // remove in pushNotify(ChannelInfo) method
                 }
             }
             if (fireNext) {
@@ -504,7 +541,7 @@ class WatchManager {
         ci.retryNanos = ts.nanoTime + retryIntervalNanos[idx];
         retryQueue.add(ci);
         for (int size = watches.size(), i = 0; i < size; i++) {
-            ci.add(watches.get(i));
+            ci.addToNeedNotify(watches.get(i));
         }
     }
 
@@ -549,7 +586,7 @@ class ChannelInfo implements Comparable<ChannelInfo> {
         return diff < 0 ? -1 : (diff > 0 ? 1 : 0);
     }
 
-    public void add(Watch w) {
+    public void addToNeedNotify(Watch w) {
         if (needNotify == null) {
             needNotify = new LinkedHashSet<>();
         }
@@ -594,6 +631,8 @@ class WatchHolder {
     long lastRemoveIndex; // only used when mount to parent dir
 
     private HashMap<ByteArray, WatchHolder> children;
+
+    boolean waitingDispatch;
 
     WatchHolder(ByteArray key, KvNodeHolder nodeHolder, WatchHolder parentWatchHolder) {
         this.key = key;
