@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 /**
  * @author huangli
  */
-class KvNodeHolder {
+final class KvNodeHolder {
     final ByteArray key;
     final ByteArray keyInDir;
     final KvNodeHolder parent;
@@ -28,6 +28,10 @@ class KvNodeHolder {
     KvNodeEx latest;
 
     WatchHolder watchHolder;
+
+    long updateIndex;
+    boolean removedFromTree;
+    boolean inUpdateQueue;
 
     public KvNodeHolder(ByteArray key, ByteArray keyInDir, KvNodeEx n, KvNodeHolder parent) {
         this.key = key;

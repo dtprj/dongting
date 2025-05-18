@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -69,7 +70,12 @@ class KvImpl {
     private long maxOpenSnapshotIndex = 0;
     private long minOpenSnapshotIndex = 0;
 
-    public KvImpl(Timestamp ts, int groupId, int initCapacity, float loadFactor) {
+    private final WatchManager watchManager;
+    private final IndexedQueue<KvNodeHolder> updateQueue = new IndexedQueue<>(32);
+    private final IndexedQueue<KvNodeHolder> fixMountQueue = new IndexedQueue<>(32);
+
+    public KvImpl(WatchManager watchManager, Timestamp ts, int groupId, int initCapacity, float loadFactor) {
+        this.watchManager = watchManager;
         this.ts = ts;
         this.groupId = groupId;
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
@@ -79,6 +85,32 @@ class KvImpl {
         ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
         readLock = lock.readLock();
         writeLock = lock.writeLock();
+    }
+
+    private void addToUpdateQueue(long updateIndex, KvNodeHolder h) {
+        h.updateIndex = updateIndex;
+        if (h.inUpdateQueue) {
+            return;
+        }
+        h.inUpdateQueue = true;
+        updateQueue.addLast(h);
+    }
+
+    private void afterUpdate() {
+        if (watchManager == null) {
+            return;
+        }
+        IndexedQueue<KvNodeHolder> q = fixMountQueue;
+        for (int s = q.size(), i = 0; i < s; i++) {
+            KvNodeHolder h = q.removeFirst();
+            watchManager.fixMount(h);
+        }
+        q = updateQueue;
+        for (int s = q.size(), i = 0; i < s; i++) {
+            KvNodeHolder h = q.removeFirst();
+            h.inUpdateQueue = false;
+            watchManager.prepareDispatch(h);
+        }
     }
 
     int checkKey(ByteArray key, boolean allowEmpty, boolean fullCheck) {
@@ -272,6 +304,7 @@ class KvImpl {
         } finally {
             if (lock) {
                 writeLock.unlock();
+                afterUpdate();
             }
         }
     }
@@ -286,6 +319,7 @@ class KvImpl {
             KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
             current = new KvNodeHolder(key, keyInDir, newKvNode, parent);
             map.put(key, current);
+            fixMountQueue.addLast(current);
             parent.latest.children.put(keyInDir, current);
             result = KvResult.SUCCESS;
         } else {
@@ -312,6 +346,7 @@ class KvImpl {
                 current.latest = newKvNode;
             }
         }
+        addToUpdateQueue(index, current);
         updateParent(index, timestamp, parent);
         return result;
     }
@@ -333,12 +368,14 @@ class KvImpl {
             }
         } finally {
             writeLock.unlock();
+            afterUpdate();
         }
         return new Pair<>(KvCodes.CODE_SUCCESS, list);
     }
 
     private void updateParent(long index, long timestamp, KvNodeHolder parent) {
         while (parent != null) {
+            addToUpdateQueue(index, parent);
             KvNodeEx oldDirNode = parent.latest;
             parent.latest = new KvNodeEx(oldDirNode, index, timestamp);
             if (maxOpenSnapshotIndex > 0) {
@@ -367,7 +404,7 @@ class KvImpl {
                     }
                     if (p == null) {
                         if (next == null) {
-                            map.remove(h.key);
+                            removeFromTree(h.key);
                         } else {
                             next.previous = null;
                         }
@@ -382,7 +419,7 @@ class KvImpl {
             }
         } else {
             if (n.removed) {
-                map.remove(h.key);
+                removeFromTree(h.key);
             } else {
                 n.previous = null;
             }
@@ -436,6 +473,7 @@ class KvImpl {
                 return Boolean.TRUE;
             } finally {
                 writeLock.unlock();
+                afterUpdate();
             }
         };
     }
@@ -473,12 +511,14 @@ class KvImpl {
         } finally {
             if (lock) {
                 writeLock.unlock();
+                afterUpdate();
             }
         }
     }
 
     private KvResult doRemoveInLock(long index, KvNodeHolder h) {
         long now = ts.wallClockMillis;
+        addToUpdateQueue(index, h);
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx n = h.latest;
             KvNodeEx newKvNode = new KvNodeEx(n.createIndex, n.createTime, index,
@@ -488,13 +528,22 @@ class KvImpl {
             newKvNode.previous = n;
             gc(h);
         } else {
-            map.remove(h.key);
+            removeFromTree(h.key);
         }
+
         // The children list only used in list and remove check, and always read the latest data.
         // So we can remove it from children list safely even if there is a snapshot being reading.
         h.parent.latest.children.remove(h.keyInDir);
         updateParent(index, now, h.parent);
         return KvResult.SUCCESS;
+    }
+
+    private void removeFromTree(ByteArray key) {
+        KvNodeHolder h = map.remove(key);
+        if (h != null) {
+            h.removedFromTree = true;
+            fixMountQueue.addLast(h);
+        }
     }
 
     public Pair<Integer, List<KvResult>> batchRemove(long index, List<byte[]> keys) {
@@ -511,6 +560,7 @@ class KvImpl {
             }
         } finally {
             writeLock.unlock();
+            afterUpdate();
         }
         return new Pair<>(KvCodes.CODE_SUCCESS, list);
     }
@@ -570,6 +620,7 @@ class KvImpl {
             }
         } finally {
             writeLock.unlock();
+            afterUpdate();
         }
     }
 

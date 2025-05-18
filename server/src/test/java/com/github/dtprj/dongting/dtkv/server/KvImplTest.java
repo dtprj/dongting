@@ -42,7 +42,7 @@ class KvImplTest {
     void setUp() {
         ver = 1;
         ts = new Timestamp();
-        kv = new KvImpl(ts, 0, 16, 0.75f);
+        kv = new KvImpl(null, ts, 0, 16, 0.75f);
     }
 
     private static ByteArray ba(String str) {

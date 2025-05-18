@@ -47,7 +47,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-class WatchManager {
+final class WatchManager {
     private static final DtLog log = DtLogs.getLogger(WatchManager.class);
     private final LinkedHashSet<ChannelInfo> needNotifyChannels = new LinkedHashSet<>();
     private final LinkedHashSet<WatchHolder> needDispatch = new LinkedHashSet<>();
@@ -256,7 +256,11 @@ class WatchManager {
         }
     }
 
-    public void prepareDispatch(WatchHolder wh) {
+    public void prepareDispatch(KvNodeHolder h) {
+        WatchHolder wh = h.watchHolder;
+        if (wh == null) {
+            return;
+        }
         if (wh.waitingDispatch) {
             return;
         }
@@ -264,6 +268,36 @@ class WatchManager {
         needDispatch.add(wh);
     }
 
+    public void fixMount(KvNodeHolder h) {
+        if (h.removedFromTree) {
+            // removed node
+            WatchHolder wh = h.watchHolder;
+            if (wh != null) {
+                wh.lastRemoveIndex = h.updateIndex;
+                h = h.parent;
+                if (h.watchHolder == null) {
+                    h.watchHolder = new WatchHolder(h.key, h, null);
+                }
+                h.watchHolder.addChild(h.key, wh);
+                wh.parentWatchHolder = h.watchHolder;
+                wh.nodeHolder = null;
+            }
+        } else {
+            // new created node
+            WatchHolder parentWh = h.parent.watchHolder;
+            if (parentWh != null) {
+                HashMap<ByteArray, WatchHolder> children = parentWh.children;
+                if (children != null) {
+                    WatchHolder wh = children.remove(h.key);
+                    if (wh != null) {
+                        h.watchHolder = wh;
+                        wh.nodeHolder = h;
+                        wh.parentWatchHolder = null;
+                    }
+                }
+            }
+        }
+    }
 
     // called by io processor thread
     public void removeWatch(DtChannel channel, ByteArray[] keys, FutureCallback<Integer> callback) {
@@ -291,9 +325,7 @@ class WatchManager {
             }
             if (ci.watches.isEmpty()) {
                 // this channel has no watches, remove channel info
-                ci.remove = true;
-                channelInfoMap.remove(channel);
-                removeFromActiveQueue(ci);
+                removeChannelInfo(channel);
             }
             FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
         });
@@ -327,16 +359,24 @@ class WatchManager {
             if (checkInstallSnapshot(callback, kvStatusSupplier.get())) {
                 return;
             }
-            ChannelInfo ci = channelInfoMap.remove(channel);
-            if (ci != null) {
-                ci.remove = true;
-                removeFromActiveQueue(ci);
-                for (Watch w : ci.watches.values()) {
-                    removeWatchFromKvTree(w);
-                }
-            }
+            removeChannelInfo(channel);
             FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
         });
+    }
+
+    private void removeChannelInfo(DtChannel channel) {
+        ChannelInfo ci = channelInfoMap.remove(channel);
+        if (ci != null) {
+            ci.remove = true;
+
+            needNotifyChannels.remove(ci);
+            retryQueue.remove(ci);
+            removeFromActiveQueue(ci);
+
+            for (Watch w : ci.watches.values()) {
+                removeWatchFromKvTree(w);
+            }
+        }
     }
 
     public boolean dispatch() {
@@ -559,7 +599,7 @@ class WatchManager {
 
 }
 
-class ChannelInfo implements Comparable<ChannelInfo> {
+final class ChannelInfo implements Comparable<ChannelInfo> {
     final DtChannel channel;
     final HashMap<ByteArray, Watch> watches = new HashMap<>(4);
 
@@ -603,7 +643,7 @@ class ChannelInfo implements Comparable<ChannelInfo> {
 
 }
 
-class Watch {
+final class Watch {
     final WatchHolder watchHolder;
     final ChannelInfo channelInfo;
 
@@ -621,7 +661,7 @@ class Watch {
     }
 }
 
-class WatchHolder {
+final class WatchHolder {
     final HashSet<Watch> watches = new HashSet<>();
 
     // these fields may be updated
@@ -630,7 +670,7 @@ class WatchHolder {
     WatchHolder parentWatchHolder;
     long lastRemoveIndex; // only used when mount to parent dir
 
-    private HashMap<ByteArray, WatchHolder> children;
+    HashMap<ByteArray, WatchHolder> children;
 
     boolean waitingDispatch;
 
@@ -652,13 +692,6 @@ class WatchHolder {
         return watches.isEmpty() && (children == null || children.isEmpty());
     }
 
-    public HashMap<ByteArray, WatchHolder> createOrGetSubWatchMap() {
-        if (children == null) {
-            children = new HashMap<>();
-        }
-        return children;
-    }
-
     public void addChild(ByteArray key, WatchHolder child) {
         if (children == null) {
             children = new HashMap<>();
@@ -675,7 +708,7 @@ class WatchHolder {
     }
 }
 
-class NotifyPushRespCallback extends PbCallback<NotifyPushRespCallback> {
+final class NotifyPushRespCallback extends PbCallback<NotifyPushRespCallback> {
     private static final int IDX_RESULTS = 1;
 
     final ArrayList<Integer> results;

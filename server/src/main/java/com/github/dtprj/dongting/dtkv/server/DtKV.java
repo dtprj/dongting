@@ -68,7 +68,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     // public static final int BIZ_TYPE_UNWATCH = 10;
 
     private final Timestamp ts;
-    private ScheduledExecutorService dtkvExecutor;
+    private final ScheduledExecutorService dtkvExecutor;
 
     private final FiberGroup mainFiberGroup;
     private final RaftGroupConfigEx config;
@@ -86,11 +86,17 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         this.config = config;
         this.useSeparateExecutor = kvConfig.useSeparateExecutor;
         this.kvConfig = kvConfig;
-        this.ts = useSeparateExecutor ? new Timestamp() : config.ts;
-        KvImpl kvImpl = new KvImpl(ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
+        if (useSeparateExecutor) {
+            dtkvExecutor = createExecutor();
+            this.ts = new Timestamp();
+            watchManager = new WatchManager(config.groupId, ts, () -> kvStatus, dtkvExecutor);
+        } else {
+            dtkvExecutor = null;
+            this.ts = config.ts;
+            watchManager = new WatchManager(config.groupId, ts, () -> kvStatus, mainFiberGroup.getExecutor());
+        }
+        KvImpl kvImpl = new KvImpl(watchManager, ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
         updateStatus(false, kvImpl);
-        this.watchManager = new WatchManager(config.groupId, ts, () -> kvStatus,
-                useSeparateExecutor ? dtkvExecutor : mainFiberGroup.getExecutor());
     }
 
     @Override
@@ -234,7 +240,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
-            KvImpl kvImpl = new KvImpl(ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
+            KvImpl kvImpl = new KvImpl(watchManager, ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
             updateStatus(true, kvImpl);
             encodeStatus = new EncodeStatus();
         } else if (!kvStatus.installSnapshot) {
@@ -283,7 +289,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     @Override
     protected void doStart() {
         if (useSeparateExecutor) {
-            dtkvExecutor = createExecutor();
             dtkvExecutor.scheduleWithFixedDelay(ts::refresh, 1, 1, TimeUnit.MILLISECONDS);
             dtkvExecutor.execute(this::watchDispatchInExecutor);
         } else {
@@ -293,6 +298,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     private boolean dispatchWatchTask() {
+        if (kvStatus.installSnapshot) {
+            return true;
+        }
         boolean b = watchManager.dispatch();
         watchManager.cleanTimeoutChannel(120_000_000_000L); // 120 seconds
         return b;
