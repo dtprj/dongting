@@ -81,8 +81,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     protected int getGroupId(ReadPacket frame) {
         if (frame.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
             ReadPacket<AppendReq> f = (ReadPacket<AppendReq>) frame;
-            AppendReq body = f.getBody();
-            return body == null ? -1 : body.groupId;
+            return f.getBody().groupId;
         } else {
             ReadPacket<InstallSnapshotReq> f = (ReadPacket<InstallSnapshotReq>) frame;
             return f.getBody().groupId;

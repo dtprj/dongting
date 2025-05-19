@@ -485,6 +485,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     public NioNet getOwner() {
         return workerStatus.worker.owner;
     }
+
+    @Override
+    public String toString() {
+        return "dtc : " + channel.toString();
+    }
 }
 
 @SuppressWarnings({"rawtypes", "unchecked"})

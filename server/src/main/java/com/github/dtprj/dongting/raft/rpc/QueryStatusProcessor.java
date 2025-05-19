@@ -41,8 +41,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
 
     @Override
     protected int getGroupId(ReadPacket<Integer> frame) {
-        Integer x = frame.getBody();
-        return x == null ? 0 : x;
+        return frame.getBody();
     }
 
     @Override
