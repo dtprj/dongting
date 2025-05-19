@@ -33,8 +33,10 @@ public class WatchReq implements Encodable {
     public static final int IDX_OPERATION = 2;
     public static final int IDX_KEYS_SIZE = 3;
     public static final int IDX_KNOWN_RAFT_INDEXES = 4;
-    public static final int IDX_STATES = 5;
-    public static final int IDX_KEYS = 6;
+    public static final int IDX_KEYS = 5;
+
+    public static final int OP_WATCH = 0;
+    public static final int OP_UNWATCH = 1;
 
     public final int groupId;
     public final int operation;
@@ -80,11 +82,6 @@ public class WatchReq implements Encodable {
                 }
                 // fall through
             case IDX_KNOWN_RAFT_INDEXES:
-                if (!EncodeUtil.encodeInt32s(context, destBuffer, IDX_STATES, states)) {
-                    return false;
-                }
-                // fall through
-            case IDX_STATES:
                 return EncodeUtil.encodeBytesList(context, destBuffer, IDX_KEYS, keys);
             default:
                 throw new IllegalStateException("stage=" + context.stage);
@@ -97,7 +94,6 @@ public class WatchReq implements Encodable {
                 + PbUtil.sizeOfInt32Field(IDX_OPERATION, operation)
                 + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys.size())
                 + PbUtil.sizeOfFix64Field(IDX_KNOWN_RAFT_INDEXES, knownRaftIndexes)
-                + PbUtil.sizeOfInt32Field(IDX_STATES, states)
                 + PbUtil.sizeOfBytesListField(IDX_KEYS, keys);
     }
 }

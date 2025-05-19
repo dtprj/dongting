@@ -15,9 +15,13 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 /**
  * @author huangli
@@ -27,7 +31,7 @@ public class KvServerUtil {
     /**
      * call after RaftServer init, before RaftServer start
      */
-    public static void initKvServer(RaftServer server){
+    public static void initKvServer(RaftServer server) {
         NioServer nioServer = server.getServiceNioServer();
         KvProcessor p = new KvProcessor(server);
         nioServer.register(Commands.DTKV_GET, p);
@@ -39,5 +43,21 @@ public class KvServerUtil {
         nioServer.register(Commands.DTKV_BATCH_PUT, p);
         nioServer.register(Commands.DTKV_BATCH_REMOVE, p);
         nioServer.register(Commands.DTKV_CAS, p);
+
+        WatchProcessor wp = new WatchProcessor(server);
+        nioServer.register(Commands.DTKV_WATCH, wp);
+        nioServer.register(Commands.DTKV_UNWATCH, wp);
+    }
+
+    static DtKV getStateMachine(ReqInfo<?> reqInfo) {
+        StateMachine sm = reqInfo.raftGroup.getStateMachine();
+        try {
+            return (DtKV) sm;
+        } catch (ClassCastException e) {
+            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
+            errorResp.setMsg("type error: " + sm);
+            reqInfo.reqContext.writeRespInBizThreads(errorResp);
+            return null;
+        }
     }
 }

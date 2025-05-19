@@ -78,7 +78,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     volatile KvStatus kvStatus;
     private EncodeStatus encodeStatus;
 
-    private final WatchManager watchManager;
+    final WatchManager watchManager;
     int dispatchIntervalMillis = 100;
 
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
@@ -89,11 +89,11 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (useSeparateExecutor) {
             dtkvExecutor = createExecutor();
             this.ts = new Timestamp();
-            watchManager = new WatchManager(config.groupId, ts, () -> kvStatus, dtkvExecutor);
+            watchManager = new WatchManager(config.groupId, ts, dtkvExecutor);
         } else {
             dtkvExecutor = null;
             this.ts = config.ts;
-            watchManager = new WatchManager(config.groupId, ts, () -> kvStatus, mainFiberGroup.getExecutor());
+            watchManager = new WatchManager(config.groupId, ts, mainFiberGroup.getExecutor());
         }
         KvImpl kvImpl = new KvImpl(watchManager, ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
         updateStatus(false, kvImpl);

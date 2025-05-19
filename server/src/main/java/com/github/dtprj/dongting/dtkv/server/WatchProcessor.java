@@ -1,0 +1,118 @@
+/*
+ * Copyright The Dongting Project
+ *
+ * The Dongting Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package com.github.dtprj.dongting.dtkv.server;
+
+import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.FutureCallback;
+import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.WatchReq;
+import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.DtChannel;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftProcessor;
+import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
+
+/**
+ * @author huangli
+ */
+final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
+
+    public WatchProcessor(RaftServer raftServer) {
+        super(raftServer);
+    }
+
+    @Override
+    protected int getGroupId(ReadPacket<WatchReqCallback> frame) {
+        return frame.getBody().groupId;
+    }
+
+    @Override
+    public DecoderCallback<WatchReqCallback> createDecoderCallback(int command, DecodeContext context) {
+        return context.toDecoderCallback(new WatchReqCallback());
+    }
+
+    @Override
+    protected WritePacket doProcess(ReqInfo<WatchReqCallback> reqInfo) {
+        DtKV dtKV = KvServerUtil.getStateMachine(reqInfo);
+        if (dtKV == null) {
+            return null;
+        }
+
+        WatchReqCallback req = reqInfo.reqFrame.getBody();
+        if (req.keys == null || (req.operation == WatchReq.OP_WATCH && (req.knownRaftIndexes == null
+                || req.keys.length != req.knownRaftIndexes.length))) {
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            p.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
+            return p;
+        }
+        KvStatus kvStatus = dtKV.kvStatus;
+        if (kvStatus.installSnapshot) {
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            p.setBizCode(KvCodes.CODE_INSTALL_SNAPSHOT);
+            return p;
+        }
+        KvImpl kv = kvStatus.kvImpl;
+        for (ByteArray key : req.keys) {
+            int bc = kv.checkKey(key, false, true);
+            if (bc != KvCodes.CODE_SUCCESS) {
+                EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                p.setBizCode(KvCodes.CODE_INVALID_KEY);
+                return p;
+            }
+        }
+
+        dtKV.watchManager.executor.execute(() -> exec(dtKV, reqInfo, req));
+        return null;
+    }
+
+    private void exec(DtKV dtKV, ReqInfo<WatchReqCallback> reqInfo, WatchReqCallback req) {
+        KvStatus kvStatus = dtKV.kvStatus;
+        if (kvStatus.installSnapshot) {
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            p.setBizCode(KvCodes.CODE_INSTALL_SNAPSHOT);
+            reqInfo.reqContext.writeRespInBizThreads(p);
+            return;
+        }
+        DtChannel channel = reqInfo.reqContext.getDtChannel();
+        FutureCallback<Integer> c = (result, ex) -> {
+            if (ex != null) {
+                writeErrorResp(reqInfo, ex);
+            } else {
+                if (result == null) {
+                    RaftException e = new RaftException("internal error");
+                    BugLog.log(e);
+                    writeErrorResp(reqInfo, e);
+                } else {
+                    EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                    p.setBizCode(result);
+                    reqInfo.reqContext.writeRespInBizThreads(p);
+                }
+            }
+        };
+        if (req.operation == WatchReq.OP_WATCH) {
+            dtKV.watchManager.addWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes, c);
+        } else {
+            dtKV.watchManager.removeWatch(channel, req.keys, c);
+        }
+    }
+}

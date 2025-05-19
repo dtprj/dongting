@@ -51,8 +51,7 @@ message WatchReq {
   int32 operation = 2; // 0: watch, 1: unwatch
   int32 keys_size = 3;
   repeated fixed64 known_raft_index = 4[packed = false];
-  repeated int32 states = 5[packed = false]; // 0: not exist, 1: value exist, 2: directory exist
-  repeated string keys = 6[packed = false];
+  repeated string keys = 5[packed = false];
 }
 
 // return EmptyBodyRespFrame

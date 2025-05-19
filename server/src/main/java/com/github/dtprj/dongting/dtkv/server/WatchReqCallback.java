@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.WatchReq;
 
 import java.nio.ByteBuffer;
@@ -27,12 +28,10 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     public int groupId;
     public int operation;
     public long[] knownRaftIndexes;
-    public int[] states;
-    public byte[][] keys;
+    public ByteArray[] keys;
 
     private int knownRaftIndexesIndex = 0;
     private int keysIndex = 0;
-    private int statesIndex = 0;
 
     @Override
     public boolean readVarNumber(int index, long value) {
@@ -43,14 +42,10 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
             case WatchReq.IDX_OPERATION:
                 this.operation = (int) value;
                 break;
-            case WatchReq.IDX_STATES:
-                this.states[statesIndex++] = (int) value;
-                break;
             case WatchReq.IDX_KEYS_SIZE:
                 int len = (int) value;
                 this.knownRaftIndexes = new long[len];
-                this.states = new int[len];
-                this.keys = new byte[len][];
+                this.keys = new ByteArray[len];
                 break;
         }
         return true;
@@ -69,7 +64,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
         if (index == WatchReq.IDX_KNOWN_RAFT_INDEXES) {
             byte[] b = parseBytes(buf, fieldLen, currentPos);
             if (b != null) {
-                this.keys[keysIndex++] = b;
+                this.keys[keysIndex++] = new ByteArray(b);
             }
         }
         return true;

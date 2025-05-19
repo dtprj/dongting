@@ -42,7 +42,6 @@ import java.util.LinkedHashSet;
 import java.util.PriorityQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -58,8 +57,7 @@ final class WatchManager {
 
     private final int groupId;
     private final Timestamp ts;
-    private final Supplier<KvStatus> kvStatusSupplier;
-    private final Executor executor;
+    final Executor executor;
     private final long[] retryIntervalNanos;
     private int epoch;
 
@@ -73,15 +71,13 @@ final class WatchManager {
         }
     };
 
-    WatchManager(int groupId, Timestamp ts, Supplier<KvStatus> kvStatusSupplier, Executor executor) {
-        this(groupId, ts, kvStatusSupplier, executor, new long[]{1000, 10_000, 30_000, 60_000});
+    WatchManager(int groupId, Timestamp ts, Executor executor) {
+        this(groupId, ts, executor, new long[]{1000, 10_000, 30_000, 60_000});
     }
 
-    WatchManager(int groupId, Timestamp ts, Supplier<KvStatus> kvStatusSupplier, Executor executor,
-                 long[] retryIntervalMillis) {
+    WatchManager(int groupId, Timestamp ts, Executor executor, long[] retryIntervalMillis) {
         this.groupId = groupId;
         this.ts = ts;
-        this.kvStatusSupplier = kvStatusSupplier;
         this.executor = executor;
         this.retryIntervalNanos = new long[retryIntervalMillis.length];
         for (int i = 0; i < retryIntervalMillis.length; i++) {
@@ -144,43 +140,8 @@ final class WatchManager {
         ci.next = null;
     }
 
-    private boolean checkInstallSnapshot(FutureCallback<Integer> callback, KvStatus kvStatus) {
-        if (kvStatus.installSnapshot) {
-            FutureCallback.callSuccess(callback, KvCodes.CODE_INSTALL_SNAPSHOT);
-            return true;
-        }
-        return false;
-    }
-
-    // called by io processor thread
-    public void addWatch(DtChannel channel, ByteArray[] keys, long[] notifiedIndex, int[] notifiedState,
+    public void addWatch(KvImpl kv, DtChannel channel, ByteArray[] keys, long[] notifiedIndex,
                          FutureCallback<Integer> callback) {
-        if (keys == null || notifiedIndex == null || notifiedState == null
-                || keys.length != notifiedIndex.length || keys.length != notifiedState.length) {
-            FutureCallback.callSuccess(callback, KvCodes.CODE_CLIENT_REQ_ERROR);
-            return;
-        }
-        KvStatus kvStatus = kvStatusSupplier.get();
-        if (checkInstallSnapshot(callback, kvStatus)) {
-            return;
-        }
-        for (ByteArray key : keys) {
-            KvImpl kv = kvStatus.kvImpl;
-            int bc = kv.checkKey(key, false, true);
-            if (bc != KvCodes.CODE_SUCCESS) {
-                FutureCallback.callSuccess(callback, bc);
-                return;
-            }
-        }
-        executor.execute(() -> doAddWatch(channel, keys, notifiedIndex, notifiedState, callback));
-    }
-
-    private void doAddWatch(DtChannel channel, ByteArray[] keys, long[] notifiedIndex, int[] notifiedState,
-                            FutureCallback<Integer> callback) {
-        KvStatus kvStatus = kvStatusSupplier.get();
-        if (checkInstallSnapshot(callback, kvStatus)) {
-            return;
-        }
         ChannelInfo ci = channelInfoMap.get(channel);
         if (ci == null) {
             ci = new ChannelInfo(channel);
@@ -188,12 +149,11 @@ final class WatchManager {
         }
         addOrUpdateActiveQueue(ci);
         Watch[] watches = new Watch[keys.length];
-        KvImpl kv = kvStatus.kvImpl;
         for (int i = 0; i < keys.length; i++) {
             ByteArray k = keys[i];
             Watch w = ci.watches.get(k);
             if (w == null) {
-                w = createWatch(kv, k, ci, notifiedIndex[i], notifiedState[i]);
+                w = createWatch(kv, k, ci, notifiedIndex[i]);
                 ci.watches.put(w.watchHolder.key, w);
             }
             watches[i] = w;
@@ -202,13 +162,13 @@ final class WatchManager {
         FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
     }
 
-    private static Watch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex, int notifiedState) {
+    private static Watch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex) {
         KvNodeHolder nodeHolder = kv.map.get(key);
         if (nodeHolder != null) {
             if (nodeHolder.watchHolder == null) {
                 nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
             }
-            Watch w = new Watch(nodeHolder.watchHolder, ci, notifiedIndex, notifiedState);
+            Watch w = new Watch(nodeHolder.watchHolder, ci, notifiedIndex);
             nodeHolder.watchHolder.watches.add(w);
             return w;
         } else {
@@ -236,7 +196,7 @@ final class WatchManager {
                     childKey = kv.next(childKey, parentKey);
                 }
             }
-            Watch w = new Watch(watchHolder, ci, notifiedIndex, notifiedState);
+            Watch w = new Watch(watchHolder, ci, notifiedIndex);
             watchHolder.watches.add(w);
             return w;
         }
@@ -299,36 +259,23 @@ final class WatchManager {
         }
     }
 
-    // called by io processor thread
     public void removeWatch(DtChannel channel, ByteArray[] keys, FutureCallback<Integer> callback) {
-        if (checkInstallSnapshot(callback, kvStatusSupplier.get())) {
-            return;
-        }
-        if (keys == null) {
-            FutureCallback.callSuccess(callback, KvCodes.CODE_CLIENT_REQ_ERROR);
-            return;
-        }
-        executor.execute(() -> {
-            if (checkInstallSnapshot(callback, kvStatusSupplier.get())) {
-                return;
-            }
-            ChannelInfo ci = channelInfoMap.get(channel);
-            if (ci == null) {
-                FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
-                return;
-            }
-            for (ByteArray key : keys) {
-                Watch w = ci.watches.remove(key);
-                if (w != null) {
-                    removeWatchFromKvTree(w);
-                }
-            }
-            if (ci.watches.isEmpty()) {
-                // this channel has no watches, remove channel info
-                removeChannelInfo(channel);
-            }
+        ChannelInfo ci = channelInfoMap.get(channel);
+        if (ci == null) {
             FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
-        });
+            return;
+        }
+        for (ByteArray key : keys) {
+            Watch w = ci.watches.remove(key);
+            if (w != null) {
+                removeWatchFromKvTree(w);
+            }
+        }
+        if (ci.watches.isEmpty()) {
+            // this channel has no watches, remove channel info
+            removeChannel(channel);
+        }
+        FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
     }
 
     private void removeWatchFromKvTree(Watch w) {
@@ -350,21 +297,7 @@ final class WatchManager {
         }
     }
 
-    // called by io processor thread
-    public void removeWatchByChannel(DtChannel channel, FutureCallback<Integer> callback) {
-        if (checkInstallSnapshot(callback, kvStatusSupplier.get())) {
-            return;
-        }
-        executor.execute(() -> {
-            if (checkInstallSnapshot(callback, kvStatusSupplier.get())) {
-                return;
-            }
-            removeChannelInfo(channel);
-            FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
-        });
-    }
-
-    private void removeChannelInfo(DtChannel channel) {
+    public void removeChannel(DtChannel channel) {
         ChannelInfo ci = channelInfoMap.remove(channel);
         if (ci != null) {
             ci.remove = true;
@@ -441,7 +374,7 @@ final class WatchManager {
 
     private void pushNotify(ChannelInfo ci) {
         if (ci.channel.getChannel().isOpen()) {
-            removeWatchByChannel(ci.channel, defaultCallback);
+            removeChannel(ci.channel);
         }
         if (ci.remove) {
             return;
@@ -568,7 +501,7 @@ final class WatchManager {
                 }
             }
         } else if (result.getBizCode() == KvCodes.CODE_REMOVE_ALL_WATCH) {
-            removeWatchByChannel(ci.channel, defaultCallback);
+            removeChannel(ci.channel);
         } else {
             log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), result.getBizCode());
             retryByChannel(ci, watches);
@@ -589,7 +522,7 @@ final class WatchManager {
         try {
             while (activeQueueHead != null) {
                 if (ts.nanoTime - activeQueueHead.lastNotifyNanos > timeoutNanos) {
-                    removeWatchByChannel(activeQueueHead.channel, defaultCallback);
+                    removeChannel(activeQueueHead.channel);
                 }
             }
         } catch (Throwable e) {
@@ -648,16 +581,14 @@ final class Watch {
     final ChannelInfo channelInfo;
 
     long notifiedIndex;
-    int notifiedState;
 
     boolean pending;
     boolean removed;
 
-    Watch(WatchHolder watchHolder, ChannelInfo channelInfo, long notifiedIndex, int notifiedState) {
+    Watch(WatchHolder watchHolder, ChannelInfo channelInfo, long notifiedIndex) {
         this.watchHolder = watchHolder;
         this.channelInfo = channelInfo;
         this.notifiedIndex = notifiedIndex;
-        this.notifiedState = notifiedState;
     }
 }
 
