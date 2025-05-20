@@ -49,11 +49,12 @@ import java.util.concurrent.TimeUnit;
 final class WatchManager {
     private static final DtLog log = DtLogs.getLogger(WatchManager.class);
     private final LinkedHashSet<ChannelInfo> needNotifyChannels = new LinkedHashSet<>();
-    private final LinkedHashSet<WatchHolder> needDispatch = new LinkedHashSet<>();
     private final IdentityHashMap<DtChannel, ChannelInfo> channelInfoMap = new IdentityHashMap<>();
     private final PriorityQueue<ChannelInfo> retryQueue = new PriorityQueue<>();
     private ChannelInfo activeQueueHead;
     private ChannelInfo activeQueueTail;
+
+    private final LinkedHashSet<WatchHolder> needDispatch = new LinkedHashSet<>();
 
     private final int groupId;
     private final Timestamp ts;
@@ -64,12 +65,6 @@ final class WatchManager {
     static int maxBytesPerRequest = 80 * 1024; // may exceed
 
     private final ArrayList<Pair<Watch, WatchNotify>> tempList = new ArrayList<>(64);
-
-    private static final FutureCallback<Integer> defaultCallback = (r, ex) -> {
-        if (r != KvCodes.CODE_SUCCESS) {
-            log.error("default callback failed. bizCode={}", r);
-        }
-    };
 
     WatchManager(int groupId, Timestamp ts, Executor executor) {
         this(groupId, ts, executor, new long[]{1000, 10_000, 30_000, 60_000});
@@ -259,10 +254,9 @@ final class WatchManager {
         }
     }
 
-    public void removeWatch(DtChannel channel, ByteArray[] keys, FutureCallback<Integer> callback) {
+    public void removeWatch(DtChannel channel, ByteArray[] keys) {
         ChannelInfo ci = channelInfoMap.get(channel);
         if (ci == null) {
-            FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
             return;
         }
         for (ByteArray key : keys) {
@@ -275,7 +269,6 @@ final class WatchManager {
             // this channel has no watches, remove channel info
             removeChannel(channel);
         }
-        FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
     }
 
     private void removeWatchFromKvTree(Watch w) {
@@ -299,7 +292,7 @@ final class WatchManager {
 
     public void removeChannel(DtChannel channel) {
         ChannelInfo ci = channelInfoMap.remove(channel);
-        if (ci != null) {
+        if (ci != null && !ci.remove) {
             ci.remove = true;
 
             needNotifyChannels.remove(ci);
@@ -483,7 +476,7 @@ final class WatchManager {
                 int bizCode = callback.results.get(i);
                 Watch w = watches.get(i);
                 if (bizCode == KvCodes.CODE_REMOVE_WATCH) {
-                    removeWatch(ci.channel, new ByteArray[]{w.watchHolder.key}, defaultCallback);
+                    removeWatch(ci.channel, new ByteArray[]{w.watchHolder.key});
                 } else {
                     if (bizCode != KvCodes.CODE_SUCCESS) {
                         log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);

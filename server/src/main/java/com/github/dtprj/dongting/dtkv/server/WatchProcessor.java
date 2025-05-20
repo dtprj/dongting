@@ -94,25 +94,28 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             return;
         }
         DtChannel channel = reqInfo.reqContext.getDtChannel();
-        FutureCallback<Integer> c = (result, ex) -> {
-            if (ex != null) {
-                writeErrorResp(reqInfo, ex);
-            } else {
-                if (result == null) {
-                    RaftException e = new RaftException("internal error");
-                    BugLog.log(e);
-                    writeErrorResp(reqInfo, e);
-                } else {
-                    EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                    p.setBizCode(result);
-                    reqInfo.reqContext.writeRespInBizThreads(p);
-                }
-            }
-        };
         if (req.operation == WatchReq.OP_WATCH) {
+            FutureCallback<Integer> c = (result, ex) -> {
+                if (ex != null) {
+                    writeErrorResp(reqInfo, ex);
+                } else {
+                    if (result == null) {
+                        RaftException e = new RaftException("internal error");
+                        BugLog.log(e);
+                        writeErrorResp(reqInfo, e);
+                    } else {
+                        EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                        p.setBizCode(result);
+                        reqInfo.reqContext.writeRespInBizThreads(p);
+                    }
+                }
+            };
             dtKV.watchManager.addWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes, c);
         } else {
-            dtKV.watchManager.removeWatch(channel, req.keys, c);
+            dtKV.watchManager.removeWatch(channel, req.keys);
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            p.setBizCode(KvCodes.CODE_SUCCESS);
+            reqInfo.reqContext.writeRespInBizThreads(p);
         }
     }
 }

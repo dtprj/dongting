@@ -496,14 +496,11 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
             gc.statusManager.persistAsync(true);
             markInstall = true;
         }
-        Fiber applyFiber = gc.applyManager.getApplyFiber();
-        if (!applyFiber.isFinished()) {
-            return applyFiber.join(this::afterApplyExit);
-        }
-        return afterApplyExit(null);
+        return gc.applyManager.getApplyFiber().join(this::afterApplyExit);
     }
 
     private FrameCallResult afterApplyExit(Void v) {
+        // should we wait status machine to finish?
         return gc.statusManager.waitUpdateFinish(this::afterBeginStatusPersist);
     }
 
