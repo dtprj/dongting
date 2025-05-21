@@ -79,7 +79,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private EncodeStatus encodeStatus;
 
     final WatchManager watchManager;
-    int dispatchIntervalMillis = 100;
+    int dispatchIntervalMillis = 500;
 
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
         this.mainFiberGroup = config.fiberGroup;

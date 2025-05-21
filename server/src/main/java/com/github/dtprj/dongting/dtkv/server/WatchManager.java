@@ -267,7 +267,7 @@ final class WatchManager {
         }
         if (ci.watches.isEmpty()) {
             // this channel has no watches, remove channel info
-            removeChannel(channel);
+            removeByChannel(channel);
         }
     }
 
@@ -290,7 +290,7 @@ final class WatchManager {
         }
     }
 
-    public void removeChannel(DtChannel channel) {
+    public void removeByChannel(DtChannel channel) {
         ChannelInfo ci = channelInfoMap.remove(channel);
         if (ci != null && !ci.remove) {
             ci.remove = true;
@@ -367,7 +367,7 @@ final class WatchManager {
 
     private void pushNotify(ChannelInfo ci) {
         if (ci.channel.getChannel().isOpen()) {
-            removeChannel(ci.channel);
+            removeByChannel(ci.channel);
         }
         if (ci.remove) {
             return;
@@ -494,7 +494,7 @@ final class WatchManager {
                 }
             }
         } else if (result.getBizCode() == KvCodes.CODE_REMOVE_ALL_WATCH) {
-            removeChannel(ci.channel);
+            removeByChannel(ci.channel);
         } else {
             log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), result.getBizCode());
             retryByChannel(ci, watches);
@@ -515,7 +515,9 @@ final class WatchManager {
         try {
             while (activeQueueHead != null) {
                 if (ts.nanoTime - activeQueueHead.lastNotifyNanos > timeoutNanos) {
-                    removeChannel(activeQueueHead.channel);
+                    removeByChannel(activeQueueHead.channel);
+                } else {
+                    return;
                 }
             }
         } catch (Throwable e) {
