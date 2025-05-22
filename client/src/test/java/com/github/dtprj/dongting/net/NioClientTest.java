@@ -310,17 +310,13 @@ public class NioClientTest {
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
-        if (bs.length > 0) {
-            if (rf.getBody() instanceof RefBuffer) {
-                RefBuffer rc = (RefBuffer) rf.getBody();
-                assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-                rc.release();
-            } else {
-                ByteBuffer buf = (ByteBuffer) rf.getBody();
-                assertEquals(ByteBuffer.wrap(bs), buf);
-            }
+        if (rf.getBody() instanceof RefBuffer) {
+            RefBuffer rc = (RefBuffer) rf.getBody();
+            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+            rc.release();
         } else {
-            assertNull(rf.getBody());
+            ByteBuffer buf = (ByteBuffer) rf.getBody();
+            assertEquals(ByteBuffer.wrap(bs), buf);
         }
     }
 
@@ -359,12 +355,8 @@ public class NioClientTest {
             assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
             RefBuffer rc = rf.getBody();
-            if (bs.length > 0) {
-                assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-                rc.release();
-            } else {
-                assertNull(rc);
-            }
+            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+            rc.release();
             return null;
         });
     }

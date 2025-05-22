@@ -44,10 +44,13 @@ public class WatchReq implements Encodable {
     public final int[] states;
     public final List<byte[]> keys;
 
-    public WatchReq(int groupId, int operation, long[] knownRaftIndexes,int[] states, List<byte[]> keys) {
+    public WatchReq(int groupId, int operation, long[] knownRaftIndexes, int[] states, List<byte[]> keys) {
         Objects.requireNonNull(knownRaftIndexes);
         Objects.requireNonNull(states);
         Objects.requireNonNull(keys);
+        if (keys.isEmpty()) {
+            throw new IllegalArgumentException("keys size must > 0");
+        }
         if (knownRaftIndexes.length != keys.size() || knownRaftIndexes.length != states.length) {
             throw new IllegalArgumentException("array length not match");
         }
@@ -60,7 +63,7 @@ public class WatchReq implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        switch (context.stage){
+        switch (context.stage) {
             case EncodeContext.STAGE_BEGIN:
                 if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_GROUP_ID, groupId)) {
                     return false;

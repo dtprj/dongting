@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -130,10 +131,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
         if (requestForResp == null && processorForRequest == null) {
             // empty body
-            if (!initRelatedDataForPacket()) {
-                return false;
-            }
-            if (requestForResp == null && processorForRequest == null) {
+            if(!readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, true)) {
                 return false;
             }
         }
