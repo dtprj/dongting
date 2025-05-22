@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.bench.raft;
 
 import com.github.dtprj.dongting.bench.common.BenchBase;
 import com.github.dtprj.dongting.bench.common.PrometheusPerfCallback;
+import com.github.dtprj.dongting.bench.common.TestProps;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -89,7 +90,7 @@ public class RaftBenchmark extends BenchBase {
         serverConfig.heartbeatInterval = 1000;
 
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(GROUP_ID, nodeIdOfMembers, "");
-        groupConfig.dataDir = DATA_DIR + "-" + nodeId;
+        groupConfig.dataDir = TestProps.get("dir.RaftBenchmark", DATA_DIR) + "-" + nodeId;
         groupConfig.syncForce = SYNC_FORCE;
         groupConfig.saveSnapshotMillis = Long.MAX_VALUE;
 
