@@ -92,7 +92,10 @@ public class CommitManager {
             RaftUtil.updateLease(raftStatus);
             // not call raftStatus.copyShareStatus(), invoke after apply
 
-            leaderTryCommit(lastPersistIndex);
+            if (leaderTryCommit(lastPersistIndex)) {
+                // try replicate new leaderCommit field to followers
+                raftStatus.needRepCondition.signalAll();
+            }
         } else {
             while (respQueue.size() > 0) {
                 AppendRespWriter writer = respQueue.get(0);
@@ -119,19 +122,20 @@ public class CommitManager {
         }
     }
 
-    public void leaderTryCommit(long recentMatchIndex) {
+    public boolean leaderTryCommit(long recentMatchIndex) {
         RaftStatusImpl raftStatus = this.raftStatus;
 
         if (!needCommit(recentMatchIndex, raftStatus)) {
-            return;
+            return false;
         }
         RaftUtil.resetElectTimer(raftStatus);
         // leader can only commit log in current term, see raft paper 5.4.2
         if (recentMatchIndex < raftStatus.groupReadyIndex) {
-            return;
+            return false;
         }
         raftStatus.commitIndex = recentMatchIndex;
         applyManager.wakeupApply();
+        return true;
     }
 
     private static boolean needCommit(long recentMatchIndex, RaftStatusImpl raftStatus) {
@@ -149,7 +153,7 @@ public class CommitManager {
     @SuppressWarnings("ForLoopReplaceableByForEach")
     private static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
                                       List<RaftMember> servers, int rwQuorum) {
-        if (recentMatchIndex < currentCommitIndex) {
+        if (recentMatchIndex <= currentCommitIndex) {
             return false;
         }
         int count = 0;
