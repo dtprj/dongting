@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -85,6 +86,9 @@ public final class RaftStatusImpl extends RaftStatus {
     public long lastWriteLogIndex;
     public long lastApplying;
 
+    public IndexedQueue<long[]> commitHistory = new IndexedQueue<>(16);
+    private long applyLagNanos; // shared
+
     // update after install snapshot by leader, so current node has no raft logs before the index
     public long firstValidIndex = 1;
 
@@ -113,7 +117,10 @@ public final class RaftStatusImpl extends RaftStatus {
             ShareStatus ss = new ShareStatus();
             ss.role = role;
             ss.lastApplied = lastApplied;
-            ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - electTimeoutDelta;
+            if (role == RaftRole.leader) {
+                ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - electTimeoutDelta;
+            }
+            ss.applyLagNanos = applyLagNanos;
             ss.currentLeader = currentLeader;
             ss.groupReady = groupReady;
 
@@ -170,6 +177,11 @@ public final class RaftStatusImpl extends RaftStatus {
             this.groupReady = groupReady;
             this.shareStatusUpdated = true;
         }
+    }
+
+    public void setApplyLagNanos(long n) {
+        this.applyLagNanos = n;
+        this.shareStatusUpdated = true;
     }
 
     //------------------------- simple getters and setters--------------------------------

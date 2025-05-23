@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -137,6 +138,9 @@ public final class RaftUtil {
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setCurrentLeader(null);
         raftStatus.leaderCommit = 0;
+
+        raftStatus.commitHistory = new IndexedQueue<>(16);
+        raftStatus.setApplyLagNanos(0);
 
         // wake up replicate fiber if it is waiting on this condition
         raftStatus.needRepCondition.signalAll();

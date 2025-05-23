@@ -277,6 +277,12 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         raftStatus.setLastApplied(index);
         raftStatus.lastAppliedTerm = rt.getItem().getTerm();
 
+        long[] a = raftStatus.commitHistory.getFirst();
+        if (a != null && index >= a[0]) {
+            raftStatus.commitHistory.removeFirst();
+            raftStatus.setApplyLagNanos(ts.nanoTime - a[1]);
+        }
+
         if (!raftStatus.isGroupReady() && raftStatus.getRole() != RaftRole.none
                 && index >= raftStatus.groupReadyIndex) {
             raftStatus.setGroupReady(true);

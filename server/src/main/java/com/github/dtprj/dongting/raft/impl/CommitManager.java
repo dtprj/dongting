@@ -110,14 +110,13 @@ public class CommitManager {
     }
 
     public void followerTryCommit(RaftStatusImpl raftStatus) {
-        long lastPersistIndex = syncForce ? raftStatus.lastForceLogIndex : raftStatus.lastWriteLogIndex;
         long leaderCommit = raftStatus.leaderCommit;
         long oldCommitIndex = raftStatus.commitIndex;
         if (leaderCommit > oldCommitIndex) {
+            long lastPersistIndex = syncForce ? raftStatus.lastForceLogIndex : raftStatus.lastWriteLogIndex;
             long newCommitIndex = Math.min(lastPersistIndex, leaderCommit);
             if (newCommitIndex > oldCommitIndex) {
-                raftStatus.commitIndex = newCommitIndex;
-                applyManager.wakeupApply();
+                commit(newCommitIndex);
             }
         }
     }
@@ -133,9 +132,19 @@ public class CommitManager {
         if (recentMatchIndex < raftStatus.groupReadyIndex) {
             return false;
         }
-        raftStatus.commitIndex = recentMatchIndex;
-        applyManager.wakeupApply();
+        commit(recentMatchIndex);
         return true;
+    }
+
+    private void commit(long newCommitIndex) {
+        raftStatus.commitIndex = newCommitIndex;
+        applyManager.wakeupApply();
+        IndexedQueue<long[]> q = raftStatus.commitHistory;
+        long[] a = q.getLast();
+        if (a != null && newCommitIndex > a[0] && raftStatus.ts.nanoTime - a[1] > 1_000_000_000L && q.size() <= 64) {
+            // sample commit history per second, total 64 samples
+            q.addLast(new long[]{newCommitIndex, raftStatus.ts.nanoTime});
+        }
     }
 
     private static boolean needCommit(long recentMatchIndex, RaftStatusImpl raftStatus) {

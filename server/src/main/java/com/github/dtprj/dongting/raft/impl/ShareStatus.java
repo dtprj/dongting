@@ -22,6 +22,7 @@ public class ShareStatus {
     public long lastApplied;
     public RaftRole role;
     public long leaseEndNanos;
+    public long applyLagNanos;
     public boolean groupReady;
     public RaftMember currentLeader;
 }
