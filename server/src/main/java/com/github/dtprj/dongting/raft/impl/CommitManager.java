@@ -90,12 +90,12 @@ public class CommitManager {
             self.lastConfirmReqNanos = raftStatus.ts.getNanoTime();
 
             RaftUtil.updateLease(raftStatus);
-            // not call raftStatus.copyShareStatus(), invoke after apply
 
             if (leaderTryCommit(lastPersistIndex)) {
                 // try replicate new leaderCommit field to followers
                 raftStatus.needRepCondition.signalAll();
             }
+            raftStatus.copyShareStatus();
         } else {
             while (respQueue.size() > 0) {
                 AppendRespWriter writer = respQueue.get(0);

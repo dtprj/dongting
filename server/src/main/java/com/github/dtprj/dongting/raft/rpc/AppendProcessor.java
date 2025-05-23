@@ -203,6 +203,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                         gc.voteManager.cancelVote("receive append request from leader");
                         RaftUtil.resetElectTimer(raftStatus);
                         RaftUtil.updateLeader(raftStatus, leaderId);
+                        raftStatus.copyShareStatus();
                         if (reqInfo.reqContext.getTimeout().isTimeout(raftStatus.ts)) {
                             log.info("request timeout, ignore. groupId={}", raftStatus.groupId);
                             // not generate response
@@ -274,7 +275,6 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
     @Override
     protected FrameCallResult doFinally() {
-        gc.raftStatus.copyShareStatus();
         AppendReq req = reqInfo.reqFrame.getBody();
         if (needRelease) {
             RaftUtil.release(req.logs);
@@ -462,13 +462,6 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     @Override
-    protected FrameCallResult doFinally() {
-        GroupComponents gc = reqInfo.raftGroup.groupComponents;
-        gc.raftStatus.copyShareStatus();
-        return Fiber.frameReturn();
-    }
-
-    @Override
     protected int getLeaderId() {
         return reqInfo.reqFrame.getBody().leaderId;
     }
@@ -541,7 +534,6 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private FrameCallResult finishInstall(InstallSnapshotReq req, RaftStatusImpl raftStatus) throws Exception {
         raftStatus.installSnapshot = false;
 
-        // call raftStatus.copyShareStatus() in doFinally()
         raftStatus.setLastApplied(req.lastIncludedIndex);
         raftStatus.lastAppliedTerm = req.lastIncludedTerm;
         raftStatus.lastApplying = req.lastIncludedIndex;
@@ -552,6 +544,8 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         raftStatus.lastLogIndex = req.lastIncludedIndex;
         raftStatus.lastWriteLogIndex = req.lastIncludedIndex;
         raftStatus.lastForceLogIndex = req.lastIncludedIndex;
+
+        raftStatus.copyShareStatus();
 
         long nextIdx = req.lastIncludedIndex + 1;
         FiberFrame<Void> ff = gc.raftLog.finishInstall(nextIdx, req.nextWritePos);

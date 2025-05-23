@@ -165,6 +165,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
             raftStatus.commitIndex = snapshotIndex;
         }
 
+        raftStatus.copyShareStatus();
         return Fiber.call(gc.raftLog.init(),
                 initResult -> afterRaftLogInit(initResult, snapshotTerm, snapshotIndex));
     }

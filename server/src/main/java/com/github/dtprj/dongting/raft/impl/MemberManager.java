@@ -798,6 +798,7 @@ public class MemberManager {
                     }
                 }
             }
+            raftStatus.copyShareStatus();
 
             gc.voteManager.cancelVote("config change");
             log.info("{} success, groupId={}", msg, groupId);

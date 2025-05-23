@@ -534,7 +534,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     private void updateLease(RaftMember member, long reqNanos, RaftStatusImpl raftStatus) {
         member.lastConfirmReqNanos = reqNanos;
         RaftUtil.updateLease(raftStatus);
-        // not call raftStatus.copyShareStatus(), invoke after apply
+        raftStatus.copyShareStatus();
     }
 
     public void descPending(int itemCount, long bytes) {
