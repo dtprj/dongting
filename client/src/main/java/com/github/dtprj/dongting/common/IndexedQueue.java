@@ -78,6 +78,24 @@ public class IndexedQueue<T> {
         return element;
     }
 
+    public T getFirst() {
+        if (size == 0) {
+            return null;
+        }
+        return (T) elements[readIndex];
+    }
+
+    public T getLast() {
+        if (size == 0) {
+            return null;
+        }
+        int index = writeIndex - 1;
+        if (index < 0) {
+            index = len - 1;
+        }
+        return (T) elements[index];
+    }
+
     public T get(int index) {
         if (index < 0 || index >= size) {
             throw new IndexOutOfBoundsException("Index out of range: " + index);
