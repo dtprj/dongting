@@ -178,7 +178,7 @@ public class VoteManager {
 
         final int voteIdOfRequest = this.currentVoteId;
 
-        long reqStartNanos = raftStatus.ts.getNanoTime();
+        long reqStartNanos = raftStatus.ts.nanoTime;
         if (member.node.self) {
             VoteResp resp = new VoteResp();
             resp.voteGranted = true;
@@ -256,22 +256,22 @@ public class VoteManager {
         @Override
         public FrameCallResult execute(Void input) {
             // sleep a random time to avoid multi nodes in same JVM start pre vote at almost same time (in tests)
-            return randomSleep(raftStatus.ts.getNanoTime(), firstDelayMin, firstDelayMax);
+            return randomSleep(raftStatus.ts.nanoTime, firstDelayMin, firstDelayMax);
         }
 
         private FrameCallResult loop(Void input) {
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
-            RaftStatusImpl raftStatus = VoteManager.this.raftStatus;
-            if (raftStatus.getRole() == RaftRole.observer || raftStatus.getRole() == RaftRole.none) {
-                return sleepToNextElectTime();
+            if (raftStatus.installSnapshot) {
+                return sleepAwhile();
             }
+            RaftStatusImpl raftStatus = VoteManager.this.raftStatus;
             //if (raftStatus.getRole() == RaftRole.leader && raftStatus.getLeaseStartNanos()
-            //        + raftStatus.getElectTimeoutNanos() - raftStatus.ts.getNanoTime() < 0) {
+            //        + raftStatus.getElectTimeoutNanos() - raftStatus.ts.nanoTime < 0) {
             //    RaftUtil.changeToFollower(raftStatus, -1, "leader lease timeout");
             //}
-            boolean timeout = raftStatus.ts.getNanoTime() - raftStatus.lastElectTime > raftStatus.getElectTimeoutNanos();
+            boolean timeout = raftStatus.ts.nanoTime - raftStatus.lastElectTime > raftStatus.getElectTimeoutNanos();
             if (voting) {
                 if (timeout) {
                     cancelVote("vote timeout");
@@ -279,11 +279,14 @@ public class VoteManager {
                     return sleepToNextElectTime();
                 }
             }
-            if (raftStatus.installSnapshot) {
-                return sleepAwhile();
-            }
             if (timeout) {
-                if (raftStatus.getRole() == RaftRole.leader) {
+                if (raftStatus.getCurrentLeader() != null) {
+                    raftStatus.setCurrentLeader(null);
+                    raftStatus.copyShareStatus();
+                }
+                if (raftStatus.getRole() == RaftRole.observer || raftStatus.getRole() == RaftRole.none) {
+                    return sleepToNextElectTime();
+                } else if (raftStatus.getRole() == RaftRole.leader) {
                     RaftUtil.changeToFollower(raftStatus, -1, "leader timeout");
                 }
                 if (RaftUtil.writeNotFinished(raftStatus)) {
@@ -303,7 +306,7 @@ public class VoteManager {
         }
 
         private FrameCallResult randomSleep(long baseNanos, int min, int max) {
-            long base = baseNanos - raftStatus.ts.getNanoTime();
+            long base = baseNanos - raftStatus.ts.nanoTime;
             if (base < 0) {
                 base = 0;
             } else {
@@ -318,7 +321,7 @@ public class VoteManager {
         }
 
         private FrameCallResult sleepAwhile() {
-            return randomSleep(raftStatus.ts.getNanoTime(), checkIntervalMin, checkIntervalMax);
+            return randomSleep(raftStatus.ts.nanoTime, checkIntervalMin, checkIntervalMax);
         }
 
         private FrameCallResult sleepToNextElectTime() {
