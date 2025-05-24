@@ -26,51 +26,75 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodable {
-    // uint32 group_id = 1;
-    // uint32 term = 2;
-    // uint32 leader_id = 3;
-    // fixed64 commit_index = 4;
-    // fixed64 last_applied = 5;
-    // fixed64 last_log_index = 6;
-    // repeated fixed32 members = 7[packed = false];
-    // repeated fixed32 observers = 8[packed = false];
-    // repeated fixed32 prepared_members = 9[packed = false];
-    // repeated fixed32 prepared_observers = 10[packed = false];
+//    uint32 group_id = 1;
+//    uint32 node_id = 2;
+//    uint32 term = 3;
+//    uint32 leader_id = 4;
+//    fixed64 commit_index = 5;
+//    fixed64 last_applied = 6;
+//    fixed64 last_log_index = 7;
+//    fixed64 apply_lag_nanos = 8;
+//    repeated fixed32 members = 9[packed = false];
+//    repeated fixed32 observers = 10[packed = false];
+//    repeated fixed32 prepared_members = 11[packed = false];
+//    repeated fixed32 prepared_observers = 12[packed = false];
 
-    private int leaderId;
-    private long commitIndex;
-    private long lastApplied;
-    private long lastLogIndex;
+    private static final int IDX_GROUP_ID = 1;
+    private static final int IDX_NODE_ID = 2;
+    private static final int IDX_TERM = 3;
+    private static final int IDX_LEADER_ID = 4;
+    private static final int IDX_COMMIT_INDEX = 5;
+    private static final int IDX_LAST_APPLIED = 6;
+    private static final int IDX_LAST_LOG_INDEX = 7;
+    private static final int IDX_APPLY_LAG_NANOS = 8;
+    private static final int IDX_MEMBERS = 9;
+    private static final int IDX_OBSERVERS = 10;
+    private static final int IDX_PREPARED_MEMBERS = 11;
+    private static final int IDX_PREPARED_OBSERVERS = 12;
+
+    public int nodeId;
+    public int leaderId;
+    public long commitIndex;
+    public long lastApplied;
+    public long lastLogIndex;
+    public long applyLagNanos;
 
     public static final DecoderCallbackCreator<QueryStatusResp> DECODER = ctx -> ctx.toDecoderCallback(
             new Callback());
 
+    public QueryStatusResp() {
+    }
+
     @Override
     public int actualSize() {
-        return PbUtil.sizeOfInt32Field(1, groupId) +
-                PbUtil.sizeOfInt32Field(2, term) +
-                PbUtil.sizeOfInt32Field(3, leaderId) +
-                PbUtil.sizeOfFix64Field(4, commitIndex) +
-                PbUtil.sizeOfFix64Field(5, lastApplied) +
-                PbUtil.sizeOfFix64Field(6, lastLogIndex) +
-                PbUtil.sizeOfFix32Field(7, members) +
-                PbUtil.sizeOfFix32Field(8, observers) +
-                PbUtil.sizeOfFix32Field(9, preparedMembers) +
-                PbUtil.sizeOfFix32Field(10, preparedObservers);
+        return PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId) +
+                PbUtil.sizeOfInt32Field(IDX_NODE_ID, nodeId) +
+                PbUtil.sizeOfInt32Field(IDX_TERM, term) +
+                PbUtil.sizeOfInt32Field(IDX_LEADER_ID, leaderId) +
+                PbUtil.sizeOfFix64Field(IDX_COMMIT_INDEX, commitIndex) +
+                PbUtil.sizeOfFix64Field(IDX_LAST_APPLIED, lastApplied) +
+                PbUtil.sizeOfFix64Field(IDX_LAST_LOG_INDEX, lastLogIndex) +
+                PbUtil.sizeOfFix64Field(IDX_APPLY_LAG_NANOS, applyLagNanos) +
+                PbUtil.sizeOfFix32Field(IDX_MEMBERS, members) +
+                PbUtil.sizeOfFix32Field(IDX_OBSERVERS, observers) +
+                PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers) +
+                PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, preparedObservers);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeInt32Field(buf, 1, groupId);
-        PbUtil.writeInt32Field(buf, 2, term);
-        PbUtil.writeInt32Field(buf, 3, leaderId);
-        PbUtil.writeFix64Field(buf, 4, commitIndex);
-        PbUtil.writeFix64Field(buf, 5, lastApplied);
-        PbUtil.writeFix64Field(buf, 6, lastLogIndex);
-        PbUtil.writeFix32Field(buf, 7, members);
-        PbUtil.writeFix32Field(buf, 8, observers);
-        PbUtil.writeFix32Field(buf, 9, preparedMembers);
-        PbUtil.writeFix32Field(buf, 10, preparedObservers);
+        PbUtil.writeInt32Field(buf, IDX_GROUP_ID, groupId);
+        PbUtil.writeInt32Field(buf, IDX_NODE_ID, nodeId);
+        PbUtil.writeInt32Field(buf, IDX_TERM, term);
+        PbUtil.writeInt32Field(buf, IDX_LEADER_ID, leaderId);
+        PbUtil.writeFix64Field(buf, IDX_COMMIT_INDEX, commitIndex);
+        PbUtil.writeFix64Field(buf, IDX_LAST_APPLIED, lastApplied);
+        PbUtil.writeFix64Field(buf, IDX_LAST_LOG_INDEX, lastLogIndex);
+        PbUtil.writeFix64Field(buf, IDX_APPLY_LAG_NANOS, applyLagNanos);
+        PbUtil.writeFix32Field(buf, IDX_MEMBERS, members);
+        PbUtil.writeFix32Field(buf, IDX_OBSERVERS, observers);
+        PbUtil.writeFix32Field(buf, IDX_PREPARED_MEMBERS, preparedMembers);
+        PbUtil.writeFix32Field(buf, IDX_PREPARED_OBSERVERS, preparedObservers);
     }
 
     public static final class Callback extends PbCallback<QueryStatusResp> {
@@ -79,13 +103,16 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         @Override
         public boolean readVarNumber(int index, long value) {
             switch (index) {
-                case 1:
+                case IDX_GROUP_ID:
                     resp.groupId = (int) value;
                     break;
-                case 2:
+                case IDX_NODE_ID:
+                    resp.nodeId = (int) value;
+                    break;
+                case IDX_TERM:
                     resp.term = (int) value;
                     break;
-                case 3:
+                case IDX_LEADER_ID:
                     resp.leaderId = (int) value;
                     break;
             }
@@ -95,16 +122,16 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         @Override
         public boolean readFix32(int index, int value) {
             switch (index) {
-                case 7:
+                case IDX_MEMBERS:
                     resp.members.add(value);
                     break;
-                case 8:
+                case IDX_OBSERVERS:
                     resp.observers.add(value);
                     break;
-                case 9:
+                case IDX_PREPARED_MEMBERS:
                     resp.preparedMembers.add(value);
                     break;
-                case 10:
+                case IDX_PREPARED_OBSERVERS:
                     resp.preparedObservers.add(value);
                     break;
             }
@@ -114,14 +141,17 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         @Override
         public boolean readFix64(int index, long value) {
             switch (index) {
-                case 4:
+                case IDX_COMMIT_INDEX:
                     resp.commitIndex = value;
                     break;
-                case 5:
+                case IDX_LAST_APPLIED:
                     resp.lastApplied = value;
                     break;
-                case 6:
+                case IDX_LAST_LOG_INDEX:
                     resp.lastLogIndex = value;
+                    break;
+                case IDX_APPLY_LAG_NANOS:
+                    resp.applyLagNanos = value;
                     break;
             }
             return true;
@@ -131,37 +161,5 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         public QueryStatusResp getResult() {
             return resp;
         }
-    }
-
-    public int getLeaderId() {
-        return leaderId;
-    }
-
-    public long getCommitIndex() {
-        return commitIndex;
-    }
-
-    public long getLastApplied() {
-        return lastApplied;
-    }
-
-    public long getLastLogIndex() {
-        return lastLogIndex;
-    }
-
-    public void setLeaderId(int leaderId) {
-        this.leaderId = leaderId;
-    }
-
-    public void setCommitIndex(long commitIndex) {
-        this.commitIndex = commitIndex;
-    }
-
-    public void setLastApplied(long lastApplied) {
-        this.lastApplied = lastApplied;
-    }
-
-    public void setLastLogIndex(long lastLogIndex) {
-        this.lastLogIndex = lastLogIndex;
     }
 }

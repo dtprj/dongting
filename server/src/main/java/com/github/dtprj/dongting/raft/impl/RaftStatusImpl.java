@@ -210,4 +210,7 @@ public final class RaftStatusImpl extends RaftStatus {
         return leaseStartNanos;
     }
 
+    public long getApplyLagNanos() {
+        return applyLagNanos;
+    }
 }

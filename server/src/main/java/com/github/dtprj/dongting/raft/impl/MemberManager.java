@@ -453,8 +453,8 @@ public class MemberManager {
                 } else {
                     QueryStatusResp body = resp.getBody();
                     log.info("query prepare status success, groupId={}, remoteId={}, lastApplied={}, prepareIndex={}",
-                            groupId, n.nodeId, body.getLastApplied(), prepareIndex);
-                    return body.getLastApplied() >= prepareIndex;
+                            groupId, n.nodeId, body.lastApplied, prepareIndex);
+                    return body.lastApplied >= prepareIndex;
                 }
             });
         }
