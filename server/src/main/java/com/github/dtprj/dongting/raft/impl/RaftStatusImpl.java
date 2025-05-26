@@ -88,6 +88,7 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public IndexedQueue<long[]> commitHistory = new IndexedQueue<>(16);
     private long applyLagNanos; // shared
+    private long lastApplyNanos; // shared
 
     // update after install snapshot by leader, so current node has no raft logs before the index
     public long firstValidIndex = 1;
@@ -120,6 +121,7 @@ public final class RaftStatusImpl extends RaftStatus {
             if (role == RaftRole.leader) {
                 ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - electTimeoutDelta;
             }
+            ss.lastApplyNanos = lastApplyNanos;
             ss.applyLagNanos = applyLagNanos;
             ss.currentLeader = currentLeader;
             ss.groupReady = groupReady;
@@ -136,6 +138,7 @@ public final class RaftStatusImpl extends RaftStatus {
     public void setLastApplied(long lastApplied) {
         if (lastApplied != this.lastApplied) {
             this.lastApplied = lastApplied;
+            this.lastApplyNanos = ts.nanoTime;
             this.shareStatusUpdated = true;
         }
     }
@@ -212,5 +215,9 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public long getApplyLagNanos() {
         return applyLagNanos;
+    }
+
+    public long getLastApplyNanos() {
+        return lastApplyNanos;
     }
 }

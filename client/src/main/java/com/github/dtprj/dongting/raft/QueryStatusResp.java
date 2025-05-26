@@ -32,12 +32,13 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
 //    uint32 leader_id = 4;
 //    fixed64 commit_index = 5;
 //    fixed64 last_applied = 6;
-//    fixed64 last_log_index = 7;
-//    fixed64 apply_lag_nanos = 8;
-//    repeated fixed32 members = 9[packed = false];
-//    repeated fixed32 observers = 10[packed = false];
-//    repeated fixed32 prepared_members = 11[packed = false];
-//    repeated fixed32 prepared_observers = 12[packed = false];
+//    fixed64 last_apply_to_now_millis = 7;
+//    fixed64 last_log_index = 8;
+//    fixed64 apply_lag_millis = 9;
+//    repeated fixed32 members = 10[packed = false];
+//    repeated fixed32 observers = 11[packed = false];
+//    repeated fixed32 prepared_members = 12[packed = false];
+//    repeated fixed32 prepared_observers = 13[packed = false];
 
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_NODE_ID = 2;
@@ -45,19 +46,21 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
     private static final int IDX_LEADER_ID = 4;
     private static final int IDX_COMMIT_INDEX = 5;
     private static final int IDX_LAST_APPLIED = 6;
-    private static final int IDX_LAST_LOG_INDEX = 7;
-    private static final int IDX_APPLY_LAG_NANOS = 8;
-    private static final int IDX_MEMBERS = 9;
-    private static final int IDX_OBSERVERS = 10;
-    private static final int IDX_PREPARED_MEMBERS = 11;
-    private static final int IDX_PREPARED_OBSERVERS = 12;
+    private static final int IDX_LAST_APPLY_TIME_TO_NOW_MILLIS = 7;
+    private static final int IDX_LAST_LOG_INDEX = 8;
+    private static final int IDX_APPLY_LAG_MILLIS = 9;
+    private static final int IDX_MEMBERS = 10;
+    private static final int IDX_OBSERVERS = 11;
+    private static final int IDX_PREPARED_MEMBERS = 12;
+    private static final int IDX_PREPARED_OBSERVERS = 13;
 
     public int nodeId;
     public int leaderId;
     public long commitIndex;
     public long lastApplied;
+    public long lastApplyTimeToNowMillis;
     public long lastLogIndex;
-    public long applyLagNanos;
+    public long applyLagMillis; // the time delay from commit to apply, sampled update.
 
     public static final DecoderCallbackCreator<QueryStatusResp> DECODER = ctx -> ctx.toDecoderCallback(
             new Callback());
@@ -73,8 +76,9 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
                 PbUtil.sizeOfInt32Field(IDX_LEADER_ID, leaderId) +
                 PbUtil.sizeOfFix64Field(IDX_COMMIT_INDEX, commitIndex) +
                 PbUtil.sizeOfFix64Field(IDX_LAST_APPLIED, lastApplied) +
+                PbUtil.sizeOfFix64Field(IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis) +
                 PbUtil.sizeOfFix64Field(IDX_LAST_LOG_INDEX, lastLogIndex) +
-                PbUtil.sizeOfFix64Field(IDX_APPLY_LAG_NANOS, applyLagNanos) +
+                PbUtil.sizeOfFix64Field(IDX_APPLY_LAG_MILLIS, applyLagMillis) +
                 PbUtil.sizeOfFix32Field(IDX_MEMBERS, members) +
                 PbUtil.sizeOfFix32Field(IDX_OBSERVERS, observers) +
                 PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers) +
@@ -89,8 +93,9 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         PbUtil.writeInt32Field(buf, IDX_LEADER_ID, leaderId);
         PbUtil.writeFix64Field(buf, IDX_COMMIT_INDEX, commitIndex);
         PbUtil.writeFix64Field(buf, IDX_LAST_APPLIED, lastApplied);
+        PbUtil.writeFix64Field(buf, IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis);
         PbUtil.writeFix64Field(buf, IDX_LAST_LOG_INDEX, lastLogIndex);
-        PbUtil.writeFix64Field(buf, IDX_APPLY_LAG_NANOS, applyLagNanos);
+        PbUtil.writeFix64Field(buf, IDX_APPLY_LAG_MILLIS, applyLagMillis);
         PbUtil.writeFix32Field(buf, IDX_MEMBERS, members);
         PbUtil.writeFix32Field(buf, IDX_OBSERVERS, observers);
         PbUtil.writeFix32Field(buf, IDX_PREPARED_MEMBERS, preparedMembers);
@@ -147,11 +152,14 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
                 case IDX_LAST_APPLIED:
                     resp.lastApplied = value;
                     break;
+                case IDX_LAST_APPLY_TIME_TO_NOW_MILLIS:
+                    resp.lastApplyTimeToNowMillis = value;
+                    break;
                 case IDX_LAST_LOG_INDEX:
                     resp.lastLogIndex = value;
                     break;
-                case IDX_APPLY_LAG_NANOS:
-                    resp.applyLagNanos = value;
+                case IDX_APPLY_LAG_MILLIS:
+                    resp.applyLagMillis = value;
                     break;
             }
             return true;
