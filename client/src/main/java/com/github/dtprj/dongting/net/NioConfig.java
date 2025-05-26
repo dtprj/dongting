@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.common.ConfigBase;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 
@@ -27,7 +26,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public abstract class NioConfig extends ConfigBase {
+public abstract class NioConfig {
 
     public int bizThreads;
     public String name;

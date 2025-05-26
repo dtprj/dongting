@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.MockRuntimeException;
 import com.github.dtprj.dongting.common.TestUtil;
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import org.junit.jupiter.api.AfterEach;
@@ -899,7 +900,7 @@ public class NioClientTest {
         client = new NioClient(c);
         client.start();
         client.waitStart();
-        c.readFence();
+        VersionFactory.getInstance().fullFence();
         Assertions.assertEquals(maxPacketSize >>> 1, c.maxPacketSize);
         Assertions.assertEquals(maxBodySize >>> 1, c.maxBodySize);
         Assertions.assertEquals(maxOutRequests >>> 1, c.maxOutRequests);

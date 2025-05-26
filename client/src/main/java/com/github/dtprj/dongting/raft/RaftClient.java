@@ -246,7 +246,6 @@ public class RaftClient extends AbstractLifeCircle {
         }
         boolean getPermit = false;
         try {
-            nioClient.getConfig().readFence();
             getPermit = nioClient.acquirePermit(request, timeout);
             if (groupInfo.leader != null && groupInfo.leader.peer.getStatus() == PeerStatus.connected
                     && (groupInfo.lastLeaderFailTime == 0 ||

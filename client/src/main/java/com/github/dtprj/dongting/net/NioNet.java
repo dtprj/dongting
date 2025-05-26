@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -105,7 +106,6 @@ public abstract class NioNet extends AbstractLifeCircle {
                            RpcCallback<T> callback) {
         boolean acquirePermit = false;
         try {
-            config.readFence();
             generalCheck(request, timeout, callback);
             request.setPacketType(decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
 
@@ -200,6 +200,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             throw new NetException("packet body size " + bodySize
                     + " exceeds max body size " + config.maxBodySize);
         }
+        VersionFactory.getInstance().acquireFence();
     }
 
     public void releasePermit(WritePacket request) {

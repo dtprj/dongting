@@ -15,14 +15,13 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.ConfigBase;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 
 /**
  * @author huangli
  */
-public class RaftGroupConfig extends ConfigBase {
+public class RaftGroupConfig {
     public final int groupId;
     public final String nodeIdOfMembers;
     public final String nodeIdOfObservers;

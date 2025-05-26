@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -711,7 +712,7 @@ public class MemberManager {
 
         @Override
         public FrameCallResult execute(Void v) {
-            groupConfig.readFence();
+            VersionFactory.getInstance().fullFence();
             if (groupConfig.disableConfigChange) {
                 log.warn("ignore apply config change, groupId={}", groupId);
                 return Fiber.frameReturn();
