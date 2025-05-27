@@ -35,8 +35,9 @@ public class WatchReq implements Encodable {
     public static final int IDX_KNOWN_RAFT_INDEXES = 4;
     public static final int IDX_KEYS = 5;
 
-    public static final int OP_WATCH = 0;
-    public static final int OP_UNWATCH = 1;
+    public static final int OP_ADD_WATCH = 0;
+    public static final int OP_REMOVE_WATCH = 1;
+    public static final int OP_SYNC_ALL_WATCH = 2;
 
     public final int groupId;
     public final int operation;

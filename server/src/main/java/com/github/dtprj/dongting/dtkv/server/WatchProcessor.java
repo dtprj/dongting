@@ -56,8 +56,8 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
         }
 
         WatchReqCallback req = reqInfo.reqFrame.getBody();
-        if (req.keys == null || (req.operation == WatchReq.OP_WATCH && (req.knownRaftIndexes == null
-                || req.keys.length != req.knownRaftIndexes.length))) {
+        if ((req.keys != null && (req.knownRaftIndexes == null || req.keys.length != req.knownRaftIndexes.length))
+                || (req.keys == null && req.knownRaftIndexes != null)) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             p.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
             return p;
@@ -69,12 +69,14 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             return p;
         }
         KvImpl kv = kvStatus.kvImpl;
-        for (ByteArray key : req.keys) {
-            int bc = kv.checkKey(key, false, true);
-            if (bc != KvCodes.CODE_SUCCESS) {
-                EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                p.setBizCode(KvCodes.CODE_INVALID_KEY);
-                return p;
+        if (req.keys != null) {
+            for (ByteArray key : req.keys) {
+                int bc = kv.checkKey(key, false, true);
+                if (bc != KvCodes.CODE_SUCCESS) {
+                    EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                    p.setBizCode(KvCodes.CODE_INVALID_KEY);
+                    return p;
+                }
             }
         }
 
@@ -91,10 +93,22 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             return;
         }
         DtChannel channel = reqInfo.reqContext.getDtChannel();
-        if (req.operation == WatchReq.OP_WATCH) {
-            dtKV.watchManager.addWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes);
+        if (req.operation == WatchReq.OP_ADD_WATCH) {
+            if (req.keys != null && req.keys.length > 0) {
+                dtKV.watchManager.addWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes);
+            }
+        } else if (req.operation == WatchReq.OP_REMOVE_WATCH) {
+            if (req.keys != null && req.keys.length > 0) {
+                dtKV.watchManager.removeWatch(channel, req.keys);
+            }
+        } else if (req.operation == WatchReq.OP_SYNC_ALL_WATCH) {
+            dtKV.watchManager.syncAllWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes);
         } else {
-            dtKV.watchManager.removeWatch(channel, req.keys);
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            p.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
+            p.setMsg("Unknown operation: " + req.operation);
+            reqInfo.reqContext.writeRespInBizThreads(p);
+            return;
         }
         EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
         p.setBizCode(KvCodes.CODE_SUCCESS);
