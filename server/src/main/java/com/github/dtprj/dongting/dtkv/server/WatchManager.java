@@ -246,6 +246,7 @@ final class WatchManager {
                     WatchHolder wh = children.remove(h.key);
                     if (wh != null) {
                         h.watchHolder = wh;
+                        wh.key = h.key;
                         wh.nodeHolder = h;
                         wh.parentWatchHolder = null;
                     }
