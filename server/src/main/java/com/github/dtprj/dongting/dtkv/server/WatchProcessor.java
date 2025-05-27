@@ -18,16 +18,13 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchReq;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
@@ -95,27 +92,12 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
         }
         DtChannel channel = reqInfo.reqContext.getDtChannel();
         if (req.operation == WatchReq.OP_WATCH) {
-            FutureCallback<Integer> c = (result, ex) -> {
-                if (ex != null) {
-                    writeErrorResp(reqInfo, ex);
-                } else {
-                    if (result == null) {
-                        RaftException e = new RaftException("internal error");
-                        BugLog.log(e);
-                        writeErrorResp(reqInfo, e);
-                    } else {
-                        EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                        p.setBizCode(result);
-                        reqInfo.reqContext.writeRespInBizThreads(p);
-                    }
-                }
-            };
-            dtKV.watchManager.addWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes, c);
+            dtKV.watchManager.addWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes);
         } else {
             dtKV.watchManager.removeWatch(channel, req.keys);
-            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.CODE_SUCCESS);
-            reqInfo.reqContext.writeRespInBizThreads(p);
         }
+        EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+        p.setBizCode(KvCodes.CODE_SUCCESS);
+        reqInfo.reqContext.writeRespInBizThreads(p);
     }
 }

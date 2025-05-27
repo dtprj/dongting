@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -135,8 +134,7 @@ final class WatchManager {
         ci.next = null;
     }
 
-    public void addWatch(KvImpl kv, DtChannel channel, ByteArray[] keys, long[] notifiedIndex,
-                         FutureCallback<Integer> callback) {
+    public void addWatch(KvImpl kv, DtChannel channel, ByteArray[] keys, long[] notifiedIndex) {
         ChannelInfo ci = channelInfoMap.get(channel);
         if (ci == null) {
             ci = new ChannelInfo(channel);
@@ -154,7 +152,6 @@ final class WatchManager {
             watches[i] = w;
         }
         prepareDispatch(ci, watches);
-        FutureCallback.callSuccess(callback, KvCodes.CODE_SUCCESS);
     }
 
     private static Watch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex) {
