@@ -435,13 +435,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             //server side
             incomingConnects.remove(dtc);
         }
-        if (config.channelListener != null) {
-            try {
-                config.channelListener.onConnected(dtc);
-            } catch (Throwable e) {
-                log.error("channelListener.onConnected error: {}", e);
-            } finally {
-                dtc.listenerOnConnectedCalled = true;
+        if (!config.channelListeners.isEmpty()) {
+            for (int size = config.channelListeners.size(), i = 0; i < size; i++) {
+                try {
+                    ChannelListener l = config.channelListeners.get(i);
+                    l.onConnected(dtc);
+                } catch (Throwable e) {
+                    log.error("channelListener.onConnected error: {}", e);
+                } finally {
+                    dtc.listenerOnConnectedCalled = true;
+                }
             }
         }
     }
@@ -738,13 +741,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         dtc.close();
 
-        if (config.channelListener != null && dtc.listenerOnConnectedCalled) {
-            try {
-                config.channelListener.onDisconnected(dtc);
-            } catch (Throwable e) {
-                log.error("channelListener.onDisconnected error: {}", e);
+        if (dtc.listenerOnConnectedCalled && !config.channelListeners.isEmpty()) {
+            for (int size = config.channelListeners.size(), i = 0; i < size; i++) {
+                try {
+                    ChannelListener l = config.channelListeners.get(i);
+                    l.onDisconnected(dtc);
+                } catch (Throwable e) {
+                    log.error("channelListener.onDisconnected error: {}", e);
+                }
             }
         }
+
 
         Peer peer = dtc.peer;
         if (peer != null) {

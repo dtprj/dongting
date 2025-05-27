@@ -27,17 +27,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.Condition;
 import java.util.function.Function;
 
 /**
  * @author huangli
  */
-public class NioClient extends NioNet {
+public class NioClient extends NioNet implements ChannelListener {
 
     private static final DtLog log = DtLogs.getLogger(NioClient.class);
 
@@ -46,8 +46,9 @@ public class NioClient extends NioNet {
 
     //TODO use set?
     private final CopyOnWriteArrayList<Peer> peers;
-    private List<CompletableFuture<Void>> startFutures;
 
+    private final Condition connectCond = lock.newCondition();
+    private int connectCount;
     private DtTime startDeadline;
 
     public NioClient(NioClientConfig config) {
@@ -62,79 +63,64 @@ public class NioClient extends NioNet {
         }
         this.peers = new CopyOnWriteArrayList<>(list);
         this.worker = new NioWorker(nioStatus, config.name + "IoWorker", config, this);
+        config.channelListeners.add(this);
         register(Commands.CMD_PING, new NioServer.PingProcessor());
     }
 
     @Override
     protected void doStart() {
         startDeadline = new DtTime(config.waitStartTimeout, TimeUnit.MILLISECONDS);
-        startFutures = new ArrayList<>();
         initBizExecutor();
         worker.start();
         for (Peer peer : peers) {
-            startFutures.add(worker.connect(peer, startDeadline));
+            worker.connect(peer, startDeadline);
+        }
+        log.info("{} started", config.name);
+    }
+
+    @Override
+    public void onConnected(DtChannel dtc) {
+        lock.lock();
+        try {
+            connectCount++;
+            connectCond.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public void onDisconnected(DtChannel dtc) {
+        lock.lock();
+        try {
+            connectCount--;
+            connectCond.signalAll();
+        } finally {
+            lock.unlock();
         }
     }
 
     public void waitStart() {
-        int successCount = 0;
-        int timeoutCount = 0;
-        int failCount = 0;
-        List<Peer> peers = this.peers;
-        if (peers.isEmpty()) {
-            log.info("[{}] started", config.name);
-            return;
+        if (config.hostPorts != null && !config.hostPorts.isEmpty()) {
+            waitConnect(1, startDeadline);
         }
-        StringBuilder sb = new StringBuilder(startFutures.size() * 32);
-        sb.append("peer status:\n");
-        for (int i = 0; i < peers.size(); i++) {
-            Peer peer = peers.get(i);
-            sb.append(peer.getEndPoint()).append(' ');
-            CompletableFuture<Void> f = startFutures.get(i);
-            if (!f.isDone()) {
-                long restMillis = startDeadline.rest(TimeUnit.MILLISECONDS);
-                if (restMillis > 0) {
-                    try {
-                        f.get(restMillis, TimeUnit.MILLISECONDS);
-                        sb.append("connected\n");
-                        successCount++;
-                    } catch (InterruptedException e) {
-                        DtUtil.restoreInterruptStatus();
-                        sb.append("interrupted\n");
-                        failCount++;
-                    } catch (ExecutionException e) {
-                        sb.append("connect fail: ").append(e).append('\n');
-                        failCount++;
-                    } catch (TimeoutException e) {
-                        sb.append("timeout\n");
-                        timeoutCount++;
-                    }
-                } else {
-                    sb.append("timeout\n");
-                    timeoutCount++;
-                }
-            } else {
-                try {
-                    f.getNow(null);
-                    sb.append("connected\n");
-                    successCount++;
-                } catch (CompletionException e) {
-                    sb.append("connect fail: ").append(e).append('\n');
-                    failCount++;
+    }
+
+    public void waitConnect(int targetConnectCount, DtTime timeout) {
+        lock.lock();
+        try {
+            while (connectCount < targetConnectCount) {
+                if (!connectCond.await(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
+                    throw new NetTimeoutException("NioClient wait start timeout. timeout=" + config.waitStartTimeout
+                            + "ms, connectCount=" + connectCount);
                 }
             }
+        } catch (InterruptedException e) {
+            DtUtil.restoreInterruptStatus();
+            throw new NetException("Interrupted while NioClient waiting for connect", e);
+        } finally {
+            lock.unlock();
         }
-
-        if (successCount == 0 && !peers.isEmpty()) {
-            log.error("[{}] start fail: timeoutPeerCount={},failPeerCount={}\n{}",
-                    config.name, timeoutCount, failCount, sb);
-            throw new NetException("init NioClient fail:timeout=" + config.waitStartTimeout
-                    + "ms, timeoutConnectionCount=" + timeoutCount + ", failConnectionCount=" + failCount);
-        } else {
-            log.info("[{}] started: connectPeerCount={}, timeoutPeerCount={}, failPeerCount={}\n{}",
-                    config.name, successCount, timeoutCount, failCount, sb);
-        }
-        this.startFutures = null;
     }
 
     public <T> ReadPacket<T> sendRequest(WritePacket request, DecoderCallbackCreator<T> decoder, DtTime timeout) {

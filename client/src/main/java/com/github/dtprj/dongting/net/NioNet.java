@@ -51,7 +51,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     protected volatile ExecutorService bizExecutor;
     private final PerfCallback perfCallback;
 
-    private final ReentrantLock lock = new ReentrantLock();
+    protected final ReentrantLock lock = new ReentrantLock();
     private final Condition pendingReqCond = lock.newCondition();
     private final Condition pendingBytesCond = lock.newCondition();
     int pendingRequests;
@@ -295,11 +295,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             DtUtil.restoreInterruptStatus();
             throw new NetException("interrupted", e);
         } catch (ExecutionException e) {
-            Throwable c = e.getCause();
-            if (c instanceof NetException) {
-                throw (NetException) c;
-            }
-            throw new NetException("execution exception", c);
+            throw new NetException("execution exception", e);
         } catch (TimeoutException e) {
             throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
         }

@@ -601,8 +601,9 @@ public class NioClientTest {
         try {
             sendSync(5000, client, tick(1000));
             fail();
-        } catch (NetCodeException e) {
-            assertEquals(100, e.getCode());
+        } catch (Exception e) {
+            NetCodeException e2 = (NetCodeException) DtUtil.rootCause(e);
+            assertEquals(100, e2.getCode());
         }
     }
 

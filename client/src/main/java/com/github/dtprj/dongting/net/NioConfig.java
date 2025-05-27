@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -52,7 +54,7 @@ public abstract class NioConfig {
     public PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
     public Supplier<DecodeContext> decodeContextFactory = DecodeContext::new;
 
-    public ChannelListener channelListener;
+    public List<ChannelListener> channelListeners = new ArrayList<>(1);
 
     public boolean serverHint = true;
 }
