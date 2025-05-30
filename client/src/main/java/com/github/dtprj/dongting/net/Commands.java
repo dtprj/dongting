@@ -55,5 +55,7 @@ public interface Commands {
     int DTKV_CAS = 86;
     int DTKV_WATCH = 87;
     int DTKV_UNWATCH = 88;
-    int DTKV_WATCH_NOTIFY_PUSH = 89;
+    int DTKV_SYNC_WATCH = 89;
+    int DTKV_WATCH_NOTIFY_PUSH = 90;
+    int DTKV_QUERY_STATUS = 91;
 }

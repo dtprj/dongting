@@ -13,24 +13,28 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.rpc;
+package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
-import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftSequenceProcessor;
+import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 /**
  * @author huangli
  */
-public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
+class KvStatusProcessor extends RaftSequenceProcessor<Integer> {
 
-    public QueryStatusProcessor(RaftServer raftServer) {
+    public KvStatusProcessor(RaftServer raftServer) {
         super(raftServer);
     }
 
@@ -46,30 +50,27 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
 
     @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<Integer> reqInfo) {
+        DtKV kv = KvServerUtil.getStateMachine(reqInfo);
+        if (kv == null) {
+            return FiberFrame.voidCompletedFrame();
+        }
         RaftStatusImpl raftStatus = reqInfo.raftGroup.groupComponents.raftStatus;
-        QueryStatusResp resp = buildQueryStatusResp(raftServer.getServerConfig().nodeId, raftStatus);
-
-        SimpleWritePacket wf = new SimpleWritePacket(resp);
-        wf.setRespCode(CmdCodes.SUCCESS);
-        reqInfo.reqContext.writeRespInBizThreads(wf);
+        KvStatusResp resp = new KvStatusResp();
+        resp.raftServerStatus = QueryStatusProcessor.buildQueryStatusResp(raftServer.getServerConfig().nodeId, raftStatus);
+        if (kv.useSeparateExecutor) {
+            // assert kv.dtkvExecutor != null;
+            //noinspection DataFlowIssue
+            kv.dtkvExecutor.execute(() -> finishAndWriteResp(kv, resp, reqInfo));
+        } else {
+            finishAndWriteResp(kv, resp, reqInfo);
+        }
         return FiberFrame.voidCompletedFrame();
     }
 
-    public static QueryStatusResp buildQueryStatusResp(int nodeId, RaftStatusImpl raftStatus) {
-        QueryStatusResp resp = new QueryStatusResp();
-        resp.groupId = raftStatus.groupId;
-        resp.nodeId = nodeId;
-        resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().node.nodeId;
-        resp.term = raftStatus.currentTerm;
-        resp.commitIndex = raftStatus.commitIndex;
-        resp.lastApplied = raftStatus.getLastApplied();
-        resp.lastApplyTimeToNowMillis = (raftStatus.ts.nanoTime - raftStatus.getLastApplyNanos()) / 1_000_000L;
-        resp.lastLogIndex = raftStatus.lastLogIndex;
-        resp.applyLagMillis = raftStatus.getApplyLagNanos() / 1_000_000L;
-        resp.members = raftStatus.nodeIdOfMembers;
-        resp.observers = raftStatus.nodeIdOfObservers;
-        resp.preparedMembers = raftStatus.nodeIdOfPreparedMembers;
-        resp.preparedObservers = raftStatus.nodeIdOfPreparedObservers;
-        return resp;
+    private void finishAndWriteResp(DtKV kv, KvStatusResp resp, ReqInfo<?> reqInfo) {
+        resp.watchCount = kv.watchManager.getWatchCount(reqInfo.reqContext.getDtChannel());
+        SimpleWritePacket wf = new SimpleWritePacket(resp);
+        wf.setRespCode(CmdCodes.SUCCESS);
+        reqInfo.reqContext.writeRespInBizThreads(wf);
     }
 }

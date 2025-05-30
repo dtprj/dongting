@@ -47,6 +47,9 @@ public class KvServerUtil {
         WatchProcessor wp = new WatchProcessor(server);
         nioServer.register(Commands.DTKV_WATCH, wp);
         nioServer.register(Commands.DTKV_UNWATCH, wp);
+        nioServer.register(Commands.DTKV_SYNC_WATCH, wp);
+
+        nioServer.register(Commands.DTKV_QUERY_STATUS, new KvStatusProcessor(server));
     }
 
     static DtKV getStateMachine(ReqInfo<?> reqInfo) {

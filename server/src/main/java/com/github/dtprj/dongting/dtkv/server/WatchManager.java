@@ -562,6 +562,15 @@ final class WatchManager {
         }
         addOrUpdateActiveQueue(ci);
     }
+
+    public int getWatchCount(DtChannel dtc) {
+        ChannelInfo ci = channelInfoMap.get(dtc);
+        if (ci == null) {
+            return 0;
+        } else {
+            return ci.watches.size();
+        }
+    }
 }
 
 final class ChannelInfo implements Comparable<ChannelInfo> {
