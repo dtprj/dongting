@@ -42,6 +42,7 @@ public class EncodeUtil {
 
     // ----------------------------------------------------------------------------
 
+    // encode empty object, not encode null object
     public static int sizeOf(int pbIndex, SimpleEncodable o) {
         if (o == null) {
             return 0;
@@ -50,12 +51,39 @@ public class EncodeUtil {
         return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
     }
 
+    // encode empty object, not encode null object
     public static void encode(ByteBuffer destBuffer, int pbIndex, SimpleEncodable o) {
         if (o == null) {
             return;
         }
         PbUtil.writeLenFieldPrefix(destBuffer, pbIndex, o.actualSize());
         o.encode(destBuffer);
+    }
+
+    // encode empty object, not encode null object
+    public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, SimpleEncodable o) {
+        if (o == null) {
+            c.stage = pbIndex;
+            return true;
+        }
+        int size = o.actualSize();
+        if (c.pending == 0) {
+            if (!writeObjPrefix(destBuffer, pbIndex, size)) {
+                return false;
+            }
+            if (size == 0) {
+                c.stage = pbIndex;
+                return true;
+            }
+            c.pending = 1;
+        }
+        if (destBuffer.remaining() < size) {
+            return false;
+        }
+        o.encode(destBuffer);
+        c.stage = pbIndex;
+        c.pending = 0;
+        return true;
     }
 
     // ----------------------------------------------------------------------------
@@ -127,11 +155,9 @@ public class EncodeUtil {
         int size = o == null ? 0 : o.actualSize();
         if (size == 0) {
             if (mode == MODE_CUT_0BYTE) {
-                c.pending = 0;
                 return true;
             }
             if (o == null && mode == MODE_ENCODE_EMPTY_NOT_ENCODE_NULL) {
-                c.pending = 0;
                 return true;
             }
         }
@@ -141,7 +167,6 @@ public class EncodeUtil {
                 return false;
             }
             if (size == 0) {
-                c.pending = 0;
                 return true;
             }
             c.pending = 1;
@@ -177,11 +202,9 @@ public class EncodeUtil {
         int size = o == null ? 0 : o.length;
         if (size == 0) {
             if (mode == MODE_CUT_0BYTE) {
-                c.pending = 0;
                 return true;
             }
             if (o == null && mode == MODE_ENCODE_EMPTY_NOT_ENCODE_NULL) {
-                c.pending = 0;
                 return true;
             }
         }
@@ -190,7 +213,6 @@ public class EncodeUtil {
                 return false;
             }
             if (size == 0) {
-                c.pending = 0;
                 return true;
             }
             c.pending = 1;
@@ -221,7 +243,6 @@ public class EncodeUtil {
     public static boolean encodeBytesList(EncodeContext c, ByteBuffer dest, int pbIndex, List<byte[]> list) {
         if (list == null || list.isEmpty()) {
             c.stage = pbIndex;
-            c.pending = 0;
             return true;
         }
         EncodeContext sub = sub(c, 0, 1);
@@ -256,7 +277,6 @@ public class EncodeUtil {
     public static boolean encodeList(EncodeContext c, ByteBuffer dest, int pbIndex, List<? extends Encodable> list) {
         if (list == null || list.isEmpty()) {
             c.stage = pbIndex;
-            c.pending = 0;
             return true;
         }
         EncodeContext sub = sub(c, 0, 1);
@@ -347,7 +367,6 @@ public class EncodeUtil {
     public static boolean encodeInt32s(EncodeContext c, ByteBuffer dest, int pbIndex, int[] values) {
         if (values == null || values.length == 0) {
             c.stage = pbIndex;
-            c.pending = 0;
             return true;
         }
         int i = c.pending;
@@ -374,7 +393,6 @@ public class EncodeUtil {
     public static boolean encodeFix32s(EncodeContext c, ByteBuffer dest, int pbIndex, int[] values) {
         if (values == null || values.length == 0) {
             c.stage = pbIndex;
-            c.pending = 0;
             return true;
         }
         int i = c.pending;
@@ -401,7 +419,6 @@ public class EncodeUtil {
     public static boolean encodeInt64s(EncodeContext c, ByteBuffer dest, int pbIndex, long[] values) {
         if (values == null || values.length == 0) {
             c.stage = pbIndex;
-            c.pending = 0;
             return true;
         }
         int i = c.pending;
@@ -428,7 +445,6 @@ public class EncodeUtil {
     public static boolean encodeFix64s(EncodeContext c, ByteBuffer dest, int pbIndex, long[] values) {
         if (values == null || values.length == 0) {
             c.stage = pbIndex;
-            c.pending = 0;
             return true;
         }
         int i = c.pending;
