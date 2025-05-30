@@ -14,6 +14,8 @@
  * under the License.
  */
 syntax = "proto3";
+import "dt_raft_server.proto";
+
 option java_package = "com.github.dtprj.dongting.config";
 message KvNode {
   fixed64 create_index = 1;
@@ -70,4 +72,13 @@ message WatchNotify {
 
 message WatchNotifyPushResp {
   repeated int32 results = 1[packed = false];
+}
+
+message KvStatusReq {
+  int32 group_id = 1;
+}
+
+message KvStatusResp {
+    QueryStatusResp raft_server_status = 1;
+    int32 watch_count = 2;
 }

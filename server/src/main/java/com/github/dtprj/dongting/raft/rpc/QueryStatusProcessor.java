@@ -47,9 +47,18 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
     @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<Integer> reqInfo) {
         RaftStatusImpl raftStatus = reqInfo.raftGroup.groupComponents.raftStatus;
+        QueryStatusResp resp = buildQueryStatusResp(raftServer.getServerConfig().nodeId, raftStatus);
+
+        SimpleWritePacket wf = new SimpleWritePacket(resp);
+        wf.setRespCode(CmdCodes.SUCCESS);
+        reqInfo.reqContext.writeRespInBizThreads(wf);
+        return FiberFrame.voidCompletedFrame();
+    }
+
+    static QueryStatusResp buildQueryStatusResp(int nodeId, RaftStatusImpl raftStatus) {
         QueryStatusResp resp = new QueryStatusResp();
-        resp.groupId = reqInfo.raftGroup.getGroupId();
-        resp.nodeId = raftServer.getServerConfig().nodeId;
+        resp.groupId = raftStatus.groupId;
+        resp.nodeId = nodeId;
         resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().node.nodeId;
         resp.term = raftStatus.currentTerm;
         resp.commitIndex = raftStatus.commitIndex;
@@ -61,10 +70,6 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         resp.observers = raftStatus.nodeIdOfObservers;
         resp.preparedMembers = raftStatus.nodeIdOfPreparedMembers;
         resp.preparedObservers = raftStatus.nodeIdOfPreparedObservers;
-
-        SimpleWritePacket wf = new SimpleWritePacket(resp);
-        wf.setRespCode(CmdCodes.SUCCESS);
-        reqInfo.reqContext.writeRespInBizThreads(wf);
-        return FiberFrame.voidCompletedFrame();
+        return resp;
     }
 }

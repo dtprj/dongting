@@ -65,24 +65,29 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
     public static final DecoderCallbackCreator<QueryStatusResp> DECODER = ctx -> ctx.toDecoderCallback(
             new Callback());
 
+    private int size;
+
     public QueryStatusResp() {
     }
 
     @Override
     public int actualSize() {
-        return PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId) +
-                PbUtil.sizeOfInt32Field(IDX_NODE_ID, nodeId) +
-                PbUtil.sizeOfInt32Field(IDX_TERM, term) +
-                PbUtil.sizeOfInt32Field(IDX_LEADER_ID, leaderId) +
-                PbUtil.sizeOfFix64Field(IDX_COMMIT_INDEX, commitIndex) +
-                PbUtil.sizeOfFix64Field(IDX_LAST_APPLIED, lastApplied) +
-                PbUtil.sizeOfFix64Field(IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis) +
-                PbUtil.sizeOfFix64Field(IDX_LAST_LOG_INDEX, lastLogIndex) +
-                PbUtil.sizeOfFix64Field(IDX_APPLY_LAG_MILLIS, applyLagMillis) +
-                PbUtil.sizeOfFix32Field(IDX_MEMBERS, members) +
-                PbUtil.sizeOfFix32Field(IDX_OBSERVERS, observers) +
-                PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers) +
-                PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, preparedObservers);
+        if(size == 0) {
+            size = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId) +
+                    PbUtil.sizeOfInt32Field(IDX_NODE_ID, nodeId) +
+                    PbUtil.sizeOfInt32Field(IDX_TERM, term) +
+                    PbUtil.sizeOfInt32Field(IDX_LEADER_ID, leaderId) +
+                    PbUtil.sizeOfFix64Field(IDX_COMMIT_INDEX, commitIndex) +
+                    PbUtil.sizeOfFix64Field(IDX_LAST_APPLIED, lastApplied) +
+                    PbUtil.sizeOfFix64Field(IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis) +
+                    PbUtil.sizeOfFix64Field(IDX_LAST_LOG_INDEX, lastLogIndex) +
+                    PbUtil.sizeOfFix64Field(IDX_APPLY_LAG_MILLIS, applyLagMillis) +
+                    PbUtil.sizeOfFix32Field(IDX_MEMBERS, members) +
+                    PbUtil.sizeOfFix32Field(IDX_OBSERVERS, observers) +
+                    PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers) +
+                    PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, preparedObservers);
+        }
+        return size;
     }
 
     @Override

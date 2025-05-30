@@ -70,6 +70,7 @@ public class WatchNotifyPushReq implements Encodable {
     public static class Callback extends PbCallback<WatchNotifyPushReq> {
         private int groupId;
         private final List<WatchNotify> notifyList = new LinkedList<>();
+        private final WatchNotify.Callback notifyCallback = new WatchNotify.Callback();
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -82,8 +83,7 @@ public class WatchNotifyPushReq implements Encodable {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_NOTIFY_LIST) {
-                WatchNotify wn = parseNested(buf, fieldLen, currentPos, currentPos == 0 ?
-                        new WatchNotify.Callback() : null);
+                WatchNotify wn = parseNested(buf, fieldLen, currentPos, notifyCallback);
                 if (wn != null) {
                     notifyList.add(wn);
                 }

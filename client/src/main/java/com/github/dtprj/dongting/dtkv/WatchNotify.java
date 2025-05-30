@@ -82,11 +82,21 @@ public class WatchNotify implements Encodable {
         }
     }
 
+    // re-used
     public static class Callback extends PbCallback<WatchNotify> {
         private long raftIndex;
         private int state;
         private byte[] key;
         private byte[] value;
+
+        @Override
+        protected boolean end(boolean success) {
+            raftIndex = 0;
+            state = 0;
+            key = null;
+            value = null;
+            return success;
+        }
 
         @Override
         public boolean readVarNumber(int index, long value) {
