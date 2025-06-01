@@ -63,7 +63,7 @@ final class WatchManager {
 
     static int maxBytesPerRequest = 80 * 1024; // may exceed
 
-    private final ArrayList<Pair<Watch, WatchNotify>> tempList = new ArrayList<>(64);
+    private final ArrayList<Pair<ChannelWatch, WatchNotify>> tempList = new ArrayList<>(64);
 
     WatchManager(int groupId, Timestamp ts, Executor executor) {
         this(groupId, ts, executor, new long[]{1000, 10_000, 30_000, 60_000});
@@ -145,11 +145,11 @@ final class WatchManager {
     }
 
     private void addWatch(KvImpl kv, ChannelInfo ci, ByteArray[] keys, long[] notifiedIndex) {
-        Watch[] watches = new Watch[keys.length];
+        ChannelWatch[] watches = new ChannelWatch[keys.length];
         for (int i = 0; i < keys.length; i++) {
             ByteArray k = keys[i];
             long idx = notifiedIndex[i];
-            Watch w = ci.watches.get(k);
+            ChannelWatch w = ci.watches.get(k);
             if (w == null) {
                 w = createWatch(kv, k, ci, idx);
                 ci.watches.put(w.watchHolder.key, w);
@@ -161,13 +161,13 @@ final class WatchManager {
         prepareDispatch(ci, watches);
     }
 
-    private static Watch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex) {
+    private static ChannelWatch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex) {
         KvNodeHolder nodeHolder = kv.map.get(key);
         if (nodeHolder != null) {
             if (nodeHolder.watchHolder == null) {
                 nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
             }
-            Watch w = new Watch(nodeHolder.watchHolder, ci, notifiedIndex);
+            ChannelWatch w = new ChannelWatch(nodeHolder.watchHolder, ci, notifiedIndex);
             nodeHolder.watchHolder.watches.add(w);
             return w;
         } else {
@@ -195,15 +195,15 @@ final class WatchManager {
                     childKey = kv.next(childKey, parentKey);
                 }
             }
-            Watch w = new Watch(watchHolder, ci, notifiedIndex);
+            ChannelWatch w = new ChannelWatch(watchHolder, ci, notifiedIndex);
             watchHolder.watches.add(w);
             return w;
         }
     }
 
-    private void prepareDispatch(ChannelInfo ci, Watch[] watches) {
+    private void prepareDispatch(ChannelInfo ci, ChannelWatch[] watches) {
         boolean add = false;
-        for (Watch w : watches) {
+        for (ChannelWatch w : watches) {
             if (w.removed || w.pending) {
                 continue;
             }
@@ -272,7 +272,7 @@ final class WatchManager {
 
     private void removeWatch(ChannelInfo ci, ByteArray[] keys) {
         for (ByteArray key : keys) {
-            Watch w = ci.watches.remove(key);
+            ChannelWatch w = ci.watches.remove(key);
             if (w != null) {
                 removeWatchFromKvTree(w);
             }
@@ -283,7 +283,7 @@ final class WatchManager {
         }
     }
 
-    private void removeWatchFromKvTree(Watch w) {
+    private void removeWatchFromKvTree(ChannelWatch w) {
         if (w.removed) {
             return;
         }
@@ -311,7 +311,7 @@ final class WatchManager {
             retryQueue.remove(ci);
             removeFromActiveQueue(ci);
 
-            for (Watch w : ci.watches.values()) {
+            for (ChannelWatch w : ci.watches.values()) {
                 removeWatchFromKvTree(w);
             }
         }
@@ -329,7 +329,7 @@ final class WatchManager {
                         result = false;
                         break;
                     }
-                    for (Watch w : wh.watches) {
+                    for (ChannelWatch w : wh.watches) {
                         if (w.removed || w.pending) {
                             continue;
                         }
@@ -384,15 +384,15 @@ final class WatchManager {
         if (ci.remove) {
             return;
         }
-        Iterator<Watch> it = ci.notifyIterator();
+        Iterator<ChannelWatch> it = ci.notifyIterator();
         if (it == null) {
             return;
         }
         int bytes = 0;
-        ArrayList<Pair<Watch, WatchNotify>> list = tempList;
+        ArrayList<Pair<ChannelWatch, WatchNotify>> list = tempList;
         try {
             while (it.hasNext()) {
-                Watch w = it.next();
+                ChannelWatch w = it.next();
                 it.remove();
                 if (w.removed || w.pending) {
                     continue;
@@ -412,9 +412,9 @@ final class WatchManager {
             } else {
                 ci.pending = true;
                 ci.lastNotifyNanos = ts.nanoTime;
-                ArrayList<Watch> watchList = new ArrayList<>(list.size());
+                ArrayList<ChannelWatch> watchList = new ArrayList<>(list.size());
                 ArrayList<WatchNotify> notifyList = new ArrayList<>(list.size());
-                for (Pair<Watch, WatchNotify> p : list) {
+                for (Pair<ChannelWatch, WatchNotify> p : list) {
                     watchList.add(p.getLeft());
                     notifyList.add(p.getRight());
                 }
@@ -434,7 +434,7 @@ final class WatchManager {
         }
     }
 
-    private WatchNotify createNotify(Watch w) {
+    private WatchNotify createNotify(ChannelWatch w) {
         KvNodeHolder node = w.watchHolder.nodeHolder;
         if (node != null) {
             if (w.notifiedIndex >= node.latest.updateIndex) {
@@ -461,10 +461,10 @@ final class WatchManager {
         }
     }
 
-    private void processNotifyResult(ChannelInfo ci, ArrayList<Watch> watches, ReadPacket<NotifyPushRespCallback> result,
+    private void processNotifyResult(ChannelInfo ci, ArrayList<ChannelWatch> watches, ReadPacket<NotifyPushRespCallback> result,
                                      Throwable ex, int requestEpoch, boolean fireNext) {
         for (int size = watches.size(), i = 0; i < size; i++) {
-            Watch w = watches.get(i);
+            ChannelWatch w = watches.get(i);
             w.pending = false;
         }
         ci.pending = false;
@@ -486,7 +486,7 @@ final class WatchManager {
             ci.failCount = 0;
             for (int size = watches.size(), i = 0; i < size; i++) {
                 int bizCode = callback.results.get(i);
-                Watch w = watches.get(i);
+                ChannelWatch w = watches.get(i);
                 if (bizCode == KvCodes.CODE_REMOVE_WATCH) {
                     removeWatch(ci, new ByteArray[]{w.watchHolder.key});
                 } else {
@@ -513,7 +513,7 @@ final class WatchManager {
         }
     }
 
-    private void retryByChannel(ChannelInfo ci, ArrayList<Watch> watches) {
+    private void retryByChannel(ChannelInfo ci, ArrayList<ChannelWatch> watches) {
         ci.failCount++;
         int idx = Math.min(ci.failCount - 1, retryIntervalNanos.length - 1);
         ci.retryNanos = ts.nanoTime + retryIntervalNanos[idx];
@@ -575,7 +575,7 @@ final class WatchManager {
 
 final class ChannelInfo implements Comparable<ChannelInfo> {
     final DtChannel channel;
-    final HashMap<ByteArray, Watch> watches = new HashMap<>(4);
+    final HashMap<ByteArray, ChannelWatch> watches = new HashMap<>(4);
 
     ChannelInfo prev;
     ChannelInfo next;
@@ -583,7 +583,7 @@ final class ChannelInfo implements Comparable<ChannelInfo> {
     boolean pending;
     long lastNotifyNanos;
 
-    HashSet<Watch> needNotify;
+    HashSet<ChannelWatch> needNotify;
 
     long retryNanos;
     int failCount;
@@ -600,14 +600,14 @@ final class ChannelInfo implements Comparable<ChannelInfo> {
         return diff < 0 ? -1 : (diff > 0 ? 1 : 0);
     }
 
-    public void addToNeedNotify(Watch w) {
+    public void addToNeedNotify(ChannelWatch w) {
         if (needNotify == null) {
             needNotify = new LinkedHashSet<>();
         }
         needNotify.add(w);
     }
 
-    public Iterator<Watch> notifyIterator() {
+    public Iterator<ChannelWatch> notifyIterator() {
         if (needNotify == null) {
             return null;
         } else {
@@ -617,7 +617,7 @@ final class ChannelInfo implements Comparable<ChannelInfo> {
 
 }
 
-final class Watch {
+final class ChannelWatch {
     final WatchHolder watchHolder;
     final ChannelInfo channelInfo;
 
@@ -626,7 +626,7 @@ final class Watch {
     boolean pending;
     boolean removed;
 
-    Watch(WatchHolder watchHolder, ChannelInfo channelInfo, long notifiedIndex) {
+    ChannelWatch(WatchHolder watchHolder, ChannelInfo channelInfo, long notifiedIndex) {
         this.watchHolder = watchHolder;
         this.channelInfo = channelInfo;
         this.notifiedIndex = notifiedIndex;
@@ -634,7 +634,7 @@ final class Watch {
 }
 
 final class WatchHolder {
-    final HashSet<Watch> watches = new HashSet<>();
+    final HashSet<ChannelWatch> watches = new HashSet<>();
 
     // these fields may be updated
     ByteArray key;
