@@ -563,11 +563,12 @@ final class WatchManager {
         addOrUpdateActiveQueue(ci);
     }
 
-    public int getWatchCount(DtChannel dtc) {
+    public int updateWatchStatus(DtChannel dtc) {
         ChannelInfo ci = channelInfoMap.get(dtc);
         if (ci == null) {
             return 0;
         } else {
+            addOrUpdateActiveQueue(ci);
             return ci.watches.size();
         }
     }
