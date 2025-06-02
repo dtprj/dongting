@@ -171,7 +171,7 @@ public class RaftClient extends AbstractLifeCircle {
         } else {
             List<RaftNode> oldServers = oldGroupInfo.servers;
             boolean allOldServerInNewList = false;
-            for(RaftNode oldServer : oldServers) {
+            for (RaftNode oldServer : oldServers) {
                 for (int newId : serverIds) {
                     if (oldServer.nodeId == newId) {
                         allOldServerInNewList = true;
@@ -209,6 +209,12 @@ public class RaftClient extends AbstractLifeCircle {
         if (oldGroupInfo != null) {
             for (RaftNode n : oldGroupInfo.servers) {
                 n.useCount--;
+            }
+        }
+
+        for (RaftNode n : managedServers) {
+            if (n.peer.getStatus() == PeerStatus.not_connect) {
+                nioClient.connect(n.peer, createDefaultTimeout());
             }
         }
 
