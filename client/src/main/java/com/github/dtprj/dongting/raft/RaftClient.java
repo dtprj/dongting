@@ -164,8 +164,34 @@ public class RaftClient extends AbstractLifeCircle {
                 throw new RaftException("node " + id + " not exist");
             }
         }
-        List<RaftNode> managedServers = new ArrayList<>();
         GroupInfo oldGroupInfo = groups.get(groupId);
+        boolean memberChanged;
+        if (oldGroupInfo == null || oldGroupInfo.servers.size() != serverIds.length) {
+            memberChanged = true;
+        } else {
+            List<RaftNode> oldServers = oldGroupInfo.servers;
+            boolean allOldServerInNewList = false;
+            for(RaftNode oldServer : oldServers) {
+                for (int newId : serverIds) {
+                    if (oldServer.nodeId == newId) {
+                        allOldServerInNewList = true;
+                        break;
+                    }
+                }
+            }
+            boolean allNewServerInOldList = false;
+            for (int newId : serverIds) {
+                for (RaftNode oldServer : oldServers) {
+                    if (newId == oldServer.nodeId) {
+                        allNewServerInOldList = true;
+                        break;
+                    }
+                }
+            }
+            memberChanged = !allNewServerInOldList || !allOldServerInNewList;
+        }
+
+        List<RaftNode> managedServers = new ArrayList<>();
         RaftNode leader = null;
         for (int nodeId : serverIds) {
             RaftNode n = allNodes.get(nodeId);
@@ -188,7 +214,9 @@ public class RaftClient extends AbstractLifeCircle {
 
         GroupInfo gi;
         if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
-            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers), leader, true);
+            int serversEpoch = memberChanged ? oldGroupInfo.serversEpoch + 1 : oldGroupInfo.serversEpoch;
+            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers),
+                    serversEpoch, leader, true);
             findLeader(gi, gi.servers.iterator());
             // use new leader future to complete the old one
             //noinspection DataFlowIssue
@@ -200,7 +228,8 @@ public class RaftClient extends AbstractLifeCircle {
                 }
             });
         } else {
-            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers), leader, false);
+            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers),
+                    1, leader, false);
         }
         groups.put(groupId, gi);
     }
@@ -236,6 +265,11 @@ public class RaftClient extends AbstractLifeCircle {
         return f;
     }
 
+    /**
+     * Send request to raft leader of the group.
+     * If current leader is unknown try to find leader first.
+     * If receive NOT_RAFT_LEADER and with new leader info in extra, redirect the request to new leader.
+     */
     public <T> void sendRequest(Integer groupId, WritePacket request, DecoderCallbackCreator<T> decoder,
                                 DtTime timeout, RpcCallback<T> callback) {
         checkStatus();

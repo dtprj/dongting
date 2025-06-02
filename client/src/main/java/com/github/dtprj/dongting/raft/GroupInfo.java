@@ -23,16 +23,18 @@ import java.util.concurrent.CompletableFuture;
  */
 public class GroupInfo {
 
-    final int groupId;
-    final List<RaftNode> servers;
-    final RaftNode leader;
-    final CompletableFuture<GroupInfo> leaderFuture;
+    public final int groupId;
+    public final List<RaftNode> servers;
+    public final int serversEpoch;
+    public final RaftNode leader;
 
+    final CompletableFuture<GroupInfo> leaderFuture;
     final long lastLeaderFailTime;
 
-    GroupInfo(int groupId, List<RaftNode> servers, RaftNode leader, boolean createFuture) {
+    GroupInfo(int groupId, List<RaftNode> servers, int serversEpoch, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
         this.servers = servers;
+        this.serversEpoch = serversEpoch;
         if (createFuture) {
             this.leaderFuture = new CompletableFuture<>();
         } else {
@@ -43,7 +45,7 @@ public class GroupInfo {
     }
 
     GroupInfo(GroupInfo old, RaftNode leader, boolean createFuture) {
-        this(old.groupId, old.servers, leader, createFuture);
+        this(old.groupId, old.servers, old.serversEpoch, leader, createFuture);
     }
 
     GroupInfo(GroupInfo old, long lastLeaderFailTime) {
@@ -52,17 +54,6 @@ public class GroupInfo {
         this.leader = old.leader;
         this.leaderFuture = old.leaderFuture;
         this.lastLeaderFailTime = lastLeaderFailTime;
-    }
-
-    public RaftNode getLeader() {
-        return leader;
-    }
-
-    public int getGroupId() {
-        return groupId;
-    }
-
-    public List<RaftNode> getServers() {
-        return servers;
+        this.serversEpoch = old.serversEpoch;
     }
 }

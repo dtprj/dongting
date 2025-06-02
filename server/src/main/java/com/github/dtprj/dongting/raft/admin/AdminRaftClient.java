@@ -62,11 +62,11 @@ public class AdminRaftClient extends RaftClient {
                     "old and new leader id equals: " + oldLeader));
         }
         return updateLeaderInfo(groupId, true).thenCompose(leaderGroup -> {
-            if (leaderGroup.getLeader().nodeId != oldLeader) {
+            if (leaderGroup.leader.nodeId != oldLeader) {
                 throw new RaftException("old leader not match");
             }
             boolean foundNewLeader = false;
-            for (RaftNode n : leaderGroup.getServers()) {
+            for (RaftNode n : leaderGroup.servers) {
                 if (n.nodeId == newLeader) {
                     foundNewLeader = true;
                     break;
@@ -76,14 +76,14 @@ public class AdminRaftClient extends RaftClient {
                 throw new RaftException("new leader not found is servers list: " + newLeader);
             }
             TransferLeaderReq req = new TransferLeaderReq();
-            req.groupId = leaderGroup.getGroupId();
+            req.groupId = leaderGroup.groupId;
             req.oldLeaderId = oldLeader;
             req.newLeaderId = newLeader;
             SimpleWritePacket p = new SimpleWritePacket(req);
             p.setCommand(Commands.RAFT_ADMIN_TRANSFER_LEADER);
             DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
             CompletableFuture<ReadPacket<Void>> f = new CompletableFuture<>();
-            nioClient.sendRequest(leaderGroup.getLeader().peer, p, dc, timeout, RpcCallback.fromFuture(f));
+            nioClient.sendRequest(leaderGroup.leader.peer, p, dc, timeout, RpcCallback.fromFuture(f));
             return f.thenApply(rp -> null);
         });
     }

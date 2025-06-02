@@ -73,7 +73,7 @@ public class ConfigChangeTest extends ServerTestBase {
         f = c.commitChange(groupId, prepareIndex, timeout);
         f.get(5, TimeUnit.SECONDS);
 
-        int leaderId = c.getGroup(groupId).getLeader().nodeId;
+        int leaderId = c.getGroup(groupId).leader.nodeId;
         CompletableFuture<QueryStatusResp> queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId);
         assertEquals(3, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
