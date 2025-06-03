@@ -846,7 +846,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             if (ts.getNanoTime() - p.lastRetryNanos > 0) {
                 CompletableFuture<Void> f = new CompletableFuture<>();
-                DtTime deadline = new DtTime(5, TimeUnit.SECONDS);
+                DtTime deadline = new DtTime(((NioClient) owner).getConfig().connectTimeoutMillis, TimeUnit.MILLISECONDS);
                 doConnect(f, p, deadline, true);
             }
         }

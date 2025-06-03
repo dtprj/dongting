@@ -81,7 +81,7 @@ public class RpcBenchmark extends BenchBase {
 
         client = new NioClient(clientConfig);
         client.start();
-        client.waitStart();
+        client.waitStart(new DtTime(1, TimeUnit.SECONDS));
 
         data = new byte[DATA_LEN];
         new Random().nextBytes(data);

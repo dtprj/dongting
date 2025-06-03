@@ -72,7 +72,6 @@ public class NodeManagerTest {
         server.register(Commands.NODE_PING, new NodePingProcessor(nodeId, nodeManager));
         server.start();
         client.start();
-        client.waitStart();
 
         RaftStatusImpl raftStatus = new RaftStatusImpl(0, new Timestamp());
         raftStatus.nodeIdOfMembers = RaftUtil.strToIdSet(members);

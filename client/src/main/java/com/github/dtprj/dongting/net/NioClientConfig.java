@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class NioClientConfig extends NioConfig {
     public List<HostPort> hostPorts;
-    public int waitStartTimeout = 2000;
+    public int connectTimeoutMillis = 3000;
     public int[] connectRetryIntervals = {100, 1000, 5000, 10 * 1000, 20 * 1000, 30 * 1000, 60 * 1000};
 
     public NioClientConfig() {

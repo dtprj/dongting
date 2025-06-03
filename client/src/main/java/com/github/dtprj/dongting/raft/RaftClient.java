@@ -214,7 +214,7 @@ public class RaftClient extends AbstractLifeCircle {
 
         for (RaftNode n : managedServers) {
             if (n.peer.getStatus() == PeerStatus.not_connect) {
-                nioClient.connect(n.peer, createDefaultTimeout());
+                nioClient.connect(n.peer);
             }
         }
 
@@ -485,7 +485,7 @@ public class RaftClient extends AbstractLifeCircle {
                     if (leader != null) {
                         log.debug("find leader for group {}: {}", gi.groupId, leader.peer.getEndPoint());
                         try {
-                            nioClient.connect(leader.peer, createDefaultTimeout())
+                            nioClient.connect(leader.peer)
                                     .whenComplete((v, e) -> connectToLeaderCallback(gi, leader, e));
                         } catch (Exception e) {
                             log.error("", e);
@@ -543,7 +543,6 @@ public class RaftClient extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         nioClient.start();
-        nioClient.waitStart();
     }
 
     @Override

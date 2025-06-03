@@ -49,7 +49,7 @@ public class NioServerClientTest {
         try {
             server.start();
             client.start();
-            client.waitStart();
+            client.waitStart(new DtTime(1, TimeUnit.SECONDS));
             invoke(client);
         } finally {
             TestUtil.stop(client, server);
@@ -99,7 +99,7 @@ public class NioServerClientTest {
         try {
             server.start();
             client.start();
-            client.waitStart();
+            client.waitStart(new DtTime(1, TimeUnit.SECONDS));
 
             DtChannelImpl dtc = client.getPeers().get(0).dtChannel;
 

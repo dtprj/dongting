@@ -66,7 +66,7 @@ public class CloseTest {
 
         server.start();
         client.start();
-        client.waitStart();
+        client.waitStart(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @AfterEach

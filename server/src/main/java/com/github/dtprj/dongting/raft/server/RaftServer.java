@@ -346,8 +346,7 @@ public class RaftServer extends AbstractLifeCircle {
         try {
             // start replicate server and client
             replicateNioServer.start();
-            replicateNioClient.start();
-            replicateNioClient.waitStart();
+            replicateNioClient.start(); // has no servers now
 
             // sync but should complete soon
             nodeManager.initNodes(raftGroups);

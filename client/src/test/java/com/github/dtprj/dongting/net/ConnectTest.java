@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
 import org.junit.jupiter.api.Test;
 
@@ -41,21 +40,19 @@ public class ConnectTest {
         try {
             server.start();
             client.start();
-            client.waitStart();
 
             Peer peer = client.addPeer(new HostPort("127.0.0.1", 8888)).get(1, TimeUnit.SECONDS);
-
-            DtTime deadline = new DtTime(System.nanoTime() - 1000000000L, 1, TimeUnit.NANOSECONDS);
+            clientConfig.connectTimeoutMillis = -1;
             try {
-                client.connect(peer, deadline).get(1, TimeUnit.SECONDS);
+                client.connect(peer).get(1, TimeUnit.SECONDS);
                 fail();
             } catch (ExecutionException e) {
                 assertInstanceOf(NetTimeoutException.class, e.getCause());
             }
 
+            clientConfig.connectTimeoutMillis = 1000;
             // manual re-connect will success
-            deadline = new DtTime(1, TimeUnit.SECONDS);
-            client.connect(peer, deadline).get(1, TimeUnit.SECONDS);
+            client.connect(peer).get(1, TimeUnit.SECONDS);
         } finally {
             TestUtil.stop(client, server);
         }
@@ -74,13 +71,12 @@ public class ConnectTest {
         try {
             server.start();
             client.start();
-            client.waitStart();
 
             Peer peer = client.addPeer(new HostPort("127.0.0.1", 8888)).get(1, TimeUnit.SECONDS);
 
-            DtTime deadline = new DtTime(System.nanoTime() - 1000000000L, 1, TimeUnit.NANOSECONDS);
+            clientConfig.connectTimeoutMillis = -1;
             try {
-                client.connect(peer, deadline).get(1, TimeUnit.SECONDS);
+                client.connect(peer).get(1, TimeUnit.SECONDS);
                 fail();
             } catch (ExecutionException e) {
                 assertInstanceOf(NetTimeoutException.class, e.getCause());
@@ -102,13 +98,12 @@ public class ConnectTest {
         NioServer server = null;
         try {
             client.start();
-            client.waitStart();
 
             Peer peer = client.addPeer(new HostPort("127.0.0.1", 8888)).get(1, TimeUnit.SECONDS);
 
-            DtTime deadline = new DtTime(1, TimeUnit.MILLISECONDS);
+            clientConfig.connectTimeoutMillis = 1;
             try {
-                client.connect(peer, deadline).get(1, TimeUnit.SECONDS);
+                client.connect(peer).get(1, TimeUnit.SECONDS);
                 fail();
             } catch (ExecutionException e) {
                 assertInstanceOf(NetException.class, e.getCause());

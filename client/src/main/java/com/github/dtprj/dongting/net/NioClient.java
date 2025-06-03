@@ -49,7 +49,6 @@ public class NioClient extends NioNet implements ChannelListener {
 
     private final Condition connectCond = lock.newCondition();
     private int connectCount;
-    private DtTime startDeadline;
 
     public NioClient(NioClientConfig config) {
         super(config);
@@ -69,11 +68,11 @@ public class NioClient extends NioNet implements ChannelListener {
 
     @Override
     protected void doStart() {
-        startDeadline = new DtTime(config.waitStartTimeout, TimeUnit.MILLISECONDS);
         initBizExecutor();
         worker.start();
+        DtTime timeout = new DtTime(config.connectTimeoutMillis, TimeUnit.MILLISECONDS);
         for (Peer peer : peers) {
-            worker.connect(peer, startDeadline);
+            worker.connect(peer, timeout);
         }
         log.info("{} started", config.name);
     }
@@ -100,9 +99,9 @@ public class NioClient extends NioNet implements ChannelListener {
         }
     }
 
-    public void waitStart() {
+    public void waitStart(DtTime timeout) {
         if (config.hostPorts != null && !config.hostPorts.isEmpty()) {
-            waitConnect(1, startDeadline);
+            waitConnect(1, timeout);
         }
     }
 
@@ -111,8 +110,8 @@ public class NioClient extends NioNet implements ChannelListener {
         try {
             while (connectCount < targetConnectCount) {
                 if (!connectCond.await(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
-                    throw new NetTimeoutException("NioClient wait start timeout. timeout=" + config.waitStartTimeout
-                            + "ms, connectCount=" + connectCount);
+                    throw new NetTimeoutException("NioClient wait start timeout. timeout="
+                            + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms, connectCount=" + connectCount);
                 }
             }
         } catch (InterruptedException e) {
@@ -281,9 +280,9 @@ public class NioClient extends NioNet implements ChannelListener {
     /**
      * This method is idempotent.
      */
-    public CompletableFuture<Void> connect(Peer peer, DtTime deadline) {
+    public CompletableFuture<Void> connect(Peer peer) {
         checkOwner(peer);
-        return worker.connect(peer, deadline);
+        return worker.connect(peer, new DtTime(config.connectTimeoutMillis, TimeUnit.MILLISECONDS));
     }
 
     public CompletableFuture<Void> disconnect(Peer peer) {
