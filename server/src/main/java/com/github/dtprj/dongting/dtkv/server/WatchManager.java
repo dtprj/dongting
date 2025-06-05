@@ -134,33 +134,6 @@ final class WatchManager {
         ci.next = null;
     }
 
-    public void addWatch(KvImpl kv, DtChannel channel, ByteArray[] keys, long[] notifiedIndex) {
-        ChannelInfo ci = channelInfoMap.get(channel);
-        if (ci == null) {
-            ci = new ChannelInfo(channel);
-            channelInfoMap.put(channel, ci);
-        }
-        addOrUpdateActiveQueue(ci);
-        addWatch(kv, ci, keys, notifiedIndex);
-    }
-
-    private void addWatch(KvImpl kv, ChannelInfo ci, ByteArray[] keys, long[] notifiedIndex) {
-        ChannelWatch[] watches = new ChannelWatch[keys.length];
-        for (int i = 0; i < keys.length; i++) {
-            ByteArray k = keys[i];
-            long idx = notifiedIndex[i];
-            ChannelWatch w = ci.watches.get(k);
-            if (w == null) {
-                w = createWatch(kv, k, ci, idx);
-                ci.watches.put(w.watchHolder.key, w);
-            } else {
-                w.notifiedIndex = Math.max(w.notifiedIndex, idx);
-            }
-            watches[i] = w;
-        }
-        prepareDispatch(ci, watches);
-    }
-
     private static ChannelWatch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex) {
         KvNodeHolder nodeHolder = kv.map.get(key);
         if (nodeHolder != null) {
@@ -201,16 +174,12 @@ final class WatchManager {
         }
     }
 
-    private void prepareDispatch(ChannelInfo ci, ChannelWatch[] watches) {
-        boolean add = false;
-        for (ChannelWatch w : watches) {
-            if (w.removed || w.pending) {
-                continue;
-            }
-            ci.addToNeedNotify(w);
-            add = true;
+    private void prepareDispatch(ChannelInfo ci, ChannelWatch w) {
+        if (w.removed || w.pending) {
+            return;
         }
-        if (add && ci.failCount == 0 && !ci.pending) {
+        ci.addToNeedNotify(w);
+        if (ci.failCount == 0 && !ci.pending) {
             needNotifyChannels.add(ci);
         }
     }
@@ -259,37 +228,12 @@ final class WatchManager {
         }
     }
 
-    public void removeWatch(DtChannel channel, ByteArray[] keys) {
-        ChannelInfo ci = channelInfoMap.get(channel);
-        if (ci == null) {
-            return;
-        }
-        removeWatch(ci, keys);
-        if (!ci.remove) {
-            addOrUpdateActiveQueue(ci);
-        }
-    }
-
-    private void removeWatch(ChannelInfo ci, ByteArray[] keys) {
-        for (ByteArray key : keys) {
-            ChannelWatch w = ci.watches.remove(key);
-            if (w != null) {
-                removeWatchFromKvTree(w);
-            }
-        }
-        if (ci.watches.isEmpty()) {
-            // this channel has no watches, remove channel info
-            removeByChannel(ci.channel);
-        }
-    }
-
     private void removeWatchFromKvTree(ChannelWatch w) {
         if (w.removed) {
             return;
         }
         w.removed = true;
         WatchHolder h = w.watchHolder;
-        h.watches.remove(w);
         while (h.isNoUse()) {
             // this key has no watches, remove watch holder from tree
             if (h.nodeHolder != null) {
@@ -311,7 +255,9 @@ final class WatchManager {
             retryQueue.remove(ci);
             removeFromActiveQueue(ci);
 
-            for (ChannelWatch w : ci.watches.values()) {
+            for (Iterator<ChannelWatch> it = ci.watches.values().iterator(); it.hasNext(); ) {
+                ChannelWatch w = it.next();
+                it.remove();
                 removeWatchFromKvTree(w);
             }
         }
@@ -488,7 +434,8 @@ final class WatchManager {
                 int bizCode = callback.results.get(i);
                 ChannelWatch w = watches.get(i);
                 if (bizCode == KvCodes.CODE_REMOVE_WATCH) {
-                    removeWatch(ci, new ByteArray[]{w.watchHolder.key});
+                    ci.watches.remove(w.watchHolder.key);
+                    removeWatchFromKvTree(w);
                 } else {
                     if (bizCode != KvCodes.CODE_SUCCESS) {
                         log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);
@@ -496,7 +443,9 @@ final class WatchManager {
                     ci.addToNeedNotify(w); // remove in pushNotify(ChannelInfo) method
                 }
             }
-            if (fireNext) {
+            if (ci.watches.isEmpty()) {
+                removeByChannel(ci.channel);
+            } else if (fireNext) {
                 pushNotify(ci);
             } else if (ci.needNotify != null) {
                 if (!ci.needNotify.isEmpty()) {
@@ -537,30 +486,60 @@ final class WatchManager {
         }
     }
 
-    public void syncAllWatch(KvImpl kv, DtChannel channel, ByteArray[] keys, long[] knownRaftIndexes) {
-        if (keys == null || keys.length == 0) {
+    public void sync(KvImpl kv, DtChannel channel, boolean syncAll, ByteArray[] keys, long[] knownRaftIndexes) {
+        if (syncAll && (keys == null || keys.length == 0)) {
             removeByChannel(channel);
             return;
         }
         ChannelInfo ci = channelInfoMap.get(channel);
         if (ci == null) {
-            addWatch(kv, channel, keys, knownRaftIndexes);
-            return;
-        }
-        addWatch(kv, ci, keys, knownRaftIndexes);
-        if (ci.watches.size() > keys.length) {
-            HashSet<ByteArray> oldKeys = new HashSet<>(ci.watches.keySet());
-            for (ByteArray key : keys) {
-                oldKeys.remove(key);
-            }
-            ByteArray[] delKeys = new ByteArray[oldKeys.size()];
-            int i = 0;
-            for (ByteArray k : oldKeys) {
-                delKeys[i++] = k;
-            }
-            removeWatch(ci, delKeys);
+            ci = new ChannelInfo(channel);
+            channelInfoMap.put(channel, ci);
         }
         addOrUpdateActiveQueue(ci);
+
+        if (syncAll) {
+            for (ChannelWatch cw : ci.watches.values()) {
+                cw.needRemoveAfterSyncAll = true;
+            }
+        }
+
+        for (int i = 0; i < keys.length; i++) {
+            ByteArray key = keys[i];
+            long knownRaftIndex = knownRaftIndexes[i];
+            if (knownRaftIndex >= 0) {
+                ChannelWatch w = ci.watches.get(key);
+                if (w == null) {
+                    w = createWatch(kv, key, ci, knownRaftIndex);
+                    ci.watches.put(w.watchHolder.key, w);
+                } else {
+                    w.notifiedIndex = Math.max(w.notifiedIndex, knownRaftIndex);
+                    w.needRemoveAfterSyncAll = false;
+                }
+                prepareDispatch(ci, w);
+            } else {
+                ChannelWatch w = ci.watches.remove(key);
+                if (w != null) {
+                    ci.watches.remove(key);
+                    removeWatchFromKvTree(w);
+                }
+            }
+        }
+
+        if (syncAll) {
+            for (Iterator<ChannelWatch> it = ci.watches.values().iterator(); it.hasNext(); ) {
+                ChannelWatch cw = it.next();
+                if (cw.needRemoveAfterSyncAll) {
+                    it.remove();
+                    removeWatchFromKvTree(cw);
+                }
+            }
+        }
+
+        if (ci.watches.isEmpty()) {
+            // this channel has no watches, remove channel info
+            removeByChannel(ci.channel);
+        }
     }
 
     public int updateWatchStatus(DtChannel dtc) {
@@ -626,6 +605,7 @@ final class ChannelWatch {
 
     boolean pending;
     boolean removed;
+    boolean needRemoveAfterSyncAll;
 
     ChannelWatch(WatchHolder watchHolder, ChannelInfo channelInfo, long notifiedIndex) {
         this.watchHolder = watchHolder;

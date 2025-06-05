@@ -50,9 +50,9 @@ message KvResp {
 
 message WatchReq {
   int32 group_id = 1;
-  int32 operation = 2; // 0: add watch, 1: remove watch, 2 sync all keys
+  bool sync_all = 2;
   int32 keys_size = 3;
-  repeated fixed64 known_raft_index = 4[packed = false];
+  repeated fixed64 known_raft_index = 4[packed = false]; // negative value means remove, 0 means new added
   repeated string keys = 5[packed = false];
 }
 

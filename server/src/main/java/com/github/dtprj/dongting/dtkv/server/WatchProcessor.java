@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.WatchReq;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
@@ -93,23 +92,7 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             return;
         }
         DtChannel channel = reqInfo.reqContext.getDtChannel();
-        if (req.operation == WatchReq.OP_ADD_WATCH) {
-            if (req.keys != null && req.keys.length > 0) {
-                dtKV.watchManager.addWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes);
-            }
-        } else if (req.operation == WatchReq.OP_REMOVE_WATCH) {
-            if (req.keys != null && req.keys.length > 0) {
-                dtKV.watchManager.removeWatch(channel, req.keys);
-            }
-        } else if (req.operation == WatchReq.OP_SYNC_ALL_WATCH) {
-            dtKV.watchManager.syncAllWatch(kvStatus.kvImpl, channel, req.keys, req.knownRaftIndexes);
-        } else {
-            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
-            p.setMsg("Unknown operation: " + req.operation);
-            reqInfo.reqContext.writeRespInBizThreads(p);
-            return;
-        }
+        dtKV.watchManager.sync(kvStatus.kvImpl, channel, req.syncAll, req.keys, req.knownRaftIndexes);
         EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
         p.setBizCode(KvCodes.CODE_SUCCESS);
         reqInfo.reqContext.writeRespInBizThreads(p);

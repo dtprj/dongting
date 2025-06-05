@@ -30,35 +30,28 @@ import java.util.Objects;
 public class WatchReq implements Encodable {
 
     public static final int IDX_GROUP_ID = 1;
-    public static final int IDX_OPERATION = 2;
+    public static final int IDX_SYNC_ALL = 2;
     public static final int IDX_KEYS_SIZE = 3;
     public static final int IDX_KNOWN_RAFT_INDEXES = 4;
     public static final int IDX_KEYS = 5;
 
-    public static final int OP_ADD_WATCH = 0;
-    public static final int OP_REMOVE_WATCH = 1;
-    public static final int OP_SYNC_ALL_WATCH = 2;
-
     public final int groupId;
-    public final int operation;
+    public final boolean syncAll;
     public final long[] knownRaftIndexes;
-    public final int[] states;
     public final List<byte[]> keys;
 
-    public WatchReq(int groupId, int operation, long[] knownRaftIndexes, int[] states, List<byte[]> keys) {
+    public WatchReq(int groupId, boolean syncAll, List<byte[]> keys, long[] knownRaftIndexes) {
         Objects.requireNonNull(knownRaftIndexes);
-        Objects.requireNonNull(states);
         Objects.requireNonNull(keys);
         if (keys.isEmpty()) {
             throw new IllegalArgumentException("keys size must > 0");
         }
-        if (knownRaftIndexes.length != keys.size() || knownRaftIndexes.length != states.length) {
+        if (knownRaftIndexes.length != keys.size()) {
             throw new IllegalArgumentException("array length not match");
         }
         this.groupId = groupId;
-        this.operation = operation;
+        this.syncAll = syncAll;
         this.knownRaftIndexes = knownRaftIndexes;
-        this.states = states;
         this.keys = keys;
     }
 
@@ -71,11 +64,11 @@ public class WatchReq implements Encodable {
                 }
                 // fall through
             case IDX_GROUP_ID:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_OPERATION, operation)) {
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_SYNC_ALL, syncAll ? 1 : 0)) {
                     return false;
                 }
                 // fall through
-            case IDX_OPERATION:
+            case IDX_SYNC_ALL:
                 if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_KEYS_SIZE, keys.size())) {
                     return false;
                 }
@@ -95,7 +88,7 @@ public class WatchReq implements Encodable {
     @Override
     public int actualSize() {
         return PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
-                + PbUtil.sizeOfInt32Field(IDX_OPERATION, operation)
+                + PbUtil.sizeOfInt32Field(IDX_SYNC_ALL, syncAll ? 1 : 0)
                 + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys.size())
                 + PbUtil.sizeOfFix64Field(IDX_KNOWN_RAFT_INDEXES, knownRaftIndexes)
                 + PbUtil.sizeOfBytesListField(IDX_KEYS, keys);

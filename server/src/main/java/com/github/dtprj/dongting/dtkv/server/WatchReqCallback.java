@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
  */
 public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     public int groupId;
-    public int operation;
+    public boolean syncAll;
     public long[] knownRaftIndexes;
     public ByteArray[] keys;
 
@@ -39,8 +39,8 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
             case WatchReq.IDX_GROUP_ID:
                 this.groupId = (int) value;
                 break;
-            case WatchReq.IDX_OPERATION:
-                this.operation = (int) value;
+            case WatchReq.IDX_SYNC_ALL:
+                this.syncAll = value != 0;
                 break;
             case WatchReq.IDX_KEYS_SIZE:
                 int len = (int) value;
