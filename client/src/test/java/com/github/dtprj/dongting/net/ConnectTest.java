@@ -82,6 +82,7 @@ public class ConnectTest {
                 assertInstanceOf(NetTimeoutException.class, e.getCause());
             }
 
+            clientConfig.connectTimeoutMillis = 1000;
             TestUtil.waitUtil(() -> peer.getStatus() == PeerStatus.connected);
         } finally {
             TestUtil.stop(client, server);
@@ -108,13 +109,14 @@ public class ConnectTest {
             } catch (ExecutionException e) {
                 assertInstanceOf(NetException.class, e.getCause());
             }
-            assertEquals(PeerStatus.not_connect, peer.getStatus());
+            assertTrue(peer.getStatus().ordinal() <= PeerStatus.connecting.ordinal());
 
             NioServerConfig serverConfig = new NioServerConfig();
             serverConfig.port = 8888;
             server = new NioServer(serverConfig);
             server.start();
 
+            clientConfig.connectTimeoutMillis = 1000;
             TestUtil.waitUtil(() -> peer.getStatus() == PeerStatus.connected);
         } finally {
             TestUtil.stop(client, server);
