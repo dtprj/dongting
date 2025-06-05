@@ -25,13 +25,13 @@ public class GroupInfo {
 
     public final int groupId;
     public final List<RaftNode> servers;
-    public final int serversEpoch;
+    public final long serversEpoch;
     public final RaftNode leader;
 
     final CompletableFuture<GroupInfo> leaderFuture;
     final long lastLeaderFailTime;
 
-    GroupInfo(int groupId, List<RaftNode> servers, int serversEpoch, RaftNode leader, boolean createFuture) {
+    GroupInfo(int groupId, List<RaftNode> servers, long serversEpoch, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
         this.servers = servers;
         this.serversEpoch = serversEpoch;

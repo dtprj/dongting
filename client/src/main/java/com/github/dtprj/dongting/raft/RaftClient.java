@@ -61,6 +61,8 @@ public class RaftClient extends AbstractLifeCircle {
 
     public long rpcTimeoutMillis = 5 * 1000L;
 
+    private long nextEpoch = 1;
+
     public RaftClient(NioClientConfig nioClientConfig) {
         this.nioClient = new NioClient(nioClientConfig);
     }
@@ -220,7 +222,7 @@ public class RaftClient extends AbstractLifeCircle {
 
         GroupInfo gi;
         if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
-            int serversEpoch = memberChanged ? oldGroupInfo.serversEpoch + 1 : oldGroupInfo.serversEpoch;
+            long serversEpoch = memberChanged ? nextEpoch++ : oldGroupInfo.serversEpoch;
             gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers),
                     serversEpoch, leader, true);
             findLeader(gi, gi.servers.iterator());
@@ -235,7 +237,7 @@ public class RaftClient extends AbstractLifeCircle {
             });
         } else {
             gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers),
-                    1, leader, false);
+                    nextEpoch++, leader, false);
         }
         groups.put(groupId, gi);
     }
