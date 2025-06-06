@@ -19,18 +19,23 @@ import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.GroupInfo;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,12 +52,13 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-class ClientWatchManager {
+public class ClientWatchManager {
     private static final DtLog log = DtLogs.getLogger(ClientWatchManager.class);
 
     public static final byte SEPARATOR = '.';
 
     private final RaftClient raftClient;
+    private final KvListener listener;
     private final Supplier<Boolean> stopped;
     private final long heartbeatIntervalMillis;
 
@@ -90,8 +96,10 @@ class ClientWatchManager {
         }
     }
 
-    public ClientWatchManager(RaftClient raftClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
+    public ClientWatchManager(RaftClient raftClient, KvListener listener, Supplier<Boolean> stopped,
+                              long heartbeatIntervalMillis) {
         this.raftClient = raftClient;
+        this.listener = listener;
         this.stopped = stopped;
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;
     }
@@ -235,7 +243,7 @@ class ClientWatchManager {
             knownRaftIndexes = new long[gw.watches.size()];
             int i = 0;
             for (Watch w : gw.watches.values()) {
-                keys.add(w.key.getBytes());
+                keys.add(w.key.getBytes(StandardCharsets.UTF_8));
                 knownRaftIndexes[i++] = w.raftIndex;
             }
         } else {
@@ -253,7 +261,7 @@ class ClientWatchManager {
             knownRaftIndexes = new long[list.size()];
             int i = 0;
             for (Watch w : list) {
-                keys.add(w.key.getBytes());
+                keys.add(w.key.getBytes(StandardCharsets.UTF_8));
                 knownRaftIndexes[i++] = w.raftIndex;
                 w.needRegister = false;
                 w.needRemove = false;
@@ -421,5 +429,45 @@ class ClientWatchManager {
             }
         }
         return false;
+    }
+
+    WritePacket processNotify(WatchNotifyReq req, SocketAddress remote) {
+        lock.lock();
+        try {
+            GroupWatch watch = watches.get(req.groupId);
+            if (watch == null || listener == null) {
+                log.warn("watch group not found, groupId={}, server={}", req.groupId, remote);
+                EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                p.setBizCode(KvCodes.CODE_REMOVE_ALL_WATCH);
+                return p;
+            }
+            if (req.notifyList == null || req.notifyList.isEmpty()) {
+                return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            }
+            int[] results = new int[req.notifyList.size()];
+            int i = 0;
+            for (WatchNotify n : req.notifyList) {
+                String k = new String(n.key, StandardCharsets.UTF_8);
+                Watch w = watch.watches.get(k);
+                if (w == null || w.needRemove) {
+                    results[i] = KvCodes.CODE_REMOVE_WATCH;
+                } else {
+                    if (w.raftIndex < n.raftIndex) {
+                        w.raftIndex = n.raftIndex;
+                        try {
+                            listener.onUpdate(req.groupId, n.raftIndex, n.state, k, n.value);
+                        } catch (Throwable e) {
+                            log.error("kv watch callback fail", e);
+                        }
+                    }
+                    results[i] = KvCodes.CODE_SUCCESS;
+                }
+                i++;
+            }
+            WatchNotifyResp resp = new WatchNotifyResp(results);
+            return new EncodableBodyWritePacket(resp);
+        } finally {
+            lock.unlock();
+        }
     }
 }

@@ -45,15 +45,19 @@ import java.util.stream.Collectors;
  */
 public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
+    private final ClientWatchManager clientWatchManager;
 
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
     public KvClient() {
-        this(new NioClientConfig());
+        this(new NioClientConfig(), null);
     }
 
-    public KvClient(NioClientConfig nioConfig) {
+    public KvClient(NioClientConfig nioConfig, KvListener kvListener) {
         this.raftClient = new RaftClient(nioConfig);
+        this.clientWatchManager = new ClientWatchManager(raftClient, kvListener,
+                () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
+        raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, new WatchProcessor(clientWatchManager));
     }
 
     private static RpcCallback<KvResp> raftIndexCallback(FutureCallback<Long> c, int anotherSuccessCode) {
@@ -520,5 +524,9 @@ public class KvClient extends AbstractLifeCircle {
 
     public RaftClient getRaftClient() {
         return raftClient;
+    }
+
+    public ClientWatchManager getClientWatchManager() {
+        return clientWatchManager;
     }
 }

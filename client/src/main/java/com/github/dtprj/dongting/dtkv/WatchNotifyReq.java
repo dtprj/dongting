@@ -29,7 +29,7 @@ import java.util.List;
 /**
  * @author huangli
  */
-public class WatchNotifyPushReq implements Encodable {
+public class WatchNotifyReq implements Encodable {
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_NOTIFY_LIST = 2;
 
@@ -38,7 +38,7 @@ public class WatchNotifyPushReq implements Encodable {
 
     private int encodeSize;
 
-    public WatchNotifyPushReq(int groupId, List< WatchNotify> notifyList) {
+    public WatchNotifyReq(int groupId, List< WatchNotify> notifyList) {
         this.groupId = groupId;
         this.notifyList = notifyList;
     }
@@ -67,7 +67,7 @@ public class WatchNotifyPushReq implements Encodable {
         return encodeSize;
     }
 
-    public static class Callback extends PbCallback<WatchNotifyPushReq> {
+    public static class Callback extends PbCallback<WatchNotifyReq> {
         private int groupId;
         private final List<WatchNotify> notifyList = new LinkedList<>();
         private final WatchNotify.Callback notifyCallback = new WatchNotify.Callback();
@@ -92,8 +92,8 @@ public class WatchNotifyPushReq implements Encodable {
         }
 
         @Override
-        protected WatchNotifyPushReq getResult() {
-            return new WatchNotifyPushReq(groupId, notifyList);
+        protected WatchNotifyReq getResult() {
+            return new WatchNotifyReq(groupId, notifyList);
         }
     }
 }

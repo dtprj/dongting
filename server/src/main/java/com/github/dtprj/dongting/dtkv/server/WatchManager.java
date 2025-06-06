@@ -23,12 +23,14 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
-import com.github.dtprj.dongting.dtkv.WatchNotifyPushReq;
+import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.ReadPacket;
 
@@ -364,7 +366,7 @@ final class WatchManager {
                     watchList.add(p.getLeft());
                     notifyList.add(p.getRight());
                 }
-                WatchNotifyPushReq req = new WatchNotifyPushReq(groupId, notifyList);
+                WatchNotifyReq req = new WatchNotifyReq(groupId, notifyList);
                 EncodableBodyWritePacket r = new EncodableBodyWritePacket(Commands.DTKV_WATCH_NOTIFY_PUSH, req);
                 DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
 
@@ -420,12 +422,20 @@ final class WatchManager {
         }
         if (ex != null) {
             log.warn("notify failed. remote={}, ex={}", ci.channel.getRemoteAddr(), ex);
+            if (ex instanceof NetCodeException) {
+                NetCodeException nce = (NetCodeException) ex;
+                if (nce.getCode() == CmdCodes.CLIENT_ERROR || nce.getCode() == CmdCodes.STOPPING
+                        || nce.getCode() == CmdCodes.COMMAND_NOT_SUPPORT) {
+                    removeByChannel(ci.channel);
+                    return;
+                }
+            }
             retryByChannel(ci, watches);
         } else if (result.getBizCode() == KvCodes.CODE_SUCCESS) {
             NotifyPushRespCallback callback = result.getBody();
             if (callback == null || callback.results.size() != watches.size()) {
                 log.info("notify resp error. remote={}", ci.channel.getRemoteAddr());
-                retryByChannel(ci, watches);
+                removeByChannel(ci.channel);
                 return;
             }
 
