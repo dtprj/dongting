@@ -48,7 +48,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
     final NioStatus nioStatus;
-    protected volatile ExecutorService bizExecutor;
+    private ExecutorService bizExecutor;
     private final PerfCallback perfCallback;
 
     protected final ReentrantLock lock = new ReentrantLock();
@@ -229,7 +229,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
     }
 
-    protected void initBizExecutor() {
+    protected void createBizExecutor() {
         if (config.bizThreads > 0) {
             bizExecutor = new ThreadPoolExecutor(config.bizThreads, config.bizThreads,
                     1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
@@ -299,5 +299,9 @@ public abstract class NioNet extends AbstractLifeCircle {
         } catch (TimeoutException e) {
             throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
         }
+    }
+
+    public ExecutorService getBizExecutor() {
+        return bizExecutor;
     }
 }

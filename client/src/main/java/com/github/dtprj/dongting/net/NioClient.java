@@ -68,7 +68,7 @@ public class NioClient extends NioNet implements ChannelListener {
 
     @Override
     protected void doStart() {
-        initBizExecutor();
+        createBizExecutor();
         worker.start();
         DtTime timeout = new DtTime(config.connectTimeoutMillis, TimeUnit.MILLISECONDS);
         for (Peer peer : peers) {
