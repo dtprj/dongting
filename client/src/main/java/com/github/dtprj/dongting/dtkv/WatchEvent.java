@@ -19,6 +19,10 @@ package com.github.dtprj.dongting.dtkv;
  * @author huangli
  */
 public class WatchEvent {
+    public static final int STATE_NOT_EXISTS = 0;
+    public static final int STATE_VALUE_EXISTS = 1;
+    public static final int STATE_DIRECTORY_EXISTS = 2;
+
     public final int groupId;
     public final long raftIndex;
     public final int state;

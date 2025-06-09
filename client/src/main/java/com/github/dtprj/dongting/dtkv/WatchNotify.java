@@ -33,10 +33,6 @@ public class WatchNotify implements Encodable {
     private static final int IDX_KEY = 3;
     private static final int IDX_VALUE = 4;
 
-    public static final int RESULT_NOT_EXISTS = 0;
-    public static final int RESULT_VALUE_EXISTS = 1;
-    public static final int RESULT_DIRECTORY_EXISTS = 2;
-
     public final long raftIndex;
     public final int state;
     public final byte[] key;

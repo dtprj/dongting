@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.log.DtLog;
@@ -391,20 +392,20 @@ final class WatchManager {
             byte[] key = node.key.getData();
             if (node.latest.removed) {
                 return new WatchNotify(node.latest.updateIndex,
-                        WatchNotify.RESULT_NOT_EXISTS, key, null);
+                        WatchEvent.STATE_NOT_EXISTS, key, null);
             } else if (node.latest.isDir) {
                 return new WatchNotify(node.latest.updateIndex,
-                        WatchNotify.RESULT_DIRECTORY_EXISTS, key, null);
+                        WatchEvent.STATE_DIRECTORY_EXISTS, key, null);
             } else {
                 return new WatchNotify(node.latest.updateIndex,
-                        WatchNotify.RESULT_VALUE_EXISTS, key, node.latest.data);
+                        WatchEvent.STATE_VALUE_EXISTS, key, node.latest.data);
             }
         } else {
             if (w.notifiedIndex >= w.watchHolder.lastRemoveIndex) {
                 return null;
             } else {
                 return new WatchNotify(w.watchHolder.lastRemoveIndex,
-                        WatchNotify.RESULT_NOT_EXISTS, w.watchHolder.key.getData(), null);
+                        WatchEvent.STATE_NOT_EXISTS, w.watchHolder.key.getData(), null);
             }
         }
     }
