@@ -50,12 +50,12 @@ public class KvClient extends AbstractLifeCircle {
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
     public KvClient() {
-        this(new NioClientConfig(), null);
+        this(new NioClientConfig());
     }
 
-    public KvClient(NioClientConfig nioConfig, KvListener kvListener) {
+    public KvClient(NioClientConfig nioConfig) {
         this.raftClient = new RaftClient(nioConfig);
-        this.clientWatchManager = new ClientWatchManager(raftClient, kvListener,
+        this.clientWatchManager = new ClientWatchManager(raftClient,
                 () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
         raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, new WatchProcessor(clientWatchManager));
     }

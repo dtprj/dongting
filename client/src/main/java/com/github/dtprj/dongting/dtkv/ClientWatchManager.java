@@ -58,12 +58,14 @@ public class ClientWatchManager {
     public static final byte SEPARATOR = '.';
 
     private final RaftClient raftClient;
-    private final KvListener listener;
     private final Supplier<Boolean> stopped;
     private final long heartbeatIntervalMillis;
 
     private final ReentrantLock lock = new ReentrantLock();
     private final HashMap<Integer, GroupWatch> watches = new HashMap<>();
+
+    private Watch notifyQueueHead;
+    private Watch notifyQueueTail;
 
     private static class GroupWatch {
         final int groupId;
@@ -91,15 +93,16 @@ public class ClientWatchManager {
 
         long raftIndex;
 
+        WatchEvent event;
+        Watch next;
+
         public Watch(String key) {
             this.key = key;
         }
     }
 
-    public ClientWatchManager(RaftClient raftClient, KvListener listener, Supplier<Boolean> stopped,
-                              long heartbeatIntervalMillis) {
+    ClientWatchManager(RaftClient raftClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
         this.raftClient = raftClient;
-        this.listener = listener;
         this.stopped = stopped;
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;
     }
@@ -435,7 +438,7 @@ public class ClientWatchManager {
         lock.lock();
         try {
             GroupWatch watch = watches.get(req.groupId);
-            if (watch == null || listener == null) {
+            if (watch == null) {
                 log.warn("watch group not found, groupId={}, server={}", req.groupId, remote);
                 EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
                 p.setBizCode(KvCodes.CODE_REMOVE_ALL_WATCH);
@@ -454,11 +457,8 @@ public class ClientWatchManager {
                 } else {
                     if (w.raftIndex < n.raftIndex) {
                         w.raftIndex = n.raftIndex;
-                        try {
-                            listener.onUpdate(req.groupId, n.raftIndex, n.state, k, n.value);
-                        } catch (Throwable e) {
-                            log.error("kv watch callback fail", e);
-                        }
+                        WatchEvent e = new WatchEvent(watch.groupId, n.raftIndex, n.state, k, n.value);
+                        addOrUpdateToNotifyQueue(w, e);
                     }
                     results[i] = KvCodes.CODE_SUCCESS;
                 }
@@ -466,6 +466,44 @@ public class ClientWatchManager {
             }
             WatchNotifyResp resp = new WatchNotifyResp(results);
             return new EncodableBodyWritePacket(resp);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void addOrUpdateToNotifyQueue(Watch w, WatchEvent e) {
+        if (w.event != null) {
+            w.event = e;
+            return;
+        }
+        w.event = e;
+        if (notifyQueueHead == null) {
+            notifyQueueHead = w;
+        } else {
+            notifyQueueTail.next = w;
+        }
+        notifyQueueTail = w;
+    }
+
+    public WatchEvent takeEvent() {
+        lock.lock();
+        try {
+            Watch w = notifyQueueHead;
+            while (w != null && w.needRemove) {
+                w = w.next;
+            }
+            if (w == null) {
+                notifyQueueHead = null;
+                notifyQueueTail = null;
+                return null;
+            }
+            WatchEvent e = w.event;
+            w.event = null;
+            notifyQueueHead = w.next;
+            if (notifyQueueHead == null) {
+                notifyQueueTail = null;
+            }
+            return e;
         } finally {
             lock.unlock();
         }
