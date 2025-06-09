@@ -43,6 +43,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -66,6 +68,10 @@ public class ClientWatchManager {
 
     private Watch notifyQueueHead;
     private Watch notifyQueueTail;
+
+    private Executor userExecutor;
+    private KvListener listener;
+    private boolean listenerTaskStart;
 
     private static class GroupWatch {
         final int groupId;
@@ -464,8 +470,65 @@ public class ClientWatchManager {
                 }
                 i++;
             }
+            fireListenerEventInLock();
             WatchNotifyResp resp = new WatchNotifyResp(results);
             return new EncodableBodyWritePacket(resp);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void fireListenerEventInLock() {
+        if (stopped.get()) {
+            return;
+        }
+        if (listener != null && !listenerTaskStart && notifyQueueHead != null) {
+            listenerTaskStart = true;
+
+            Executor executor;
+            if (userExecutor != null) {
+                executor = userExecutor;
+            } else {
+                executor = raftClient.getNioClient().getBizExecutor();
+            }
+            if (executor == null) {
+                log.warn("no executor for watch listener, create single thread executor");
+                userExecutor = Executors.newSingleThreadExecutor();
+                executor = userExecutor;
+            }
+            try {
+                executor.execute(this::runListenerTask);
+            } catch (Throwable e) {
+                log.error("", e);
+                listenerTaskStart = false;
+            }
+        }
+    }
+
+    private void runListenerTask() {
+        if (stopped.get()) {
+            return;
+        }
+        KvListener listener;
+        WatchEvent e;
+        lock.lock();
+        try {
+            listener = this.listener;
+            e = takeEventInLock();
+        } finally {
+            lock.unlock();
+        }
+        try {
+            if (listener != null && e != null) {
+                listener.onUpdate(e);
+            }
+        } catch (Throwable ex) {
+            log.error("watch listener task failed", ex);
+        }
+        lock.lock();
+        try {
+            listenerTaskStart = false;
+            fireListenerEventInLock();
         } finally {
             lock.unlock();
         }
@@ -485,27 +548,48 @@ public class ClientWatchManager {
         notifyQueueTail = w;
     }
 
+    /**
+     * manually take an event from notify queue.
+     */
     public WatchEvent takeEvent() {
         lock.lock();
         try {
-            Watch w = notifyQueueHead;
-            while (w != null && w.needRemove) {
-                w = w.next;
-            }
-            if (w == null) {
-                notifyQueueHead = null;
-                notifyQueueTail = null;
-                return null;
-            }
-            WatchEvent e = w.event;
-            w.event = null;
-            notifyQueueHead = w.next;
-            if (notifyQueueHead == null) {
-                notifyQueueTail = null;
-            }
-            return e;
+            return takeEventInLock();
         } finally {
             lock.unlock();
         }
     }
+
+    private WatchEvent takeEventInLock() {
+        Watch w = notifyQueueHead;
+        while (w != null && w.needRemove) {
+            w = w.next;
+        }
+        if (w == null) {
+            notifyQueueHead = null;
+            notifyQueueTail = null;
+            return null;
+        }
+        WatchEvent e = w.event;
+        w.event = null;
+        notifyQueueHead = w.next;
+        if (notifyQueueHead == null) {
+            notifyQueueTail = null;
+        }
+        return e;
+    }
+
+    /**
+     * Set listener and user executor for watch events.
+     * The listener callback will be executed in a globally serialized manner.
+     * @param listener the use listener
+     * @param userExecutor if null use NioClient's bizExecutor as default
+     */
+    public void setListener(KvListener listener, Executor userExecutor) {
+        lock.lock();
+        this.listener = listener;
+        this.userExecutor = userExecutor;
+        lock.unlock();
+    }
+
 }

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv;
 /**
  * @author huangli
  */
+@FunctionalInterface
 public interface KvListener {
-    void onUpdate(int groupId, long raftIndex, int state, String key, byte[] value);
+    void onUpdate(WatchEvent event);
 }
