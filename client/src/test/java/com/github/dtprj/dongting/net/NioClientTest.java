@@ -333,12 +333,8 @@ public class NioClientTest {
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         RefBuffer rc = rf.getBody();
-        if (bs.length > 0) {
-            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-            rc.release();
-        } else {
-            assertNull(rc);
-        }
+        assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+        rc.release();
     }
 
     private static CompletableFuture<Void> sendAsync(int maxBodySize, NioClient client, long timeoutMillis) {
