@@ -17,15 +17,15 @@ syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.raft.impl";
 
 message NodePing {
-  uint32 local_node_id = 1;
-  uint32 remote_node_id = 2;
+  int32 local_node_id = 1;
+  int32 remote_node_id = 2;
   fixed64 uuid_high = 3;
   fixed64 uuid_low = 4;
 }
 
 message RaftPing {
-  uint32 group_id = 1;
-  uint32 node_id = 2;
+  int32 group_id = 1;
+  int32 node_id = 2;
   string servers = 3;
   string observers = 4;
   string prepared_members = 5;
@@ -33,56 +33,57 @@ message RaftPing {
 }
 
 message AppendEntriesReq {
-  uint32 group_id = 1;
-  uint32 term = 2;
-  uint32 leader_id = 3;
+  int32 group_id = 1;
+  int32 term = 2;
+  int32 leader_id = 3;
   fixed64 prev_log_index = 4;
-  uint32 prev_log_term = 5;
+  int32 prev_log_term = 5;
   fixed64 leader_commit = 6;
+
   repeated LogItem entries = 7[packed=false];
 }
 
 message LogItem {
-  uint32 type = 1;
-  uint32 bizType = 2;
-  uint32 term = 3;
+  int32 type = 1;
+  int32 bizType = 2;
+  int32 term = 3;
   fixed64 index = 4;
-  uint32 prev_log_term = 5;
+  int32 prev_log_term = 5;
   fixed64 timestamp = 6;
   bytes header = 7;
   bytes body = 8;
 }
 
 message AppendEntriesResp {
-  uint32 term = 1;
-  uint32 success = 2;
+  int32 term = 1;
+  int32 success = 2;
   ///////////////////////////
-  uint32 append_code = 3;
-  uint32 suggest_term = 4;
+  int32 append_code = 3;
+  int32 suggest_term = 4;
   fixed64 suggest_index = 5;
 }
 
 message RequestVoteReq {
-  uint32 group_id = 1;
-  uint32 term = 2;
-  uint32 candidate_id = 3;
+  int32 group_id = 1;
+  int32 term = 2;
+  int32 candidate_id = 3;
   fixed64 last_log_index = 4;
-  uint32 last_log_term = 5;
-  uint32 pre_vote = 6;
+  int32 last_log_term = 5;
+  int32 pre_vote = 6;
 }
 
 message RequestVoteResp {
-  uint32 term = 1;
-  uint32 vote_granted = 2;
+  int32 term = 1;
+  int32 vote_granted = 2;
 }
 
 // use AppendEntriesResp
 message InstallSnapshotReq {
-  uint32 group_id = 1;
-  uint32 term = 2;
-  uint32 leader_id = 3;
+  int32 group_id = 1;
+  int32 term = 2;
+  int32 leader_id = 3;
   fixed64 last_included_index = 4;
-  uint32 last_included_term = 5;
+  int32 last_included_term = 5;
   fixed64 offset = 6;
   bool done = 7;
 
@@ -97,24 +98,24 @@ message InstallSnapshotReq {
 }
 
 message TransferLeaderReq {
-  uint32 group_id = 1;
-  uint32 term = 2; // not used in admin transfer leader request
-  uint32 old_leader_id = 3;
-  uint32 new_leader_id = 4;
+  int32 group_id = 1;
+  int32 term = 2; // not used in admin transfer leader request
+  int32 old_leader_id = 3;
+  int32 new_leader_id = 4;
   fixed64 log_index = 5; // not used in admin transfer leader request
 }
 
 // return EmptyBodyRespFrame
 
 message QueryStatusReq {
-  uint32 group_id = 1;
+  int32 group_id = 1;
 }
 
 message QueryStatusResp {
-  uint32 group_id = 1;
-  uint32 node_id = 2;
-  uint32 term = 3;
-  uint32 leader_id = 4;
+  int32 group_id = 1;
+  int32 node_id = 2;
+  int32 term = 3;
+  int32 leader_id = 4;
   fixed64 commit_index = 5;
   fixed64 last_applied = 6;
   fixed64 last_apply_time_to_now_millis = 7;
@@ -128,7 +129,7 @@ message QueryStatusResp {
 
 // only use for admin commands, raft server use log replicate to perform config change
 message AdminPrepareConfigChangeReq {
-  uint32 group_id = 1;
+  int32 group_id = 1;
   repeated fixed32 members = 2[packed = false];
   repeated fixed32 observers = 3[packed = false];
   repeated fixed32 prepared_members = 4[packed = false];
@@ -140,7 +141,7 @@ message AdminPrepareConfigChangeResp {
 }
 
 message AdminCommitConfigChangeReq {
-  uint32 group_id = 1;
+  int32 group_id = 1;
   fixed64 prepare_index = 2;
 }
 
@@ -149,7 +150,7 @@ message AdminCommitConfigChangeResp {
 }
 
 message AdminAbortConfigChangeReq {
-  uint32 group_id = 1;
+  int32 group_id = 1;
   fixed64 prepare_index = 2;
 }
 
@@ -158,7 +159,7 @@ message AdminAbortConfigChangeResp {
 }
 
 message AdminAddGroupReq {
-  uint32 group_id = 1;
+  int32 group_id = 1;
   string node_id_of_members = 2;
   string node_id_of_observers = 3;
 }
@@ -166,21 +167,21 @@ message AdminAddGroupReq {
 // return EmptyBodyRespFrame
 
 message AdminRemoveGroupReq {
-  uint32 group_id = 1;
+  int32 group_id = 1;
 }
 
 // return EmptyBodyRespFrame
 
 message AdminAddNodeReq {
-  uint32 node_id = 1;
+  int32 node_id = 1;
   string host = 2;
-  uint32 port = 3;
+  int32 port = 3;
 }
 
 // return EmptyBodyRespFrame
 
 message AdminRemoveNodeReq {
-  uint32 node_id = 1;
+  int32 node_id = 1;
 }
 
 // return EmptyBodyRespFrame

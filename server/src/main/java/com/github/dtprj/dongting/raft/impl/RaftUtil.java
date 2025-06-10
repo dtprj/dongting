@@ -94,8 +94,7 @@ public final class RaftUtil {
         if (items == null) {
             return;
         }
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < items.size(); i++) {
+        for (int s = items.size(), i = 0; i < s; i++) {
             items.get(i).release();
         }
     }
