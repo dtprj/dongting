@@ -300,7 +300,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             writeAppendResp(AppendProcessor.APPEND_INSTALL_SNAPSHOT, null);
             return Fiber.frameReturn();
         }
-        if (req.logs.isEmpty()) {
+        if (req.logs == null || req.logs.isEmpty()) {
             updateLeaderCommit(req, raftStatus);
             writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
             return Fiber.frameReturn();
