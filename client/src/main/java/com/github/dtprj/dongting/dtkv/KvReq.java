@@ -32,11 +32,10 @@ public class KvReq extends RaftRpcData implements Encodable {
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_KEY = 2;
     private static final int IDX_VALUE = 3;
-    private static final int IDX_KEYS_SIZE = 4;
-    private static final int IDX_KEYS = 5;
-    private static final int IDX_VALUES_SIZE = 6;
+    private static final int IDX_EXPECT_VALUE = 4;
+    private static final int IDX_KEYS_SIZE = 5;
+    private static final int IDX_KEYS = 6;
     private static final int IDX_VALUES = 7;
-    private static final int IDX_EXPECT_VALUE = 8;
 
     public final byte[] key;
     public final byte[] value;
@@ -46,14 +45,23 @@ public class KvReq extends RaftRpcData implements Encodable {
 
     private int encodeSize;
 
-    public KvReq(int groupId, byte[] key, byte[] value, List<byte[]> keys,
-                 List<byte[]> values, byte[] expectValue) {
+    public KvReq(int groupId, byte[] key, byte[] value, byte[] expectValue, List<byte[]> keys,
+                 List<byte[]> values) {
         this.groupId = groupId;
         this.key = key;
         this.value = value;
+        this.expectValue = expectValue;
         this.keys = keys;
         this.values = values;
-        this.expectValue = expectValue;
+        checkKeysAndValues();
+    }
+
+    private void checkKeysAndValues() {
+        if (keys != null && values != null) {
+            if (keys.size() != values.size()) {
+                throw new IllegalArgumentException("keys and values size mismatch");
+            }
+        }
     }
 
     public KvReq(int groupId, byte[] key, byte[] value) {
@@ -63,6 +71,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.keys = null;
         this.values = null;
         this.expectValue = null;
+        checkKeysAndValues();
     }
 
     public KvReq(int groupId, byte[] key, byte[] value, byte[] expectValue) {
@@ -72,6 +81,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.keys = null;
         this.values = null;
         this.expectValue = expectValue;
+        checkKeysAndValues();
     }
 
     public KvReq(int groupId, List<byte[]> keys, List<byte[]> values) {
@@ -81,6 +91,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.keys = keys;
         this.values = values;
         this.expectValue = null;
+        checkKeysAndValues();
     }
 
     @Override
@@ -89,11 +100,10 @@ public class KvReq extends RaftRpcData implements Encodable {
             encodeSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
                     + EncodeUtil.sizeOf(IDX_KEY, key)
                     + EncodeUtil.sizeOf(IDX_VALUE, value)
+                    + EncodeUtil.sizeOf(IDX_EXPECT_VALUE, expectValue)
                     + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
                     + EncodeUtil.sizeOfBytesList(IDX_KEYS, keys)
-                    + PbUtil.sizeOfInt32Field(IDX_VALUES_SIZE, values == null ? 0 : values.size())
-                    + EncodeUtil.sizeOfBytesList(IDX_VALUES, values)
-                    + EncodeUtil.sizeOf(IDX_EXPECT_VALUE, expectValue);
+                    + EncodeUtil.sizeOfBytesList(IDX_VALUES, values);
         }
         return encodeSize;
     }
@@ -117,6 +127,11 @@ public class KvReq extends RaftRpcData implements Encodable {
                 }
                 // fall through
             case IDX_VALUE:
+                if(!EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
+                    return false;
+                }
+                // fall through
+            case IDX_EXPECT_VALUE:
                 if (keys != null && !EncodeUtil.encodeInt32(context, destBuffer, IDX_KEYS_SIZE, keys.size())) {
                     return false;
                 }
@@ -127,17 +142,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                 }
                 // fall through
             case IDX_KEYS:
-                if (values != null && !EncodeUtil.encodeInt32(context, destBuffer, IDX_VALUES_SIZE, values.size())) {
-                    return false;
-                }
-                // fall through
-            case IDX_VALUES_SIZE:
-                if (values != null && !EncodeUtil.encodeBytesList(context, destBuffer, IDX_VALUES, values)) {
-                    return false;
-                }
-                // fall through
-            case IDX_VALUES:
-                return expectValue == null || EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue);
+                return values == null || EncodeUtil.encodeBytesList(context, destBuffer, IDX_VALUES, values);
             default:
                 throw new CodecException(context);
         }

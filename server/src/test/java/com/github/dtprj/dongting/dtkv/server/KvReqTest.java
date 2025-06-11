@@ -62,7 +62,7 @@ public class KvReqTest {
             values.add(("test_value" + i).getBytes());
         }
         return new KvReq(1, "test_key".getBytes(), "test_value".getBytes(),
-                keys, values, "test_expect_value".getBytes());
+                "test_expect_value".getBytes(), keys, values);
     }
 
     @Test

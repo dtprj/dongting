@@ -30,18 +30,16 @@ public class KvReqCallback extends PbCallback<KvReq> {
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_KEY = 2;
     private static final int IDX_VALUE = 3;
-    private static final int IDX_KEYS_SIZE = 4;
-    private static final int IDX_KEYS = 5;
-    private static final int IDX_VALUES_SIZE = 6;
+    private static final int IDX_EXPECT_VALUE = 4;
+    private static final int IDX_KEYS_SIZE = 5;
+    private static final int IDX_KEYS = 6;
     private static final int IDX_VALUES = 7;
-    private static final int IDX_EXPECT_VALUE = 8;
 
     int groupId;
     byte[] key;
     byte[] value;
     private int keysSize;
     ArrayList<byte[]> keys;
-    private int valuesSize;
     ArrayList<byte[]> values;
     byte[] expectValue;
 
@@ -52,7 +50,6 @@ public class KvReqCallback extends PbCallback<KvReq> {
         value = null;
         keysSize = 0;
         keys = null;
-        valuesSize = 0;
         values = null;
         expectValue = null;
         return success;
@@ -64,8 +61,6 @@ public class KvReqCallback extends PbCallback<KvReq> {
             groupId = (int) value;
         } else if (index == IDX_KEYS_SIZE) {
             keysSize = (int) value;
-        } else if (index == IDX_VALUES_SIZE) {
-            valuesSize = (int) value;
         }
         return true;
     }
@@ -90,7 +85,7 @@ public class KvReqCallback extends PbCallback<KvReq> {
                 break;
             case IDX_VALUES:
                 if (values == null) {
-                    values = valuesSize == 0 ? new ArrayList<>() : new ArrayList<>(valuesSize);
+                    values = keysSize == 0 ? new ArrayList<>() : new ArrayList<>(keysSize);
                 }
                 byte[] v = parseBytes(buf, fieldLen, currentPos);
                 if (v != null) {
@@ -106,6 +101,6 @@ public class KvReqCallback extends PbCallback<KvReq> {
 
     @Override
     protected KvReq getResult() {
-        return new KvReq(groupId, key, value, keys, values, expectValue);
+        return new KvReq(groupId, key, value, expectValue, keys, values);
     }
 }

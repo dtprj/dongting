@@ -35,11 +35,10 @@ message KvReq {
   int32 group_id = 1;
   string key = 2;
   bytes value = 3;
-  int32 keys_size = 4;
-  repeated string keys = 5[packed = false];
-  int32 values_size = 6;
+  bytes expect_value = 4; // used for cas operation
+  int32 keys_size = 5;
+  repeated string keys = 6[packed = false];
   repeated bytes values = 7[packed = false];
-  bytes expect_value = 8; // used for cas operation
 }
 
 message KvResp {

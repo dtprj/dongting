@@ -494,7 +494,7 @@ public class KvClient extends AbstractLifeCircle {
     private void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
                                DtTime timeout, FutureCallback<Long> callback) {
         notNullOrEmpty(key);
-        KvReq r = new KvReq(groupId, key, newValue, null, null, expectValue);
+        KvReq r = new KvReq(groupId, key, newValue, expectValue);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_CAS);
         raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
