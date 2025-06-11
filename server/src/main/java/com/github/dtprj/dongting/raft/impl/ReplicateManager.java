@@ -397,9 +397,8 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             req.prevLogTerm = firstItem.getPrevLogTerm();
             req.logs = items;
             member.nextIndex = prevLogIndex + 1 + items.size();
-        } else {
-            member.repCommitIndex = raftStatus.commitIndex;
         }
+        member.repCommitIndex = raftStatus.commitIndex;
 
 
         DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
@@ -462,12 +461,14 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         RaftStatusImpl raftStatus = this.raftStatus;
         int remoteTerm = body.term;
         if (replicateManager.checkTermFailed(remoteTerm, true)) {
+            incrementEpoch();
             return;
         }
         if (member.installSnapshot) {
             BugLog.getLog().error("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
                     prevLogIndex, prevLogTerm, member.node.nodeId, groupId);
             closeIterator();
+            incrementEpoch();
             return;
         }
         if (body.success) {
