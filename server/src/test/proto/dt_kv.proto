@@ -58,9 +58,10 @@ message WatchReq {
 
 // return EmptyBodyRespFrame
 
-message WatchNotifyPushReq {
+message WatchNotifyReq {
   int32 group_id = 1;
-  repeated WatchNotify notify_list = 2[packed = false];
+  int32 list_size = 2;
+  repeated WatchNotify notify_list = 3[packed = false];
 }
 
 message WatchNotify {
@@ -70,8 +71,9 @@ message WatchNotify {
   bytes value = 4;
 }
 
-message WatchNotifyPushResp {
-  repeated int32 results = 1[packed = false];
+message WatchNotifyResp {
+  int32 results_size = 1;
+  repeated int32 results = 2[packed = false];
 }
 
 message KvStatusReq {

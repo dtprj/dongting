@@ -36,11 +36,13 @@ import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.ReadPacket;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -372,8 +374,8 @@ final class WatchManager {
                 DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
 
                 int requestEpoch = epoch;
-                DecoderCallbackCreator<NotifyPushRespCallback> decoder =
-                        ctx -> ctx.toDecoderCallback(new NotifyPushRespCallback(watchList.size()));
+                DecoderCallbackCreator<WatchNotifyRespCallback> decoder =
+                        ctx -> ctx.toDecoderCallback(new WatchNotifyRespCallback(watchList.size()));
                 boolean fireNext = it.hasNext();
                 ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, r, decoder, timeout, (result, ex) ->
                         executor.execute(() -> processNotifyResult(ci, watchList, result, ex, requestEpoch, fireNext)));
@@ -410,7 +412,7 @@ final class WatchManager {
         }
     }
 
-    private void processNotifyResult(ChannelInfo ci, ArrayList<ChannelWatch> watches, ReadPacket<NotifyPushRespCallback> result,
+    private void processNotifyResult(ChannelInfo ci, ArrayList<ChannelWatch> watches, ReadPacket<WatchNotifyRespCallback> result,
                                      Throwable ex, int requestEpoch, boolean fireNext) {
         for (int size = watches.size(), i = 0; i < size; i++) {
             ChannelWatch w = watches.get(i);
@@ -433,7 +435,7 @@ final class WatchManager {
             }
             retryByChannel(ci, watches);
         } else if (result.getBizCode() == KvCodes.CODE_SUCCESS) {
-            NotifyPushRespCallback callback = result.getBody();
+            WatchNotifyRespCallback callback = result.getBody();
             if (callback == null || callback.results.size() != watches.size()) {
                 log.info("notify resp error. remote={}", ci.channel.getRemoteAddr());
                 removeByChannel(ci.channel);
@@ -672,23 +674,32 @@ final class WatchHolder {
     }
 }
 
-final class NotifyPushRespCallback extends PbCallback<NotifyPushRespCallback> {
-    private static final int IDX_RESULTS = 1;
+final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> {
+    private static final int IDX_RESULTS_SIZE = 1;
+    private static final int IDX_RESULTS = 2;
 
-    final ArrayList<Integer> results;
+    List<Integer> results;
 
-    NotifyPushRespCallback(int size) {
+    WatchNotifyRespCallback(int size) {
         this.results = new ArrayList<>(size);
     }
 
     @Override
-    protected NotifyPushRespCallback getResult() {
+    protected WatchNotifyRespCallback getResult() {
+        if (results == null) {
+            results = Collections.emptyList();
+        }
         return this;
     }
 
     @Override
     public boolean readVarNumber(int index, long value) {
-        if (index == IDX_RESULTS) {
+        if (index == IDX_RESULTS_SIZE) {
+            results = new ArrayList<>((int) value);
+        } else if (index == IDX_RESULTS) {
+            if (results == null) {
+                results = new ArrayList<>();
+            }
             results.add((int) value);
             return true;
         }

@@ -23,7 +23,8 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -31,14 +32,15 @@ import java.util.List;
  */
 public class WatchNotifyReq implements Encodable {
     private static final int IDX_GROUP_ID = 1;
-    private static final int IDX_NOTIFY_LIST = 2;
+    private static final int IDX_LIST_SIZE = 2;
+    private static final int IDX_NOTIFY_LIST = 3;
 
     public final int groupId;
     public final List<WatchNotify> notifyList;
 
     private int encodeSize;
 
-    public WatchNotifyReq(int groupId, List< WatchNotify> notifyList) {
+    public WatchNotifyReq(int groupId, List<WatchNotify> notifyList) {
         this.groupId = groupId;
         this.notifyList = notifyList;
     }
@@ -48,6 +50,11 @@ public class WatchNotifyReq implements Encodable {
         switch (context.stage) {
             case EncodeContext.STAGE_BEGIN:
                 if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_GROUP_ID, groupId)) {
+                    return false;
+                }
+                // fall through
+            case IDX_LIST_SIZE:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_LIST_SIZE, notifyList == null ? 0 : notifyList.size())) {
                     return false;
                 }
                 // fall through
@@ -62,6 +69,7 @@ public class WatchNotifyReq implements Encodable {
     public int actualSize() {
         if (encodeSize == 0) {
             encodeSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
+                    + PbUtil.sizeOfInt32Field(IDX_LIST_SIZE, notifyList == null ? 0 : notifyList.size())
                     + EncodeUtil.sizeOfList(IDX_NOTIFY_LIST, notifyList);
         }
         return encodeSize;
@@ -69,13 +77,15 @@ public class WatchNotifyReq implements Encodable {
 
     public static class Callback extends PbCallback<WatchNotifyReq> {
         private int groupId;
-        private final List<WatchNotify> notifyList = new LinkedList<>();
+        private ArrayList<WatchNotify> notifyList;
         private final WatchNotify.Callback notifyCallback = new WatchNotify.Callback();
 
         @Override
         public boolean readVarNumber(int index, long value) {
             if (index == IDX_GROUP_ID) {
                 groupId = (int) value;
+            } else if (index == IDX_LIST_SIZE) {
+                notifyList = new ArrayList<>(notifyList);
             }
             return true;
         }
@@ -85,6 +95,9 @@ public class WatchNotifyReq implements Encodable {
             if (index == IDX_NOTIFY_LIST) {
                 WatchNotify wn = parseNested(buf, fieldLen, currentPos, notifyCallback);
                 if (wn != null) {
+                    if (notifyList == null) {
+                        notifyList = new ArrayList<>();
+                    }
                     notifyList.add(wn);
                 }
             }
@@ -93,7 +106,7 @@ public class WatchNotifyReq implements Encodable {
 
         @Override
         protected WatchNotifyReq getResult() {
-            return new WatchNotifyReq(groupId, notifyList);
+            return new WatchNotifyReq(groupId, notifyList == null ? Collections.emptyList() : notifyList);
         }
     }
 }
