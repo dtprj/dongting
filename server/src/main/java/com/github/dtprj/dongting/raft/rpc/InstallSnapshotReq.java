@@ -23,6 +23,8 @@ import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftConfigRpcData;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.HashSet;
 
 /**
  * @author huangli
@@ -115,15 +117,27 @@ public class InstallSnapshotReq extends RaftConfigRpcData {
         public boolean readFix32(int index, int value) {
             switch (index) {
                 case 9:
+                    if (result.members == Collections.EMPTY_SET) {
+                        result.members = new HashSet<>();
+                    }
                     result.members.add(value);
                     break;
                 case 10:
+                    if (result.observers == Collections.EMPTY_SET) {
+                        result.observers = new HashSet<>();
+                    }
                     result.observers.add(value);
                     break;
                 case 11:
+                    if (result.preparedMembers == Collections.EMPTY_SET) {
+                        result.preparedMembers = new HashSet<>();
+                    }
                     result.preparedMembers.add(value);
                     break;
                 case 12:
+                    if (result.preparedObservers == Collections.EMPTY_SET) {
+                        result.preparedObservers = new HashSet<>();
+                    }
                     result.preparedObservers.add(value);
                     break;
             }

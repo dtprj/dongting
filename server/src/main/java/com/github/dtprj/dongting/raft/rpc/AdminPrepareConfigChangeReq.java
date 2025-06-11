@@ -22,6 +22,8 @@ import com.github.dtprj.dongting.codec.SimpleEncodable;
 import com.github.dtprj.dongting.raft.RaftConfigRpcData;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.HashSet;
 
 /**
  * @author huangli
@@ -79,15 +81,27 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
         public boolean readFix32(int index, int value) {
             switch (index) {
                 case 2:
+                    if (req.members == Collections.EMPTY_SET) {
+                        req.members = new HashSet<>();
+                    }
                     req.members.add(value);
                     break;
                 case 3:
+                    if (req.observers == Collections.EMPTY_SET) {
+                        req.observers = new HashSet<>();
+                    }
                     req.observers.add(value);
                     break;
                 case 4:
+                    if (req.preparedMembers == Collections.EMPTY_SET) {
+                        req.preparedMembers = new HashSet<>();
+                    }
                     req.preparedMembers.add(value);
                     break;
                 case 5:
+                    if (req.preparedObservers == Collections.EMPTY_SET) {
+                        req.preparedObservers = new HashSet<>();
+                    }
                     req.preparedObservers.add(value);
                     break;
             }

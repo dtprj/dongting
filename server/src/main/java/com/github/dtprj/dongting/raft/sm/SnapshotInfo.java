@@ -36,10 +36,10 @@ public class SnapshotInfo {
         RaftStatusImpl raftStatus = (RaftStatusImpl) rs;
         this.lastIncludedIndex = raftStatus.getLastApplied();
         this.lastIncludedTerm = raftStatus.lastAppliedTerm;
-        this.members = Set.copyOf(raftStatus.nodeIdOfMembers);
-        this.observers = Set.copyOf(raftStatus.nodeIdOfObservers);
-        this.preparedMembers = Set.copyOf(raftStatus.nodeIdOfPreparedMembers);
-        this.preparedObservers = Set.copyOf(raftStatus.nodeIdOfPreparedObservers);
+        this.members = raftStatus.nodeIdOfMembers;
+        this.observers = raftStatus.nodeIdOfObservers;
+        this.preparedMembers = raftStatus.nodeIdOfPreparedMembers;
+        this.preparedObservers = raftStatus.nodeIdOfPreparedObservers;
         this.lastConfigChangeIndex = raftStatus.lastConfigChangeIndex;
     }
 

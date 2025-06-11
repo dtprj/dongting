@@ -46,6 +46,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -158,10 +159,10 @@ public class MemberManager {
             jointObserverIds.add(m.node.nodeId);
         }
         raftStatus.replicateList = replicateList.isEmpty() ? emptyList() : replicateList;
-        raftStatus.nodeIdOfMembers = memberIds.isEmpty() ? emptySet() : memberIds;
-        raftStatus.nodeIdOfObservers = observerIds.isEmpty() ? emptySet() : observerIds;
-        raftStatus.nodeIdOfPreparedMembers = jointMemberIds.isEmpty() ? emptySet() : jointMemberIds;
-        raftStatus.nodeIdOfPreparedObservers = jointObserverIds.isEmpty() ? emptySet() : jointObserverIds;
+        raftStatus.nodeIdOfMembers = memberIds.isEmpty() ? emptySet() : Collections.unmodifiableSet(memberIds);
+        raftStatus.nodeIdOfObservers = observerIds.isEmpty() ? emptySet() : Collections.unmodifiableSet(observerIds);
+        raftStatus.nodeIdOfPreparedMembers = jointMemberIds.isEmpty() ? emptySet() : Collections.unmodifiableSet(jointMemberIds);
+        raftStatus.nodeIdOfPreparedObservers = jointObserverIds.isEmpty() ? emptySet() : Collections.unmodifiableSet(jointObserverIds);
 
         raftStatus.electQuorum = RaftUtil.getElectQuorum(raftStatus.members.size());
         raftStatus.rwQuorum = RaftUtil.getRwQuorum(raftStatus.members.size());

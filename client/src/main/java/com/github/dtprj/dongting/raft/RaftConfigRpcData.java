@@ -15,15 +15,19 @@
  */
 package com.github.dtprj.dongting.raft;
 
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Set;
 
 /**
  * @author huangli
  */
 public class RaftConfigRpcData extends RaftRpcData {
-    public Set<Integer> members = new HashSet<>();
-    public Set<Integer> observers = new HashSet<>();
-    public Set<Integer> preparedMembers = new HashSet<>();
-    public Set<Integer> preparedObservers = new HashSet<>();
+    @SuppressWarnings("unchecked")
+    public Set<Integer> members = Collections.EMPTY_SET;
+    @SuppressWarnings("unchecked")
+    public Set<Integer> observers = Collections.EMPTY_SET;
+    @SuppressWarnings("unchecked")
+    public Set<Integer> preparedMembers = Collections.EMPTY_SET;
+    @SuppressWarnings("unchecked")
+    public Set<Integer> preparedObservers = Collections.EMPTY_SET;
 }

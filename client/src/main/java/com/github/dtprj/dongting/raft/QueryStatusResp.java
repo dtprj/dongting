@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.HashSet;
 
 /**
  * @author huangli
@@ -133,15 +135,27 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         public boolean readFix32(int index, int value) {
             switch (index) {
                 case IDX_MEMBERS:
+                    if (resp.members == Collections.EMPTY_SET) {
+                        resp.members = new HashSet<>();
+                    }
                     resp.members.add(value);
                     break;
                 case IDX_OBSERVERS:
+                    if (resp.observers == Collections.EMPTY_SET) {
+                        resp.observers = new HashSet<>();
+                    }
                     resp.observers.add(value);
                     break;
                 case IDX_PREPARED_MEMBERS:
+                    if (resp.preparedMembers == Collections.EMPTY_SET) {
+                        resp.preparedMembers = new HashSet<>();
+                    }
                     resp.preparedMembers.add(value);
                     break;
                 case IDX_PREPARED_OBSERVERS:
+                    if (resp.preparedObservers == Collections.EMPTY_SET) {
+                        resp.preparedObservers = new HashSet<>();
+                    }
                     resp.preparedObservers.add(value);
                     break;
             }

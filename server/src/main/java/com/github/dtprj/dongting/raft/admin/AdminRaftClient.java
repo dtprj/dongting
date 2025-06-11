@@ -36,6 +36,7 @@ import com.github.dtprj.dongting.raft.rpc.AdminCommitOrAbortReq;
 import com.github.dtprj.dongting.raft.rpc.AdminPrepareConfigChangeReq;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -93,10 +94,10 @@ public class AdminRaftClient extends RaftClient {
                                                        DtTime timeout) {
         AdminPrepareConfigChangeReq req = new AdminPrepareConfigChangeReq();
         req.groupId = groupId;
-        req.members.addAll(members);
-        req.observers.addAll(observers);
-        req.preparedMembers.addAll(prepareMembers);
-        req.preparedObservers.addAll(prepareObservers);
+        req.members = new HashSet<>(members);
+        req.observers = new HashSet<>(observers);
+        req.preparedMembers = new HashSet<>(prepareMembers);
+        req.preparedObservers = new HashSet<>(prepareObservers);
         SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_PREPARE_CHANGE, req);
 
         DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;
