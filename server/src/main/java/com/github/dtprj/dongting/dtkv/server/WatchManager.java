@@ -36,13 +36,11 @@ import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.ReadPacket;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -675,10 +673,9 @@ final class WatchHolder {
 }
 
 final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> {
-    private static final int IDX_RESULTS_SIZE = 1;
-    private static final int IDX_RESULTS = 2;
+    private static final int IDX_RESULTS = 1;
 
-    List<Integer> results;
+    final ArrayList<Integer> results;
 
     WatchNotifyRespCallback(int size) {
         this.results = new ArrayList<>(size);
@@ -686,20 +683,12 @@ final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> 
 
     @Override
     protected WatchNotifyRespCallback getResult() {
-        if (results == null) {
-            results = Collections.emptyList();
-        }
         return this;
     }
 
     @Override
     public boolean readVarNumber(int index, long value) {
-        if (index == IDX_RESULTS_SIZE) {
-            results = new ArrayList<>((int) value);
-        } else if (index == IDX_RESULTS) {
-            if (results == null) {
-                results = new ArrayList<>();
-            }
+        if (index == IDX_RESULTS) {
             results.add((int) value);
             return true;
         }

@@ -76,7 +76,7 @@ public class KvReqCallback extends PbCallback<KvReq> {
                 break;
             case IDX_KEYS:
                 if (keys == null) {
-                    keys = keysSize == 0 ? new ArrayList<>() : new ArrayList<>(keysSize);
+                    keys = createArrayList(keysSize);
                 }
                 byte[] k = parseBytes(buf, fieldLen, currentPos);
                 if (k != null) {
@@ -85,7 +85,7 @@ public class KvReqCallback extends PbCallback<KvReq> {
                 break;
             case IDX_VALUES:
                 if (values == null) {
-                    values = keysSize == 0 ? new ArrayList<>() : new ArrayList<>(keysSize);
+                    values = createArrayList(keysSize);
                 }
                 byte[] v = parseBytes(buf, fieldLen, currentPos);
                 if (v != null) {

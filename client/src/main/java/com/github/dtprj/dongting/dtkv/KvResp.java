@@ -94,7 +94,7 @@ public class KvResp implements Encodable {
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_RESULTS) {
                 if (results == null) {
-                    results = resultsSize == 0 ? new ArrayList<>() : new ArrayList<>(resultsSize);
+                    results = createArrayList(resultsSize);
                 }
                 KvResult r = parseNested(buf, fieldLen, currentPos, resultCallback);
                 if (r != null) {

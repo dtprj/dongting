@@ -103,7 +103,7 @@ public class AppendReq extends RaftRpcData {
                     result.prevLogTerm = (int) value;
                     break;
                 case IDX_LOGS_SIZE:
-                    result.logs = new ArrayList<>((int) value);
+                    result.logs = createArrayList((int) value);
                     break;
             }
             return true;

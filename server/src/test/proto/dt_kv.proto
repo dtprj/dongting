@@ -71,8 +71,7 @@ message WatchNotify {
 }
 
 message WatchNotifyResp {
-  int32 results_size = 1;
-  repeated int32 results = 2[packed = false];
+  repeated int32 results = 1[packed = false];
 }
 
 message KvStatusReq {

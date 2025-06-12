@@ -19,14 +19,19 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 
 /**
  * @author huangli
  */
 public abstract class AbstractCodecCallback<T> {
+
+    private static final DtLog log = DtLogs.getLogger(AbstractCodecCallback.class);
 
     protected DecodeContext context;
 
@@ -192,6 +197,14 @@ public abstract class AbstractCodecCallback<T> {
             }
         }
         return result;
+    }
+
+    protected <X> ArrayList<X> createArrayList(int suggestedSize) {
+        if (suggestedSize <= 0 || suggestedSize > 50000) {
+            log.warn("invalid suggested size: {}", suggestedSize);
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(suggestedSize);
     }
 
 }

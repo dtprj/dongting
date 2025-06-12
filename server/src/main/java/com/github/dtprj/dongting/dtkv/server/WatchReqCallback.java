@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.WatchReq;
+import com.github.dtprj.dongting.raft.RaftException;
 
 import java.nio.ByteBuffer;
 
@@ -44,6 +45,9 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
                 break;
             case WatchReq.IDX_KEYS_SIZE:
                 int len = (int) value;
+                if (len < 0 || len > 50000) {
+                    throw new RaftException("Invalid key size: " + len);
+                }
                 this.knownRaftIndexes = new long[len];
                 this.keys = new ByteArray[len];
                 break;
