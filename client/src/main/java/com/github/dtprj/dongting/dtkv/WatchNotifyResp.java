@@ -26,10 +26,9 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class WatchNotifyResp implements Encodable {
-    private static final int IDX_RESULTS_SIZE = 1;
-    private static final int IDX_RESULTS = 2;
+    private static final int IDX_RESULTS = 1;
 
-    private final int[] results;
+    public final int[] results;
 
     public WatchNotifyResp(int[] results) {
         this.results = results;
@@ -37,20 +36,13 @@ public class WatchNotifyResp implements Encodable {
 
     @Override
     public int actualSize() {
-        return PbUtil.sizeOfInt32Field(IDX_RESULTS_SIZE, results == null ? 0 : results.length)
-                + PbUtil.sizeOfInt32Field(IDX_RESULTS, results);
+        return PbUtil.sizeOfInt32Field(IDX_RESULTS, results);
     }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        switch (context.stage) {
-            case EncodeContext.STAGE_BEGIN:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_RESULTS_SIZE, results == null ? 0 : results.length)) {
-                    return false;
-                }
-                // fall through
-            case IDX_RESULTS_SIZE:
-                return EncodeUtil.encodeInt32s(context, destBuffer, IDX_RESULTS, results);
+        if (context.stage == EncodeContext.STAGE_BEGIN) {
+            return EncodeUtil.encodeInt32s(context, destBuffer, IDX_RESULTS, results);
         }
         throw new IllegalStateException("stage=" + context.stage);
     }

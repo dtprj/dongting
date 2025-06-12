@@ -65,7 +65,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
 
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-        if (index == WatchReq.IDX_KNOWN_RAFT_INDEXES) {
+        if (index == WatchReq.IDX_KEYS) {
             byte[] b = parseBytes(buf, fieldLen, currentPos);
             if (b != null) {
                 this.keys[keysIndex++] = new ByteArray(b);

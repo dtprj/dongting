@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.config.DtKv;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.raft.test.TestUtil;
@@ -40,31 +38,19 @@ public class KvNodeTest {
     @Test
     public void testFullBuffer() throws Exception {
         KvNode node = buildNode();
-        ByteBuffer buf = ByteBuffer.allocate(256);
-        EncodeContext encodeContext = CodecTestUtil.encodeContext();
-        Assertions.assertTrue(node.encode(encodeContext, buf));
-        buf.flip();
+        ByteBuffer buf = CodecTestUtil.fullBufferEncode(node);
         DtKv.KvNode protoNode = DtKv.KvNode.parseFrom(buf);
         compare1(node, protoNode);
 
-        buf.position(0);
-        PbParser p = new PbParser();
         KvNode.Callback callback = new KvNode.Callback();
-        p.prepareNext(CodecTestUtil.decodeContext(), callback, buf.limit());
-        KvNode n = (KvNode) p.parse(buf);
+        KvNode n = CodecTestUtil.fullBufferDecode(buf, callback);
         compare2(node, n);
     }
 
     @Test
     public void testSmallBuffer() {
         KvNode node = buildNode();
-        EncodeContext encodeContext = CodecTestUtil.encodeContext();
-
-        PbParser p = new PbParser();
-        KvNode.Callback callback = new KvNode.Callback();
-        p.prepareNext(CodecTestUtil.decodeContext(), callback, node.actualSize());
-
-        KvNode n = (KvNode) KvReqTest.encodeAndParse(node, encodeContext, p);
+        KvNode n = (KvNode) CodecTestUtil.smallBufferEncodeAndParse(node, new KvNode.Callback());
         compare2(node, n);
     }
 

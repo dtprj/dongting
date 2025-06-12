@@ -15,13 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.config.DtKv;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.util.CodecTestUtil;
-import com.google.protobuf.InvalidProtocolBufferException;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -37,39 +33,19 @@ public class KvRespTest {
     @Test
     public void testFullBuffer() throws Exception {
         KvResp resp = new KvResp(100, Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
-        testFullBuffer0(resp);
-    }
-
-    private void testFullBuffer0(KvResp resp) throws InvalidProtocolBufferException {
-        ByteBuffer buf = ByteBuffer.allocate(256);
-        EncodeContext encodeContext = CodecTestUtil.encodeContext();
-        Assertions.assertTrue(resp.encode(encodeContext, buf));
-        buf.flip();
+        ByteBuffer buf = CodecTestUtil.fullBufferEncode(resp);
         DtKv.KvResp protoResp = DtKv.KvResp.parseFrom(buf);
         compare1(resp, protoResp);
 
-        buf.position(0);
-        PbParser p = new PbParser();
         KvResp.Callback callback = new KvResp.Callback();
-        p.prepareNext(CodecTestUtil.decodeContext(), callback, buf.limit());
-        KvResp r = (KvResp) p.parse(buf);
+        KvResp r = CodecTestUtil.fullBufferDecode(buf, callback);
         compare2(resp, r);
     }
 
     @Test
     public void testSmallBuffer() {
         KvResp resp = new KvResp(100, Arrays.asList(KvResultTest.buildResult(), KvResultTest.buildResult()));
-        testSmallBuffer0(resp);
-    }
-
-    private void testSmallBuffer0(KvResp resp) {
-        EncodeContext encodeContext = CodecTestUtil.encodeContext();
-
-        PbParser p = new PbParser();
-        KvResp.Callback callback = new KvResp.Callback();
-        p.prepareNext(CodecTestUtil.decodeContext(), callback, resp.actualSize());
-
-        KvResp r = (KvResp) KvReqTest.encodeAndParse(resp, encodeContext, p);
+        KvResp r = (KvResp) CodecTestUtil.smallBufferEncodeAndParse(resp, new KvResp.Callback());
         compare2(resp, r);
     }
 

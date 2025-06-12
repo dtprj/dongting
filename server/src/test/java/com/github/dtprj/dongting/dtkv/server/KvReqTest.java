@@ -15,9 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.config.DtKv;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.util.CodecTestUtil;
@@ -31,28 +28,6 @@ import java.util.ArrayList;
  * @author huangli
  */
 public class KvReqTest {
-
-    static Object encodeAndParse(Encodable e, EncodeContext c, PbParser p) {
-        ByteBuffer fullBuffer = ByteBuffer.allocate(e.actualSize());
-        ByteBuffer smallBuf = ByteBuffer.allocate(1);
-        ByteBuffer buf = smallBuf;
-        while (!e.encode(c, buf)) {
-            if (buf.position() == 0) {
-                buf = ByteBuffer.allocate(buf.capacity() + 1);
-                continue;
-            }
-            buf.flip();
-            fullBuffer.put(buf);
-            buf = smallBuf;
-            buf.clear();
-        }
-        buf.flip();
-        fullBuffer.put(buf);
-        fullBuffer.flip();
-        Object o = p.parse(fullBuffer);
-        Assertions.assertNotNull(o);
-        return o;
-    }
 
     private KvReq buildReq() {
         ArrayList<byte[]> keys = new ArrayList<>();
@@ -68,31 +43,19 @@ public class KvReqTest {
     @Test
     public void testFullBuffer() throws Exception {
         KvReq req = buildReq();
-        ByteBuffer buf = ByteBuffer.allocate(256);
-        EncodeContext encodeContext = CodecTestUtil.encodeContext();
-        Assertions.assertTrue(req.encode(encodeContext, buf));
-        buf.flip();
+        ByteBuffer buf = CodecTestUtil.fullBufferEncode(req);
         DtKv.KvReq protoReq = DtKv.KvReq.parseFrom(buf);
         compare1(req, protoReq);
 
-        buf.position(0);
-        PbParser p = new PbParser();
         KvReqCallback callback = new KvReqCallback();
-        p.prepareNext(CodecTestUtil.decodeContext(), callback, buf.limit());
-        KvReq r = (KvReq) p.parse(buf);
+        KvReq r = CodecTestUtil.fullBufferDecode(buf, callback);
         compare2(req, r);
     }
 
     @Test
     public void testSmallBuffer() {
         KvReq req = buildReq();
-        EncodeContext encodeContext = CodecTestUtil.encodeContext();
-
-        PbParser p = new PbParser();
-        KvReqCallback callback = new KvReqCallback();
-        p.prepareNext(CodecTestUtil.decodeContext(), callback, req.actualSize());
-
-        KvReq r = (KvReq) KvReqTest.encodeAndParse(req, encodeContext, p);
+        KvReq r = (KvReq) CodecTestUtil.smallBufferEncodeAndParse(req, new KvReqCallback());
         compare2(req, r);
     }
 

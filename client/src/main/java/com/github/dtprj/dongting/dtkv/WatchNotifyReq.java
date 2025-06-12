@@ -53,12 +53,12 @@ public class WatchNotifyReq implements Encodable {
                     return false;
                 }
                 // fall through
-            case IDX_LIST_SIZE:
+            case IDX_GROUP_ID:
                 if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_LIST_SIZE, notifyList == null ? 0 : notifyList.size())) {
                     return false;
                 }
                 // fall through
-            case IDX_GROUP_ID:
+            case IDX_LIST_SIZE:
                 return EncodeUtil.encodeList(context, destBuffer, IDX_NOTIFY_LIST, notifyList);
             default:
                 throw new CodecException(context);

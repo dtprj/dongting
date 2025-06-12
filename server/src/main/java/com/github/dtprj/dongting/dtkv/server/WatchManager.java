@@ -434,15 +434,10 @@ final class WatchManager {
             retryByChannel(ci, watches);
         } else if (result.getBizCode() == KvCodes.CODE_SUCCESS) {
             WatchNotifyRespCallback callback = result.getBody();
-            if (callback == null || callback.results.size() != watches.size()) {
-                log.info("notify resp error. remote={}", ci.channel.getRemoteAddr());
-                removeByChannel(ci.channel);
-                return;
-            }
 
             ci.failCount = 0;
             for (int size = watches.size(), i = 0; i < size; i++) {
-                int bizCode = callback.results.get(i);
+                int bizCode = callback.results[i];
                 ChannelWatch w = watches.get(i);
                 if (bizCode == KvCodes.CODE_REMOVE_WATCH) {
                     ci.watches.remove(w.watchHolder.key);
@@ -675,10 +670,11 @@ final class WatchHolder {
 final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> {
     private static final int IDX_RESULTS = 1;
 
-    final ArrayList<Integer> results;
+    final int[] results;
+    private int nextWriteIndex;
 
     WatchNotifyRespCallback(int size) {
-        this.results = new ArrayList<>(size);
+        this.results = new int[size];
     }
 
     @Override
@@ -689,7 +685,7 @@ final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> 
     @Override
     public boolean readVarNumber(int index, long value) {
         if (index == IDX_RESULTS) {
-            results.add((int) value);
+            results[nextWriteIndex++] =(int) value;
             return true;
         }
         return false;
