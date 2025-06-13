@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -34,6 +35,8 @@ import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RpcCallback;
+import com.github.dtprj.dongting.raft.RaftException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -91,7 +94,7 @@ final class WatchManager {
         activeQueueTail = null;
     }
 
-    public void addOrUpdateActiveQueue(ChannelInfo ci) {
+    void addOrUpdateActiveQueue(ChannelInfo ci) {
         // is current tail
         if (activeQueueTail == ci) {
             return;
@@ -375,8 +378,14 @@ final class WatchManager {
                 DecoderCallbackCreator<WatchNotifyRespCallback> decoder =
                         ctx -> ctx.toDecoderCallback(new WatchNotifyRespCallback(watchList.size()));
                 boolean fireNext = it.hasNext();
-                ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, r, decoder, timeout, (result, ex) ->
-                        executor.execute(() -> processNotifyResult(ci, watchList, result, ex, requestEpoch, fireNext)));
+                RpcCallback<WatchNotifyRespCallback> c = (result, ex) -> executor.execute(() -> {
+                    try {
+                        processNotifyResult(ci, watchList, result, ex, requestEpoch, fireNext);
+                    } catch (Exception e) {
+                        BugLog.log(e);
+                    }
+                });
+                ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, r, decoder, timeout, c);
             }
         } finally {
             list.clear();
@@ -685,7 +694,11 @@ final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> 
     @Override
     public boolean readVarNumber(int index, long value) {
         if (index == IDX_RESULTS) {
-            results[nextWriteIndex++] =(int) value;
+            if (nextWriteIndex >= results.length) {
+                throw new RaftException("response results size exceed " + results.length);
+            }
+            results[nextWriteIndex] = (int) value;
+            nextWriteIndex++;
             return true;
         }
         return false;

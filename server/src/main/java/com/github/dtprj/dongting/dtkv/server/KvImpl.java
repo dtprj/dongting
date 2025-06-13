@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
@@ -100,16 +101,20 @@ class KvImpl {
         if (watchManager == null) {
             return;
         }
-        IndexedQueue<KvNodeHolder> q = fixMountQueue;
-        for (int s = q.size(), i = 0; i < s; i++) {
-            KvNodeHolder h = q.removeFirst();
-            watchManager.fixMount(h);
-        }
-        q = updateQueue;
-        for (int s = q.size(), i = 0; i < s; i++) {
-            KvNodeHolder h = q.removeFirst();
-            h.inUpdateQueue = false;
-            watchManager.prepareDispatch(h);
+        try {
+            IndexedQueue<KvNodeHolder> q = fixMountQueue;
+            for (int s = q.size(), i = 0; i < s; i++) {
+                KvNodeHolder h = q.removeFirst();
+                watchManager.fixMount(h);
+            }
+            q = updateQueue;
+            for (int s = q.size(), i = 0; i < s; i++) {
+                KvNodeHolder h = q.removeFirst();
+                h.inUpdateQueue = false;
+                watchManager.prepareDispatch(h);
+            }
+        } catch (Exception e) {
+            BugLog.log(e);
         }
     }
 

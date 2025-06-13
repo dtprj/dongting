@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
@@ -92,9 +93,17 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             return;
         }
         DtChannel channel = reqInfo.reqContext.getDtChannel();
-        dtKV.watchManager.sync(kvStatus.kvImpl, channel, req.syncAll, req.keys, req.knownRaftIndexes);
+        try {
+            dtKV.watchManager.sync(kvStatus.kvImpl, channel, req.syncAll, req.keys, req.knownRaftIndexes);
+        } catch (Exception e) {
+            BugLog.log(e);
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+            reqInfo.reqContext.writeRespInBizThreads(p);
+            return;
+        }
         EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
         p.setBizCode(KvCodes.CODE_SUCCESS);
         reqInfo.reqContext.writeRespInBizThreads(p);
     }
+
 }
