@@ -80,7 +80,7 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             }
         }
 
-        dtKV.watchManager.executor.execute(() -> exec(dtKV, reqInfo, req));
+        dtKV.execute(() -> exec(dtKV, reqInfo, req));
         return null;
     }
 

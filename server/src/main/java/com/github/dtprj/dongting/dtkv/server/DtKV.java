@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ByteArray;
@@ -28,11 +29,18 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
+import com.github.dtprj.dongting.net.NioServer;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -42,8 +50,11 @@ import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -52,6 +63,8 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class DtKV extends AbstractLifeCircle implements StateMachine {
+    private static final DtLog log = DtLogs.getLogger(DtKV.class);
+
     // since we not implements raft log-read, all read biz type of read operation are reserved and not used
     public static final int BIZ_TYPE_PUT = 0;
     // public static final int BIZ_TYPE_GET = 1;
@@ -89,14 +102,34 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (useSeparateExecutor) {
             dtkvExecutor = createExecutor();
             this.ts = new Timestamp();
-            watchManager = new WatchManager(config.groupId, ts, dtkvExecutor);
         } else {
             dtkvExecutor = null;
             this.ts = config.ts;
-            watchManager = new WatchManager(config.groupId, ts, mainFiberGroup.getExecutor());
         }
+        watchManager = new WatchManager(config.groupId, ts) {
+            @Override
+            protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
+                                       int requestEpoch, boolean fireNext) {
+                EncodableBodyWritePacket r = new EncodableBodyWritePacket(Commands.DTKV_WATCH_NOTIFY_PUSH, req);
+                DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+                DecoderCallbackCreator<WatchNotifyRespCallback> decoder =
+                        ctx -> ctx.toDecoderCallback(new WatchNotifyRespCallback(req.notifyList.size()));
+                RpcCallback<WatchNotifyRespCallback> c = (result, ex) -> execute(() ->
+                        watchManager.processNotifyResult(ci, watchList, result, ex, requestEpoch, fireNext));
+                ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, r, decoder, timeout, c);
+            }
+        };
         KvImpl kvImpl = new KvImpl(watchManager, ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
         updateStatus(false, kvImpl);
+    }
+
+    void execute(Runnable r) {
+        Executor executor = dtkvExecutor == null ? mainFiberGroup.getExecutor() : dtkvExecutor;
+        try {
+            executor.execute(r);
+        } catch (RejectedExecutionException e) {
+            log.error("", e);
+        }
     }
 
     @Override

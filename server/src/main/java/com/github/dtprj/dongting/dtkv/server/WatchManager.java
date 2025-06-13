@@ -15,27 +15,20 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.DtChannel;
-import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetCodeException;
-import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
 
 import java.util.ArrayList;
@@ -45,25 +38,23 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.PriorityQueue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
  */
-final class WatchManager {
+abstract class WatchManager {
     private static final DtLog log = DtLogs.getLogger(WatchManager.class);
     private final LinkedHashSet<ChannelInfo> needNotifyChannels = new LinkedHashSet<>();
     private final IdentityHashMap<DtChannel, ChannelInfo> channelInfoMap = new IdentityHashMap<>();
     private final PriorityQueue<ChannelInfo> retryQueue = new PriorityQueue<>();
-    private ChannelInfo activeQueueHead;
-    private ChannelInfo activeQueueTail;
+    ChannelInfo activeQueueHead;
+    ChannelInfo activeQueueTail;
 
     private final LinkedHashSet<WatchHolder> needDispatch = new LinkedHashSet<>();
 
     private final int groupId;
     private final Timestamp ts;
-    final Executor executor;
     private final long[] retryIntervalNanos;
     private int epoch;
 
@@ -71,14 +62,13 @@ final class WatchManager {
 
     private final ArrayList<Pair<ChannelWatch, WatchNotify>> tempList = new ArrayList<>(64);
 
-    WatchManager(int groupId, Timestamp ts, Executor executor) {
-        this(groupId, ts, executor, new long[]{1000, 10_000, 30_000, 60_000});
+    WatchManager(int groupId, Timestamp ts) {
+        this(groupId, ts, new long[]{1000, 10_000, 30_000, 60_000});
     }
 
-    WatchManager(int groupId, Timestamp ts, Executor executor, long[] retryIntervalMillis) {
+    WatchManager(int groupId, Timestamp ts, long[] retryIntervalMillis) {
         this.groupId = groupId;
         this.ts = ts;
-        this.executor = executor;
         this.retryIntervalNanos = new long[retryIntervalMillis.length];
         for (int i = 0; i < retryIntervalMillis.length; i++) {
             this.retryIntervalNanos[i] = TimeUnit.MILLISECONDS.toNanos(retryIntervalMillis[i]);
@@ -371,26 +361,15 @@ final class WatchManager {
                     notifyList.add(p.getRight());
                 }
                 WatchNotifyReq req = new WatchNotifyReq(groupId, notifyList);
-                EncodableBodyWritePacket r = new EncodableBodyWritePacket(Commands.DTKV_WATCH_NOTIFY_PUSH, req);
-                DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-
-                int requestEpoch = epoch;
-                DecoderCallbackCreator<WatchNotifyRespCallback> decoder =
-                        ctx -> ctx.toDecoderCallback(new WatchNotifyRespCallback(watchList.size()));
-                boolean fireNext = it.hasNext();
-                RpcCallback<WatchNotifyRespCallback> c = (result, ex) -> executor.execute(() -> {
-                    try {
-                        processNotifyResult(ci, watchList, result, ex, requestEpoch, fireNext);
-                    } catch (Exception e) {
-                        BugLog.log(e);
-                    }
-                });
-                ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, r, decoder, timeout, c);
+                sendRequest(ci, req, watchList, epoch, it.hasNext());
             }
         } finally {
             list.clear();
         }
     }
+
+    protected abstract void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
+                                        int requestEpoch, boolean fireNext);
 
     private WatchNotify createNotify(ChannelWatch w) {
         KvNodeHolder node = w.watchHolder.nodeHolder;
@@ -419,8 +398,9 @@ final class WatchManager {
         }
     }
 
-    private void processNotifyResult(ChannelInfo ci, ArrayList<ChannelWatch> watches, ReadPacket<WatchNotifyRespCallback> result,
-                                     Throwable ex, int requestEpoch, boolean fireNext) {
+    public void processNotifyResult(ChannelInfo ci, ArrayList<ChannelWatch> watches,
+                                    ReadPacket<WatchNotifyRespCallback> result,
+                                    Throwable ex, int requestEpoch, boolean fireNext) {
         for (int size = watches.size(), i = 0; i < size; i++) {
             ChannelWatch w = watches.get(i);
             w.pending = false;
