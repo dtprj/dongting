@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.raft.sm.Snapshot;
 
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -229,8 +228,6 @@ class KvImpl {
             return new Pair<>(ck, null);
         }
         readLock.lock();
-        boolean linked;
-        List<KvResult> list;
         try {
             KvNodeHolder h;
             if (key == null || key.getData().length == 0) {
@@ -248,26 +245,13 @@ class KvImpl {
             if (!kvNode.isDir) {
                 return new Pair<>(KvCodes.CODE_PARENT_NOT_DIR, null);
             }
-            if (kvNode.children.size() > 10) {
-                linked = true;
-                list = new LinkedList<>();
-            } else {
-                linked = false;
-                list = new ArrayList<>();
-            }
+            ArrayList<KvResult> list = new ArrayList<>(kvNode.children.size());
             for (KvNodeHolder child : kvNode.children.values()) {
-                if (!child.latest.removed) {
-                    list.add(new KvResult(KvCodes.CODE_SUCCESS, child.latest, child.keyInDir));
-                }
+                list.add(new KvResult(KvCodes.CODE_SUCCESS, child.latest, child.keyInDir));
             }
+            return new Pair<>(KvCodes.CODE_SUCCESS, list);
         } finally {
             readLock.unlock();
-        }
-        if (linked) {
-            // encode should use random access list
-            return new Pair<>(KvCodes.CODE_SUCCESS, new ArrayList<>(list));
-        } else {
-            return new Pair<>(KvCodes.CODE_SUCCESS, list);
         }
     }
 
@@ -501,12 +485,7 @@ class KvImpl {
             return KvResult.NOT_FOUND;
         }
         if (n.isDir && !n.children.isEmpty()) {
-            for (KvNodeHolder c : n.children.values()) {
-                KvNodeEx child = c.latest;
-                if (!child.removed) {
-                    return new KvResult(KvCodes.CODE_HAS_CHILDREN);
-                }
-            }
+            return new KvResult(KvCodes.CODE_HAS_CHILDREN);
         }
         if (lock) {
             writeLock.lock();
