@@ -43,7 +43,7 @@ class KvImpl {
 
     private static final int MAX_KEY_SIZE = 8 * 1024;
     private static final int MAX_VALUE_SIZE = 1024 * 1024;
-    private static final int GC_ITEMS = 3000;
+    private static final int GC_ITEMS = 1000;
 
     // only update int unit test
     int maxKeySize = MAX_KEY_SIZE;
@@ -72,7 +72,6 @@ class KvImpl {
 
     private final WatchManager watchManager;
     private final IndexedQueue<KvNodeHolder> updateQueue = new IndexedQueue<>(32);
-    private final IndexedQueue<KvNodeHolder> fixMountQueue = new IndexedQueue<>(32);
 
     public KvImpl(WatchManager watchManager, Timestamp ts, int groupId, int initCapacity, float loadFactor) {
         this.watchManager = watchManager;
@@ -101,12 +100,7 @@ class KvImpl {
             return;
         }
         try {
-            IndexedQueue<KvNodeHolder> q = fixMountQueue;
-            for (int s = q.size(), i = 0; i < s; i++) {
-                KvNodeHolder h = q.removeFirst();
-                watchManager.fixMount(h);
-            }
-            q = updateQueue;
+            IndexedQueue<KvNodeHolder> q = updateQueue;
             for (int s = q.size(), i = 0; i < s; i++) {
                 KvNodeHolder h = q.removeFirst();
                 h.inUpdateQueue = false;
@@ -300,6 +294,11 @@ class KvImpl {
 
     private KvResult doPut(long index, ByteArray key, byte[] data, KvNodeHolder current,
                            KvNodeHolder parent, int lastIndexOfSep) {
+        if (current != null && current.parent != parent) {
+            // parent removed by gc (but `current` not gc now), and then re-put
+            map.remove(key);
+            current = null;
+        }
         KvResult result;
         long timestamp = ts.getWallClockMillis();
         boolean newValueIsDir = data == null || data.length == 0;
@@ -308,8 +307,10 @@ class KvImpl {
             KvNodeEx newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
             current = new KvNodeHolder(key, keyInDir, newKvNode, parent);
             map.put(key, current);
-            fixMountQueue.addLast(current);
             parent.latest.children.put(keyInDir, current);
+            if (watchManager != null) {
+                watchManager.mountWatchToChild(current);
+            }
             result = KvResult.SUCCESS;
         } else {
             KvNodeEx oldNode = current.latest;
@@ -393,7 +394,7 @@ class KvImpl {
                     }
                     if (p == null) {
                         if (next == null) {
-                            removeFromTree(h.key);
+                            map.remove(h.key);
                         } else {
                             next.previous = null;
                         }
@@ -408,7 +409,7 @@ class KvImpl {
             }
         } else {
             if (n.removed) {
-                removeFromTree(h.key);
+                map.remove(h.key);
             } else {
                 n.previous = null;
             }
@@ -512,7 +513,10 @@ class KvImpl {
             newKvNode.previous = n;
             gc(h);
         } else {
-            removeFromTree(h.key);
+            map.remove(h.key);
+        }
+        if (watchManager != null) {
+            watchManager.mountWatchToParent(h);
         }
 
         // The children list only used in list and remove check, and always read the latest data.
@@ -520,14 +524,6 @@ class KvImpl {
         h.parent.latest.children.remove(h.keyInDir);
         updateParent(index, now, h.parent);
         return KvResult.SUCCESS;
-    }
-
-    private void removeFromTree(ByteArray key) {
-        KvNodeHolder h = map.remove(key);
-        if (h != null) {
-            h.removedFromTree = true;
-            fixMountQueue.addLast(h);
-        }
     }
 
     public Pair<Integer, List<KvResult>> batchRemove(long index, List<byte[]> keys) {

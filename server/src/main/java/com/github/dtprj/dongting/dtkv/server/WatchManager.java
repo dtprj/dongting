@@ -192,33 +192,31 @@ abstract class WatchManager {
         needDispatch.add(wh);
     }
 
-    public void fixMount(KvNodeHolder h) {
-        if (h.removedFromTree) {
-            // removed node
-            WatchHolder wh = h.watchHolder;
-            if (wh != null) {
-                wh.lastRemoveIndex = h.updateIndex;
-                h = h.parent;
-                if (h.watchHolder == null) {
-                    h.watchHolder = new WatchHolder(h.key, h, null);
-                }
-                h.watchHolder.addChild(h.key, wh);
-                wh.parentWatchHolder = h.watchHolder;
-                wh.nodeHolder = null;
+    public void mountWatchToParent(KvNodeHolder h) {
+        WatchHolder wh = h.watchHolder;
+        if (wh != null) {
+            wh.lastRemoveIndex = h.updateIndex;
+            h = h.parent;
+            if (h.watchHolder == null) {
+                h.watchHolder = new WatchHolder(h.key, h, null);
             }
-        } else {
-            // new created node
-            WatchHolder parentWh = h.parent.watchHolder;
-            if (parentWh != null) {
-                HashMap<ByteArray, WatchHolder> children = parentWh.children;
-                if (children != null) {
-                    WatchHolder wh = children.remove(h.key);
-                    if (wh != null) {
-                        h.watchHolder = wh;
-                        wh.key = h.key;
-                        wh.nodeHolder = h;
-                        wh.parentWatchHolder = null;
-                    }
+            h.watchHolder.addChild(h.key, wh);
+            wh.parentWatchHolder = h.watchHolder;
+            wh.nodeHolder = null;
+        }
+    }
+
+    public void mountWatchToChild(KvNodeHolder h) {
+        WatchHolder parentWh = h.parent.watchHolder;
+        if (parentWh != null) {
+            HashMap<ByteArray, WatchHolder> children = parentWh.children;
+            if (children != null) {
+                WatchHolder wh = children.remove(h.key);
+                if (wh != null) {
+                    h.watchHolder = wh;
+                    wh.key = h.key;
+                    wh.nodeHolder = h;
+                    wh.parentWatchHolder = null;
                 }
             }
         }
