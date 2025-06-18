@@ -88,6 +88,9 @@ class KvImpl {
 
     private void addToUpdateQueue(long updateIndex, KvNodeHolder h) {
         h.updateIndex = updateIndex;
+        if (h.watchHolder == null || h.watchHolder.watches.isEmpty()) {
+            return;
+        }
         if (h.inUpdateQueue) {
             return;
         }
@@ -104,7 +107,7 @@ class KvImpl {
             for (int s = q.size(), i = 0; i < s; i++) {
                 KvNodeHolder h = q.removeFirst();
                 h.inUpdateQueue = false;
-                watchManager.prepareDispatch(h);
+                watchManager.afterUpdate(h);
             }
         } catch (Exception e) {
             BugLog.log(e);
@@ -642,8 +645,8 @@ class KvImpl {
         }
     }
 
-    ByteArray next(ByteArray key, ByteArray parent) {
-        int sepIdx = parent.length;
+    ByteArray next(ByteArray key, ByteArray prefix) {
+        int sepIdx = prefix.length;
         for (int i = sepIdx + 1; i < key.length; i++) {
             if (key.get(i) == SEPARATOR) {
                 return key.sub(0, i);

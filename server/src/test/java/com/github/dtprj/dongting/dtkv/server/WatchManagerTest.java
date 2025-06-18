@@ -1,0 +1,493 @@
+/*
+ * Copyright The Dongting Project
+ *
+ * The Dongting Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package com.github.dtprj.dongting.dtkv.server;
+
+import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.dtkv.WatchEvent;
+import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
+import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.DtChannel;
+import com.github.dtprj.dongting.net.NioNet;
+import com.github.dtprj.dongting.net.Peer;
+import com.github.dtprj.dongting.net.ReadPacket;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.net.SocketAddress;
+import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * @author huangli
+ */
+public class WatchManagerTest {
+
+    private WatchManager manager;
+    private KvImpl kv;
+    private ReadPacket<WatchNotifyRespCallback> rpcResult;
+    private Throwable rpcEx;
+    private long raftIndex;
+
+    private static MockDtChannel dtc1;
+    private static MockDtChannel dtc2;
+    private static MockDtChannel dtc3;
+
+    private LinkedList<PushReqInfo> pushRequestList;
+    private int mockProcessTimeMillis;
+    private LinkedList<Runnable> tasks;
+
+    @BeforeAll
+    public static void initStatic() throws Exception {
+        dtc1 = new MockDtChannel();
+        dtc1.channel = SocketChannel.open();
+        dtc2 = new MockDtChannel();
+        dtc2.channel = SocketChannel.open();
+        dtc3 = new MockDtChannel();
+        dtc3.channel = SocketChannel.open();
+    }
+
+    @AfterAll
+    public static void closeStatic() throws Exception {
+        dtc1.channel.close();
+        dtc2.channel.close();
+        dtc3.channel.close();
+    }
+
+    private static class PushReqInfo {
+        final ChannelInfo ci;
+        final WatchNotifyReq req;
+        final ArrayList<ChannelWatch> watchList;
+        final int requestEpoch;
+        final boolean fireNext;
+
+        PushReqInfo(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
+                    int requestEpoch, boolean fireNext) {
+            this.ci = ci;
+            this.req = req;
+            this.watchList = watchList;
+            this.requestEpoch = requestEpoch;
+            this.fireNext = fireNext;
+        }
+    }
+
+    @BeforeEach
+    public void setup() {
+        pushRequestList = new LinkedList<>();
+        tasks = new LinkedList<>();
+        mockProcessTimeMillis = 0;
+        raftIndex = 1;
+        Timestamp ts = new Timestamp();
+        int groupId = 0;
+        LinkedList<PushReqInfo> q = pushRequestList;
+        manager = new WatchManager(groupId, ts, new long[]{1}) {
+            @Override
+            protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
+                                       int requestEpoch, boolean fireNext) {
+                long sleep = mockProcessTimeMillis;
+                Runnable run = () -> {
+                    try {
+                        if (sleep > 0) {
+                            Thread.sleep(sleep);
+                        }
+                        ReadPacket<WatchNotifyRespCallback> r = rpcResult;
+                        if (rpcEx == null && r == null) {
+                            int[] codes = new int[watchList.size()];
+                            for (int i = 0; i < codes.length; i++) {
+                                codes[i] = CmdCodes.SUCCESS;
+                            }
+                            r = createRpcResult(codes);
+                        }
+                        manager.processNotifyResult(ci, watchList, r, rpcEx, requestEpoch, fireNext);
+                        q.add(new PushReqInfo(ci, req, watchList, requestEpoch, fireNext));
+                    } catch (Exception e) {
+                        fail();
+                    }
+                };
+                tasks.add(run);
+            }
+        };
+        kv = new KvImpl(manager, ts, groupId, 16, 0.75f);
+    }
+
+    private void runTasks() {
+        Collections.shuffle(tasks);
+        while (!tasks.isEmpty()) {
+            Runnable r = tasks.poll();
+            if (r != null) {
+                r.run();
+            }
+        }
+    }
+
+    @Test
+    public void testAddOrUpdateActiveQueue() {
+        ChannelInfo ci1 = new ChannelInfo(dtc1);
+        ChannelInfo ci2 = new ChannelInfo(dtc2);
+        ChannelInfo ci3 = new ChannelInfo(dtc3);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        assertEquals(ci1, manager.activeQueueHead);
+        assertEquals(ci1, manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        assertEquals(ci1, manager.activeQueueHead);
+        assertEquals(ci1, manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci2);
+        assertEquals(ci1, manager.activeQueueHead);
+        assertEquals(ci2, manager.activeQueueTail);
+        assertSame(ci1.next, ci2);
+        assertSame(ci2.prev, ci1);
+
+        manager.addOrUpdateActiveQueue(ci3);
+        assertEquals(ci1, manager.activeQueueHead);
+        assertEquals(ci3, manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        assertEquals(ci2, manager.activeQueueHead);
+        assertEquals(ci1, manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci3);
+        assertEquals(ci2, manager.activeQueueHead);
+        assertEquals(ci3, manager.activeQueueTail);
+    }
+
+    @Test
+    public void testRemoveFromActiveQueue() {
+        ChannelInfo ci1 = new ChannelInfo(dtc1);
+        ChannelInfo ci2 = new ChannelInfo(dtc2);
+        ChannelInfo ci3 = new ChannelInfo(dtc3);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        manager.removeFromActiveQueue(ci1);
+        assertNull(manager.activeQueueHead);
+        assertNull(manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        manager.addOrUpdateActiveQueue(ci2);
+        manager.removeFromActiveQueue(ci1);
+        assertEquals(ci2, manager.activeQueueHead);
+        assertEquals(ci2, manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        manager.addOrUpdateActiveQueue(ci2);
+        manager.removeFromActiveQueue(ci2);
+        assertEquals(ci1, manager.activeQueueHead);
+        assertEquals(ci1, manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        manager.addOrUpdateActiveQueue(ci2);
+        manager.addOrUpdateActiveQueue(ci3);
+        manager.removeFromActiveQueue(ci1);
+        assertEquals(ci2, manager.activeQueueHead);
+        assertEquals(ci3, manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        manager.addOrUpdateActiveQueue(ci2);
+        manager.addOrUpdateActiveQueue(ci3);
+        manager.removeFromActiveQueue(ci2);
+        assertEquals(ci1, manager.activeQueueHead);
+        assertEquals(ci3, manager.activeQueueTail);
+
+        manager.addOrUpdateActiveQueue(ci1);
+        manager.addOrUpdateActiveQueue(ci2);
+        manager.addOrUpdateActiveQueue(ci3);
+        manager.removeFromActiveQueue(ci3);
+        assertEquals(ci1, manager.activeQueueHead);
+        assertEquals(ci2, manager.activeQueueTail);
+    }
+
+    @Test
+    public void testSync1() {
+        long expectIndex = raftIndex;
+        put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
+
+        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(dtc1, pushReqInfo.ci.channel);
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertNull(pushReqInfo.req.notifyList.get(0).value);
+        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
+
+        expectIndex = raftIndex;
+        put("key1", "value1");
+        put("key2", "value2");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(dtc1, pushReqInfo.ci.channel);
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("value1", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
+
+        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+        expectIndex = raftIndex;
+        put("key1", "value1_2");
+        put("key2", "value2_2");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(dtc1, pushReqInfo.ci.channel);
+        assertEquals(2, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
+        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
+        assertEquals("value2_2", new String(pushReqInfo.req.notifyList.get(1).value));
+        assertEquals(expectIndex + 1, pushReqInfo.req.notifyList.get(1).raftIndex);
+
+        manager.sync(kv, dtc2, true, keys("key1", "key2"), new long[]{0, 0});
+        put("key1", "value1_3");
+        put("key2", "value2_3");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(2, pushRequestList.size());
+        for (int i = 0; i < 2; i++) {
+            pushReqInfo = pushRequestList.poll();
+            if (dtc1 == pushReqInfo.ci.channel) {
+                assertEquals(2, pushReqInfo.req.notifyList.size());
+                assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+                assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(0).value));
+                assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
+                assertEquals("value2_3", new String(pushReqInfo.req.notifyList.get(1).value));
+            } else {
+                assertEquals(dtc2, pushReqInfo.ci.channel);
+                assertEquals(2, pushReqInfo.req.notifyList.size());
+                assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+                assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(0).value));
+                assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
+                assertEquals("value2_3", new String(pushReqInfo.req.notifyList.get(1).value));
+            }
+        }
+
+        manager.sync(kv, dtc1, true, keys("key2", "key3"), new long[]{0, 0});
+        manager.sync(kv, dtc2, false, keys("key2"), new long[]{-1});
+        put("key1", "value1_4");
+        put("key2", "value2_4");
+        put("key3", "value3_4");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(2, pushRequestList.size());
+        for (int i = 0; i < 2; i++) {
+            pushReqInfo = pushRequestList.poll();
+            if (dtc1 == pushReqInfo.ci.channel) {
+                assertEquals(2, pushReqInfo.req.notifyList.size());
+                assertEquals("key2", new String(pushReqInfo.req.notifyList.get(0).key));
+                assertEquals("value2_4", new String(pushReqInfo.req.notifyList.get(0).value));
+                assertEquals("key3", new String(pushReqInfo.req.notifyList.get(1).key));
+                assertEquals("value3_4", new String(pushReqInfo.req.notifyList.get(1).value));
+            } else {
+                assertEquals(dtc2, pushReqInfo.ci.channel);
+                assertEquals(1, pushReqInfo.req.notifyList.size());
+                assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+                assertEquals("value1_4", new String(pushReqInfo.req.notifyList.get(0).value));
+            }
+        }
+
+        manager.sync(kv, dtc1, true, keys(), new long[]{});
+        manager.sync(kv, dtc2, true, keys(), new long[]{});
+        put("key1", "value1_5");
+        put("key2", "value2_5");
+        put("key3", "value3_5");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(0, pushRequestList.size());
+    }
+
+    @Test
+    public void testSync2() {
+        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
+        mkdir("dir1");
+        mkdir("dir1.dir2");
+        put("dir1.dir2.key1", "value1");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("value1", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+
+        // add dir1 watch
+        manager.sync(kv, dtc1, false, keys("dir1"), new long[]{0});
+        long expectIndex = raftIndex;
+        put("dir1.dir2.key1", "value1_2");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(2, pushReqInfo.req.notifyList.size());
+        // the sync operation for dir1 make it is the first one
+        assertEquals("dir1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertNull(pushReqInfo.req.notifyList.get(0).value);
+        assertEquals(WatchEvent.STATE_DIRECTORY_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(1).key));
+        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(1).value));
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(1).state);
+        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(1).raftIndex);
+
+        expectIndex = raftIndex;
+        remove("dir1.dir2.key1");
+        remove("dir1.dir2");
+        remove("dir1");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(2, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertNull(pushReqInfo.req.notifyList.get(0).value);
+        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
+        assertEquals("dir1", new String(pushReqInfo.req.notifyList.get(1).key));
+        assertNull(pushReqInfo.req.notifyList.get(1).value);
+        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(1).state);
+        assertEquals(expectIndex + 2, pushReqInfo.req.notifyList.get(1).raftIndex);
+
+        mkdir("dir1");
+        mkdir("dir1.dir2");
+        expectIndex = raftIndex;
+        put("dir1.dir2.key1", "value1_3");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(2, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertNull(pushReqInfo.req.notifyList.get(0).value);
+        assertEquals(WatchEvent.STATE_DIRECTORY_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(1).key));
+        assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(1).value));
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(1).state);
+        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(1).raftIndex);
+    }
+
+    private void put(String key, String value) {
+        kv.put(raftIndex++, ba(key), value.getBytes());
+    }
+
+    private void mkdir(String key) {
+        kv.mkdir(raftIndex++, ba(key));
+    }
+
+    private void remove(String key) {
+        kv.remove(raftIndex++, ba(key));
+    }
+
+    private ByteArray ba(String s) {
+        return new ByteArray(s.getBytes());
+    }
+
+    private ByteArray[] keys(String... k) {
+        ByteArray[] keys = new ByteArray[k.length];
+        for (int i = 0; i < k.length; i++) {
+            keys[i] = new ByteArray(k[i].getBytes());
+        }
+        return keys;
+    }
+
+    private void setRpcEx(Throwable ex) {
+        rpcEx = ex;
+        rpcResult = null;
+    }
+
+    private ReadPacket<WatchNotifyRespCallback> createRpcResult(int... results) {
+        WatchNotifyRespCallback resp = new WatchNotifyRespCallback(results.length);
+        System.arraycopy(results, 0, resp.results, 0, results.length);
+        ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
+        r.setBody(resp);
+        return r;
+    }
+
+    private void setRpcResult(int... results) {
+        rpcEx = null;
+        rpcResult = createRpcResult(results);
+    }
+
+    private static class MockDtChannel implements DtChannel {
+
+        SocketChannel channel;
+
+        @Override
+        public SocketChannel getChannel() {
+            return channel;
+        }
+
+        @Override
+        public SocketAddress getRemoteAddr() {
+            return null;
+        }
+
+        @Override
+        public SocketAddress getLocalAddr() {
+            return null;
+        }
+
+        @Override
+        public Peer getPeer() {
+            return null;
+        }
+
+        @Override
+        public long getLastActiveTimeNanos() {
+            return 0;
+        }
+
+        @Override
+        public NioNet getOwner() {
+            return null;
+        }
+    }
+}

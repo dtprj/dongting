@@ -158,10 +158,10 @@ abstract class WatchManager {
                 WatchHolder subWatchHolder = new WatchHolder(childKey, null, watchHolder);
                 watchHolder.addChild(childKey, subWatchHolder);
                 watchHolder = subWatchHolder;
-                if (childKey == key) {
+                if (childKey.equals(key)) {
                     break;
                 } else {
-                    childKey = kv.next(childKey, parentKey);
+                    childKey = kv.next(key, childKey);
                 }
             }
             ChannelWatch w = new ChannelWatch(watchHolder, ci, notifiedIndex);
@@ -170,17 +170,7 @@ abstract class WatchManager {
         }
     }
 
-    private void prepareDispatch(ChannelInfo ci, ChannelWatch w) {
-        if (w.removed || w.pending) {
-            return;
-        }
-        ci.addToNeedNotify(w);
-        if (ci.failCount == 0 && !ci.pending) {
-            needNotifyChannels.add(ci);
-        }
-    }
-
-    public void prepareDispatch(KvNodeHolder h) {
+    public void afterUpdate(KvNodeHolder h) {
         WatchHolder wh = h.watchHolder;
         if (wh == null) {
             return;
@@ -196,12 +186,12 @@ abstract class WatchManager {
         WatchHolder wh = h.watchHolder;
         if (wh != null) {
             wh.lastRemoveIndex = h.updateIndex;
-            h = h.parent;
-            if (h.watchHolder == null) {
-                h.watchHolder = new WatchHolder(h.key, h, null);
+            KvNodeHolder parent = h.parent;
+            if (parent.watchHolder == null) {
+                parent.watchHolder = new WatchHolder(parent.key, parent, null);
             }
-            h.watchHolder.addChild(h.key, wh);
-            wh.parentWatchHolder = h.watchHolder;
+            parent.watchHolder.addChild(h.key, wh);
+            wh.parentWatchHolder = parent.watchHolder;
             wh.nodeHolder = null;
         }
     }
@@ -294,9 +284,9 @@ abstract class WatchManager {
                             result = false;
                             break;
                         }
-                        it.remove();
                         pushNotify(ci);
                     }
+                    it.remove();
                 }
             }
 
@@ -318,7 +308,7 @@ abstract class WatchManager {
     }
 
     private void pushNotify(ChannelInfo ci) {
-        if (ci.channel.getChannel().isOpen()) {
+        if (!ci.channel.getChannel().isOpen()) {
             removeByChannel(ci.channel);
         }
         if (ci.remove) {
@@ -372,24 +362,27 @@ abstract class WatchManager {
     private WatchNotify createNotify(ChannelWatch w) {
         KvNodeHolder node = w.watchHolder.nodeHolder;
         if (node != null) {
-            if (w.notifiedIndex >= node.latest.updateIndex) {
+            long updateIndex = node.latest.updateIndex;
+            if (w.notifiedIndex >= updateIndex) {
                 return null;
             }
             byte[] key = node.key.getData();
+            w.notifiedIndexPending = updateIndex;
             if (node.latest.removed) {
-                return new WatchNotify(node.latest.updateIndex,
+                return new WatchNotify(updateIndex,
                         WatchEvent.STATE_NOT_EXISTS, key, null);
             } else if (node.latest.isDir) {
-                return new WatchNotify(node.latest.updateIndex,
+                return new WatchNotify(updateIndex,
                         WatchEvent.STATE_DIRECTORY_EXISTS, key, null);
             } else {
-                return new WatchNotify(node.latest.updateIndex,
+                return new WatchNotify(updateIndex,
                         WatchEvent.STATE_VALUE_EXISTS, key, node.latest.data);
             }
         } else {
             if (w.notifiedIndex >= w.watchHolder.lastRemoveIndex) {
                 return null;
             } else {
+                w.notifiedIndexPending = w.watchHolder.lastRemoveIndex;
                 return new WatchNotify(w.watchHolder.lastRemoveIndex,
                         WatchEvent.STATE_NOT_EXISTS, w.watchHolder.key.getData(), null);
             }
@@ -432,6 +425,8 @@ abstract class WatchManager {
                 } else {
                     if (bizCode != KvCodes.CODE_SUCCESS) {
                         log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);
+                    } else {
+                        w.notifiedIndex = w.notifiedIndexPending;
                     }
                     ci.addToNeedNotify(w); // remove in pushNotify(ChannelInfo) method
                 }
@@ -509,7 +504,13 @@ abstract class WatchManager {
                     w.notifiedIndex = Math.max(w.notifiedIndex, knownRaftIndex);
                     w.needRemoveAfterSyncAll = false;
                 }
-                prepareDispatch(ci, w);
+                if (w.removed || w.pending) {
+                    continue;
+                }
+                ci.addToNeedNotify(w);
+                if (ci.failCount == 0 && !ci.pending) {
+                    needNotifyChannels.add(ci);
+                }
             } else {
                 ChannelWatch w = ci.watches.remove(key);
                 if (w != null) {
@@ -595,6 +596,7 @@ final class ChannelWatch {
     final ChannelInfo channelInfo;
 
     long notifiedIndex;
+    long notifiedIndexPending;
 
     boolean pending;
     boolean removed;
@@ -604,6 +606,7 @@ final class ChannelWatch {
         this.watchHolder = watchHolder;
         this.channelInfo = channelInfo;
         this.notifiedIndex = notifiedIndex;
+        this.notifiedIndexPending = notifiedIndex;
     }
 }
 
@@ -680,5 +683,13 @@ final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> 
             return true;
         }
         return false;
+    }
+
+    @Override
+    protected boolean end(boolean success) {
+        if (nextWriteIndex != results.length) {
+            throw new RaftException("response results size not match, expect " + results.length + ", but got " + nextWriteIndex);
+        }
+        return success;
     }
 }
