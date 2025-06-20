@@ -30,7 +30,6 @@ final class KvNodeHolder {
     WatchHolder watchHolder;
 
     long updateIndex;
-    boolean removedFromTree;
     boolean inUpdateQueue;
 
     public KvNodeHolder(ByteArray key, ByteArray keyInDir, KvNodeEx n, KvNodeHolder parent) {

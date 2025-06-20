@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -28,6 +29,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
@@ -99,6 +102,8 @@ public class WatchManagerTest {
         Timestamp ts = new Timestamp();
         int groupId = 0;
         LinkedList<PushReqInfo> q = pushRequestList;
+        this.rpcEx = null;
+        this.rpcResult = null;
         manager = new WatchManager(groupId, ts, new long[]{1}) {
             @Override
             protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
@@ -127,6 +132,7 @@ public class WatchManagerTest {
             }
         };
         kv = new KvImpl(manager, ts, groupId, 16, 0.75f);
+        put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
     }
 
     private void runTasks() {
@@ -217,10 +223,14 @@ public class WatchManagerTest {
         assertEquals(ci2, manager.activeQueueTail);
     }
 
-    @Test
-    public void testSync1() {
-        long expectIndex = raftIndex;
-        put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
+    // basic test
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testSync_basic(boolean takeSnapshot) {
+        if (takeSnapshot) {
+            KvImplTest.takeSnapshot(kv);
+        }
+        long expectIndex = raftIndex - 1;
 
         manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
         manager.dispatch();
@@ -335,8 +345,13 @@ public class WatchManagerTest {
         assertEquals(0, pushRequestList.size());
     }
 
-    @Test
-    public void testSync2() {
+    // tree structure watch test
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testSync_tree(boolean takeSnapshot) {
+        if (takeSnapshot) {
+            KvImplTest.takeSnapshot(kv);
+        }
         manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
         mkdir("dir1");
         mkdir("dir1.dir2");
@@ -412,6 +427,225 @@ public class WatchManagerTest {
         assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(1).value));
         assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(1).state);
         assertEquals(expectIndex, pushReqInfo.req.notifyList.get(1).raftIndex);
+    }
+
+    // remove from kv tree when the watch holder is mount to parent watch holder
+    @Test
+    public void testSync_removeFromKvTreeWhenWatchHolderIsMountToParent() {
+        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertNull(pushReqInfo.req.notifyList.get(0).value);
+        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+
+        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{-1});
+        remove("dir1.dir2.key1");
+        manager.dispatch();
+        runTasks();
+        assertEquals(0, pushRequestList.size());
+    }
+
+    // mount to parent and the parent has no watch holder
+    @Test
+    public void testSync_mountToPrentWhenParentHasNoWatchHolder() {
+        KvImplTest.takeSnapshot(kv);
+        mkdir("dir1");
+        mkdir("dir1.dir2");
+        put("dir1.dir2.key1", "value1");
+        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("value1", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+
+        // mount to parent and the parent has no watch holder
+        remove("dir1.dir2.key1");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertNull(pushReqInfo.req.notifyList.get(0).value);
+        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+
+        // change to directory
+        mkdir("dir1.dir2.key1");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertNull(pushReqInfo.req.notifyList.get(0).value);
+        assertEquals(WatchEvent.STATE_DIRECTORY_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+    }
+
+    // mount to removed node
+    @Test
+    public void testSync_mountToRemovedNode() {
+        mkdir("dir1");
+        mkdir("dir1.dir2");
+        put("dir1.dir2.key1", "value1");
+        KvImplTest.takeSnapshot(kv);
+        remove("dir1.dir2.key1");
+        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertNull(pushReqInfo.req.notifyList.get(0).value);
+        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+
+        put("dir1.dir2.key1", "value1_2");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+    }
+
+    // change epoch (reset)
+    @Test
+    public void testSync_changeEpoch() {
+        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+
+        long raftIndex = this.raftIndex;
+        ChannelWatch cw = manager.activeQueueHead.watches.values().iterator().next();
+        put("key1", "value1");
+        manager.dispatch();
+        manager.reset();
+        runTasks();
+        assertTrue(cw.notifiedIndex < cw.notifiedIndexPending);
+        assertEquals(raftIndex, cw.notifiedIndexPending);
+    }
+
+    // update during notify
+    @Test
+    public void testSync_updateDuringNotify() {
+        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        pushRequestList.clear();
+
+        put("key1", "value1");
+        manager.dispatch();
+        put("key1", "value1_2");
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+
+        assertEquals(2, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("value1", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+    }
+
+    @Test
+    public void testSync_removeOneWatchByResp() {
+        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        pushRequestList.clear();
+
+        setRpcResult(KvCodes.CODE_SUCCESS, KvCodes.CODE_REMOVE_WATCH);
+        put("key1", "value1");
+        put("key2", "value2");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(2, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
+
+        this.rpcResult = null;
+        put("key1", "value1_2");
+        put("key2", "value2_2");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+    }
+
+    @Test
+    public void testSync_removeAllWatchByResp() {
+        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        pushRequestList.clear();
+
+        this.rpcResult = new ReadPacket<>();
+        this.rpcResult.setBizCode(KvCodes.CODE_REMOVE_ALL_WATCH);
+
+        put("key1", "value1");
+        put("key2", "value2");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(2, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
+
+        this.rpcResult = null;
+        put("key1", "value1_2");
+        put("key2", "value2_2");
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(0, pushRequestList.size());
     }
 
     private void put(String key, String value) {

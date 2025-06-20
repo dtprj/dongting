@@ -132,42 +132,36 @@ abstract class WatchManager {
 
     private static ChannelWatch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex) {
         KvNodeHolder nodeHolder = kv.map.get(key);
+        WatchHolder wh = ensureWatchHolder(kv, key, nodeHolder);
+        ChannelWatch w = new ChannelWatch(wh, ci, notifiedIndex);
+        wh.watches.add(w);
+        return w;
+    }
+
+    private static WatchHolder ensureWatchHolder(KvImpl kv, ByteArray key, KvNodeHolder nodeHolder) {
+        KvNodeHolder parent = null;
         if (nodeHolder != null) {
-            if (nodeHolder.watchHolder == null) {
-                nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
-            }
-            ChannelWatch w = new ChannelWatch(nodeHolder.watchHolder, ci, notifiedIndex);
-            nodeHolder.watchHolder.watches.add(w);
-            return w;
-        } else {
-            // mount to parent dir
-            ByteArray parentKey = key;
-            while (true) {
-                parentKey = kv.parentKey(parentKey);
-                nodeHolder = kv.map.get(parentKey);
-                if (nodeHolder != null) {
-                    if (nodeHolder.watchHolder == null) {
-                        nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
-                    }
-                    break;
+            if (!nodeHolder.latest.removed) {
+                if (nodeHolder.watchHolder == null) {
+                    nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
                 }
+                // mount to node with same key
+                return nodeHolder.watchHolder;
             }
-            WatchHolder watchHolder = nodeHolder.watchHolder;
-            ByteArray childKey = kv.next(key, parentKey);
-            while (true) {
-                WatchHolder subWatchHolder = new WatchHolder(childKey, null, watchHolder);
-                watchHolder.addChild(childKey, subWatchHolder);
-                watchHolder = subWatchHolder;
-                if (childKey.equals(key)) {
-                    break;
-                } else {
-                    childKey = kv.next(key, childKey);
-                }
-            }
-            ChannelWatch w = new ChannelWatch(watchHolder, ci, notifiedIndex);
-            watchHolder.watches.add(w);
-            return w;
+            parent = nodeHolder.parent;
         }
+        // mount to parent dir
+        ByteArray parentKey;
+        if (parent == null) {
+            parentKey = kv.parentKey(key);
+            parent = kv.map.get(parentKey);
+        } else {
+            parentKey = parent.key;
+        }
+        WatchHolder parentWatchHolder = ensureWatchHolder(kv, parentKey, parent);
+        WatchHolder watchHolder = new WatchHolder(key, null, parentWatchHolder);
+        parentWatchHolder.addChild(key, watchHolder);
+        return watchHolder;
     }
 
     public void afterUpdate(KvNodeHolder h) {
@@ -218,6 +212,7 @@ abstract class WatchManager {
         }
         w.removed = true;
         WatchHolder h = w.watchHolder;
+        h.watches.remove(w);
         while (h.isNoUse()) {
             // this key has no watches, remove watch holder from tree
             if (h.nodeHolder != null) {
@@ -368,23 +363,20 @@ abstract class WatchManager {
             }
             byte[] key = node.key.getData();
             w.notifiedIndexPending = updateIndex;
-            if (node.latest.removed) {
-                return new WatchNotify(updateIndex,
-                        WatchEvent.STATE_NOT_EXISTS, key, null);
-            } else if (node.latest.isDir) {
-                return new WatchNotify(updateIndex,
-                        WatchEvent.STATE_DIRECTORY_EXISTS, key, null);
+            // assert note.latest.removed == false
+            if (node.latest.isDir) {
+                return new WatchNotify(updateIndex, WatchEvent.STATE_DIRECTORY_EXISTS, key, null);
             } else {
-                return new WatchNotify(updateIndex,
-                        WatchEvent.STATE_VALUE_EXISTS, key, node.latest.data);
+                return new WatchNotify(updateIndex, WatchEvent.STATE_VALUE_EXISTS, key, node.latest.data);
             }
         } else {
-            if (w.notifiedIndex >= w.watchHolder.lastRemoveIndex) {
+            long lastRemoveIndex = w.watchHolder.lastRemoveIndex;
+            if (w.notifiedIndex >= lastRemoveIndex) {
                 return null;
             } else {
-                w.notifiedIndexPending = w.watchHolder.lastRemoveIndex;
-                return new WatchNotify(w.watchHolder.lastRemoveIndex,
-                        WatchEvent.STATE_NOT_EXISTS, w.watchHolder.key.getData(), null);
+                w.notifiedIndexPending = lastRemoveIndex;
+                return new WatchNotify(lastRemoveIndex, WatchEvent.STATE_NOT_EXISTS,
+                        w.watchHolder.key.getData(), null);
             }
         }
     }
@@ -514,7 +506,6 @@ abstract class WatchManager {
             } else {
                 ChannelWatch w = ci.watches.remove(key);
                 if (w != null) {
-                    ci.watches.remove(key);
                     removeWatchFromKvTree(w);
                 }
             }

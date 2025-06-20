@@ -321,6 +321,9 @@ class KvImpl {
             if (oldNode.removed) {
                 newKvNode = new KvNodeEx(index, timestamp, index, timestamp, newValueIsDir, data);
                 result = KvResult.SUCCESS;
+                if (watchManager != null) {
+                    watchManager.mountWatchToChild(current);
+                }
             } else {
                 // override
                 boolean oldValueIsDir = oldNode.isDir;
@@ -643,15 +646,5 @@ class KvImpl {
         } else {
             return ByteArray.EMPTY;
         }
-    }
-
-    ByteArray next(ByteArray key, ByteArray prefix) {
-        int sepIdx = prefix.length;
-        for (int i = sepIdx + 1; i < key.length; i++) {
-            if (key.get(i) == SEPARATOR) {
-                return key.sub(0, i);
-            }
-        }
-        return key;
     }
 }

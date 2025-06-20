@@ -238,6 +238,10 @@ class KvImplTest {
     }
 
     private KvSnapshot takeSnapshot() {
+        return takeSnapshot(kv);
+    }
+
+    static KvSnapshot takeSnapshot(KvImpl kv) {
         long lastIndex = kv.root.latest.updateIndex;
         SnapshotInfo si = new SnapshotInfo(lastIndex, 1, null, null,
                 null, null, 0);
