@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Timestamp;
 import org.opentest4j.AssertionFailedError;
 
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Random;
@@ -100,24 +99,10 @@ public class TestUtil {
         }
     }
 
-    private static final Field TIMESTAMP_NANO_TIME;
-    private static final Field TIMESTAMP_WALL_CLOCK_MILLIS;
-
-    static {
-        try {
-            TIMESTAMP_NANO_TIME = Timestamp.class.getDeclaredField("nanoTime");
-            TIMESTAMP_NANO_TIME.setAccessible(true);
-            TIMESTAMP_WALL_CLOCK_MILLIS = Timestamp.class.getDeclaredField("wallClockMillis");
-            TIMESTAMP_WALL_CLOCK_MILLIS.setAccessible(true);
-        } catch (Exception e) {
-            throw new DtException(e);
-        }
-    }
-
     public static void updateTimestamp(Timestamp ts, long nanoTime, long wallClockMillis) {
         try {
-            TIMESTAMP_NANO_TIME.set(ts, nanoTime);
-            TIMESTAMP_WALL_CLOCK_MILLIS.set(ts, wallClockMillis);
+            ts.nanoTime = nanoTime;
+            ts.wallClockMillis = wallClockMillis;
         } catch (Exception e) {
             throw new DtException(e);
         }

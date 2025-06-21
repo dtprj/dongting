@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -309,10 +310,10 @@ abstract class WatchManager {
         if (ci.remove) {
             return;
         }
-        Iterator<ChannelWatch> it = ci.notifyIterator();
-        if (it == null) {
+        if (ci.needNotify == null || ci.needNotify.isEmpty()) {
             return;
         }
+        Iterator<ChannelWatch> it = ci.needNotify.iterator();
         int bytes = 0;
         ArrayList<Pair<ChannelWatch, WatchNotify>> list = tempList;
         try {
@@ -384,61 +385,77 @@ abstract class WatchManager {
     public void processNotifyResult(ChannelInfo ci, ArrayList<ChannelWatch> watches,
                                     ReadPacket<WatchNotifyRespCallback> result,
                                     Throwable ex, int requestEpoch, boolean fireNext) {
-        for (int size = watches.size(), i = 0; i < size; i++) {
-            ChannelWatch w = watches.get(i);
-            w.pending = false;
-        }
-        ci.pending = false;
+        try {
+            for (int size = watches.size(), i = 0; i < size; i++) {
+                ChannelWatch w = watches.get(i);
+                w.pending = false;
+            }
+            ci.pending = false;
 
-        if (epoch != requestEpoch) {
-            return;
-        }
-        if (ex != null) {
-            log.warn("notify failed. remote={}, ex={}", ci.channel.getRemoteAddr(), ex);
-            if (ex instanceof NetCodeException) {
-                NetCodeException nce = (NetCodeException) ex;
-                if (nce.getCode() == CmdCodes.CLIENT_ERROR || nce.getCode() == CmdCodes.STOPPING
-                        || nce.getCode() == CmdCodes.COMMAND_NOT_SUPPORT) {
+            if (epoch != requestEpoch) {
+                return;
+            }
+            if (ex != null) {
+                log.warn("notify failed. remote={}, ex={}", ci.channel.getRemoteAddr(), ex);
+                if (ex instanceof NetCodeException) {
+                    NetCodeException nce = (NetCodeException) ex;
+                    if (nce.getCode() == CmdCodes.CLIENT_ERROR || nce.getCode() == CmdCodes.STOPPING
+                            || nce.getCode() == CmdCodes.COMMAND_NOT_SUPPORT) {
+                        removeByChannel(ci.channel);
+                        return;
+                    }
+                }
+                retryByChannel(ci, watches);
+            } else if (result.getBizCode() == KvCodes.CODE_SUCCESS) {
+                WatchNotifyRespCallback callback = result.getBody();
+                if (callback.results.length != watches.size()) {
+                    log.error("response results size not match, expect {}, but got {}",
+                            watches.size(), callback.results.length);
                     removeByChannel(ci.channel);
                     return;
                 }
-            }
-            retryByChannel(ci, watches);
-        } else if (result.getBizCode() == KvCodes.CODE_SUCCESS) {
-            WatchNotifyRespCallback callback = result.getBody();
 
-            ci.failCount = 0;
-            for (int size = watches.size(), i = 0; i < size; i++) {
-                int bizCode = callback.results[i];
-                ChannelWatch w = watches.get(i);
-                if (bizCode == KvCodes.CODE_REMOVE_WATCH) {
-                    ci.watches.remove(w.watchHolder.key);
-                    removeWatchFromKvTree(w);
-                } else {
-                    if (bizCode != KvCodes.CODE_SUCCESS) {
-                        log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);
+                boolean hasFailCode = false;
+                for (int size = watches.size(), i = 0; i < size; i++) {
+                    int bizCode = callback.results[i];
+                    ChannelWatch w = watches.get(i);
+                    if (bizCode == KvCodes.CODE_REMOVE_WATCH) {
+                        ci.watches.remove(w.watchHolder.key);
+                        removeWatchFromKvTree(w);
                     } else {
-                        w.notifiedIndex = w.notifiedIndexPending;
+                        if (bizCode != KvCodes.CODE_SUCCESS) {
+                            hasFailCode = true;
+                            log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);
+                        } else {
+                            w.notifiedIndex = w.notifiedIndexPending;
+                            ci.addToNeedNotify(w); // remove in pushNotify(ChannelInfo) method
+                        }
                     }
-                    ci.addToNeedNotify(w); // remove in pushNotify(ChannelInfo) method
                 }
-            }
-            if (ci.watches.isEmpty()) {
+                if (hasFailCode) {
+                    retryByChannel(ci, watches);
+                    return;
+                }
+                ci.failCount = 0;
+                if (ci.watches.isEmpty()) {
+                    removeByChannel(ci.channel);
+                } else if (fireNext) {
+                    pushNotify(ci);
+                } else if (ci.needNotify != null) {
+                    if (!ci.needNotify.isEmpty()) {
+                        needNotifyChannels.add(ci);
+                    } else if (ts.nanoTime - ci.lastNotifyNanos > 1_000_000_000L) {
+                        ci.needNotify = null;
+                    }
+                }
+            } else if (result.getBizCode() == KvCodes.CODE_REMOVE_ALL_WATCH) {
                 removeByChannel(ci.channel);
-            } else if (fireNext) {
-                pushNotify(ci);
-            } else if (ci.needNotify != null) {
-                if (!ci.needNotify.isEmpty()) {
-                    needNotifyChannels.add(ci);
-                } else if (ts.nanoTime - ci.lastNotifyNanos > 1_000_000_000L) {
-                    ci.needNotify = null;
-                }
+            } else {
+                log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), result.getBizCode());
+                retryByChannel(ci, watches);
             }
-        } else if (result.getBizCode() == KvCodes.CODE_REMOVE_ALL_WATCH) {
-            removeByChannel(ci.channel);
-        } else {
-            log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), result.getBizCode());
-            retryByChannel(ci, watches);
+        } catch (Exception e) {
+            BugLog.log(e);
         }
     }
 
@@ -572,14 +589,6 @@ final class ChannelInfo implements Comparable<ChannelInfo> {
         needNotify.add(w);
     }
 
-    public Iterator<ChannelWatch> notifyIterator() {
-        if (needNotify == null) {
-            return null;
-        } else {
-            return needNotify.iterator();
-        }
-    }
-
 }
 
 final class ChannelWatch {
@@ -674,13 +683,5 @@ final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> 
             return true;
         }
         return false;
-    }
-
-    @Override
-    protected boolean end(boolean success) {
-        if (nextWriteIndex != results.length) {
-            throw new RaftException("response results size not match, expect " + results.length + ", but got " + nextWriteIndex);
-        }
-        return success;
     }
 }

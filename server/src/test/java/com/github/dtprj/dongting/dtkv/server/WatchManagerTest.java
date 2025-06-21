@@ -22,9 +22,11 @@ import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.DtChannel;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +49,7 @@ public class WatchManagerTest {
 
     private WatchManager manager;
     private KvImpl kv;
+    private Timestamp ts;
     private ReadPacket<WatchNotifyRespCallback> rpcResult;
     private Throwable rpcEx;
     private long raftIndex;
@@ -56,7 +59,6 @@ public class WatchManagerTest {
     private static MockDtChannel dtc3;
 
     private LinkedList<PushReqInfo> pushRequestList;
-    private int mockProcessTimeMillis;
     private LinkedList<Runnable> tasks;
 
     @BeforeAll
@@ -95,11 +97,10 @@ public class WatchManagerTest {
 
     @BeforeEach
     public void setup() {
+        ts = new Timestamp();
         pushRequestList = new LinkedList<>();
         tasks = new LinkedList<>();
-        mockProcessTimeMillis = 0;
         raftIndex = 1;
-        Timestamp ts = new Timestamp();
         int groupId = 0;
         LinkedList<PushReqInfo> q = pushRequestList;
         this.rpcEx = null;
@@ -108,12 +109,8 @@ public class WatchManagerTest {
             @Override
             protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
                                        int requestEpoch, boolean fireNext) {
-                long sleep = mockProcessTimeMillis;
                 Runnable run = () -> {
                     try {
-                        if (sleep > 0) {
-                            Thread.sleep(sleep);
-                        }
                         ReadPacket<WatchNotifyRespCallback> r = rpcResult;
                         if (rpcEx == null && r == null) {
                             int[] codes = new int[watchList.size()];
@@ -601,7 +598,7 @@ public class WatchManagerTest {
         assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
         assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
 
-        this.rpcResult = null;
+        setRpcResult(KvCodes.CODE_REMOVE_WATCH);
         put("key1", "value1_2");
         put("key2", "value2_2");
         manager.dispatch();
@@ -612,10 +609,13 @@ public class WatchManagerTest {
         pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
         assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+
+        assertNull(manager.activeQueueHead);
     }
 
-    @Test
-    public void testSync_removeAllWatchByResp() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testSync_removeAllWatchByResp(boolean error) {
         manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
         manager.dispatch();
         runTasks();
@@ -623,8 +623,13 @@ public class WatchManagerTest {
         runTasks();
         pushRequestList.clear();
 
-        this.rpcResult = new ReadPacket<>();
-        this.rpcResult.setBizCode(KvCodes.CODE_REMOVE_ALL_WATCH);
+        if (error) {
+            setRpcEx(new NetCodeException(CmdCodes.COMMAND_NOT_SUPPORT, "", null));
+        } else {
+            ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
+            r.setBizCode(KvCodes.CODE_REMOVE_ALL_WATCH);
+            setRpcResult(r);
+        }
 
         put("key1", "value1");
         put("key2", "value2");
@@ -632,6 +637,9 @@ public class WatchManagerTest {
         runTasks();
         manager.dispatch();
         runTasks();
+
+        assertNull(manager.activeQueueHead);
+
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals(2, pushReqInfo.req.notifyList.size());
@@ -643,6 +651,58 @@ public class WatchManagerTest {
         put("key2", "value2_2");
         manager.dispatch();
         runTasks();
+        manager.dispatch();
+        runTasks();
+        assertEquals(0, pushRequestList.size());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testSync_exAndRetry(boolean useException) {
+        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+        manager.dispatch();
+        runTasks();
+        manager.dispatch();
+        runTasks();
+        pushRequestList.clear();
+
+        if (useException) {
+            setRpcEx(new Exception());
+        } else {
+            ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
+            r.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
+            setRpcResult(r);
+        }
+
+        put("key1", "value1");
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushRequestList.clear();
+
+        setRpcEx(null);
+        put("key1", "value1_2");
+
+        manager.dispatch();
+        runTasks();
+        assertEquals(0, pushRequestList.size());
+
+        TestUtil.plus1Hour(ts);
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
+
+        put("key1", "value1_3");
+
+        TestUtil.plus1Hour(ts);
+        manager.dispatch();
+        runTasks();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(0).value));
+
         manager.dispatch();
         runTasks();
         assertEquals(0, pushRequestList.size());
@@ -689,6 +749,12 @@ public class WatchManagerTest {
         rpcEx = null;
         rpcResult = createRpcResult(results);
     }
+
+    private void setRpcResult(ReadPacket<WatchNotifyRespCallback> r) {
+        rpcEx = null;
+        rpcResult = r;
+    }
+
 
     private static class MockDtChannel implements DtChannel {
 
