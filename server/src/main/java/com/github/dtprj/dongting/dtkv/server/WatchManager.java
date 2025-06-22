@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -45,8 +46,8 @@ import java.util.concurrent.TimeUnit;
  */
 abstract class WatchManager {
     private static final DtLog log = DtLogs.getLogger(WatchManager.class);
-    private final LinkedHashSet<ChannelInfo> needNotifyChannels = new LinkedHashSet<>();
     private final IdentityHashMap<DtChannel, ChannelInfo> channelInfoMap = new IdentityHashMap<>();
+    private final LinkedHashSet<ChannelInfo> needNotifyChannels = new LinkedHashSet<>();
     private final PriorityQueue<ChannelInfo> retryQueue = new PriorityQueue<>();
     ChannelInfo activeQueueHead;
     ChannelInfo activeQueueTail;
@@ -161,8 +162,11 @@ abstract class WatchManager {
             parentKey = parent.key;
         }
         WatchHolder parentWatchHolder = ensureWatchHolder(kv, parentKey, parent);
-        WatchHolder watchHolder = new WatchHolder(key, null, parentWatchHolder);
-        parentWatchHolder.addChild(key, watchHolder);
+        WatchHolder watchHolder = parentWatchHolder.getChild(key);
+        if (watchHolder == null) {
+            watchHolder = new WatchHolder(key, null, parentWatchHolder);
+            parentWatchHolder.addChild(key, watchHolder);
+        }
         return watchHolder;
     }
 
@@ -652,15 +656,27 @@ final class WatchHolder {
         return watches.isEmpty() && (children == null || children.isEmpty());
     }
 
+    public WatchHolder getChild(ByteArray key) {
+        if (children == null) {
+            return null;
+        }
+        return children.get(key);
+    }
+
     public void addChild(ByteArray key, WatchHolder child) {
         if (children == null) {
             children = new HashMap<>();
         }
-        children.put(key, child);
+        if (children.put(key, child) != null) {
+            BugLog.log(new RaftException("watch holder child key already exists: " + key));
+        }
     }
 
     public void removeChild(ByteArray key) {
-        // assert children != null;
+        if (children == null) {
+            BugLog.log(new RaftException("assert children != null"));
+            return;
+        }
         children.remove(key);
         if (children.isEmpty()) {
             children = null;

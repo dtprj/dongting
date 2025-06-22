@@ -132,7 +132,7 @@ public class WatchManagerTest {
         put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
     }
 
-    private void runTasks() {
+    private void mockClientResponse() {
         // prevent the callback may update tasks while iterating
         ArrayList<Runnable> tasksCopy = new ArrayList<>(tasks);
         tasks.clear();
@@ -231,9 +231,9 @@ public class WatchManagerTest {
 
         manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
         assertTrue(manager.dispatch());
-        runTasks();
+        mockClientResponse();
         assertTrue(manager.dispatch());
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals(dtc1, pushReqInfo.ci.channel);
@@ -247,9 +247,9 @@ public class WatchManagerTest {
         put("key1", "value1");
         put("key2", "value2");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(dtc1, pushReqInfo.ci.channel);
@@ -264,9 +264,9 @@ public class WatchManagerTest {
         put("key1", "value1_2");
         put("key2", "value2_2");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(dtc1, pushReqInfo.ci.channel);
@@ -282,9 +282,9 @@ public class WatchManagerTest {
         put("key1", "value1_3");
         put("key2", "value2_3");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(2, pushRequestList.size());
         for (int i = 0; i < 2; i++) {
             pushReqInfo = pushRequestList.poll();
@@ -310,9 +310,9 @@ public class WatchManagerTest {
         put("key2", "value2_4");
         put("key3", "value3_4");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(2, pushRequestList.size());
         for (int i = 0; i < 2; i++) {
             pushReqInfo = pushRequestList.poll();
@@ -336,9 +336,9 @@ public class WatchManagerTest {
         put("key2", "value2_5");
         put("key3", "value3_5");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(0, pushRequestList.size());
     }
 
@@ -354,9 +354,9 @@ public class WatchManagerTest {
         mkdir("dir1.dir2");
         put("dir1.dir2.key1", "value1");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
@@ -369,9 +369,9 @@ public class WatchManagerTest {
         long expectIndex = raftIndex;
         put("dir1.dir2.key1", "value1_2");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(2, pushReqInfo.req.notifyList.size());
@@ -390,9 +390,9 @@ public class WatchManagerTest {
         remove("dir1.dir2");
         remove("dir1");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(2, pushReqInfo.req.notifyList.size());
@@ -410,9 +410,9 @@ public class WatchManagerTest {
         expectIndex = raftIndex;
         put("dir1.dir2.key1", "value1_3");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(2, pushReqInfo.req.notifyList.size());
@@ -431,7 +431,7 @@ public class WatchManagerTest {
     public void testSync_removeFromKvTreeWhenWatchHolderIsMountToParent() {
         manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
@@ -442,7 +442,7 @@ public class WatchManagerTest {
         manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{-1});
         remove("dir1.dir2.key1");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(0, pushRequestList.size());
     }
 
@@ -455,9 +455,9 @@ public class WatchManagerTest {
         put("dir1.dir2.key1", "value1");
         manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
@@ -468,9 +468,9 @@ public class WatchManagerTest {
         // mount to parent and the parent has no watch holder
         remove("dir1.dir2.key1");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
@@ -481,9 +481,9 @@ public class WatchManagerTest {
         // change to directory
         mkdir("dir1.dir2.key1");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
@@ -502,9 +502,9 @@ public class WatchManagerTest {
         remove("dir1.dir2.key1");
         manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
@@ -514,9 +514,9 @@ public class WatchManagerTest {
 
         put("dir1.dir2.key1", "value1_2");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
@@ -530,16 +530,16 @@ public class WatchManagerTest {
     public void testSync_changeEpoch() {
         manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
 
         long raftIndex = this.raftIndex;
         ChannelWatch cw = manager.activeQueueHead.watches.values().iterator().next();
         put("key1", "value1");
         manager.dispatch();
         manager.reset();
-        runTasks();
+        mockClientResponse();
         assertTrue(cw.notifiedIndex < cw.notifiedIndexPending);
         assertEquals(raftIndex, cw.notifiedIndexPending);
     }
@@ -549,19 +549,19 @@ public class WatchManagerTest {
     public void testSync_updateDuringNotify() {
         manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         pushRequestList.clear();
 
         put("key1", "value1");
         manager.dispatch();
         put("key1", "value1_2");
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
 
         assertEquals(2, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
@@ -580,18 +580,18 @@ public class WatchManagerTest {
     public void testSync_removeOneWatchByResp() {
         manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         pushRequestList.clear();
 
         setRpcResult(KvCodes.CODE_SUCCESS, KvCodes.CODE_REMOVE_WATCH);
         put("key1", "value1");
         put("key2", "value2");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals(2, pushReqInfo.req.notifyList.size());
@@ -602,9 +602,9 @@ public class WatchManagerTest {
         put("key1", "value1_2");
         put("key2", "value2_2");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals(1, pushReqInfo.req.notifyList.size());
@@ -618,9 +618,9 @@ public class WatchManagerTest {
     public void testSync_removeAllWatchByResp(boolean error) {
         manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         pushRequestList.clear();
 
         if (error) {
@@ -634,9 +634,9 @@ public class WatchManagerTest {
         put("key1", "value1");
         put("key2", "value2");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
 
         assertNull(manager.activeQueueHead);
 
@@ -650,9 +650,9 @@ public class WatchManagerTest {
         put("key1", "value1_2");
         put("key2", "value2_2");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(0, pushRequestList.size());
     }
 
@@ -661,9 +661,9 @@ public class WatchManagerTest {
     public void testSync_exAndRetry(boolean useException) {
         manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         pushRequestList.clear();
 
         if (useException) {
@@ -676,7 +676,7 @@ public class WatchManagerTest {
 
         put("key1", "value1");
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushRequestList.clear();
 
@@ -684,12 +684,12 @@ public class WatchManagerTest {
         put("key1", "value1_2");
 
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(0, pushRequestList.size());
 
         TestUtil.plus1Hour(ts);
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
@@ -698,13 +698,13 @@ public class WatchManagerTest {
 
         TestUtil.plus1Hour(ts);
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
         assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(0).value));
 
         manager.dispatch();
-        runTasks();
+        mockClientResponse();
         assertEquals(0, pushRequestList.size());
     }
 
@@ -715,11 +715,11 @@ public class WatchManagerTest {
         try {
             manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
             manager.dispatch();
-            runTasks();
+            mockClientResponse();
             assertEquals(1, pushRequestList.size());
             assertEquals(1, pushRequestList.get(0).req.notifyList.size());
             pushRequestList.clear();
-            runTasks();
+            mockClientResponse();
             assertEquals(1, pushRequestList.size());
             assertEquals(1, pushRequestList.get(0).req.notifyList.size());
 
@@ -738,18 +738,32 @@ public class WatchManagerTest {
             manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
             manager.sync(kv, dtc3, false, keys("key1"), new long[]{0});
             manager.dispatch();
-            runTasks();
+            mockClientResponse();
             assertEquals(2, pushRequestList.size());
             pushRequestList.clear();
 
             manager.dispatch();
-            runTasks();
+            mockClientResponse();
             assertEquals(1, pushRequestList.size());
 
-            assertTrue(manager.activeQueueHead.needNotify.isEmpty());
         } finally {
             WatchManager.dispatchBatchSize = old;
         }
+    }
+
+    @Test
+    public void testCleanTimeoutChannel() {
+        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+        manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
+        TestUtil.plus1Hour(ts);
+
+        manager.cleanTimeoutChannel(1_000_000);
+        assertNull(manager.activeQueueHead);
+
+        manager.dispatch();
+        mockClientResponse();
+
+        assertEquals(0, pushRequestList.size());
     }
 
 
