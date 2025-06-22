@@ -133,12 +133,12 @@ public class WatchManagerTest {
     }
 
     private void runTasks() {
-        Collections.shuffle(tasks);
-        while (!tasks.isEmpty()) {
-            Runnable r = tasks.poll();
-            if (r != null) {
-                r.run();
-            }
+        // prevent the callback may update tasks while iterating
+        ArrayList<Runnable> tasksCopy = new ArrayList<>(tasks);
+        tasks.clear();
+        Collections.shuffle(tasksCopy);
+        for (Runnable r : tasksCopy) {
+            r.run();
         }
     }
 
@@ -230,9 +230,9 @@ public class WatchManagerTest {
         long expectIndex = raftIndex - 1;
 
         manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
-        manager.dispatch();
+        assertTrue(manager.dispatch());
         runTasks();
-        manager.dispatch();
+        assertTrue(manager.dispatch());
         runTasks();
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
@@ -707,6 +707,51 @@ public class WatchManagerTest {
         runTasks();
         assertEquals(0, pushRequestList.size());
     }
+
+    @Test
+    public void testSync_requestSizeExceed() {
+        int old = manager.maxBytesPerRequest;
+        manager.maxBytesPerRequest = 1;
+        try {
+            manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+            manager.dispatch();
+            runTasks();
+            assertEquals(1, pushRequestList.size());
+            assertEquals(1, pushRequestList.get(0).req.notifyList.size());
+            pushRequestList.clear();
+            runTasks();
+            assertEquals(1, pushRequestList.size());
+            assertEquals(1, pushRequestList.get(0).req.notifyList.size());
+
+            assertTrue(manager.activeQueueHead.needNotify.isEmpty());
+        } finally {
+            manager.maxBytesPerRequest = old;
+        }
+    }
+
+    @Test
+    public void testSync_batch() {
+        int old = WatchManager.dispatchBatchSize;
+        WatchManager.dispatchBatchSize = 2;
+        try {
+            manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+            manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
+            manager.sync(kv, dtc3, false, keys("key1"), new long[]{0});
+            manager.dispatch();
+            runTasks();
+            assertEquals(2, pushRequestList.size());
+            pushRequestList.clear();
+
+            manager.dispatch();
+            runTasks();
+            assertEquals(1, pushRequestList.size());
+
+            assertTrue(manager.activeQueueHead.needNotify.isEmpty());
+        } finally {
+            WatchManager.dispatchBatchSize = old;
+        }
+    }
+
 
     private void put(String key, String value) {
         kv.put(raftIndex++, ba(key), value.getBytes());

@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -59,7 +58,9 @@ abstract class WatchManager {
     private final long[] retryIntervalNanos;
     private int epoch;
 
+    // update in unit test
     static int maxBytesPerRequest = 80 * 1024; // may exceed
+    static int dispatchBatchSize = 100;
 
     private final ArrayList<Pair<ChannelWatch, WatchNotify>> tempList = new ArrayList<>(64);
 
@@ -251,7 +252,7 @@ abstract class WatchManager {
                 Iterator<WatchHolder> it = needDispatch.iterator();
                 while (it.hasNext()) {
                     WatchHolder wh = it.next();
-                    if (++count > 100) {
+                    if (++count > dispatchBatchSize) {
                         result = false;
                         break;
                     }
@@ -276,7 +277,7 @@ abstract class WatchManager {
                 while (it.hasNext()) {
                     ChannelInfo ci = it.next();
                     if (ci.failCount == 0) {
-                        if (++count > 100) {
+                        if (++count > dispatchBatchSize) {
                             result = false;
                             break;
                         }
@@ -289,7 +290,7 @@ abstract class WatchManager {
             count = 0;
             ChannelInfo ci = retryQueue.peek();
             while (ci != null && ci.retryNanos - ts.nanoTime <= 0) {
-                if (++count > 100) {
+                if (++count > dispatchBatchSize) {
                     result = false;
                     break;
                 }
@@ -347,6 +348,10 @@ abstract class WatchManager {
                 WatchNotifyReq req = new WatchNotifyReq(groupId, notifyList);
                 sendRequest(ci, req, watchList, epoch, it.hasNext());
             }
+        } catch (Error | RuntimeException e) {
+            ci.pending = false;
+            reAddToNeedNotifyIfNeeded(ci);
+            throw e;
         } finally {
             list.clear();
         }
@@ -441,12 +446,8 @@ abstract class WatchManager {
                     removeByChannel(ci.channel);
                 } else if (fireNext) {
                     pushNotify(ci);
-                } else if (ci.needNotify != null) {
-                    if (!ci.needNotify.isEmpty()) {
-                        needNotifyChannels.add(ci);
-                    } else if (ts.nanoTime - ci.lastNotifyNanos > 1_000_000_000L) {
-                        ci.needNotify = null;
-                    }
+                } else {
+                    reAddToNeedNotifyIfNeeded(ci);
                 }
             } else if (result.getBizCode() == KvCodes.CODE_REMOVE_ALL_WATCH) {
                 removeByChannel(ci.channel);
@@ -455,7 +456,17 @@ abstract class WatchManager {
                 retryByChannel(ci, watches);
             }
         } catch (Exception e) {
-            BugLog.log(e);
+            log.error("", e);
+        }
+    }
+
+    private void reAddToNeedNotifyIfNeeded(ChannelInfo ci) {
+        if (ci.needNotify != null) {
+            if (!ci.needNotify.isEmpty()) {
+                needNotifyChannels.add(ci);
+            } else if (ts.nanoTime - ci.lastNotifyNanos > 1_000_000_000L) {
+                ci.needNotify = null;
+            }
         }
     }
 
