@@ -446,6 +446,7 @@ abstract class WatchManager {
                     return;
                 }
                 ci.failCount = 0;
+                ci.lastActiveNanos = ts.nanoTime;
                 if (ci.watches.isEmpty()) {
                     removeByChannel(ci.channel);
                 } else if (fireNext) {
@@ -465,12 +466,8 @@ abstract class WatchManager {
     }
 
     private void reAddToNeedNotifyIfNeeded(ChannelInfo ci) {
-        if (ci.needNotify != null) {
-            if (!ci.needNotify.isEmpty()) {
-                needNotifyChannels.add(ci);
-            } else if (ts.nanoTime - ci.lastNotifyNanos > 1_000_000_000L) {
-                ci.needNotify = null;
-            }
+        if (ci.needNotify != null && !ci.needNotify.isEmpty()) {
+            needNotifyChannels.add(ci);
         }
     }
 
@@ -487,7 +484,7 @@ abstract class WatchManager {
     public void cleanTimeoutChannel(long timeoutNanos) {
         try {
             while (activeQueueHead != null) {
-                if (ts.nanoTime - activeQueueHead.lastNotifyNanos > timeoutNanos) {
+                if (ts.nanoTime - activeQueueHead.lastActiveNanos > timeoutNanos) {
                     removeByChannel(activeQueueHead.channel);
                 } else {
                     return;
@@ -505,7 +502,7 @@ abstract class WatchManager {
         }
         ChannelInfo ci = channelInfoMap.get(channel);
         if (ci == null) {
-            ci = new ChannelInfo(channel);
+            ci = new ChannelInfo(channel, ts.nanoTime);
             channelInfoMap.put(channel, ci);
         }
         addOrUpdateActiveQueue(ci);
@@ -564,6 +561,10 @@ abstract class WatchManager {
         if (ci == null) {
             return 0;
         } else {
+            if (ts.nanoTime - ci.lastNotifyNanos > 1_000_000_000L) {
+                ci.needNotify = null;
+            }
+            ci.lastActiveNanos = ts.nanoTime;
             addOrUpdateActiveQueue(ci);
             return ci.watches.size();
         }
@@ -579,6 +580,7 @@ final class ChannelInfo implements Comparable<ChannelInfo> {
 
     boolean pending;
     long lastNotifyNanos;
+    long lastActiveNanos;
 
     HashSet<ChannelWatch> needNotify;
 
@@ -587,8 +589,10 @@ final class ChannelInfo implements Comparable<ChannelInfo> {
 
     boolean remove;
 
-    ChannelInfo(DtChannel channel) {
+    ChannelInfo(DtChannel channel, long now) {
         this.channel = channel;
+        this.lastActiveNanos = now;
+        this.lastNotifyNanos = now;
     }
 
     @Override

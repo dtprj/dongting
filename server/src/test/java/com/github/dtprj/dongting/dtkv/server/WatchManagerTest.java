@@ -144,9 +144,9 @@ public class WatchManagerTest {
 
     @Test
     public void testAddOrUpdateActiveQueue() {
-        ChannelInfo ci1 = new ChannelInfo(dtc1);
-        ChannelInfo ci2 = new ChannelInfo(dtc2);
-        ChannelInfo ci3 = new ChannelInfo(dtc3);
+        ChannelInfo ci1 = new ChannelInfo(dtc1, ts.nanoTime);
+        ChannelInfo ci2 = new ChannelInfo(dtc2, ts.nanoTime);
+        ChannelInfo ci3 = new ChannelInfo(dtc3, ts.nanoTime);
 
         manager.addOrUpdateActiveQueue(ci1);
         assertEquals(ci1, manager.activeQueueHead);
@@ -177,9 +177,9 @@ public class WatchManagerTest {
 
     @Test
     public void testRemoveFromActiveQueue() {
-        ChannelInfo ci1 = new ChannelInfo(dtc1);
-        ChannelInfo ci2 = new ChannelInfo(dtc2);
-        ChannelInfo ci3 = new ChannelInfo(dtc3);
+        ChannelInfo ci1 = new ChannelInfo(dtc1, ts.nanoTime);
+        ChannelInfo ci2 = new ChannelInfo(dtc2, ts.nanoTime);
+        ChannelInfo ci3 = new ChannelInfo(dtc3, ts.nanoTime);
 
         manager.addOrUpdateActiveQueue(ci1);
         manager.removeFromActiveQueue(ci1);
@@ -710,8 +710,8 @@ public class WatchManagerTest {
 
     @Test
     public void testSync_requestSizeExceed() {
-        int old = manager.maxBytesPerRequest;
-        manager.maxBytesPerRequest = 1;
+        int old = WatchManager.maxBytesPerRequest;
+        WatchManager.maxBytesPerRequest = 1;
         try {
             manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
             manager.dispatch();
@@ -725,7 +725,7 @@ public class WatchManagerTest {
 
             assertTrue(manager.activeQueueHead.needNotify.isEmpty());
         } finally {
-            manager.maxBytesPerRequest = old;
+            WatchManager.maxBytesPerRequest = old;
         }
     }
 
@@ -755,6 +755,10 @@ public class WatchManagerTest {
     public void testCleanTimeoutChannel() {
         manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
         manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
+
+        manager.cleanTimeoutChannel(1_000_000);
+        assertNotNull(manager.activeQueueHead);
+
         TestUtil.plus1Hour(ts);
 
         manager.cleanTimeoutChannel(1_000_000);
@@ -764,6 +768,17 @@ public class WatchManagerTest {
         mockClientResponse();
 
         assertEquals(0, pushRequestList.size());
+    }
+
+    @Test
+    public void testUpdateWatchStatus() {
+        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+
+        TestUtil.plus1Hour(ts);
+        assertEquals(1, manager.updateWatchStatus(dtc1));
+
+        manager.cleanTimeoutChannel(1_000_000);
+        assertNotNull(manager.activeQueueHead);
     }
 
 
