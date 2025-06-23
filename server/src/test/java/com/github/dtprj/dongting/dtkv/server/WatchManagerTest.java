@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.util.MockRuntimeException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -670,7 +671,7 @@ public class WatchManagerTest {
         pushRequestList.clear();
 
         if (useException) {
-            setRpcEx(new Exception());
+            setRpcEx(new MockRuntimeException());
         } else {
             ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
             r.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
