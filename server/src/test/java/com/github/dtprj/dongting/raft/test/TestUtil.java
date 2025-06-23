@@ -18,11 +18,9 @@ package com.github.dtprj.dongting.raft.test;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Timestamp;
 import org.opentest4j.AssertionFailedError;
 
-import java.time.Duration;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -100,17 +98,18 @@ public class TestUtil {
     }
 
     public static void updateTimestamp(Timestamp ts, long nanoTime, long wallClockMillis) {
-        try {
-            ts.nanoTime = nanoTime;
-            ts.wallClockMillis = wallClockMillis;
-        } catch (Exception e) {
-            throw new DtException(e);
-        }
+        ts.nanoTime = nanoTime;
+        ts.wallClockMillis = wallClockMillis;
     }
 
     public static void plus1Hour(Timestamp ts) {
-        updateTimestamp(ts, ts.getNanoTime() + Duration.ofHours(1).toNanos(),
-                ts.getWallClockMillis() + Duration.ofHours(1).toMillis());
+        ts.nanoTime += TimeUnit.HOURS.toNanos(1);
+        ts.wallClockMillis += TimeUnit.HOURS.toMillis(1);
+    }
+
+    public static void plus(Timestamp ts, int value, TimeUnit unit) {
+        ts.nanoTime += unit.toNanos(value);
+        ts.wallClockMillis += unit.toMillis(value);
     }
 
     public static RefBufferFactory heapPool() {

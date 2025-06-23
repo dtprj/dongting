@@ -39,6 +39,7 @@ import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -105,10 +106,11 @@ public class WatchManagerTest {
         LinkedList<PushReqInfo> q = pushRequestList;
         this.rpcEx = null;
         this.rpcResult = null;
-        manager = new WatchManager(groupId, ts, new long[]{1}) {
+        manager = new WatchManager(groupId, ts, new long[]{1, 1000}) {
             @Override
             protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
                                        int requestEpoch, boolean fireNext) {
+                q.add(new PushReqInfo(ci, req, watchList, requestEpoch, fireNext));
                 Runnable run = () -> {
                     try {
                         ReadPacket<WatchNotifyRespCallback> r = rpcResult;
@@ -120,7 +122,6 @@ public class WatchManagerTest {
                             r = createRpcResult(codes);
                         }
                         manager.processNotifyResult(ci, watchList, r, rpcEx, requestEpoch, fireNext);
-                        q.add(new PushReqInfo(ci, req, watchList, requestEpoch, fireNext));
                     } catch (Exception e) {
                         fail();
                     }
@@ -659,7 +660,9 @@ public class WatchManagerTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     public void testSync_exAndRetry(boolean useException) {
-        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+        // retry interval new long[]{1, 1000}) in setup method
+        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+        manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
         manager.dispatch();
         mockClientResponse();
         manager.dispatch();
@@ -674,11 +677,25 @@ public class WatchManagerTest {
             setRpcResult(r);
         }
 
-        put("key1", "value1");
+        put("key2", "value2");
         manager.dispatch();
         mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushRequestList.clear();
+
+        TestUtil.plus(ts, 300, TimeUnit.MILLISECONDS);
+        manager.dispatch();
+        mockClientResponse();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(0).key));
+
+        put("key1", "value1");
+        manager.dispatch();
+        mockClientResponse();
+        assertEquals(1, pushRequestList.size());
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(dtc2, pushReqInfo.ci.channel);
 
         setRpcEx(null);
         put("key1", "value1_2");
@@ -687,21 +704,25 @@ public class WatchManagerTest {
         mockClientResponse();
         assertEquals(0, pushRequestList.size());
 
-        TestUtil.plus1Hour(ts);
+        TestUtil.plus(ts, 20, TimeUnit.MILLISECONDS);
         manager.dispatch();
         mockClientResponse();
         assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
+        pushReqInfo = pushRequestList.poll();
+        assertEquals(dtc2, pushReqInfo.ci.channel);
         assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
-
-        put("key1", "value1_3");
 
         TestUtil.plus1Hour(ts);
         manager.dispatch();
         mockClientResponse();
         assertEquals(1, pushRequestList.size());
         pushReqInfo = pushRequestList.poll();
-        assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals(dtc1, pushReqInfo.ci.channel);
+        assertEquals(2, pushReqInfo.req.notifyList.size());
+        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(0).key));
+        assertEquals("value2", new String(pushReqInfo.req.notifyList.get(0).value));
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(1).key));
+        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(1).value));
 
         manager.dispatch();
         mockClientResponse();
@@ -714,15 +735,20 @@ public class WatchManagerTest {
         WatchManager.maxBytesPerRequest = 1;
         try {
             manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+
             manager.dispatch();
+            assertEquals(1, pushRequestList.size());
+            assertEquals(1, pushRequestList.get(0).req.notifyList.size());
+            pushRequestList.clear();
+
             mockClientResponse();
             assertEquals(1, pushRequestList.size());
             assertEquals(1, pushRequestList.get(0).req.notifyList.size());
             pushRequestList.clear();
-            mockClientResponse();
-            assertEquals(1, pushRequestList.size());
-            assertEquals(1, pushRequestList.get(0).req.notifyList.size());
 
+            manager.dispatch();
+            mockClientResponse();
+            assertEquals(0, pushRequestList.size());
             assertTrue(manager.activeQueueHead.needNotify.isEmpty());
         } finally {
             WatchManager.maxBytesPerRequest = old;

@@ -265,7 +265,7 @@ abstract class WatchManager {
                             continue;
                         }
                         ChannelInfo ci = w.channelInfo;
-                        ci.addToNeedNotify(w);
+                        ci.addNeedNotify(w);
                         if (ci.failCount == 0 && !ci.pending) {
                             needNotifyChannels.add(ci);
                         }
@@ -437,7 +437,7 @@ abstract class WatchManager {
                             log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);
                         } else {
                             w.notifiedIndex = w.notifiedIndexPending;
-                            ci.addToNeedNotify(w); // remove in pushNotify(ChannelInfo) method
+                            ci.addNeedNotify(w); // remove in pushNotify(ChannelInfo) method
                         }
                     }
                 }
@@ -477,7 +477,7 @@ abstract class WatchManager {
         ci.retryNanos = ts.nanoTime + retryIntervalNanos[idx];
         retryQueue.add(ci);
         for (int size = watches.size(), i = 0; i < size; i++) {
-            ci.addToNeedNotify(watches.get(i));
+            ci.addNeedNotify(watches.get(i));
         }
     }
 
@@ -528,7 +528,7 @@ abstract class WatchManager {
                 if (w.removed || w.pending) {
                     continue;
                 }
-                ci.addToNeedNotify(w);
+                ci.addNeedNotify(w);
                 if (ci.failCount == 0 && !ci.pending) {
                     needNotifyChannels.add(ci);
                 }
@@ -601,7 +601,7 @@ final class ChannelInfo implements Comparable<ChannelInfo> {
         return diff < 0 ? -1 : (diff > 0 ? 1 : 0);
     }
 
-    public void addToNeedNotify(ChannelWatch w) {
+    public void addNeedNotify(ChannelWatch w) {
         if (needNotify == null) {
             needNotify = new LinkedHashSet<>();
         }
