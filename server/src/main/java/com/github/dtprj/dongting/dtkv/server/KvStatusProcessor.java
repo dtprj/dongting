@@ -18,21 +18,21 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.dtkv.KvStatusResp;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
-import com.github.dtprj.dongting.raft.rpc.RaftSequenceProcessor;
 import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
+import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 /**
  * @author huangli
  */
-class KvStatusProcessor extends RaftSequenceProcessor<Integer> {
+class KvStatusProcessor extends RaftProcessor<Integer> {
 
     public KvStatusProcessor(RaftServer raftServer) {
         super(raftServer);
@@ -49,11 +49,17 @@ class KvStatusProcessor extends RaftSequenceProcessor<Integer> {
     }
 
     @Override
-    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<Integer> reqInfo) {
+    protected WritePacket doProcess(ReqInfo<Integer> reqInfo) {
         DtKV kv = KvServerUtil.getStateMachine(reqInfo);
         if (kv == null) {
-            return FiberFrame.voidCompletedFrame();
+            return null;
         }
+        ReqInfoEx<Integer> reqInfoEx = (ReqInfoEx<Integer>) reqInfo;
+        reqInfoEx.raftGroup.fiberGroup.getExecutor().execute(() -> process(reqInfoEx, kv));
+        return null;
+    }
+
+    private void process(ReqInfoEx<Integer> reqInfo, DtKV kv) {
         RaftStatusImpl raftStatus = reqInfo.raftGroup.groupComponents.raftStatus;
         KvStatusResp resp = new KvStatusResp();
         resp.raftServerStatus = QueryStatusProcessor.buildQueryStatusResp(raftServer.getServerConfig().nodeId, raftStatus);
@@ -64,7 +70,6 @@ class KvStatusProcessor extends RaftSequenceProcessor<Integer> {
         } else {
             finishAndWriteResp(kv, resp, reqInfo);
         }
-        return FiberFrame.voidCompletedFrame();
     }
 
     private void finishAndWriteResp(DtKV kv, KvStatusResp resp, ReqInfo<?> reqInfo) {
