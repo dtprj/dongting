@@ -279,8 +279,12 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
         long[] a = raftStatus.commitHistory.getFirst();
         if (a != null && index >= a[0]) {
-            raftStatus.commitHistory.removeFirst();
-            raftStatus.setApplyLagNanos(ts.nanoTime - a[1]);
+            if (index == a[0]) {
+                raftStatus.setApplyLagNanos(ts.nanoTime - a[1]);
+            }
+            if (raftStatus.commitHistory.size() > 1) {
+                raftStatus.commitHistory.removeFirst();
+            }
         }
 
         if (!raftStatus.isGroupReady() && raftStatus.getRole() != RaftRole.none

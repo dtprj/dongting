@@ -141,7 +141,7 @@ public class CommitManager {
         applyManager.wakeupApply();
         IndexedQueue<long[]> q = raftStatus.commitHistory;
         long[] a = q.getLast();
-        if (a != null && newCommitIndex > a[0] && raftStatus.ts.nanoTime - a[1] > 1_000_000_000L && q.size() <= 64) {
+        if (a == null || (newCommitIndex > a[0] && raftStatus.ts.nanoTime - a[1] > 1_000_000_000L && q.size() <= 64)) {
             // sample commit history per second, total 64 samples
             q.addLast(new long[]{newCommitIndex, raftStatus.ts.nanoTime});
         }
