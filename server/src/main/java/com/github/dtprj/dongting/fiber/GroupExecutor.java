@@ -18,8 +18,6 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Collection;
 import java.util.List;
@@ -41,7 +39,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author huangli
  */
 class GroupExecutor implements ScheduledExecutorService {
-    private static final DtLog log = DtLogs.getLogger(GroupExecutor.class);
 
     private final FiberGroup group;
 
@@ -53,22 +50,21 @@ class GroupExecutor implements ScheduledExecutorService {
     public void execute(Runnable command) {
         boolean b = group.sysChannel.fireOffer(command);
         if (!b) {
-            log.warn("dispatcher is shutdown, ignore execute task");
+            throw new RejectedExecutionException("group or dispatcher is shutdown");
         }
     }
 
-    private void submit(CompletableFuture<?> future, Runnable task) {
+    private void submit0(Runnable task) {
         boolean b = group.sysChannel.fireOffer(task);
         if (!b) {
-            log.warn("dispatcher is shutdown, ignore submit task");
-            future.completeExceptionally(new FiberException("dispatcher is shutdown"));
+            throw new RejectedExecutionException("group or dispatcher is shutdown");
         }
     }
 
     @Override
     public <T> Future<T> submit(Callable<T> task) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        submit(future, () -> {
+        submit0(() -> {
             try {
                 future.complete(task.call());
             } catch (Throwable e) {
@@ -81,7 +77,7 @@ class GroupExecutor implements ScheduledExecutorService {
     @Override
     public Future<?> submit(Runnable task) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        submit(future, () -> {
+        submit0(() -> {
             try {
                 task.run();
                 future.complete(null);
@@ -95,7 +91,7 @@ class GroupExecutor implements ScheduledExecutorService {
     @Override
     public <T> Future<T> submit(Runnable task, T result) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        submit(future, () -> {
+        submit0(() -> {
             try {
                 task.run();
                 future.complete(result);
@@ -318,7 +314,7 @@ class GroupExecutor implements ScheduledExecutorService {
         if (group.fireFiber(fiber)) {
             return sf;
         } else {
-            throw new RejectedExecutionException("group is shutdown");
+            throw new RejectedExecutionException("group or dispatcher is shutdown");
         }
     }
 
