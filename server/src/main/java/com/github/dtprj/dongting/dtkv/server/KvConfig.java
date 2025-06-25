@@ -22,4 +22,7 @@ public class KvConfig {
     public boolean useSeparateExecutor = false;
     public int initMapCapacity = 16 * 1024;
     public float loadFactor = 0.75f;
+    public int watchDispatchIntervalMillis = 500;
+    public int watchMaxReqBytes = 80 * 1024; // may exceed
+    public int watchMaxBatchSize = 100;
 }

@@ -92,7 +92,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private EncodeStatus encodeStatus;
 
     final WatchManager watchManager;
-    int dispatchIntervalMillis = 500;
 
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
         this.mainFiberGroup = config.fiberGroup;
@@ -106,7 +105,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             dtkvExecutor = null;
             this.ts = config.ts;
         }
-        watchManager = new WatchManager(config.groupId, ts) {
+        watchManager = new WatchManager(config.groupId, ts, kvConfig) {
             @Override
             protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
                                        int requestEpoch, boolean fireNext) {
@@ -342,7 +341,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private void watchDispatchInExecutor() {
         if (kvStatus.installSnapshot || dispatchWatchTask()) {
-            dtkvExecutor.schedule(this::watchDispatchInExecutor, dispatchIntervalMillis, TimeUnit.MILLISECONDS);
+            dtkvExecutor.schedule(this::watchDispatchInExecutor, kvConfig.watchDispatchIntervalMillis, TimeUnit.MILLISECONDS);
         } else {
             dtkvExecutor.execute(this::watchDispatchInExecutor);
         }
@@ -353,7 +352,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         @Override
         public FrameCallResult execute(Void input) {
             if (kvStatus.installSnapshot || dispatchWatchTask()) {
-                return Fiber.sleepUntilShouldStop(dispatchIntervalMillis, this);
+                return Fiber.sleepUntilShouldStop(kvConfig.watchDispatchIntervalMillis, this);
             } else {
                 return Fiber.yield(this);
             }

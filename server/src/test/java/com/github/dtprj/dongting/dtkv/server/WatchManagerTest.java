@@ -49,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class WatchManagerTest {
 
+    private KvConfig kvConfig;
     private WatchManager manager;
     private KvImpl kv;
     private Timestamp ts;
@@ -100,6 +101,7 @@ public class WatchManagerTest {
     @BeforeEach
     public void setup() {
         ts = new Timestamp();
+        kvConfig = new KvConfig();
         pushRequestList = new LinkedList<>();
         tasks = new LinkedList<>();
         raftIndex = 1;
@@ -107,7 +109,7 @@ public class WatchManagerTest {
         LinkedList<PushReqInfo> q = pushRequestList;
         this.rpcEx = null;
         this.rpcResult = null;
-        manager = new WatchManager(groupId, ts, new long[]{1, 1000}) {
+        manager = new WatchManager(groupId, ts, kvConfig, new long[]{1, 1000}) {
             @Override
             protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
                                        int requestEpoch, boolean fireNext) {
@@ -732,50 +734,41 @@ public class WatchManagerTest {
 
     @Test
     public void testSync_requestSizeExceed() {
-        int old = WatchManager.maxBytesPerRequest;
-        WatchManager.maxBytesPerRequest = 1;
-        try {
-            manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+        kvConfig.watchMaxReqBytes = 1;
 
-            manager.dispatch();
-            assertEquals(1, pushRequestList.size());
-            assertEquals(1, pushRequestList.get(0).req.notifyList.size());
-            pushRequestList.clear();
+        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
 
-            mockClientResponse();
-            assertEquals(1, pushRequestList.size());
-            assertEquals(1, pushRequestList.get(0).req.notifyList.size());
-            pushRequestList.clear();
+        manager.dispatch();
+        assertEquals(1, pushRequestList.size());
+        assertEquals(1, pushRequestList.get(0).req.notifyList.size());
+        pushRequestList.clear();
 
-            manager.dispatch();
-            mockClientResponse();
-            assertEquals(0, pushRequestList.size());
-            assertTrue(manager.activeQueueHead.needNotify.isEmpty());
-        } finally {
-            WatchManager.maxBytesPerRequest = old;
-        }
+        mockClientResponse();
+        assertEquals(1, pushRequestList.size());
+        assertEquals(1, pushRequestList.get(0).req.notifyList.size());
+        pushRequestList.clear();
+
+        manager.dispatch();
+        mockClientResponse();
+        assertEquals(0, pushRequestList.size());
+        assertTrue(manager.activeQueueHead.needNotify.isEmpty());
     }
 
     @Test
     public void testSync_batch() {
-        int old = WatchManager.dispatchBatchSize;
-        WatchManager.dispatchBatchSize = 2;
-        try {
-            manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
-            manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
-            manager.sync(kv, dtc3, false, keys("key1"), new long[]{0});
-            manager.dispatch();
-            mockClientResponse();
-            assertEquals(2, pushRequestList.size());
-            pushRequestList.clear();
+        kvConfig.watchMaxBatchSize = 2;
 
-            manager.dispatch();
-            mockClientResponse();
-            assertEquals(1, pushRequestList.size());
+        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+        manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
+        manager.sync(kv, dtc3, false, keys("key1"), new long[]{0});
+        manager.dispatch();
+        mockClientResponse();
+        assertEquals(2, pushRequestList.size());
+        pushRequestList.clear();
 
-        } finally {
-            WatchManager.dispatchBatchSize = old;
-        }
+        manager.dispatch();
+        mockClientResponse();
+        assertEquals(1, pushRequestList.size());
     }
 
     @Test

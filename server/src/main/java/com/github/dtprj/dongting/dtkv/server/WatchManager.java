@@ -56,22 +56,20 @@ abstract class WatchManager {
 
     private final int groupId;
     private final Timestamp ts;
+    private final KvConfig config;
     private final long[] retryIntervalNanos;
     private int epoch;
 
-    // update in unit test
-    static int maxBytesPerRequest = 80 * 1024; // may exceed
-    static int dispatchBatchSize = 100;
-
     private final ArrayList<Pair<ChannelWatch, WatchNotify>> tempList = new ArrayList<>(64);
 
-    WatchManager(int groupId, Timestamp ts) {
-        this(groupId, ts, new long[]{1000, 10_000, 30_000, 60_000});
+    WatchManager(int groupId, Timestamp ts, KvConfig config) {
+        this(groupId, ts, config, new long[]{1000, 10_000, 30_000, 60_000});
     }
 
-    WatchManager(int groupId, Timestamp ts, long[] retryIntervalMillis) {
+    WatchManager(int groupId, Timestamp ts, KvConfig config, long[] retryIntervalMillis) {
         this.groupId = groupId;
         this.ts = ts;
+        this.config = config;
         this.retryIntervalNanos = new long[retryIntervalMillis.length];
         for (int i = 0; i < retryIntervalMillis.length; i++) {
             this.retryIntervalNanos[i] = TimeUnit.MILLISECONDS.toNanos(retryIntervalMillis[i]);
@@ -250,6 +248,7 @@ abstract class WatchManager {
 
     public boolean dispatch() {
         boolean result = true;
+        int dispatchBatchSize = config.watchMaxBatchSize;
         try {
             int count = 0;
             if (!needDispatch.isEmpty()) {
@@ -333,7 +332,7 @@ abstract class WatchManager {
                     list.add(new Pair<>(w, wn));
                     w.pending = true;
                     bytes += wn.key.length + (wn.value == null ? 0 : wn.value.length);
-                    if (bytes > maxBytesPerRequest) {
+                    if (bytes > config.watchMaxReqBytes) {
                         break;
                     }
                 }
