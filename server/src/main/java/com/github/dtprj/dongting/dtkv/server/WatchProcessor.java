@@ -56,8 +56,8 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
         }
 
         WatchReqCallback req = reqInfo.reqFrame.getBody();
-        if ((req.keys != null && (req.knownRaftIndexes == null || req.keys.length != req.knownRaftIndexes.length))
-                || (req.keys == null && req.knownRaftIndexes != null)) {
+        if ((!req.syncAll && (req.keys == null || req.keys.length == 0))
+                || (req.keys != null && (req.knownRaftIndexes == null || req.knownRaftIndexes.length != req.keys.length))) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             p.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
             return p;

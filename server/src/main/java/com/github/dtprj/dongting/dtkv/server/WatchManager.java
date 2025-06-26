@@ -581,7 +581,7 @@ final class ChannelInfo implements Comparable<ChannelInfo> {
     long lastNotifyNanos;
     long lastActiveNanos;
 
-    HashSet<ChannelWatch> needNotify;
+    LinkedHashSet<ChannelWatch> needNotify;
 
     long retryNanos;
     int failCount;

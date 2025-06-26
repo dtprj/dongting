@@ -15,15 +15,12 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
-import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
-import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
@@ -60,6 +57,7 @@ public class ClientWatchManager {
     public static final byte SEPARATOR = '.';
 
     private final RaftClient raftClient;
+    private final KvClient kvClient;
     private final Supplier<Boolean> stopped;
     private final long heartbeatIntervalMillis;
 
@@ -94,7 +92,7 @@ public class ClientWatchManager {
     private static class Watch {
         final String key;
 
-        boolean needRegister;
+        boolean needRegister = true;
         boolean needRemove;
 
         long raftIndex;
@@ -107,8 +105,9 @@ public class ClientWatchManager {
         }
     }
 
-    ClientWatchManager(RaftClient raftClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
-        this.raftClient = raftClient;
+    ClientWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
+        this.raftClient = kvClient.getRaftClient();
+        this.kvClient = kvClient;
         this.stopped = stopped;
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;
     }
@@ -285,9 +284,6 @@ public class ClientWatchManager {
     }
 
     private void sendSyncReq(GroupWatch gw, List<byte[]> keys, long[] knownRaftIndexes) {
-        WatchReq req = new WatchReq(gw.groupId, gw.fullSync, keys, knownRaftIndexes);
-        EncodableBodyWritePacket packet = new EncodableBodyWritePacket(req);
-        packet.setCommand(Commands.DTKV_SYNC_WATCH);
         RpcCallback<Void> c = (frame, ex) -> {
             if (stopped.get()) {
                 return;
@@ -316,8 +312,8 @@ public class ClientWatchManager {
                 lock.unlock();
             }
         };
-        raftClient.getNioClient().sendRequest(gw.server.peer, packet,
-                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, raftClient.createDefaultTimeout(), c);
+        WatchReq req = new WatchReq(gw.groupId, gw.fullSync, keys, knownRaftIndexes);
+        kvClient.sendSyncReq(gw.server, req, c);
     }
 
     private void removeGroupWatch(GroupWatch gw) {
@@ -373,8 +369,6 @@ public class ClientWatchManager {
     private static final int STATUS_RESTART_FIND = 2;
 
     private void sendQueryStatus(GroupInfo gi, GroupWatch gw, RaftNode n, Consumer<Integer> callback) {
-        PbIntWritePacket p = new PbIntWritePacket(Commands.DTKV_QUERY_STATUS, gw.groupId);
-        DecoderCallbackCreator<KvStatusResp> d = ctx -> ctx.toDecoderCallback(new KvStatusResp());
         RpcCallback<KvStatusResp> rpcCallback = (frame, ex) -> {
             if (stopped.get()) {
                 return;
@@ -408,7 +402,7 @@ public class ClientWatchManager {
                 lock.unlock();
             }
         };
-        raftClient.getNioClient().sendRequest(n.peer, p, d, raftClient.createDefaultTimeout(), rpcCallback);
+        kvClient.sendQueryStatusReq(n, gw.groupId, rpcCallback);
     }
 
     private boolean queryStatusOk(int groupId, RaftNode n, ReadPacket<KvStatusResp> frame, Throwable ex) {
@@ -590,6 +584,15 @@ public class ClientWatchManager {
         this.listener = listener;
         this.userExecutor = userExecutor;
         lock.unlock();
+    }
+
+    /**
+     * Set listener and user executor for watch events.
+     * The listener callback will be executed in a globally serialized manner, in NioClient's bizExecutor.
+     * @param listener the use listener
+     */
+    public void setListener(KvListener listener) {
+        setListener(listener, null);
     }
 
 }

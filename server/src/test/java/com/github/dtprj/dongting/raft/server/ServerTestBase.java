@@ -74,11 +74,11 @@ public class ServerTestBase {
 
     protected final Map<String, String> dirMap = new ConcurrentHashMap<>();
 
-    ServerTestBase(boolean openServicePort) {
+    public ServerTestBase(boolean openServicePort) {
         this.openServicePort = openServicePort;
     }
 
-    ServerTestBase() {
+    public ServerTestBase() {
         this(true);
     }
 
@@ -168,11 +168,16 @@ public class ServerTestBase {
     protected void config(RaftGroupConfig config) {
     }
 
+    protected void config(KvConfig config) {
+    }
+
     private DefaultRaftFactory createRaftFactory(int nodeId) {
         return new DefaultRaftFactory() {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
-                return new DtKV(groupConfig, new KvConfig());
+                KvConfig config = new KvConfig();
+                config(config);
+                return new DtKV(groupConfig, config);
             }
 
             @Override

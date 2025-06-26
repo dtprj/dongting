@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * @author huangli
@@ -41,12 +40,10 @@ public class WatchReq implements Encodable {
     public final List<byte[]> keys;
 
     public WatchReq(int groupId, boolean syncAll, List<byte[]> keys, long[] knownRaftIndexes) {
-        Objects.requireNonNull(knownRaftIndexes);
-        Objects.requireNonNull(keys);
-        if (keys.isEmpty()) {
+        if (!syncAll && (keys == null || keys.isEmpty())) {
             throw new IllegalArgumentException("keys size must > 0");
         }
-        if (knownRaftIndexes.length != keys.size()) {
+        if (keys != null && (knownRaftIndexes == null || knownRaftIndexes.length != keys.size())) {
             throw new IllegalArgumentException("array length not match");
         }
         this.groupId = groupId;
