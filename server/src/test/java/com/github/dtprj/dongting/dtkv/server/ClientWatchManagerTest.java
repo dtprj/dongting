@@ -32,6 +32,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * @author huangli
@@ -116,24 +117,43 @@ public class ClientWatchManagerTest implements KvListener {
         TestUtil.waitUtil(2, () -> events.size());
         WatchEvent e = events.poll();
         assertEquals(idx1, e.raftIndex);
-        assertEquals("key1", e.key.toString());
+        assertEquals("key1", e.key);
         assertEquals("value1", new String(e.value));
+        e = events.poll();
         assertEquals(idx2, e.raftIndex);
-        assertEquals("key2", e.key.toString());
+        assertEquals("key2", e.key);
         assertEquals("value2", new String(e.value));
 
         // key1 is readd
-//        manager.addWatch(groupId, "key1");
-//        idx1 = client.put(groupId, "key1".getBytes(), "value1_2".getBytes());
-//        idx2 = client.put(groupId, "key2".getBytes(), "value2_2".getBytes());
-//        TestUtil.waitUtil(1, () -> events.size());
-//        e = events.poll();
-//        assertEquals(idx1, e.raftIndex);
-//        assertEquals("key1", e.key.toString());
-//        assertEquals("value1_2", new String(e.value));
-//        e = events.poll();
-//        assertEquals(idx2, e.raftIndex);
-//        assertEquals("key2", e.key.toString());
-//        assertEquals("value2_2", new String(e.value));
+        manager.addWatch(groupId, "key1");
+        idx1 = client.put(groupId, "key1".getBytes(), "value1_2".getBytes());
+        idx2 = client.put(groupId, "key2".getBytes(), "value2_2".getBytes());
+        TestUtil.waitUtil(2, () -> events.size());
+        e = events.poll();
+        assertEquals(idx1, e.raftIndex);
+        assertEquals("key1", e.key);
+        assertEquals("value1_2", new String(e.value));
+        e = events.poll();
+        assertEquals(idx2, e.raftIndex);
+        assertEquals("key2", e.key);
+        assertEquals("value2_2", new String(e.value));
+
+        manager.removeWatch(groupId, "key1");
+        client.put(groupId, "key1".getBytes(), "value1_3".getBytes());
+        idx2 = client.put(groupId, "key2".getBytes(), "value2_3".getBytes());
+        TestUtil.waitUtil(1, () -> events.size());
+        e = events.poll();
+        assertEquals(idx2, e.raftIndex);
+        assertEquals("key2", e.key);
+        assertEquals("value2_3", new String(e.value));
+
+        manager.removeWatch(groupId, "key1", "key2");
+        client.put(groupId, "key1".getBytes(), "value1_4".getBytes());
+        client.put(groupId, "key2".getBytes(), "value2_4".getBytes());
+
+        manager.addWatch(groupId, "key3");
+        TestUtil.waitUtil(1, () -> events.size());
+        assertEquals("key3", e.key);
+        assertNull(e.value);
     }
 }

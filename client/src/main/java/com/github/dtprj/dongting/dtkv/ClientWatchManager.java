@@ -62,18 +62,18 @@ public class ClientWatchManager {
     private final long heartbeatIntervalMillis;
 
     private final ReentrantLock lock = new ReentrantLock();
-    private final HashMap<Integer, GroupWatch> watches = new HashMap<>();
+    private final HashMap<Integer, GroupWatches> watches = new HashMap<>();
 
-    private Watch notifyQueueHead;
-    private Watch notifyQueueTail;
+    private KeyWatch notifyQueueHead;
+    private KeyWatch notifyQueueTail;
 
     private Executor userExecutor;
     private KvListener listener;
     private boolean listenerTaskStart;
 
-    private static class GroupWatch {
+    private static class GroupWatches {
         final int groupId;
-        final HashMap<String, Watch> watches = new HashMap<>();
+        final HashMap<String, KeyWatch> watches = new HashMap<>();
         RaftNode server;
         long serversEpoch;
         boolean busy;
@@ -84,12 +84,12 @@ public class ClientWatchManager {
         boolean removed;
         ScheduledFuture<?> scheduledFuture;
 
-        public GroupWatch(int groupId) {
+        public GroupWatches(int groupId) {
             this.groupId = groupId;
         }
     }
 
-    private static class Watch {
+    private static class KeyWatch {
         final String key;
 
         boolean needRegister = true;
@@ -98,9 +98,9 @@ public class ClientWatchManager {
         long raftIndex;
 
         WatchEvent event;
-        Watch next;
+        KeyWatch next;
 
-        public Watch(String key) {
+        public KeyWatch(String key) {
             this.key = key;
         }
     }
@@ -143,27 +143,34 @@ public class ClientWatchManager {
         check(groupId, keys);
         lock.lock();
         try {
-            GroupWatch gw = watches.get(groupId);
+            GroupWatches gw = watches.get(groupId);
             if (gw == null) {
-                gw = new GroupWatch(groupId);
+                gw = new GroupWatches(groupId);
                 watches.put(groupId, gw);
-                GroupWatch finalGw = gw;
+                GroupWatches finalGw = gw;
                 Runnable checkTask = () -> {
-                    finalGw.needCheckServer = true;
-                    this.syncWatches(finalGw);
+                    lock.lock();
+                    try {
+                        finalGw.needCheckServer = true;
+                        syncGroupInLock(finalGw);
+                    } finally {
+                        lock.unlock();
+                    }
                 };
                 gw.scheduledFuture = DtUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(checkTask,
                         heartbeatIntervalMillis, heartbeatIntervalMillis, TimeUnit.MILLISECONDS);
             }
-            gw.needSync = true;
             for (String k : keys) {
-                Watch w = gw.watches.get(k);
+                KeyWatch w = gw.watches.get(k);
                 if (w == null || w.needRemove) {
-                    w = new Watch(k);
+                    w = new KeyWatch(k);
                     gw.watches.put(k, w);
+                    gw.needSync = true;
                 }
             }
-            syncWatches(gw);
+            if (gw.needSync) {
+                syncGroupInLock(gw);
+            }
         } finally {
             lock.unlock();
         }
@@ -173,41 +180,50 @@ public class ClientWatchManager {
         check(groupId, keys);
         lock.lock();
         try {
-            GroupWatch gw = watches.get(groupId);
-            if (gw == null) {
+            GroupWatches gw = watches.get(groupId);
+            if (gw == null || gw.removed) {
                 return;
             }
-            gw.needSync = true;
             for (String k : keys) {
-                Watch w = gw.watches.get(k);
+                KeyWatch w = gw.watches.get(k);
                 if (w != null) {
                     w.needRemove = true;
+                    gw.needSync = true;
                 }
             }
-            syncWatches(gw);
+            if (gw.needSync) {
+                syncGroupInLock(gw);
+            }
         } finally {
             lock.unlock();
         }
     }
 
-    private void syncWatches(GroupWatch gw) {
-        if (stopped.get()) {
-            return;
-        }
-        lock.lock();
+    private void syncGroupInLock(GroupWatches gw) {
         try {
-            if (gw.busy) {
+            if (stopped.get()) {
+                return;
+            }
+            if (gw.busy || gw.removed) {
                 return;
             }
             gw.busy = true;
 
             GroupInfo gi = raftClient.getGroup(gw.groupId);
             if (gi == null) {
-                removeGroupWatch(gw);
+                removeGroupWatches(gw);
+                return;
+            }
+            if (gi.servers.isEmpty()) {
                 return;
             }
             if (gw.server == null || gw.server.peer.getStatus() != PeerStatus.connected) {
-                initFindServer(gw, gi);
+                if (isGroupWatchesValid(gw)) {
+                    initFindServer(gw, gi);
+                } else {
+                    // not send sync request
+                    removeGroupWatches(gw);
+                }
                 return;
             }
             if (gw.needCheckServer) {
@@ -218,29 +234,36 @@ public class ClientWatchManager {
                         gw.busy = false;
                         gw.needCheckServer = false;
                         if (gw.needSync) {
-                            syncWatches(gw);
+                            syncGroupInLock(gw);
                         }
                     } else {
                         initFindServer(gw, gi);
                     }
                 });
             } else if (gw.needSync) {
-                doSync(gw);
+                syncGroupInLock0(gw);
             }
-        } catch (Exception e) {
-            log.error("syncWatches failed, groupId={}", gw.groupId, e);
+        } catch (Throwable e) {
+            log.error("sync watches failed, groupId={}", gw.groupId, e);
             gw.busy = false;
-        } finally {
-            lock.unlock();
         }
     }
 
-    private void doSync(GroupWatch gw) {
+    private boolean isGroupWatchesValid(GroupWatches gw) {
+        for (KeyWatch kw : gw.watches.values()) {
+            if (!kw.needRemove) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void syncGroupInLock0(GroupWatches gw) {
         List<byte[]> keys;
         long[] knownRaftIndexes;
         if (gw.fullSync) {
-            for (Iterator<Watch> it = gw.watches.values().iterator(); it.hasNext(); ) {
-                Watch w = it.next();
+            for (Iterator<KeyWatch> it = gw.watches.values().iterator(); it.hasNext(); ) {
+                KeyWatch w = it.next();
                 if (w.needRemove) {
                     it.remove();
                 } else {
@@ -250,14 +273,14 @@ public class ClientWatchManager {
             keys = new ArrayList<>(gw.watches.size());
             knownRaftIndexes = new long[gw.watches.size()];
             int i = 0;
-            for (Watch w : gw.watches.values()) {
+            for (KeyWatch w : gw.watches.values()) {
                 keys.add(w.key.getBytes(StandardCharsets.UTF_8));
                 knownRaftIndexes[i++] = w.raftIndex;
             }
         } else {
-            LinkedList<Watch> list = new LinkedList<>();
-            for (Iterator<Watch> it = gw.watches.values().iterator(); it.hasNext(); ) {
-                Watch w = it.next();
+            LinkedList<KeyWatch> list = new LinkedList<>();
+            for (Iterator<KeyWatch> it = gw.watches.values().iterator(); it.hasNext(); ) {
+                KeyWatch w = it.next();
                 if (w.needRemove) {
                     it.remove();
                     list.add(w);
@@ -268,7 +291,7 @@ public class ClientWatchManager {
             keys = new ArrayList<>(list.size());
             knownRaftIndexes = new long[list.size()];
             int i = 0;
-            for (Watch w : list) {
+            for (KeyWatch w : list) {
                 keys.add(w.key.getBytes(StandardCharsets.UTF_8));
                 knownRaftIndexes[i++] = w.raftIndex;
                 w.needRegister = false;
@@ -278,24 +301,21 @@ public class ClientWatchManager {
         gw.needSync = false;
         gw.fullSync = false;
         if (gw.watches.isEmpty()) {
-            removeGroupWatch(gw);
+            removeGroupWatches(gw);
         }
         sendSyncReq(gw, keys, knownRaftIndexes);
     }
 
-    private void sendSyncReq(GroupWatch gw, List<byte[]> keys, long[] knownRaftIndexes) {
+    private void sendSyncReq(GroupWatches gw, List<byte[]> keys, long[] knownRaftIndexes) {
         RpcCallback<Void> c = (frame, ex) -> {
             if (stopped.get()) {
                 return;
             }
             lock.lock();
             try {
-                if (gw.removed) {
-                    return;
-                }
                 GroupInfo gi = raftClient.getGroup(gw.groupId);
                 if (gi == null) {
-                    removeGroupWatch(gw);
+                    removeGroupWatches(gw);
                     return;
                 }
                 if (ex != null) {
@@ -305,8 +325,10 @@ public class ClientWatchManager {
                     gw.fullSync = true;
                     gw.server = null;
                     gw.serversEpoch = 0;
-                    syncWatches(gw);
+                    syncGroupInLock(gw);
                 }
+            } catch (Throwable e) {
+                log.error("", e);
             } finally {
                 gw.busy = false;
                 lock.unlock();
@@ -316,7 +338,7 @@ public class ClientWatchManager {
         kvClient.sendSyncReq(gw.server, req, c);
     }
 
-    private void removeGroupWatch(GroupWatch gw) {
+    private void removeGroupWatches(GroupWatches gw) {
         log.info("group {} removed", gw.groupId);
         watches.remove(gw.groupId);
         if (gw.scheduledFuture != null) {
@@ -325,11 +347,10 @@ public class ClientWatchManager {
         }
         gw.removed = true;
         gw.busy = false;
-        gw.server = null;
         gw.serversEpoch = 0;
     }
 
-    private void initFindServer(GroupWatch gw, GroupInfo gi) {
+    private void initFindServer(GroupWatches gw, GroupInfo gi) {
         gw.server = null;
         gw.serversEpoch = gi.serversEpoch;
         ArrayList<RaftNode> servers = new ArrayList<>(gi.servers);
@@ -339,7 +360,7 @@ public class ClientWatchManager {
     }
 
 
-    private void findServer(GroupInfo gi, GroupWatch gw, Iterator<RaftNode> it) {
+    private void findServer(GroupInfo gi, GroupWatches gw, Iterator<RaftNode> it) {
         while (it.hasNext()) {
             RaftNode node = it.next();
             if (node.peer.getStatus() == PeerStatus.connected) {
@@ -348,7 +369,7 @@ public class ClientWatchManager {
                         gw.busy = false;
                         gw.needCheckServer = false;
                         if (gw.needSync) {
-                            syncWatches(gw);
+                            syncGroupInLock(gw);
                         }
                     } else if (status == STATUS_TRY_NEXT) {
                         findServer(gi, gw, it);
@@ -368,7 +389,7 @@ public class ClientWatchManager {
     private static final int STATUS_TRY_NEXT = 1;
     private static final int STATUS_RESTART_FIND = 2;
 
-    private void sendQueryStatus(GroupInfo gi, GroupWatch gw, RaftNode n, Consumer<Integer> callback) {
+    private void sendQueryStatus(GroupInfo gi, GroupWatches gw, RaftNode n, Consumer<Integer> callback) {
         RpcCallback<KvStatusResp> rpcCallback = (frame, ex) -> {
             if (stopped.get()) {
                 return;
@@ -380,7 +401,7 @@ public class ClientWatchManager {
                 }
                 GroupInfo currentGroupInfo = raftClient.getGroup(gw.groupId);
                 if (currentGroupInfo == null) {
-                    removeGroupWatch(gw);
+                    removeGroupWatches(gw);
                     return;
                 }
                 if (queryStatusOk(gw.groupId, n, frame, ex)) {
@@ -398,6 +419,9 @@ public class ClientWatchManager {
                         callback.accept(STATUS_RESTART_FIND);
                     }
                 }
+            } catch (Throwable e) {
+                log.error("", e);
+                gw.busy = false;
             } finally {
                 lock.unlock();
             }
@@ -437,7 +461,7 @@ public class ClientWatchManager {
     WritePacket processNotify(WatchNotifyReq req, SocketAddress remote) {
         lock.lock();
         try {
-            GroupWatch watch = watches.get(req.groupId);
+            GroupWatches watch = watches.get(req.groupId);
             if (watch == null) {
                 log.warn("watch group not found, groupId={}, server={}", req.groupId, remote);
                 EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
@@ -451,7 +475,7 @@ public class ClientWatchManager {
             int i = 0;
             for (WatchNotify n : req.notifyList) {
                 String k = new String(n.key, StandardCharsets.UTF_8);
-                Watch w = watch.watches.get(k);
+                KeyWatch w = watch.watches.get(k);
                 if (w == null || w.needRemove) {
                     results[i] = KvCodes.CODE_REMOVE_WATCH;
                 } else {
@@ -528,7 +552,7 @@ public class ClientWatchManager {
         }
     }
 
-    private void addOrUpdateToNotifyQueue(Watch w, WatchEvent e) {
+    private void addOrUpdateToNotifyQueue(KeyWatch w, WatchEvent e) {
         if (w.event != null) {
             w.event = e;
             return;
@@ -555,7 +579,7 @@ public class ClientWatchManager {
     }
 
     private WatchEvent takeEventInLock() {
-        Watch w = notifyQueueHead;
+        KeyWatch w = notifyQueueHead;
         while (w != null && w.needRemove) {
             w = w.next;
         }

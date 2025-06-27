@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -33,7 +34,7 @@ public class GroupInfo {
 
     GroupInfo(int groupId, List<RaftNode> servers, long serversEpoch, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
-        this.servers = servers;
+        this.servers = Objects.requireNonNull(servers, "servers");
         this.serversEpoch = serversEpoch;
         if (createFuture) {
             this.leaderFuture = new CompletableFuture<>();
