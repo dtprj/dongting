@@ -38,8 +38,10 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * @author huangli
@@ -60,7 +62,8 @@ abstract class WatchManager {
     private final long[] retryIntervalNanos;
     private int epoch;
 
-    private final ArrayList<Pair<ChannelWatch, WatchNotify>> tempList = new ArrayList<>(64);
+    private final ArrayList<Pair<ChannelWatch, WatchNotify>> pushNotifyTempList = new ArrayList<>(64);
+    private final ArrayList<ChannelInfo> dispatchTempList;
 
     WatchManager(int groupId, Timestamp ts, KvConfig config) {
         this(groupId, ts, config, new long[]{1000, 10_000, 30_000, 60_000});
@@ -74,6 +77,7 @@ abstract class WatchManager {
         for (int i = 0; i < retryIntervalMillis.length; i++) {
             this.retryIntervalNanos[i] = TimeUnit.MILLISECONDS.toNanos(retryIntervalMillis[i]);
         }
+        dispatchTempList = new ArrayList<>(config.watchMaxBatchSize);
     }
 
     public void reset() {
@@ -233,6 +237,7 @@ abstract class WatchManager {
         ChannelInfo ci = channelInfoMap.remove(channel);
         if (ci != null && !ci.remove) {
             ci.remove = true;
+            ci.pending = false;
 
             needNotifyChannels.remove(ci);
             retryQueue.remove(ci);
@@ -277,6 +282,9 @@ abstract class WatchManager {
             count = 0;
             if (!needNotifyChannels.isEmpty()) {
                 Iterator<ChannelInfo> it = needNotifyChannels.iterator();
+                // push notify may update needNotifyChannels, and cause ConcurrentModificationException.
+                // so we use a temp list to hold the channels that need notify.
+                ArrayList<ChannelInfo> list = dispatchTempList;
                 while (it.hasNext()) {
                     ChannelInfo ci = it.next();
                     if (ci.failCount == 0) {
@@ -284,10 +292,14 @@ abstract class WatchManager {
                             result = false;
                             break;
                         }
-                        pushNotify(ci);
+                        list.add(ci);
                     }
                     it.remove();
                 }
+                for (int s = list.size(), i = 0; i < s; i++) {
+                    pushNotify(list.get(i));
+                }
+                list.clear();
             }
 
             count = 0;
@@ -308,19 +320,21 @@ abstract class WatchManager {
     }
 
     private void pushNotify(ChannelInfo ci) {
-        if (!ci.channel.getChannel().isOpen()) {
-            removeByChannel(ci.channel);
-        }
         if (ci.remove) {
             return;
         }
-        if (ci.needNotify == null || ci.needNotify.isEmpty()) {
-            return;
-        }
-        Iterator<ChannelWatch> it = ci.needNotify.iterator();
-        int bytes = 0;
-        ArrayList<Pair<ChannelWatch, WatchNotify>> list = tempList;
+        ArrayList<Pair<ChannelWatch, WatchNotify>> list = pushNotifyTempList;
         try {
+            if (!ci.channel.getChannel().isOpen()) {
+                removeByChannel(ci.channel);
+                return;
+            }
+            if (ci.needNotify == null || ci.needNotify.isEmpty()) {
+                ci.pending = false;
+                return;
+            }
+            Iterator<ChannelWatch> it = ci.needNotify.iterator();
+            int bytes = 0;
             while (it.hasNext()) {
                 ChannelWatch w = it.next();
                 it.remove();
@@ -352,9 +366,11 @@ abstract class WatchManager {
                 sendRequest(ci, req, watchList, epoch, it.hasNext());
             }
         } catch (Error | RuntimeException e) {
+            log.error("", e);
             ci.pending = false;
-            reAddToNeedNotifyIfNeeded(ci);
-            throw e;
+            if (!list.isEmpty()) {
+                retryByChannel(ci, list.stream().map(Pair::getLeft).collect(Collectors.toList()));
+            }
         } finally {
             list.clear();
         }
@@ -394,15 +410,15 @@ abstract class WatchManager {
                                     ReadPacket<WatchNotifyRespCallback> result,
                                     Throwable ex, int requestEpoch, boolean fireNext) {
         try {
+            if (epoch != requestEpoch) {
+                return;
+            }
+            ci.pending = false;
             for (int size = watches.size(), i = 0; i < size; i++) {
                 ChannelWatch w = watches.get(i);
                 w.pending = false;
             }
-            ci.pending = false;
 
-            if (epoch != requestEpoch) {
-                return;
-            }
             if (ex != null) {
                 log.warn("notify failed. remote={}, ex={}", ci.channel.getRemoteAddr(), ex);
                 if (ex instanceof NetCodeException) {
@@ -450,8 +466,8 @@ abstract class WatchManager {
                     removeByChannel(ci.channel);
                 } else if (fireNext) {
                     pushNotify(ci);
-                } else {
-                    reAddToNeedNotifyIfNeeded(ci);
+                } else if (ci.needNotify != null && !ci.needNotify.isEmpty()) {
+                    needNotifyChannels.add(ci);
                 }
             } else if (result.getBizCode() == KvCodes.CODE_REMOVE_ALL_WATCH) {
                 removeByChannel(ci.channel);
@@ -464,13 +480,7 @@ abstract class WatchManager {
         }
     }
 
-    private void reAddToNeedNotifyIfNeeded(ChannelInfo ci) {
-        if (ci.needNotify != null && !ci.needNotify.isEmpty()) {
-            needNotifyChannels.add(ci);
-        }
-    }
-
-    private void retryByChannel(ChannelInfo ci, ArrayList<ChannelWatch> watches) {
+    private void retryByChannel(ChannelInfo ci, List<ChannelWatch> watches) {
         ci.failCount++;
         int idx = Math.min(ci.failCount - 1, retryIntervalNanos.length - 1);
         ci.retryNanos = ts.nanoTime + retryIntervalNanos[idx];
