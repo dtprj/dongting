@@ -33,6 +33,8 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.store.TestDir;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.File;
 import java.util.Set;
@@ -79,12 +81,8 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         });
     }
 
-    @Test
-    void test() throws Exception {
-        test(false);
-        test(true);
-    }
-
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
     void test(boolean separateExecutor) throws Exception {
         String dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
         createManager(separateExecutor, dataDir, false);

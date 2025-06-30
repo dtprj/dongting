@@ -25,6 +25,8 @@ import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -199,7 +201,9 @@ public class TimeoutTest {
         NioServerClientTest.invoke(client);
     }
 
-    private void serverTimeoutBeforeProcessTest(boolean runProcessInIoThread) throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void serverTimeoutBeforeProcessTest(boolean runProcessInIoThread) throws Exception {
         CountDownLatch latch1 = new CountDownLatch(1);
         CountDownLatch latch2 = new CountDownLatch(1);
         AtomicInteger processCount = new AtomicInteger();
@@ -254,15 +258,5 @@ public class TimeoutTest {
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
 
-    }
-
-    @Test
-    public void serverTimeoutBeforeBizProcessTest() throws Exception {
-        serverTimeoutBeforeProcessTest(false);
-    }
-
-    @Test
-    public void serverTimeoutBeforeIoProcessTest() throws Exception {
-        serverTimeoutBeforeProcessTest(true);
     }
 }
