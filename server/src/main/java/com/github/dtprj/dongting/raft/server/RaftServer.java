@@ -504,9 +504,6 @@ public class RaftServer extends AbstractLifeCircle {
             try {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                         .get(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                DtUtil.restoreInterruptStatus();
-                throw new RaftException(e);
             } catch (Exception e) {
                 throw new RaftException(e);
             } finally {

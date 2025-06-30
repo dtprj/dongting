@@ -20,6 +20,8 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -37,6 +39,8 @@ public abstract class AbstractLifeCircle implements LifeCircle {
 
     protected volatile int status = STATUS_NOT_START;
     private final ReentrantLock lock = new ReentrantLock();
+    private final Condition stopCondition = lock.newCondition();
+    private Throwable stopEx;
 
     private static final CompletableFuture<Void> COMPLETED_FUTURE = CompletableFuture.completedFuture(null);
 
@@ -78,22 +82,47 @@ public abstract class AbstractLifeCircle implements LifeCircle {
                     } else {
                         log.info("status is not_start, skip stop: {}", this.getClass());
                     }
+                    stopCondition.signalAll();
                     status = STATUS_STOPPED;
                     return;
                 case STATUS_STARTING:
                     log.error("status is starting, try force stop: {}", this.getClass());
                     status = STATUS_STOPPING;
-                    doStop(timeout, true);
-                    status = STATUS_STOPPED;
+                    try {
+                        doStop(timeout, true);
+                        status = STATUS_STOPPED;
+                    } catch (Throwable e) {
+                        stopEx = e;
+                        throw e;
+                    } finally {
+                        stopCondition.signalAll();
+                    }
                     return;
                 case STATUS_RUNNING:
                 case STATUS_PREPARE_STOP:
                     status = STATUS_STOPPING;
-                    doStop(timeout, false);
-                    status = STATUS_STOPPED;
+                    try {
+                        doStop(timeout, false);
+                        status = STATUS_STOPPED;
+                    } catch (Throwable e) {
+                        stopEx = e;
+                        throw e;
+                    } finally {
+                        stopCondition.signalAll();
+                    }
                     return;
                 case STATUS_STOPPING:
-                    log.error("last stop failed, skip stop: {}", this.getClass());
+                    if (stopEx != null) {
+                        throw new DtException(stopEx);
+                    } else {
+                        try {
+                            if(!stopCondition.await(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)){
+                                throw new DtException("stop timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms");
+                            }
+                        } catch (InterruptedException e) {
+                            throw new DtException(e);
+                        }
+                    }
                     return;
                 case STATUS_STOPPED:
                     // no op
