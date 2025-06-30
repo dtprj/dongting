@@ -150,9 +150,11 @@ public class ClientWatchManagerTest implements KvListener {
         manager.removeWatch(groupId, "key1", "key2");
         client.put(groupId, "key1".getBytes(), "value1_4".getBytes());
         client.put(groupId, "key2".getBytes(), "value2_4".getBytes());
+        assertEquals(0, events.size());
 
         manager.addWatch(groupId, "key3");
         TestUtil.waitUtil(1, () -> events.size());
+        e = events.poll();
         assertEquals("key3", e.key);
         assertNull(e.value);
     }

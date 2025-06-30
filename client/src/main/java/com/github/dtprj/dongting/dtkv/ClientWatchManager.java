@@ -89,19 +89,21 @@ public class ClientWatchManager {
         }
     }
 
-    private static class KeyWatch {
-        final String key;
+    static class KeyWatch {
+        private final String key;
+        private final GroupWatches gw;
 
-        boolean needRegister = true;
-        boolean needRemove;
+        private boolean needRegister = true;
+        private boolean needRemove;
 
-        long raftIndex;
+        private long raftIndex;
 
-        WatchEvent event;
-        KeyWatch next;
+        private WatchEvent event;
+        private KeyWatch next;
 
-        public KeyWatch(String key) {
+        private KeyWatch(String key, GroupWatches gw) {
             this.key = key;
+            this.gw = gw;
         }
     }
 
@@ -163,7 +165,7 @@ public class ClientWatchManager {
             for (String k : keys) {
                 KeyWatch w = gw.watches.get(k);
                 if (w == null || w.needRemove) {
-                    w = new KeyWatch(k);
+                    w = new KeyWatch(k, gw);
                     gw.watches.put(k, w);
                     gw.needSync = true;
                 }
@@ -481,7 +483,7 @@ public class ClientWatchManager {
                 } else {
                     if (w.raftIndex < n.raftIndex) {
                         w.raftIndex = n.raftIndex;
-                        WatchEvent e = new WatchEvent(watch.groupId, n.raftIndex, n.state, k, n.value);
+                        WatchEvent e = new WatchEvent(w, watch.groupId, n.raftIndex, n.state, k, n.value);
                         addOrUpdateToNotifyQueue(w, e);
                     }
                     results[i] = KvCodes.CODE_SUCCESS;
@@ -528,16 +530,24 @@ public class ClientWatchManager {
             return;
         }
         KvListener listener;
-        WatchEvent e;
+        WatchEvent e = null;
         lock.lock();
         try {
             listener = this.listener;
-            e = takeEventInLock();
+            if (listener != null) {
+                e = takeEventInLock();
+                if (e != null) {
+                    KeyWatch kw = e.owner;
+                    if (kw.needRemove || kw.gw.removed) {
+                        e = null;
+                    }
+                }
+            }
         } finally {
             lock.unlock();
         }
         try {
-            if (listener != null && e != null) {
+            if (e != null) {
                 listener.onUpdate(e);
             }
         } catch (Throwable ex) {

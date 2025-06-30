@@ -23,13 +23,17 @@ public class WatchEvent {
     public static final int STATE_VALUE_EXISTS = 1;
     public static final int STATE_DIRECTORY_EXISTS = 2;
 
+
     public final int groupId;
     public final long raftIndex;
     public final int state;
     public final String key;
     public final byte[] value;
 
-    WatchEvent(int groupId, long raftIndex, int state, String key, byte[] value) {
+    final ClientWatchManager.KeyWatch owner;
+
+    WatchEvent(ClientWatchManager.KeyWatch owner, int groupId, long raftIndex, int state, String key, byte[] value) {
+        this.owner = owner;
         this.groupId = groupId;
         this.raftIndex = raftIndex;
         this.state = state;
