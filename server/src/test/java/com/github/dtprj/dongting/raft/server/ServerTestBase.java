@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
-import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
@@ -213,7 +213,9 @@ public class ServerTestBase {
     }
 
     protected void waitStop(ServerInfo si) {
-        si.raftServer.stop(new DtTime(5, TimeUnit.SECONDS));
+        if (si != null && si.raftServer.getStatus() >= AbstractLifeCircle.STATUS_STARTING) {
+            TestUtil.stop(si.raftServer);
+        }
     }
 
     protected ServerInfo waitLeaderElectAndGetLeaderId(int groupId, ServerInfo... servers) {

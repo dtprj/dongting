@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
@@ -38,83 +39,87 @@ public class ConfigChangeTest extends ServerTestBase {
 
     @Test
     void test() throws Exception {
-        DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
-        String servers = "2,127.0.0.1:4002;3,127.0.0.1:4003";
-        String members = "2,3";
-        ServerInfo s2 = createServer(2, servers, members, "");
-        ServerInfo s3 = createServer(3, servers, members, "");
-        waitStart(s2);
-        waitStart(s3);
+        ServerInfo s2 = null, s3 = null, s4 = null;
+        AdminRaftClient adminClient = new AdminRaftClient();
+        try {
+            DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
+            String servers = "2,127.0.0.1:4002;3,127.0.0.1:4003";
+            String members = "2,3";
+            s2 = createServer(2, servers, members, "");
+            s3 = createServer(3, servers, members, "");
+            waitStart(s2);
+            waitStart(s3);
 
-        AdminRaftClient c = new AdminRaftClient();
-        c.start();
-        c.clientAddNode(servers);
-        c.clientAddOrUpdateGroup(groupId, new int[]{2, 3});
-        c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
+            adminClient.start();
+            adminClient.clientAddNode(servers);
+            adminClient.clientAddOrUpdateGroup(groupId, new int[]{2, 3});
+            adminClient.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
 
-        // prepare config change, remove one member
-        CompletableFuture<Long> f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2), Set.of(), timeout);
-        f.get(5, TimeUnit.SECONDS);
+            // prepare config change, remove one member
+            CompletableFuture<Long> f = adminClient.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2), Set.of(), timeout);
+            f.get(5, TimeUnit.SECONDS);
 
-        // abort config change
-        f = c.abortChange(groupId, timeout);
-        f.get(5, TimeUnit.SECONDS);
+            // abort config change
+            f = adminClient.abortChange(groupId, timeout);
+            f.get(5, TimeUnit.SECONDS);
 
-        // add new node
-        CompletableFuture<Void> f1 = c.serverAddNode(2, 4, "127.0.0.1", 4004);
-        CompletableFuture<Void> f2 = c.serverAddNode(3, 4, "127.0.0.1", 4004);
-        f1.get(5, TimeUnit.SECONDS);
-        f2.get(5, TimeUnit.SECONDS);
+            // add new node
+            CompletableFuture<Void> f1 = adminClient.serverAddNode(2, 4, "127.0.0.1", 4004);
+            CompletableFuture<Void> f2 = adminClient.serverAddNode(3, 4, "127.0.0.1", 4004);
+            f1.get(5, TimeUnit.SECONDS);
+            f2.get(5, TimeUnit.SECONDS);
 
-        // prepare config change, add one member
-        f = c.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2, 3, 4), Set.of(), timeout);
-        long prepareIndex = f.get(5, TimeUnit.SECONDS);
-        // commit config change
-        f = c.commitChange(groupId, prepareIndex, timeout);
-        f.get(5, TimeUnit.SECONDS);
+            // prepare config change, add one member
+            f = adminClient.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2, 3, 4), Set.of(), timeout);
+            long prepareIndex = f.get(5, TimeUnit.SECONDS);
+            // commit config change
+            f = adminClient.commitChange(groupId, prepareIndex, timeout);
+            f.get(5, TimeUnit.SECONDS);
 
-        int leaderId = c.getGroup(groupId).leader.nodeId;
-        CompletableFuture<QueryStatusResp> queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId);
-        assertEquals(3, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
+            int leaderId = adminClient.getGroup(groupId).leader.nodeId;
+            CompletableFuture<QueryStatusResp> queryStatusFuture = adminClient.queryRaftServerStatus(leaderId, groupId);
+            assertEquals(3, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
-        // start the new node
-        ServerInfo s4 = createServer(4, "2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004", "2,3,4", "");
-        waitStart(s4);
+            // start the new node
+            s4 = createServer(4, "2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004", "2,3,4", "");
+            waitStart(s4);
 
-        c.clientAddNode("4,127.0.0.1:4004");
-        c.clientAddOrUpdateGroup(groupId, new int[]{2, 3, 4});
+            adminClient.clientAddNode("4,127.0.0.1:4004");
+            adminClient.clientAddOrUpdateGroup(groupId, new int[]{2, 3, 4});
 
-        // mark sure the new node has catch up
-        long finalPrepareIndex = prepareIndex;
-        assertTrue(() -> s4.group.groupComponents.raftStatus.getShareStatus().lastApplied >= finalPrepareIndex);
+            // mark sure the new node has catch up
+            long finalPrepareIndex = prepareIndex;
+            ServerInfo finalS4 = s4;
+            assertTrue(() -> finalS4.group.groupComponents.raftStatus.getShareStatus().lastApplied >= finalPrepareIndex);
 
-        // config change, remove the old members
-        f = c.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(4), Set.of(), timeout);
-        prepareIndex = f.get(5, TimeUnit.SECONDS);
+            // config change, remove the old members
+            f = adminClient.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(4), Set.of(), timeout);
+            prepareIndex = f.get(5, TimeUnit.SECONDS);
 
-        // before commit, transfer leader to new node
-        c.transferLeader(groupId, leaderId, 4, timeout).get(5, TimeUnit.SECONDS);
-        leaderId = 4;
+            // before commit, transfer leader to new node
+            adminClient.transferLeader(groupId, leaderId, 4, timeout).get(5, TimeUnit.SECONDS);
+            leaderId = 4;
 
-        // commit config change
-        f = c.commitChange(groupId, prepareIndex, timeout);
-        f.get(5, TimeUnit.SECONDS);
+            // commit config change
+            f = adminClient.commitChange(groupId, prepareIndex, timeout);
+            f.get(5, TimeUnit.SECONDS);
 
-        queryStatusFuture = c.queryRaftServerStatus(leaderId, groupId);
-        assertEquals(1, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
+            queryStatusFuture = adminClient.queryRaftServerStatus(leaderId, groupId);
+            assertEquals(1, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
-        // remove the new node from server and client side
-        f1 = c.serverRemoveNode(4, 2);
-        f2 = c.serverRemoveNode(4, 3);
-        f1.get(5, TimeUnit.SECONDS);
-        f2.get(5, TimeUnit.SECONDS);
+            // remove the new node from server and client side
+            f1 = adminClient.serverRemoveNode(4, 2);
+            f2 = adminClient.serverRemoveNode(4, 3);
+            f1.get(5, TimeUnit.SECONDS);
+            f2.get(5, TimeUnit.SECONDS);
 
-        c.clientAddOrUpdateGroup(groupId, new int[]{4});
-        c.clientRemoveNode(2, 3);
-
-        c.stop(timeout);
-        waitStop(s2);
-        waitStop(s3);
-        waitStop(s4);
+            adminClient.clientAddOrUpdateGroup(groupId, new int[]{4});
+            adminClient.clientRemoveNode(2, 3);
+        } finally {
+            TestUtil.stop(adminClient);
+            waitStop(s2);
+            waitStop(s3);
+            waitStop(s4);
+        }
     }
 }

@@ -34,37 +34,40 @@ public class VoteTest extends ServerTestBase {
 
     @Test
     void testSimpleVote() throws Exception {
-        // simple vote
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
-        String members = "1,2,3";
-        String observers = "4";
         ServerInfo[] sis = new ServerInfo[4];
-        sis[0] = createServer(1, servers, members, observers);
-        sis[1] = createServer(2, servers, members, observers);
-        sis[2] = createServer(3, servers, members, observers);
-        sis[3] = createServer(4, servers, members, observers);
-        for (ServerInfo si : sis) {
-            waitStart(si);
-        }
-
-        ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
-        assertTrue(leader.nodeId != 4);
-
-        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        leader.raftServer.stop(timeout);
-
-        ArrayList<ServerInfo> restServers = new ArrayList<>();
-        for (ServerInfo si : sis) {
-            if (si.nodeId != leader.nodeId) {
-                restServers.add(si);
+        try {
+            // simple vote
+            String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
+            String members = "1,2,3";
+            String observers = "4";
+            sis[0] = createServer(1, servers, members, observers);
+            sis[1] = createServer(2, servers, members, observers);
+            sis[2] = createServer(3, servers, members, observers);
+            sis[3] = createServer(4, servers, members, observers);
+            for (ServerInfo si : sis) {
+                waitStart(si);
             }
-        }
 
-        ServerInfo newLeader = waitLeaderElectAndGetLeaderId(groupId, restServers.toArray(new ServerInfo[0]));
-        assertTrue(newLeader.nodeId != leader.nodeId);
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
+            assertTrue(leader.nodeId != 4);
 
-        for (ServerInfo si : restServers) {
-            waitStop(si);
+            DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+            leader.raftServer.stop(timeout);
+
+            ArrayList<ServerInfo> restServers = new ArrayList<>();
+            for (ServerInfo si : sis) {
+                if (si.nodeId != leader.nodeId) {
+                    restServers.add(si);
+                }
+            }
+
+            ServerInfo newLeader = waitLeaderElectAndGetLeaderId(groupId, restServers.toArray(new ServerInfo[0]));
+            assertTrue(newLeader.nodeId != leader.nodeId);
+
+        } finally {
+            for (ServerInfo si : sis) {
+                waitStop(si);
+            }
         }
     }
 }

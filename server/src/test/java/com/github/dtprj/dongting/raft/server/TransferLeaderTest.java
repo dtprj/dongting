@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
@@ -33,45 +34,50 @@ public class TransferLeaderTest extends ServerTestBase {
 
     @Test
     void test() throws Exception {
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
-        String members = "1,2,3";
-        String observers = "";
         ServerInfo[] sis = new ServerInfo[3];
-        sis[0] = createServer(1, servers, members, observers);
-        sis[1] = createServer(2, servers, members, observers);
-        sis[2] = createServer(3, servers, members, observers);
-        for (ServerInfo si : sis) {
-            waitStart(si);
-        }
-
-        ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
-
+        AdminRaftClient adminClient = new AdminRaftClient();
         KvClient client = new KvClient();
-        client.start();
-        client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
-        client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+        try {
+            String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+            String members = "1,2,3";
+            String observers = "";
+            sis[0] = createServer(1, servers, members, observers);
+            sis[1] = createServer(2, servers, members, observers);
+            sis[2] = createServer(3, servers, members, observers);
+            for (ServerInfo si : sis) {
+                waitStart(si);
+            }
 
-        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        client.put(groupId, "key".getBytes(), "value".getBytes());
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
 
-        ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
+            client.start();
+            client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
+            client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
-        AdminRaftClient c = new AdminRaftClient();
-        c.start();
-        c.clientAddNode("1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003");
-        c.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
-        c.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
-        CompletableFuture<Void> f = c.transferLeader(groupId, leader.nodeId, newLeader.nodeId, timeout);
+            DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+            client.put(groupId, "key".getBytes(), "value".getBytes());
 
-        f.get(5, TimeUnit.SECONDS);
+            ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
 
-        assertEquals(RaftRole.follower, leader.group.groupComponents.raftStatus.getShareStatus().role);
-        assertEquals(RaftRole.leader, newLeader.group.groupComponents.raftStatus.getShareStatus().role);
+            adminClient.start();
+            adminClient.clientAddNode("1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003");
+            adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+            adminClient.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
+            CompletableFuture<Void> f = adminClient.transferLeader(groupId, leader.nodeId, newLeader.nodeId, timeout);
 
-        client.put(groupId, "key".getBytes(), "value".getBytes());
+            f.get(5, TimeUnit.SECONDS);
 
-        for (ServerInfo si : sis) {
-            waitStop(si);
+            assertEquals(RaftRole.follower, leader.group.groupComponents.raftStatus.getShareStatus().role);
+            assertEquals(RaftRole.leader, newLeader.group.groupComponents.raftStatus.getShareStatus().role);
+
+            client.put(groupId, "key".getBytes(), "value".getBytes());
+
+        } finally {
+            TestUtil.stop(adminClient);
+            TestUtil.stop(client);
+            for (ServerInfo si : sis) {
+                waitStop(si);
+            }
         }
     }
 }

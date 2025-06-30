@@ -70,78 +70,83 @@ public class InstallTest extends ServerTestBase {
     }
 
     private void testNewEmptyFollowerAddToGroup(int count, int bodySize) throws Exception {
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
-        String members = "1,2,3";
-        String observers = "";
-        ServerInfo s1 = createServer(1, servers, members, observers);
-        ServerInfo s2 = createServer(2, servers, members, observers);
-
-        waitStart(s1);
-        waitStart(s2);
-        ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2);
-
-        KvClient client = new KvClient();
-        client.start();
-        client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
-        client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
-
-        HashMap<String, byte[]> expectMap = new HashMap<>();
-        long raftIndex1 = putValues(groupId, client, "beforeInstallKey", count, bodySize, expectMap);
-
-        // transfer leader make nextIndex to lastLogIndex + 1, then trigger install
-        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
         AdminRaftClient adminClient = new AdminRaftClient();
-        adminClient.start();
-        adminClient.clientAddNode(servers);
-        adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
-        adminClient.transferLeader(groupId, leader.nodeId, leader.nodeId == 1 ? 2 : 1, timeout).get(5, TimeUnit.SECONDS);
-        leader = leader == s1 ? s2 : s1;
+        KvClient client = new KvClient();
+        ServerInfo s1 = null, s2 = null, s3 = null;
+        try {
+            String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+            String members = "1,2,3";
+            String observers = "";
+            s1 = createServer(1, servers, members, observers);
+            s2 = createServer(2, servers, members, observers);
 
-        // start server 3
-        ServerInfo s3 = createServer(3, servers, members, observers);
-        waitStart(s3);
+            waitStart(s1);
+            waitStart(s2);
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2);
 
-        // wait server 3 install snapshot and catch up
-        RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(1);
-        TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
+            client.start();
+            client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
+            client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
-        // put after install
-        long raftIndex2 = putValues(groupId, client, "afterInstallKey", count, bodySize, expectMap);
-        TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
+            HashMap<String, byte[]> expectMap = new HashMap<>();
+            long raftIndex1 = putValues(groupId, client, "beforeInstallKey", count, bodySize, expectMap);
 
-        // transfer leader to server 3
-        adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
+            // transfer leader make nextIndex to lastLogIndex + 1, then trigger install
+            DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+            adminClient.start();
+            adminClient.clientAddNode(servers);
+            adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+            adminClient.transferLeader(groupId, leader.nodeId, leader.nodeId == 1 ? 2 : 1, timeout).get(5, TimeUnit.SECONDS);
+            leader = leader == s1 ? s2 : s1;
 
-        // check data in server 3
-        check(groupId, client, expectMap);
+            // start server 3
+            s3 = createServer(3, servers, members, observers);
+            waitStart(s3);
 
-        // restart to check restore after install snapshot
-        waitStop(s1);
-        waitStop(s2);
-        waitStop(s3);
-        s1 = createServer(1, servers, members, observers);
-        s2 = createServer(2, servers, members, observers);
-        s3 = createServer(3, servers, members, observers);
-        waitStart(s1);
-        waitStart(s2);
-        waitStart(s3);
-        leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
+            // wait server 3 install snapshot and catch up
+            RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(1);
+            TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
 
-        if (leader.nodeId != 3) {
+            // put after install
+            long raftIndex2 = putValues(groupId, client, "afterInstallKey", count, bodySize, expectMap);
+            TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
+
+            // transfer leader to server 3
             adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
-        }
-        check(groupId, client, expectMap);
 
-        // stop all
-        waitStop(s1);
-        waitStop(s2);
-        waitStop(s3);
-        client.stop(timeout);
-        adminClient.stop(timeout);
+            // check data in server 3
+            check(groupId, client, expectMap);
+
+            // restart to check restore after install snapshot
+            waitStop(s1);
+            waitStop(s2);
+            waitStop(s3);
+            s1 = createServer(1, servers, members, observers);
+            s2 = createServer(2, servers, members, observers);
+            s3 = createServer(3, servers, members, observers);
+            waitStart(s1);
+            waitStart(s2);
+            waitStart(s3);
+            leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
+
+            if (leader.nodeId != 3) {
+                adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
+            }
+            check(groupId, client, expectMap);
+        } finally {
+            // stop all
+            TestUtil.stop(adminClient);
+            TestUtil.stop(client);
+            waitStop(s1);
+            waitStop(s2);
+            waitStop(s3);
+        }
+
+
     }
 
     static long putValues(int groupId, KvClient client, String keyPrefix, int count, int bodySize,
-                           HashMap<String, byte[]> expectMap) throws InterruptedException {
+                          HashMap<String, byte[]> expectMap) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(count);
         AtomicLong lastRaftIndex = new AtomicLong(0);
         Random r = new Random();
@@ -176,65 +181,68 @@ public class InstallTest extends ServerTestBase {
 
     @Test
     void testTruncateAndInstall() throws Exception {
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
-        String members = "1,2,3";
-        String observers = "";
-        ServerInfo s1 = createServer(1, servers, members, observers);
-        ServerInfo s2 = createServer(2, servers, members, observers);
-        ServerInfo s3 = createServer(3, servers, members, observers);
-
-        waitStart(s1);
-        waitStart(s2);
-        waitStart(s3);
-        ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
-
-        KvClient client = new KvClient();
-        client.start();
-        client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
-        client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
-
         AdminRaftClient adminClient = new AdminRaftClient();
-        adminClient.start();
-        adminClient.clientAddNode(servers);
-        adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+        KvClient client = new KvClient();
+        ServerInfo s1 = null, s2 = null, s3 = null;
+        try {
+            String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+            String members = "1,2,3";
+            String observers = "";
+            s1 = createServer(1, servers, members, observers);
+            s2 = createServer(2, servers, members, observers);
+            s3 = createServer(3, servers, members, observers);
 
-        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-        if (leader.nodeId == 3) {
-            adminClient.transferLeader(groupId, leader.nodeId, 1, timeout).get(5, TimeUnit.SECONDS);
-            leader = s1;
+            waitStart(s1);
+            waitStart(s2);
+            waitStart(s3);
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
+
+            client.start();
+            client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
+            client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+
+            adminClient.start();
+            adminClient.clientAddNode(servers);
+            adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+
+            DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+            if (leader.nodeId == 3) {
+                adminClient.transferLeader(groupId, leader.nodeId, 1, timeout).get(5, TimeUnit.SECONDS);
+                leader = s1;
+            }
+
+            HashMap<String, byte[]> expectMap = new HashMap<>();
+            long raftIndex1 = putValues(groupId, client, "before", 4, 400, expectMap);
+
+            // wait server 3 catch up
+            RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
+            TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
+
+            waitStop(s3);
+
+            long raftIndex2 = putValues(groupId, client, "after", 4, 400, expectMap);
+
+            // save snapshot and truncate logs, since
+            // config.autoDeleteLogDelayMillis = 0 and config.maxKeepSnapshots = 1
+            leader.group.fireSaveSnapshot().get(5, TimeUnit.SECONDS);
+
+            // restart server 3
+            s3 = createServer(3, servers, members, observers);
+            waitStart(s3);
+
+            // wait server 3 install snapshot and catch up
+            RaftGroupImpl g3New = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
+            TestUtil.waitUtil(() -> g3New.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
+
+            adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
+            check(groupId, client, expectMap);
+        } finally {
+            // stop all
+            TestUtil.stop(adminClient);
+            TestUtil.stop(client);
+            waitStop(s1);
+            waitStop(s2);
+            waitStop(s3);
         }
-
-        HashMap<String, byte[]> expectMap = new HashMap<>();
-        long raftIndex1 = putValues(groupId, client, "before", 4, 400, expectMap);
-
-        // wait server 3 catch up
-        RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
-        TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
-
-        waitStop(s3);
-
-        long raftIndex2 = putValues(groupId, client, "after", 4,400, expectMap);
-
-        // save snapshot and truncate logs, since
-        // config.autoDeleteLogDelayMillis = 0 and config.maxKeepSnapshots = 1
-        leader.group.fireSaveSnapshot().get(5, TimeUnit.SECONDS);
-
-        // restart server 3
-        s3 = createServer(3, servers, members, observers);
-        waitStart(s3);
-
-        // wait server 3 install snapshot and catch up
-        RaftGroupImpl g3New = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
-        TestUtil.waitUtil(() -> g3New.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
-
-        adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
-        check(groupId, client, expectMap);
-
-        // stop all
-        waitStop(s1);
-        waitStop(s2);
-        waitStop(s3);
-        client.stop(timeout);
-        adminClient.stop(timeout);
     }
 }

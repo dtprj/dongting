@@ -18,7 +18,11 @@ package com.github.dtprj.dongting.raft.test;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import org.opentest4j.AssertionFailedError;
 
 import java.util.Objects;
@@ -33,6 +37,8 @@ import java.util.function.Supplier;
  */
 @SuppressWarnings("unused")
 public class TestUtil {
+    private static final DtLog log = DtLogs.getLogger(TestUtil.class);
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static void waitUtil(Supplier<Boolean> condition) {
         waitUtil(Boolean.TRUE, (Supplier) condition, 5000);
@@ -128,5 +134,16 @@ public class TestUtil {
             bytes[i] = (byte) (r.nextInt(26) + 'a');
         }
         return new String(bytes);
+    }
+
+    public static void stop(AbstractLifeCircle obj) {
+        if (obj == null) {
+            return;
+        }
+        try {
+            obj.stop(new DtTime(5, TimeUnit.SECONDS), true);
+        } catch (Exception e) {
+            log.error("", e);
+        }
     }
 }

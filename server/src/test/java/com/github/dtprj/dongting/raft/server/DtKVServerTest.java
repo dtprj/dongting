@@ -15,17 +15,16 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -35,65 +34,67 @@ import static org.junit.jupiter.api.Assertions.*;
 public class DtKVServerTest extends ServerTestBase {
     @Test
     void test() throws Exception {
-        ServerInfo s1 = createServer(1, "1, 127.0.0.1:4001", "1", "");
-
-        waitStart(s1);
-        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-
+        ServerInfo s1 = null;
         KvClient client = new KvClient();
-        client.start();
-        client.getRaftClient().clientAddNode("1, 127.0.0.1:5001");
-        client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1});
-        client.mkdir(groupId, "dir1".getBytes());
-        client.put(groupId, "dir1.k1".getBytes(), "v1".getBytes());
 
-        KvNode result = client.get(groupId, "dir1.k1".getBytes());
-        assertEquals("v1", new String(result.data));
+        try {
+            s1 = createServer(1, "1, 127.0.0.1:4001", "1", "");
+            waitStart(s1);
 
-        List<KvResult> listResult = client.list(groupId, "".getBytes());
-        assertEquals(groupId, listResult.size());
-        assertEquals(KvCodes.CODE_SUCCESS, listResult.get(0).getBizCode());
-        assertEquals("dir1", listResult.get(0).getKeyInDir().toString());
+            client.start();
+            client.getRaftClient().clientAddNode("1, 127.0.0.1:5001");
+            client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1});
+            client.mkdir(groupId, "dir1".getBytes());
+            client.put(groupId, "dir1.k1".getBytes(), "v1".getBytes());
 
-        client.remove(groupId, "dir1.k1".getBytes());
-        result = client.get(groupId, "dir1.k1".getBytes());
-        assertNull(result);
+            KvNode result = client.get(groupId, "dir1.k1".getBytes());
+            assertEquals("v1", new String(result.data));
 
-        // Test batchPut
-        KvResp batchPutResults = client.batchPut(groupId, Arrays.asList("batchK1".getBytes(), "batchK2".getBytes()),
-                Arrays.asList("v1".getBytes(), "v2".getBytes()));
-        assertEquals(2, batchPutResults.results.size());
-        assertEquals(KvCodes.CODE_SUCCESS, batchPutResults.results.get(0).getBizCode());
-        assertEquals(KvCodes.CODE_SUCCESS, batchPutResults.results.get(1).getBizCode());
+            List<KvResult> listResult = client.list(groupId, "".getBytes());
+            assertEquals(groupId, listResult.size());
+            assertEquals(KvCodes.CODE_SUCCESS, listResult.get(0).getBizCode());
+            assertEquals("dir1", listResult.get(0).getKeyInDir().toString());
 
-        // Verify batchPut results
-        List<KvNode> batchGetResults = client.batchGet(groupId, Arrays.asList(
-                "batchK1".getBytes(), "batchK2".getBytes()));
-        assertEquals(2, batchGetResults.size());
-        assertEquals("v1", new String(batchGetResults.get(0).data));
-        assertEquals("v2", new String(batchGetResults.get(1).data));
+            client.remove(groupId, "dir1.k1".getBytes());
+            result = client.get(groupId, "dir1.k1".getBytes());
+            assertNull(result);
 
-        // Test batchRemove
-        KvResp batchRemoveResults = client.batchRemove(groupId, Arrays.asList(
-                "batchK1".getBytes(), "batchK2".getBytes()));
-        assertEquals(2, batchRemoveResults.results.size());
-        assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResults.results.get(0).getBizCode());
-        assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResults.results.get(1).getBizCode());
+            // Test batchPut
+            KvResp batchPutResults = client.batchPut(groupId, Arrays.asList("batchK1".getBytes(), "batchK2".getBytes()),
+                    Arrays.asList("v1".getBytes(), "v2".getBytes()));
+            assertEquals(2, batchPutResults.results.size());
+            assertEquals(KvCodes.CODE_SUCCESS, batchPutResults.results.get(0).getBizCode());
+            assertEquals(KvCodes.CODE_SUCCESS, batchPutResults.results.get(1).getBizCode());
 
-        // Verify batchRemove results
-        batchGetResults = client.batchGet(groupId, Arrays.asList(
-                "batchK1".getBytes(), "batchK2".getBytes()));
-        assertEquals(2, batchGetResults.size());
-        assertNull(batchGetResults.get(0));
-        assertNull(batchGetResults.get(1));
+            // Verify batchPut results
+            List<KvNode> batchGetResults = client.batchGet(groupId, Arrays.asList(
+                    "batchK1".getBytes(), "batchK2".getBytes()));
+            assertEquals(2, batchGetResults.size());
+            assertEquals("v1", new String(batchGetResults.get(0).data));
+            assertEquals("v2", new String(batchGetResults.get(1).data));
 
-        // Test compareAndSet
-        long casResult = client.compareAndSet(groupId, "casKey1".getBytes(), null, "value1".getBytes());
-        assertTrue(casResult > 0);
-        assertEquals("value1", new String(client.get(groupId, "casKey1".getBytes()).data));
+            // Test batchRemove
+            KvResp batchRemoveResults = client.batchRemove(groupId, Arrays.asList(
+                    "batchK1".getBytes(), "batchK2".getBytes()));
+            assertEquals(2, batchRemoveResults.results.size());
+            assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResults.results.get(0).getBizCode());
+            assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResults.results.get(1).getBizCode());
 
-        client.stop(timeout);
-        waitStop(s1);
+            // Verify batchRemove results
+            batchGetResults = client.batchGet(groupId, Arrays.asList(
+                    "batchK1".getBytes(), "batchK2".getBytes()));
+            assertEquals(2, batchGetResults.size());
+            assertNull(batchGetResults.get(0));
+            assertNull(batchGetResults.get(1));
 
+            // Test compareAndSet
+            long casResult = client.compareAndSet(groupId, "casKey1".getBytes(), null, "value1".getBytes());
+            assertTrue(casResult > 0);
+            assertEquals("value1", new String(client.get(groupId, "casKey1".getBytes()).data));
+
+        } finally {
+            TestUtil.stop(client);
+            waitStop(s1);
+        }
     }
 }
