@@ -135,43 +135,6 @@ abstract class WatchManager {
         ci.next = null;
     }
 
-    private static ChannelWatch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex) {
-        KvNodeHolder nodeHolder = kv.map.get(key);
-        WatchHolder wh = ensureWatchHolder(kv, key, nodeHolder);
-        ChannelWatch w = new ChannelWatch(wh, ci, notifiedIndex);
-        wh.watches.add(w);
-        return w;
-    }
-
-    private static WatchHolder ensureWatchHolder(KvImpl kv, ByteArray key, KvNodeHolder nodeHolder) {
-        KvNodeHolder parent = null;
-        if (nodeHolder != null) {
-            if (!nodeHolder.latest.removed) {
-                if (nodeHolder.watchHolder == null) {
-                    nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
-                }
-                // mount to node with same key
-                return nodeHolder.watchHolder;
-            }
-            parent = nodeHolder.parent;
-        }
-        // mount to parent dir
-        ByteArray parentKey;
-        if (parent == null) {
-            parentKey = kv.parentKey(key);
-            parent = kv.map.get(parentKey);
-        } else {
-            parentKey = parent.key;
-        }
-        WatchHolder parentWatchHolder = ensureWatchHolder(kv, parentKey, parent);
-        WatchHolder watchHolder = parentWatchHolder.getChild(key);
-        if (watchHolder == null) {
-            watchHolder = new WatchHolder(key, null, parentWatchHolder);
-            parentWatchHolder.addChild(key, watchHolder);
-        }
-        return watchHolder;
-    }
-
     public void afterUpdate(KvNodeHolder h) {
         WatchHolder wh = h.watchHolder;
         if (wh == null) {
@@ -563,6 +526,43 @@ abstract class WatchManager {
             // this channel has no watches, remove channel info
             removeByChannel(ci.channel);
         }
+    }
+
+    private ChannelWatch createWatch(KvImpl kv, ByteArray key, ChannelInfo ci, long notifiedIndex) {
+        KvNodeHolder nodeHolder = kv.map.get(key);
+        WatchHolder wh = ensureWatchHolder(kv, key, nodeHolder);
+        ChannelWatch w = new ChannelWatch(wh, ci, notifiedIndex);
+        wh.watches.add(w);
+        return w;
+    }
+
+    private WatchHolder ensureWatchHolder(KvImpl kv, ByteArray key, KvNodeHolder nodeHolder) {
+        KvNodeHolder parent = null;
+        if (nodeHolder != null) {
+            if (!nodeHolder.latest.removed) {
+                if (nodeHolder.watchHolder == null) {
+                    nodeHolder.watchHolder = new WatchHolder(nodeHolder.key, nodeHolder, null);
+                }
+                // mount to node with same key
+                return nodeHolder.watchHolder;
+            }
+            parent = nodeHolder.parent;
+        }
+        // mount to parent dir
+        ByteArray parentKey;
+        if (parent == null) {
+            parentKey = kv.parentKey(key);
+            parent = kv.map.get(parentKey);
+        } else {
+            parentKey = parent.key;
+        }
+        WatchHolder parentWatchHolder = ensureWatchHolder(kv, parentKey, parent);
+        WatchHolder watchHolder = parentWatchHolder.getChild(key);
+        if (watchHolder == null) {
+            watchHolder = new WatchHolder(key, null, parentWatchHolder);
+            parentWatchHolder.addChild(key, watchHolder);
+        }
+        return watchHolder;
     }
 
     public int updateWatchStatus(DtChannel dtc) {
