@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.dtkv.ClientWatchManager;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvListener;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterAll;
@@ -32,6 +33,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * @author huangli
@@ -116,6 +118,7 @@ public class ClientWatchManagerTest implements KvListener {
             WatchEvent e = events.poll();
             assertEquals(key, e.key);
             String actualValue = e.value == null ? null : new String(e.value);
+            // notice that the watch may process by a follower and it's data is not latest
             if (value == null && actualValue != null || value != null && !value.equals(actualValue)) {
                 System.out.println("got event value not match, expect: " + value + ", actual: " + actualValue);
                 return false;
@@ -128,7 +131,15 @@ public class ClientWatchManagerTest implements KvListener {
 
     }
 
-    // notice that the watch may process by a follower and it's data is not latest
+    @Test
+    public void testInvalidParams() {
+        assertThrows(RaftException.class, () -> manager.addWatch(groupId + 100000, "key1"));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ""));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ".key1"));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1."));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1..key2"));
+    }
+
     @Test
     public void testAddRemoveWatch() {
         long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
