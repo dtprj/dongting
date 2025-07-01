@@ -16,8 +16,12 @@
 package com.github.dtprj.dongting.test;
 
 import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.TestSource;
+import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
+
+import java.util.Optional;
 
 /**
  * @author huangli
@@ -27,18 +31,31 @@ public class DtJunitListener implements TestExecutionListener {
     private long time;
 
     @Override
-    public void executionStarted(TestIdentifier testIdentifier) {
-        if (testIdentifier.isTest()) {
+    public void executionStarted(TestIdentifier identifier) {
+        if (identifier.isTest()) {
             time = System.currentTimeMillis();
-            System.out.println("Starting test method: " + testIdentifier.getDisplayName());
+            System.out.println("Starting test method: " + getDisplayName(identifier));
         }
     }
 
     @Override
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult result) {
         if (testIdentifier.isTest()) {
-            System.out.println("Finished test method: " + testIdentifier.getDisplayName()
-                    + " -- Result: " + result.getStatus() +", Time: " + (System.currentTimeMillis() - time) + "ms");
+            System.out.println("Finished test method: " + getDisplayName(testIdentifier)
+                    + " -- Result: " + result.getStatus() + ", Time: " + (System.currentTimeMillis() - time) + "ms");
+        }
+    }
+
+    private String getDisplayName(TestIdentifier identifier) {
+        Optional<TestSource> source = identifier.getSource();
+        if (source.isPresent() && source.get() instanceof MethodSource methodSource) {
+            if (identifier.getDisplayName().contains(methodSource.getMethodName())) {
+                return identifier.getDisplayName();
+            } else {
+                return methodSource.getMethodName() + "() " + identifier.getDisplayName();
+            }
+        } else {
+            return identifier.getDisplayName();
         }
     }
 }
