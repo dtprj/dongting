@@ -25,6 +25,15 @@
     </parent>
     <artifactId>dongting-client</artifactId>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.github.dtprj.dongting</groupId>
+            <artifactId>test-support</artifactId>
+            <version>0.8.1-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
     <build>
         <finalName>dongting-client-${project.version}</finalName>
         <plugins>

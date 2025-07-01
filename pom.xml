@@ -54,6 +54,7 @@
     </scm>
 
     <modules>
+        <module>test-support</module>
         <module>client</module>
         <module>server</module>
         <module>report</module>
@@ -66,7 +67,7 @@
             <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
-                <version>5.9.0</version>
+                <version>5.13.2</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -169,7 +170,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.1.2</version>
+                <version>3.5.3</version>
                 <configuration>
                     <argLine>@{argLine} -Xmx256M -XX:MaxDirectMemorySize=128M --add-modules ALL-MODULE-PATH</argLine>
                 </configuration>
