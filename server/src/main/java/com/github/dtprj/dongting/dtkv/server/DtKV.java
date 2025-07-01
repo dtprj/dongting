@@ -351,6 +351,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (status > AbstractLifeCircle.STATUS_RUNNING || isGroupShouldStopPlain()) {
+                return Fiber.frameReturn();
+            }
             if (kvStatus.installSnapshot || dispatchWatchTask()) {
                 return Fiber.sleepUntilShouldStop(kvConfig.watchDispatchIntervalMillis, this);
             } else {
