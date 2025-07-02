@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-import static com.github.dtprj.dongting.util.Tick.tick;
+import static com.github.dtprj.dongting.test.Tick.tick;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**

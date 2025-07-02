@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.raft.test.TestUtil;
-import com.github.dtprj.dongting.util.Tick;
+import com.github.dtprj.dongting.test.Tick;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

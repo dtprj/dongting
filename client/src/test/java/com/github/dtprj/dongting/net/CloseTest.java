@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
-import com.github.dtprj.dongting.common.Tick;
+import com.github.dtprj.dongting.test.Tick;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

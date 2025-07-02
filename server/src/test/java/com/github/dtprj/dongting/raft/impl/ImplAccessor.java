@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import static com.github.dtprj.dongting.util.Tick.tick;
+import static com.github.dtprj.dongting.test.Tick.tick;
 
 /**
  * @author huangli

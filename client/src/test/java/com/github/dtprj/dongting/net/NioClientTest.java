@@ -54,7 +54,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.github.dtprj.dongting.common.Tick.tick;
+import static com.github.dtprj.dongting.test.Tick.tick;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**

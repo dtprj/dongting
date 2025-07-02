@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.CRC32C;
 
-import static com.github.dtprj.dongting.util.Tick.tick;
+import static com.github.dtprj.dongting.test.Tick.tick;
 
 /**
  * @author huangli
