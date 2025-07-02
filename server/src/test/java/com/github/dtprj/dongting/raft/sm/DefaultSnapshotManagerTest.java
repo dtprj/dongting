@@ -38,6 +38,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.File;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -103,13 +104,13 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 return Fiber.call(m.init(), this::afterInit);
             }
 
-            private FrameCallResult afterInit(Snapshot snapshot) {
+            private FrameCallResult afterInit(Snapshot snapshot) throws Exception {
                 assertNull(snapshot);
                 m.startFiber();
                 return beforePut(null);
             }
 
-            private FrameCallResult beforePut(Void v) {
+            private FrameCallResult beforePut(Void v) throws Exception {
                 if (index > LOOP) {
                     return afterLoop();
                 }
@@ -136,9 +137,16 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 return Fiber.resume(null, this::beforePut);
             }
 
-            private FrameCallResult afterLoop() {
+            private FrameCallResult afterLoop() throws Exception {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
+
+                // make sure the delete snapshot file task done, otherwise the next init will fail
+                CountDownLatch latch = new CountDownLatch(10);
+                for (int i = 0; i < 10; i++) {
+                    groupConfig.blockIoExecutor.submit(latch::countDown);
+                }
+                assertTrue(latch.await(3, TimeUnit.SECONDS));
 
                 createManager(separateExecutor, dataDir, false);
                 kv.start();
