@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.dtkv.KvListener;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -111,7 +111,7 @@ public class ClientWatchManagerTest implements KvListener {
     }
 
     private void waitForEvents(long index, String key, String value) {
-        TestUtil.waitUtil(() -> {
+        WaitUtil.waitUtil(() -> {
             if (events.isEmpty()) {
                 return false;
             }

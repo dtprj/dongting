@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,7 +68,7 @@ public class CatchTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
         assertSame(ex, exRef.get());
         assertEquals(100, resultRef.get());
@@ -111,7 +111,7 @@ public class CatchTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
         assertSame(ex, exRef.get());
     }
@@ -146,7 +146,7 @@ public class CatchTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
     }
 
@@ -188,7 +188,7 @@ public class CatchTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
         assertSame(ex2, exRef.get());
     }
@@ -235,7 +235,7 @@ public class CatchTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
         assertSame(ex2, exRef.get());
     }
@@ -280,7 +280,7 @@ public class CatchTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
         assertEquals(100, resultRef.get());
     }

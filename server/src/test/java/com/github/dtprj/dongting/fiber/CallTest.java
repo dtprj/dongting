@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -85,7 +85,7 @@ public class CallTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         }));
-        TestUtil.waitUtil(f1FinallyCalled::get);
+        WaitUtil.waitUtil(f1FinallyCalled::get);
         assertTrue(f2FinallyCalled.get());
         assertTrue(f1Called.get());
         assertTrue(f2Called.get());

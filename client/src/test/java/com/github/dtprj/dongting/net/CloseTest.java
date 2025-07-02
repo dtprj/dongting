@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.test.Tick;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -84,7 +85,7 @@ public class CloseTest {
         client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
                 new DtTime(10, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
 
-        TestUtil.waitUtil(() -> received);
+        WaitUtil.waitUtil(() -> received);
 
         Peer p = client.getPeers().get(0);
         client.disconnect(p);
@@ -108,7 +109,7 @@ public class CloseTest {
         client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
                 new DtTime(10, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
 
-        TestUtil.waitUtil(() -> received);
+        WaitUtil.waitUtil(() -> received);
 
         Peer p = client.getPeers().get(0);
         client.disconnect(p).get(10, TimeUnit.SECONDS);

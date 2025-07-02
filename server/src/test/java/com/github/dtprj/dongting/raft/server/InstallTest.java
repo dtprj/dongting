@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -105,11 +106,11 @@ public class InstallTest extends ServerTestBase {
 
             // wait server 3 install snapshot and catch up
             RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(1);
-            TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
+            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
 
             // put after install
             long raftIndex2 = putValues(groupId, client, "afterInstallKey", count, bodySize, expectMap);
-            TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
+            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
 
             // transfer leader to server 3
             adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
@@ -216,7 +217,7 @@ public class InstallTest extends ServerTestBase {
 
             // wait server 3 catch up
             RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
-            TestUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
+            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
 
             waitStop(s3);
 
@@ -232,7 +233,7 @@ public class InstallTest extends ServerTestBase {
 
             // wait server 3 install snapshot and catch up
             RaftGroupImpl g3New = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
-            TestUtil.waitUtil(() -> g3New.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
+            WaitUtil.waitUtil(() -> g3New.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
 
             adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
             check(groupId, client, expectMap);

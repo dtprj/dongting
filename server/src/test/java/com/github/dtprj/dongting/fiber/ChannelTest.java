@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.Tick;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -68,8 +68,8 @@ public class ChannelTest extends AbstractFiberTest {
             }
         });
         channel.fireOffer(1);
-        TestUtil.waitUtil(() -> Integer.valueOf(1).equals(r1.get()));
-        TestUtil.waitUtil(finished::get);
+        WaitUtil.waitUtil(() -> Integer.valueOf(1).equals(r1.get()));
+        WaitUtil.waitUtil(finished::get);
         Assertions.assertNull(r2.get());
         Assertions.assertNull(exRef.get());
     }
@@ -109,11 +109,11 @@ public class ChannelTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        TestUtil.waitUtil(() -> r1.size() == 2);
+        WaitUtil.waitUtil(() -> r1.size() == 2);
         Assertions.assertEquals(1, r1.get(0));
         Assertions.assertEquals(2, r1.get(1));
 
-        TestUtil.waitUtil(finished::get);
+        WaitUtil.waitUtil(finished::get);
         Assertions.assertTrue(r2.isEmpty());
         Assertions.assertNull(exRef.get());
     }

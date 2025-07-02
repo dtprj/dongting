@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,7 +64,7 @@ public class FinallyTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
         assertEquals(100, resultRef.get());
     }
@@ -111,7 +111,7 @@ public class FinallyTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
         assertNull(resultRef.get());
         assertSame(ex, exRef.get());
@@ -148,7 +148,7 @@ public class FinallyTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertEquals(200, resultRef.get());
     }
 
@@ -187,7 +187,7 @@ public class FinallyTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertSame(ex2, exRef.get());
         assertSame(ex1, exRef.get().getSuppressed()[1]);
     }
@@ -229,7 +229,7 @@ public class FinallyTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         });
-        TestUtil.waitUtil(parentFinallyCalled::get);
+        WaitUtil.waitUtil(parentFinallyCalled::get);
         assertSame(ex2, exRef.get());
         assertSame(ex1, exRef.get().getSuppressed()[1]);
     }

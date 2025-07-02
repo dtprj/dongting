@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static com.github.dtprj.dongting.raft.test.TestUtil.waitUtil;
+import static com.github.dtprj.dongting.test.WaitUtil.waitUtil;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**

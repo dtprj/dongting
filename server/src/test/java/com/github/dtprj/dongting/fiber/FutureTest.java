@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +56,7 @@ public class FutureTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         }));
-        TestUtil.waitUtil(timeout::get);
+        WaitUtil.waitUtil(timeout::get);
         Assertions.assertFalse(finish.get());
     }
 
@@ -92,7 +92,7 @@ public class FutureTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         }));
-        TestUtil.waitUtil(interrupt::get);
+        WaitUtil.waitUtil(interrupt::get);
         Assertions.assertFalse(finish.get());
     }
 
@@ -129,7 +129,7 @@ public class FutureTest extends AbstractFiberTest {
             }
         }));
         fiberGroup.fireFiber(f1);
-        TestUtil.waitUtil(interrupt::get);
+        WaitUtil.waitUtil(interrupt::get);
         Assertions.assertFalse(finish.get());
     }
 
@@ -160,7 +160,7 @@ public class FutureTest extends AbstractFiberTest {
         fiberGroup.fireFiber(fiber);
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         f.fireComplete(100);
-        TestUtil.waitUtil(() -> futureResult.get() == 100);
+        WaitUtil.waitUtil(() -> futureResult.get() == 100);
         assertNull(futureEx.get());
 
         assertEquals(100, f.getResult());
@@ -192,7 +192,7 @@ public class FutureTest extends AbstractFiberTest {
         // complete before await
         f.fireComplete(100);
         fiberGroup.fireFiber(fiber);
-        TestUtil.waitUtil(() -> futureResult.get() == 100);
+        WaitUtil.waitUtil(() -> futureResult.get() == 100);
         assertNull(futureEx.get());
 
         assertEquals(100, f.getResult());
@@ -227,7 +227,7 @@ public class FutureTest extends AbstractFiberTest {
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         Exception ex = new Exception();
         f.fireCompleteExceptionally(ex);
-        TestUtil.waitUtil(() -> futureEx.get() == ex);
+        WaitUtil.waitUtil(() -> futureEx.get() == ex);
         assertEquals(0, futureResult.get());
 
         assertNull(f.getResult());
@@ -262,7 +262,7 @@ public class FutureTest extends AbstractFiberTest {
         f.fireCompleteExceptionally(ex);
 
         fiberGroup.fireFiber(fiber);
-        TestUtil.waitUtil(() -> futureEx.get() == ex);
+        WaitUtil.waitUtil(() -> futureEx.get() == ex);
         assertEquals(0, futureResult.get());
 
         assertNull(f.getResult());
@@ -292,7 +292,7 @@ public class FutureTest extends AbstractFiberTest {
         }));
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         f.fireComplete(100);
-        TestUtil.waitUtil(() -> futureResult.get() != null && futureResult.get() == 100);
+        WaitUtil.waitUtil(() -> futureResult.get() != null && futureResult.get() == 100);
         assertNull(futureEx.get());
     }
 
@@ -319,7 +319,7 @@ public class FutureTest extends AbstractFiberTest {
             }
         }));
 
-        TestUtil.waitUtil(() -> futureResult.get() != null && futureResult.get() == 100);
+        WaitUtil.waitUtil(() -> futureResult.get() != null && futureResult.get() == 100);
         assertNull(futureEx.get());
     }
 
@@ -348,7 +348,7 @@ public class FutureTest extends AbstractFiberTest {
 
         Exception ex = new Exception();
         f.fireCompleteExceptionally(ex);
-        TestUtil.waitUtil(() -> futureEx.get() == ex);
+        WaitUtil.waitUtil(() -> futureEx.get() == ex);
         assertNull(futureResult.get());
     }
 
@@ -376,7 +376,7 @@ public class FutureTest extends AbstractFiberTest {
             }
         }));
 
-        TestUtil.waitUtil(() -> futureEx.get() == ex);
+        WaitUtil.waitUtil(() -> futureEx.get() == ex);
         assertNull(futureResult.get());
     }
 
@@ -400,7 +400,7 @@ public class FutureTest extends AbstractFiberTest {
         }));
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         f.fireComplete(100);
-        TestUtil.waitUtil(() -> "100".equals(futureResult.get()));
+        WaitUtil.waitUtil(() -> "100".equals(futureResult.get()));
         assertNull(futureEx.get());
     }
 
@@ -423,7 +423,7 @@ public class FutureTest extends AbstractFiberTest {
             }
         }));
 
-        TestUtil.waitUtil(() -> "100".equals(futureResult.get()));
+        WaitUtil.waitUtil(() -> "100".equals(futureResult.get()));
         assertNull(futureEx.get());
     }
 
@@ -454,7 +454,7 @@ public class FutureTest extends AbstractFiberTest {
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         Exception ex = new Exception();
         f.fireCompleteExceptionally(ex);
-        TestUtil.waitUtil(() -> ex == futureEx.get());
+        WaitUtil.waitUtil(() -> ex == futureEx.get());
         assertNull(futureResult.get());
     }
 
@@ -484,7 +484,7 @@ public class FutureTest extends AbstractFiberTest {
             }
         }));
 
-        TestUtil.waitUtil(() -> ex == futureEx.get());
+        WaitUtil.waitUtil(() -> ex == futureEx.get());
         assertNull(futureResult.get());
     }
 
@@ -520,7 +520,7 @@ public class FutureTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         }));
-        TestUtil.waitUtil(() -> futureEx.get() instanceof FiberCancelException);
+        WaitUtil.waitUtil(() -> futureEx.get() instanceof FiberCancelException);
         assertNull(futureResult.get());
         assertTrue(f.isCancelled());
     }
@@ -559,7 +559,7 @@ public class FutureTest extends AbstractFiberTest {
             }
         }));
 
-        TestUtil.waitUtil(() -> futureEx.get() instanceof FiberCancelException);
+        WaitUtil.waitUtil(() -> futureEx.get() instanceof FiberCancelException);
         assertNull(futureResult.get());
         assertTrue(f.isCancelled());
     }

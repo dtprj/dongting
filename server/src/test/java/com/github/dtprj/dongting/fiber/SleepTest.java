@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -63,7 +63,7 @@ public class SleepTest extends AbstractFiberTest {
         });
         fiberGroup.fireFiber(f2);
 
-        TestUtil.waitUtil(interrupt::get);
+        WaitUtil.waitUtil(interrupt::get);
         Assertions.assertFalse(sleepOk.get());
         // since we interrupt f, tear down should be finished soon
     }

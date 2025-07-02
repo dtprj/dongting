@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -64,7 +64,7 @@ public class FiberLifeCycleTest extends AbstractFiberTest {
                 return Fiber.sleep(1, this);
             }
         }));
-        TestUtil.waitUtil(groupFinished::get);
+        WaitUtil.waitUtil(groupFinished::get);
     }
 
 }

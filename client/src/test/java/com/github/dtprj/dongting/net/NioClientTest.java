@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -386,7 +387,7 @@ public class NioClientTest {
         DtUtil.close(server1);
         Peer p1 = client.getPeers().get(0);
         Peer p2 = client.getPeers().get(1);
-        TestUtil.waitUtil(() -> p1.status.ordinal() < PeerStatus.connected.ordinal());
+        WaitUtil.waitUtil(() -> p1.status.ordinal() < PeerStatus.connected.ordinal());
         int success = 0;
         for (int i = 0; i < 5; i++) {
             try {
@@ -417,7 +418,7 @@ public class NioClientTest {
         DtUtil.close(server1, server2);
         server1 = null;
         server2 = null;
-        TestUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.dtChannel == null));
+        WaitUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.dtChannel == null));
         assertThrows(NetException.class, () -> sendSync(5000, client, tick(500)));
     }
 
@@ -460,13 +461,13 @@ public class NioClientTest {
 
         DtUtil.close(server1);
         Peer p1 = client.getPeers().get(0);
-        TestUtil.waitUtil(() -> p1.status.ordinal() < PeerStatus.connected.ordinal());
-        TestUtil.waitUtil(() -> client.worker.workerStatus.retryConnect > 0);
-        TestUtil.waitUtil(() -> p1.retry > 1);
+        WaitUtil.waitUtil(() -> p1.status.ordinal() < PeerStatus.connected.ordinal());
+        WaitUtil.waitUtil(() -> client.worker.workerStatus.retryConnect > 0);
+        WaitUtil.waitUtil(() -> p1.retry > 1);
 
 
         server1 = new BioServer(9000);
-        TestUtil.waitUtil(() -> p1.status == PeerStatus.connected);
+        WaitUtil.waitUtil(() -> p1.status == PeerStatus.connected);
         assertEquals(0, client.worker.workerStatus.retryConnect);
     }
 
@@ -762,7 +763,7 @@ public class NioClientTest {
                 assertEquals(MockRuntimeException.class, e.getCause().getClass());
             }
         }
-        TestUtil.waitUtil(() -> client.getPeers().get(0).getStatus() == PeerStatus.not_connect);
+        WaitUtil.waitUtil(() -> client.getPeers().get(0).getStatus() == PeerStatus.not_connect);
     }
 
     @Test

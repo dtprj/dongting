@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.MockDtTime;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -192,7 +193,7 @@ public class TimeoutTest {
         latch2.countDown();
 
         // need more check server side status
-        TestUtil.waitUtil(() -> runCount.get() == oldCount + 1);
+        WaitUtil.waitUtil(() -> runCount.get() == oldCount + 1);
 
         assertEquals(0, client.pendingBytes);
         assertEquals(0, client.pendingRequests);
@@ -253,7 +254,7 @@ public class TimeoutTest {
 
         latch2.countDown();
 
-        TestUtil.waitUtil(() -> processCount.get() == 1);
+        WaitUtil.waitUtil(() -> processCount.get() == 1);
 
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);

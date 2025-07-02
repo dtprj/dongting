@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -186,7 +187,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             Thread.sleep(2);
             assertFalse(deleted.get());
             plus1Hour();
-            TestUtil.waitUtil(deleted);
+            WaitUtil.waitUtil(deleted);
         }
         {
             plus1Hour();
@@ -195,7 +196,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             // can't delete after next persist index and apply index, so only delete to index 4
             Supplier<Boolean> deleted = fileDeleted(dir, 1024);
             plus1Hour();
-            TestUtil.waitUtil(deleted);
+            WaitUtil.waitUtil(deleted);
         }
     }
 

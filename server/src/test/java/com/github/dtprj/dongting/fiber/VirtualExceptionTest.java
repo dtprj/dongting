@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -83,7 +83,7 @@ public class VirtualExceptionTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        TestUtil.waitUtil(() -> exRef.get() != null);
+        WaitUtil.waitUtil(() -> exRef.get() != null);
         if (sub.execEx && sub.handleEx && sub.finallyEx) {
             Assertions.assertEquals(2, exRef.get().getSuppressed().length);
         } else {
@@ -130,7 +130,7 @@ public class VirtualExceptionTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        TestUtil.waitUtil(() -> exRef.get() != null);
+        WaitUtil.waitUtil(() -> exRef.get() != null);
         Assertions.assertEquals(1, exRef.get().getSuppressed().length);
         Assertions.assertEquals(FiberVirtualException.class, exRef.get().getSuppressed()[0].getClass());
     }

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -153,10 +153,10 @@ public class LockTest extends AbstractFiberTest {
             TestLockFrame f2 = new TestLockFrame(lock, lockType);
             fiberGroup.fireFiber("f1", f1);
             fiberGroup.fireFiber("f2", f2);
-            TestUtil.waitUtil(() -> f1.lockCount == 2);
+            WaitUtil.waitUtil(() -> f1.lockCount == 2);
             Assertions.assertEquals(0, f2.lockCount);
             f1.signalReleaseLockAndJoin();
-            TestUtil.waitUtil(() -> f2.lockCount == 2);
+            WaitUtil.waitUtil(() -> f2.lockCount == 2);
             f2.signalReleaseLockAndJoin();
         }
     }
@@ -170,10 +170,10 @@ public class LockTest extends AbstractFiberTest {
             TestLockFrame f2 = new TestLockFrame(readLock, lockType);
             fiberGroup.fireFiber("f1", f1);
             fiberGroup.fireFiber("f2", f2);
-            TestUtil.waitUtil(() -> f1.lockCount == 2);
+            WaitUtil.waitUtil(() -> f1.lockCount == 2);
             Assertions.assertEquals(0, f2.lockCount);
             f1.signalReleaseLockAndJoin();
-            TestUtil.waitUtil(() -> f2.lockCount == 2);
+            WaitUtil.waitUtil(() -> f2.lockCount == 2);
             f2.signalReleaseLockAndJoin();
         }
     }
@@ -187,10 +187,10 @@ public class LockTest extends AbstractFiberTest {
             TestLockFrame f2 = new TestLockFrame(lock, lockType);
             fiberGroup.fireFiber("f1", f1);
             fiberGroup.fireFiber("f2", f2);
-            TestUtil.waitUtil(() -> f1.lockCount == 2);
+            WaitUtil.waitUtil(() -> f1.lockCount == 2);
             Assertions.assertEquals(0, f2.lockCount);
             f1.signalReleaseLockAndJoin();
-            TestUtil.waitUtil(() -> f2.lockCount == 2);
+            WaitUtil.waitUtil(() -> f2.lockCount == 2);
             f2.signalReleaseLockAndJoin();
         }
     }
@@ -206,12 +206,12 @@ public class LockTest extends AbstractFiberTest {
             fiberGroup.fireFiber("f1", f1);
             fiberGroup.fireFiber("f2", f2);
             fiberGroup.fireFiber("f3", f3);
-            TestUtil.waitUtil(() -> f1.lockCount == 2);
-            TestUtil.waitUtil(() -> f2.lockCount == 2);
+            WaitUtil.waitUtil(() -> f1.lockCount == 2);
+            WaitUtil.waitUtil(() -> f2.lockCount == 2);
             Assertions.assertEquals(0, f3.lockCount);
             f1.signalReleaseLockAndJoin();
             f2.signalReleaseLockAndJoin();
-            TestUtil.waitUtil(() -> f3.lockCount == 2);
+            WaitUtil.waitUtil(() -> f3.lockCount == 2);
             f3.signalReleaseLockAndJoin();
         }
     }
@@ -237,6 +237,6 @@ public class LockTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        TestUtil.waitUtil(() -> locked.get() != null && locked.get() == false);
+        WaitUtil.waitUtil(() -> locked.get() != null && locked.get() == false);
     }
 }

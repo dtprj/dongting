@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -83,7 +84,7 @@ public class ConnectTest {
             }
 
             clientConfig.connectTimeoutMillis = 1000;
-            TestUtil.waitUtil(() -> peer.getStatus() == PeerStatus.connected);
+            WaitUtil.waitUtil(() -> peer.getStatus() == PeerStatus.connected);
         } finally {
             TestUtil.stop(client, server);
         }
@@ -117,7 +118,7 @@ public class ConnectTest {
             server.start();
 
             clientConfig.connectTimeoutMillis = 1000;
-            TestUtil.waitUtil(() -> peer.getStatus() == PeerStatus.connected);
+            WaitUtil.waitUtil(() -> peer.getStatus() == PeerStatus.connected);
         } finally {
             TestUtil.stop(client, server);
         }

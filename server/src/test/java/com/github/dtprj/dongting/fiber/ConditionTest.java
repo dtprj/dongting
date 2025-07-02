@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +54,7 @@ public class ConditionTest extends AbstractFiberTest {
             }
         });
         fiberGroup.fireFiber(f);
-        TestUtil.waitUtil(finish::get);
+        WaitUtil.waitUtil(finish::get);
         Assertions.assertFalse(error.get());
     }
 
@@ -93,7 +93,7 @@ public class ConditionTest extends AbstractFiberTest {
         });
         fiberGroup.fireFiber(f2);
 
-        TestUtil.waitUtil(finish::get);
+        WaitUtil.waitUtil(finish::get);
         Assertions.assertFalse(error.get());
     }
 
@@ -134,7 +134,7 @@ public class ConditionTest extends AbstractFiberTest {
         });
         fiberGroup.fireFiber(f2);
 
-        TestUtil.waitUtil(interrupt::get);
+        WaitUtil.waitUtil(interrupt::get);
         Assertions.assertFalse(finish.get());
     }
 
