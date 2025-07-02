@@ -94,6 +94,9 @@ public class StatusFile implements AutoCloseable {
                         getFiberGroup().getExecutor());
                 dtFile = new DtFile(file, channel, fiberGroup);
                 lock = channel.tryLock();
+                if (lock == null) {
+                    throw new RaftException("acquire file lock failed: " + file.getPath());
+                }
                 if (!needLoad) {
                     return Fiber.frameReturn();
                 }

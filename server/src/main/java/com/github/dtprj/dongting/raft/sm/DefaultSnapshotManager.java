@@ -130,6 +130,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         protected FrameCallResult doFinally() {
             if (currentStatusFile != null) {
                 currentStatusFile.close();
+                currentStatusFile = null;
             }
             return Fiber.frameReturn();
         }
