@@ -15,12 +15,15 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
+import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
@@ -57,7 +60,6 @@ public class ClientWatchManager {
     public static final byte SEPARATOR = '.';
 
     private final RaftClient raftClient;
-    private final KvClient kvClient;
     private final Supplier<Boolean> stopped;
     private final long heartbeatIntervalMillis;
 
@@ -107,9 +109,8 @@ public class ClientWatchManager {
         }
     }
 
-    ClientWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
+    protected ClientWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
         this.raftClient = kvClient.getRaftClient();
-        this.kvClient = kvClient;
         this.stopped = stopped;
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;
     }
@@ -337,7 +338,14 @@ public class ClientWatchManager {
             }
         };
         WatchReq req = new WatchReq(gw.groupId, gw.fullSync, keys, knownRaftIndexes);
-        kvClient.sendSyncReq(gw.server, req, c);
+        sendSyncReq(gw.server, req, c);
+    }
+
+    protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
+        EncodableBodyWritePacket packet = new EncodableBodyWritePacket(req);
+        packet.setCommand(Commands.DTKV_SYNC_WATCH);
+        raftClient.getNioClient().sendRequest(n.peer, packet,
+                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, raftClient.createDefaultTimeout(), c);
     }
 
     private void removeGroupWatches(GroupWatches gw) {
@@ -428,7 +436,13 @@ public class ClientWatchManager {
                 lock.unlock();
             }
         };
-        kvClient.sendQueryStatusReq(n, gw.groupId, rpcCallback);
+        sendQueryStatusReq(n, gw.groupId, rpcCallback);
+    }
+
+    protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> rpcCallback) {
+        PbIntWritePacket p = new PbIntWritePacket(Commands.DTKV_QUERY_STATUS, groupId);
+        DecoderCallbackCreator<KvStatusResp> d = ctx -> ctx.toDecoderCallback(new KvStatusResp());
+        raftClient.getNioClient().sendRequest(n.peer, p, d, raftClient.createDefaultTimeout(), rpcCallback);
     }
 
     private boolean queryStatusOk(int groupId, RaftNode n, ReadPacket<KvStatusResp> frame, Throwable ex) {
@@ -483,7 +497,7 @@ public class ClientWatchManager {
                 } else {
                     if (w.raftIndex < n.raftIndex) {
                         w.raftIndex = n.raftIndex;
-                        WatchEvent e = new WatchEvent(w, watch.groupId, n.raftIndex, n.state, k, n.value);
+                        WatchEvent e = new WatchEvent(watch.groupId, n.raftIndex, n.state, k, n.value);
                         addOrUpdateToNotifyQueue(w, e);
                     }
                     results[i] = KvCodes.CODE_SUCCESS;
@@ -536,12 +550,6 @@ public class ClientWatchManager {
             listener = this.listener;
             if (listener != null) {
                 e = takeEventInLock();
-                if (e != null) {
-                    KeyWatch kw = e.owner;
-                    if (kw.needRemove || kw.gw.removed) {
-                        e = null;
-                    }
-                }
             }
         } finally {
             lock.unlock();
@@ -590,7 +598,8 @@ public class ClientWatchManager {
 
     private WatchEvent takeEventInLock() {
         KeyWatch w = notifyQueueHead;
-        while (w != null && w.needRemove) {
+        while (w != null && w.needRemove && w.gw.removed) {
+            w.event = null;
             w = w.next;
         }
         if (w == null) {

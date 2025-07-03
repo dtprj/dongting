@@ -360,6 +360,8 @@ abstract class WatchManager {
         } else {
             long lastRemoveIndex = w.watchHolder.lastRemoveIndex;
             if (w.notifiedIndex >= lastRemoveIndex) {
+                // TODO the first STATE_NOT_EXISTS notify will not be sent if watch added when kv map is empty (except for root node).
+                // lastRemoveIndex == 0 in this case
                 return null;
             } else {
                 w.notifiedIndexPending = lastRemoveIndex;

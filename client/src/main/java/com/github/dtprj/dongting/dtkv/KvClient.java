@@ -24,11 +24,9 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
 import com.github.dtprj.dongting.net.NioClientConfig;
-import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
 
 import java.util.Collections;
@@ -57,9 +55,12 @@ public class KvClient extends AbstractLifeCircle {
 
     public KvClient(NioClientConfig nioConfig) {
         this.raftClient = new RaftClient(nioConfig);
-        this.clientWatchManager = new ClientWatchManager(this,
-                () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
+        this.clientWatchManager = createClientWatchManager();
         raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, new WatchProcessor(clientWatchManager));
+    }
+
+    protected ClientWatchManager createClientWatchManager() {
+        return new ClientWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
     }
 
     private static RpcCallback<KvResp> raftIndexCallback(FutureCallback<Long> c, int anotherSuccessCode) {
@@ -530,18 +531,5 @@ public class KvClient extends AbstractLifeCircle {
 
     public ClientWatchManager getClientWatchManager() {
         return clientWatchManager;
-    }
-
-    protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
-        EncodableBodyWritePacket packet = new EncodableBodyWritePacket(req);
-        packet.setCommand(Commands.DTKV_SYNC_WATCH);
-        raftClient.getNioClient().sendRequest(n.peer, packet,
-                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, raftClient.createDefaultTimeout(), c);
-    }
-
-    protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> rpcCallback) {
-        PbIntWritePacket p = new PbIntWritePacket(Commands.DTKV_QUERY_STATUS, groupId);
-        DecoderCallbackCreator<KvStatusResp> d = ctx -> ctx.toDecoderCallback(new KvStatusResp());
-        raftClient.getNioClient().sendRequest(n.peer, p, d, raftClient.createDefaultTimeout(), rpcCallback);
     }
 }

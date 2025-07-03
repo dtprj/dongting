@@ -19,10 +19,19 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.ClientWatchManager;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvListener;
+import com.github.dtprj.dongting.dtkv.KvReq;
+import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
+import com.github.dtprj.dongting.dtkv.WatchReq;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
+import com.github.dtprj.dongting.test.Tick;
 import com.github.dtprj.dongting.test.WaitUtil;
+import com.github.dtprj.dongting.util.MockRuntimeException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -31,6 +40,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -45,6 +55,9 @@ public class ClientWatchManagerTest implements KvListener {
     private KvClient client;
     private ClientWatchManager manager;
     private ConcurrentLinkedQueue<WatchEvent> events;
+
+    private AtomicInteger mockSyncExCount;
+    private AtomicInteger mockQueryStatusExCount;
 
     @Override
     public void onUpdate(WatchEvent event) {
@@ -78,8 +91,21 @@ public class ClientWatchManagerTest implements KvListener {
             waitStart(s1);
             waitStart(s2);
             waitStart(s3);
-            waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
             ClientWatchManagerTest.groupId = groupId;
+            // add first item and make raft index in statemachine greater than 0
+            KvReq req = new KvReq(groupId, "aaa".getBytes(), "bbb".getBytes());
+            RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
+                    new DtTime(3, TimeUnit.SECONDS), false);
+            leader.raftServer.getRaftGroup(groupId).submitLinearTask(i, new RaftCallback() {
+                @Override
+                public void success(long raftIndex, Object result) {
+                }
+                @Override
+                public void fail(Throwable ex) {
+                    ex.printStackTrace();
+                }
+            });
         }
 
         public void stopServers() {
@@ -97,7 +123,38 @@ public class ClientWatchManagerTest implements KvListener {
     @BeforeEach
     public void setup() {
         events = new ConcurrentLinkedQueue<>();
-        client = new KvClient();
+        mockSyncExCount = null;
+        mockQueryStatusExCount = null;
+        client = null;
+        manager = null;
+    }
+
+    private void setup(long heartbeatIntervalMillis) {
+        client = new KvClient() {
+            @Override
+            protected ClientWatchManager createClientWatchManager() {
+                return new ClientWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
+                        Tick.tick(heartbeatIntervalMillis)) {
+                    @Override
+                    protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
+                        if (mockSyncExCount == null || mockSyncExCount.getAndDecrement() <= 0) {
+                            super.sendSyncReq(n, req, c);
+                        } else {
+                            c.call(null, new MockRuntimeException());
+                        }
+                    }
+
+                    @Override
+                    protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> c) {
+                        if (mockQueryStatusExCount == null || mockQueryStatusExCount.getAndDecrement() <= 0) {
+                            super.sendQueryStatusReq(n, groupId, c);
+                        } else {
+                            c.call(null, new MockRuntimeException());
+                        }
+                    }
+                };
+            }
+        };
         client.start();
         client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
@@ -116,23 +173,27 @@ public class ClientWatchManagerTest implements KvListener {
                 return false;
             }
             WatchEvent e = events.poll();
-            assertEquals(key, e.key);
-            String actualValue = e.value == null ? null : new String(e.value);
-            // notice that the watch may process by a follower and it's data is not latest
-            if (value == null && actualValue != null || value != null && !value.equals(actualValue)) {
-                System.out.println("got event value not match, expect: " + value + ", actual: " + actualValue);
-                return false;
-            }
-            if (index > 0) {
-                assertEquals(index, e.raftIndex);
-            }
-            return true;
+            return checkEvent(index, key, value, e);
         });
+    }
 
+    private Boolean checkEvent(long index, String key, String value, WatchEvent e) {
+        assertEquals(key, e.key);
+        String actualValue = e.value == null ? null : new String(e.value);
+        // notice that the watch may process by a follower and it's data is not latest
+        if (value == null && actualValue != null || value != null && !value.equals(actualValue)) {
+            System.out.println("got event value not match, expect: " + value + ", actual: " + actualValue);
+            return false;
+        }
+        if (index > 0) {
+            assertEquals(index, e.raftIndex);
+        }
+        return true;
     }
 
     @Test
     public void testInvalidParams() {
+        setup(1000);
         assertThrows(RaftException.class, () -> manager.addWatch(groupId + 100000, "key1"));
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ""));
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ".key1"));
@@ -142,6 +203,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testAddRemoveWatch() {
+        setup(1000);
         long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
         long idx2 = client.put(groupId, "key2".getBytes(), "value2".getBytes());
         manager.addWatch(groupId, "key1", "key2");
@@ -167,5 +229,50 @@ public class ClientWatchManagerTest implements KvListener {
 
         manager.addWatch(groupId, "key3");
         waitForEvents(-1, "key3", null);
+    }
+
+    private void waitForEventsByUserPull(long index, String key, String value) {
+        WaitUtil.waitUtil(() -> {
+            WatchEvent e = manager.takeEvent();
+            if (e == null) {
+                return false;
+            }
+            return checkEvent(index, key, value, e);
+        });
+    }
+
+    @Test
+    public void testUserPullEvents() {
+        setup(1000);
+        manager.setListener(null);
+        long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
+        long idx2 = client.put(groupId, "key2".getBytes(), "value2".getBytes());
+        manager.addWatch(groupId, "key1", "key2");
+        waitForEventsByUserPull(idx1, "key1", "value1");
+        waitForEventsByUserPull(idx2, "key2", "value2");
+    }
+
+    @Test
+    public void testEx1() {
+        setup(10);
+        mockQueryStatusExCount = new AtomicInteger(3);
+        manager.addWatch(groupId, "key1");
+        waitForEvents(-1, "key1", null);
+    }
+
+    @Test
+    public void testEx2() {
+        setup(10);
+        manager.addWatch(groupId, "key1");
+        waitForEvents(-1, "key1", null);
+
+        mockSyncExCount = new AtomicInteger(1);
+        manager.addWatch(groupId, "key2");
+        waitForEvents(-1, "key2", null);
+
+        long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
+        long idx2 = client.put(groupId, "key2".getBytes(), "value2".getBytes());
+        waitForEvents(idx1, "key1", "value1");
+        waitForEvents(idx2, "key2", "value2");
     }
 }

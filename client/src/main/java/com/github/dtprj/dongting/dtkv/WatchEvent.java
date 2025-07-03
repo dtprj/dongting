@@ -30,10 +30,7 @@ public class WatchEvent {
     public final String key;
     public final byte[] value;
 
-    final ClientWatchManager.KeyWatch owner;
-
-    WatchEvent(ClientWatchManager.KeyWatch owner, int groupId, long raftIndex, int state, String key, byte[] value) {
-        this.owner = owner;
+    WatchEvent(int groupId, long raftIndex, int state, String key, byte[] value) {
         this.groupId = groupId;
         this.raftIndex = raftIndex;
         this.state = state;
