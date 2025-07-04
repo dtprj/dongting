@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
+import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.Tick;
 import com.github.dtprj.dongting.test.WaitUtil;
 import com.github.dtprj.dongting.util.MockRuntimeException;
@@ -37,6 +38,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -129,7 +132,7 @@ public class ClientWatchManagerTest implements KvListener {
         manager = null;
     }
 
-    private void setup(long heartbeatIntervalMillis) {
+    private void init(long heartbeatIntervalMillis, boolean setListener, boolean useSepExecutor) {
         client = new KvClient() {
             @Override
             protected ClientWatchManager createClientWatchManager() {
@@ -159,7 +162,13 @@ public class ClientWatchManagerTest implements KvListener {
         client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
         manager = client.getClientWatchManager();
-        manager.setListener(this);
+        if (setListener) {
+            if (useSepExecutor) {
+                manager.setListener(this, MockExecutors.ioExecutor());
+            } else {
+                manager.setListener(this);
+            }
+        }
     }
 
     @AfterEach
@@ -193,7 +202,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testInvalidParams() {
-        setup(1000);
+        init(1000, true, false);
         assertThrows(RaftException.class, () -> manager.addWatch(groupId + 100000, "key1"));
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ""));
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ".key1"));
@@ -201,9 +210,10 @@ public class ClientWatchManagerTest implements KvListener {
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1..key2"));
     }
 
-    @Test
-    public void testAddRemoveWatch() {
-        setup(1000);
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testAddRemoveWatch(boolean useSepExecutor) {
+        init(1000, true, useSepExecutor);
         long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
         long idx2 = client.put(groupId, "key2".getBytes(), "value2".getBytes());
         manager.addWatch(groupId, "key1", "key2");
@@ -243,7 +253,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testUserPullEvents() {
-        setup(1000);
+        init(1000, false, false);
         manager.setListener(null);
         long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
         long idx2 = client.put(groupId, "key2".getBytes(), "value2".getBytes());
@@ -254,7 +264,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testEx1() {
-        setup(10);
+        init(10, true, false);
         mockQueryStatusExCount = new AtomicInteger(3);
         manager.addWatch(groupId, "key1");
         waitForEvents(-1, "key1", null);
@@ -262,7 +272,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testEx2() {
-        setup(10);
+        init(10, true, false);
         manager.addWatch(groupId, "key1");
         waitForEvents(-1, "key1", null);
 

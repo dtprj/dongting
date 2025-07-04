@@ -44,7 +44,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -526,9 +525,9 @@ public class ClientWatchManager {
                 executor = raftClient.getNioClient().getBizExecutor();
             }
             if (executor == null) {
-                log.warn("no executor for watch listener, create single thread executor");
-                userExecutor = Executors.newSingleThreadExecutor();
-                executor = userExecutor;
+                String msg = "no executor for watch listener, create single thread executor";
+                log.error(msg);
+                throw new RaftException(msg);
             }
             try {
                 executor.execute(this::runListenerTask);
