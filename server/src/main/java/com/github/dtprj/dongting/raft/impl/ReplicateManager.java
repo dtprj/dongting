@@ -741,9 +741,10 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         DtTime timeout = new DtTime(serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
         RpcCallback<AppendResp> callback = (resp, ex) ->
                 fg.getExecutor().execute(() -> afterInstallRpc(resp, ex, req, f));
+        int bytes = data == null ? 0 : data.getBuffer().remaining();
+        // buffer released after send encode (in another thread)
         client.sendRequest(member.node.peer, wf, APPEND_RESP_DECODER_CALLBACK_CREATOR,
                 timeout, callback);
-        int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
         log.info("transfer snapshot data to member {}. groupId={}, offset={}, bytes={}, done={}",
                 member.node.nodeId, groupId, req.offset, bytes, req.done);
