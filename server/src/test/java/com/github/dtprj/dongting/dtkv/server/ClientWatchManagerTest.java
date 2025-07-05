@@ -41,6 +41,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -104,6 +106,7 @@ public class ClientWatchManagerTest implements KvListener {
                 @Override
                 public void success(long raftIndex, Object result) {
                 }
+
                 @Override
                 public void fail(Throwable ex) {
                     ex.printStackTrace();
@@ -176,28 +179,53 @@ public class ClientWatchManagerTest implements KvListener {
         client.stop(new DtTime(1, TimeUnit.SECONDS), true);
     }
 
-    private void waitForEvents(long index, String key, String value) {
+    private static class PushEvent {
+        final long raftIndex;
+        final String key;
+        final String value;
+
+        private PushEvent(long raftIndex, String key, String value) {
+            this.raftIndex = raftIndex;
+            this.key = key;
+            this.value = value;
+        }
+    }
+
+    private void waitForEvents(PushEvent... expectEvents) {
+        ArrayList<PushEvent> expectEventsList = new ArrayList<>();
+        for (PushEvent e : expectEvents) {
+            if (e != null) {
+                expectEventsList.add(e);
+            }
+        }
         WaitUtil.waitUtil(() -> {
             if (events.isEmpty()) {
                 return false;
             }
             WatchEvent e = events.poll();
-            return checkEvent(index, key, value, e);
+            return checkEvent(expectEventsList, e);
         });
     }
 
-    private Boolean checkEvent(long index, String key, String value, WatchEvent e) {
-        assertEquals(key, e.key);
-        String actualValue = e.value == null ? null : new String(e.value);
-        // notice that the watch may process by a follower and it's data is not latest
-        if (value == null && actualValue != null || value != null && !value.equals(actualValue)) {
-            System.out.println("got event value not match, expect: " + value + ", actual: " + actualValue);
-            return false;
+    private Boolean checkEvent(ArrayList<PushEvent> expectEventsList, WatchEvent e) {
+        for (Iterator<PushEvent> it = expectEventsList.iterator(); it.hasNext(); ) {
+            PushEvent expect = it.next();
+            if (expect.key.equals(e.key)) {
+                String value = expect.value;
+                String actualValue = e.value == null ? null : new String(e.value);
+                // notice that the watch may process by a follower and it's data is not latest
+                if (value == null && actualValue != null || value != null && !value.equals(actualValue)) {
+                    System.out.println("got event value not match, expect: " + value + ", actual: " + actualValue);
+                    return false;
+                }
+                if (expect.raftIndex > 0) {
+                    assertEquals(expect.raftIndex, e.raftIndex);
+                }
+                it.remove();
+                return expectEventsList.isEmpty();
+            }
         }
-        if (index > 0) {
-            assertEquals(index, e.raftIndex);
-        }
-        return true;
+        throw new AssertionError("unexpected event: " + e.key);
     }
 
     @Test
@@ -214,75 +242,87 @@ public class ClientWatchManagerTest implements KvListener {
     @ValueSource(booleans = {true, false})
     public void testAddRemoveWatch(boolean useSepExecutor) {
         init(1000, true, useSepExecutor);
-        long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
-        long idx2 = client.put(groupId, "key2".getBytes(), "value2".getBytes());
-        manager.addWatch(groupId, "key1", "key2");
-        waitForEvents(idx1, "key1", "value1");
-        waitForEvents(idx2, "key2", "value2");
+        String key1 = "testAddRemoveWatch_key1" + useSepExecutor;
+        String key2 = "testAddRemoveWatch_key2" + useSepExecutor;
+        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
+        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        manager.addWatch(groupId, key1, key2);
+        waitForEvents(new PushEvent(idx1, key1, "value1"), new PushEvent(idx2, key2, "value2"));
 
         // key1 is readd
-        manager.addWatch(groupId, "key1");
-        idx1 = client.put(groupId, "key1".getBytes(), "value1_2".getBytes());
-        idx2 = client.put(groupId, "key2".getBytes(), "value2_2".getBytes());
-        waitForEvents(idx1, "key1", "value1_2");
-        waitForEvents(idx2, "key2", "value2_2");
+        manager.addWatch(groupId, key1);
+        idx1 = client.put(groupId, key1.getBytes(), "value1_2".getBytes());
+        idx2 = client.put(groupId, key2.getBytes(), "value2_2".getBytes());
+        waitForEvents(new PushEvent(idx1, key1, "value1_2"));
+        waitForEvents(new PushEvent(idx2, key2, "value2_2"));
 
-        manager.removeWatch(groupId, "key1");
-        client.put(groupId, "key1".getBytes(), "value1_3".getBytes());
-        idx2 = client.put(groupId, "key2".getBytes(), "value2_3".getBytes());
-        waitForEvents(idx2, "key2", "value2_3");
+        manager.removeWatch(groupId, key1);
+        client.put(groupId, key1.getBytes(), "value1_3".getBytes());
+        idx2 = client.put(groupId, key2.getBytes(), "value2_3".getBytes());
+        waitForEvents(new PushEvent(idx2, key2, "value2_3"));
 
-        manager.removeWatch(groupId, "key1", "key2");
-        client.put(groupId, "key1".getBytes(), "value1_4".getBytes());
-        client.put(groupId, "key2".getBytes(), "value2_4".getBytes());
+        manager.removeWatch(groupId, key1, key2);
+        client.put(groupId, key1.getBytes(), "value1_4".getBytes());
+        client.put(groupId, key2.getBytes(), "value2_4".getBytes());
         assertEquals(0, events.size());
 
         manager.addWatch(groupId, "key3");
-        waitForEvents(-1, "key3", null);
+        waitForEvents(new PushEvent(-1, "key3", null));
     }
 
-    private void waitForEventsByUserPull(long index, String key, String value) {
+    private void waitForEventsByUserPull(PushEvent... expectEvents) {
+        ArrayList<PushEvent> expectEventsList = new ArrayList<>();
+        for (PushEvent e : expectEvents) {
+            if (e != null) {
+                expectEventsList.add(e);
+            }
+        }
         WaitUtil.waitUtil(() -> {
             WatchEvent e = manager.takeEvent();
             if (e == null) {
                 return false;
             }
-            return checkEvent(index, key, value, e);
+            return checkEvent(expectEventsList, e);
         });
     }
 
     @Test
     public void testUserPullEvents() {
         init(1000, false, false);
+        String key1 = "testUserPullEvents_key1";
+        String key2 = "testUserPullEvents_key2";
         manager.setListener(null);
-        long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
-        long idx2 = client.put(groupId, "key2".getBytes(), "value2".getBytes());
-        manager.addWatch(groupId, "key1", "key2");
-        waitForEventsByUserPull(idx1, "key1", "value1");
-        waitForEventsByUserPull(idx2, "key2", "value2");
+        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
+        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        manager.addWatch(groupId, key1, key2);
+        waitForEventsByUserPull(new PushEvent(idx1, key1, "value1"), new PushEvent(idx2, key2, "value2"));
     }
 
     @Test
     public void testEx1() {
         init(10, true, false);
+        String key1 = "testEx1_key1";
         mockQueryStatusExCount = new AtomicInteger(3);
-        manager.addWatch(groupId, "key1");
-        waitForEvents(-1, "key1", null);
+        manager.addWatch(groupId, key1);
+        waitForEvents(new PushEvent(-1, key1, null));
     }
 
     @Test
     public void testEx2() {
         init(10, true, false);
-        manager.addWatch(groupId, "key1");
-        waitForEvents(-1, "key1", null);
+        String key1 = "testEx2_key1";
+        String key2 = "testEx2_key2";
+
+        manager.addWatch(groupId, key1);
+        waitForEvents(new PushEvent(-1, key1, null));
 
         mockSyncExCount = new AtomicInteger(1);
-        manager.addWatch(groupId, "key2");
-        waitForEvents(-1, "key2", null);
+        manager.addWatch(groupId, key2);
+        waitForEvents(new PushEvent(-1, key2, null));
 
-        long idx1 = client.put(groupId, "key1".getBytes(), "value1".getBytes());
-        long idx2 = client.put(groupId, "key2".getBytes(), "value2".getBytes());
-        waitForEvents(idx1, "key1", "value1");
-        waitForEvents(idx2, "key2", "value2");
+        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
+        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        waitForEvents(new PushEvent(idx1, key1, "value1"));
+        waitForEvents(new PushEvent(idx2, key2, "value2"));
     }
 }
