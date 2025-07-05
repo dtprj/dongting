@@ -26,9 +26,11 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 
 import java.util.LinkedList;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -82,7 +84,7 @@ public class SnapshotReader extends FiberFrame<Void> {
                 // fire read task
                 RefBuffer buf = bufferCreator.get();
                 addNewReadTask = true;
-                FiberFuture<Integer> future = snapshot.readNext(buf.getBuffer());
+                FiberFuture<Integer> future = Objects.requireNonNull(snapshot.readNext(buf.getBuffer()));
                 readList.add(new Pair<>(buf, future));
                 future.registerCallback((v, ex) -> cond.signal());
             }
@@ -119,11 +121,17 @@ public class SnapshotReader extends FiberFrame<Void> {
             // header in list not finished, wait for next time
             return;
         }
-        if (f.getEx() != null && firstEx == null) {
-            // only record the first exception
-            firstEx = f.getEx();
-        }
-        if (f.getResult() != null && f.getResult() == 0) {
+        if (f.getEx() != null) {
+            if (firstEx == null) {
+                // only record the first exception
+                firstEx = f.getEx();
+            }
+        } else if (f.getResult() == null) {
+            if (firstEx == null) {
+                // only record the first exception
+                firstEx = new RaftException("result is null");
+            }
+        } else if (f.getResult() == 0) {
             readFinish = true;
         }
         if (cancel.get() || firstEx != null || readFinish) {
