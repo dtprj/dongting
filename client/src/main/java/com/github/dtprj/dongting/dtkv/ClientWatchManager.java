@@ -37,7 +37,7 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -360,35 +360,46 @@ public class ClientWatchManager {
         gw.server = null;
         gw.serversEpoch = gi.serversEpoch;
         ArrayList<RaftNode> servers = new ArrayList<>(gi.servers);
-        Collections.shuffle(servers);
-        Iterator<RaftNode> it = servers.iterator();
-        findServer(gi, gw, it);
+        findServer(gi, gw, servers);
     }
 
-
-    private void findServer(GroupInfo gi, GroupWatches gw, Iterator<RaftNode> it) {
-        while (it.hasNext()) {
-            RaftNode node = it.next();
-            if (node.peer.status == PeerStatus.connected) {
-                sendQueryStatus(gi, gw, node, status -> {
-                    if (status == STATUS_OK) {
-                        gw.busy = false;
-                        gw.needCheckServer = false;
-                        if (gw.needSync) {
-                            syncGroupInLock(gw);
-                        }
-                    } else if (status == STATUS_TRY_NEXT) {
-                        findServer(gi, gw, it);
-                    } else if (status == STATUS_RESTART_FIND) {
-                        initFindServer(gw, gi);
-                    }
-                });
-                return;
-            }
+    private void findServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list) {
+        if (list.isEmpty()) {
+            log.error("no server found for group {}", gi.groupId);
+            gw.busy = false;
+            gw.serversEpoch = 0;
+        } else {
+            list.sort(Comparator.comparingInt(o -> o.peer.connectRetryCount));
+            RaftNode node = list.remove(0);
+            findServer(gi, gw, list, node);
         }
-        log.error("no server found for group {}", gi.groupId);
-        gw.busy = false;
-        gw.serversEpoch = 0;
+    }
+
+    private void findServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list, RaftNode node) {
+        if (node.peer.status == PeerStatus.connected) {
+            sendQueryStatus(gi, gw, node, status -> {
+                if (status == STATUS_OK) {
+                    gw.busy = false;
+                    gw.needCheckServer = false;
+                    if (gw.needSync) {
+                        syncGroupInLock(gw);
+                    }
+                } else if (status == STATUS_TRY_NEXT) {
+                    findServer(gi, gw, list);
+                } else if (status == STATUS_RESTART_FIND) {
+                    initFindServer(gw, gi);
+                }
+            });
+        } else {
+            raftClient.getNioClient().connect(node.peer).whenComplete((v, ex) -> {
+                if (ex != null) {
+                    // try next
+                    findServer(gi, gw, list);
+                } else {
+                    findServer(gi, gw, list, node);
+                }
+            });
+        }
     }
 
     private static final int STATUS_OK = 0;

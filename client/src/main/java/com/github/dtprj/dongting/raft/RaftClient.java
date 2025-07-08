@@ -220,6 +220,7 @@ public class RaftClient extends AbstractLifeCircle {
             }
         }
 
+        Collections.shuffle(managedServers);
         GroupInfo gi;
         if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
             long serversEpoch = memberChanged ? nextEpoch++ : oldGroupInfo.serversEpoch;
