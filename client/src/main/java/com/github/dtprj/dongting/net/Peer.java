@@ -30,16 +30,15 @@ public class Peer {
     private static final DtLog log = DtLogs.getLogger(Peer.class);
     public volatile PeerStatus status;
     public final HostPort endPoint;
+    public int connectRetryCount; // reset to 0 when connect success
 
     final NioClient owner;
 
     DtChannelImpl dtChannel;
 
-    int connectionId;
     NioWorker.ConnectInfo connectInfo;
 
     boolean autoReconnect;
-    int retry;
     long lastRetryNanos;
 
     private LinkedList<WriteData> waitConnectList;
@@ -96,14 +95,14 @@ public class Peer {
         if (autoReconnect && c.connectRetryIntervals != null) {
             long base;
             int index;
-            if (retry == 0) {
+            if (connectRetryCount == 0) {
                 base = workerStatus.ts.getNanoTime();
                 index = 0;
                 workerStatus.retryConnect++;
             } else {
                 if (byAutoRetry) {
                     base = lastRetryNanos;
-                    index = Math.min(retry, c.connectRetryIntervals.length - 1);
+                    index = Math.min(connectRetryCount, c.connectRetryIntervals.length - 1);
                 } else {
                     base = 0;
                     index = -1;
@@ -112,8 +111,8 @@ public class Peer {
             if (index != -1) {
                 long millis = c.connectRetryIntervals[index];
                 lastRetryNanos = base + millis * 1_000_000;
-                retry = retry + 1 > 0 ? retry + 1 : Integer.MAX_VALUE;
-                log.info("peer {} connect fail, {}th retry after {}ms", endPoint, retry, millis);
+                connectRetryCount = connectRetryCount + 1 > 0 ? connectRetryCount + 1 : Integer.MAX_VALUE;
+                log.info("peer {} connect fail, {}th retry after {}ms", endPoint, connectRetryCount, millis);
             }
         } else {
             resetConnectRetry(workerStatus);
@@ -122,10 +121,10 @@ public class Peer {
     }
 
     void resetConnectRetry(WorkerStatus workerStatus) {
-        if (retry > 0) {
+        if (connectRetryCount > 0) {
             workerStatus.retryConnect--;
         }
-        retry = 0;
+        connectRetryCount = 0;
         lastRetryNanos = 0;
     }
 }

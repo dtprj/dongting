@@ -463,7 +463,7 @@ public class NioClientTest {
         Peer p1 = client.getPeers().get(0);
         WaitUtil.waitUtil(() -> p1.status.ordinal() < PeerStatus.connected.ordinal());
         WaitUtil.waitUtil(() -> client.worker.workerStatus.retryConnect > 0);
-        WaitUtil.waitUtil(() -> p1.retry > 1);
+        WaitUtil.waitUtil(() -> p1.connectRetryCount > 1);
 
 
         server1 = new BioServer(9000);

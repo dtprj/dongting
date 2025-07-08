@@ -405,7 +405,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         Peer peer;
         SocketChannel channel;
         DtTime deadline;
-        boolean autoRetry;
+        boolean byAutoRetry;
     }
 
     // invoke by NioServer accept thread
@@ -460,7 +460,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         return f;
     }
 
-    void doConnect(CompletableFuture<Void> f, Peer peer, DtTime deadline, boolean autoRetry) {
+    void doConnect(CompletableFuture<Void> f, Peer peer, DtTime deadline, boolean byAutoRetry) {
         if (status >= STATUS_PREPARE_STOP) {
             f.completeExceptionally(new NetException("worker closed"));
             return;
@@ -501,7 +501,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             ci.peer = peer;
             ci.channel = sc;
             ci.deadline = deadline;
-            ci.autoRetry = autoRetry;
+            ci.byAutoRetry = byAutoRetry;
             outgoingConnects.add(ci);
             peer.connectInfo = ci;
 
@@ -511,7 +511,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (sc != null) {
                 closeChannel0(sc);
             }
-            peer.markNotConnect(config, workerStatus, autoRetry);
+            peer.markNotConnect(config, workerStatus, byAutoRetry);
             peer.connectInfo = null;
             NetException netEx = new NetException(e);
             peer.cleanWaitingConnectList(wd -> netEx);
@@ -540,7 +540,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } catch (Throwable e) {
             log.warn("connect channel fail: {}, {}", ci.peer.endPoint, e.toString());
             closeChannel0(channel);
-            ci.peer.markNotConnect(config, workerStatus, ci.autoRetry);
+            ci.peer.markNotConnect(config, workerStatus, ci.byAutoRetry);
             ci.peer.connectInfo = null;
             NetException netEx = new NetException(e);
             ci.peer.cleanWaitingConnectList(wd -> netEx);
@@ -550,7 +550,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         Peer peer = ci.peer;
         peer.dtChannel = dtc;
-        peer.connectionId++;
         peer.status = PeerStatus.handshake;
 
         try {
@@ -802,7 +801,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         for (Iterator<ConnectInfo> it = this.outgoingConnects.iterator(); it.hasNext(); ) {
             ConnectInfo ci = it.next();
             if (close || ci.deadline.isTimeout(roundStartTime)) {
-                ci.peer.markNotConnect(config, workerStatus, ci.autoRetry);
+                ci.peer.markNotConnect(config, workerStatus, ci.byAutoRetry);
                 ci.peer.connectInfo = null;
                 NetException netEx;
                 if (close) {
