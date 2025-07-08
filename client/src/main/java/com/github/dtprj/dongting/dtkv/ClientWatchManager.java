@@ -216,9 +216,6 @@ public class ClientWatchManager {
                 removeGroupWatches(gw);
                 return;
             }
-            if (gi.servers.isEmpty()) {
-                return;
-            }
             if (gw.server == null || gw.server.peer.getStatus() != PeerStatus.connected) {
                 if (isGroupWatchesValid(gw)) {
                     initFindServer(gw, gi);
@@ -473,7 +470,7 @@ public class ClientWatchManager {
         return false;
     }
 
-    WritePacket processNotify(WatchNotifyReq req, SocketAddress remote) {
+    protected WritePacket processNotify(WatchNotifyReq req, SocketAddress remote) {
         lock.lock();
         try {
             GroupWatches watch = watches.get(req.groupId);
@@ -555,7 +552,9 @@ public class ClientWatchManager {
         }
         try {
             if (e != null) {
-                listener.onUpdate(e);
+                if (raftClient.getGroup(e.groupId) != null) {
+                    listener.onUpdate(e);
+                }
             }
         } catch (Throwable ex) {
             log.error("watch listener task failed", ex);

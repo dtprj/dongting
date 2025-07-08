@@ -22,10 +22,13 @@ import com.github.dtprj.dongting.dtkv.KvListener;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
+import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.dtkv.WatchReq;
 import com.github.dtprj.dongting.net.RpcCallback;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
@@ -41,11 +44,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -58,7 +63,7 @@ public class ClientWatchManagerTest implements KvListener {
     private static Server server;
     private static int groupId;
     private KvClient client;
-    private ClientWatchManager manager;
+    private MockClientWatchManager manager;
     private ConcurrentLinkedQueue<WatchEvent> events;
 
     private AtomicInteger mockSyncExCount;
@@ -112,6 +117,17 @@ public class ClientWatchManagerTest implements KvListener {
                     ex.printStackTrace();
                 }
             });
+            // wait every server has applied the first item
+            waitFirstItemApplied(s1);
+            waitFirstItemApplied(s2);
+            waitFirstItemApplied(s3);
+        }
+
+        private void waitFirstItemApplied(ServerInfo si) {
+            WaitUtil.waitUtil(() -> {
+                RaftGroupImpl g = (RaftGroupImpl) si.raftServer.getRaftGroup(groupId);
+                return g.groupComponents.raftStatus.getShareStatus().lastApplied >= 1;
+            });
         }
 
         public void stopServers() {
@@ -135,36 +151,48 @@ public class ClientWatchManagerTest implements KvListener {
         manager = null;
     }
 
+    private class MockClientWatchManager extends ClientWatchManager {
+
+        protected MockClientWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
+            super(kvClient, stopped, heartbeatIntervalMillis);
+        }
+
+        @Override
+        protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
+            if (mockSyncExCount == null || mockSyncExCount.getAndDecrement() <= 0) {
+                super.sendSyncReq(n, req, c);
+            } else {
+                c.call(null, new MockRuntimeException());
+            }
+        }
+
+        @Override
+        protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> c) {
+            if (mockQueryStatusExCount == null || mockQueryStatusExCount.getAndDecrement() <= 0) {
+                super.sendQueryStatusReq(n, groupId, c);
+            } else {
+                c.call(null, new MockRuntimeException());
+            }
+        }
+
+        @Override
+        public WritePacket processNotify(WatchNotifyReq req, SocketAddress remote) {
+            return super.processNotify(req, remote);
+        }
+    }
+
     private void init(long heartbeatIntervalMillis, boolean setListener, boolean useSepExecutor) {
         client = new KvClient() {
             @Override
             protected ClientWatchManager createClientWatchManager() {
-                return new ClientWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
-                        Tick.tick(heartbeatIntervalMillis)) {
-                    @Override
-                    protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
-                        if (mockSyncExCount == null || mockSyncExCount.getAndDecrement() <= 0) {
-                            super.sendSyncReq(n, req, c);
-                        } else {
-                            c.call(null, new MockRuntimeException());
-                        }
-                    }
-
-                    @Override
-                    protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> c) {
-                        if (mockQueryStatusExCount == null || mockQueryStatusExCount.getAndDecrement() <= 0) {
-                            super.sendQueryStatusReq(n, groupId, c);
-                        } else {
-                            c.call(null, new MockRuntimeException());
-                        }
-                    }
-                };
+                return new MockClientWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
+                        Tick.tick(heartbeatIntervalMillis));
             }
         };
         client.start();
         client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
-        manager = client.getClientWatchManager();
+        manager = (MockClientWatchManager) client.getClientWatchManager();
         if (setListener) {
             if (useSepExecutor) {
                 manager.setListener(this, MockExecutors.ioExecutor());
@@ -324,5 +352,21 @@ public class ClientWatchManagerTest implements KvListener {
         long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
         waitForEvents(new PushEvent(idx1, key1, "value1"));
         waitForEvents(new PushEvent(idx2, key2, "value2"));
+    }
+
+    @Test
+    public void testProcessNotify() {
+        init(1000, true, false);
+        String key1 = "testProcessNotify_key1";
+//        WatchNotifyReq req = new WatchNotifyReq(groupId, Arrays.asList(new WatchNotify(
+//                1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
+//        WritePacket p = manager.processNotify(req, null);
+//        assertEquals(0, events.size());
+//        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+//        assertEquals(KvCodes.CODE_REMOVE_ALL_WATCH, p.getBizCode());
+
+        manager.addWatch(groupId, key1);
+        waitForEvents(new PushEvent(-1, key1, null));
+
     }
 }
