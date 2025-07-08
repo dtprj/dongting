@@ -68,15 +68,15 @@ class IoWorkerQueue {
         WritePacket packet = wo.getData();
         Peer peer = wo.getPeer();
         if (peer != null) {
-            if (peer.getStatus() == PeerStatus.connected) {
+            if (peer.status == PeerStatus.connected) {
                 DtChannelImpl dtc = peer.dtChannel;
                 wo.setDtc(dtc);
                 dtc.getSubQueue().enqueue(wo);
-            } else if (peer.getStatus() == PeerStatus.removed) {
+            } else if (peer.status == PeerStatus.removed) {
                 wo.callFail(true, new NetException("peer is removed"));
             } else {
                 peer.addToWaitConnectList(wo);
-                if (peer.getStatus() == PeerStatus.not_connect) {
+                if (peer.status == PeerStatus.not_connect) {
                     CompletableFuture<Void> f = new CompletableFuture<>();
                     worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS), false);
                 }

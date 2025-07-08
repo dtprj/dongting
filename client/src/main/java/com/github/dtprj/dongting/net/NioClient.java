@@ -212,7 +212,7 @@ public class NioClient extends NioNet implements ChannelListener {
         CompletableFuture<Peer> f = new CompletableFuture<>();
         worker.doInIoThread(() -> {
             for (Peer p : peers) {
-                if (p.getEndPoint().equals(hostPort)) {
+                if (p.endPoint.equals(hostPort)) {
                     f.complete(p);
                     return;
                 }
@@ -252,7 +252,7 @@ public class NioClient extends NioNet implements ChannelListener {
         worker.doInIoThread(() -> {
             Peer peer = null;
             for (Peer p : peers) {
-                if (p.getEndPoint().equals(hp)) {
+                if (p.endPoint.equals(hp)) {
                     peer = p;
                     break;
                 }

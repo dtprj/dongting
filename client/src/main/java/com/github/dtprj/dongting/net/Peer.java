@@ -28,11 +28,11 @@ import java.util.function.Function;
  */
 public class Peer {
     private static final DtLog log = DtLogs.getLogger(Peer.class);
+    public volatile PeerStatus status;
+    public final HostPort endPoint;
 
-    private final HostPort endPoint;
     final NioClient owner;
 
-    volatile PeerStatus status;
     DtChannelImpl dtChannel;
 
     int connectionId;
@@ -50,14 +50,6 @@ public class Peer {
         this.endPoint = endPoint;
         this.owner = owner;
         this.status = PeerStatus.not_connect;
-    }
-
-    public HostPort getEndPoint() {
-        return endPoint;
-    }
-
-    public PeerStatus getStatus() {
-        return status;
     }
 
     void addToWaitConnectList(WriteData data) {

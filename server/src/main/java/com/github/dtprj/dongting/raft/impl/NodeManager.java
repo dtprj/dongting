@@ -134,7 +134,7 @@ public class NodeManager extends AbstractLifeCircle {
         } catch (Exception e) {
             throw new RaftException(e);
         } finally {
-            if (nodeEx.peer.getStatus() == PeerStatus.connected) {
+            if (nodeEx.peer.status == PeerStatus.connected) {
                 client.disconnect(nodeEx.peer);
             }
         }
@@ -199,12 +199,12 @@ public class NodeManager extends AbstractLifeCircle {
         nodeEx.pinging = false;
         if (ex != null) {
             log.error("node ping fail, localId={}, remoteId={}, endPoint={}, err={}",
-                    selfNodeId, nodeEx.nodeId, nodeEx.peer.getEndPoint(), ex.toString());
+                    selfNodeId, nodeEx.nodeId, nodeEx.peer.endPoint, ex.toString());
             updateNodeStatus(nodeEx, false);
         } else {
             if (log.isDebugEnabled()) {
                 log.debug("node ping success, remoteId={}, endPoint={}",
-                        nodeEx.nodeId, nodeEx.peer.getEndPoint());
+                        nodeEx.nodeId, nodeEx.peer.endPoint);
             }
             updateNodeStatus(nodeEx, true);
         }

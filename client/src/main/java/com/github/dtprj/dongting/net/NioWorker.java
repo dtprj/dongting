@@ -465,7 +465,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             f.completeExceptionally(new NetException("worker closed"));
             return;
         }
-        PeerStatus s = peer.getStatus();
+        PeerStatus s = peer.status;
         if (s == PeerStatus.not_connect) {
             peer.autoReconnect = true;
             peer.status = PeerStatus.connecting;
@@ -489,7 +489,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         SocketChannel sc = null;
         try {
-            HostPort hp = peer.getEndPoint();
+            HostPort hp = peer.endPoint;
             InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
             sc = SocketChannel.open();
             sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
@@ -538,7 +538,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             channels.put(dtc.getChannelIndexInWorker(), dtc);
             channelsList.add(dtc);
         } catch (Throwable e) {
-            log.warn("connect channel fail: {}, {}", ci.peer.getEndPoint(), e.toString());
+            log.warn("connect channel fail: {}, {}", ci.peer.endPoint, e.toString());
             closeChannel0(channel);
             ci.peer.markNotConnect(config, workerStatus, ci.autoRetry);
             ci.peer.connectInfo = null;
@@ -806,11 +806,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 ci.peer.connectInfo = null;
                 NetException netEx;
                 if (close) {
-                    log.info("worker closed, connect fail: {}", ci.peer.getEndPoint());
+                    log.info("worker closed, connect fail: {}", ci.peer.endPoint);
                     netEx = new NetException("worker closed");
                 } else {
                     log.warn("connect timeout: {}ms, {}", ci.deadline.getTimeout(TimeUnit.MILLISECONDS),
-                            ci.peer.getEndPoint());
+                            ci.peer.endPoint);
                     netEx = new NetTimeoutException("connect timeout");
                 }
                 closeChannel0(ci.channel);

@@ -212,7 +212,7 @@ public class MemberManager {
     }
 
     private void raftPing(RaftNodeEx raftNodeEx, RaftMember member, int nodeEpochWhenStartPing) {
-        if (raftNodeEx.peer.getStatus() != PeerStatus.connected) {
+        if (raftNodeEx.peer.status != PeerStatus.connected) {
             setReady(member, false);
             return;
         }

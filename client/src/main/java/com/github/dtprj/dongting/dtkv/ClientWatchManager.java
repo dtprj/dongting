@@ -216,7 +216,7 @@ public class ClientWatchManager {
                 removeGroupWatches(gw);
                 return;
             }
-            if (gw.server == null || gw.server.peer.getStatus() != PeerStatus.connected) {
+            if (gw.server == null || gw.server.peer.status != PeerStatus.connected) {
                 if (isGroupWatchesValid(gw)) {
                     initFindServer(gw, gi);
                 } else {
@@ -319,7 +319,7 @@ public class ClientWatchManager {
                 }
                 if (ex != null) {
                     log.warn("sync watches failed, groupId={}, remote={}, ex={}",
-                            gw.groupId, gw.server.peer.getEndPoint(), ex.toString());
+                            gw.groupId, gw.server.peer.endPoint, ex.toString());
                     gw.needSync = true;
                     gw.fullSync = true;
                     gw.server = null;
@@ -369,7 +369,7 @@ public class ClientWatchManager {
     private void findServer(GroupInfo gi, GroupWatches gw, Iterator<RaftNode> it) {
         while (it.hasNext()) {
             RaftNode node = it.next();
-            if (node.peer.getStatus() == PeerStatus.connected) {
+            if (node.peer.status == PeerStatus.connected) {
                 sendQueryStatus(gi, gw, node, status -> {
                     if (status == STATUS_OK) {
                         gw.busy = false;
@@ -444,7 +444,7 @@ public class ClientWatchManager {
     private boolean queryStatusOk(int groupId, RaftNode n, ReadPacket<KvStatusResp> frame, Throwable ex) {
         if (ex != null) {
             log.warn("query status failed, nodeId={}, groupId={},remote={}, ex={}",
-                    n.nodeId, groupId, n.peer.getEndPoint(), ex.toString());
+                    n.nodeId, groupId, n.peer.endPoint, ex.toString());
             return false;
         }
         KvStatusResp resp = frame.getBody();
@@ -463,7 +463,7 @@ public class ClientWatchManager {
 
     private boolean nodeInNewGroupInfo(RaftNode n, GroupInfo gi) {
         for (RaftNode node : gi.servers) {
-            if (node.nodeId == n.nodeId && node.peer.getEndPoint().equals(n.peer.getEndPoint())) {
+            if (node.nodeId == n.nodeId && node.peer.endPoint.equals(n.peer.endPoint)) {
                 return true;
             }
         }

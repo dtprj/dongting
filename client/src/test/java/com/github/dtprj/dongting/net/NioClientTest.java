@@ -523,7 +523,7 @@ public class NioClientTest {
         assertThrows(NetException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
         sendSyncByPeer(5000, client, p2, tick(500));
 
-        client.removePeer(p2.getEndPoint()).get();
+        client.removePeer(p2.endPoint).get();
 
     }
 
@@ -763,7 +763,7 @@ public class NioClientTest {
                 assertEquals(MockRuntimeException.class, e.getCause().getClass());
             }
         }
-        WaitUtil.waitUtil(() -> client.getPeers().get(0).getStatus() == PeerStatus.not_connect);
+        WaitUtil.waitUtil(() -> client.getPeers().get(0).status == PeerStatus.not_connect);
     }
 
     @Test
