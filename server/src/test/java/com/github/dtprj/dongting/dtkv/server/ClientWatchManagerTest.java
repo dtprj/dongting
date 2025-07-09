@@ -57,8 +57,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -364,17 +363,43 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testProcessNotify() {
-        init(1000, true, false);
+        init(1000, false, false);
         String key1 = "testProcessNotify_key1";
         WatchNotifyReq req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
                 1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
         WritePacket p = manager.processNotify(req, null);
-        assertEquals(0, events.size());
         assertEquals(CmdCodes.SUCCESS, p.getRespCode());
         assertEquals(KvCodes.CODE_REMOVE_ALL_WATCH, p.getBizCode());
+        assertNull(manager.takeEvent());
 
         manager.addWatch(groupId, key1);
-        waitForEvents(new PushEvent(-1, key1, null));
+        waitForEventsByUserPull(new PushEvent(-1, key1, null));
 
+        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                10000, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value2".getBytes())));
+        p = manager.processNotify(req, null);
+        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+        assertEquals(KvCodes.CODE_SUCCESS, p.getBizCode());
+        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                10001, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value3".getBytes())));
+        p = manager.processNotify(req, null);
+        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+        assertEquals(KvCodes.CODE_SUCCESS, p.getBizCode());
+
+        WatchEvent event = manager.takeEvent();
+        assertNotNull(event);
+        assertEquals(10001, event.raftIndex);
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, event.state);
+        assertEquals(key1, event.key);
+        assertEquals("value3", new String(event.value));
+
+        manager.removeWatch(groupId, key1);
+        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                10002, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value4".getBytes())));
+        p = manager.processNotify(req, null);
+        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+        assertEquals(KvCodes.CODE_REMOVE_ALL_WATCH, p.getBizCode());
+        event = manager.takeEvent();
+        assertNull(event);
     }
 }
