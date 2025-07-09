@@ -18,12 +18,15 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.ClientWatchManager;
 import com.github.dtprj.dongting.dtkv.KvClient;
+import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvListener;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
+import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.dtkv.WatchReq;
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -47,6 +50,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -107,26 +112,29 @@ public class ClientWatchManagerTest implements KvListener {
             KvReq req = new KvReq(groupId, "aaa".getBytes(), "bbb".getBytes());
             RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
                     new DtTime(3, TimeUnit.SECONDS), false);
+            CompletableFuture<Long> f = new CompletableFuture<>();
             leader.raftServer.getRaftGroup(groupId).submitLinearTask(i, new RaftCallback() {
                 @Override
                 public void success(long raftIndex, Object result) {
+                    f.complete(raftIndex);
                 }
 
                 @Override
                 public void fail(Throwable ex) {
-                    ex.printStackTrace();
+                    f.completeExceptionally(ex);
                 }
             });
+            long firstIndex = f.get();
             // wait every server has applied the first item
-            waitFirstItemApplied(s1);
-            waitFirstItemApplied(s2);
-            waitFirstItemApplied(s3);
+            waitFirstItemApplied(s1, firstIndex);
+            waitFirstItemApplied(s2, firstIndex);
+            waitFirstItemApplied(s3, firstIndex);
         }
 
-        private void waitFirstItemApplied(ServerInfo si) {
+        private void waitFirstItemApplied(ServerInfo si, long index) {
             WaitUtil.waitUtil(() -> {
                 RaftGroupImpl g = (RaftGroupImpl) si.raftServer.getRaftGroup(groupId);
-                return g.groupComponents.raftStatus.getShareStatus().lastApplied >= 1;
+                return g.groupComponents.raftStatus.getShareStatus().lastApplied >= index;
             });
         }
 
@@ -358,12 +366,12 @@ public class ClientWatchManagerTest implements KvListener {
     public void testProcessNotify() {
         init(1000, true, false);
         String key1 = "testProcessNotify_key1";
-//        WatchNotifyReq req = new WatchNotifyReq(groupId, Arrays.asList(new WatchNotify(
-//                1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
-//        WritePacket p = manager.processNotify(req, null);
-//        assertEquals(0, events.size());
-//        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
-//        assertEquals(KvCodes.CODE_REMOVE_ALL_WATCH, p.getBizCode());
+        WatchNotifyReq req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
+        WritePacket p = manager.processNotify(req, null);
+        assertEquals(0, events.size());
+        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+        assertEquals(KvCodes.CODE_REMOVE_ALL_WATCH, p.getBizCode());
 
         manager.addWatch(groupId, key1);
         waitForEvents(new PushEvent(-1, key1, null));
