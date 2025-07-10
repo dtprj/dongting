@@ -93,6 +93,8 @@ public final class RaftStatusImpl extends RaftStatus {
     // update after install snapshot by leader, so current node has no raft logs before the index
     public long firstValidIndex = 1;
 
+    public long lastSavedSnapshotIndex = 0;
+
     public boolean truncating;
 
     public long leaderCommit;

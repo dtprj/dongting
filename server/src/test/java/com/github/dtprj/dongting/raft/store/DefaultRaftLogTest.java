@@ -177,6 +177,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         raftStatus.setLastApplied(5);
         raftStatus.lastLogIndex = 5;
         raftStatus.lastForceLogIndex = 5;
+        raftStatus.lastSavedSnapshotIndex = 10;
 
         // test delete
         File dir = new File(new File(dataDir), "log");

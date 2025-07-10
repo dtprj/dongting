@@ -480,6 +480,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             success = true;
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
             savedSnapshots.addLast(fileSnapshot);
+            raftStatus.lastSavedSnapshotIndex = snapshotInfo.getLastIncludedIndex();
 
             if (!isGroupShouldStopPlain() && groupConfig.deleteLogsAfterTakeSnapshot && !savedSnapshots.isEmpty()) {
                 long lastIncludeIndex = savedSnapshots.getFirst().lastIncludeIndex;

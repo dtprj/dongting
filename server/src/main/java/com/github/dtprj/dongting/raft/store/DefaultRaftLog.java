@@ -208,13 +208,17 @@ public final class DefaultRaftLog implements RaftLog {
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
         long bound = Math.min(raftStatus.getLastApplied(), idxFiles.persistedIndex);
+        bound = Math.min(bound, raftStatus.lastSavedSnapshotIndex);
         bound = Math.min(bound, index);
+        log.info("mark truncate log files by index {}, bound={}", index, bound);
         logFiles.markDelete(bound, Long.MAX_VALUE, delayMillis);
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampBound, long delayMillis) {
         long bound = Math.min(raftStatus.getLastApplied(), idxFiles.persistedIndex);
+        bound = Math.min(bound, raftStatus.lastSavedSnapshotIndex);
+        log.info("mark truncate log files by timestamp {}, bound={}", timestampBound, bound);
         logFiles.markDelete(bound, timestampBound, delayMillis);
     }
 
@@ -225,16 +229,19 @@ public final class DefaultRaftLog implements RaftLog {
             public FrameCallResult execute(Void unused) {
                 FiberFuture<Void> f1 = idxFiles.close();
                 FiberFuture<Void> f2 = logFiles.close();
-                return FiberFuture.allOf("idxAndLogClose", f1 ,f2).await(this::afterIdxAndLogClose);
+                return FiberFuture.allOf("idxAndLogClose", f1, f2).await(this::afterIdxAndLogClose);
             }
+
             private FrameCallResult afterIdxAndLogClose(Void unused) {
                 deleteFrame.requestDeleteAllAndExit = true;
                 deleteFrame.delCond.signal();
                 return deleteFrame.getFiber().join(this::afterDeleteFiberExit);
             }
+
             private FrameCallResult afterDeleteFiberExit(Void unused) {
                 return Fiber.call(idxFiles.forceDeleteAll(), this::afterForceDeleteIdxFiles);
             }
+
             private FrameCallResult afterForceDeleteIdxFiles(Void unused) {
                 return Fiber.call(logFiles.forceDeleteAll(), this::justReturn);
             }
