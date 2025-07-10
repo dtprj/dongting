@@ -211,6 +211,9 @@ class FileLogLoader implements RaftLog.LogIterator {
         private FrameCallResult loadLogFromStore() {
             long pos = nextPos;
             logFile = logFiles.getLogFile(pos);
+            if (logFile == null) {
+                throw new RaftException("log file not found for pos: " + pos);
+            }
             if (logFile.isDeleted()) {
                 throw new RaftException("file " + logFile.getFile().getName() + " is deleted");
             }
@@ -221,7 +224,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 BugLog.log(e);
                 throw e;
             }
-            int rest = (int)(logFile.endPos - pos);
+            int rest = (int) (logFile.endPos - pos);
             if (rest < buf.remaining()) {
                 buf.limit(buf.position() + rest);
             }

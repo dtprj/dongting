@@ -208,8 +208,7 @@ class Restorer {
     private int itemCheckFail(LogFile lf, String reason) {
         if (restoreIndexChecked) {
             if (header.totalLen == 0 && header.headerCrc == 0) {
-                log.info("reach end of file. file={}, pos={}, index={}, term={}",
-                        lf.getFile().getPath(), itemStartPosOfFile, header.index, header.term);
+                log.info("reach end of file. file={}, pos={}", lf.getFile().getPath(), itemStartPosOfFile);
             } else {
                 log.warn("reach end of file. last write maybe not finished or truncated. file={}, pos={}, index={}, term={}, reason={}",
                         lf.getFile().getPath(), itemStartPosOfFile, header.index, header.term, reason);
