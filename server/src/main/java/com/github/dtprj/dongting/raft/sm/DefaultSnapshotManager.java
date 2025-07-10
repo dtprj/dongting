@@ -265,7 +265,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
             deleteOldFiles();
             if (saveRequest.isEmpty()) {
-                return saveSnapshotCond.await(groupConfig.saveSnapshotMillis, this::doSave);
+                return saveSnapshotCond.await(groupConfig.saveSnapshotSeconds * 1000L, this::doSave);
             } else {
                 return doSave(null);
             }

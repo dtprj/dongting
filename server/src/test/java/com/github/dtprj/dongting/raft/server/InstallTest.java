@@ -52,7 +52,7 @@ public class InstallTest extends ServerTestBase {
 
     @Override
     protected void config(RaftGroupConfig config) {
-        config.autoDeleteLogDelayMillis = 0;
+        config.autoDeleteLogDelaySeconds = 0;
         config.maxKeepSnapshots = 1;
         config.saveSnapshotWhenClose = false;
     }

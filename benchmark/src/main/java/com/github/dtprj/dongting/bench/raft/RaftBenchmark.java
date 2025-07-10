@@ -92,7 +92,7 @@ public class RaftBenchmark extends BenchBase {
         RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(GROUP_ID, nodeIdOfMembers, "");
         groupConfig.dataDir = TestProps.get("dir.RaftBenchmark", DATA_DIR) + "-" + nodeId;
         groupConfig.syncForce = SYNC_FORCE;
-        groupConfig.saveSnapshotMillis = Long.MAX_VALUE;
+        groupConfig.saveSnapshotSeconds = Integer.MAX_VALUE;
 
         if (PERF) {
             groupConfig.perfCallback = new RaftPerfCallback(true, "node" + nodeId + "_");

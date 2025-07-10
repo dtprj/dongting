@@ -54,10 +54,10 @@ public class RaftGroupConfig {
     public int replicateSnapshotConcurrency = 4;
     public int replicateSnapshotBufferSize = 64 * 1024;
 
-    public long saveSnapshotMillis = 60 * 60 * 1000;
+    public int saveSnapshotSeconds = 3600;
     public int maxKeepSnapshots = 2;
     public boolean saveSnapshotWhenClose = true;
-    public long autoDeleteLogDelayMillis = 60 * 1000;
+    public int autoDeleteLogDelaySeconds = 60;
 
     public boolean deleteLogsAfterTakeSnapshot = true;
 
