@@ -281,6 +281,12 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private FrameCallResult afterSave(Void v) {
             deleteOldFiles();
+            if (!isGroupShouldStopPlain() && groupConfig.deleteLogsAfterTakeSnapshot && !savedSnapshots.isEmpty()) {
+                long lastIncludeIndex = savedSnapshots.getFirst().lastIncludeIndex;
+                if (lastIncludeIndex > 0 && logDeleter != null) {
+                    logDeleter.accept(lastIncludeIndex);
+                }
+            }
             return Fiber.resume(null, this);
         }
 
@@ -481,13 +487,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
             savedSnapshots.addLast(fileSnapshot);
             raftStatus.lastSavedSnapshotIndex = snapshotInfo.getLastIncludedIndex();
-
-            if (!isGroupShouldStopPlain() && groupConfig.deleteLogsAfterTakeSnapshot && !savedSnapshots.isEmpty()) {
-                long lastIncludeIndex = savedSnapshots.getFirst().lastIncludeIndex;
-                if (lastIncludeIndex > 0 && logDeleter != null) {
-                    logDeleter.accept(lastIncludeIndex);
-                }
-            }
 
             return Fiber.frameReturn();
         }
