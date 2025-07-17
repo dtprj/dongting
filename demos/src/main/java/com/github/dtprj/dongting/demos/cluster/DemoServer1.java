@@ -24,7 +24,7 @@ public class DemoServer1 extends DemoKvServerBase implements GroupId {
     // in this simple demo just start 1 raft group with 3 nodes
     public static void main(String[] args) {
         int nodeId = 1;
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003"; // serverId,ip:replicatePort
         String members = "1,2,3";
         String observers = "";
         startServer(nodeId, servers, members, observers, new int[]{GROUP_ID});

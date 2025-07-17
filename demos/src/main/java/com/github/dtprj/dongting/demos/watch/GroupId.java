@@ -13,20 +13,13 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.demos.cluster;
-
-import com.github.dtprj.dongting.demos.base.DemoKvServerBase;
+package com.github.dtprj.dongting.demos.watch;
 
 /**
  * @author huangli
  */
-public class DemoServer2 extends DemoKvServerBase implements GroupId {
-    // in this simple demo just start 1 raft group with 3 nodes
-    public static void main(String[] args) {
-        int nodeId = 2;
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003"; // serverId,ip:replicatePort
-        String members = "1,2,3";
-        String observers = "";
-        startServer(nodeId, servers, members, observers, new int[]{GROUP_ID});
-    }
+interface GroupId {
+    // the group id is used to auto generate storage dir name in target dir (see DemoKvServer),
+    // use different group id to ensure different demos will use different storage dir.
+    int GROUP_ID = 4;
 }

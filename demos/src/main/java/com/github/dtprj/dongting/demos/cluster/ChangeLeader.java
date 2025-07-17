@@ -29,7 +29,7 @@ public class ChangeLeader implements GroupId {
 
     public static void main(String[] args) throws Exception {
         // use replicate port
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003"; // serverId,ip:replicatePort
         AdminRaftClient adminClient = new AdminRaftClient();
         adminClient.start();
         adminClient.clientAddNode(servers);

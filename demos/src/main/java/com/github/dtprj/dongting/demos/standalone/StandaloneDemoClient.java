@@ -29,7 +29,7 @@ public class StandaloneDemoClient extends DemoClientBase implements GroupId {
     final static int LOOP_COUNT = 1_000_000;
 
     public static void main(String[] args) throws Exception {
-        String servers = "1,127.0.0.1:5001";
+        String servers = "1,127.0.0.1:5001"; // serverId,ip:servicePort
         KvClient client = putAndGetFixCount(GROUP_ID, servers, LOOP_COUNT);
 
         // System.exit(0);

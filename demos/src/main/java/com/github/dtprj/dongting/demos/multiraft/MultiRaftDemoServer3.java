@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.demos.base.DemoKvServerBase;
 public class MultiRaftDemoServer3 extends DemoKvServerBase implements GroupId {
     public static void main(String[] args) {
         int nodeId = 3;
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003"; // serverId,ip:replicatePort
         String members = "1,2,3";
         String observers = "";
         startServer(nodeId, servers, members, observers, new int[]{GROUP_ID_101, GROUP_ID_102});

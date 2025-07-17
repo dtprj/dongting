@@ -33,7 +33,7 @@ public class ChangeTo234Client implements GroupId {
     // this demo change raft member from [1, 2, 3] to [2, 3, 4], if current member is [2, 3, 4], exit with code 1.
     public static void main(String[] args) throws Exception {
         // use replicate port
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004";
+        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003;4,127.0.0.1:4004"; // serverId,ip:replicatePort
         AdminRaftClient adminClient = new AdminRaftClient();
         adminClient.start();
         adminClient.clientAddNode(servers);

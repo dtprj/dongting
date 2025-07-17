@@ -29,7 +29,7 @@ public class PeriodPutClient implements GroupId {
     private static long count = 1;
 
     public static void main(String[] args) throws Exception {
-        String servers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
+        String servers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003"; // serverId,ip:servicePort
         KvClient kvClient = new KvClient();
         kvClient.start();
         kvClient.getRaftClient().clientAddNode(servers);

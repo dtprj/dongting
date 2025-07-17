@@ -13,19 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.demos.cluster;
+package com.github.dtprj.dongting.demos.watch;
 
 import com.github.dtprj.dongting.demos.base.DemoKvServerBase;
 
 /**
  * @author huangli
  */
-public class DemoServer2 extends DemoKvServerBase implements GroupId {
-    // in this simple demo just start 1 raft group with 3 nodes
+public class WatchDemoServer extends DemoKvServerBase implements GroupId {
+    // in this simple demo just start 1 raft group with 1 node
     public static void main(String[] args) {
-        int nodeId = 2;
-        String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003"; // serverId,ip:replicatePort
-        String members = "1,2,3";
+        int nodeId = 1;
+        String servers = "1,127.0.0.1:4001"; // serverId,ip:replicatePort
+        String members = "1";
         String observers = "";
         startServer(nodeId, servers, members, observers, new int[]{GROUP_ID});
     }

@@ -31,7 +31,7 @@ public class EmbeddedDemo implements GroupId {
     final static int LOOP_COUNT = 1_000_000;
 
     public static void main(String[] args) throws Exception {
-        String replicateServer = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+        String replicateServer = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003"; // serverId,ip:replicatePort
         String members = "1,2,3";
         String observers = "";
         RaftServer s1 = DemoKvServerBase.startServer(1, replicateServer, members, observers, new int[]{GROUP_ID});
@@ -47,7 +47,7 @@ public class EmbeddedDemo implements GroupId {
         System.out.println("All servers are ready");
         System.out.println("-------------------------------------------");
 
-        String rpcServers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
+        String rpcServers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003"; // serverId,ip:servicePort
         KvClient client = DemoClientBase.putAndGetFixCount(GROUP_ID, rpcServers, LOOP_COUNT);
 
 
