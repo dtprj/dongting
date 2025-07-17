@@ -525,20 +525,8 @@ public class ClientWatchManager {
         }
         if (listener != null && !listenerTaskStart && notifyQueueHead != null) {
             listenerTaskStart = true;
-
-            Executor executor;
-            if (userExecutor != null) {
-                executor = userExecutor;
-            } else {
-                executor = raftClient.getNioClient().getBizExecutor();
-            }
-            if (executor == null) {
-                String msg = "no executor for watch listener, create single thread executor";
-                log.error(msg);
-                throw new RaftException(msg);
-            }
             try {
-                executor.execute(this::runListenerTask);
+                userExecutor.execute(this::runListenerTask);
             } catch (Throwable e) {
                 log.error("", e);
                 listenerTaskStart = false;
@@ -628,23 +616,21 @@ public class ClientWatchManager {
     /**
      * Set listener and user executor for watch events.
      * The listener callback will be executed in a globally serialized manner.
-     * @param listener the use listener
-     * @param userExecutor if null use NioClient's bizExecutor as default
      */
     public void setListener(KvListener listener, Executor userExecutor) {
+        Objects.requireNonNull(listener);
+        Objects.requireNonNull(userExecutor);
         lock.lock();
         this.listener = listener;
         this.userExecutor = userExecutor;
         lock.unlock();
     }
 
-    /**
-     * Set listener and user executor for watch events.
-     * The listener callback will be executed in a globally serialized manner, in NioClient's bizExecutor.
-     * @param listener the use listener
-     */
-    public void setListener(KvListener listener) {
-        setListener(listener, null);
+    public void removeListener() {
+        lock.lock();
+        this.listener = null;
+        this.userExecutor = null;
+        lock.unlock();
     }
 
 }

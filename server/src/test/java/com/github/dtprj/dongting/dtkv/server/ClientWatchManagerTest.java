@@ -44,8 +44,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.SocketAddress;
 import java.util.ArrayList;
@@ -188,7 +186,7 @@ public class ClientWatchManagerTest implements KvListener {
         }
     }
 
-    private void init(long heartbeatIntervalMillis, boolean setListener, boolean useSepExecutor) {
+    private void init(long heartbeatIntervalMillis, boolean setListener) {
         client = new KvClient() {
             @Override
             protected ClientWatchManager createClientWatchManager() {
@@ -201,11 +199,7 @@ public class ClientWatchManagerTest implements KvListener {
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
         manager = (MockClientWatchManager) client.getClientWatchManager();
         if (setListener) {
-            if (useSepExecutor) {
-                manager.setListener(this, MockExecutors.ioExecutor());
-            } else {
-                manager.setListener(this);
-            }
+            manager.setListener(this, MockExecutors.ioExecutor());
         }
     }
 
@@ -265,7 +259,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testInvalidParams() {
-        init(1000, true, false);
+        init(1000, true);
         assertThrows(RaftException.class, () -> manager.addWatch(groupId + 100000, "key1"));
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ""));
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ".key1"));
@@ -273,12 +267,11 @@ public class ClientWatchManagerTest implements KvListener {
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1..key2"));
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testAddRemoveWatch(boolean useSepExecutor) {
-        init(1000, true, useSepExecutor);
-        String key1 = "testAddRemoveWatch_key1" + useSepExecutor;
-        String key2 = "testAddRemoveWatch_key2" + useSepExecutor;
+    @Test
+    public void testAddRemoveWatch() {
+        init(1000, true);
+        String key1 = "testAddRemoveWatch_key1";
+        String key2 = "testAddRemoveWatch_key2";
         long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
         long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
         manager.addWatch(groupId, key1, key2);
@@ -323,10 +316,10 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testUserPullEvents() {
-        init(1000, false, false);
+        init(1000, false);
         String key1 = "testUserPullEvents_key1";
         String key2 = "testUserPullEvents_key2";
-        manager.setListener(null);
+        manager.removeListener();
         long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
         long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
         manager.addWatch(groupId, key1, key2);
@@ -335,7 +328,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testEx1() {
-        init(10, true, false);
+        init(10, true);
         String key1 = "testEx1_key1";
         mockQueryStatusExCount = new AtomicInteger(3);
         manager.addWatch(groupId, key1);
@@ -344,7 +337,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testEx2() {
-        init(10, true, false);
+        init(10, true);
         String key1 = "testEx2_key1";
         String key2 = "testEx2_key2";
 
@@ -363,7 +356,7 @@ public class ClientWatchManagerTest implements KvListener {
 
     @Test
     public void testProcessNotify() {
-        init(1000, false, false);
+        init(1000, false);
         String key1 = "testProcessNotify_key1";
         WatchNotifyReq req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
                 1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
