@@ -108,6 +108,10 @@ Run ```AddGroup103Demo``` to add raft group 103 at runtime, after which ```Perio
 three successful operations per second.
 Executing ```RemoveGroup103Demo``` will remove raft group 103.
 
+The [watch](demos/src/main/java/com/github/dtprj/dongting/demos/watch) directory an example of
+using a client to monitor changes to a specified key, while also demonstrating how to monitor 
+a directory, where the client receives notifications for any changes to its child nodes.
+
 ## Under development
 
 Unfortunately, the project is still under development. All current demos can run, 
@@ -116,7 +120,6 @@ The latest version is v0.8.0-ALPHA, you can check out it by git tag.
 
 Additionally, the following features have not yet been implemented:
 
-* (DtKV) configuration change notifications like value watch.
 * (DtKV) implement distribute lock.
 * (MQ) message queues.
 
