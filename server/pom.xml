@@ -21,20 +21,20 @@
     <parent>
         <artifactId>dongting</artifactId>
         <groupId>com.github.dtprj.dongting</groupId>
-        <version>0.8.1-SNAPSHOT</version>
+        <version>0.8.1-ALPHA</version>
     </parent>
     <artifactId>dongting-server</artifactId>
     <dependencies>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>test-support</artifactId>
-            <version>0.8.1-SNAPSHOT</version>
+            <version>0.8.1-ALPHA</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-client</artifactId>
-            <version>0.8.1-SNAPSHOT</version>
+            <version>0.8.1-ALPHA</version>
         </dependency>
     </dependencies>
     <build>
