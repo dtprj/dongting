@@ -200,14 +200,14 @@ class KvImplTest {
     void testMkdir() {
         assertEquals(KvCodes.CODE_SUCCESS, kv.mkdir(1, ba("dir1")).getBizCode());
         TestUtil.updateTimestamp(ts, ts.getNanoTime() + 1, ts.getWallClockMillis() + 1);
-        assertEquals(KvCodes.CODE_SUCCESS_OVERWRITE, kv.mkdir(2, ba("dir1")).getBizCode());
+        assertEquals(KvCodes.CODE_DIR_EXISTS, kv.mkdir(2, ba("dir1")).getBizCode());
         KvResult r = kv.get(ba("dir1"));
         assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
         assertTrue(r.getNode().isDir);
         assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
-        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(r.getNode().createTime, r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
-        assertEquals(2, r.getNode().updateIndex);
+        assertEquals(1, r.getNode().updateIndex);
 
         assertEquals(KvCodes.CODE_DIR_EXISTS, kv.put(3, ba("dir1"), "value1".getBytes()).getBizCode());
     }

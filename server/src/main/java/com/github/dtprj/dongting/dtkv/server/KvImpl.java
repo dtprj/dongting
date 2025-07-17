@@ -326,13 +326,21 @@ class KvImpl {
                 }
             } else {
                 // override
-                boolean oldValueIsDir = oldNode.isDir;
-                if (newValueIsDir != oldValueIsDir) {
-                    return new KvResult(oldValueIsDir ? KvCodes.CODE_DIR_EXISTS : KvCodes.CODE_VALUE_EXISTS);
+                if (newValueIsDir) {
+                    if (!oldNode.isDir) {
+                        return new KvResult(KvCodes.CODE_VALUE_EXISTS);
+                    } else {
+                        return new KvResult(KvCodes.CODE_DIR_EXISTS);
+                    }
+                } else {
+                    if (oldNode.isDir) {
+                        return new KvResult(KvCodes.CODE_DIR_EXISTS);
+                    } else {
+                        newKvNode = new KvNodeEx(oldNode.createIndex, oldNode.createTime,
+                                index, timestamp, false, data);
+                        result = KvResult.SUCCESS_OVERWRITE;
+                    }
                 }
-                newKvNode = new KvNodeEx(oldNode.createIndex, oldNode.createTime,
-                        index, timestamp, newValueIsDir, data);
-                result = KvResult.SUCCESS_OVERWRITE;
             }
             if (maxOpenSnapshotIndex > 0) {
                 newKvNode.previous = oldNode;
