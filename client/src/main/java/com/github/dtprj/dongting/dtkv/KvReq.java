@@ -33,24 +33,27 @@ public class KvReq extends RaftRpcData implements Encodable {
     private static final int IDX_KEY = 2;
     private static final int IDX_VALUE = 3;
     private static final int IDX_EXPECT_VALUE = 4;
-    private static final int IDX_KEYS_SIZE = 5;
-    private static final int IDX_KEYS = 6;
-    private static final int IDX_VALUES = 7;
+    private static final int IDX_TTL_MILLIS = 5;
+    private static final int IDX_KEYS_SIZE = 6;
+    private static final int IDX_KEYS = 7;
+    private static final int IDX_VALUES = 8;
 
     public final byte[] key;
     public final byte[] value;
     public final List<byte[]> keys;
     public final List<byte[]> values;
     public final byte[] expectValue;
+    public final long ttlMillis;
 
     private int encodeSize;
 
-    public KvReq(int groupId, byte[] key, byte[] value, byte[] expectValue, List<byte[]> keys,
+    public KvReq(int groupId, byte[] key, byte[] value, byte[] expectValue, long ttlMillis, List<byte[]> keys,
                  List<byte[]> values) {
         this.groupId = groupId;
         this.key = key;
         this.value = value;
         this.expectValue = expectValue;
+        this.ttlMillis = ttlMillis;
         this.keys = keys;
         this.values = values;
         checkKeysAndValues();
@@ -71,6 +74,18 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.keys = null;
         this.values = null;
         this.expectValue = null;
+        this.ttlMillis = 0;
+        checkKeysAndValues();
+    }
+
+    public KvReq(int groupId, byte[] key, byte[] value, long ttlMillis) {
+        this.groupId = groupId;
+        this.key = key;
+        this.value = value;
+        this.keys = null;
+        this.values = null;
+        this.expectValue = null;
+        this.ttlMillis = ttlMillis;
         checkKeysAndValues();
     }
 
@@ -81,6 +96,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.keys = null;
         this.values = null;
         this.expectValue = expectValue;
+        this.ttlMillis = 0;
         checkKeysAndValues();
     }
 
@@ -91,6 +107,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.keys = keys;
         this.values = values;
         this.expectValue = null;
+        this.ttlMillis = 0;
         checkKeysAndValues();
     }
 
@@ -101,6 +118,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                     + EncodeUtil.sizeOf(IDX_KEY, key)
                     + EncodeUtil.sizeOf(IDX_VALUE, value)
                     + EncodeUtil.sizeOf(IDX_EXPECT_VALUE, expectValue)
+                    + PbUtil.sizeOfInt64Field(IDX_TTL_MILLIS, ttlMillis)
                     + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
                     + EncodeUtil.sizeOfBytesList(IDX_KEYS, keys)
                     + EncodeUtil.sizeOfBytesList(IDX_VALUES, values);
@@ -130,8 +148,12 @@ public class KvReq extends RaftRpcData implements Encodable {
                 if(!EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
                     return false;
                 }
-                // fall through
             case IDX_EXPECT_VALUE:
+                if(!EncodeUtil.encodeInt64(context, destBuffer, IDX_TTL_MILLIS, ttlMillis)) {
+                    return false;
+                }
+                // fall through
+            case IDX_TTL_MILLIS:
                 if (keys != null && !EncodeUtil.encodeInt32(context, destBuffer, IDX_KEYS_SIZE, keys.size())) {
                     return false;
                 }

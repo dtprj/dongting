@@ -37,7 +37,7 @@ public class KvReqTest {
             values.add(("test_value" + i).getBytes());
         }
         return new KvReq(1, "test_key".getBytes(), "test_value".getBytes(),
-                "test_expect_value".getBytes(), keys, values);
+                "test_expect_value".getBytes(),10000, keys, values);
     }
 
     @Test
@@ -64,6 +64,7 @@ public class KvReqTest {
         Assertions.assertEquals(new String(expect.key), req.getKey());
         Assertions.assertEquals(new String(expect.value), req.getValue().toStringUtf8());
         Assertions.assertEquals(new String(expect.expectValue), req.getExpectValue().toStringUtf8());
+        Assertions.assertEquals(expect.ttlMillis, req.getTtlMillis());
         for (int i = 0; i < expect.keys.size(); i++) {
             Assertions.assertEquals(new String(expect.keys.get(i)), req.getKeys(i));
             byte[] s = expect.values.get(i);
@@ -76,6 +77,7 @@ public class KvReqTest {
         Assertions.assertArrayEquals(expect.key, r.key);
         Assertions.assertArrayEquals(expect.value, r.value);
         Assertions.assertArrayEquals(expect.expectValue, r.expectValue);
+        Assertions.assertEquals(expect.ttlMillis, r.ttlMillis);
         for (int i = 0; i < expect.keys.size(); i++) {
             Assertions.assertArrayEquals(expect.keys.get(i), r.keys.get(i));
             Assertions.assertArrayEquals(expect.values.get(i), r.values.get(i));

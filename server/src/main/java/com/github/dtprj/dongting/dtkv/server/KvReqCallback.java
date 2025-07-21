@@ -31,9 +31,10 @@ public class KvReqCallback extends PbCallback<KvReq> {
     private static final int IDX_KEY = 2;
     private static final int IDX_VALUE = 3;
     private static final int IDX_EXPECT_VALUE = 4;
-    private static final int IDX_KEYS_SIZE = 5;
-    private static final int IDX_KEYS = 6;
-    private static final int IDX_VALUES = 7;
+    private static final int IDX_TTL_MILLIS = 5;
+    private static final int IDX_KEYS_SIZE = 6;
+    private static final int IDX_KEYS = 7;
+    private static final int IDX_VALUES = 8;
 
     int groupId;
     byte[] key;
@@ -42,6 +43,7 @@ public class KvReqCallback extends PbCallback<KvReq> {
     ArrayList<byte[]> keys;
     ArrayList<byte[]> values;
     byte[] expectValue;
+    long ttlMillis;
 
     @Override
     protected boolean end(boolean success) {
@@ -52,15 +54,22 @@ public class KvReqCallback extends PbCallback<KvReq> {
         keys = null;
         values = null;
         expectValue = null;
+        ttlMillis = 0;
         return success;
     }
 
     @Override
     public boolean readVarNumber(int index, long value) {
-        if (index == IDX_GROUP_ID) {
-            groupId = (int) value;
-        } else if (index == IDX_KEYS_SIZE) {
-            keysSize = (int) value;
+        switch (index) {
+            case IDX_GROUP_ID:
+                groupId = (int) value;
+                break;
+            case IDX_TTL_MILLIS:
+                ttlMillis = value;
+                break;
+            case IDX_KEYS_SIZE:
+                keysSize = (int) value;
+                break;
         }
         return true;
     }
@@ -101,6 +110,6 @@ public class KvReqCallback extends PbCallback<KvReq> {
 
     @Override
     protected KvReq getResult() {
-        return new KvReq(groupId, key, value, expectValue, keys, values);
+        return new KvReq(groupId, key, value, expectValue, ttlMillis, keys, values);
     }
 }
