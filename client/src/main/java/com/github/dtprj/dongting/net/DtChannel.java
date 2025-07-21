@@ -36,4 +36,14 @@ public interface DtChannel {
     long getLastActiveTimeNanos();
 
     NioNet getOwner();
+
+    /**
+     * client side will return 0.
+     */
+    long getRemoteUuid1();
+
+    /**
+     * client side will return 0.
+     */
+    long getRemoteUuid2();
 }

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
@@ -50,9 +51,15 @@ public class NioClient extends NioNet implements ChannelListener {
     private final Condition connectCond = lock.newCondition();
     private int connectCount;
 
+    long uuid1;
+    long uuid2;
+
     public NioClient(NioClientConfig config) {
         super(config);
         this.config = config;
+        UUID uuid = UUID.randomUUID();
+        this.uuid1 = uuid.getMostSignificantBits();
+        this.uuid2 = uuid.getLeastSignificantBits();
         ArrayList<Peer> list = new ArrayList<>();
         if (config.hostPorts != null) {
             for (HostPort hp : config.hostPorts) {

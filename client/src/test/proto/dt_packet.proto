@@ -39,7 +39,8 @@ message Handshake {
 }
 
 message ProcessInfo {
-  // reserved for future use
+  fixed64 uuid1 = 1;
+  fixed64 uuid2 = 2;
 }
 
 message DtAuth {

@@ -573,6 +573,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         HandshakeBody hb = new HandshakeBody();
         hb.majorVersion = DtUtil.RPC_MAJOR_VER;
         hb.minorVersion = DtUtil.RPC_MINOR_VER;
+        ProcessInfoBody pb = new ProcessInfoBody();
+        NioClient client = (NioClient) owner;
+        pb.uuid1 = client.uuid1;
+        pb.uuid2 = client.uuid2;
+        hb.processInfo = pb;
         ConfigBody cb = new ConfigBody();
         cb.maxPacketSize = config.maxPacketSize;
         cb.maxBodySize = config.maxBodySize;

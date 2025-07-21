@@ -25,13 +25,21 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable {
+class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable {
 
     public static final long MAGIC1 = 0xAE10_9045_1C22_DA13L;
     public static final long MAGIC2 = 0x1CD7_D1A3_0A61_935FL;
 
+    private static final int IDX_MAGIC1 = 1;
+    private static final int IDX_MAGIC2 = 2;
+    private static final int IDX_MAJOR_VERSION = 3;
+    private static final int IDX_MINOR_VERSION = 4;
+    private static final int IDX_PROCESS_INFO = 5;
+    private static final int IDX_CONFIG = 8;
+
     int majorVersion;
     int minorVersion;
+    ProcessInfoBody processInfo;
     ConfigBody config;
 
     @Override
@@ -42,12 +50,12 @@ public class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEn
     @Override
     public boolean readFix64(int index, long value) {
         switch (index) {
-            case 1:
+            case IDX_MAGIC1:
                 if (value != MAGIC1) {
                     throw new NetException("handshake failed, magic1 not match");
                 }
                 break;
-            case 2:
+            case IDX_MAGIC2:
                 if (value != MAGIC2) {
                     throw new NetException("handshake failed, magic2 not match");
                 }
@@ -59,10 +67,10 @@ public class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEn
     @Override
     public boolean readVarNumber(int index, long value) {
         switch (index) {
-            case 3:
+            case IDX_MAJOR_VERSION:
                 majorVersion = (int) value;
                 break;
-            case 4:
+            case IDX_MINOR_VERSION:
                 minorVersion = (int) value;
                 break;
         }
@@ -80,19 +88,125 @@ public class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEn
 
     @Override
     public int actualSize() {
-        return PbUtil.sizeOfFix64Field(1, MAGIC1)
-                + PbUtil.sizeOfFix64Field(2, MAGIC2)
-                + PbUtil.sizeOfInt32Field(3, majorVersion)
-                + PbUtil.sizeOfInt32Field(4, minorVersion)
-                + EncodeUtil.sizeOf(8, config);
+        return PbUtil.sizeOfFix64Field(IDX_MAGIC1, MAGIC1)
+                + PbUtil.sizeOfFix64Field(IDX_MAGIC2, MAGIC2)
+                + PbUtil.sizeOfInt32Field(IDX_MAJOR_VERSION, majorVersion)
+                + PbUtil.sizeOfInt32Field(IDX_MINOR_VERSION, minorVersion)
+                + EncodeUtil.sizeOf(IDX_CONFIG, config);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeFix64Field(buf, 1, MAGIC1);
-        PbUtil.writeFix64Field(buf, 2, MAGIC2);
-        PbUtil.writeInt32Field(buf, 3, majorVersion);
-        PbUtil.writeInt32Field(buf, 4, minorVersion);
-        EncodeUtil.encode(buf, 8, config);
+        PbUtil.writeFix64Field(buf, IDX_MAGIC1, MAGIC1);
+        PbUtil.writeFix64Field(buf, IDX_MAGIC2, MAGIC2);
+        PbUtil.writeInt32Field(buf, IDX_MAJOR_VERSION, majorVersion);
+        PbUtil.writeInt32Field(buf, IDX_MINOR_VERSION, minorVersion);
+        EncodeUtil.encode(buf, IDX_CONFIG, config);
+    }
+}
+
+class ConfigBody extends PbCallback<ConfigBody> implements SimpleEncodable {
+
+    private static final int IDX_MAX_PACKET_SIZE = 1;
+    private static final int IDX_MAX_BODY_SIZE = 2;
+    private static final int IDX_MAX_IN_PENDING = 3;
+    private static final int IDX_MAX_IN_PENDING_BYTES = 4;
+    private static final int IDX_MAX_OUT_PENDING = 5;
+    private static final int IDX_MAX_OUT_PENDING_BYTES = 6;
+
+    int maxPacketSize;
+    int maxBodySize;
+    int maxInPending;
+    long maxInPendingBytes;
+    int maxOutPending;
+    long maxOutPendingBytes;
+
+    @Override
+    public boolean readVarNumber(int index, long value) {
+        switch (index) {
+            case IDX_MAX_PACKET_SIZE:
+                maxPacketSize = (int) value;
+                break;
+            case IDX_MAX_BODY_SIZE:
+                maxBodySize = (int) value;
+                break;
+            case IDX_MAX_IN_PENDING:
+                maxInPending = (int) value;
+                break;
+            case IDX_MAX_IN_PENDING_BYTES:
+                maxInPendingBytes = value;
+                break;
+            case IDX_MAX_OUT_PENDING:
+                maxOutPending = (int) value;
+                break;
+            case IDX_MAX_OUT_PENDING_BYTES:
+                maxOutPendingBytes = value;
+                break;
+        }
+        return true;
+    }
+
+    @Override
+    protected ConfigBody getResult() {
+        return this;
+    }
+
+    @Override
+    public int actualSize() {
+        return PbUtil.sizeOfInt32Field(IDX_MAX_PACKET_SIZE, maxPacketSize) +
+                PbUtil.sizeOfInt32Field(IDX_MAX_BODY_SIZE, maxBodySize) +
+                PbUtil.sizeOfInt32Field(IDX_MAX_IN_PENDING, maxInPending) +
+                PbUtil.sizeOfInt64Field(IDX_MAX_IN_PENDING_BYTES, maxInPendingBytes) +
+                PbUtil.sizeOfInt32Field(IDX_MAX_OUT_PENDING, maxOutPending) +
+                PbUtil.sizeOfInt64Field(IDX_MAX_OUT_PENDING_BYTES, maxOutPendingBytes);
+    }
+
+    @Override
+    public void encode(ByteBuffer buf) {
+        PbUtil.writeInt32Field(buf, IDX_MAX_PACKET_SIZE, maxPacketSize);
+        PbUtil.writeInt32Field(buf, IDX_MAX_BODY_SIZE, maxBodySize);
+        PbUtil.writeInt32Field(buf, IDX_MAX_IN_PENDING, maxInPending);
+        PbUtil.writeInt64Field(buf, IDX_MAX_IN_PENDING_BYTES, maxInPendingBytes);
+        PbUtil.writeInt32Field(buf, IDX_MAX_OUT_PENDING, maxOutPending);
+        PbUtil.writeInt64Field(buf, IDX_MAX_OUT_PENDING_BYTES, maxOutPendingBytes);
+    }
+}
+
+class ProcessInfoBody extends PbCallback<ProcessInfoBody> implements SimpleEncodable {
+
+    private static final int IDX_UUID1 = 1;
+    private static final int IDX_UUID2 = 2;
+
+    long uuid1;
+    long uuid2;
+
+    @Override
+    protected ProcessInfoBody getResult() {
+        return this;
+    }
+
+    @Override
+    public boolean readFix64(int index, long value) {
+        switch (index) {
+            case IDX_UUID1:
+                uuid1 = value;
+                break;
+            case IDX_UUID2:
+                uuid2 = value;
+                break;
+        }
+        return true;
+    }
+
+    @Override
+    public void encode(ByteBuffer buf) {
+        PbUtil.writeFix64Field(buf, IDX_UUID1, uuid1);
+        PbUtil.writeFix64Field(buf, IDX_UUID2, uuid2);
+    }
+
+    @Override
+    public int actualSize() {
+        return PbUtil.sizeOfFix64Field(IDX_UUID1, uuid1) +
+                PbUtil.sizeOfFix64Field(IDX_UUID2, uuid2);
     }
 }

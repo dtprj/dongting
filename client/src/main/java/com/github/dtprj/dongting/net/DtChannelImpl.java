@@ -40,6 +40,9 @@ import java.util.concurrent.TimeUnit;
 class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private static final DtLog log = DtLogs.getLogger(DtChannelImpl.class);
 
+    long remoteUuid1;
+    long remoteUuid2;
+
     private final NioStatus nioStatus;
     private final NioConfig nioConfig;
     final WorkerStatus workerStatus;
@@ -487,6 +490,16 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     @Override
     public String toString() {
         return "dtc : " + channel.toString();
+    }
+
+    @Override
+    public long getRemoteUuid1() {
+        return remoteUuid1;
+    }
+
+    @Override
+    public long getRemoteUuid2() {
+        return remoteUuid2;
     }
 }
 

@@ -883,5 +883,15 @@ public class WatchManagerTest {
         public NioNet getOwner() {
             return null;
         }
+
+        @Override
+        public long getRemoteUuid1() {
+            return 0;
+        }
+
+        @Override
+        public long getRemoteUuid2() {
+            return 0;
+        }
     }
 }

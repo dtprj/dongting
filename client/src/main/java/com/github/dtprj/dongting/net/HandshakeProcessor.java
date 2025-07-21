@@ -50,6 +50,11 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         hb.majorVersion = DtUtil.RPC_MAJOR_VER;
         hb.minorVersion = DtUtil.RPC_MINOR_VER;
 
+        if (hb.processInfo != null) {
+            dtc.remoteUuid1 = hb.processInfo.uuid1;
+            dtc.remoteUuid2 = hb.processInfo.uuid2;
+        }
+
         if (config.serverHint) {
             hb.config = buildServerHint();
         }
