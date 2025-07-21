@@ -477,7 +477,6 @@ class KvImpl {
                 return Boolean.TRUE;
             } finally {
                 writeLock.unlock();
-                afterUpdate();
             }
         };
     }
