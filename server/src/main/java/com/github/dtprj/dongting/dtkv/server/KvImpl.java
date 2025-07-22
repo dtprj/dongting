@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.StampedLock;
 import java.util.function.Supplier;
 
 /**
@@ -61,8 +61,7 @@ class KvImpl {
     final KvNodeHolder root;
 
     // write operations is not atomic, so we need lock although ConcurrentHashMap is used
-    private final ReentrantReadWriteLock.ReadLock readLock;
-    private final ReentrantReadWriteLock.WriteLock writeLock;
+    private final StampedLock lock = new StampedLock();
 
     private final Timestamp ts;
 
@@ -81,9 +80,6 @@ class KvImpl {
         KvNodeEx n = new KvNodeEx(0, 0, 0, 0, true, null);
         this.root = new KvNodeHolder(ByteArray.EMPTY, ByteArray.EMPTY, n, null);
         this.map.put(ByteArray.EMPTY, root);
-        ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-        readLock = lock.readLock();
-        writeLock = lock.writeLock();
     }
 
     private void addToUpdateQueue(long updateIndex, KvNodeHolder h) {
@@ -158,11 +154,16 @@ class KvImpl {
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
-        readLock.lock();
+        long s = lock.tryOptimisticRead();
+        KvResult r = get0(key);
+        if (lock.validate(s)) {
+            return r;
+        }
+        s = lock.readLock();
         try {
             return get0(key);
         } finally {
-            readLock.unlock();
+            lock.unlockRead(s);
         }
     }
 
@@ -195,7 +196,7 @@ class KvImpl {
         }
         int s = keys.size();
         ArrayList<KvResult> list = new ArrayList<>(s);
-        readLock.lock();
+        long stamp = lock.readLock();
         try {
             for (int i = 0; i < s; i++) {
                 byte[] bs = keys.get(i);
@@ -208,7 +209,7 @@ class KvImpl {
                 }
             }
         } finally {
-            readLock.unlock();
+            lock.unlockRead(stamp);
         }
         return new Pair<>(KvCodes.CODE_SUCCESS, list);
     }
@@ -224,7 +225,7 @@ class KvImpl {
         if (ck != KvCodes.CODE_SUCCESS) {
             return new Pair<>(ck, null);
         }
-        readLock.lock();
+        long stamp = lock.readLock();
         try {
             KvNodeHolder h;
             if (key == null || key.getData().length == 0) {
@@ -248,7 +249,7 @@ class KvImpl {
             }
             return new Pair<>(KvCodes.CODE_SUCCESS, list);
         } finally {
-            readLock.unlock();
+            lock.unlockRead(stamp);
         }
     }
 
@@ -282,14 +283,12 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        if (lock) {
-            writeLock.lock();
-        }
+        long stamp = lock ? this.lock.writeLock() : 0;
         try {
             return doPut(index, key, data, h, parent, lastIndexOfSep);
         } finally {
             if (lock) {
-                writeLock.unlock();
+                this.lock.unlockWrite(stamp);
                 afterUpdate();
             }
         }
@@ -364,14 +363,14 @@ class KvImpl {
         if (values == null || values.size() != size) {
             return new Pair<>(KvCodes.CODE_INVALID_VALUE, null);
         }
-        writeLock.lock();
+        long stamp = lock.writeLock();
         try {
             for (int i = 0; i < size; i++) {
                 byte[] k = keys.get(i);
                 list.add(doPut(index, k == null ? null : new ByteArray(k), values.get(i), false));
             }
         } finally {
-            writeLock.unlock();
+            lock.unlockWrite(stamp);
             afterUpdate();
         }
         return new Pair<>(KvCodes.CODE_SUCCESS, list);
@@ -464,7 +463,7 @@ class KvImpl {
             if (cancel.get()) {
                 return Boolean.FALSE;
             }
-            writeLock.lock();
+            long stamp = lock.writeLock();
             try {
                 for (int i = 0; i < gcItems; i++) {
                     if (!it.hasNext()) {
@@ -476,7 +475,7 @@ class KvImpl {
                 }
                 return Boolean.TRUE;
             } finally {
-                writeLock.unlock();
+                lock.unlockWrite(stamp);
             }
         };
     }
@@ -501,14 +500,12 @@ class KvImpl {
         if (n.isDir && !n.children.isEmpty()) {
             return new KvResult(KvCodes.CODE_HAS_CHILDREN);
         }
-        if (lock) {
-            writeLock.lock();
-        }
+        long stamp = lock ? this.lock.writeLock() : 0;
         try {
             return doRemoveInLock(index, h);
         } finally {
             if (lock) {
-                writeLock.unlock();
+                this.lock.unlockWrite(stamp);
                 afterUpdate();
             }
         }
@@ -545,14 +542,14 @@ class KvImpl {
         }
         int size = keys.size();
         ArrayList<KvResult> list = new ArrayList<>(size);
-        writeLock.lock();
+        long stamp = lock.writeLock();
         try {
             for (int i = 0; i < size; i++) {
                 byte[] k = keys.get(i);
                 list.add(doRemove(index, k == null ? null : new ByteArray(k), false));
             }
         } finally {
-            writeLock.unlock();
+            lock.unlockWrite(stamp);
             afterUpdate();
         }
         return new Pair<>(KvCodes.CODE_SUCCESS, list);
@@ -578,7 +575,7 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        writeLock.lock();
+        long stamp = lock.writeLock();
         try {
             if (expectedValue == null || expectedValue.length == 0) {
                 if (h == null || h.latest.removed) {
@@ -612,7 +609,7 @@ class KvImpl {
                 }
             }
         } finally {
-            writeLock.unlock();
+            lock.unlockWrite(stamp);
             afterUpdate();
         }
     }
