@@ -68,6 +68,10 @@ public class FiberCondition extends WaitSource {
         return Dispatcher.awaitOn(this, TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
     }
 
+    public FrameCallResult await(long time, TimeUnit unit, FrameCall<Void> resumePoint) {
+        return Dispatcher.awaitOn(this, unit.toNanos(time), resumePoint);
+    }
+
     public FrameCallResult await(FiberCondition another, FrameCall<Void> resumePoint) {
         return await(-1, another, resumePoint);
     }
@@ -80,5 +84,15 @@ public class FiberCondition extends WaitSource {
             throw new IllegalArgumentException("not in same group");
         }
         return Dispatcher.awaitOn(new FiberCondition[]{this, another}, TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
+    }
+
+    public FrameCallResult await(long time, TimeUnit unit, FiberCondition another, FrameCall<Void> resumePoint) {
+        if (another == this) {
+            throw new IllegalArgumentException("same condition");
+        }
+        if (another.group != this.group) {
+            throw new IllegalArgumentException("not in same group");
+        }
+        return Dispatcher.awaitOn(new FiberCondition[]{this, another}, unit.toNanos(time), resumePoint);
     }
 }

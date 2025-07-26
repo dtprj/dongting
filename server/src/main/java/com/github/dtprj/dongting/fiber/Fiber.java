@@ -88,6 +88,11 @@ public class Fiber extends WaitSource {
         return Dispatcher.sleep(TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
     }
 
+    public static FrameCallResult sleep(long time, TimeUnit unit, FrameCall<Void> resumePoint) {
+        DtUtil.checkPositive(time, "time");
+        return Dispatcher.sleep(unit.toNanos(time), resumePoint);
+    }
+
     public static FrameCallResult sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
         return Dispatcher.sleepUntilShouldStop(TimeUnit.MILLISECONDS.toNanos(millis), resumePoint);
