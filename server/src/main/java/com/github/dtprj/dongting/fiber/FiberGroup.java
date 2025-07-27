@@ -191,7 +191,7 @@ public class FiberGroup {
         }
         if (!f.ready) {
             f.ready = true;
-            if ((f.roundInfo >>> 16) != dispatcher.round) {
+            if ((f.roundInfo >>> 16) != (dispatcher.round & 0xFFFF)) {
                 f.roundInfo = (dispatcher.round << 16) | f.signalCountInEachRound;
             }
             if ((f.roundInfo & 0xFFFF) == 0) {
