@@ -40,6 +40,8 @@ import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
+import java.util.UUID;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -132,7 +134,8 @@ public class WatchManagerTest {
                 tasks.add(run);
             }
         };
-        kv = new KvImpl(manager, ts, groupId, 16, 0.75f);
+        TtlManager tm = new TtlManager(ts, null, Executors.newSingleThreadScheduledExecutor(), null);
+        kv = new KvImpl(manager, tm, ts, groupId, 16, 0.75f);
         put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
     }
 
@@ -803,15 +806,15 @@ public class WatchManagerTest {
 
 
     private void put(String key, String value) {
-        kv.put(raftIndex++, ba(key), value.getBytes());
+        kv.put(raftIndex++, ba(key), value.getBytes(), null, 0);
     }
 
     private void mkdir(String key) {
-        kv.mkdir(raftIndex++, ba(key));
+        kv.mkdir(raftIndex++, ba(key), null, 0);
     }
 
     private void remove(String key) {
-        kv.remove(raftIndex++, ba(key));
+        kv.remove(raftIndex++, ba(key), null);
     }
 
     private ByteArray ba(String s) {
@@ -885,13 +888,8 @@ public class WatchManagerTest {
         }
 
         @Override
-        public long getRemoteUuid1() {
-            return 0;
-        }
-
-        @Override
-        public long getRemoteUuid2() {
-            return 0;
+        public UUID getRemoteUuid(){
+            return null;
         }
     }
 }

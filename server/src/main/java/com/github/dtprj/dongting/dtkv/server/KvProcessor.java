@@ -73,6 +73,10 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         }
         ReadPacket<KvReq> frame = reqInfo.reqFrame;
         KvReq req = frame.getBody();
+
+        // use uuid initialized in handshake
+        req.ownerUuid = reqInfo.reqContext.getDtChannel().getRemoteUuid();
+
         try {
             switch (frame.getCommand()) {
                 case Commands.DTKV_GET:

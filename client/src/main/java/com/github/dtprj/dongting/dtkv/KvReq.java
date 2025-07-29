@@ -24,42 +24,37 @@ import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * @author huangli
  */
 public class KvReq extends RaftRpcData implements Encodable {
-    private static final int IDX_GROUP_ID = 1;
-    private static final int IDX_KEY = 2;
-    private static final int IDX_VALUE = 3;
-    private static final int IDX_EXPECT_VALUE = 4;
-    private static final int IDX_TTL_MILLIS = 5;
-    private static final int IDX_KEYS_SIZE = 6;
-    private static final int IDX_KEYS = 7;
-    private static final int IDX_VALUES = 8;
+    public static final int IDX_GROUP_ID = 1;
+    public static final int IDX_KEY = 2;
+    public static final int IDX_VALUE = 3;
+    public static final int IDX_EXPECT_VALUE = 4;
+    public static final int IDX_OWNER_UUID1 = 5;
+    public static final int IDX_OWNER_UUID2 = 6;
+    public static final int IDX_TTL_MILLIS = 7;
+    public static final int IDX_KEYS_SIZE = 8;
+    public static final int IDX_KEYS = 9;
+    public static final int IDX_VALUES = 10;
 
-    public final byte[] key;
-    public final byte[] value;
-    public final List<byte[]> keys;
-    public final List<byte[]> values;
-    public final byte[] expectValue;
-    public final long ttlMillis;
+    public byte[] key;
+    public byte[] value;
+    public List<byte[]> keys;
+    public List<byte[]> values;
+    public byte[] expectValue;
+    public UUID ownerUuid;
+    public long ttlMillis;
 
     private int encodeSize;
 
-    public KvReq(int groupId, byte[] key, byte[] value, byte[] expectValue, long ttlMillis, List<byte[]> keys,
-                 List<byte[]> values) {
-        this.groupId = groupId;
-        this.key = key;
-        this.value = value;
-        this.expectValue = expectValue;
-        this.ttlMillis = ttlMillis;
-        this.keys = keys;
-        this.values = values;
-        checkKeysAndValues();
+    public KvReq() {
     }
 
-    private void checkKeysAndValues() {
+    public void checkKeysAndValues() {
         if (keys != null && values != null) {
             if (keys.size() != values.size()) {
                 throw new IllegalArgumentException("keys and values size mismatch");
@@ -71,10 +66,6 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.groupId = groupId;
         this.key = key;
         this.value = value;
-        this.keys = null;
-        this.values = null;
-        this.expectValue = null;
-        this.ttlMillis = 0;
         checkKeysAndValues();
     }
 
@@ -82,9 +73,6 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.groupId = groupId;
         this.key = key;
         this.value = value;
-        this.keys = null;
-        this.values = null;
-        this.expectValue = null;
         this.ttlMillis = ttlMillis;
         checkKeysAndValues();
     }
@@ -93,21 +81,14 @@ public class KvReq extends RaftRpcData implements Encodable {
         this.groupId = groupId;
         this.key = key;
         this.value = value;
-        this.keys = null;
-        this.values = null;
         this.expectValue = expectValue;
-        this.ttlMillis = 0;
         checkKeysAndValues();
     }
 
     public KvReq(int groupId, List<byte[]> keys, List<byte[]> values) {
         this.groupId = groupId;
-        this.key = null;
-        this.value = null;
         this.keys = keys;
         this.values = values;
-        this.expectValue = null;
-        this.ttlMillis = 0;
         checkKeysAndValues();
     }
 
@@ -118,6 +99,8 @@ public class KvReq extends RaftRpcData implements Encodable {
                     + EncodeUtil.sizeOf(IDX_KEY, key)
                     + EncodeUtil.sizeOf(IDX_VALUE, value)
                     + EncodeUtil.sizeOf(IDX_EXPECT_VALUE, expectValue)
+                    + PbUtil.sizeOfFix64Field(IDX_OWNER_UUID1, ownerUuid == null ? 0 : ownerUuid.getMostSignificantBits())
+                    + PbUtil.sizeOfFix64Field(IDX_OWNER_UUID2, ownerUuid == null ? 0 : ownerUuid.getLeastSignificantBits())
                     + PbUtil.sizeOfInt64Field(IDX_TTL_MILLIS, ttlMillis)
                     + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys == null ? 0 : keys.size())
                     + EncodeUtil.sizeOfBytesList(IDX_KEYS, keys)
@@ -145,11 +128,23 @@ public class KvReq extends RaftRpcData implements Encodable {
                 }
                 // fall through
             case IDX_VALUE:
-                if(!EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
+                if (!EncodeUtil.encode(context, destBuffer, IDX_EXPECT_VALUE, expectValue)) {
                     return false;
                 }
             case IDX_EXPECT_VALUE:
-                if(!EncodeUtil.encodeInt64(context, destBuffer, IDX_TTL_MILLIS, ttlMillis)) {
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_OWNER_UUID1,
+                        ownerUuid == null ? 0 : ownerUuid.getMostSignificantBits())) {
+                    return false;
+                }
+                // fall through
+            case IDX_OWNER_UUID1:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_OWNER_UUID2,
+                        ownerUuid == null ? 0 : ownerUuid.getLeastSignificantBits())) {
+                    return false;
+                }
+                // fall through
+            case IDX_OWNER_UUID2:
+                if (!EncodeUtil.encodeInt64(context, destBuffer, IDX_TTL_MILLIS, ttlMillis)) {
                     return false;
                 }
                 // fall through

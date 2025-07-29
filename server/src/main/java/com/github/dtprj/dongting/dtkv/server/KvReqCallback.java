@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.dtkv.KvReq;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import java.util.UUID;
 
 /**
  * @author huangli
@@ -27,47 +27,35 @@ import java.util.ArrayList;
 // re-used
 public class KvReqCallback extends PbCallback<KvReq> {
 
-    private static final int IDX_GROUP_ID = 1;
-    private static final int IDX_KEY = 2;
-    private static final int IDX_VALUE = 3;
-    private static final int IDX_EXPECT_VALUE = 4;
-    private static final int IDX_TTL_MILLIS = 5;
-    private static final int IDX_KEYS_SIZE = 6;
-    private static final int IDX_KEYS = 7;
-    private static final int IDX_VALUES = 8;
-
-    int groupId;
-    byte[] key;
-    byte[] value;
     private int keysSize;
-    ArrayList<byte[]> keys;
-    ArrayList<byte[]> values;
-    byte[] expectValue;
-    long ttlMillis;
+    private long uuid1;
+    private long uuid2;
+    KvReq req;
+
+    @Override
+    protected void begin(int len) {
+        req = new KvReq();
+    }
 
     @Override
     protected boolean end(boolean success) {
-        groupId = 0;
-        key = null;
-        value = null;
+        req = null;
         keysSize = 0;
-        keys = null;
-        values = null;
-        expectValue = null;
-        ttlMillis = 0;
+        uuid1 = 0;
+        uuid2 = 0;
         return success;
     }
 
     @Override
     public boolean readVarNumber(int index, long value) {
         switch (index) {
-            case IDX_GROUP_ID:
-                groupId = (int) value;
+            case KvReq.IDX_GROUP_ID:
+                req.groupId = (int) value;
                 break;
-            case IDX_TTL_MILLIS:
-                ttlMillis = value;
+            case KvReq.IDX_TTL_MILLIS:
+                req.ttlMillis = value;
                 break;
-            case IDX_KEYS_SIZE:
+            case KvReq.IDX_KEYS_SIZE:
                 keysSize = (int) value;
                 break;
         }
@@ -77,32 +65,45 @@ public class KvReqCallback extends PbCallback<KvReq> {
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         switch (index) {
-            case IDX_KEY:
-                key = parseBytes(buf, fieldLen, currentPos);
+            case KvReq.IDX_KEY:
+                req.key = parseBytes(buf, fieldLen, currentPos);
                 break;
-            case IDX_VALUE:
-                value = parseBytes(buf, fieldLen, currentPos);
+            case KvReq.IDX_VALUE:
+                req.value = parseBytes(buf, fieldLen, currentPos);
                 break;
-            case IDX_KEYS:
-                if (keys == null) {
-                    keys = createArrayList(keysSize);
+            case KvReq.IDX_KEYS:
+                if (req.keys == null) {
+                    req.keys = createArrayList(keysSize);
                 }
                 byte[] k = parseBytes(buf, fieldLen, currentPos);
                 if (k != null) {
-                    keys.add(k);
+                    req.keys.add(k);
                 }
                 break;
-            case IDX_VALUES:
-                if (values == null) {
-                    values = createArrayList(keysSize);
+            case KvReq.IDX_VALUES:
+                if (req.values == null) {
+                    req.values = createArrayList(keysSize);
                 }
                 byte[] v = parseBytes(buf, fieldLen, currentPos);
                 if (v != null) {
-                    values.add(v);
+                    req.values.add(v);
                 }
                 break;
-            case IDX_EXPECT_VALUE:
-                expectValue = parseBytes(buf, fieldLen, currentPos);
+            case KvReq.IDX_EXPECT_VALUE:
+                req.expectValue = parseBytes(buf, fieldLen, currentPos);
+                break;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean readFix64(int index, long value) {
+        switch (index) {
+            case KvReq.IDX_OWNER_UUID1:
+                uuid1 = value;
+                break;
+            case KvReq.IDX_OWNER_UUID2:
+                uuid2 = value;
                 break;
         }
         return true;
@@ -110,6 +111,10 @@ public class KvReqCallback extends PbCallback<KvReq> {
 
     @Override
     protected KvReq getResult() {
-        return new KvReq(groupId, key, value, expectValue, ttlMillis, keys, values);
+        req.checkKeysAndValues();
+        if (uuid1 != 0 && uuid2 != 0) {
+            req.ownerUuid = new UUID(uuid1, uuid2);
+        }
+        return req;
     }
 }

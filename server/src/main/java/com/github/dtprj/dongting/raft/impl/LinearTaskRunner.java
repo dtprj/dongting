@@ -128,13 +128,15 @@ public class LinearTaskRunner {
         }
     }
 
-    public void submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {
+    public boolean submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {
         RaftTask t = new RaftTask(raftStatus.ts, raftLogType, input, callback);
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
         if (!taskChannel.fireOffer(t, true)) {
             RaftUtil.release(input);
             t.callFail(new RaftException("submit raft task failed"));
+            return false;
         }
+        return true;
     }
 
     public static long lastIndex(RaftStatusImpl raftStatus) {

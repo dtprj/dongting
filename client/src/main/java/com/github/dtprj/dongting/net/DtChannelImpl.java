@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -40,8 +41,7 @@ import java.util.concurrent.TimeUnit;
 class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private static final DtLog log = DtLogs.getLogger(DtChannelImpl.class);
 
-    long remoteUuid1;
-    long remoteUuid2;
+    UUID remoteUuid;
 
     private final NioStatus nioStatus;
     private final NioConfig nioConfig;
@@ -493,14 +493,10 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    public long getRemoteUuid1() {
-        return remoteUuid1;
+    public UUID getRemoteUuid() {
+        return remoteUuid;
     }
 
-    @Override
-    public long getRemoteUuid2() {
-        return remoteUuid2;
-    }
 }
 
 @SuppressWarnings({"rawtypes", "unchecked"})

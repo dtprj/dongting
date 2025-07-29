@@ -313,6 +313,7 @@ public class RaftServer extends AbstractLifeCircle {
         if (groupCustomizer != null) {
             groupCustomizer.accept(g);
         }
+        stateMachine.setRaftGroup(g);
         return g;
     }
 

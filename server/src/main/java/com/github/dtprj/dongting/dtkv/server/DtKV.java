@@ -43,6 +43,9 @@ import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
@@ -79,6 +82,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     // After leadership transfer, the client should re-execute the watch operation (idempotent) to new leader.
     // public static final int BIZ_TYPE_WATCH = 9;
     // public static final int BIZ_TYPE_UNWATCH = 10;
+    public static final int BIZ_TYPE_EXPIRE = 11;
 
     private final Timestamp ts;
     final ScheduledExecutorService dtkvExecutor;
@@ -92,6 +96,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private EncodeStatus encodeStatus;
 
     final WatchManager watchManager;
+    final TtlManager ttlManager;
+
+    private RaftGroupImpl raftGroup;
 
     public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
         this.mainFiberGroup = config.fiberGroup;
@@ -118,8 +125,15 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, r, decoder, timeout, c);
             }
         };
-        KvImpl kvImpl = new KvImpl(watchManager, ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
+        this.ttlManager = new TtlManager(ts, config, dtkvExecutor, this::expire);
+        KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId,
+                kvConfig.initMapCapacity, kvConfig.loadFactor);
         updateStatus(false, kvImpl);
+    }
+
+    @Override
+    public void setRaftGroup(RaftGroup raftGroup) {
+        this.raftGroup = (RaftGroupImpl) raftGroup;
     }
 
     void execute(Runnable r) {
@@ -173,25 +187,29 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         switch (input.getBizType()) {
             case BIZ_TYPE_PUT: {
                 ByteArray key = req.key == null ? null : new ByteArray(req.key);
-                return kvStatus.kvImpl.put(index, key, req.value);
+                return kvStatus.kvImpl.put(index, key, req.value, req.ownerUuid, req.ttlMillis);
             }
             case BIZ_TYPE_REMOVE: {
                 ByteArray key = req.key == null ? null : new ByteArray(req.key);
-                return kvStatus.kvImpl.remove(index, key);
+                return kvStatus.kvImpl.remove(index, key, req.ownerUuid);
             }
             case BIZ_TYPE_MKDIR: {
                 ByteArray key = req.key == null ? null : new ByteArray(req.key);
-                return kvStatus.kvImpl.mkdir(index, key);
+                return kvStatus.kvImpl.mkdir(index, key, req.ownerUuid, req.ttlMillis);
             }
             case BIZ_TYPE_BATCH_PUT: {
-                return kvStatus.kvImpl.batchPut(index, req.keys, req.values);
+                return kvStatus.kvImpl.batchPut(index, req.keys, req.values, req.ownerUuid, req.ttlMillis);
             }
             case BIZ_TYPE_BATCH_REMOVE: {
-                return kvStatus.kvImpl.batchRemove(index, req.keys);
+                return kvStatus.kvImpl.batchRemove(index, req.keys, req.ownerUuid);
             }
             case BIZ_TYPE_CAS: {
                 ByteArray key = req.key == null ? null : new ByteArray(req.key);
-                return kvStatus.kvImpl.compareAndSet(index, key, req.expectValue, req.value);
+                return kvStatus.kvImpl.compareAndSet(index, key, req.expectValue, req.value, req.ownerUuid);
+            }
+            case BIZ_TYPE_EXPIRE: {
+                ByteArray key = req.key == null ? null : new ByteArray(req.key);
+                return kvStatus.kvImpl.expire(index, key, req.ttlMillis);
             }
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
@@ -273,7 +291,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
             watchManager.reset();
-            KvImpl kvImpl = new KvImpl(watchManager, ts, config.groupId, kvConfig.initMapCapacity, kvConfig.loadFactor);
+            KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId, kvConfig.initMapCapacity,
+                    kvConfig.loadFactor);
             updateStatus(true, kvImpl);
             encodeStatus = new EncodeStatus();
         } else if (!kvStatus.installSnapshot) {
@@ -378,5 +397,13 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         } else {
             kvStatus = new KvStatus(installSnapshot, kvImpl, kvStatus.epoch + 1);
         }
+    }
+
+    private Boolean expire(TtlInfo ti) {
+        KvReq req = new KvReq();
+        req.key = ti.key.getData();
+        req.ttlMillis = ti.createIndex;
+        RaftInput ri = new RaftInput(BIZ_TYPE_EXPIRE, null, req, null, false);
+        return raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(LogItem.TYPE_NORMAL, ri, null);
     }
 }

@@ -36,10 +36,12 @@ message KvReq {
   string key = 2;
   bytes value = 3;
   bytes expect_value = 4; // used for cas operation
-  int64 ttl_millis = 5;
-  int32 keys_size = 6;
-  repeated string keys = 7[packed = false];
-  repeated bytes values = 8[packed = false];
+  fixed64 owner_uuid1 = 5;
+  fixed64 owner_uuid2 = 6;
+  int64 ttl_millis = 7;
+  int32 keys_size = 8;
+  repeated string keys = 9[packed = false];
+  repeated bytes values = 10[packed = false];
 }
 
 message KvResp {

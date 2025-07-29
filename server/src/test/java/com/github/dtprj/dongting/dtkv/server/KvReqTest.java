@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.UUID;
 
 /**
  * @author huangli
@@ -36,8 +37,16 @@ public class KvReqTest {
             keys.add(("test_key" + i).getBytes());
             values.add(("test_value" + i).getBytes());
         }
-        return new KvReq(1, "test_key".getBytes(), "test_value".getBytes(),
-                "test_expect_value".getBytes(),10000, keys, values);
+        KvReq req = new KvReq();
+        req.groupId = 1;
+        req.key = "test_key".getBytes();
+        req.value = "test_value".getBytes();
+        req.expectValue = "test_expect_value".getBytes();
+        req.ownerUuid = UUID.randomUUID();
+        req.ttlMillis = 10000;
+        req.keys = keys;
+        req.values = values;
+        return req;
     }
 
     @Test
@@ -64,6 +73,8 @@ public class KvReqTest {
         Assertions.assertEquals(new String(expect.key), req.getKey());
         Assertions.assertEquals(new String(expect.value), req.getValue().toStringUtf8());
         Assertions.assertEquals(new String(expect.expectValue), req.getExpectValue().toStringUtf8());
+        Assertions.assertEquals(expect.ownerUuid.getMostSignificantBits(), req.getOwnerUuid1());
+        Assertions.assertEquals(expect.ownerUuid.getLeastSignificantBits(), req.getOwnerUuid2());
         Assertions.assertEquals(expect.ttlMillis, req.getTtlMillis());
         for (int i = 0; i < expect.keys.size(); i++) {
             Assertions.assertEquals(new String(expect.keys.get(i)), req.getKeys(i));
@@ -77,6 +88,7 @@ public class KvReqTest {
         Assertions.assertArrayEquals(expect.key, r.key);
         Assertions.assertArrayEquals(expect.value, r.value);
         Assertions.assertArrayEquals(expect.expectValue, r.expectValue);
+        Assertions.assertEquals(expect.ownerUuid, r.ownerUuid);
         Assertions.assertEquals(expect.ttlMillis, r.ttlMillis);
         for (int i = 0; i < expect.keys.size(); i++) {
             Assertions.assertArrayEquals(expect.keys.get(i), r.keys.get(i));

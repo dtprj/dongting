@@ -29,6 +29,8 @@ final class KvNodeEx extends KvNode {
     KvNodeEx previous;
     boolean removed;
 
+    TtlInfo ttlInfo;
+
     public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
         super(createIndex, createTime, updateIndex, updateTime, dir, data);
         if (dir) {
@@ -38,8 +40,14 @@ final class KvNodeEx extends KvNode {
         }
     }
 
-    public KvNodeEx(KvNodeEx oldDirNode, long updateIndex, long updateTime) {
-        super(oldDirNode.createIndex, oldDirNode.createTime, updateIndex, updateTime, true, oldDirNode.data);
-        this.children = oldDirNode.children;
+    public KvNodeEx(KvNodeEx old, long updateIndex, long updateTime, byte[] newData) {
+        super(old.createIndex, old.createTime, updateIndex, updateTime, old.isDir, newData);
+        this.children = old.children;
+        if (old.ttlInfo != null) {
+            this.ttlInfo = old.ttlInfo;
+            this.ownerUuid = old.ownerUuid;
+            this.ttlMillis = old.ttlMillis;
+            this.expireTime = old.expireTime;
+        }
     }
 }

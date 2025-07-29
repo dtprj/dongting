@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.UUID;
+
 /**
  * @author huangli
  */
@@ -51,8 +53,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         hb.minorVersion = DtUtil.RPC_MINOR_VER;
 
         if (hb.processInfo != null) {
-            dtc.remoteUuid1 = hb.processInfo.uuid1;
-            dtc.remoteUuid2 = hb.processInfo.uuid2;
+            dtc.remoteUuid = new UUID(hb.processInfo.uuid1, hb.processInfo.uuid2);
         }
 
         if (config.serverHint) {

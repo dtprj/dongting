@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 /**
  * @author huangli
@@ -44,6 +45,10 @@ public class KvNode implements Encodable {
     public final byte[] data;
 
     private int encodeSize;
+
+    public UUID ownerUuid;
+    public long ttlMillis;
+    public long expireTime; // wall clock millis
 
     public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
         this.createIndex = createIndex;

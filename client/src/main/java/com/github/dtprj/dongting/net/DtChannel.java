@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
+import java.util.UUID;
 
 /**
  * @author huangli
@@ -40,10 +41,6 @@ public interface DtChannel {
     /**
      * client side will return 0.
      */
-    long getRemoteUuid1();
+    UUID getRemoteUuid();
 
-    /**
-     * client side will return 0.
-     */
-    long getRemoteUuid2();
 }

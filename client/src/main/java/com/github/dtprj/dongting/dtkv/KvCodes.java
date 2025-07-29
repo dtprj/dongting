@@ -37,6 +37,8 @@ public interface KvCodes {
     int CODE_CLIENT_REQ_ERROR = 14;
     int CODE_REMOVE_WATCH = 15;
     int CODE_REMOVE_ALL_WATCH = 16;
+    int CODE_NOT_OWNER = 17;
+    int CODE_NOT_TEMP_NODE = 18;
 
     static String toStr(int code) {
         switch (code) {
@@ -74,6 +76,10 @@ public interface KvCodes {
                 return "remove watch";
             case CODE_REMOVE_ALL_WATCH:
                 return "remove all watch";
+            case CODE_NOT_OWNER:
+                return "not owner";
+            case CODE_NOT_TEMP_NODE:
+                return "not temp node";
             default:
                 return "unknown";
         }
