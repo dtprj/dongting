@@ -115,6 +115,9 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_CAS:
                     submitWriteTask(reqInfo, DtKV.BIZ_TYPE_CAS, req);
                     break;
+                case Commands.DTKV_UPDATE_TTL:
+                    submitWriteTask(reqInfo, DtKV.BIZ_TYPE_UPDATE_TTL, req);
+                    break;
                 default:
                     throw new RaftException("unknown command: " + frame.getCommand());
             }

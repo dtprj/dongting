@@ -337,7 +337,7 @@ class KvImpl {
                     // node type not match
                     return new KvResult(KvCodes.CODE_VALUE_EXISTS);
                 } else {
-                    ttlManager.updateTtl(current.key, oldNode, ttlMillis);
+                    // ttlManager.updateTtl(current.key, oldNode, ttlMillis);
                     return new KvResult(KvCodes.CODE_DIR_EXISTS);
                 }
             } else {
@@ -347,7 +347,7 @@ class KvImpl {
                 } else {
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, ts.wallClockMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
-                    ttlManager.updateTtl(current.key, newKvNode, ttlMillis);
+                    // ttlManager.updateTtl(current.key, newKvNode, ttlMillis);
                     addToUpdateQueue(index, current);
                     updateParent(index, ts.wallClockMillis, parent);
                     return KvResult.SUCCESS_OVERWRITE;
@@ -604,8 +604,7 @@ class KvImpl {
         try {
             if (expectedValue == null || expectedValue.length == 0) {
                 if (h == null || h.latest.removed) {
-                    KvResult r = doPut(index, key, newValue, h, parent, lastIndexOfSep, operator, 0);
-                    return r == KvResult.SUCCESS_OVERWRITE ? KvResult.SUCCESS : r;
+                    return doPut(index, key, newValue, h, parent, lastIndexOfSep, operator, 0);
                 } else {
                     return new KvResult(KvCodes.CODE_CAS_MISMATCH);
                 }
@@ -675,6 +674,32 @@ class KvImpl {
         } else {
             return ByteArray.EMPTY;
         }
+    }
+
+    // not update updateTime field and parent nodes, not fire watch event, raft index is not used
+    public KvResult updateTtl(long ignoredRaftIndex, ByteArray key, UUID operator, long newTtlMillis) {
+        if (newTtlMillis <= 0) {
+            return new KvResult(KvCodes.CODE_CLIENT_REQ_ERROR);
+        }
+        int ck = checkKey(key, false, false);
+        if (ck != KvCodes.CODE_SUCCESS) {
+            return new KvResult(ck);
+        }
+        KvNodeHolder h = map.get(key);
+        if (h == null || h.latest.removed) {
+            return KvResult.NOT_FOUND;
+        }
+        KvResult r = ttlManager.checkOwner(h.latest, operator, newTtlMillis);
+        if (r != null) {
+            return r;
+        }
+        long t = lock.writeLock();
+        try {
+            ttlManager.updateTtl(key, h.latest, newTtlMillis);
+        } finally {
+            lock.unlockWrite(t);
+        }
+        return KvResult.SUCCESS;
     }
 
     public KvResult expire(long index, ByteArray key, long expectCreateRaftIndex) {

@@ -83,6 +83,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     // public static final int BIZ_TYPE_WATCH = 9;
     // public static final int BIZ_TYPE_UNWATCH = 10;
     public static final int BIZ_TYPE_EXPIRE = 11;
+    public static final int BIZ_TYPE_UPDATE_TTL = 12;
 
     private final Timestamp ts;
     final ScheduledExecutorService dtkvExecutor;
@@ -184,33 +185,24 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             throw new DtBugException("dtkv is install snapshot");
         }
         KvReq req = (KvReq) input.getBody();
+        ByteArray key = req.key == null ? null : new ByteArray(req.key);
         switch (input.getBizType()) {
-            case BIZ_TYPE_PUT: {
-                ByteArray key = req.key == null ? null : new ByteArray(req.key);
+            case BIZ_TYPE_PUT:
                 return kvStatus.kvImpl.put(index, key, req.value, req.ownerUuid, req.ttlMillis);
-            }
-            case BIZ_TYPE_REMOVE: {
-                ByteArray key = req.key == null ? null : new ByteArray(req.key);
+            case BIZ_TYPE_REMOVE:
                 return kvStatus.kvImpl.remove(index, key, req.ownerUuid);
-            }
-            case BIZ_TYPE_MKDIR: {
-                ByteArray key = req.key == null ? null : new ByteArray(req.key);
+            case BIZ_TYPE_MKDIR:
                 return kvStatus.kvImpl.mkdir(index, key, req.ownerUuid, req.ttlMillis);
-            }
-            case BIZ_TYPE_BATCH_PUT: {
+            case BIZ_TYPE_BATCH_PUT:
                 return kvStatus.kvImpl.batchPut(index, req.keys, req.values, req.ownerUuid, req.ttlMillis);
-            }
-            case BIZ_TYPE_BATCH_REMOVE: {
+            case BIZ_TYPE_BATCH_REMOVE:
                 return kvStatus.kvImpl.batchRemove(index, req.keys, req.ownerUuid);
-            }
-            case BIZ_TYPE_CAS: {
-                ByteArray key = req.key == null ? null : new ByteArray(req.key);
+            case BIZ_TYPE_CAS:
                 return kvStatus.kvImpl.compareAndSet(index, key, req.expectValue, req.value, req.ownerUuid);
-            }
-            case BIZ_TYPE_EXPIRE: {
-                ByteArray key = req.key == null ? null : new ByteArray(req.key);
+            case BIZ_TYPE_EXPIRE:
                 return kvStatus.kvImpl.expire(index, key, req.ttlMillis);
-            }
+            case BIZ_TYPE_UPDATE_TTL:
+                return kvStatus.kvImpl.updateTtl(index, key, req.ownerUuid, req.ttlMillis);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
