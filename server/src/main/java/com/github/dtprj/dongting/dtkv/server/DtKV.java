@@ -392,6 +392,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     private Boolean expire(TtlInfo ti) {
+        // expire operation should execute in state machine after write quorum is reached,
+        // this is, submit as a raft task.
         KvReq req = new KvReq();
         req.key = ti.key.getData();
         req.ttlMillis = ti.createIndex;

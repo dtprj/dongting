@@ -80,7 +80,7 @@ class TtlManager {
         scheduledFuture = executorService.schedule(this::expireTaskInExecutor, t, TimeUnit.NANOSECONDS);
     }
 
-    private void updateExpireTask() {
+    private void wakeupExpireTask() {
         if (executorService == null) {
             cond.signal();
         } else {
@@ -96,6 +96,9 @@ class TtlManager {
             if (ttlInfo.expireNanos - ts.nanoTime > 0) {
                 return ttlInfo.expireNanos - ts.nanoTime;
             }
+            ttlInfo.shouldExpire = true;
+            // expire operation should execute in state machine after write quorum is reached,
+            // this is, submit as a raft task.
             if (!expireCallback.apply(ttlInfo)) {
                 // group is stopped, so submit raft task failed
                 return 1_000_000_000L;
@@ -110,7 +113,7 @@ class TtlManager {
             return;
         }
         if (addNodeTtlAndAddToQueue(key, n, ownerUuid, ttlMillis)) {
-            updateExpireTask();
+            wakeupExpireTask();
         }
     }
 
@@ -134,7 +137,7 @@ class TtlManager {
         }
         ttlQueue.remove(ttlInfo);
         if (addNodeTtlAndAddToQueue(key, n, n.ownerUuid, newTtlMillis)) {
-            updateExpireTask();
+            wakeupExpireTask();
         }
     }
 
@@ -165,6 +168,7 @@ final class TtlInfo implements Comparable<TtlInfo> {
     final ByteArray key;
     final long createIndex;
     final long expireNanos;
+    boolean shouldExpire;
     private int hash;
 
     TtlInfo(ByteArray key, long createIndex, long expireNanos) {

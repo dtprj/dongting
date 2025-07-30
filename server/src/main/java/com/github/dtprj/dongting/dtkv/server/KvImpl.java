@@ -693,6 +693,9 @@ class KvImpl {
         if (r != null) {
             return r;
         }
+        if (h.latest.ttlInfo.shouldExpire) {
+            return new KvResult(KvCodes.CODE_SHOULD_EXPIRE);
+        }
         long t = lock.writeLock();
         try {
             ttlManager.updateTtl(key, h.latest, newTtlMillis);
