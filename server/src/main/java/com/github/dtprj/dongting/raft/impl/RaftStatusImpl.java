@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 /**
  * @author huangli
@@ -38,6 +39,8 @@ public final class RaftStatusImpl extends RaftStatus {
 
     private RaftRole role; // shared
     private RaftMember currentLeader; // shared
+
+    public BiConsumer<RaftRole, RaftRole> roleChangeListener;
 
     public final Timestamp ts;
 
@@ -117,6 +120,7 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public void copyShareStatus() {
         if (shareStatusUpdated) {
+            RaftRole oldRole = shareStatus.role;
             ShareStatus ss = new ShareStatus();
             ss.role = role;
             ss.lastApplied = lastApplied;
@@ -130,6 +134,9 @@ public final class RaftStatusImpl extends RaftStatus {
 
             this.shareStatusUpdated = false;
             this.shareStatus = ss;
+            if (oldRole != role && roleChangeListener != null) {
+                roleChangeListener.accept(oldRole, role);
+            }
         }
     }
 

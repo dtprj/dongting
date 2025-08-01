@@ -339,6 +339,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             Fiber f = new Fiber("watch-dispatch", mainFiberGroup, new WatchDispatchFrame(), true);
             f.start();
         }
+        raftGroup.groupComponents.raftStatus.roleChangeListener = ttlManager::roleChange;
+        ttlManager.start();
     }
 
     private boolean dispatchWatchTask() {

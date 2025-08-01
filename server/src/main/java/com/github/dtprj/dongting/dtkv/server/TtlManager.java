@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.util.Objects;
@@ -159,6 +160,10 @@ class TtlManager {
         if (n.ttlInfo != null) {
             ttlQueue.remove(n.ttlInfo);
         }
+    }
+
+    public void roleChange(RaftRole oldRole, RaftRole newRole) {
+
     }
 }
 
