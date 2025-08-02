@@ -42,6 +42,7 @@ import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -339,7 +340,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             Fiber f = new Fiber("watch-dispatch", mainFiberGroup, new WatchDispatchFrame(), true);
             f.start();
         }
-        raftGroup.groupComponents.raftStatus.roleChangeListener = ttlManager::roleChange;
+        ((RaftStatusImpl) config.raftStatus).roleChangeListener = ttlManager::roleChange;
         ttlManager.start();
     }
 

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -26,6 +27,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
@@ -57,6 +59,7 @@ public class DtKVTest extends BaseFiberTest {
 
     private DtKV createAndStart() throws Exception {
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
+        groupConfig.raftStatus = new RaftStatusImpl(1, new Timestamp());
         groupConfig.fiberGroup = fiberGroup;
         groupConfig.ts = fiberGroup.dispatcher.ts;
         KvConfig kvConfig = new KvConfig();
