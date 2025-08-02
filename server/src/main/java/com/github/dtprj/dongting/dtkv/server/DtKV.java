@@ -35,8 +35,6 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NioServer;
@@ -66,7 +64,6 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class DtKV extends AbstractLifeCircle implements StateMachine {
-    private static final DtLog log = DtLogs.getLogger(DtKV.class);
 
     // since we not implements raft log-read, all read biz type of read operation are reserved and not used
     public static final int BIZ_TYPE_PUT = 0;
@@ -117,13 +114,20 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             @Override
             protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
                                        int requestEpoch, boolean fireNext) {
-                EncodableBodyWritePacket r = new EncodableBodyWritePacket(Commands.DTKV_WATCH_NOTIFY_PUSH, req);
+                EncodableBodyWritePacket p = new EncodableBodyWritePacket(Commands.DTKV_WATCH_NOTIFY_PUSH, req);
                 DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
                 DecoderCallbackCreator<WatchNotifyRespCallback> decoder =
                         ctx -> ctx.toDecoderCallback(new WatchNotifyRespCallback(req.notifyList.size()));
-                RpcCallback<WatchNotifyRespCallback> c = (result, ex) -> execute(() ->
-                        watchManager.processNotifyResult(ci, watchList, result, ex, requestEpoch, fireNext));
-                ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, r, decoder, timeout, c);
+                RpcCallback<WatchNotifyRespCallback> c = (result, ex) -> {
+                    Runnable r = () -> watchManager.processNotifyResult(
+                            ci, watchList, result, ex, requestEpoch, fireNext);
+                    try {
+                        submitTask(r);
+                    } catch (RejectedExecutionException ignore) {
+                        // raft group stopped, or state machine stopped, ignore this
+                    }
+                };
+                ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, p, decoder, timeout, c);
             }
         };
         this.ttlManager = new TtlManager(ts, config, dtkvExecutor, this::expire);
@@ -137,13 +141,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         this.raftGroup = (RaftGroupImpl) raftGroup;
     }
 
-    void execute(Runnable r) {
+    void submitTask(Runnable r) throws RejectedExecutionException {
         Executor executor = dtkvExecutor == null ? mainFiberGroup.getExecutor() : dtkvExecutor;
-        try {
-            executor.execute(r);
-        } catch (RejectedExecutionException e) {
-            log.error("", e);
-        }
+        executor.execute(r);
     }
 
     @Override

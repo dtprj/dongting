@@ -62,7 +62,10 @@ class KvStatusProcessor extends RaftProcessor<Integer> {
     private void process(ReqInfoEx<Integer> reqInfo, DtKV kv) {
         RaftStatusImpl raftStatus = reqInfo.raftGroup.groupComponents.raftStatus;
         KvStatusResp resp = new KvStatusResp();
+
+        // this fields should read in raft thread
         resp.raftServerStatus = QueryStatusProcessor.buildQueryStatusResp(raftServer.getServerConfig().nodeId, raftStatus);
+
         if (kv.useSeparateExecutor) {
             // assert kv.dtkvExecutor != null;
             //noinspection DataFlowIssue
