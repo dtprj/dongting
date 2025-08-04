@@ -26,10 +26,12 @@ import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -223,11 +225,12 @@ public class DtKVTest extends BaseFiberTest {
         });
     }
 
-    private KvSnapshot takeSnapshot() {
+    private FrameCallResult takeSnapshot(FrameCall<Snapshot> resumePoint) {
         long lastIndex = ver - 1;
         int lastTerm = 1;
         SnapshotInfo si = new SnapshotInfo(lastIndex, lastTerm, null, null, null, null, 0);
-        return (KvSnapshot) kv.takeSnapshot(si);
+        FiberFuture<Snapshot> f = kv.takeSnapshot(si);
+        return f.await(resumePoint);
     }
 
     private DtKV copyTo(KvSnapshot s) throws Exception {
@@ -362,8 +365,11 @@ public class DtKVTest extends BaseFiberTest {
                 d1_1 = backupIndexAndTime("d1");
                 d1k2_1 = backupIndexAndTime("d1.k2");
                 d1dd1_1 = backupIndexAndTime("d1.dd1");
-                s1 = takeSnapshot();
+                return takeSnapshot(this::afterTakeSnapshotS1);
+            }
 
+            private FrameCallResult afterTakeSnapshotS1(Snapshot s) {
+                s1 = (KvSnapshot) s;
                 return put(ver++, "d1.k2", "d1.k2_v2").await(this::afterPut);
             }
 
@@ -372,8 +378,11 @@ public class DtKVTest extends BaseFiberTest {
                 d1_2 = backupIndexAndTime("d1");
                 d1k2_2 = backupIndexAndTime("d1.k2");
                 k1_2 = backupIndexAndTime("k1");
-                s2 = takeSnapshot();
+                return takeSnapshot(this::afterTakeSnapshotS2);
+            }
 
+            private FrameCallResult afterTakeSnapshotS2(Snapshot s) {
+                s2 = (KvSnapshot) s;
                 return remove(ver++, "k1").await(this::afterRemove1);
             }
 
@@ -406,7 +415,11 @@ public class DtKVTest extends BaseFiberTest {
                 d1_3 = backupIndexAndTime("d1");
                 k1_3 = backupIndexAndTime("k1");
                 d1dd2_3 = backupIndexAndTime("d1.dd2");
-                s3 = takeSnapshot();
+                return takeSnapshot(this::afterTakeSnapshotS3);
+            }
+
+            private FrameCallResult afterTakeSnapshotS3(Snapshot snapshot) {
+                s3 = (KvSnapshot) snapshot;
                 return Fiber.frameReturn();
             }
         });
@@ -486,9 +499,18 @@ public class DtKVTest extends BaseFiberTest {
         });
         {
             DtKV newKv = createAndStart();
-            SnapshotInfo si = new SnapshotInfo(0, 0, null, null, null, null, 0);
-            KvSnapshot s = (KvSnapshot) newKv.takeSnapshot(si);
-            doInFiber(new CopyFrame(s, kv));
+            doInFiber(new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    SnapshotInfo si = new SnapshotInfo(0, 0, null, null, null, null, 0);
+                    FiberFuture<Snapshot> f = newKv.takeSnapshot(si);
+                    return f.await(this::afterTakeSnapshot);
+                }
+
+                private FrameCallResult afterTakeSnapshot(Snapshot s) {
+                    return Fiber.call(new CopyFrame((KvSnapshot) s, kv), this::justReturn);
+                }
+            });
             // only root dir
             assertEquals(1, kv.kvStatus.kvImpl.map.size());
             stop(newKv);

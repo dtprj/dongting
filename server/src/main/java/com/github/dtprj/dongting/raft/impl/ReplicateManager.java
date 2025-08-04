@@ -653,11 +653,16 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        this.snapshot = stateMachine.takeSnapshot(new SnapshotInfo(raftStatus));
+        FiberFuture<Snapshot> f = stateMachine.takeSnapshot(new SnapshotInfo(raftStatus));
+        return f.await(this::afterTakeSnapshot);
+    }
+
+    private FrameCallResult afterTakeSnapshot(Snapshot snapshot) {
         if (snapshot == null) {
             log.error("open recent snapshot fail, return null");
             return Fiber.frameReturn();
         }
+        this.snapshot = snapshot;
         FiberFrame<Long> f = raftLog.loadNextItemPos(snapshot.getSnapshotInfo().getLastIncludedIndex());
         return Fiber.call(f, result -> afterLoadNextItemPos(result, snapshot));
     }

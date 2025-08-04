@@ -20,14 +20,18 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
+import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class KvImplTest {
 
     private KvImpl kv;
-    private Timestamp ts = new Timestamp();
+    private static Timestamp ts;
     private int ver;
     private final UUID selfUuid = UUID.randomUUID();
 
@@ -45,7 +49,8 @@ class KvImplTest {
     void setUp() {
         ver = 1;
         ts = new Timestamp();
-        TtlManager tm = new TtlManager(ts, null, Executors.newSingleThreadScheduledExecutor(), null);
+        DtKVExecutor e = new DtKVExecutor(ts, MockExecutors.singleExecutor(), null);
+        TtlManager tm = new TtlManager(1, ts, e, null);
         kv = new KvImpl(null, tm, ts, 0, 16, 0.75f);
     }
 
@@ -265,15 +270,30 @@ class KvImplTest {
         assertEquals(KvCodes.CODE_VALUE_TOO_LONG, put(1, ba("key1"), "123456".getBytes()).getBizCode());
     }
 
-    private KvSnapshot takeSnapshot() {
+    private Snapshot takeSnapshot() {
         return takeSnapshot(kv);
     }
 
-    static KvSnapshot takeSnapshot(KvImpl kv) {
+    static Snapshot takeSnapshot(KvImpl kv) {
         long lastIndex = kv.root.latest.updateIndex;
         SnapshotInfo si = new SnapshotInfo(lastIndex, 1, null, null,
                 null, null, 0);
-        return new KvSnapshot(0, si, kv, () -> false, Runnable::run);
+        Snapshot s = new Snapshot(si) {
+            @Override
+            public FiberFuture<Integer> readNext(ByteBuffer buffer) {
+                return null;
+            }
+
+            @Override
+            protected void doClose() {
+                kv.closeSnapshot(this);
+                Supplier<Boolean> gc = kv.createGcTask();
+                while (gc.get()) {
+                }
+            }
+        };
+        kv.openSnapshot(s);
+        return s;
     }
 
     @Test
@@ -328,13 +348,13 @@ class KvImplTest {
     @Test
     void testGc1() {
         put(ver++, ba("key1"), "a".getBytes());
-        KvSnapshot s1 = takeSnapshot();
+        Snapshot s1 = takeSnapshot();
 
         put(ver++, ba("key1"), "b".getBytes());
         assertNodeCount(2, "key1");
         put(ver++, ba("key1"), "c".getBytes());
         assertNodeCount(2, "key1");
-        KvSnapshot s2 = takeSnapshot();
+        Snapshot s2 = takeSnapshot();
 
         put(ver++, ba("key1"), "d".getBytes());
         assertNodeCount(3, "key1");
@@ -347,7 +367,7 @@ class KvImplTest {
     @Test
     void testGc2() {
         put(1, ba("key1"), "a".getBytes());
-        KvSnapshot s1 = takeSnapshot();
+        Snapshot s1 = takeSnapshot();
 
         put(2, ba("key2"), "b".getBytes());
         remove(3, ba("key2"));
@@ -365,7 +385,7 @@ class KvImplTest {
     @Test
     void testGc3() {
         put(1, ba("key1"), "a".getBytes());
-        KvSnapshot s1 = takeSnapshot();
+        Snapshot s1 = takeSnapshot();
 
         remove(2, ba("key1"));
         takeSnapshot();
@@ -381,7 +401,7 @@ class KvImplTest {
     @Test
     void testGc4() {
         put(1, ba("key1"), "a".getBytes());
-        KvSnapshot s1 = takeSnapshot();
+        Snapshot s1 = takeSnapshot();
 
         put(2, ba("key1"), "b".getBytes());
         assertNodeCount(2, "key1");
@@ -394,7 +414,7 @@ class KvImplTest {
     @Test
     void testGc5() {
         put(1, ba("key1"), "a".getBytes());
-        KvSnapshot s1 = takeSnapshot();
+        Snapshot s1 = takeSnapshot();
 
         put(2, ba("key1"), "b".getBytes());
         assertNodeCount(2, "key1");

@@ -15,34 +15,34 @@
  */
 package com.github.dtprj.dongting.raft.test;
 
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * @author huangli
  */
 public class MockExecutors {
-    private static final ExecutorService MOCK_IO_EXECUTOR;
-    private static final ExecutorService MOCK_SINGLE_EXECUTOR;
+    private static final ScheduledExecutorService MOCK_IO_EXECUTOR;
+    private static final ScheduledExecutorService MOCK_SINGLE_EXECUTOR;
 
     static {
-        MOCK_IO_EXECUTOR = Executors.newFixedThreadPool(4, r -> {
+        MOCK_IO_EXECUTOR = Executors.newScheduledThreadPool(4, r -> {
             Thread t = new Thread(r, "MockIOExecutor");
             t.setDaemon(true);
             return t;
         });
-        MOCK_SINGLE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        MOCK_SINGLE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "MockSingleExecutor");
             t.setDaemon(true);
             return t;
         });
     }
 
-    public static ExecutorService ioExecutor() {
+    public static ScheduledExecutorService ioExecutor() {
         return MOCK_IO_EXECUTOR;
     }
 
-    public static ExecutorService singleExecutor() {
+    public static ScheduledExecutorService singleExecutor() {
         return MOCK_SINGLE_EXECUTOR;
     }
 }

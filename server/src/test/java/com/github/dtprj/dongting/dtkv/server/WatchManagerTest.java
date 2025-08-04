@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -134,7 +133,7 @@ public class WatchManagerTest {
                 tasks.add(run);
             }
         };
-        TtlManager tm = new TtlManager(ts, null, Executors.newSingleThreadScheduledExecutor(), null);
+        TtlManager tm = new TtlManager(groupId, ts, new DtKVExecutor(ts, null, null), null);
         kv = new KvImpl(manager, tm, ts, groupId, 16, 0.75f);
         put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
     }

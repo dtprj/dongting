@@ -83,7 +83,7 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
         }
 
         try {
-            dtKV.submitTask(() -> exec(dtKV, reqInfo, req));
+            dtKV.dtkvExecutor.submitTaskInAnyThread(() -> exec(dtKV, reqInfo, req));
             return null;
         } catch (RejectedExecutionException ignore) {
             return new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);

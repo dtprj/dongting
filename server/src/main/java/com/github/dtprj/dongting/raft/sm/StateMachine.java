@@ -43,7 +43,7 @@ public interface StateMachine extends LifeCircle, RaftCodecFactory {
     /**
      * this method is called in raft thread.
      */
-    Snapshot takeSnapshot(SnapshotInfo snapshotInfo);
+    FiberFuture<Snapshot> takeSnapshot(SnapshotInfo snapshotInfo);
 
     void setRaftGroup(RaftGroup raftGroup);
 }

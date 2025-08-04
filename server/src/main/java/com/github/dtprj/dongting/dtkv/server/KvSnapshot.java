@@ -18,12 +18,8 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.dtkv.KvNode;
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
@@ -32,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 /**
@@ -42,7 +37,7 @@ class KvSnapshot extends Snapshot {
     final Supplier<Boolean> cancel;
     private final int groupId;
     private final KvImpl kv;
-    private final Executor dtkvExecutor;
+    private final DtKVExecutor dtkvExecutor;
     private final long lastIncludeRaftIndex;
 
     private final Iterator<KvNodeHolder> iterator;
@@ -53,7 +48,7 @@ class KvSnapshot extends Snapshot {
     private final EncodeStatus encodeStatus = new EncodeStatus();
 
     public KvSnapshot(int groupId, SnapshotInfo si, KvImpl kv,
-                      Supplier<Boolean> cancel, Executor dtkvExecutor) {
+                      Supplier<Boolean> cancel, DtKVExecutor dtkvExecutor) {
         super(si);
         this.groupId = groupId;
         this.kv = kv;
@@ -61,19 +56,14 @@ class KvSnapshot extends Snapshot {
         this.lastIncludeRaftIndex = si.getLastIncludedIndex();
         this.iterator = kv.map.values().iterator();
         this.dtkvExecutor = dtkvExecutor;
-        run(() -> kv.openSnapshot(this));
     }
 
-    private void run(Runnable r) {
-        if (dtkvExecutor != null) {
-            try {
-                dtkvExecutor.execute(r);
-            } catch (Exception ex) {
-                BugLog.log(ex);
-            }
-        } else {
-            r.run();
-        }
+    void init(FiberFuture<Snapshot> f) {
+        KvSnapshot self = this;
+        dtkvExecutor.submitTaskInFiberThread(() -> {
+            kv.openSnapshot(self);
+            f.fireComplete(self);
+        });
     }
 
     @Override
@@ -81,7 +71,7 @@ class KvSnapshot extends Snapshot {
         FiberGroup fiberGroup = FiberGroup.currentGroup();
         FiberFuture<Integer> f = fiberGroup.newFuture("readNext");
         // no read lock, since we run in dtKvExecutor or raft thread.
-        run(() -> {
+        dtkvExecutor.submitTaskInFiberThread(() -> {
             if (cancel.get()) {
                 f.fireCompleteExceptionally(new RaftException("canceled"));
                 return;
@@ -164,29 +154,31 @@ class KvSnapshot extends Snapshot {
 
     @Override
     protected void doClose() {
-        run(() -> kv.closeSnapshot(this));
-        doGcInExecutor(kv.createGcTask(cancel));
-    }
+        dtkvExecutor.submitTaskInFiberThread(() -> {
+            kv.closeSnapshot(this);
+            Supplier<Boolean> gcTask = kv.createGcTask();
+            dtkvExecutor.startDaemonTask("gcTask" + groupId, dtkvExecutor.new DtKVExecutorTask() {
 
-    private void doGcInExecutor(Supplier<Boolean> gcTask) {
-        if (dtkvExecutor != null) {
-            dtkvExecutor.execute(() -> {
-                if (gcTask.get()) {
-                    doGcInExecutor(gcTask);
+                @Override
+                protected long execute() {
+                    return gcTask.get() ? 0 : -1;
+                }
+
+                @Override
+                protected boolean shouldPause() {
+                    return false;
+                }
+
+                @Override
+                protected boolean shouldStop() {
+                    return cancel.get();
+                }
+
+                @Override
+                protected long defaultDelayNanos() {
+                    return 0;
                 }
             });
-        } else {
-            Fiber f = new Fiber("gcTask" + groupId, FiberGroup.currentGroup(), new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    if (gcTask.get()) {
-                        return Fiber.yield(this);
-                    } else {
-                        return Fiber.frameReturn();
-                    }
-                }
-            }, true);
-            f.start();
-        }
+        });
     }
 }

@@ -68,8 +68,7 @@ class KvStatusProcessor extends RaftProcessor<Integer> {
 
         if (kv.useSeparateExecutor) {
             // assert kv.dtkvExecutor != null;
-            //noinspection DataFlowIssue
-            kv.dtkvExecutor.execute(() -> finishAndWriteResp(kv, resp, reqInfo));
+            kv.dtkvExecutor.submitTaskInAnyThread(() -> finishAndWriteResp(kv, resp, reqInfo));
         } else {
             finishAndWriteResp(kv, resp, reqInfo);
         }

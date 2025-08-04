@@ -71,7 +71,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         kvConfig.initMapCapacity = 16;
         kv = new DtKV(groupConfig, kvConfig) {
             @Override
-            public Snapshot takeSnapshot(SnapshotInfo si) {
+            public FiberFuture<Snapshot> takeSnapshot(SnapshotInfo si) {
                 if (mockInstall) {
                     raftStatus.installSnapshot = true;
                 }

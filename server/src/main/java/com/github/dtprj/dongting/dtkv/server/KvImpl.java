@@ -467,14 +467,11 @@ class KvImpl {
         }
     }
 
-    public Supplier<Boolean> createGcTask(Supplier<Boolean> cancel) {
+    public Supplier<Boolean> createGcTask() {
         Iterator<KvNodeHolder> it = map.values().iterator();
         long t = System.currentTimeMillis();
         log.info("group {} start gc task", groupId);
         return () -> {
-            if (cancel.get()) {
-                return Boolean.FALSE;
-            }
             long stamp = lock.writeLock();
             try {
                 for (int i = 0; i < gcItems; i++) {
@@ -657,12 +654,12 @@ class KvImpl {
         minOpenSnapshotIndex = min;
     }
 
-    void openSnapshot(KvSnapshot snapshot) {
+    void openSnapshot(Snapshot snapshot) {
         openSnapshots.add(snapshot);
         updateMinMax();
     }
 
-    void closeSnapshot(KvSnapshot snapshot) {
+    void closeSnapshot(Snapshot snapshot) {
         openSnapshots.remove(snapshot);
         updateMinMax();
     }

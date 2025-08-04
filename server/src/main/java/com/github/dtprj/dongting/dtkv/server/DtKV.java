@@ -30,11 +30,8 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NioServer;
@@ -54,7 +51,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -84,7 +80,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_TYPE_UPDATE_TTL = 12;
 
     private final Timestamp ts;
-    final ScheduledExecutorService dtkvExecutor;
+    private final ScheduledExecutorService separateExecutor;
+    final DtKVExecutor dtkvExecutor;
 
     private final FiberGroup mainFiberGroup;
     private final RaftGroupConfigEx config;
@@ -105,12 +102,13 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         this.useSeparateExecutor = kvConfig.useSeparateExecutor;
         this.kvConfig = kvConfig;
         if (useSeparateExecutor) {
-            dtkvExecutor = createExecutor();
             this.ts = new Timestamp();
+            this.separateExecutor = createExecutor();
         } else {
-            dtkvExecutor = null;
             this.ts = config.ts;
+            this.separateExecutor = null;
         }
+        this.dtkvExecutor = new DtKVExecutor(ts, separateExecutor, mainFiberGroup);
         watchManager = new WatchManager(config.groupId, ts, kvConfig) {
             @Override
             protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
@@ -123,7 +121,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                     Runnable r = () -> watchManager.processNotifyResult(
                             ci, watchList, result, ex, requestEpoch, fireNext);
                     try {
-                        submitTask(r);
+                        DtKV.this.dtkvExecutor.submitTaskInAnyThread(r);
                     } catch (RejectedExecutionException ignore) {
                         // raft group stopped, or state machine stopped, ignore this
                     }
@@ -131,7 +129,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, p, decoder, timeout, c);
             }
         };
-        this.ttlManager = new TtlManager(ts, config, dtkvExecutor, this::expire);
+        this.ttlManager = new TtlManager(config.groupId, ts, dtkvExecutor, this::expire);
         KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId,
                 kvConfig.initMapCapacity, kvConfig.loadFactor);
         updateStatus(false, kvImpl);
@@ -140,11 +138,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     @Override
     public void setRaftGroup(RaftGroup raftGroup) {
         this.raftGroup = (RaftGroupImpl) raftGroup;
-    }
-
-    void submitTask(Runnable r) throws RejectedExecutionException {
-        Executor executor = dtkvExecutor == null ? mainFiberGroup.getExecutor() : dtkvExecutor;
-        executor.execute(r);
     }
 
     @Override
@@ -162,7 +155,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public FiberFuture<Object> exec(long index, RaftInput input) {
         FiberFuture<Object> f = mainFiberGroup.newFuture("dtkv-exec");
         if (useSeparateExecutor) {
-            dtkvExecutor.execute(() -> {
+            dtkvExecutor.submitTaskInFiberThread(() -> {
                 try {
                     Object r = exec0(index, input);
                     f.fireComplete(r);
@@ -261,23 +254,14 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset,
                                              boolean done, ByteBuffer data) {
         FiberFuture<Void> f = mainFiberGroup.newFuture("dtkv-install-snapshot");
-        if (useSeparateExecutor) {
-            dtkvExecutor.execute(() -> {
-                try {
-                    install0(offset, done, data);
-                    f.fireComplete(null);
-                } catch (Exception ex) {
-                    f.fireCompleteExceptionally(ex);
-                }
-            });
-        } else {
+        dtkvExecutor.submitTaskInFiberThread(() -> {
             try {
                 install0(offset, done, data);
-                f.complete(null);
+                f.fireComplete(null);
             } catch (Exception ex) {
-                f.completeExceptionally(ex);
+                f.fireCompleteExceptionally(ex);
             }
-        }
+        });
         return f;
     }
 
@@ -309,14 +293,17 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public Snapshot takeSnapshot(SnapshotInfo si) {
+    public FiberFuture<Snapshot> takeSnapshot(SnapshotInfo si) {
         if (kvStatus.installSnapshot) {
             throw new RaftException("dtkv is install snapshot");
         }
         KvStatus currentKvStatus = kvStatus;
         int currentEpoch = currentKvStatus.epoch;
         Supplier<Boolean> cancel = () -> kvStatus.epoch != currentEpoch;
-        return new KvSnapshot(config.groupId, si, currentKvStatus.kvImpl, cancel, dtkvExecutor);
+        KvSnapshot s = new KvSnapshot(config.groupId, si, currentKvStatus.kvImpl, cancel, dtkvExecutor);
+        FiberFuture<Snapshot> f = mainFiberGroup.newFuture("take-snapshot-"+ config.groupId);
+        s.init(f);
+        return f;
     }
 
     protected ScheduledExecutorService createExecutor() {
@@ -333,13 +320,30 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     protected void doStart() {
-        if (useSeparateExecutor) {
-            dtkvExecutor.scheduleWithFixedDelay(ts::refresh, 1, 1, TimeUnit.MILLISECONDS);
-            dtkvExecutor.execute(this::watchDispatchInExecutor);
-        } else {
-            Fiber f = new Fiber("watch-dispatch", mainFiberGroup, new WatchDispatchFrame(), true);
-            f.start();
-        }
+        dtkvExecutor.startDaemonTask("watch-dispatch", dtkvExecutor.new DtKVExecutorTask() {
+            final long defaultDelayNanos = kvConfig.watchDispatchIntervalMillis * 1_000_000L;
+
+            @Override
+            protected long execute() {
+                return dispatchWatchTask() ? defaultDelayNanos : 0;
+            }
+
+            @Override
+            protected boolean shouldPause() {
+                return kvStatus.installSnapshot;
+            }
+
+            @Override
+            protected boolean shouldStop() {
+                return DtKV.this.status > AbstractLifeCircle.STATUS_RUNNING;
+            }
+
+            @Override
+            protected long defaultDelayNanos() {
+                return defaultDelayNanos;
+            }
+        });
+
         ((RaftStatusImpl) config.raftStatus).roleChangeListener = ttlManager::roleChange;
         ttlManager.start();
     }
@@ -353,36 +357,13 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         return b;
     }
 
-    private void watchDispatchInExecutor() {
-        if (kvStatus.installSnapshot || dispatchWatchTask()) {
-            dtkvExecutor.schedule(this::watchDispatchInExecutor, kvConfig.watchDispatchIntervalMillis, TimeUnit.MILLISECONDS);
-        } else {
-            dtkvExecutor.execute(this::watchDispatchInExecutor);
-        }
-    }
-
-    private class WatchDispatchFrame extends FiberFrame<Void> {
-
-        @Override
-        public FrameCallResult execute(Void input) {
-            if (status > AbstractLifeCircle.STATUS_RUNNING || isGroupShouldStopPlain()) {
-                return Fiber.frameReturn();
-            }
-            if (kvStatus.installSnapshot || dispatchWatchTask()) {
-                return Fiber.sleepUntilShouldStop(kvConfig.watchDispatchIntervalMillis, this);
-            } else {
-                return Fiber.yield(this);
-            }
-        }
-    }
-
     /**
      * may be called in other threads.
      */
     @Override
     protected void doStop(DtTime timeout, boolean force) {
-        if (dtkvExecutor != null) {
-            stopExecutor(dtkvExecutor);
+        if (separateExecutor != null) {
+            stopExecutor(separateExecutor);
         }
     }
 

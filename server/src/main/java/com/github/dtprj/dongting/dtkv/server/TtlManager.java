@@ -19,19 +19,11 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberCondition;
-import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -39,55 +31,55 @@ import java.util.function.Function;
  */
 class TtlManager {
     private final Timestamp ts;
-    private final RaftGroupConfigEx groupConfig;
-    private final ScheduledExecutorService executorService;
+    private final DtKVExecutor dtKVExecutor;
     private final Function<TtlInfo, Boolean> expireCallback;
 
-    private final FiberCondition cond;
-    private ScheduledFuture<?> scheduledFuture;
-
     final PriorityQueue<TtlInfo> ttlQueue = new PriorityQueue<>();
+    private final DtKVExecutor.DtKVExecutorTask task;
+    private final String taskName;
+    private boolean stop;
+    private boolean paused;
 
-    public TtlManager(Timestamp ts, RaftGroupConfigEx groupConfig, ScheduledExecutorService executorService,
+    public TtlManager(int groupId, Timestamp ts, DtKVExecutor dtKVExecutor,
                       Function<TtlInfo, Boolean> expireCallback) {
         this.ts = ts;
-        this.groupConfig = groupConfig;
-        this.executorService = executorService;
+        this.dtKVExecutor = dtKVExecutor;
         this.expireCallback = expireCallback;
-        if (executorService == null) {
-            cond = groupConfig.fiberGroup.newCondition("expire" + groupConfig.groupId);
-        } else {
-            cond = null;
-        }
+        this.taskName = "expireTask" + groupId;
+        this.task = dtKVExecutor.new DtKVExecutorTask() {
+            @Override
+            protected long execute() {
+                return removeExpired();
+            }
+
+            @Override
+            protected boolean shouldPause() {
+                return paused;
+            }
+
+            @Override
+            protected boolean shouldStop() {
+                return stop;
+            }
+
+            @Override
+            protected long defaultDelayNanos() {
+                return 1_000_000_000L;
+            }
+        };
     }
+
 
     public void start() {
-        if (executorService == null) {
-            Fiber f = new Fiber("expire" + groupConfig.groupId, groupConfig.fiberGroup, new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    long t = removeExpired();
-                    return cond.await(t, TimeUnit.NANOSECONDS, this);
-                }
-            }, true);
-            f.start();
-        } else {
-            executorService.execute(this::expireTaskInExecutor);
-        }
+        dtKVExecutor.startDaemonTask(taskName, task);
     }
 
-    private void expireTaskInExecutor() {
-        long t = removeExpired();
-        scheduledFuture = executorService.schedule(this::expireTaskInExecutor, t, TimeUnit.NANOSECONDS);
+    public void updatePauseStatus(boolean pause) {
+        dtKVExecutor.submitTaskInAnyThread(() -> this.paused = pause);
     }
 
-    private void wakeupExpireTask() {
-        if (executorService == null) {
-            cond.signal();
-        } else {
-            scheduledFuture.cancel(false);
-            executorService.execute(this::expireTaskInExecutor);
-        }
+    public void stop() {
+        dtKVExecutor.submitTaskInAnyThread(() -> stop = true);
     }
 
     public long removeExpired() {
@@ -114,7 +106,7 @@ class TtlManager {
             return;
         }
         if (addNodeTtlAndAddToQueue(key, n, ownerUuid, ttlMillis)) {
-            wakeupExpireTask();
+            dtKVExecutor.signalTask(task);
         }
     }
 
@@ -138,7 +130,7 @@ class TtlManager {
         }
         ttlQueue.remove(ttlInfo);
         if (addNodeTtlAndAddToQueue(key, n, n.ownerUuid, newTtlMillis)) {
-            wakeupExpireTask();
+            dtKVExecutor.signalTask(task);
         }
     }
 

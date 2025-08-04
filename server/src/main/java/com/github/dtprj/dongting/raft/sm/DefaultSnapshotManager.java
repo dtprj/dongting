@@ -374,12 +374,17 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         @Override
-        public FrameCallResult execute(Void input) throws Exception {
+        public FrameCallResult execute(Void input) {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
             this.directBufferFactory = new RefBufferFactory(getFiberGroup().dispatcher.thread.directPool, 0);
-            readSnapshot = stateMachine.takeSnapshot(snapshotInfo);
+            FiberFuture<Snapshot> f =stateMachine.takeSnapshot(snapshotInfo);
+            return f.await(this::afterTakeSnapshot);
+        }
+
+        private FrameCallResult afterTakeSnapshot(Snapshot snapshot) throws Exception {
+            this.readSnapshot = snapshot;
             log.info("begin save snapshot {}. groupId={}, lastIndex={}, lastTerm={}", id,
                     groupConfig.groupId, snapshotInfo.getLastIncludedIndex(), snapshotInfo.getLastIncludedTerm());
 
