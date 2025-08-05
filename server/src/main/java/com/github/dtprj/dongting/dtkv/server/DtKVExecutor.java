@@ -101,7 +101,7 @@ class DtKVExecutor {
         private FiberCondition cond;
         private ScheduledFuture<?> future;
 
-        public void run() {
+        public final void run() {
             future = null;
             long nextDelayNanos = executeTaskOnce();
             if (nextDelayNanos == 0) {

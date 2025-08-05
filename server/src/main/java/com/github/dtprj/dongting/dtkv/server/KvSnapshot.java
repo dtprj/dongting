@@ -159,9 +159,15 @@ class KvSnapshot extends Snapshot {
             Supplier<Boolean> gcTask = kv.createGcTask();
             dtkvExecutor.startDaemonTask("gcTask" + groupId, dtkvExecutor.new DtKVExecutorTask() {
 
+                private boolean finished;
+
                 @Override
                 protected long execute() {
-                    return gcTask.get() ? 0 : -1;
+                    boolean hasNext = gcTask.get();
+                    if (!hasNext) {
+                        finished = true;
+                    }
+                    return 0;
                 }
 
                 @Override
@@ -171,7 +177,7 @@ class KvSnapshot extends Snapshot {
 
                 @Override
                 protected boolean shouldStop() {
-                    return cancel.get();
+                    return finished || cancel.get();
                 }
 
                 @Override
