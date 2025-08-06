@@ -96,18 +96,23 @@ class DtKVExecutor {
         }
     }
 
-    abstract class DtKVExecutorTask implements Runnable {
+    static abstract class DtKVExecutorTask implements Runnable {
 
+        private final DtKVExecutor executor;
         private FiberCondition cond;
         private ScheduledFuture<?> future;
+
+        DtKVExecutorTask(DtKVExecutor executor) {
+            this.executor = executor;
+        }
 
         public final void run() {
             future = null;
             long nextDelayNanos = executeTaskOnce();
             if (nextDelayNanos == 0) {
-                separateExecutor.execute(this);
+                executor.separateExecutor.execute(this);
             } else if (nextDelayNanos > 0) {
-                future = separateExecutor.schedule(this, nextDelayNanos, TimeUnit.NANOSECONDS);
+                future = executor.separateExecutor.schedule(this, nextDelayNanos, TimeUnit.NANOSECONDS);
             }
         }
 

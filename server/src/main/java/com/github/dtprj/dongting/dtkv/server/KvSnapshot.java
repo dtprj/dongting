@@ -157,7 +157,7 @@ class KvSnapshot extends Snapshot {
         dtkvExecutor.submitTaskInFiberThread(() -> {
             kv.closeSnapshot(this);
             Supplier<Boolean> gcTask = kv.createGcTask();
-            dtkvExecutor.startDaemonTask("gcTask" + groupId, dtkvExecutor.new DtKVExecutorTask() {
+            dtkvExecutor.startDaemonTask("gcTask" + groupId, new DtKVExecutor.DtKVExecutorTask(dtkvExecutor) {
 
                 private boolean finished;
 

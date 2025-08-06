@@ -41,6 +41,7 @@ import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -320,7 +321,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     protected void doStart() {
-        dtkvExecutor.startDaemonTask("watch-dispatch", dtkvExecutor.new DtKVExecutorTask() {
+        dtkvExecutor.startDaemonTask("watch-dispatch", new DtKVExecutor.DtKVExecutorTask(dtkvExecutor) {
             final long defaultDelayNanos = kvConfig.watchDispatchIntervalMillis * 1_000_000L;
 
             @Override
@@ -365,6 +366,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (separateExecutor != null) {
             stopExecutor(separateExecutor);
         }
+        ttlManager.stop();
     }
 
     private synchronized void updateStatus(boolean installSnapshot, KvImpl kvImpl) {
@@ -375,13 +377,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
     }
 
-    private Boolean expire(TtlInfo ti) {
-        // expire operation should execute in state machine after write quorum is reached,
-        // this is, submit as a raft task.
-        KvReq req = new KvReq();
-        req.key = ti.key.getData();
-        req.ttlMillis = ti.createIndex;
-        RaftInput ri = new RaftInput(BIZ_TYPE_EXPIRE, null, req, null, false);
-        return raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(LogItem.TYPE_NORMAL, ri, null);
+    private void expire(RaftInput input, RaftCallback callback) {
+        // no flow control here
+        raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(LogItem.TYPE_NORMAL, input, callback);
     }
 }

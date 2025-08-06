@@ -39,7 +39,7 @@ public interface KvCodes {
     int CODE_REMOVE_ALL_WATCH = 16;
     int CODE_NOT_OWNER = 17;
     int CODE_NOT_TEMP_NODE = 18;
-    int CODE_SHOULD_EXPIRE = 19;
+    int CODE_NOT_EXPIRED = 19;
 
     static String toStr(int code) {
         switch (code) {
@@ -81,8 +81,8 @@ public interface KvCodes {
                 return "not owner";
             case CODE_NOT_TEMP_NODE:
                 return "not temp node";
-            case CODE_SHOULD_EXPIRE:
-                return "should expire";
+            case CODE_NOT_EXPIRED:
+                return "not expired";
             default:
                 return "unknown";
         }
