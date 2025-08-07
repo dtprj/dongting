@@ -60,7 +60,7 @@ class KvSnapshot extends Snapshot {
 
     void init(FiberFuture<Snapshot> f) {
         KvSnapshot self = this;
-        dtkvExecutor.submitTaskInFiberThread(() -> {
+        dtkvExecutor.submitTaskInFiberThread(f, () -> {
             kv.openSnapshot(self);
             f.fireComplete(self);
         });
@@ -71,7 +71,7 @@ class KvSnapshot extends Snapshot {
         FiberGroup fiberGroup = FiberGroup.currentGroup();
         FiberFuture<Integer> f = fiberGroup.newFuture("readNext");
         // no read lock, since we run in dtKvExecutor or raft thread.
-        dtkvExecutor.submitTaskInFiberThread(() -> {
+        dtkvExecutor.submitTaskInFiberThread(f, () -> {
             if (cancel.get()) {
                 f.fireCompleteExceptionally(new RaftException("canceled"));
                 return;
@@ -154,9 +154,11 @@ class KvSnapshot extends Snapshot {
 
     @Override
     protected void doClose() {
+        // ignore submit failure (stopped)
         dtkvExecutor.submitTaskInFiberThread(() -> {
             kv.closeSnapshot(this);
             Supplier<Boolean> gcTask = kv.createGcTask();
+            // ignore submit failure (stopped)
             dtkvExecutor.startDaemonTask("gcTask" + groupId, new DtKVExecutor.DtKVExecutorTask(dtkvExecutor) {
 
                 private boolean finished;

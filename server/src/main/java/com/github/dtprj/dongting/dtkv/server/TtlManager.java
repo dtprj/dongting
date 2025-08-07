@@ -135,6 +135,10 @@ class TtlManager {
 
                 @Override
                 public void fail(Throwable ex) {
+                    if (stop){
+                        return;
+                    }
+                    // ignore submit failure (group stopped)
                     dtKVExecutor.submitTaskInAnyThread(() -> {
                         ttlInfo.expireFailed = true;
                         ttlInfo.lastFailNanos = ts.nanoTime;
@@ -161,10 +165,12 @@ class TtlManager {
     }
 
     public void start() {
+        // ignore submit failure (stopped)
         dtKVExecutor.startDaemonTask(taskName, task);
     }
 
     public void stop() {
+        // assert submit result is true
         dtKVExecutor.submitTaskInFiberThread(() -> stop = true);
     }
 
@@ -230,6 +236,7 @@ class TtlManager {
     }
 
     public void roleChange(RaftRole oldRole, RaftRole newRole) {
+        // ignore submit failure (stopped)
         dtKVExecutor.submitTaskInFiberThread(() -> {
             try {
                 role = newRole;

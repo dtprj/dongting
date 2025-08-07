@@ -78,9 +78,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
         if (gc.fiberGroup.isShouldStop()) {
             invokeCleanReq(reqInfo);
-            EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
-            wf.setMsg("raft group is stopped: " + groupId);
-            return wf;
+            return createStoppedResp(groupId);
         } else {
             // release in sub class
             return doProcess(reqInfo);
@@ -129,5 +127,11 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
         errorResp.setMsg(root.toString());
         reqInfo.reqContext.writeRespInBizThreads(errorResp);
+    }
+
+    protected EmptyBodyRespPacket createStoppedResp(int groupId) {
+        EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
+        wf.setMsg("raft group is stopped: " + groupId);
+        return wf;
     }
 }

@@ -77,9 +77,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             if (isGroupShouldStopPlain()) {
                 if (o != null) {
                     invokeCleanReq(o);
-                    EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
-                    wf.setMsg("raft group is stopped: " + o.raftGroup.getGroupId());
-                    o.reqContext.writeRespInBizThreads(wf);
+                    o.reqContext.writeRespInBizThreads(createStoppedResp(o.raftGroup.getGroupId()));
                     // should continue loop to take all pending tasks and release them
                     return Fiber.resume(null, this);
                 } else {

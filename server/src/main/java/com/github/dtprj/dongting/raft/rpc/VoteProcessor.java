@@ -100,9 +100,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 // RaftSequenceProcessor checked, however the fiber may suspend to for wait write finish,
                 // the stop flag may be changed, so we should re-check it
                 log.warn("raft group is stopping. ignore vote/pre-vote request");
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
-                resp.setMsg("raft group is stopping");
-                reqInfo.reqContext.writeRespInBizThreads(resp);
+                reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(voteReq.groupId));
                 return Fiber.frameReturn();
             }
             if (voteReq.term > raftStatus.currentTerm) {

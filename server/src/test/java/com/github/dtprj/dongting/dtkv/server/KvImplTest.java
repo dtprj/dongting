@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
-import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,7 +48,7 @@ class KvImplTest {
     void setUp() {
         ver = 1;
         ts = new Timestamp();
-        DtKVExecutor e = new DtKVExecutor(ts, MockExecutors.singleExecutor(), null);
+        DtKVExecutor e = new DtKVExecutor(1, ts, null);
         TtlManager tm = new TtlManager(1, ts, e, null);
         kv = new KvImpl(null, tm, ts, 0, 16, 0.75f);
     }

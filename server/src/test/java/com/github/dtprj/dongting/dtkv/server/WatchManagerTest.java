@@ -133,7 +133,7 @@ public class WatchManagerTest {
                 tasks.add(run);
             }
         };
-        TtlManager tm = new TtlManager(groupId, ts, new DtKVExecutor(ts, null, null), null);
+        TtlManager tm = new TtlManager(groupId, ts, new DtKVExecutor(groupId, ts, null), null);
         kv = new KvImpl(manager, tm, ts, groupId, 16, 0.75f);
         put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
     }

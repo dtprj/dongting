@@ -19,11 +19,14 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.raft.RaftException;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -33,38 +36,56 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 class DtKVExecutor {
-    private final ScheduledExecutorService separateExecutor;
+    protected final ScheduledExecutorService separateExecutor;
     private final FiberGroup fiberGroup;
     final Timestamp ts;
 
-    DtKVExecutor(Timestamp ts, ScheduledExecutorService separateExecutor, FiberGroup fiberGroup) {
+    DtKVExecutor(int groupId, Timestamp ts, FiberGroup fiberGroup) {
         this.ts = ts;
-        this.separateExecutor = separateExecutor;
+        if (fiberGroup == null) {
+            this.separateExecutor = createExecutor(groupId);
+        } else {
+            this.separateExecutor = null;
+        }
         this.fiberGroup = fiberGroup;
-        if (separateExecutor != null) {
-            separateExecutor.scheduleWithFixedDelay(ts::refresh, 1, 1, TimeUnit.MILLISECONDS);
+    }
+
+    public boolean submitTaskInAnyThread(Runnable r) throws RejectedExecutionException {
+        try {
+            Executor e = separateExecutor == null ? fiberGroup.getExecutor() : separateExecutor;
+            e.execute(r);
+            return true;
+        } catch (RejectedExecutionException e) {
+            return false;
         }
     }
 
-    public void submitTaskInAnyThread(Runnable r) throws RejectedExecutionException {
-        Executor e = separateExecutor == null ? fiberGroup.getExecutor() : separateExecutor;
-        e.execute(r);
-    }
-
-    public void submitTaskInFiberThread(Runnable r) {
+    public boolean submitTaskInFiberThread(Runnable r) {
         if (separateExecutor == null) {
             r.run();
+            return true;
         } else {
-            separateExecutor.execute(r);
+            try {
+                separateExecutor.execute(r);
+                return true;
+            } catch (RejectedExecutionException e) {
+                return false;
+            }
         }
     }
 
-    public void startDaemonTask(String name, DtKVExecutorTask task) {
+    public void submitTaskInFiberThread(FiberFuture<?> f, Runnable r) {
+        if (!submitTaskInFiberThread(r)) {
+            f.completeExceptionally(new RaftException("stopped"));
+        }
+    }
+
+    public boolean startDaemonTask(String name, DtKVExecutorTask task) {
         if (separateExecutor == null) {
-            task.cond = fiberGroup.newCondition("cond-" + name);
             Fiber f = new Fiber("fiber-" + name, fiberGroup, new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
+                    task.cond = fiberGroup.newCondition("cond-" + name);
                     long nextDelayNanos = task.executeTaskOnce();
                     if (nextDelayNanos == 0) {
                         return Fiber.yield(this);
@@ -75,9 +96,14 @@ class DtKVExecutor {
                     }
                 }
             }, true);
-            f.start();
+            return fiberGroup.fireFiber(f);
         } else {
-            separateExecutor.execute(task);
+            try {
+                separateExecutor.execute(task);
+                return true;
+            } catch (RejectedExecutionException e) {
+                return false;
+            }
         }
     }
 
@@ -93,6 +119,26 @@ class DtKVExecutor {
                 task.future = null;
                 separateExecutor.execute(task);
             }
+        }
+    }
+
+    protected ScheduledExecutorService createExecutor(int groupId) {
+        return Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r);
+            t.setName("DtKV-" + groupId);
+            return t;
+        });
+    }
+
+    public void start() {
+        if (separateExecutor != null) {
+            separateExecutor.scheduleWithFixedDelay(ts::refresh, 1, 1, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void stop() {
+        if (separateExecutor != null) {
+            separateExecutor.shutdownNow();
         }
     }
 

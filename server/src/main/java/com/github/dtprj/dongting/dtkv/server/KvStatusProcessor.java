@@ -59,6 +59,7 @@ class KvStatusProcessor extends RaftProcessor<Integer> {
         return null;
     }
 
+    // in raft thread
     private void process(ReqInfoEx<Integer> reqInfo, DtKV kv) {
         RaftStatusImpl raftStatus = reqInfo.raftGroup.groupComponents.raftStatus;
         KvStatusResp resp = new KvStatusResp();
@@ -66,11 +67,9 @@ class KvStatusProcessor extends RaftProcessor<Integer> {
         // this fields should read in raft thread
         resp.raftServerStatus = QueryStatusProcessor.buildQueryStatusResp(raftServer.getServerConfig().nodeId, raftStatus);
 
-        if (kv.useSeparateExecutor) {
-            // assert kv.dtkvExecutor != null;
-            kv.dtkvExecutor.submitTaskInAnyThread(() -> finishAndWriteResp(kv, resp, reqInfo));
-        } else {
-            finishAndWriteResp(kv, resp, reqInfo);
+        boolean r = kv.dtkvExecutor.submitTaskInFiberThread(() -> finishAndWriteResp(kv, resp, reqInfo));
+        if (!r) {
+            reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
         }
     }
 

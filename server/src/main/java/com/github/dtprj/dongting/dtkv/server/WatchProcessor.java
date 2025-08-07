@@ -29,8 +29,6 @@ import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
-import java.util.concurrent.RejectedExecutionException;
-
 /**
  * @author huangli
  */
@@ -82,11 +80,10 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             }
         }
 
-        try {
-            dtKV.dtkvExecutor.submitTaskInAnyThread(() -> exec(dtKV, reqInfo, req));
+        if (dtKV.dtkvExecutor.submitTaskInAnyThread(() -> exec(dtKV, reqInfo, req))) {
             return null;
-        } catch (RejectedExecutionException ignore) {
-            return new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
+        } else {
+            return createStoppedResp(req.groupId);
         }
     }
 
