@@ -175,7 +175,7 @@ class TtlManager {
             return;
         }
         if (addNodeTtlAndAddToQueue(key, n, ownerUuid, ttlMillis)) {
-            dtKVExecutor.signalTask(task);
+            task.signal();
         }
     }
 
@@ -199,7 +199,7 @@ class TtlManager {
         }
         doRemove(ttlInfo);
         if (addNodeTtlAndAddToQueue(key, n, n.ownerUuid, newTtlMillis)) {
-            dtKVExecutor.signalTask(task);
+            task.signal();
         }
     }
 
@@ -238,7 +238,7 @@ class TtlManager {
                 role = newRole;
                 ttlQueue.addAll(pendingQueue);
                 pendingQueue.clear();
-                dtKVExecutor.signalTask(task);
+                task.signal();
             } catch (Throwable e) {
                 BugLog.log(e);
             }

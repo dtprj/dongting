@@ -23,6 +23,8 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 
 import java.util.concurrent.Executor;
@@ -36,6 +38,7 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 class DtKVExecutor {
+    private static final DtLog log = DtLogs.getLogger(DtKVExecutor.class);
     protected final ScheduledExecutorService separateExecutor;
     private final FiberGroup fiberGroup;
     final Timestamp ts;
@@ -99,26 +102,11 @@ class DtKVExecutor {
             return fiberGroup.fireFiber(f);
         } else {
             try {
-                task.executor = this;
+                task.executor = separateExecutor;
                 separateExecutor.execute(task);
                 return true;
             } catch (RejectedExecutionException e) {
                 return false;
-            }
-        }
-    }
-
-    /**
-     * this method should be called in the executor(fiber thread or separateExecutor thread).
-     */
-    public void signalTask(DtKVExecutorTask task) {
-        if (separateExecutor == null) {
-            task.cond.signal();
-        } else {
-            if (task.future != null) {
-                task.future.cancel(false);
-                task.future = null;
-                separateExecutor.execute(task);
             }
         }
     }
@@ -145,17 +133,24 @@ class DtKVExecutor {
 
     static abstract class DtKVExecutorTask implements Runnable {
 
-        private DtKVExecutor executor;
+        private ScheduledExecutorService executor;
         private FiberCondition cond;
         private ScheduledFuture<?> future;
 
         public final void run() {
             future = null;
             long nextDelayNanos = executeTaskOnce();
-            if (nextDelayNanos == 0) {
-                executor.separateExecutor.execute(this);
-            } else if (nextDelayNanos > 0) {
-                future = executor.separateExecutor.schedule(this, nextDelayNanos, TimeUnit.NANOSECONDS);
+            if (shouldStop()) {
+                return;
+            }
+            try {
+                if (nextDelayNanos == 0) {
+                    executor.execute(this);
+                } else if (nextDelayNanos > 0) {
+                    future = executor.schedule(this, nextDelayNanos, TimeUnit.NANOSECONDS);
+                }
+            } catch (RejectedExecutionException e) {
+                log.warn("executor stopped, task submit failed");
             }
         }
 
@@ -176,6 +171,21 @@ class DtKVExecutor {
                 BugLog.log(e);
             }
             return Math.max(0, fail ? defaultDelayNanos() : nextDelayNanos);
+        }
+
+        /**
+         * this method should be called in the executor(fiber thread or separateExecutor thread).
+         */
+        public void signal() {
+            if (cond == null) {
+                cond.signal();
+            } else {
+                if (future != null) {
+                    future.cancel(false);
+                    future = null;
+                    executor.execute(this);
+                }
+            }
         }
 
         protected abstract long execute();
