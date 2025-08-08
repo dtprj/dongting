@@ -99,6 +99,7 @@ class DtKVExecutor {
             return fiberGroup.fireFiber(f);
         } else {
             try {
+                task.executor = this;
                 separateExecutor.execute(task);
                 return true;
             } catch (RejectedExecutionException e) {
@@ -111,7 +112,7 @@ class DtKVExecutor {
      * this method should be called in the executor(fiber thread or separateExecutor thread).
      */
     public void signalTask(DtKVExecutorTask task) {
-        if (task.cond != null) {
+        if (separateExecutor == null) {
             task.cond.signal();
         } else {
             if (task.future != null) {
@@ -144,13 +145,9 @@ class DtKVExecutor {
 
     static abstract class DtKVExecutorTask implements Runnable {
 
-        private final DtKVExecutor executor;
+        private DtKVExecutor executor;
         private FiberCondition cond;
         private ScheduledFuture<?> future;
-
-        DtKVExecutorTask(DtKVExecutor executor) {
-            this.executor = executor;
-        }
 
         public final void run() {
             future = null;

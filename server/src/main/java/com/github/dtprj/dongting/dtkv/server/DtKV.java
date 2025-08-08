@@ -303,7 +303,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     protected void doStart() {
         dtkvExecutor.start();
         // ignore submit failure (stopped)
-        dtkvExecutor.startDaemonTask("watch-dispatch", new DtKVExecutor.DtKVExecutorTask(dtkvExecutor) {
+        dtkvExecutor.startDaemonTask("watch-dispatch", new DtKVExecutor.DtKVExecutorTask() {
             final long defaultDelayNanos = kvConfig.watchDispatchIntervalMillis * 1_000_000L;
 
             @Override

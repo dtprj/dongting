@@ -57,14 +57,10 @@ class TtlManager {
         this.dtKVExecutor = dtKVExecutor;
         this.expireCallback = expireCallback;
         this.taskName = "expireTask" + groupId;
-        this.task = new TtlTask(dtKVExecutor);
+        this.task = new TtlTask();
     }
 
     class TtlTask extends DtKVExecutor.DtKVExecutorTask {
-
-        TtlTask(DtKVExecutor executor) {
-            super(executor);
-        }
 
         @Override
         protected long execute() {

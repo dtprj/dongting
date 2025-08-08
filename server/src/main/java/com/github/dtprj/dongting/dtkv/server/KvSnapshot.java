@@ -159,7 +159,7 @@ class KvSnapshot extends Snapshot {
             kv.closeSnapshot(this);
             Supplier<Boolean> gcTask = kv.createGcTask();
             // ignore submit failure (stopped)
-            dtkvExecutor.startDaemonTask("gcTask" + groupId, new DtKVExecutor.DtKVExecutorTask(dtkvExecutor) {
+            dtkvExecutor.startDaemonTask("gcTask" + groupId, new DtKVExecutor.DtKVExecutorTask() {
 
                 private boolean finished;
 
