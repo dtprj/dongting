@@ -127,7 +127,7 @@ class DtKVExecutor {
 
     public void stop() {
         if (separateExecutor != null) {
-            separateExecutor.shutdownNow();
+            separateExecutor.shutdown();
         }
     }
 

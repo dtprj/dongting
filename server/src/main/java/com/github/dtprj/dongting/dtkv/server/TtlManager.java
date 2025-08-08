@@ -18,20 +18,17 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
-import com.github.dtprj.dongting.raft.server.RaftCallback;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.TreeSet;
 import java.util.UUID;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -39,24 +36,19 @@ import java.util.function.BiConsumer;
 class TtlManager {
     private static final DtLog log = DtLogs.getLogger(TtlManager.class);
     private final Timestamp ts;
-    private final DtKVExecutor dtKVExecutor;
-    private final BiConsumer<RaftInput, RaftCallback> expireCallback;
+    private final Consumer<TtlInfo> expireCallback;
 
     private final TreeSet<TtlInfo> ttlQueue = new TreeSet<>();
     private final TreeSet<TtlInfo> pendingQueue = new TreeSet<>();
     final DtKVExecutor.DtKVExecutorTask task;
-    private final String taskName;
-    private boolean stop;
+    boolean stop;
     private RaftRole role;
 
     long defaultDelayNanos = 1_000_000_000L; // 1 second
 
-    public TtlManager(int groupId, Timestamp ts, DtKVExecutor dtKVExecutor,
-                      BiConsumer<RaftInput, RaftCallback> expireCallback) {
+    public TtlManager(Timestamp ts, Consumer<TtlInfo> expireCallback) {
         this.ts = ts;
-        this.dtKVExecutor = dtKVExecutor;
         this.expireCallback = expireCallback;
-        this.taskName = "expireTask" + groupId;
         this.task = new TtlTask();
     }
 
@@ -99,7 +91,7 @@ class TtlManager {
                     try {
                         ttlInfo.expireFailed = false;
                         ttlInfo.lastFailNanos = 0;
-                        doExpire(ttlInfo);
+                        expireCallback.accept(ttlInfo);
                     } catch (Throwable e) {
                         ttlInfo.expireFailed = true;
                         ttlInfo.lastFailNanos = ts.nanoTime;
@@ -110,38 +102,6 @@ class TtlManager {
             }
 
             return yield ? 0 : defaultDelayNanos();
-        }
-
-        private void doExpire(TtlInfo ttlInfo) {
-
-            // expire operation should execute in state machine after write quorum is reached,
-            // this is, submit as a raft task.
-            KvReq req = new KvReq();
-            req.key = ttlInfo.key.getData();
-            req.ttlMillis = ttlInfo.createIndex;
-            RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_EXPIRE, null, req, null, false);
-            expireCallback.accept(ri, new RaftCallback() {
-                @Override
-                public void success(long raftIndex, Object result) {
-                    // nothing to do here, to remove from pendingQueue:
-                    // if CODE_SUCCESS, removed in KvImpl.doRemoveInLock
-                    // if KvCodes.CODE_NOT_FOUND, no need to remove, already removed
-                    // if KvCodes.CODE_NOT_EXPIRED, removed when updateTtl() called
-                }
-
-                @Override
-                public void fail(Throwable ex) {
-                    if (stop){
-                        return;
-                    }
-                    // ignore submit failure (group stopped)
-                    dtKVExecutor.submitTaskInAnyThread(() -> {
-                        ttlInfo.expireFailed = true;
-                        ttlInfo.lastFailNanos = ts.nanoTime;
-                        log.warn("expire failed: {}", ex.toString());
-                    });
-                }
-            });
         }
 
         @Override
@@ -160,14 +120,13 @@ class TtlManager {
         }
     }
 
-    public void start() {
-        // ignore submit failure (stopped)
-        dtKVExecutor.startDaemonTask(taskName, task);
-    }
-
-    public void stop() {
-        // assert submit result is true
-        dtKVExecutor.submitTaskInFiberThread(() -> stop = true);
+    public void retry(TtlInfo ttlInfo, Throwable ex) {
+        if (stop) {
+            return;
+        }
+        ttlInfo.expireFailed = true;
+        ttlInfo.lastFailNanos = ts.nanoTime;
+        log.warn("expire failed: {}", ex.toString());
     }
 
     public void initTtl(ByteArray key, KvNodeEx n, UUID ownerUuid, long ttlMillis) {
@@ -231,18 +190,15 @@ class TtlManager {
         }
     }
 
-    public void roleChange(RaftRole oldRole, RaftRole newRole) {
-        // ignore submit failure (stopped)
-        dtKVExecutor.submitTaskInFiberThread(() -> {
-            try {
-                role = newRole;
-                ttlQueue.addAll(pendingQueue);
-                pendingQueue.clear();
-                task.signal();
-            } catch (Throwable e) {
-                BugLog.log(e);
-            }
-        });
+    public void roleChange(RaftRole newRole) {
+        try {
+            role = newRole;
+            ttlQueue.addAll(pendingQueue);
+            pendingQueue.clear();
+            task.signal();
+        } catch (Throwable e) {
+            BugLog.log(e);
+        }
     }
 }
 

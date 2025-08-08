@@ -121,7 +121,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 ((NioServer) ci.channel.getOwner()).sendRequest(ci.channel, p, decoder, timeout, c);
             }
         };
-        this.ttlManager = new TtlManager(config.groupId, ts, dtkvExecutor, this::expire);
+        this.ttlManager = new TtlManager(ts, this::expire);
         KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId,
                 kvConfig.initMapCapacity, kvConfig.loadFactor);
         updateStatus(false, kvImpl);
@@ -327,8 +327,13 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             }
         });
 
-        ((RaftStatusImpl) config.raftStatus).roleChangeListener = ttlManager::roleChange;
-        ttlManager.start();
+        // ignore submit failure (stopped)
+        dtkvExecutor.startDaemonTask("expireTask" + config.groupId, ttlManager.task);
+
+        ((RaftStatusImpl) config.raftStatus).roleChangeListener = (oldRole, newRole) -> {
+            // ignore submit failure (stopped)
+            dtkvExecutor.submitTaskInFiberThread(() -> ttlManager.roleChange(newRole));
+        };
     }
 
     private boolean dispatchWatchTask() {
@@ -340,12 +345,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         return b;
     }
 
-    /**
-     * may be called in other threads.
-     */
     @Override
     protected void doStop(DtTime timeout, boolean force) {
-        ttlManager.stop();
+        // assert submit result is true
+        dtkvExecutor.submitTaskInFiberThread(() -> ttlManager.stop = true);
         dtkvExecutor.stop();
     }
 
@@ -357,8 +360,29 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
     }
 
-    private void expire(RaftInput input, RaftCallback callback) {
+    private void expire(TtlInfo ttlInfo) {
+        // expire operation should execute in state machine after write quorum is reached,
+        // this is, submit as a raft task.
+        KvReq req = new KvReq();
+        req.key = ttlInfo.key.getData();
+        req.ttlMillis = ttlInfo.createIndex;
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_EXPIRE, null, req, null, false);
+        RaftCallback callback = new RaftCallback() {
+            @Override
+            public void success(long raftIndex, Object result) {
+                // nothing to do here, to remove from pendingQueue:
+                // if CODE_SUCCESS, removed in KvImpl.doRemoveInLock
+                // if KvCodes.CODE_NOT_FOUND, no need to remove, already removed
+                // if KvCodes.CODE_NOT_EXPIRED, removed when updateTtl() called
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                // ignore submit failure (group stopped)
+                dtkvExecutor.submitTaskInAnyThread(() -> ttlManager.retry(ttlInfo, ex));
+            }
+        };
         // no flow control here
-        raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(LogItem.TYPE_NORMAL, input, callback);
+        raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(LogItem.TYPE_NORMAL, ri, callback);
     }
 }

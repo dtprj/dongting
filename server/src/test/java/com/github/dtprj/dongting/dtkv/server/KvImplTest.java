@@ -48,8 +48,7 @@ class KvImplTest {
     void setUp() {
         ver = 1;
         ts = new Timestamp();
-        DtKVExecutor e = new DtKVExecutor(1, ts, null);
-        TtlManager tm = new TtlManager(1, ts, e, null);
+        TtlManager tm = new TtlManager(ts, null);
         kv = new KvImpl(null, tm, ts, 0, 16, 0.75f);
     }
 
