@@ -177,13 +177,20 @@ class DtKVExecutor {
          * this method should be called in the executor(fiber thread or separateExecutor thread).
          */
         public void signal() {
+            if (shouldStop()) {
+                return;
+            }
             if (cond == null) {
                 cond.signal();
             } else {
                 if (future != null) {
                     future.cancel(false);
                     future = null;
-                    executor.execute(this);
+                    try {
+                        executor.execute(this);
+                    } catch (RejectedExecutionException e) {
+                        log.warn("executor stopped, signal failed");
+                    }
                 }
             }
         }
