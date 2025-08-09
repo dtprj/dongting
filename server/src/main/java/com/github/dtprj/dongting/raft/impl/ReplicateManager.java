@@ -338,12 +338,12 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             for (int i = 0; i < limit; i++) {
                 RaftTask rt = tailCache.get(nextIndex + i);
                 //noinspection DataFlowIssue
-                LogItem li = rt.getItem();
+                LogItem li = rt.item;
                 size += li.getActualBodySize();
                 if (i > 0 && size > sizeLimit) {
                     break;
                 }
-                leaseStartNanos = rt.getCreateTimeNanos();
+                leaseStartNanos = rt.createTimeNanos;
                 li.retain();
                 items.add(li);
             }

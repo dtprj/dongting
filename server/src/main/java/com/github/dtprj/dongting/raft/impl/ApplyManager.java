@@ -151,7 +151,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
         raftStatus.lastApplying = index;
-        switch (rt.getType()) {
+        switch (rt.type) {
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
             case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
@@ -163,8 +163,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 });
             case LogItem.TYPE_NORMAL:
             case LogItem.TYPE_LOG_READ: {
-                RaftInput input = rt.getInput();
-                if (input.isReadOnly() && rt.getCallback() == null) {
+                RaftInput input = rt.input;
+                if (input.isReadOnly() && rt.callback == null) {
                     // no need to execute read only task if no one wait for result
                     afterExec(index, rt, null, null);
                 } else {
@@ -177,9 +177,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                     } catch (Throwable e) {
                         execEx = e;
                     } finally {
-                        if (input.isReadOnly() && rt.getItem() != null) {
+                        if (input.isReadOnly() && rt.item != null) {
                             // release log read resource as soon as possible
-                            rt.getItem().release();
+                            rt.item.release();
                         }
                     }
                     if (execEx != null) {
@@ -269,13 +269,13 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private void afterExec(long index, RaftTask rt, Object execResult, Throwable execEx) {
-        if (execEx != null && !rt.getInput().isReadOnly()) {
+        if (execEx != null && !rt.input.isReadOnly()) {
             throw Fiber.fatal(execEx);
         }
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
-        raftStatus.lastAppliedTerm = rt.getItem().getTerm();
+        raftStatus.lastAppliedTerm = rt.item.getTerm();
 
         long[] a = raftStatus.commitHistory.getFirst();
         if (a != null && index >= a[0]) {
@@ -318,7 +318,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
     private void tryApplyHeartBeat(long appliedIndex) {
         RaftTask t = heartBeatQueue.peekFirst();
-        if (t != null && t.getItem().getIndex() == appliedIndex + 1) {
+        if (t != null && t.item.getIndex() == appliedIndex + 1) {
             heartBeatQueue.pollFirst();
             afterExec(appliedIndex + 1, t, null, null);
         }
@@ -442,7 +442,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null,
                     item.getType() == LogItem.TYPE_LOG_READ);
             RaftTask result = new RaftTask(ts, item.getType(), input, null);
-            result.setItem(item);
+            result.item = item;
             return result;
         }
     }
@@ -459,7 +459,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (raftStatus.getLastApplied() != rt.getItem().getIndex() - 1) {
+            if (raftStatus.getLastApplied() != rt.item.getIndex() - 1) {
                 waitApply = true;
                 return applyFinishCond.await(this::afterApplyFinish);
             }
@@ -470,20 +470,20 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             waitApply = false;
             StatusManager statusManager = gc.statusManager;
             statusManager.persistAsync(true);
-            switch (rt.getType()) {
+            switch (rt.type) {
                 case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);
                 case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    return gc.memberManager.doAbort(rt.getItem().getIndex());
+                    return gc.memberManager.doAbort(rt.item.getIndex());
                 case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    return gc.memberManager.doCommit(rt.getItem().getIndex());
+                    return gc.memberManager.doCommit(rt.item.getIndex());
                 default:
                     throw Fiber.fatal(new RaftException("unknown config change type"));
             }
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
-            byte[] data = ((ByteArray) rt.getInput().getBody()).getData();
+            byte[] data = ((ByteArray) rt.input.getBody()).getData();
             String dataStr = new String(data);
             String[] fields = dataStr.split(";", -1);
             Set<Integer> oldMemberIds = parseSet(fields[0]);
@@ -498,7 +498,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
                         oldObserverIds, raftStatus.nodeIdOfObservers, raftStatus.groupId);
             }
-            return gc.memberManager.doPrepare(rt.getItem().getIndex(), newMemberIds, newObserverIds);
+            return gc.memberManager.doPrepare(rt.item.getIndex(), newMemberIds, newObserverIds);
         }
 
         private Set<Integer> parseSet(String s) {

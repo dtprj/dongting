@@ -99,7 +99,7 @@ public class LinearTaskRunner {
         private FrameCallResult afterTakeAll(Void unused) {
             if (isGroupShouldStopPlain()) {
                 for (RaftTask rt : list) {
-                    RaftUtil.release(rt.getInput());
+                    RaftUtil.release(rt.input);
                     rt.callFail(new RaftException("raft group is stopping"));
                 }
                 // fiber exit
@@ -151,7 +151,7 @@ public class LinearTaskRunner {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
-                RaftUtil.release(t.getInput());
+                RaftUtil.release(t.input);
                 t.callFail(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
             }
             return FiberFrame.voidCompletedFrame();
@@ -162,7 +162,7 @@ public class LinearTaskRunner {
         int currentTerm = raftStatus.currentTerm;
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
-            RaftInput input = rt.getInput();
+            RaftInput input = rt.input;
             if (input.getPerfTime() != 0) {
                 perfCallback.fireTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, input.getPerfTime());
             }
@@ -177,7 +177,7 @@ public class LinearTaskRunner {
 
             newIndex++;
             LogItem item = new LogItem();
-            item.setType(rt.getType());
+            item.setType(rt.type);
             item.setBizType(input.getBizType());
             item.setTerm(currentTerm);
             item.setIndex(newIndex);
@@ -188,7 +188,7 @@ public class LinearTaskRunner {
             item.setHeader(input.getHeader(), input.isHeadReleasable());
             item.setBody(input.getBody(), input.isBodyReleasable());
 
-            rt.setItem(item);
+            rt.item = item;
         }
 
         return append(raftStatus, inputs);
@@ -199,7 +199,7 @@ public class LinearTaskRunner {
         ArrayList<LogItem> logItems = new ArrayList<>(inputs.size());
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
-            LogItem li = rt.getItem();
+            LogItem li = rt.item;
             if (li == null) {
                 // filer timeout items, released, see raftExec()
                 continue;

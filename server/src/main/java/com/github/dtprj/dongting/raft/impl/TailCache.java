@@ -66,7 +66,7 @@ public final class TailCache {
         }
         cache.addLast(value);
         pending++;
-        pendingBytes += value.getInput().getFlowControlSize();
+        pendingBytes += value.input.getFlowControlSize();
         if ((index & 0x0F) == 0) { // call cleanPending 1/16
             cleanOld();
         }
@@ -107,9 +107,9 @@ public final class TailCache {
 
     private void release(RaftTask t) {
         pending--;
-        pendingBytes = Math.max(pendingBytes - t.getInput().getFlowControlSize(), 0);
-        if (t.getItem() != null) {
-            t.getItem().release();
+        pendingBytes = Math.max(pendingBytes - t.input.getFlowControlSize(), 0);
+        if (t.item != null) {
+            t.item.release();
         }
     }
 
@@ -119,7 +119,7 @@ public final class TailCache {
         }
         RaftTask t = cache.removeFirst();
         if (t != null) {
-            if (!t.getInput().isReadOnly()) {
+            if (!t.input.isReadOnly()) {
                 release(t);
             }
             // read only task release on apply manager
@@ -161,7 +161,7 @@ public final class TailCache {
             }
             RaftTask t = cache.get(0);
             if (pending <= groupConfig.maxPendingRaftTasks && pendingBytes <= groupConfig.maxPendingTaskBytes) {
-                if (t.getCreateTimeNanos() - timeBound >= 0) {
+                if (t.createTimeNanos - timeBound >= 0) {
                     // this item not timeout, so next items not timeout
                     break;
                 } else {

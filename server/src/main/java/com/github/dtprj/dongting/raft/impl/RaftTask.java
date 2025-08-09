@@ -25,12 +25,11 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
  */
 public class RaftTask {
 
-    private final int type;
-    private final RaftInput input;
-    private final RaftCallback callback;
-    private final long createTimeNanos;
-
-    private LogItem item;
+    public final int type;
+    public final RaftInput input;
+    public final RaftCallback callback;
+    public final long createTimeNanos;
+    public LogItem item;
 
     private boolean invokeCallback;
 
@@ -40,31 +39,6 @@ public class RaftTask {
         this.input = input;
         this.callback = callback;
     }
-
-    public RaftCallback getCallback() {
-        return callback;
-    }
-
-    public LogItem getItem() {
-        return item;
-    }
-
-    public void setItem(LogItem item) {
-        this.item = item;
-    }
-
-    public long getCreateTimeNanos() {
-        return createTimeNanos;
-    }
-
-    public RaftInput getInput() {
-        return input;
-    }
-
-    public int getType() {
-        return type;
-    }
-
 
     public void callSuccess(Object r) {
         if (!invokeCallback) {
