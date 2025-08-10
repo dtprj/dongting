@@ -54,7 +54,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -321,7 +320,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 return await();
             } else {
                 updateCommitIndex = true;
-                sendAppendRequest(member, Collections.emptyList(), 0);
+                sendAppendRequest(member, Collections.emptyList());
                 return Fiber.resume(null, this);
             }
         }
@@ -334,7 +333,6 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             long sizeLimit = groupConfig.singleReplicateLimit;
             ArrayList<LogItem> items = new ArrayList<>(limit);
             long size = 0;
-            long leaseStartNanos = 0;
             for (int i = 0; i < limit; i++) {
                 RaftTask rt = tailCache.get(nextIndex + i);
                 //noinspection DataFlowIssue
@@ -343,11 +341,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 if (i > 0 && size > sizeLimit) {
                     break;
                 }
-                leaseStartNanos = rt.createTimeNanos;
                 li.retain();
                 items.add(li);
             }
-            sendAppendRequest(member, items, leaseStartNanos);
+            sendAppendRequest(member, items);
             return Fiber.resume(null, this);
         } else {
             if (replicateIterator == null) {
@@ -376,13 +373,11 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return Fiber.resume(null, this);
         }
 
-        // can't get real lease start time since it's not be persisted
-        long leaseStartTime = ts.getNanoTime() - Duration.ofDays(1).toNanos();
-        sendAppendRequest(member, items, leaseStartTime);
+        sendAppendRequest(member, items);
         return Fiber.resume(null, this);
     }
 
-    private void sendAppendRequest(RaftMember member, List<LogItem> items, long leaseStartNanos) {
+    private void sendAppendRequest(RaftMember member, List<LogItem> items) {
         AppendReqWritePacket req = new AppendReqWritePacket();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.groupId = groupId;
@@ -410,6 +405,8 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
         long finalBytes = bytes;
         Executor ge = groupConfig.fiberGroup.getExecutor();
+        ts.refresh(1); // make sure timestamp is not too old
+        long leaseStartNanos = ts.nanoTime;
         RpcCallback<AppendResp> c = (result, ex) ->
                 ge.execute(() -> afterAppendRpc(result, ex, req, leaseStartNanos, finalBytes, perfStartTime));
         // release in AppendReqWritePacket

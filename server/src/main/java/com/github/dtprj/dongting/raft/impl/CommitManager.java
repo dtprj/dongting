@@ -87,7 +87,9 @@ public class CommitManager {
             RaftMember self = raftStatus.self;
             self.nextIndex = lastPersistIndex + 1;
             self.matchIndex = lastPersistIndex;
-            self.lastConfirmReqNanos = raftStatus.ts.getNanoTime();
+
+            raftStatus.ts.refresh(1); // make sure timestamp is not too old
+            self.lastConfirmReqNanos = raftStatus.ts.nanoTime;
 
             RaftUtil.updateLease(raftStatus);
 
