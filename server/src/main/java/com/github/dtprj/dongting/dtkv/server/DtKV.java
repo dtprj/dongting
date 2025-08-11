@@ -172,24 +172,27 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             throw new DtBugException("dtkv is install snapshot");
         }
         KvReq req = (KvReq) input.getBody();
+        KvImpl kv = kvStatus.kvImpl;
+        kv.opContext.init(req.ownerUuid, req.ttlMillis);
         ByteArray key = req.key == null ? null : new ByteArray(req.key);
         switch (input.getBizType()) {
             case BIZ_TYPE_PUT:
-                return kvStatus.kvImpl.put(index, key, req.value, req.ownerUuid, req.ttlMillis);
+                return kv.put(index, key, req.value);
             case BIZ_TYPE_REMOVE:
-                return kvStatus.kvImpl.remove(index, key, req.ownerUuid);
+                return kv.remove(index, key);
             case BIZ_TYPE_MKDIR:
-                return kvStatus.kvImpl.mkdir(index, key, req.ownerUuid, req.ttlMillis);
+                return kv.mkdir(index, key);
             case BIZ_TYPE_BATCH_PUT:
-                return kvStatus.kvImpl.batchPut(index, req.keys, req.values, req.ownerUuid, req.ttlMillis);
+                return kv.batchPut(index, req.keys, req.values);
             case BIZ_TYPE_BATCH_REMOVE:
-                return kvStatus.kvImpl.batchRemove(index, req.keys, req.ownerUuid);
+                return kv.batchRemove(index, req.keys);
             case BIZ_TYPE_CAS:
-                return kvStatus.kvImpl.compareAndSet(index, key, req.expectValue, req.value, req.ownerUuid);
+                return kv.compareAndSet(index, key, req.expectValue, req.value);
             case BIZ_TYPE_EXPIRE:
-                return kvStatus.kvImpl.expire(index, key, req.ttlMillis);
+                long expectCreateRaftIndex = req.ttlMillis; // yes!
+                return kv.expire(index, key, expectCreateRaftIndex);
             case BIZ_TYPE_UPDATE_TTL:
-                return kvStatus.kvImpl.updateTtl(index, key, req.ownerUuid, req.ttlMillis);
+                return kv.updateTtl(index, key);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }

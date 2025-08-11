@@ -50,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class WatchManagerTest {
 
+    private final UUID selfUuid = UUID.randomUUID();
+
     private KvConfig kvConfig;
     private WatchManager manager;
     private KvImpl kv;
@@ -805,15 +807,18 @@ public class WatchManagerTest {
 
 
     private void put(String key, String value) {
-        kv.put(raftIndex++, ba(key), value.getBytes(), null, 0);
+        kv.opContext.init(selfUuid, 0);
+        kv.put(raftIndex++, ba(key), value.getBytes());
     }
 
     private void mkdir(String key) {
-        kv.mkdir(raftIndex++, ba(key), null, 0);
+        kv.opContext.init(selfUuid, 0);
+        kv.mkdir(raftIndex++, ba(key));
     }
 
     private void remove(String key) {
-        kv.remove(raftIndex++, ba(key), null);
+        kv.opContext.init(selfUuid, 0);
+        kv.remove(raftIndex++, ba(key));
     }
 
     private ByteArray ba(String s) {

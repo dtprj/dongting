@@ -57,27 +57,33 @@ class KvImplTest {
     }
 
     private KvResult put(long index, ByteArray key, byte[] data) {
-        return kv.put(index, key, data, selfUuid, 0);
+        kv.opContext.init(selfUuid, 0);
+        return kv.put(index, key, data);
     }
 
     private KvResult mkdir(long index, ByteArray key) {
-        return kv.mkdir(index, key, selfUuid, 0);
+        kv.opContext.init(selfUuid, 0);
+        return kv.mkdir(index, key);
     }
 
     private KvResult remove(long index, ByteArray key) {
-        return kv.remove(index, key, selfUuid);
+        kv.opContext.init(selfUuid, 0);
+        return kv.remove(index, key);
     }
 
     private Pair<Integer, List<KvResult>> batchRemove(long index, List<byte[]> keys) {
-        return kv.batchRemove(index, keys, selfUuid);
+        kv.opContext.init(selfUuid, 0);
+        return kv.batchRemove(index, keys);
     }
 
     private Pair<Integer, List<KvResult>> batchPut(long index, List<byte[]> keys, List<byte[]> values) {
-        return kv.batchPut(index, keys, values, selfUuid, 0);
+        kv.opContext.init(selfUuid, 0);
+        return kv.batchPut(index, keys, values);
     }
 
     private KvResult compareAndSet(long index, ByteArray key, byte[] expectedValue, byte[] newValue) {
-        return kv.compareAndSet(index, key, expectedValue, newValue, selfUuid);
+        kv.opContext.init(selfUuid, 0);
+        return kv.compareAndSet(index, key, expectedValue, newValue);
     }
 
     @Test
