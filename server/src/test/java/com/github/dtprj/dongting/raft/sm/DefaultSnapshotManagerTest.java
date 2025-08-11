@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -117,7 +118,8 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 KvReq req = new KvReq(1, ("key" + index).getBytes(), ("value" + index).getBytes());
                 RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
                         new DtTime(1, TimeUnit.SECONDS), false);
-                FiberFuture<Object> f = kv.exec(index++, i);
+                Timestamp ts = groupConfig.ts;
+                FiberFuture<Object> f = kv.exec(index++, ts.wallClockMillis, ts.nanoTime, i);
                 return f.await(this::afterPut);
             }
 

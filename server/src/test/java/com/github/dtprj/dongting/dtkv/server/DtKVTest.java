@@ -53,6 +53,7 @@ public class DtKVTest extends BaseFiberTest {
     private boolean useSeparateExecutor;
 
     private DtKV kv;
+    private Timestamp ts;
 
     @BeforeEach
     void setUp() {
@@ -60,10 +61,11 @@ public class DtKVTest extends BaseFiberTest {
     }
 
     private DtKV createAndStart() throws Exception {
+        ts = fiberGroup.dispatcher.ts;
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
-        groupConfig.raftStatus = new RaftStatusImpl(1, new Timestamp());
+        groupConfig.raftStatus = new RaftStatusImpl(1, ts);
         groupConfig.fiberGroup = fiberGroup;
-        groupConfig.ts = fiberGroup.dispatcher.ts;
+        groupConfig.ts = ts;
         KvConfig kvConfig = new KvConfig();
         kvConfig.useSeparateExecutor = this.useSeparateExecutor;
         kvConfig.initMapCapacity = 16;
@@ -81,7 +83,7 @@ public class DtKVTest extends BaseFiberTest {
         KvReq req = new KvReq(1, key.getBytes(), value.getBytes());
         RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
                 new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, i);
+        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, i);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -91,7 +93,7 @@ public class DtKVTest extends BaseFiberTest {
         KvReq batchPutReq = new KvReq(1, keyList, valueList);
         RaftInput batchPutInput = new RaftInput(DtKV.BIZ_TYPE_BATCH_PUT, null, batchPutReq,
                 new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, batchPutInput);
+        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, batchPutInput);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -99,7 +101,7 @@ public class DtKVTest extends BaseFiberTest {
         KvReq req = new KvReq(1, key.getBytes(), null);
         RaftInput i = new RaftInput(DtKV.BIZ_TYPE_REMOVE, null, req,
                 new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, i);
+        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, i);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -108,7 +110,7 @@ public class DtKVTest extends BaseFiberTest {
         KvReq batchRemoveReq = new KvReq(1, keyList, null);
         RaftInput batchRemoveInput = new RaftInput(DtKV.BIZ_TYPE_BATCH_REMOVE, null, batchRemoveReq,
                 new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, batchRemoveInput);
+        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, batchRemoveInput);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -116,7 +118,7 @@ public class DtKVTest extends BaseFiberTest {
         KvReq req = new KvReq(1, key.getBytes(), null);
         RaftInput i = new RaftInput(DtKV.BIZ_TYPE_MKDIR, null,
                 req, new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, i);
+        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, i);
     }
 
     private KvResult get(String key) {
@@ -213,7 +215,7 @@ public class DtKVTest extends BaseFiberTest {
                 KvReq casReq = new KvReq(1, "cas_key".getBytes(), "new_value".getBytes(), "old_value".getBytes());
                 RaftInput casInput = new RaftInput(DtKV.BIZ_TYPE_CAS, null, casReq,
                         new DtTime(1, TimeUnit.SECONDS), false);
-                return kv.exec(ver++, casInput).await(this::afterCas);
+                return kv.exec(ver++, ts.wallClockMillis,ts.nanoTime, casInput).await(this::afterCas);
             }
 
             private FrameCallResult afterCas(Object result) {

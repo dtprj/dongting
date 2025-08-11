@@ -144,13 +144,13 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public FiberFuture<Object> exec(long index, RaftInput input) {
+    public FiberFuture<Object> exec(long index, long leaderCreateTimeMillis, long localCreateNanos, RaftInput input) {
         FiberFuture<Object> f = mainFiberGroup.newFuture("dtkv-exec");
         if (useSeparateExecutor) {
             // assert submit success
             dtkvExecutor.submitTaskInFiberThread(() -> {
                 try {
-                    Object r = exec0(index, input);
+                    Object r = exec0(index, leaderCreateTimeMillis, localCreateNanos, input);
                     f.fireComplete(r);
                 } catch (Exception e) {
                     f.fireCompleteExceptionally(e);
@@ -158,7 +158,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             });
         } else {
             try {
-                Object r = exec0(index, input);
+                Object r = exec0(index, leaderCreateTimeMillis, localCreateNanos, input);
                 f.complete(r);
             } catch (Exception e) {
                 f.completeExceptionally(e);
@@ -167,7 +167,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         return f;
     }
 
-    private Object exec0(long index, RaftInput input) {
+    private Object exec0(long index, long leaderCreateTimeMillis, long localCreateNanos, RaftInput input) {
         if (kvStatus.installSnapshot) {
             throw new DtBugException("dtkv is install snapshot");
         }
