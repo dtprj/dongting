@@ -807,17 +807,17 @@ public class WatchManagerTest {
 
 
     private void put(String key, String value) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         kv.put(raftIndex++, ba(key), value.getBytes());
     }
 
     private void mkdir(String key) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         kv.mkdir(raftIndex++, ba(key));
     }
 
     private void remove(String key) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         kv.remove(raftIndex++, ba(key));
     }
 

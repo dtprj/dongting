@@ -261,13 +261,17 @@ class KvImpl {
     public static class OpContext {
         private UUID operator;
         private long ttlMillis;
+        private long leaderCreateTimeMillis;
+        private long localCreateNanos;
 
         private OpContext() {
         }
 
-        public void init(UUID operator, long ttlMillis) {
+        public void init(UUID operator, long ttlMillis, long leaderCreateTimeMillis, long localCreateNanos) {
             this.operator = operator;
             this.ttlMillis = ttlMillis;
+            this.leaderCreateTimeMillis = leaderCreateTimeMillis;
+            this.localCreateNanos = localCreateNanos;
         }
     }
 

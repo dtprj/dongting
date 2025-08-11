@@ -57,32 +57,32 @@ class KvImplTest {
     }
 
     private KvResult put(long index, ByteArray key, byte[] data) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         return kv.put(index, key, data);
     }
 
     private KvResult mkdir(long index, ByteArray key) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         return kv.mkdir(index, key);
     }
 
     private KvResult remove(long index, ByteArray key) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         return kv.remove(index, key);
     }
 
     private Pair<Integer, List<KvResult>> batchRemove(long index, List<byte[]> keys) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         return kv.batchRemove(index, keys);
     }
 
     private Pair<Integer, List<KvResult>> batchPut(long index, List<byte[]> keys, List<byte[]> values) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         return kv.batchPut(index, keys, values);
     }
 
     private KvResult compareAndSet(long index, ByteArray key, byte[] expectedValue, byte[] newValue) {
-        kv.opContext.init(selfUuid, 0);
+        kv.opContext.init(selfUuid, 0, ts.nanoTime, ts.nanoTime);
         return kv.compareAndSet(index, key, expectedValue, newValue);
     }
 
