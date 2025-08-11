@@ -284,6 +284,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         testLoader(() -> raftLog.openIterator(() -> false));
         testLoader(() -> new FileLogLoader(raftLog.idxFiles, raftLog.logFiles, config,
                 null, () -> false, 99));
+        // test cancel indicator
         doInFiber(new FiberFrame<>() {
             final RaftLog.LogIterator it = raftLog.openIterator(() -> true);
 
@@ -303,6 +304,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
+        // test cancel indicator
         doInFiber(new FiberFrame<>() {
             int count;
             final RaftLog.LogIterator it = raftLog.openIterator(() -> count++ >= 1);
@@ -325,7 +327,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         });
 
         RaftInput input = new RaftInput(0, null, null, null, false);
-        raftStatus.tailCache.put(3, new RaftTask(raftStatus.ts, 0, input, null));
+        raftStatus.tailCache.put(3, new RaftTask(0, input, null));
+        // test cancel if tail cache has next item
         doInFiber(new FiberFrame<>() {
             final RaftLog.LogIterator it = raftLog.openIterator(() -> false);
 
@@ -436,9 +439,9 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             tailCache.cleanAll();
             for (int j = list.size() - i; j < list.size(); j++) {
                 RaftInput ri = new RaftInput(0, null, null, null, false);
-                RaftTask t = new RaftTask(raftStatus.ts, 0, ri, null);
+                RaftTask t = new RaftTask(0, ri, null);
                 LogItem li = list.get(j);
-                t.item = li;
+                t.init(li, raftStatus.ts);
                 tailCache.put(li.getIndex(), t);
             }
             testMatch();

@@ -28,16 +28,20 @@ public class RaftTask {
     public final int type;
     public final RaftInput input;
     public final RaftCallback callback;
-    public final long createTimeNanos;
+    public long createTimeNanos;
     public LogItem item;
 
     private boolean invokeCallback;
 
-    public RaftTask(Timestamp ts, int type, RaftInput input, RaftCallback callback) {
-        this.createTimeNanos = ts.getNanoTime();
+    public RaftTask(int type, RaftInput input, RaftCallback callback) {
         this.type = type;
         this.input = input;
         this.callback = callback;
+    }
+
+    public void init(LogItem item, Timestamp ts) {
+        this.createTimeNanos = ts.nanoTime;
+        this.item = item;
     }
 
     public void callSuccess(Object r) {

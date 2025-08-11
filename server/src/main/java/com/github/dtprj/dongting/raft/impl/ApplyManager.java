@@ -437,8 +437,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
             RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null,
                     item.getType() == LogItem.TYPE_LOG_READ);
-            RaftTask rt = new RaftTask(ts, item.getType(), input, null);
-            rt.item = item;
+            RaftTask rt = new RaftTask(item.getType(), input, null);
+            rt.init(item, ts);
 
             return exec(rt, item.getIndex(), this);
         }

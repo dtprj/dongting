@@ -120,7 +120,7 @@ public class LinearTaskRunner {
                 return Fiber.call(raftExec(list), this);
             } else if (raftStatus.getRole() == RaftRole.leader) {
                 RaftInput input = createHeartBeatInput();
-                RaftTask task = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
+                RaftTask task = new RaftTask(LogItem.TYPE_HEARTBEAT, input, null);
                 return Fiber.call(raftExec(Collections.singletonList(task)), this);
             }
             // loop
@@ -129,7 +129,7 @@ public class LinearTaskRunner {
     }
 
     public void submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {
-        RaftTask t = new RaftTask(raftStatus.ts, raftLogType, input, callback);
+        RaftTask t = new RaftTask(raftLogType, input, callback);
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
         if (!taskChannel.fireOffer(t, true)) {
             RaftUtil.release(input);
@@ -183,12 +183,12 @@ public class LinearTaskRunner {
             item.setIndex(newIndex);
             item.setPrevLogTerm(prevTerm);
             prevTerm = currentTerm;
-            item.setTimestamp(ts.getWallClockMillis());
+            item.setTimestamp(ts.wallClockMillis);
 
             item.setHeader(input.getHeader(), input.isHeadReleasable());
             item.setBody(input.getBody(), input.isBodyReleasable());
 
-            rt.item = item;
+            rt.init(item, ts);
         }
 
         return append(raftStatus, inputs);
