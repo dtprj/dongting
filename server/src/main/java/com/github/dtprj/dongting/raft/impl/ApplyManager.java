@@ -422,7 +422,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
 
         @Override
-        public FrameCallResult execute(Void input) {
+        public FrameCallResult execute(Void v) {
             if (shouldStopApply()) {
                 return Fiber.frameReturn();
             }
@@ -434,17 +434,15 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 return Fiber.frameReturn();
             }
             LogItem item = items.get(listIndex++);
-            RaftTask rt = buildRaftTask(item);
+
+            RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null,
+                    item.getType() == LogItem.TYPE_LOG_READ);
+            RaftTask rt = new RaftTask(ts, item.getType(), input, null);
+            rt.item = item;
+
             return exec(rt, item.getIndex(), this);
         }
 
-        private RaftTask buildRaftTask(LogItem item) {
-            RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null,
-                    item.getType() == LogItem.TYPE_LOG_READ);
-            RaftTask result = new RaftTask(ts, item.getType(), input, null);
-            result.item = item;
-            return result;
-        }
     }
 
     private class ConfigChangeFrame extends FiberFrame<Void> {
