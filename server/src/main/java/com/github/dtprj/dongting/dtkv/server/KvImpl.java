@@ -333,7 +333,8 @@ class KvImpl {
         }
         boolean newValueIsDir = data == null || data.length == 0;
         if (current == null || current.latest.removed) {
-            KvNodeEx newKvNode = new KvNodeEx(index, ts.wallClockMillis, index, ts.wallClockMillis, newValueIsDir, data);
+            KvNodeEx newKvNode = new KvNodeEx(index, opContext.leaderCreateTimeMillis, index,
+                    opContext.leaderCreateTimeMillis, newValueIsDir, data);
             if (current == null) {
                 current = new KvNodeHolder(key, key.sub(lastIndexOfSep + 1), newKvNode, parent);
                 map.put(key, current);
@@ -346,7 +347,7 @@ class KvImpl {
                 watchManager.mountWatchToChild(current);
             }
             addToUpdateQueue(index, current);
-            updateParent(index, ts.wallClockMillis, parent);
+            updateParent(index, opContext.leaderCreateTimeMillis, parent);
             return KvResult.SUCCESS;
         } else {
             // override
@@ -364,11 +365,11 @@ class KvImpl {
                     // node type not match
                     return new KvResult(KvCodes.CODE_DIR_EXISTS);
                 } else {
-                    KvNodeEx newKvNode = new KvNodeEx(oldNode, index, ts.wallClockMillis, data);
+                    KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
                     // ttlManager.updateTtl(current.key, newKvNode, ttlMillis);
                     addToUpdateQueue(index, current);
-                    updateParent(index, ts.wallClockMillis, parent);
+                    updateParent(index, opContext.leaderCreateTimeMillis, parent);
                     return KvResult.SUCCESS_OVERWRITE;
                 }
             }
@@ -544,12 +545,12 @@ class KvImpl {
     }
 
     private KvResult doRemoveInLock(long index, KvNodeHolder h) {
-        long now = ts.wallClockMillis;
+        long logTime = opContext.leaderCreateTimeMillis;
         addToUpdateQueue(index, h);
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx n = h.latest;
             KvNodeEx newKvNode = new KvNodeEx(n.createIndex, n.createTime, index,
-                    now, n.isDir, null);
+                    logTime, n.isDir, null);
             newKvNode.removed = true;
             h.latest = newKvNode;
             newKvNode.previous = n;
@@ -567,7 +568,7 @@ class KvImpl {
             watchManager.mountWatchToParent(h);
         }
 
-        updateParent(index, now, h.parent);
+        updateParent(index, logTime, h.parent);
         return KvResult.SUCCESS;
     }
 
