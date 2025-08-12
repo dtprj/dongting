@@ -88,8 +88,8 @@ public class DtKVServerTest extends ServerTestBase {
             assertNull(batchGetResults.get(1));
 
             // Test compareAndSet
-            long casResult = client.compareAndSet(groupId, "casKey1".getBytes(), null, "value1".getBytes());
-            assertTrue(casResult > 0);
+            boolean casResult = client.compareAndSet(groupId, "casKey1".getBytes(), null, "value1".getBytes());
+            assertTrue(casResult);
             assertEquals("value1", new String(client.get(groupId, "casKey1".getBytes()).data));
 
         } finally {

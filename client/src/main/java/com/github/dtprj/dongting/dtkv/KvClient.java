@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
@@ -479,13 +480,14 @@ public class KvClient extends AbstractLifeCircle {
      * @param key not null or empty, use '.' as path separator
      * @param expectValue the expected value, null or empty indicates the key not exist
      * @param newValue the new value, null or empty indicates delete the key
-     * @return raft index of this write operation, it is useless in most cases.
+     * @return left: raft index of this write operation, it is useless in most cases;
+     *         right: c-a-s operation success or not.
      */
-    public long compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) {
-        CompletableFuture<Long> f = new CompletableFuture<>();
+    public boolean compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) {
+        CompletableFuture<Pair<Long, Integer>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         compareAndSet(groupId, key, expectValue, newValue, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        return waitFuture(f, timeout).getRight() == KvCodes.CODE_SUCCESS;
     }
 
     /**
@@ -499,12 +501,13 @@ public class KvClient extends AbstractLifeCircle {
      *                 Therefore, you should never perform any blocking or CPU-intensive operations within
      *                 these callbacks.
      */
-    public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue, FutureCallback<Long> callback) {
+    public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
+                              FutureCallback<Pair<Long, Integer>> callback) {
         compareAndSet(groupId, key, expectValue, newValue, raftClient.createDefaultTimeout(), callback);
     }
 
     private void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
-                               DtTime timeout, FutureCallback<Long> callback) {
+                               DtTime timeout, FutureCallback<Pair<Long, Integer>> callback) {
         notNullOrEmpty(key);
         KvReq r = new KvReq(groupId, key, newValue, expectValue);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -514,13 +517,8 @@ public class KvClient extends AbstractLifeCircle {
                 FutureCallback.callFail(callback, ex);
             } else {
                 int bc = result.getBizCode();
-                if (bc == KvCodes.CODE_SUCCESS) {
-                    FutureCallback.callSuccess(callback, result.getBody().raftIndex);
-                } else if (bc == KvCodes.CODE_CAS_MISMATCH) {
-                    FutureCallback.callSuccess(callback, 0L);
-                } else {
-                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(bc)));
-                }
+                long raftIndex = result.getBody().raftIndex;
+                FutureCallback.callSuccess(callback, new Pair<>(raftIndex, bc));
             }
         });
     }
