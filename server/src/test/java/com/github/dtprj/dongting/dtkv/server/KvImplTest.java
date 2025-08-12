@@ -580,6 +580,10 @@ class KvImplTest {
                 compareAndSet(ver++, ba("key1"), "value1".getBytes(), "value2".getBytes()).getBizCode());
         assertArrayEquals("value2".getBytes(), kv.get(ba("key1")).getNode().data);
 
+        // test CAS with null expectValue and null newValue
+        assertEquals(KvCodes.CODE_INVALID_VALUE,
+                compareAndSet(ver++, ba("xxx"), null, null).getBizCode());
+
         // test CAS delete
         assertEquals(KvCodes.CODE_SUCCESS,
                 compareAndSet(ver++, ba("key1"), "value2".getBytes(), null).getBizCode());
@@ -596,19 +600,19 @@ class KvImplTest {
         // Test CAS on a directory
         mkdir(ver++, ba("dir1"));
         assertEquals(KvCodes.CODE_CAS_MISMATCH,
-                compareAndSet(8, ba("dir1"), "any".getBytes(), "value".getBytes()).getBizCode());
+                compareAndSet(ver++, ba("dir1"), "any".getBytes(), "value".getBytes()).getBizCode());
 
         // Test CAS with parent dir checks
         mkdir(ver++, ba("parent"));
         assertEquals(KvCodes.CODE_SUCCESS,
-                compareAndSet(10, ba("parent.key1"), null, "value1".getBytes()).getBizCode());
+                compareAndSet(ver++, ba("parent.key1"), null, "value1".getBytes()).getBizCode());
         assertEquals(KvCodes.CODE_SUCCESS,
-                compareAndSet(11, ba("parent.key1"), "value1".getBytes(), "value2".getBytes()).getBizCode());
+                compareAndSet(ver++, ba("parent.key1"), "value1".getBytes(), "value2".getBytes()).getBizCode());
         assertArrayEquals("value2".getBytes(), kv.get(ba("parent.key1")).getNode().data);
 
         // Test CAS with non-existent parent directory
         assertEquals(KvCodes.CODE_PARENT_DIR_NOT_EXISTS,
-                compareAndSet(12, ba("nonexistent.key1"), null, "value".getBytes()).getBizCode());
+                compareAndSet(ver++, ba("nonexistent.key1"), null, "value".getBytes()).getBizCode());
     }
 
 }

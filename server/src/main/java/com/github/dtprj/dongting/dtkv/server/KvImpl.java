@@ -596,6 +596,12 @@ class KvImpl {
         if (ck != KvCodes.CODE_SUCCESS) {
             return new KvResult(ck);
         }
+        if (expectedValue == null || expectedValue.length == 0) {
+            if (newValue == null || newValue.length == 0) {
+                // don't mkdir
+                return new KvResult(KvCodes.CODE_INVALID_VALUE);
+            }
+        }
         KvNodeHolder parent;
         int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
         if (lastIndexOfSep > 0) {
@@ -727,14 +733,14 @@ class KvImpl {
         }
         KvNodeHolder h = map.get(key);
         if (h == null || h.latest.removed) {
-            if(log.isDebugEnabled()) {
+            if (log.isDebugEnabled()) {
                 log.debug("key {} is already removed", key);
             }
             return KvResult.NOT_FOUND;
         }
         if (h.latest.createIndex != expectCreateRaftIndex) {
             // the node is not the one we want to expire (maybe added after delete same key)
-            if(log.isDebugEnabled()) {
+            if (log.isDebugEnabled()) {
                 log.debug("key {} is already removed and re-add", key);
             }
             return KvResult.NOT_FOUND;
