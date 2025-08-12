@@ -92,10 +92,10 @@ public class KvClient extends AbstractLifeCircle {
         }
     }
 
-    private void notNullOrEmpty(byte[] key) {
-        Objects.requireNonNull(key);
+    private void notNullOrEmpty(byte[] key, String fieldName) {
+        Objects.requireNonNull(key, fieldName + " must not be null");
         if (key.length == 0) {
-            throw new IllegalArgumentException("key must not be null or empty");
+            throw new IllegalArgumentException(fieldName + " must not be empty");
         }
     }
 
@@ -128,8 +128,8 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private void put(int groupId, byte[] key, byte[] value, DtTime timeout, FutureCallback<Long> callback) {
-        notNullOrEmpty(key);
-        notNullOrEmpty(value);
+        notNullOrEmpty(key, "key");
+        notNullOrEmpty(value, "value");
         KvReq r = new KvReq(groupId, key, value);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
@@ -295,7 +295,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private void mkdir(int groupId, byte[] key, DtTime timeout, FutureCallback<Long> callback) {
-        notNullOrEmpty(key);
+        notNullOrEmpty(key, "key");
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_MKDIR);
@@ -343,10 +343,10 @@ public class KvClient extends AbstractLifeCircle {
             throw new IllegalArgumentException("keys and values must be same size and not empty");
         }
         for (byte[] key : keys) {
-            notNullOrEmpty(key);
+            notNullOrEmpty(key, "key");
         }
         for (byte[] value : values) {
-            notNullOrEmpty(value);
+            notNullOrEmpty(value, "value");
         }
         KvReq r = new KvReq(groupId, keys, values);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -466,7 +466,7 @@ public class KvClient extends AbstractLifeCircle {
             throw new IllegalArgumentException("keys must not be empty");
         }
         for (byte[] key : keys) {
-            notNullOrEmpty(key);
+            notNullOrEmpty(key, "key");
         }
         KvReq r = new KvReq(groupId, keys, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -475,7 +475,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * synchronously compare and set operation.
+     * Synchronously compare and set operation. This operation can't be used to create a directory.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param expectValue the expected value, null or empty indicates the key not exist
@@ -491,7 +491,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * asynchronously compare and set operation.
+     * Asynchronously compare and set operation. This operation can't be used to create a directory.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param expectValue the expected value, null or empty indicates the key not exist
@@ -508,7 +508,10 @@ public class KvClient extends AbstractLifeCircle {
 
     private void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
                                DtTime timeout, FutureCallback<Pair<Long, Integer>> callback) {
-        notNullOrEmpty(key);
+        notNullOrEmpty(key, "key");
+        if ((expectValue == null || expectValue.length == 0) && (newValue == null || newValue.length == 0)) {
+            throw new IllegalArgumentException("expectValue and newValue can't both be null or empty");
+        }
         KvReq r = new KvReq(groupId, key, newValue, expectValue);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_CAS);
