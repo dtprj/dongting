@@ -259,10 +259,10 @@ class KvImpl {
     }
 
     public static class OpContext {
-        private UUID operator;
-        private long ttlMillis;
-        private long leaderCreateTimeMillis;
-        private long localCreateNanos;
+        UUID operator;
+        long ttlMillis;
+        long leaderCreateTimeMillis;
+        long localCreateNanos;
 
         private OpContext() {
         }
@@ -342,7 +342,7 @@ class KvImpl {
             } else {
                 updateHolderAndGc(current, newKvNode, current.latest);
             }
-            ttlManager.initTtl(current.key, newKvNode, opContext.operator, opContext.ttlMillis);
+            ttlManager.initTtl(current.key, newKvNode, opContext);
             if (watchManager != null) {
                 watchManager.mountWatchToChild(current);
             }
@@ -713,7 +713,7 @@ class KvImpl {
         }
         long t = lock.writeLock();
         try {
-            ttlManager.updateTtl(key, h.latest, newTtlMillis);
+            ttlManager.updateTtl(key, h.latest, opContext);
         } finally {
             lock.unlockWrite(t);
         }

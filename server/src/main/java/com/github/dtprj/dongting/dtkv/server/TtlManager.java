@@ -129,11 +129,11 @@ class TtlManager {
         log.warn("expire failed: {}", ex.toString());
     }
 
-    public void initTtl(ByteArray key, KvNodeEx n, UUID ownerUuid, long ttlMillis) {
-        if (ttlMillis <= 0) {
+    public void initTtl(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
+        if (ctx.ttlMillis <= 0) {
             return;
         }
-        if (addNodeTtlAndAddToQueue(key, n, ownerUuid, ttlMillis)) {
+        if (addNodeTtlAndAddToQueue(key, n, ctx)) {
             task.signal();
         }
     }
@@ -148,8 +148,8 @@ class TtlManager {
         return n.ownerUuid.equals(currentOperator) ? null : new KvResult(KvCodes.CODE_NOT_OWNER);
     }
 
-    public void updateTtl(ByteArray key, KvNodeEx n, long newTtlMillis) {
-        if (newTtlMillis <= 0) {
+    public void updateTtl(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
+        if (ctx.ttlMillis <= 0) {
             return;
         }
         TtlInfo ttlInfo = n.ttlInfo;
@@ -157,20 +157,20 @@ class TtlManager {
             return;
         }
         doRemove(ttlInfo);
-        if (addNodeTtlAndAddToQueue(key, n, n.ownerUuid, newTtlMillis)) {
+        if (addNodeTtlAndAddToQueue(key, n, ctx)) {
             task.signal();
         }
     }
 
-    private boolean addNodeTtlAndAddToQueue(ByteArray key, KvNodeEx n, UUID owner, long ttlMillis) {
-        long sleepNanos = ttlMillis * 1_000_000;
+    private boolean addNodeTtlAndAddToQueue(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
+        long sleepNanos = ctx.ttlMillis * 1_000_000;
 
-        TtlInfo ttlInfo = new TtlInfo(key, n.createIndex, ts.nanoTime + sleepNanos);
+        TtlInfo ttlInfo = new TtlInfo(key, n.createIndex, ctx.localCreateNanos + sleepNanos);
         n.ttlInfo = ttlInfo;
 
-        n.ownerUuid = owner;
-        n.ttlMillis = ttlMillis;
-        n.expireTime = ts.wallClockMillis + ttlMillis;
+        n.ownerUuid = ctx.operator;
+        n.ttlMillis = ctx.ttlMillis;
+        n.expireTime = ctx.leaderCreateTimeMillis + ctx.ttlMillis;
 
         // assert not in ttl queue and pending queue pending queue
         ttlQueue.add(ttlInfo);
