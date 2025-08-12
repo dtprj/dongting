@@ -118,8 +118,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param key not null or empty, use '.' as path separator
      * @param value not null or empty
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      */
     public void put(int groupId, byte[] key, byte[] value, FutureCallback<Long> callback) {
         put(groupId, key, value, raftClient.createDefaultTimeout(), callback);
@@ -153,8 +154,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param groupId the raft group id
      * @param key use '.' as path separator, null or empty indicates the root node
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      */
     public void get(int groupId, byte[] key, FutureCallback<KvNode> callback) {
         get(groupId, key, raftClient.createDefaultTimeout(), callback);
@@ -200,8 +202,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param groupId the raft group id
      * @param key use '.' as path separator, null or empty indicates the root node
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      */
     public void list(int groupId, byte[] key, FutureCallback<List<KvResult>> callback) {
         list(groupId, key, raftClient.createDefaultTimeout(), callback);
@@ -247,8 +250,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      */
     public void remove(int groupId, byte[] key, FutureCallback<Long> callback) {
         remove(groupId, key, raftClient.createDefaultTimeout(), callback);
@@ -281,8 +285,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      */
     public void mkdir(int groupId, byte[] key, FutureCallback<Long> callback) {
         mkdir(groupId, key, raftClient.createDefaultTimeout(), callback);
@@ -320,8 +325,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param keys list of keys, key should not null or empty, use '.' as path separator
      * @param values list of values, not null or empty
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      * @see KvCodes
      */
     public void batchPut(int groupId, List<byte[]> keys, List<byte[]> values, FutureCallback<KvResp> callback) {
@@ -383,8 +389,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param groupId the raft group id
      * @param keys list of keys, use '.' as path separator
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      */
     public void batchGet(int groupId, List<byte[]> keys, FutureCallback<List<KvNode>> callback) {
         batchGet(groupId, keys, raftClient.createDefaultTimeout(), callback);
@@ -443,8 +450,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param groupId the raft group id
      * @param keys list of keys, key should not null or empty, use '.' as path separator
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      * @see KvCodes
      */
     public void batchRemove(int groupId, List<byte[]> keys, FutureCallback<KvResp> callback) {
@@ -487,8 +495,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param expectValue the expected value, null or empty indicates the key not exist
      * @param newValue the new value, null or empty indicates delete the key
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on raft thread or IO threads. Therefore, you should
-     *                 never perform any blocking or CPU-intensive operations within these callbacks.
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
      */
     public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue, FutureCallback<Long> callback) {
         compareAndSet(groupId, key, expectValue, newValue, raftClient.createDefaultTimeout(), callback);
