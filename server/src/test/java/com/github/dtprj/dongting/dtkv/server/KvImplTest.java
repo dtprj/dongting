@@ -56,37 +56,37 @@ class KvImplTest {
         return new ByteArray(str.getBytes());
     }
 
-    private void initOpContext() {
-        kv.opContext.init(selfUuid, 0, ts.wallClockMillis, ts.nanoTime);
+    private void initOpContext(int bizYpe) {
+        kv.opContext.init(bizYpe, selfUuid, 0, ts.wallClockMillis, ts.nanoTime);
     }
 
     private KvResult put(long index, ByteArray key, byte[] data) {
-        initOpContext();
+        initOpContext(DtKV.BIZ_TYPE_PUT);
         return kv.put(index, key, data);
     }
 
     private KvResult mkdir(long index, ByteArray key) {
-        initOpContext();
+        initOpContext(DtKV.BIZ_TYPE_MKDIR);
         return kv.mkdir(index, key);
     }
 
     private KvResult remove(long index, ByteArray key) {
-        initOpContext();
+        initOpContext(DtKV.BIZ_TYPE_REMOVE);
         return kv.remove(index, key);
     }
 
     private Pair<Integer, List<KvResult>> batchRemove(long index, List<byte[]> keys) {
-        initOpContext();
+        initOpContext(DtKV.BIZ_TYPE_BATCH_REMOVE);
         return kv.batchRemove(index, keys);
     }
 
     private Pair<Integer, List<KvResult>> batchPut(long index, List<byte[]> keys, List<byte[]> values) {
-        initOpContext();
+        initOpContext(DtKV.BIZ_TYPE_BATCH_PUT);
         return kv.batchPut(index, keys, values);
     }
 
     private KvResult compareAndSet(long index, ByteArray key, byte[] expectedValue, byte[] newValue) {
-        initOpContext();
+        initOpContext(DtKV.BIZ_TYPE_CAS);
         return kv.compareAndSet(index, key, expectedValue, newValue);
     }
 

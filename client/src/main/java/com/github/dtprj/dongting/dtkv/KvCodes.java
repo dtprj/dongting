@@ -39,52 +39,55 @@ public interface KvCodes {
     int CODE_REMOVE_ALL_WATCH = 16;
     int CODE_NOT_OWNER = 17;
     int CODE_NOT_TEMP_NODE = 18;
-    int CODE_NOT_EXPIRED = 19;
+    int CODE_IS_TEMP_NODE = 19;
+    int CODE_NOT_EXPIRED = 20;
 
     static String toStr(int code) {
         switch (code) {
             case CODE_SUCCESS:
-                return "success";
+                return "SUCCESS";
             case CODE_NOT_FOUND:
-                return "not found";
+                return "NOT_FOUND";
             case CODE_SUCCESS_OVERWRITE:
-                return "success overwrite";
+                return "SUCCESS_OVERWRITE";
             case CODE_DIR_EXISTS:
-                return "dir exists";
+                return "DIR_EXISTS";
             case CODE_VALUE_EXISTS:
-                return "value exists";
+                return "VALUE_EXISTS";
             case CODE_PARENT_NOT_DIR:
-                return "parent not dir";
+                return "PARENT_NOT_DIR";
             case CODE_INVALID_KEY:
-                return "invalid key";
+                return "INVALID_KEY";
             case CODE_INVALID_VALUE:
-                return "invalid value";
+                return "INVALID_VALUE";
             case CODE_PARENT_DIR_NOT_EXISTS:
-                return "parent dir not exists";
+                return "PARENT_DIR_NOT_EXISTS";
             case CODE_HAS_CHILDREN:
-                return "has children";
+                return "HAS_CHILDREN";
             case CODE_KEY_TOO_LONG:
-                return "key too long";
+                return "KEY_TOO_LONG";
             case CODE_VALUE_TOO_LONG:
-                return "value too long";
+                return "VALUE_TOO_LONG";
             case CODE_INSTALL_SNAPSHOT:
-                return "install snapshot";
+                return "INSTALL_SNAPSHOT";
             case CODE_CAS_MISMATCH:
-                return "cas mismatch";
+                return "CAS_MISMATCH";
             case CODE_CLIENT_REQ_ERROR:
-                return "client request error";
+                return "CLIENT_REQ_ERROR";
             case CODE_REMOVE_WATCH:
-                return "remove watch";
+                return "REMOVE_WATCH";
             case CODE_REMOVE_ALL_WATCH:
-                return "remove all watch";
+                return "REMOVE_ALL_WATCH";
             case CODE_NOT_OWNER:
-                return "not owner";
+                return "NOT_OWNER";
             case CODE_NOT_TEMP_NODE:
-                return "not temp node";
+                return "NOT_TEMP_NODE";
+            case CODE_IS_TEMP_NODE:
+                return "IS_TEMP_NODE";
             case CODE_NOT_EXPIRED:
-                return "not expired";
+                return "NOT_EXPIRED";
             default:
-                return "unknown";
+                return "UNKNOWN_CODE_" + code;
         }
     }
 }

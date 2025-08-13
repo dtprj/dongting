@@ -173,9 +173,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
         KvReq req = (KvReq) input.getBody();
         KvImpl kv = kvStatus.kvImpl;
-        kv.opContext.init(req.ownerUuid, req.ttlMillis, leaderCreateTimeMillis, localCreateNanos);
+        int bizType = input.getBizType();
+        kv.opContext.init(bizType, req.ownerUuid, req.ttlMillis, leaderCreateTimeMillis, localCreateNanos);
         ByteArray key = req.key == null ? null : new ByteArray(req.key);
-        switch (input.getBizType()) {
+        switch (bizType) {
             case BIZ_TYPE_PUT:
                 return kv.put(index, key, req.value);
             case BIZ_TYPE_REMOVE:

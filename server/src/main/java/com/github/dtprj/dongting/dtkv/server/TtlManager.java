@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.TreeSet;
-import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -138,14 +137,43 @@ class TtlManager {
         }
     }
 
-    public KvResult checkOwner(KvNodeEx n, UUID currentOperator, long ttlMillis) {
-        if (n.removed) {
-            return null;
+    public KvResult checkExistNode(KvNodeEx n, KvImpl.OpContext ctx) {
+        switch (ctx.bizType) {
+            case DtKV.BIZ_TYPE_PUT:
+            case DtKV.BIZ_TYPE_MKDIR:
+            case DtKV.BIZ_TYPE_BATCH_PUT:
+            case DtKV.BIZ_TYPE_CAS: {
+                if (n.removed) {
+                    return null;
+                }
+                if (n.ownerUuid != null) {
+                    return new KvResult(KvCodes.CODE_IS_TEMP_NODE);
+                }
+                return null;
+            }
+            case DtKV.BIZ_TYPE_REMOVE:
+            case DtKV.BIZ_TYPE_BATCH_REMOVE:
+                if (n.removed) {
+                    return null;
+                }
+                if (n.ownerUuid != null && !n.ownerUuid.equals(ctx.operator)) {
+                    return new KvResult(KvCodes.CODE_NOT_OWNER);
+                }
+                return null;
+            case DtKV.BIZ_TYPE_UPDATE_TTL: {
+                if (n.ownerUuid == null) {
+                    return new KvResult(KvCodes.CODE_NOT_TEMP_NODE);
+                }
+                if (!n.ownerUuid.equals(ctx.operator)) {
+                    return new KvResult(KvCodes.CODE_NOT_OWNER);
+                }
+                return null;
+            }
+            case DtKV.BIZ_TYPE_EXPIRE:
+                // call by raft leader, do not call this method
+            default:
+                throw new IllegalStateException(String.valueOf(ctx.bizType));
         }
-        if (n.ttlInfo == null) {
-            return ttlMillis <= 0 ? null : new KvResult(KvCodes.CODE_NOT_TEMP_NODE);
-        }
-        return n.ownerUuid.equals(currentOperator) ? null : new KvResult(KvCodes.CODE_NOT_OWNER);
     }
 
     public void updateTtl(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {

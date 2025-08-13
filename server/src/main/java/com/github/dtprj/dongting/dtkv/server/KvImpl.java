@@ -263,15 +263,17 @@ class KvImpl {
         long ttlMillis;
         long leaderCreateTimeMillis;
         long localCreateNanos;
+        int bizType;
 
         private OpContext() {
         }
 
-        public void init(UUID operator, long ttlMillis, long leaderCreateTimeMillis, long localCreateNanos) {
+        public void init(int bizType, UUID operator, long ttlMillis, long leaderCreateTimeMillis, long localCreateNanos) {
             this.operator = operator;
             this.ttlMillis = ttlMillis;
             this.leaderCreateTimeMillis = leaderCreateTimeMillis;
             this.localCreateNanos = localCreateNanos;
+            this.bizType = bizType;
         }
     }
 
@@ -308,7 +310,7 @@ class KvImpl {
         }
         KvNodeHolder h = map.get(key);
         if (h != null) {
-            KvResult r = ttlManager.checkOwner(h.latest, opContext.operator, opContext.ttlMillis);
+            KvResult r = ttlManager.checkExistNode(h.latest, opContext);
             if (r != null) {
                 return r;
             }
@@ -526,7 +528,7 @@ class KvImpl {
         if (n.removed) {
             return KvResult.NOT_FOUND;
         }
-        KvResult r = ttlManager.checkOwner(n, opContext.operator, 0);
+        KvResult r = ttlManager.checkExistNode(n, opContext);
         if (r != null) {
             return r;
         }
@@ -550,8 +552,7 @@ class KvImpl {
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx n = h.latest;
             KvNodeEx newKvNode = new KvNodeEx(n.createIndex, n.createTime, index,
-                    logTime, n.isDir, null);
-            newKvNode.removed = true;
+                    logTime, n.isDir);
             h.latest = newKvNode;
             newKvNode.previous = n;
             gc(h);
@@ -618,7 +619,7 @@ class KvImpl {
         }
         KvNodeHolder h = map.get(key);
         if (h != null) {
-            KvResult r = ttlManager.checkOwner(h.latest, opContext.operator, 0);
+            KvResult r = ttlManager.checkExistNode(h.latest, opContext);
             if (r != null) {
                 return r;
             }
@@ -713,7 +714,7 @@ class KvImpl {
         if (h == null || h.latest.removed) {
             return KvResult.NOT_FOUND;
         }
-        KvResult r = ttlManager.checkOwner(h.latest, opContext.operator, newTtlMillis);
+        KvResult r = ttlManager.checkExistNode(h.latest, opContext);
         if (r != null) {
             return r;
         }

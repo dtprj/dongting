@@ -24,17 +24,30 @@ import java.util.HashMap;
  * @author huangli
  */
 final class KvNodeEx extends KvNode {
+    private static final HashMap<ByteArray, KvNodeHolder> EMPTY_MAP = new HashMap<>(0);
+
     final HashMap<ByteArray, KvNodeHolder> children;
+    final boolean removed;
 
     KvNodeEx previous;
-    boolean removed;
 
     TtlInfo ttlInfo;
 
     public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
         super(createIndex, createTime, updateIndex, updateTime, dir, data);
+        this.removed = false;
         if (dir) {
             children = new HashMap<>();
+        } else {
+            children = null;
+        }
+    }
+
+    public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir) {
+        super(createIndex, createTime, updateIndex, updateTime, dir, null);
+        this.removed = true;
+        if (dir) {
+            children = EMPTY_MAP;
         } else {
             children = null;
         }
@@ -43,6 +56,7 @@ final class KvNodeEx extends KvNode {
     public KvNodeEx(KvNodeEx old, long updateIndex, long updateTime, byte[] newData) {
         super(old.createIndex, old.createTime, updateIndex, updateTime, old.isDir, newData);
         this.children = old.children;
+        this.removed = false;
         if (old.ttlInfo != null) {
             this.ttlInfo = old.ttlInfo;
             this.ownerUuid = old.ownerUuid;
