@@ -309,11 +309,9 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        if (h != null) {
-            KvResult r = ttlManager.checkExistNode(h.latest, opContext);
-            if (r != null) {
-                return r;
-            }
+        KvResult r = ttlManager.checkExistNode(h, opContext);
+        if (r != null) {
+            return r;
         }
         long stamp = lock ? this.lock.writeLock() : 0;
         try {
@@ -521,17 +519,11 @@ class KvImpl {
             return new KvResult(ck);
         }
         KvNodeHolder h = map.get(key);
-        if (h == null) {
-            return KvResult.NOT_FOUND;
-        }
-        KvNodeEx n = h.latest;
-        if (n.removed) {
-            return KvResult.NOT_FOUND;
-        }
-        KvResult r = ttlManager.checkExistNode(n, opContext);
+        KvResult r = ttlManager.checkExistNode(h, opContext);
         if (r != null) {
             return r;
         }
+        KvNodeEx n = h.latest;
         if (n.isDir && !n.children.isEmpty()) {
             return new KvResult(KvCodes.CODE_HAS_CHILDREN);
         }
@@ -618,11 +610,9 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        if (h != null) {
-            KvResult r = ttlManager.checkExistNode(h.latest, opContext);
-            if (r != null) {
-                return r;
-            }
+        KvResult r = ttlManager.checkExistNode(h, opContext);
+        if (r != null) {
+            return r;
         }
         long stamp = lock.writeLock();
         try {
@@ -652,7 +642,7 @@ class KvImpl {
                 if (newValue == null || newValue.length == 0) {
                     return doRemoveInLock(index, h);
                 } else {
-                    KvResult r = doPutInLock(index, key, newValue, h, parent, lastIndexOfSep);
+                    r = doPutInLock(index, key, newValue, h, parent, lastIndexOfSep);
                     return r == KvResult.SUCCESS_OVERWRITE ? KvResult.SUCCESS : r;
                 }
             }
@@ -711,10 +701,7 @@ class KvImpl {
             return new KvResult(ck);
         }
         KvNodeHolder h = map.get(key);
-        if (h == null || h.latest.removed) {
-            return KvResult.NOT_FOUND;
-        }
-        KvResult r = ttlManager.checkExistNode(h.latest, opContext);
+        KvResult r = ttlManager.checkExistNode(h, opContext);
         if (r != null) {
             return r;
         }

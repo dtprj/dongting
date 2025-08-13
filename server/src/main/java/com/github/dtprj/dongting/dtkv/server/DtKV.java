@@ -74,8 +74,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     // After leadership transfer, the client should re-execute the watch operation (idempotent) to new leader.
     // public static final int BIZ_TYPE_WATCH = 9;
     // public static final int BIZ_TYPE_UNWATCH = 10;
-    public static final int BIZ_TYPE_EXPIRE = 11;
-    public static final int BIZ_TYPE_UPDATE_TTL = 12;
+    public static final int BIZ_TYPE_PUT_TEMP_NODE = 11;
+    public static final int BIZ_MK_TEMP_DIR = 12;
+    public static final int BIZ_TYPE_EXPIRE = 13;
+    public static final int BIZ_TYPE_UPDATE_TTL = 14;
 
     private final Timestamp ts;
     final DtKVExecutor dtkvExecutor;

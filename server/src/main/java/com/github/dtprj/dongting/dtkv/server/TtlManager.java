@@ -137,38 +137,51 @@ class TtlManager {
         }
     }
 
-    public KvResult checkExistNode(KvNodeEx n, KvImpl.OpContext ctx) {
+    public KvResult checkExistNode(KvNodeHolder h, KvImpl.OpContext ctx) {
         switch (ctx.bizType) {
             case DtKV.BIZ_TYPE_PUT:
             case DtKV.BIZ_TYPE_MKDIR:
             case DtKV.BIZ_TYPE_BATCH_PUT:
-            case DtKV.BIZ_TYPE_CAS: {
-                if (n.removed) {
+            case DtKV.BIZ_TYPE_CAS:
+                if (h == null || h.latest.removed) {
                     return null;
                 }
-                if (n.ownerUuid != null) {
+                if (h.latest.ownerUuid != null) {
                     return new KvResult(KvCodes.CODE_IS_TEMP_NODE);
                 }
                 return null;
-            }
             case DtKV.BIZ_TYPE_REMOVE:
             case DtKV.BIZ_TYPE_BATCH_REMOVE:
-                if (n.removed) {
-                    return null;
+                if (h == null || h.latest.removed) {
+                    return KvResult.NOT_FOUND;
                 }
-                if (n.ownerUuid != null && !n.ownerUuid.equals(ctx.operator)) {
+                if (h.latest.ownerUuid != null && !h.latest.ownerUuid.equals(ctx.operator)) {
                     return new KvResult(KvCodes.CODE_NOT_OWNER);
                 }
                 return null;
-            case DtKV.BIZ_TYPE_UPDATE_TTL: {
-                if (n.ownerUuid == null) {
+            case DtKV.BIZ_TYPE_UPDATE_TTL:
+            case DtKV.BIZ_TYPE_PUT_TEMP_NODE:
+                if (h == null || h.latest.removed) {
+                    return KvResult.NOT_FOUND;
+                }
+                if (h.latest.ownerUuid == null) {
                     return new KvResult(KvCodes.CODE_NOT_TEMP_NODE);
                 }
-                if (!n.ownerUuid.equals(ctx.operator)) {
+                if (!h.latest.ownerUuid.equals(ctx.operator)) {
                     return new KvResult(KvCodes.CODE_NOT_OWNER);
                 }
                 return null;
-            }
+            case DtKV.BIZ_MK_TEMP_DIR:
+                if (h == null || h.latest.removed) {
+                    return null;
+                }
+                if (h.latest.ownerUuid == null) {
+                    return new KvResult(KvCodes.CODE_NOT_TEMP_NODE);
+                }
+                if (!h.latest.ownerUuid.equals(ctx.operator)) {
+                    return new KvResult(KvCodes.CODE_NOT_OWNER);
+                }
+                return null;
             case DtKV.BIZ_TYPE_EXPIRE:
                 // call by raft leader, do not call this method
             default:
