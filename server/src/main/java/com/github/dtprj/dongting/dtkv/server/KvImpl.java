@@ -350,24 +350,30 @@ class KvImpl {
             updateParent(index, opContext.leaderCreateTimeMillis, parent);
             return KvResult.SUCCESS;
         } else {
-            // override
+            // has existing node
             KvNodeEx oldNode = current.latest;
             if (newValueIsDir) {
                 if (!oldNode.isDir) {
-                    // node type not match
+                    // node type not match, return error response
                     return new KvResult(KvCodes.CODE_VALUE_EXISTS);
                 } else {
-                    // ttlManager.updateTtl(current.key, oldNode, ttlMillis);
+                    // dir has already existed, do nothing
+                    if (opContext.bizType == DtKV.BIZ_MK_TEMP_DIR) {
+                        ttlManager.updateTtl(current.key, oldNode, opContext);
+                    }
                     return new KvResult(KvCodes.CODE_DIR_EXISTS);
                 }
             } else {
                 if (oldNode.isDir) {
-                    // node type not match
+                    // node type not match, return error response
                     return new KvResult(KvCodes.CODE_DIR_EXISTS);
                 } else {
+                    // update value
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
-                    // ttlManager.updateTtl(current.key, newKvNode, ttlMillis);
+                    if(opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE) {
+                        ttlManager.updateTtl(current.key, oldNode, opContext);
+                    }
                     addToUpdateQueue(index, current);
                     updateParent(index, opContext.leaderCreateTimeMillis, parent);
                     return KvResult.SUCCESS_OVERWRITE;

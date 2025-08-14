@@ -43,6 +43,9 @@ public class KvServerUtil {
         nioServer.register(Commands.DTKV_BATCH_PUT, p);
         nioServer.register(Commands.DTKV_BATCH_REMOVE, p);
         nioServer.register(Commands.DTKV_CAS, p);
+        nioServer.register(Commands.DTKV_PUT_TEMP_NODE, p);
+        nioServer.register(Commands.DTKV_MAKE_TEMP_DIR, p);
+        nioServer.register(Commands.DTKV_UPDATE_TTL, p);
 
         nioServer.register(Commands.DTKV_SYNC_WATCH, new WatchProcessor(server));
 

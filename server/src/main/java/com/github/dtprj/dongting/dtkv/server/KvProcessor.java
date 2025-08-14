@@ -115,6 +115,12 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_CAS:
                     submitWriteTask(reqInfo, DtKV.BIZ_TYPE_CAS, req);
                     break;
+                case Commands.DTKV_PUT_TEMP_NODE:
+                    submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT_TEMP_NODE, req);
+                    break;
+                case Commands.DTKV_MAKE_TEMP_DIR:
+                    submitWriteTask(reqInfo, DtKV.BIZ_MK_TEMP_DIR, req);
+                    break;
                 case Commands.DTKV_UPDATE_TTL:
                     submitWriteTask(reqInfo, DtKV.BIZ_TYPE_UPDATE_TTL, req);
                     break;

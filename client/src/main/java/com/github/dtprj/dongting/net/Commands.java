@@ -56,5 +56,7 @@ public interface Commands {
     int DTKV_SYNC_WATCH = 87;
     int DTKV_WATCH_NOTIFY_PUSH = 88;
     int DTKV_QUERY_STATUS = 89;
-    int DTKV_UPDATE_TTL = 90;
+    int DTKV_PUT_TEMP_NODE = 90;
+    int DTKV_MAKE_TEMP_DIR = 91;
+    int DTKV_UPDATE_TTL = 92;
 }

@@ -76,7 +76,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     // public static final int BIZ_TYPE_UNWATCH = 10;
     public static final int BIZ_TYPE_PUT_TEMP_NODE = 11;
     public static final int BIZ_MK_TEMP_DIR = 12;
-    public static final int BIZ_TYPE_EXPIRE = 13;
+    public static final int BIZ_TYPE_EXPIRE = 13; // no expire command in Commands class, since it's launched by raft leader
     public static final int BIZ_TYPE_UPDATE_TTL = 14;
 
     private final Timestamp ts;
@@ -180,10 +180,14 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         ByteArray key = req.key == null ? null : new ByteArray(req.key);
         switch (bizType) {
             case BIZ_TYPE_PUT:
+            case BIZ_TYPE_PUT_TEMP_NODE:
+                // two commands has different op context, so the result is different
                 return kv.put(index, key, req.value);
             case BIZ_TYPE_REMOVE:
                 return kv.remove(index, key);
             case BIZ_TYPE_MKDIR:
+            case BIZ_MK_TEMP_DIR:
+                // two commands has different op context, so the result is different
                 return kv.mkdir(index, key);
             case BIZ_TYPE_BATCH_PUT:
                 return kv.batchPut(index, req.keys, req.values);
