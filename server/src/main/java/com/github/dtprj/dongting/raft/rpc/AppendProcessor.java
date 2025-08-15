@@ -344,7 +344,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null,
                     li.getType() == LogItem.TYPE_LOG_READ);
             RaftTask task = new RaftTask(li.getType(), raftInput, null);
-            task.init(li, raftStatus.ts);
+            task.init(li, raftStatus.ts.nanoTime);
             list.add(task);
 
             if (index < raftStatus.groupReadyIndex && raftStatus.getRole() != RaftRole.none) {

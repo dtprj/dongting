@@ -188,7 +188,7 @@ public class LinearTaskRunner {
             item.setHeader(input.getHeader(), input.isHeadReleasable());
             item.setBody(input.getBody(), input.isBodyReleasable());
 
-            rt.init(item, ts);
+            rt.init(item, ts.nanoTime);
         }
 
         return append(raftStatus, inputs);

@@ -172,7 +172,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                     FiberFuture<Object> f = null;
                     Throwable execEx = null;
                     try {
-                        f = stateMachine.exec(index, rt.item.getTimestamp(), rt.createTimeNanos, input);
+                        f = stateMachine.exec(index, rt.item.getTimestamp(), rt.localCreateNanos, input);
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;
@@ -438,7 +438,15 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null,
                     item.getType() == LogItem.TYPE_LOG_READ);
             RaftTask rt = new RaftTask(item.getType(), input, null);
-            rt.init(item, ts);
+
+            // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
+            // this method only used to load logs that not apply after restart.
+            long costTimeMillis = ts.wallClockMillis - item.getTimestamp();
+            if (costTimeMillis < 0) {
+                costTimeMillis = 0;
+            }
+            long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L ;
+            rt.init(item, localCreateNanos);
 
             return exec(rt, item.getIndex(), this);
         }

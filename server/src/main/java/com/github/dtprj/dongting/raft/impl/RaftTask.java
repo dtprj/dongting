@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -28,7 +27,7 @@ public class RaftTask {
     public final int type;
     public final RaftInput input;
     public final RaftCallback callback;
-    public long createTimeNanos;
+    public long localCreateNanos;
     public LogItem item;
 
     private boolean invokeCallback;
@@ -39,8 +38,8 @@ public class RaftTask {
         this.callback = callback;
     }
 
-    public void init(LogItem item, Timestamp ts) {
-        this.createTimeNanos = ts.nanoTime;
+    public void init(LogItem item, long localCreateNanos) {
+        this.localCreateNanos = localCreateNanos;
         this.item = item;
     }
 

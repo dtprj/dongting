@@ -441,7 +441,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 RaftInput ri = new RaftInput(0, null, null, null, false);
                 RaftTask t = new RaftTask(0, ri, null);
                 LogItem li = list.get(j);
-                t.init(li, raftStatus.ts);
+                t.init(li, raftStatus.ts.nanoTime);
                 tailCache.put(li.getIndex(), t);
             }
             testMatch();

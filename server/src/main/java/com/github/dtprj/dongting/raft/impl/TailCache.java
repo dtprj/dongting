@@ -161,7 +161,7 @@ public final class TailCache {
             }
             RaftTask t = cache.get(0);
             if (pending <= groupConfig.maxPendingRaftTasks && pendingBytes <= groupConfig.maxPendingTaskBytes) {
-                if (t.createTimeNanos - timeBound >= 0) {
+                if (t.localCreateNanos - timeBound >= 0) {
                     // this item not timeout, so next items not timeout
                     break;
                 } else {
