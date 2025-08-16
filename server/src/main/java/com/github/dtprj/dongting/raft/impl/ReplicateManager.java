@@ -405,7 +405,6 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
         long finalBytes = bytes;
         Executor ge = groupConfig.fiberGroup.getExecutor();
-        ts.refresh(1); // make sure timestamp is not too old
         long leaseStartNanos = ts.nanoTime;
         RpcCallback<AppendResp> c = (result, ex) ->
                 ge.execute(() -> afterAppendRpc(result, ex, req, leaseStartNanos, finalBytes, perfStartTime));
