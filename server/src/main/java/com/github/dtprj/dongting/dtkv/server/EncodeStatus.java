@@ -30,10 +30,16 @@ class EncodeStatus {
     long updateIndex;
     long updateTime;
 
+    long uuid1;
+    long uuid2;
+    long leaderTtlStartTime;
+    long ttlMillis;
+
     private int offset;
 
-    // createIndex(8) + createTime(8) + updateIndex(8) + updateTime(8) + keySize(4) + valueSize(4)
-    private static final int HEADER_SIZE = 40;
+    // createIndex(8) + createTime(8) + updateIndex(8) + updateTime(8) + uuid1(8) + uuid2(8)
+    // + leaderTtlStartTime(8) + ttlMillis(8) + keySize(4) + valueSize(4)
+    private static final int HEADER_SIZE = 72;
     private final ByteBuffer headerBuffer = ByteBuffer.allocate(HEADER_SIZE);
 
     private int state;
@@ -49,6 +55,12 @@ class EncodeStatus {
         createTime = 0;
         updateIndex = 0;
         updateTime = 0;
+
+        uuid1 = 0;
+        uuid2 = 0;
+        leaderTtlStartTime = 0;
+        ttlMillis = 0;
+
         state = STATE_HEADER;
     }
 
@@ -97,6 +109,10 @@ class EncodeStatus {
         buf.putLong(createTime);
         buf.putLong(updateIndex);
         buf.putLong(updateTime);
+        buf.putLong(uuid1);
+        buf.putLong(uuid2);
+        buf.putLong(leaderTtlStartTime);
+        buf.putLong(ttlMillis);
         buf.putInt(keyBytes.length);
         if (valueBytes == null) {
             buf.putInt(0);
@@ -167,9 +183,13 @@ class EncodeStatus {
         createTime = buf.getLong();
         updateIndex = buf.getLong();
         updateTime = buf.getLong();
+        uuid1 = buf.getLong();
+        uuid2 = buf.getLong();
+        leaderTtlStartTime = buf.getLong();
+        ttlMillis = buf.getLong();
+
         int keySize = DtUtil.checkNotNegative(buf.getInt(), "keySize");
 
-        // TODO use pool?
         keyBytes = new byte[keySize];
 
         int valueSize = DtUtil.checkNotNegative(buf.getInt(), "valueSize");

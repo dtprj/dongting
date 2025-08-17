@@ -205,13 +205,14 @@ class TtlManager {
     }
 
     private boolean addNodeTtlAndAddToQueue(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
-        long sleepNanos = ctx.ttlMillis * 1_000_000;
-
-        TtlInfo ttlInfo = new TtlInfo(key, n.createIndex, ctx.operator, ctx.localCreateNanos + sleepNanos);
+        TtlInfo ttlInfo = new TtlInfo(key, n.createIndex, ctx.operator, ctx.leaderCreateTimeMillis, ctx.ttlMillis,
+                ctx.localCreateNanos + ctx.ttlMillis * 1_000_000);
         n.ttlInfo = ttlInfo;
 
         // assert not in ttl queue and pending queue pending queue
-        ttlQueue.add(ttlInfo);
+        if (!ttlQueue.add(ttlInfo)) {
+            BugLog.getLog().error("TtlInfo exists {}, {}", key, ttlInfo.createIndex);
+        }
         return ttlQueue.first() == ttlInfo;
     }
 
@@ -246,17 +247,23 @@ final class TtlInfo implements Comparable<TtlInfo> {
     final ByteArray key;
     final long createIndex;
     final UUID owner;
+    final long leaderTtlStartMillis;
+    final long ttlMillis;
     final long expireNanos;
-    private int hash;
+    private final int hash;
 
     boolean expireFailed;
     long lastFailNanos;
 
-    TtlInfo(ByteArray key, long createIndex, UUID owner, long expireNanos) {
+    TtlInfo(ByteArray key, long createIndex, UUID owner, long leaderTtlStartMillis, long ttlMillis, long expireNanos) {
         this.key = key;
         this.createIndex = createIndex;
         this.owner = owner;
+        this.leaderTtlStartMillis = leaderTtlStartMillis;
+        this.ttlMillis = ttlMillis;
         this.expireNanos = expireNanos;
+
+        this.hash = Objects.hash(key, createIndex);
     }
 
     @Override
@@ -270,9 +277,6 @@ final class TtlInfo implements Comparable<TtlInfo> {
 
     @Override
     public int hashCode() {
-        if (hash == 0) {
-            hash = Objects.hash(key, createIndex);
-        }
         return hash;
     }
 

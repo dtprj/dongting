@@ -136,6 +136,12 @@ class KvSnapshot extends Snapshot {
             encodeStatus.createTime = n.createTime;
             encodeStatus.updateIndex = n.updateIndex;
             encodeStatus.updateTime = n.updateTime;
+            if (n.ttlInfo != null) {
+                encodeStatus.uuid1 = n.ttlInfo.owner.getMostSignificantBits();
+                encodeStatus.uuid2 = n.ttlInfo.owner.getLeastSignificantBits();
+                encodeStatus.leaderTtlStartTime = n.ttlInfo.leaderTtlStartMillis;
+                encodeStatus.ttlMillis = n.ttlInfo.ttlMillis;
+            }
             currentKvNode = n;
             return;
         }

@@ -371,7 +371,7 @@ class KvImpl {
                     // update value
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
-                    if(opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE) {
+                    if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE) {
                         ttlManager.updateTtl(current.key, oldNode, opContext);
                     }
                     addToUpdateQueue(index, current);
@@ -490,6 +490,17 @@ class KvImpl {
             KvNodeHolder h = new KvNodeHolder(key, keyInDir, n, parent);
             parent.latest.children.put(keyInDir, h);
             map.put(key, h);
+            if (encodeStatus.ttlMillis > 0) {
+                // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
+                long costTimeMillis = ts.wallClockMillis - encodeStatus.leaderTtlStartTime;
+                if (costTimeMillis < 0) {
+                    costTimeMillis = 0;
+                }
+                long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L ;
+                opContext.init(DtKV.BIZ_TYPE_PUT, new UUID(encodeStatus.uuid1, encodeStatus.uuid2),
+                        encodeStatus.ttlMillis, encodeStatus.leaderTtlStartTime, localCreateNanos);
+                ttlManager.initTtl(key, n, opContext);
+            }
         }
     }
 
