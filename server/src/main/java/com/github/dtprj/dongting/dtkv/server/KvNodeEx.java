@@ -57,11 +57,6 @@ final class KvNodeEx extends KvNode {
         super(old.createIndex, old.createTime, updateIndex, updateTime, old.isDir, newData);
         this.children = old.children;
         this.removed = false;
-        if (old.ttlInfo != null) {
-            this.ttlInfo = old.ttlInfo;
-            this.ownerUuid = old.ownerUuid;
-            this.ttlMillis = old.ttlMillis;
-            this.expireTime = old.expireTime;
-        }
+        this.ttlInfo = old.ttlInfo;
     }
 }

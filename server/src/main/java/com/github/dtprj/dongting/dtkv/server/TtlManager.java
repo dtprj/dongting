@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -146,7 +147,7 @@ class TtlManager {
                 if (h == null || h.latest.removed) {
                     return null;
                 }
-                if (h.latest.ownerUuid != null) {
+                if (h.latest.ttlInfo != null) {
                     return new KvResult(KvCodes.CODE_IS_TEMP_NODE);
                 }
                 return null;
@@ -155,7 +156,7 @@ class TtlManager {
                 if (h == null || h.latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
-                if (h.latest.ownerUuid != null && !h.latest.ownerUuid.equals(ctx.operator)) {
+                if (h.latest.ttlInfo != null && !h.latest.ttlInfo.owner.equals(ctx.operator)) {
                     return new KvResult(KvCodes.CODE_NOT_OWNER);
                 }
                 return null;
@@ -164,10 +165,10 @@ class TtlManager {
                 if (h == null || h.latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
-                if (h.latest.ownerUuid == null) {
+                if (h.latest.ttlInfo == null) {
                     return new KvResult(KvCodes.CODE_NOT_TEMP_NODE);
                 }
-                if (!h.latest.ownerUuid.equals(ctx.operator)) {
+                if (!h.latest.ttlInfo.owner.equals(ctx.operator)) {
                     return new KvResult(KvCodes.CODE_NOT_OWNER);
                 }
                 return null;
@@ -175,10 +176,10 @@ class TtlManager {
                 if (h == null || h.latest.removed) {
                     return null;
                 }
-                if (h.latest.ownerUuid == null) {
+                if (h.latest.ttlInfo == null) {
                     return new KvResult(KvCodes.CODE_NOT_TEMP_NODE);
                 }
-                if (!h.latest.ownerUuid.equals(ctx.operator)) {
+                if (!h.latest.ttlInfo.owner.equals(ctx.operator)) {
                     return new KvResult(KvCodes.CODE_NOT_OWNER);
                 }
                 return null;
@@ -206,12 +207,8 @@ class TtlManager {
     private boolean addNodeTtlAndAddToQueue(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
         long sleepNanos = ctx.ttlMillis * 1_000_000;
 
-        TtlInfo ttlInfo = new TtlInfo(key, n.createIndex, ctx.localCreateNanos + sleepNanos);
+        TtlInfo ttlInfo = new TtlInfo(key, n.createIndex, ctx.operator, ctx.localCreateNanos + sleepNanos);
         n.ttlInfo = ttlInfo;
-
-        n.ownerUuid = ctx.operator;
-        n.ttlMillis = ctx.ttlMillis;
-        n.expireTime = ctx.leaderCreateTimeMillis + ctx.ttlMillis;
 
         // assert not in ttl queue and pending queue pending queue
         ttlQueue.add(ttlInfo);
@@ -248,15 +245,17 @@ final class TtlInfo implements Comparable<TtlInfo> {
 
     final ByteArray key;
     final long createIndex;
+    final UUID owner;
     final long expireNanos;
     private int hash;
 
     boolean expireFailed;
     long lastFailNanos;
 
-    TtlInfo(ByteArray key, long createIndex, long expireNanos) {
+    TtlInfo(ByteArray key, long createIndex, UUID owner, long expireNanos) {
         this.key = key;
         this.createIndex = createIndex;
+        this.owner = owner;
         this.expireNanos = expireNanos;
     }
 
