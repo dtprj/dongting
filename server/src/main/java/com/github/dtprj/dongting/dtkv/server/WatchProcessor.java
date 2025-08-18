@@ -59,22 +59,22 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
         if ((!req.syncAll && (req.keys == null || req.keys.length == 0))
                 || (req.keys != null && (req.knownRaftIndexes == null || req.knownRaftIndexes.length != req.keys.length))) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
+            p.setBizCode(KvCodes.CLIENT_REQ_ERROR);
             return p;
         }
         KvStatus kvStatus = dtKV.kvStatus;
         if (kvStatus.installSnapshot) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.CODE_INSTALL_SNAPSHOT);
+            p.setBizCode(KvCodes.INSTALL_SNAPSHOT);
             return p;
         }
         KvImpl kv = kvStatus.kvImpl;
         if (req.keys != null) {
             for (ByteArray key : req.keys) {
                 int bc = kv.checkKey(key, false, true);
-                if (bc != KvCodes.CODE_SUCCESS) {
+                if (bc != KvCodes.SUCCESS) {
                     EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                    p.setBizCode(KvCodes.CODE_INVALID_KEY);
+                    p.setBizCode(KvCodes.INVALID_KEY);
                     return p;
                 }
             }
@@ -91,7 +91,7 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
         KvStatus kvStatus = dtKV.kvStatus;
         if (kvStatus.installSnapshot) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.CODE_INSTALL_SNAPSHOT);
+            p.setBizCode(KvCodes.INSTALL_SNAPSHOT);
             reqInfo.reqContext.writeRespInBizThreads(p);
             return;
         }
@@ -105,7 +105,7 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             return;
         }
         EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-        p.setBizCode(KvCodes.CODE_SUCCESS);
+        p.setBizCode(KvCodes.SUCCESS);
         reqInfo.reqContext.writeRespInBizThreads(p);
     }
 

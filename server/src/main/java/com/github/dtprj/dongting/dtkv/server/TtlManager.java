@@ -148,7 +148,7 @@ class TtlManager {
                     return null;
                 }
                 if (h.latest.ttlInfo != null) {
-                    return new KvResult(KvCodes.CODE_IS_TEMP_NODE);
+                    return new KvResult(KvCodes.IS_TEMP_NODE);
                 }
                 return null;
             case DtKV.BIZ_TYPE_REMOVE:
@@ -157,7 +157,7 @@ class TtlManager {
                     return KvResult.NOT_FOUND;
                 }
                 if (h.latest.ttlInfo != null && !h.latest.ttlInfo.owner.equals(ctx.operator)) {
-                    return new KvResult(KvCodes.CODE_NOT_OWNER);
+                    return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
             case DtKV.BIZ_TYPE_UPDATE_TTL:
@@ -166,10 +166,10 @@ class TtlManager {
                     return KvResult.NOT_FOUND;
                 }
                 if (h.latest.ttlInfo == null) {
-                    return new KvResult(KvCodes.CODE_NOT_TEMP_NODE);
+                    return new KvResult(KvCodes.NOT_TEMP_NODE);
                 }
                 if (!h.latest.ttlInfo.owner.equals(ctx.operator)) {
-                    return new KvResult(KvCodes.CODE_NOT_OWNER);
+                    return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
             case DtKV.BIZ_MK_TEMP_DIR:
@@ -177,10 +177,10 @@ class TtlManager {
                     return null;
                 }
                 if (h.latest.ttlInfo == null) {
-                    return new KvResult(KvCodes.CODE_NOT_TEMP_NODE);
+                    return new KvResult(KvCodes.NOT_TEMP_NODE);
                 }
                 if (!h.latest.ttlInfo.owner.equals(ctx.operator)) {
-                    return new KvResult(KvCodes.CODE_NOT_OWNER);
+                    return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
             case DtKV.BIZ_TYPE_EXPIRE:

@@ -20,71 +20,71 @@ package com.github.dtprj.dongting.dtkv;
  */
 public interface KvCodes {
 
-    int CODE_SUCCESS = 0;
-    int CODE_NOT_FOUND = 1;
-    int CODE_SUCCESS_OVERWRITE = 2;
-    int CODE_DIR_EXISTS = 3;
-    int CODE_VALUE_EXISTS = 4;
-    int CODE_PARENT_NOT_DIR = 5;
-    int CODE_INVALID_KEY = 6;
-    int CODE_INVALID_VALUE = 7;
-    int CODE_PARENT_DIR_NOT_EXISTS = 8;
-    int CODE_HAS_CHILDREN = 9;
-    int CODE_KEY_TOO_LONG = 10;
-    int CODE_VALUE_TOO_LONG = 11;
-    int CODE_INSTALL_SNAPSHOT = 12;
-    int CODE_CAS_MISMATCH = 13;
-    int CODE_CLIENT_REQ_ERROR = 14;
-    int CODE_REMOVE_WATCH = 15;
-    int CODE_REMOVE_ALL_WATCH = 16;
-    int CODE_NOT_OWNER = 17;
-    int CODE_NOT_TEMP_NODE = 18;
-    int CODE_IS_TEMP_NODE = 19;
-    int CODE_NOT_EXPIRED = 20;
+    int SUCCESS = 0;
+    int NOT_FOUND = 1;
+    int SUCCESS_OVERWRITE = 2;
+    int DIR_EXISTS = 3;
+    int VALUE_EXISTS = 4;
+    int PARENT_NOT_DIR = 5;
+    int INVALID_KEY = 6;
+    int INVALID_VALUE = 7;
+    int PARENT_DIR_NOT_EXISTS = 8;
+    int HAS_CHILDREN = 9;
+    int KEY_TOO_LONG = 10;
+    int VALUE_TOO_LONG = 11;
+    int INSTALL_SNAPSHOT = 12;
+    int CAS_MISMATCH = 13;
+    int CLIENT_REQ_ERROR = 14;
+    int REMOVE_WATCH = 15;
+    int REMOVE_ALL_WATCH = 16;
+    int NOT_OWNER = 17;
+    int NOT_TEMP_NODE = 18;
+    int IS_TEMP_NODE = 19;
+    int NOT_EXPIRED = 20;
 
     static String toStr(int code) {
         switch (code) {
-            case CODE_SUCCESS:
+            case SUCCESS:
                 return "SUCCESS";
-            case CODE_NOT_FOUND:
+            case NOT_FOUND:
                 return "NOT_FOUND";
-            case CODE_SUCCESS_OVERWRITE:
+            case SUCCESS_OVERWRITE:
                 return "SUCCESS_OVERWRITE";
-            case CODE_DIR_EXISTS:
+            case DIR_EXISTS:
                 return "DIR_EXISTS";
-            case CODE_VALUE_EXISTS:
+            case VALUE_EXISTS:
                 return "VALUE_EXISTS";
-            case CODE_PARENT_NOT_DIR:
+            case PARENT_NOT_DIR:
                 return "PARENT_NOT_DIR";
-            case CODE_INVALID_KEY:
+            case INVALID_KEY:
                 return "INVALID_KEY";
-            case CODE_INVALID_VALUE:
+            case INVALID_VALUE:
                 return "INVALID_VALUE";
-            case CODE_PARENT_DIR_NOT_EXISTS:
+            case PARENT_DIR_NOT_EXISTS:
                 return "PARENT_DIR_NOT_EXISTS";
-            case CODE_HAS_CHILDREN:
+            case HAS_CHILDREN:
                 return "HAS_CHILDREN";
-            case CODE_KEY_TOO_LONG:
+            case KEY_TOO_LONG:
                 return "KEY_TOO_LONG";
-            case CODE_VALUE_TOO_LONG:
+            case VALUE_TOO_LONG:
                 return "VALUE_TOO_LONG";
-            case CODE_INSTALL_SNAPSHOT:
+            case INSTALL_SNAPSHOT:
                 return "INSTALL_SNAPSHOT";
-            case CODE_CAS_MISMATCH:
+            case CAS_MISMATCH:
                 return "CAS_MISMATCH";
-            case CODE_CLIENT_REQ_ERROR:
+            case CLIENT_REQ_ERROR:
                 return "CLIENT_REQ_ERROR";
-            case CODE_REMOVE_WATCH:
+            case REMOVE_WATCH:
                 return "REMOVE_WATCH";
-            case CODE_REMOVE_ALL_WATCH:
+            case REMOVE_ALL_WATCH:
                 return "REMOVE_ALL_WATCH";
-            case CODE_NOT_OWNER:
+            case NOT_OWNER:
                 return "NOT_OWNER";
-            case CODE_NOT_TEMP_NODE:
+            case NOT_TEMP_NODE:
                 return "NOT_TEMP_NODE";
-            case CODE_IS_TEMP_NODE:
+            case IS_TEMP_NODE:
                 return "IS_TEMP_NODE";
-            case CODE_NOT_EXPIRED:
+            case NOT_EXPIRED:
                 return "NOT_EXPIRED";
             default:
                 return "UNKNOWN_CODE_" + code;

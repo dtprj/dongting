@@ -118,34 +118,34 @@ class KvImpl {
     int checkKey(ByteArray key, boolean allowEmpty, boolean fullCheck) {
         if (key != null && key.isSlice()) {
             // slice key is not allowed
-            return KvCodes.CODE_INVALID_KEY;
+            return KvCodes.INVALID_KEY;
         }
         byte[] bs = key == null ? null : key.getData();
         if (bs == null || bs.length == 0) {
             if (allowEmpty) {
-                return KvCodes.CODE_SUCCESS;
+                return KvCodes.SUCCESS;
             } else {
-                return KvCodes.CODE_INVALID_KEY;
+                return KvCodes.INVALID_KEY;
             }
         }
         if (bs.length > maxKeySize) {
-            return KvCodes.CODE_KEY_TOO_LONG;
+            return KvCodes.KEY_TOO_LONG;
         }
         if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
-            return KvCodes.CODE_INVALID_KEY;
+            return KvCodes.INVALID_KEY;
         }
         if (fullCheck) {
             int lastSep = -1;
             for (int len = bs.length, i = 0; i < len; i++) {
                 if (bs[i] == SEPARATOR) {
                     if (lastSep == i - 1) {
-                        return KvCodes.CODE_INVALID_KEY;
+                        return KvCodes.INVALID_KEY;
                     }
                     lastSep = i;
                 }
             }
         }
-        return KvCodes.CODE_SUCCESS;
+        return KvCodes.SUCCESS;
     }
 
     /**
@@ -156,7 +156,7 @@ class KvImpl {
      */
     public KvResult get(ByteArray key) {
         int ck = checkKey(key, true, false);
-        if (ck != KvCodes.CODE_SUCCESS) {
+        if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
         long s = lock.tryOptimisticRead();
@@ -186,7 +186,7 @@ class KvImpl {
         if (kvNode.removed) {
             return KvResult.NOT_FOUND;
         }
-        return new KvResult(KvCodes.CODE_SUCCESS, kvNode);
+        return new KvResult(KvCodes.SUCCESS, kvNode);
     }
 
     /**
@@ -197,7 +197,7 @@ class KvImpl {
      */
     public Pair<Integer, List<KvResult>> batchGet(List<byte[]> keys) {
         if (keys == null || keys.isEmpty()) {
-            return new Pair<>(KvCodes.CODE_INVALID_KEY, null);
+            return new Pair<>(KvCodes.INVALID_KEY, null);
         }
         int s = keys.size();
         ArrayList<KvResult> list = new ArrayList<>(s);
@@ -207,7 +207,7 @@ class KvImpl {
                 byte[] bs = keys.get(i);
                 ByteArray key = bs == null ? null : new ByteArray(bs);
                 int ck = checkKey(key, true, false);
-                if (ck != KvCodes.CODE_SUCCESS) {
+                if (ck != KvCodes.SUCCESS) {
                     list.add(new KvResult(ck));
                 } else {
                     list.add(get0(key));
@@ -216,7 +216,7 @@ class KvImpl {
         } finally {
             lock.unlockRead(stamp);
         }
-        return new Pair<>(KvCodes.CODE_SUCCESS, list);
+        return new Pair<>(KvCodes.SUCCESS, list);
     }
 
     /**
@@ -227,7 +227,7 @@ class KvImpl {
      */
     public Pair<Integer, List<KvResult>> list(ByteArray key) {
         int ck = checkKey(key, true, false);
-        if (ck != KvCodes.CODE_SUCCESS) {
+        if (ck != KvCodes.SUCCESS) {
             return new Pair<>(ck, null);
         }
         long stamp = lock.readLock();
@@ -239,20 +239,20 @@ class KvImpl {
                 h = map.get(key);
             }
             if (h == null) {
-                return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
+                return new Pair<>(KvCodes.NOT_FOUND, null);
             }
             KvNodeEx kvNode = h.latest;
             if (kvNode.removed) {
-                return new Pair<>(KvCodes.CODE_NOT_FOUND, null);
+                return new Pair<>(KvCodes.NOT_FOUND, null);
             }
             if (!kvNode.isDir) {
-                return new Pair<>(KvCodes.CODE_PARENT_NOT_DIR, null);
+                return new Pair<>(KvCodes.PARENT_NOT_DIR, null);
             }
             ArrayList<KvResult> list = new ArrayList<>(kvNode.children.size());
             for (KvNodeHolder child : kvNode.children.values()) {
-                list.add(new KvResult(KvCodes.CODE_SUCCESS, child.latest, child.keyInDir));
+                list.add(new KvResult(KvCodes.SUCCESS, child.latest, child.keyInDir));
             }
-            return new Pair<>(KvCodes.CODE_SUCCESS, list);
+            return new Pair<>(KvCodes.SUCCESS, list);
         } finally {
             lock.unlockRead(stamp);
         }
@@ -281,17 +281,17 @@ class KvImpl {
 
     public KvResult put(long index, ByteArray key, byte[] data) {
         if (data == null || data.length == 0) {
-            return new KvResult(KvCodes.CODE_INVALID_VALUE);
+            return new KvResult(KvCodes.INVALID_VALUE);
         }
         if (data.length > maxValueSize) {
-            return new KvResult(KvCodes.CODE_VALUE_TOO_LONG);
+            return new KvResult(KvCodes.VALUE_TOO_LONG);
         }
         return checkAndPut(index, key, data, true);
     }
 
     private KvResult checkAndPut(long index, ByteArray key, byte[] data, boolean lock) {
         int ck = checkKey(key, false, false);
-        if (ck != KvCodes.CODE_SUCCESS) {
+        if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
         KvNodeHolder parent;
@@ -300,10 +300,10 @@ class KvImpl {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
             if (parent == null || parent.latest.removed) {
-                return new KvResult(KvCodes.CODE_PARENT_DIR_NOT_EXISTS);
+                return new KvResult(KvCodes.PARENT_DIR_NOT_EXISTS);
             }
             if (!parent.latest.isDir) {
-                return new KvResult(KvCodes.CODE_PARENT_NOT_DIR);
+                return new KvResult(KvCodes.PARENT_NOT_DIR);
             }
         } else {
             parent = root;
@@ -355,18 +355,18 @@ class KvImpl {
             if (newValueIsDir) {
                 if (!oldNode.isDir) {
                     // node type not match, return error response
-                    return new KvResult(KvCodes.CODE_VALUE_EXISTS);
+                    return new KvResult(KvCodes.VALUE_EXISTS);
                 } else {
                     // dir has already existed, do nothing
                     if (opContext.bizType == DtKV.BIZ_MK_TEMP_DIR) {
                         ttlManager.updateTtl(current.key, oldNode, opContext);
                     }
-                    return new KvResult(KvCodes.CODE_DIR_EXISTS);
+                    return new KvResult(KvCodes.DIR_EXISTS);
                 }
             } else {
                 if (oldNode.isDir) {
                     // node type not match, return error response
-                    return new KvResult(KvCodes.CODE_DIR_EXISTS);
+                    return new KvResult(KvCodes.DIR_EXISTS);
                 } else {
                     // update value
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
@@ -394,12 +394,12 @@ class KvImpl {
 
     public Pair<Integer, List<KvResult>> batchPut(long index, List<byte[]> keys, List<byte[]> values) {
         if (keys == null || keys.isEmpty()) {
-            return new Pair<>(KvCodes.CODE_INVALID_KEY, null);
+            return new Pair<>(KvCodes.INVALID_KEY, null);
         }
         int size = keys.size();
         ArrayList<KvResult> list = new ArrayList<>(size);
         if (values == null || values.size() != size) {
-            return new Pair<>(KvCodes.CODE_INVALID_VALUE, null);
+            return new Pair<>(KvCodes.INVALID_VALUE, null);
         }
         long stamp = lock.writeLock();
         try {
@@ -411,7 +411,7 @@ class KvImpl {
             lock.unlockWrite(stamp);
             afterUpdate();
         }
-        return new Pair<>(KvCodes.CODE_SUCCESS, list);
+        return new Pair<>(KvCodes.SUCCESS, list);
     }
 
     private void updateParent(long index, long timestamp, KvNodeHolder parent) {
@@ -532,7 +532,7 @@ class KvImpl {
 
     private KvResult checkAndRemove(long index, ByteArray key, boolean lock) {
         int ck = checkKey(key, false, false);
-        if (ck != KvCodes.CODE_SUCCESS) {
+        if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
         KvNodeHolder h = map.get(key);
@@ -542,7 +542,7 @@ class KvImpl {
         }
         KvNodeEx n = h.latest;
         if (n.isDir && !n.children.isEmpty()) {
-            return new KvResult(KvCodes.CODE_HAS_CHILDREN);
+            return new KvResult(KvCodes.HAS_CHILDREN);
         }
         long stamp = lock ? this.lock.writeLock() : 0;
         try {
@@ -584,7 +584,7 @@ class KvImpl {
 
     public Pair<Integer, List<KvResult>> batchRemove(long index, List<byte[]> keys) {
         if (keys == null || keys.isEmpty()) {
-            return new Pair<>(KvCodes.CODE_INVALID_KEY, null);
+            return new Pair<>(KvCodes.INVALID_KEY, null);
         }
         int size = keys.size();
         ArrayList<KvResult> list = new ArrayList<>(size);
@@ -598,18 +598,18 @@ class KvImpl {
             lock.unlockWrite(stamp);
             afterUpdate();
         }
-        return new Pair<>(KvCodes.CODE_SUCCESS, list);
+        return new Pair<>(KvCodes.SUCCESS, list);
     }
 
     public KvResult compareAndSet(long index, ByteArray key, byte[] expectedValue, byte[] newValue) {
         int ck = checkKey(key, false, false);
-        if (ck != KvCodes.CODE_SUCCESS) {
+        if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
         if (expectedValue == null || expectedValue.length == 0) {
             if (newValue == null || newValue.length == 0) {
                 // don't mkdir
-                return new KvResult(KvCodes.CODE_INVALID_VALUE);
+                return new KvResult(KvCodes.INVALID_VALUE);
             }
         }
         KvNodeHolder parent;
@@ -618,10 +618,10 @@ class KvImpl {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
             if (parent == null || parent.latest.removed) {
-                return new KvResult(KvCodes.CODE_PARENT_DIR_NOT_EXISTS);
+                return new KvResult(KvCodes.PARENT_DIR_NOT_EXISTS);
             }
             if (!parent.latest.isDir) {
-                return new KvResult(KvCodes.CODE_PARENT_NOT_DIR);
+                return new KvResult(KvCodes.PARENT_NOT_DIR);
             }
         } else {
             parent = root;
@@ -637,23 +637,23 @@ class KvImpl {
                 if (h == null || h.latest.removed) {
                     return doPutInLock(index, key, newValue, h, parent, lastIndexOfSep);
                 } else {
-                    return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                    return new KvResult(KvCodes.CAS_MISMATCH);
                 }
             } else {
                 if (h == null) {
-                    return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                    return new KvResult(KvCodes.CAS_MISMATCH);
                 }
                 KvNodeEx n = h.latest;
                 if (n.removed || n.isDir) {
-                    return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                    return new KvResult(KvCodes.CAS_MISMATCH);
                 }
                 byte[] bs = n.data;
                 if (bs == null || bs.length != expectedValue.length) {
-                    return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                    return new KvResult(KvCodes.CAS_MISMATCH);
                 }
                 for (int i = 0; i < bs.length; i++) {
                     if (bs[i] != expectedValue[i]) {
-                        return new KvResult(KvCodes.CODE_CAS_MISMATCH);
+                        return new KvResult(KvCodes.CAS_MISMATCH);
                     }
                 }
                 if (newValue == null || newValue.length == 0) {
@@ -711,10 +711,10 @@ class KvImpl {
     public KvResult updateTtl(long ignoredRaftIndex, ByteArray key) {
         long newTtlMillis = opContext.ttlMillis;
         if (newTtlMillis <= 0) {
-            return new KvResult(KvCodes.CODE_CLIENT_REQ_ERROR);
+            return new KvResult(KvCodes.CLIENT_REQ_ERROR);
         }
         int ck = checkKey(key, false, false);
-        if (ck != KvCodes.CODE_SUCCESS) {
+        if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
         KvNodeHolder h = map.get(key);
@@ -733,7 +733,7 @@ class KvImpl {
 
     public KvResult expire(long index, ByteArray key, long expectCreateRaftIndex) {
         int ck = checkKey(key, false, false);
-        if (ck != KvCodes.CODE_SUCCESS) {
+        if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
         KvNodeHolder h = map.get(key);
@@ -756,7 +756,7 @@ class KvImpl {
         }
         if (h.latest.ttlInfo.expireNanos - ts.nanoTime > 0) {
             log.warn("key {} is not expired, maybe ttl updated", key);
-            return new KvResult(KvCodes.CODE_NOT_EXPIRED);
+            return new KvResult(KvCodes.NOT_EXPIRED);
         }
         long t = lock.writeLock();
         try {

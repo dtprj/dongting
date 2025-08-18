@@ -395,7 +395,7 @@ abstract class WatchManager {
                     }
                 }
                 retryByChannel(ci, watches);
-            } else if (result.getBizCode() == KvCodes.CODE_SUCCESS) {
+            } else if (result.getBizCode() == KvCodes.SUCCESS) {
                 WatchNotifyRespCallback callback = result.getBody();
                 if (callback.results.length != watches.size()) {
                     log.error("response results size not match, expect {}, but got {}",
@@ -408,11 +408,11 @@ abstract class WatchManager {
                 for (int size = watches.size(), i = 0; i < size; i++) {
                     int bizCode = callback.results[i];
                     ChannelWatch w = watches.get(i);
-                    if (bizCode == KvCodes.CODE_REMOVE_WATCH) {
+                    if (bizCode == KvCodes.REMOVE_WATCH) {
                         ci.watches.remove(w.watchHolder.key);
                         removeWatchFromKvTree(w);
                     } else {
-                        if (bizCode != KvCodes.CODE_SUCCESS) {
+                        if (bizCode != KvCodes.SUCCESS) {
                             hasFailCode = true;
                             log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);
                         } else {
@@ -434,7 +434,7 @@ abstract class WatchManager {
                 } else if (ci.needNotify != null && !ci.needNotify.isEmpty()) {
                     needNotifyChannels.add(ci);
                 }
-            } else if (result.getBizCode() == KvCodes.CODE_REMOVE_ALL_WATCH) {
+            } else if (result.getBizCode() == KvCodes.REMOVE_ALL_WATCH) {
                 removeByChannel(ci.channel);
             } else {
                 log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), result.getBizCode());

@@ -143,7 +143,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
             KvResp resp = new KvResp(raftIndex, results);
             EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
             p.setRespCode(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.CODE_SUCCESS);
+            p.setBizCode(KvCodes.SUCCESS);
             return p;
         }
     }
@@ -201,7 +201,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_BATCH_REMOVE: {
                     //noinspection unchecked
                     Pair<Integer, List<KvResult>> p = (Pair<Integer, List<KvResult>>) result;
-                    if (p.getLeft() == KvCodes.CODE_SUCCESS) {
+                    if (p.getLeft() == KvCodes.SUCCESS) {
                         List<KvResult> results = new ArrayList<>(p.getRight());
                         resp = new EncodableBodyWritePacket(new KvResp(raftIndex, results));
                         resp.setRespCode(CmdCodes.SUCCESS);

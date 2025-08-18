@@ -70,7 +70,7 @@ public class KvClient extends AbstractLifeCircle {
                 FutureCallback.callFail(c, ex);
             } else {
                 int bc = result.getBizCode();
-                if (bc == KvCodes.CODE_SUCCESS || bc == anotherSuccessCode) {
+                if (bc == KvCodes.SUCCESS || bc == anotherSuccessCode) {
                     FutureCallback.callSuccess(c, result.getBody().raftIndex);
                 } else {
                     FutureCallback.callFail(c, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
@@ -133,7 +133,7 @@ public class KvClient extends AbstractLifeCircle {
         KvReq r = new KvReq(groupId, key, value);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_PUT);
-        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.CODE_SUCCESS_OVERWRITE);
+        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.SUCCESS_OVERWRITE);
         raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
     }
 
@@ -174,7 +174,7 @@ public class KvClient extends AbstractLifeCircle {
                 FutureCallback.callFail(callback, ex);
             } else {
                 int bc = result.getBizCode();
-                if (bc == KvCodes.CODE_SUCCESS || bc == KvCodes.CODE_NOT_FOUND) {
+                if (bc == KvCodes.SUCCESS || bc == KvCodes.NOT_FOUND) {
                     KvResp resp = result.getBody();
                     KvNode n = (resp == null || resp.results == null || resp.results.isEmpty()) ? null : resp.results.get(0).getNode();
                     FutureCallback.callSuccess(callback, n);
@@ -222,7 +222,7 @@ public class KvClient extends AbstractLifeCircle {
                 FutureCallback.callFail(callback, ex);
             } else {
                 int bc = result.getBizCode();
-                if (bc == KvCodes.CODE_SUCCESS) {
+                if (bc == KvCodes.SUCCESS) {
                     KvResp resp = result.getBody();
                     FutureCallback.callSuccess(callback, (resp == null || resp.results == null)
                             ? Collections.emptyList() : resp.results);
@@ -264,7 +264,7 @@ public class KvClient extends AbstractLifeCircle {
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_REMOVE);
-        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.CODE_NOT_FOUND);
+        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.NOT_FOUND);
         raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
     }
 
@@ -299,7 +299,7 @@ public class KvClient extends AbstractLifeCircle {
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_MKDIR);
-        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.CODE_DIR_EXISTS);
+        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.DIR_EXISTS);
         raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
     }
 
@@ -360,7 +360,7 @@ public class KvClient extends AbstractLifeCircle {
                 FutureCallback.callFail(callback, ex);
             } else {
                 int bc = result.getBizCode();
-                if (bc == KvCodes.CODE_SUCCESS) {
+                if (bc == KvCodes.SUCCESS) {
                     KvResp resp = result.getBody();
                     FutureCallback.callSuccess(callback, resp);
                 } else {
@@ -415,7 +415,7 @@ public class KvClient extends AbstractLifeCircle {
                 FutureCallback.callFail(callback, ex);
             } else {
                 int bc = result.getBizCode();
-                if (bc == KvCodes.CODE_SUCCESS) {
+                if (bc == KvCodes.SUCCESS) {
                     KvResp resp = result.getBody();
                     if (resp == null || resp.results == null) {
                         FutureCallback.callSuccess(callback, Collections.emptyList());
@@ -487,7 +487,7 @@ public class KvClient extends AbstractLifeCircle {
         CompletableFuture<Pair<Long, Integer>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         compareAndSet(groupId, key, expectValue, newValue, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout).getRight() == KvCodes.CODE_SUCCESS;
+        return waitFuture(f, timeout).getRight() == KvCodes.SUCCESS;
     }
 
     /**

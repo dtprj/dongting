@@ -488,7 +488,7 @@ public class ClientWatchManager {
             if (watch == null) {
                 log.warn("watch group not found, groupId={}, server={}", req.groupId, remote);
                 EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                p.setBizCode(KvCodes.CODE_REMOVE_ALL_WATCH);
+                p.setBizCode(KvCodes.REMOVE_ALL_WATCH);
                 return p;
             }
             if (req.notifyList == null || req.notifyList.isEmpty()) {
@@ -500,14 +500,14 @@ public class ClientWatchManager {
                 String k = new String(n.key, StandardCharsets.UTF_8);
                 KeyWatch w = watch.watches.get(k);
                 if (w == null || w.needRemove) {
-                    results[i] = KvCodes.CODE_REMOVE_WATCH;
+                    results[i] = KvCodes.REMOVE_WATCH;
                 } else {
                     if (w.raftIndex < n.raftIndex) {
                         w.raftIndex = n.raftIndex;
                         WatchEvent e = new WatchEvent(watch.groupId, n.raftIndex, n.state, k, n.value);
                         addOrUpdateToNotifyQueue(w, e);
                     }
-                    results[i] = KvCodes.CODE_SUCCESS;
+                    results[i] = KvCodes.SUCCESS;
                 }
                 i++;
             }

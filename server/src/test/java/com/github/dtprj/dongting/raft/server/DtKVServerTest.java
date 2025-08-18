@@ -52,7 +52,7 @@ public class DtKVServerTest extends ServerTestBase {
 
             List<KvResult> listResult = client.list(groupId, "".getBytes());
             assertEquals(groupId, listResult.size());
-            assertEquals(KvCodes.CODE_SUCCESS, listResult.get(0).getBizCode());
+            assertEquals(KvCodes.SUCCESS, listResult.get(0).getBizCode());
             assertEquals("dir1", listResult.get(0).getKeyInDir().toString());
 
             client.remove(groupId, "dir1.k1".getBytes());
@@ -63,8 +63,8 @@ public class DtKVServerTest extends ServerTestBase {
             KvResp batchPutResults = client.batchPut(groupId, Arrays.asList("batchK1".getBytes(), "batchK2".getBytes()),
                     Arrays.asList("v1".getBytes(), "v2".getBytes()));
             assertEquals(2, batchPutResults.results.size());
-            assertEquals(KvCodes.CODE_SUCCESS, batchPutResults.results.get(0).getBizCode());
-            assertEquals(KvCodes.CODE_SUCCESS, batchPutResults.results.get(1).getBizCode());
+            assertEquals(KvCodes.SUCCESS, batchPutResults.results.get(0).getBizCode());
+            assertEquals(KvCodes.SUCCESS, batchPutResults.results.get(1).getBizCode());
 
             // Verify batchPut results
             List<KvNode> batchGetResults = client.batchGet(groupId, Arrays.asList(
@@ -77,8 +77,8 @@ public class DtKVServerTest extends ServerTestBase {
             KvResp batchRemoveResults = client.batchRemove(groupId, Arrays.asList(
                     "batchK1".getBytes(), "batchK2".getBytes()));
             assertEquals(2, batchRemoveResults.results.size());
-            assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResults.results.get(0).getBizCode());
-            assertEquals(KvCodes.CODE_SUCCESS, batchRemoveResults.results.get(1).getBizCode());
+            assertEquals(KvCodes.SUCCESS, batchRemoveResults.results.get(0).getBizCode());
+            assertEquals(KvCodes.SUCCESS, batchRemoveResults.results.get(1).getBizCode());
 
             // Verify batchRemove results
             batchGetResults = client.batchGet(groupId, Arrays.asList(

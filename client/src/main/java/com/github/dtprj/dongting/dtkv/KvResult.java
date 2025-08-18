@@ -39,9 +39,9 @@ public class KvResult implements Encodable {
 
     private final int encodeSize;
 
-    public static final KvResult SUCCESS = new KvResult(KvCodes.CODE_SUCCESS, null);
-    public static final KvResult NOT_FOUND = new KvResult(KvCodes.CODE_NOT_FOUND, null);
-    public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.CODE_SUCCESS_OVERWRITE, null);
+    public static final KvResult SUCCESS = new KvResult(KvCodes.SUCCESS, null);
+    public static final KvResult NOT_FOUND = new KvResult(KvCodes.NOT_FOUND, null);
+    public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.SUCCESS_OVERWRITE, null);
 
     public KvResult(int bizCode) {
         this(bizCode, null, null);

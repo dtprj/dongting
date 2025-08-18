@@ -593,7 +593,7 @@ public class WatchManagerTest {
         mockClientResponse();
         pushRequestList.clear();
 
-        setRpcResult(KvCodes.CODE_SUCCESS, KvCodes.CODE_REMOVE_WATCH);
+        setRpcResult(KvCodes.SUCCESS, KvCodes.REMOVE_WATCH);
         put("key1", "value1");
         put("key2", "value2");
         manager.dispatch();
@@ -606,7 +606,7 @@ public class WatchManagerTest {
         assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
         assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
 
-        setRpcResult(KvCodes.CODE_REMOVE_WATCH);
+        setRpcResult(KvCodes.REMOVE_WATCH);
         put("key1", "value1_2");
         put("key2", "value2_2");
         manager.dispatch();
@@ -635,7 +635,7 @@ public class WatchManagerTest {
             setRpcEx(new NetCodeException(CmdCodes.COMMAND_NOT_SUPPORT, "", null));
         } else {
             ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
-            r.setBizCode(KvCodes.CODE_REMOVE_ALL_WATCH);
+            r.setBizCode(KvCodes.REMOVE_ALL_WATCH);
             setRpcResult(r);
         }
 
@@ -680,7 +680,7 @@ public class WatchManagerTest {
             setRpcEx(new MockRuntimeException());
         } else {
             ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
-            r.setBizCode(KvCodes.CODE_CLIENT_REQ_ERROR);
+            r.setBizCode(KvCodes.CLIENT_REQ_ERROR);
             setRpcResult(r);
         }
 

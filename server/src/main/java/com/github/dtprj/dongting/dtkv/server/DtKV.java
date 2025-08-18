@@ -216,7 +216,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public KvResult get(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
-            return new KvResult(KvCodes.CODE_INSTALL_SNAPSHOT);
+            return new KvResult(KvCodes.INSTALL_SNAPSHOT);
         }
         return kvStatus.kvImpl.get(key);
     }
@@ -232,7 +232,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public Pair<Integer, List<KvResult>> batchGet(List<byte[]> keys) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
-            return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);
+            return new Pair<>(KvCodes.INSTALL_SNAPSHOT, null);
         }
         return kvStatus.kvImpl.batchGet(keys);
     }
@@ -248,7 +248,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public Pair<Integer, List<KvResult>> list(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;
         if (kvStatus.installSnapshot) {
-            return new Pair<>(KvCodes.CODE_INSTALL_SNAPSHOT, null);
+            return new Pair<>(KvCodes.INSTALL_SNAPSHOT, null);
         }
         return kvStatus.kvImpl.list(key);
     }

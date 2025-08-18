@@ -124,7 +124,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterPut(Object result) {
-                assertEquals(KvCodes.CODE_SUCCESS, ((KvResult) result).getBizCode());
+                assertEquals(KvCodes.SUCCESS, ((KvResult) result).getBizCode());
                 raftStatus.setLastApplied(index - 1);
                 if ((index - 1) % 2 == 0) {
                     FiberFuture<Long> f = m.saveSnapshot();
@@ -170,7 +170,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 for (index = 1; index <= LOOP; index++) {
                     ByteArray key = new ByteArray(("key" + index).getBytes());
                     KvResult r = kv.get(key);
-                    assertEquals(KvCodes.CODE_SUCCESS, r.getBizCode());
+                    assertEquals(KvCodes.SUCCESS, r.getBizCode());
                     assertEquals("value" + index, new String(r.getNode().data));
                 }
 
