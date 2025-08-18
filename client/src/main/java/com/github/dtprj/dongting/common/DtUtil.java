@@ -110,7 +110,7 @@ public class DtUtil {
 
     public static long checkPositive(long value, String name) {
         if (value <= 0) {
-            throw new IllegalArgumentException(name + " : " + value + " (expected: >= 0)");
+            throw new IllegalArgumentException(name + " : " + value + " (expected: > 0)");
         }
         return value;
     }

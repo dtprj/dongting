@@ -24,11 +24,11 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetBizCodeException;
+import com.github.dtprj.dongting.net.NetException;
+import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
-import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.RaftTimeoutException;
 
 import java.util.Collections;
 import java.util.List;
@@ -73,7 +73,7 @@ public class KvClient extends AbstractLifeCircle {
                 if (bc == KvCodes.SUCCESS || bc == anotherSuccessCode) {
                     FutureCallback.callSuccess(c, result.getBody().raftIndex);
                 } else {
-                    FutureCallback.callFail(c, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                    FutureCallback.callFail(c, new KvException(bc));
                 }
             }
         };
@@ -84,11 +84,15 @@ public class KvClient extends AbstractLifeCircle {
             return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             DtUtil.restoreInterruptStatus();
-            throw new RaftException("interrupted", e);
+            throw new NetException("interrupted", e);
         } catch (ExecutionException e) {
-            throw new RaftException("execution exception: " + e.getCause().getMessage(), e.getCause());
+            Throwable cause = e.getCause();
+            if (cause instanceof KvException) {
+                throw (KvException) cause;
+            }
+            throw new NetException(e);
         } catch (TimeoutException e) {
-            throw new RaftTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
+            throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
         }
     }
 
@@ -100,21 +104,24 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * synchronously put a key-value pair into the kv store.
+     * Synchronously put a key-value pair into the kv store.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param value not null or empty
      * @return raft index of this write operation, it is useless in most cases.
+     * @throws KvException If K/V node already exists without a tll, throws KvException with code IS_TEMP_NODE;
+     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long put(int groupId, byte[] key, byte[] value) {
+    public long put(int groupId, byte[] key, byte[] value) throws KvException, NetException {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
-        put(groupId, key, value, timeout, FutureCallback.fromFuture(f));
+        put(groupId, key, value, -1, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
     /**
-     * asynchronously put a key-value pair into the kv store.
+     * Asynchronously put a key-value pair into the kv store.
+     * If K/V node already exists without a tll, the callback will complete with a KvException with code IS_TEMP_NODE.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param value not null or empty
@@ -124,15 +131,54 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void put(int groupId, byte[] key, byte[] value, FutureCallback<Long> callback) {
-        put(groupId, key, value, raftClient.createDefaultTimeout(), callback);
+        put(groupId, key, value, -1, raftClient.createDefaultTimeout(), callback);
     }
 
-    private void put(int groupId, byte[] key, byte[] value, DtTime timeout, FutureCallback<Long> callback) {
+    /**
+     * Synchronously put a key-value pair into the kv store, with a ttl.
+     * If K/V node already exists with a tll, it will be overwritten and ttl will be updated.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param value not null or empty
+     * @return raft index of this write operation, it is useless in most cases.
+     * @throws KvException If K/V node already exists without a tll, throws KvException with code NOT_TEMP_NODE;
+     *                     If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
+     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     */
+    public long putTemp(int groupId, byte[] key, byte[] value, long ttlMillis) throws KvException, NetException {
+        DtUtil.checkPositive(ttlMillis, "ttlMillis");
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
+        put(groupId, key, value, ttlMillis, timeout, FutureCallback.fromFuture(f));
+        return waitFuture(f, timeout);
+    }
+
+    /**
+     * Asynchronously put a key-value pair into the kv store, with a ttl.
+     * If K/V node already exists with a tll, it will be overwritten and ttl will be updated.
+     * If K/V node already exists without a tll, the callback will complete with a KvException with code NOT_TEMP_NODE.
+     * If try to update K/V node created by another client, the callback will complete with a KvException with code NOT_OWNER.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param value not null or empty
+     * @param ttlMillis time to live in milliseconds, must be positive
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
+     */
+    public void putTemp(int groupId, byte[] key, byte[] value, long ttlMillis, FutureCallback<Long> callback) {
+        DtUtil.checkPositive(ttlMillis, "ttlMillis");
+        put(groupId, key, value, ttlMillis, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void put(int groupId, byte[] key, byte[] value, long ttlMillis, DtTime timeout,
+                     FutureCallback<Long> callback) {
         notNullOrEmpty(key, "key");
         notNullOrEmpty(value, "value");
         KvReq r = new KvReq(groupId, key, value);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.setCommand(Commands.DTKV_PUT);
+        wf.setCommand(ttlMillis > 0 ? Commands.DTKV_PUT_TEMP_NODE : Commands.DTKV_PUT);
         RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.SUCCESS_OVERWRITE);
         raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
     }
@@ -234,12 +280,19 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * synchronously remove a key from the kv store.
+     * Synchronously remove a key from the kv store.
+     * This method can be used to remove a K/V node which is temporary or permanent. However, a client can only remove
+     * a temporary K/V node created by itself, otherwise it will throw a KvException with code NOT_OWNER.
+     * If the key is a directory, it will only be removed if it is empty.
+     * If the K/V node is not exists, do nothing and return the new raft index.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @return raft index of this write operation, it is useless in most cases.
+     * @throws KvException if the K/V node is not temporary, throws KvException with code NOT_TEMP_NODE;
+     *                     if the K/V node is temporary but created by another client, throws KvException with code NOT_OWNER.
+     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long remove(int groupId, byte[] key) {
+    public long remove(int groupId, byte[] key) throws KvException, NetException {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         remove(groupId, key, timeout, FutureCallback.fromFuture(f));
@@ -248,6 +301,9 @@ public class KvClient extends AbstractLifeCircle {
 
     /**
      * asynchronously remove a key from the kv store.
+     * This method can be used to remove a K/V node which is temporary or permanent. However, a client can only remove
+     * a temporary K/V node created by itself, otherwise the callback will complete with a KvException with code NOT_OWNER.
+     * If the K/V node is not exists, do nothing and complete the callback with the new raft index.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
@@ -269,21 +325,24 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * synchronously create a directory.
+     * synchronously create a directory. If the directory already exists, do nothing and return the new raft index.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @return raft index of this write operation, it is useless in most cases.
+     * @throws KvException if the exists K/V node is temporary, throws KvException with code IS_TEMP_NODE;
+     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long mkdir(int groupId, byte[] key) {
+    public long mkdir(int groupId, byte[] key) throws KvException, NetException {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
-        mkdir(groupId, key, timeout, FutureCallback.fromFuture(f));
+        mkdir(groupId, key, -1, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
     /**
-     * asynchronously create a directory.
-     * @param groupId the raft group id
+     * asynchronously create a directory. If the directory already exists, do nothing and complete the callback with
+     * the new raft index.
+     * @param groupId the raft group id throws KvException, NetException {
      * @param key not null or empty, use '.' as path separator
      * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
      *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
@@ -291,14 +350,50 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void mkdir(int groupId, byte[] key, FutureCallback<Long> callback) {
-        mkdir(groupId, key, raftClient.createDefaultTimeout(), callback);
+        mkdir(groupId, key, -1, raftClient.createDefaultTimeout(), callback);
     }
 
-    private void mkdir(int groupId, byte[] key, DtTime timeout, FutureCallback<Long> callback) {
+    /**
+     * Synchronously create a temporary directory with a ttl. If the directory already exists, and it's a temporary
+     * directory created by this client, update ttl and return the new raft index.
+     *
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param ttlMillis time to live in milliseconds, must be positive
+     * @return raft index of this write operation, it is useless in most cases.
+     * @throws KvException If the exists K/V node is not temporary, throws KvException with code NOT_TEMP_NODE;
+     *                     If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
+     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     */
+    public long makeTempDir(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
+        DtUtil.checkPositive(ttlMillis, "ttlMillis");
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
+        mkdir(groupId, key, ttlMillis, timeout, FutureCallback.fromFuture(f));
+        return waitFuture(f, timeout);
+    }
+
+    /**
+     * Asynchronously create a temporary directory with a ttl. If the directory already exists, and it's a temporary
+     * directory created by this client, update ttl and complete the callback with the new raft index.
+     *
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param ttlMillis time to live in milliseconds, must be positive
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
+     */
+    public void makeTempDir(int groupId, byte[] key, long ttlMillis, FutureCallback<Long> callback) {
+        mkdir(groupId, key, ttlMillis, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void mkdir(int groupId, byte[] key, long ttlMillis, DtTime timeout, FutureCallback<Long> callback) {
         notNullOrEmpty(key, "key");
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.setCommand(Commands.DTKV_MKDIR);
+        wf.setCommand(ttlMillis > 0 ? Commands.DTKV_MAKE_TEMP_DIR : Commands.DTKV_MKDIR);
         RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.DIR_EXISTS);
         raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
     }
@@ -312,7 +407,7 @@ public class KvClient extends AbstractLifeCircle {
      *         you may check bizCode of each KvResult
      * @see KvCodes
      */
-    public KvResp batchPut(int groupId, List<byte[]> keys, List<byte[]> values) {
+    public KvResp batchPut(int groupId, List<byte[]> keys, List<byte[]> values) throws KvException, NetException {
         CompletableFuture<KvResp> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         batchPut(groupId, keys, values, timeout, FutureCallback.fromFuture(f));
@@ -438,7 +533,7 @@ public class KvClient extends AbstractLifeCircle {
      *         you may check bizCode of each KvResult
      * @see KvCodes
      */
-    public KvResp batchRemove(int groupId, List<byte[]> keys) {
+    public KvResp batchRemove(int groupId, List<byte[]> keys) throws KvException, NetException {
         CompletableFuture<KvResp> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         batchRemove(groupId, keys, timeout, FutureCallback.fromFuture(f));
@@ -475,15 +570,15 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * Synchronously compare and set operation. This operation can't be used to create a directory.
+     * Synchronously compare and set operation.
+     * This operation can't be used to create a directory or operate on a temporary node.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param expectValue the expected value, null or empty indicates the key not exist
      * @param newValue the new value, null or empty indicates delete the key
-     * @return left: raft index of this write operation, it is useless in most cases;
-     *         right: c-a-s operation success or not.
+     * @return true if the operation is successful
      */
-    public boolean compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) {
+    public boolean compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) throws KvException, NetException {
         CompletableFuture<Pair<Long, Integer>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         compareAndSet(groupId, key, expectValue, newValue, timeout, FutureCallback.fromFuture(f));
@@ -491,7 +586,8 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * Asynchronously compare and set operation. This operation can't be used to create a directory.
+     * Asynchronously compare and set operation.
+     * This operation can't be used to create a directory or operate on a temporary node.
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param expectValue the expected value, null or empty indicates the key not exist
@@ -524,6 +620,46 @@ public class KvClient extends AbstractLifeCircle {
                 FutureCallback.callSuccess(callback, new Pair<>(raftIndex, bc));
             }
         });
+    }
+
+    /**
+     * Synchronously update the ttl of a temporary node.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param ttlMillis time to live in milliseconds, must be positive
+     * @return raft index of this write operation, it is useless in most cases.
+     * @throws KvException If the key is not a temporary node, throws KvException with code NOT_TEMP_NODE;
+     *                     If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
+     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     */
+    public long updateTtl(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
+        updateTtl(groupId, key, ttlMillis, timeout, FutureCallback.fromFuture(f));
+        return waitFuture(f, timeout);
+    }
+
+    /**
+     * Asynchronously update the ttl of a temporary node.
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @param ttlMillis time to live in milliseconds, must be positive
+     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
+     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
+     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
+     *                 these callbacks.
+     */
+    public void updateTtl(int groupId, byte[] key, long ttlMillis, FutureCallback<Long> callback) {
+        updateTtl(groupId, key, ttlMillis, raftClient.createDefaultTimeout(), callback);
+    }
+
+    private void updateTtl(int groupId, byte[] key, long ttlMillis, DtTime timeout, FutureCallback<Long> callback) {
+        notNullOrEmpty(key, "key");
+        DtUtil.checkPositive(ttlMillis, "ttlMillis");
+        KvReq r = new KvReq(groupId, key, null, ttlMillis);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
+        wf.setCommand(Commands.DTKV_UPDATE_TTL);
+        raftClient.sendRequest(groupId, wf, DECODER, timeout, raftIndexCallback(callback, KvCodes.SUCCESS));
     }
 
     @Override
