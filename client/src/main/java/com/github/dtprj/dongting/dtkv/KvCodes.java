@@ -41,6 +41,7 @@ public interface KvCodes {
     int NOT_TEMP_NODE = 18;
     int IS_TEMP_NODE = 19;
     int NOT_EXPIRED = 20;
+    int TTL_TOO_LARGE = 21;
 
     static String toStr(int code) {
         switch (code) {
@@ -86,6 +87,8 @@ public interface KvCodes {
                 return "IS_TEMP_NODE";
             case NOT_EXPIRED:
                 return "NOT_EXPIRED";
+            case TTL_TOO_LARGE:
+                return "TTL_TOO_LARGE";
             default:
                 return "UNKNOWN_CODE_" + code;
         }

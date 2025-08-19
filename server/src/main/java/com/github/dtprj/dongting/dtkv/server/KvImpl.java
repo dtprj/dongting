@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 class KvImpl {
     private static final DtLog log = DtLogs.getLogger(KvImpl.class);
 
-    private static final int GC_ITEMS = 1000;
+    private static final int GC_ITEMS = 500;
 
     // only update int unit test
     int maxKeySize = KvClient.MAX_KEY_SIZE;

@@ -42,6 +42,7 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -116,13 +117,13 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     submitWriteTask(reqInfo, DtKV.BIZ_TYPE_CAS, req);
                     break;
                 case Commands.DTKV_PUT_TEMP_NODE:
-                    submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT_TEMP_NODE, req);
+                    checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_PUT_TEMP_NODE, req);
                     break;
                 case Commands.DTKV_MAKE_TEMP_DIR:
-                    submitWriteTask(reqInfo, DtKV.BIZ_MK_TEMP_DIR, req);
+                    checkTtlAndSubmit(reqInfo, DtKV.BIZ_MK_TEMP_DIR, req);
                     break;
                 case Commands.DTKV_UPDATE_TTL:
-                    submitWriteTask(reqInfo, DtKV.BIZ_TYPE_UPDATE_TTL, req);
+                    checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_UPDATE_TTL, req);
                     break;
                 default:
                     throw new RaftException("unknown command: " + frame.getCommand());
@@ -131,6 +132,18 @@ final class KvProcessor extends RaftProcessor<KvReq> {
             writeErrorResp(reqInfo, e);
         }
         return null;
+    }
+
+    private static final long MAX_TTL_MILLIS = TimeUnit.DAYS.toMillis(100 * 365);
+
+    private void checkTtlAndSubmit(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
+        if (req.ttlMillis > MAX_TTL_MILLIS) {
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            p.setBizCode(KvCodes.TTL_TOO_LARGE);
+            reqInfo.reqContext.writeRespInBizThreads(p);
+        } else {
+            submitWriteTask(reqInfo, bizType, req);
+        }
     }
 
     private RetryableWritePacket convertMultiResult(long raftIndex, Pair<Integer, List<KvResult>> r) {
@@ -191,7 +204,10 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_PUT:
                 case Commands.DTKV_REMOVE:
                 case Commands.DTKV_MKDIR:
-                case Commands.DTKV_CAS: {
+                case Commands.DTKV_CAS:
+                case Commands.DTKV_PUT_TEMP_NODE:
+                case Commands.DTKV_MAKE_TEMP_DIR:
+                case Commands.DTKV_UPDATE_TTL: {
                     KvResult r = (KvResult) result;
                     resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
                     resp.setBizCode(r.getBizCode());
