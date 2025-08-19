@@ -180,9 +180,12 @@ class DtKVExecutor {
             if (shouldStop()) {
                 return;
             }
-            if (cond == null) {
+            if (cond != null) {
+                // run in fiber thread
                 cond.signal();
-            } else {
+            } else //noinspection StatementWithEmptyBody
+                if (executor != null) {
+                // run in separateExecutor thread
                 if (future != null) {
                     future.cancel(false);
                     future = null;
@@ -192,6 +195,8 @@ class DtKVExecutor {
                         log.warn("executor stopped, signal failed");
                     }
                 }
+            } else {
+                // not call startDaemonTask(), or in unit test
             }
         }
 
