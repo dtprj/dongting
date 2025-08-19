@@ -238,7 +238,7 @@ class KvImpl {
         long localCreateNanos;
         int bizType;
 
-        private OpContext() {
+        OpContext() {
         }
 
         public void init(int bizType, UUID operator, long ttlMillis, long leaderCreateTimeMillis, long localCreateNanos) {
