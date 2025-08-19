@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.BugLog;
@@ -40,15 +41,11 @@ import java.util.function.Supplier;
 class KvImpl {
     private static final DtLog log = DtLogs.getLogger(KvImpl.class);
 
-    public static final byte SEPARATOR = '.';
-
-    private static final int MAX_KEY_SIZE = 8 * 1024;
-    private static final int MAX_VALUE_SIZE = 1024 * 1024;
     private static final int GC_ITEMS = 1000;
 
     // only update int unit test
-    int maxKeySize = MAX_KEY_SIZE;
-    int maxValueSize = MAX_VALUE_SIZE;
+    int maxKeySize = KvClient.MAX_KEY_SIZE;
+    int maxValueSize = KvClient.MAX_VALUE_SIZE;
     int gcItems = GC_ITEMS;
 
     private final int groupId;
@@ -121,31 +118,7 @@ class KvImpl {
             return KvCodes.INVALID_KEY;
         }
         byte[] bs = key == null ? null : key.getData();
-        if (bs == null || bs.length == 0) {
-            if (allowEmpty) {
-                return KvCodes.SUCCESS;
-            } else {
-                return KvCodes.INVALID_KEY;
-            }
-        }
-        if (bs.length > maxKeySize) {
-            return KvCodes.KEY_TOO_LONG;
-        }
-        if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
-            return KvCodes.INVALID_KEY;
-        }
-        if (fullCheck) {
-            int lastSep = -1;
-            for (int len = bs.length, i = 0; i < len; i++) {
-                if (bs[i] == SEPARATOR) {
-                    if (lastSep == i - 1) {
-                        return KvCodes.INVALID_KEY;
-                    }
-                    lastSep = i;
-                }
-            }
-        }
-        return KvCodes.SUCCESS;
+        return KvClient.checkKey(bs, maxKeySize, allowEmpty, fullCheck);
     }
 
     /**
@@ -295,7 +268,7 @@ class KvImpl {
             return new KvResult(ck);
         }
         KvNodeHolder parent;
-        int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
+        int lastIndexOfSep = key.lastIndexOf(KvClient.SEPARATOR);
         if (lastIndexOfSep > 0) {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
@@ -478,7 +451,7 @@ class KvImpl {
             KvNodeHolder parent;
             ByteArray key = new ByteArray(encodeStatus.keyBytes);
             ByteArray keyInDir;
-            int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
+            int lastIndexOfSep = key.lastIndexOf(KvClient.SEPARATOR);
             if (lastIndexOfSep == -1) {
                 parent = root;
                 keyInDir = key;
@@ -613,7 +586,7 @@ class KvImpl {
             }
         }
         KvNodeHolder parent;
-        int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
+        int lastIndexOfSep = key.lastIndexOf(KvClient.SEPARATOR);
         if (lastIndexOfSep > 0) {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
@@ -699,7 +672,7 @@ class KvImpl {
     }
 
     ByteArray parentKey(ByteArray key) {
-        int lastIndexOfSep = key.lastIndexOf(SEPARATOR);
+        int lastIndexOfSep = key.lastIndexOf(KvClient.SEPARATOR);
         if (lastIndexOfSep > 0) {
             return key.sub(0, lastIndexOfSep);
         } else {

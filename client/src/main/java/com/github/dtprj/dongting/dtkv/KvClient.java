@@ -48,6 +48,10 @@ public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
     private final ClientWatchManager clientWatchManager;
 
+    public static final byte SEPARATOR = '.';
+    public static final int MAX_KEY_SIZE = 8 * 1024;
+    public static final int MAX_VALUE_SIZE = 1024 * 1024;
+
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
     public KvClient() {
@@ -100,6 +104,44 @@ public class KvClient extends AbstractLifeCircle {
         Objects.requireNonNull(key, fieldName + " must not be null");
         if (key.length == 0) {
             throw new IllegalArgumentException(fieldName + " must not be empty");
+        }
+    }
+
+    public static int checkKey(byte[] bs, int maxKeySize, boolean allowEmpty, boolean fullCheck) {
+        if (bs == null || bs.length == 0) {
+            if (allowEmpty) {
+                return KvCodes.SUCCESS;
+            } else {
+                return KvCodes.INVALID_KEY;
+            }
+        }
+        if (bs.length > maxKeySize) {
+            return KvCodes.KEY_TOO_LONG;
+        }
+        if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
+            return KvCodes.INVALID_KEY;
+        }
+        if (fullCheck) {
+            int lastSep = -1;
+            for (int len = bs.length, i = 0; i < len; i++) {
+                if (bs[i] == ' ') {
+                    return KvCodes.INVALID_KEY;
+                }
+                if (bs[i] == SEPARATOR) {
+                    if (lastSep == i - 1) {
+                        return KvCodes.INVALID_KEY;
+                    }
+                    lastSep = i;
+                }
+            }
+        }
+        return KvCodes.SUCCESS;
+    }
+
+    private void checkKey(byte[] key, boolean allowEmpty) {
+        int c = checkKey(key, MAX_KEY_SIZE, allowEmpty, true);
+        if (c != KvCodes.SUCCESS) {
+            throw new IllegalArgumentException("invalid key: " + KvCodes.toStr(c));
         }
     }
 
@@ -174,7 +216,7 @@ public class KvClient extends AbstractLifeCircle {
 
     private void put(int groupId, byte[] key, byte[] value, long ttlMillis, DtTime timeout,
                      FutureCallback<Long> callback) {
-        notNullOrEmpty(key, "key");
+        checkKey(key, false);
         notNullOrEmpty(value, "value");
         KvReq r = new KvReq(groupId, key, value);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -210,7 +252,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private void get(int groupId, byte[] key, DtTime timeout, FutureCallback<KvNode> callback) {
-        Objects.requireNonNull(key);
+        checkKey(key, true);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_GET);
@@ -258,7 +300,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private void list(int groupId, byte[] key, DtTime timeout, FutureCallback<List<KvResult>> callback) {
-        Objects.requireNonNull(key);
+        checkKey(key, true);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_LIST);
@@ -316,7 +358,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private void remove(int groupId, byte[] key, DtTime timeout, FutureCallback<Long> callback) {
-        Objects.requireNonNull(key);
+        checkKey(key, false);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_REMOVE);
@@ -390,7 +432,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private void mkdir(int groupId, byte[] key, long ttlMillis, DtTime timeout, FutureCallback<Long> callback) {
-        notNullOrEmpty(key, "key");
+        checkKey(key, false);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(ttlMillis > 0 ? Commands.DTKV_MAKE_TEMP_DIR : Commands.DTKV_MKDIR);
@@ -438,7 +480,7 @@ public class KvClient extends AbstractLifeCircle {
             throw new IllegalArgumentException("keys and values must be same size and not empty");
         }
         for (byte[] key : keys) {
-            notNullOrEmpty(key, "key");
+            checkKey(key, false);
         }
         for (byte[] value : values) {
             notNullOrEmpty(value, "value");
@@ -499,7 +541,7 @@ public class KvClient extends AbstractLifeCircle {
             throw new IllegalArgumentException("keys must not be empty");
         }
         for (byte[] key : keys) {
-            Objects.requireNonNull(key);
+            checkKey(key, true);
         }
         KvReq r = new KvReq(groupId, keys, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -561,7 +603,7 @@ public class KvClient extends AbstractLifeCircle {
             throw new IllegalArgumentException("keys must not be empty");
         }
         for (byte[] key : keys) {
-            notNullOrEmpty(key, "key");
+            checkKey(key, false);
         }
         KvReq r = new KvReq(groupId, keys, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
@@ -604,7 +646,7 @@ public class KvClient extends AbstractLifeCircle {
 
     private void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
                                DtTime timeout, FutureCallback<Pair<Long, Integer>> callback) {
-        notNullOrEmpty(key, "key");
+        checkKey(key, false);
         if ((expectValue == null || expectValue.length == 0) && (newValue == null || newValue.length == 0)) {
             throw new IllegalArgumentException("expectValue and newValue can't both be null or empty");
         }
@@ -654,7 +696,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private void updateTtl(int groupId, byte[] key, long ttlMillis, DtTime timeout, FutureCallback<Long> callback) {
-        notNullOrEmpty(key, "key");
+        checkKey(key, false);
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         KvReq r = new KvReq(groupId, key, null, ttlMillis);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
