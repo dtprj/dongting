@@ -45,6 +45,7 @@ class TtlManager {
     private RaftRole role;
 
     long defaultDelayNanos = 1_000_000_000L; // 1 second
+    long retryDelayNanos = 1_000_000_000L; // 1 second
 
     public TtlManager(Timestamp ts, Consumer<TtlInfo> expireCallback) {
         this.ts = ts;
@@ -66,7 +67,7 @@ class TtlManager {
                         break;
                     }
                     TtlInfo ttlInfo = it.next();
-                    if (ttlInfo.expireFailed && ts.nanoTime - ttlInfo.lastFailNanos > defaultDelayNanos) {
+                    if (ttlInfo.expireFailed && ts.nanoTime - ttlInfo.lastFailNanos > retryDelayNanos) {
                         it.remove();
                         ttlQueue.add(ttlInfo);
                     } else {
@@ -126,6 +127,7 @@ class TtlManager {
         }
         ttlInfo.expireFailed = true;
         ttlInfo.lastFailNanos = ts.nanoTime;
+        // already in pending queue, no need to add again
         log.warn("expire failed: {}", ex.toString());
     }
 

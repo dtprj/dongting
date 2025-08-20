@@ -52,7 +52,7 @@ class KvImplTest {
         kv = new KvImpl(null, tm, ts, 0, 16, 0.75f);
     }
 
-    private static ByteArray ba(String str) {
+    static ByteArray ba(String str) {
         return new ByteArray(str.getBytes());
     }
 
