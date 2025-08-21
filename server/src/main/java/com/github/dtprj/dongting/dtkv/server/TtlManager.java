@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -38,14 +37,20 @@ class TtlManager {
     private final Timestamp ts;
     private final Consumer<TtlInfo> expireCallback;
 
-    private final TreeSet<TtlInfo> ttlQueue = new TreeSet<>();
-    private final TreeSet<TtlInfo> pendingQueue = new TreeSet<>();
-    final DtKVExecutor.DtKVExecutorTask task;
+    final TreeSet<TtlInfo> ttlQueue = new TreeSet<>();
+    final TreeSet<TtlInfo> pendingQueue = new TreeSet<>();
+    final TtlTask task;
     boolean stop;
     private RaftRole role;
 
     long defaultDelayNanos = 1_000_000_000L; // 1 second
     long retryDelayNanos = 1_000_000_000L; // 1 second
+
+    static final int MAX_RETRY_BATCH = 10;
+    static final int MAX_EXPIRE_BATCH = 50;
+
+    // may overflow, but not a problem
+    private int ttlInfoIndex;
 
     public TtlManager(Timestamp ts, Consumer<TtlInfo> expireCallback) {
         this.ts = ts;
@@ -62,12 +67,12 @@ class TtlManager {
                 Iterator<TtlInfo> it = pendingQueue.iterator();
                 int count = 0;
                 while (it.hasNext()) {
-                    if (count++ >= 10) {
-                        yield = true;
-                        break;
-                    }
                     TtlInfo ttlInfo = it.next();
                     if (ttlInfo.expireFailed && ts.nanoTime - ttlInfo.lastFailNanos > retryDelayNanos) {
+                        if (count++ >= MAX_RETRY_BATCH) {
+                            yield = true;
+                            break;
+                        }
                         it.remove();
                         ttlQueue.add(ttlInfo);
                     } else {
@@ -79,7 +84,7 @@ class TtlManager {
                 Iterator<TtlInfo> it = ttlQueue.iterator();
                 int count = 0;
                 while (it.hasNext()) {
-                    if (count++ >= 50) {
+                    if (count++ >= MAX_EXPIRE_BATCH) {
                         yield = true;
                         break;
                     }
@@ -208,7 +213,7 @@ class TtlManager {
 
     private boolean addNodeTtlAndAddToQueue(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
         TtlInfo ttlInfo = new TtlInfo(key, n.createIndex, ctx.operator, ctx.leaderCreateTimeMillis, ctx.ttlMillis,
-                ctx.localCreateNanos + ctx.ttlMillis * 1_000_000);
+                ctx.localCreateNanos + ctx.ttlMillis * 1_000_000, ttlInfoIndex++);
         n.ttlInfo = ttlInfo;
 
         // assert not in ttl queue and pending queue pending queue
@@ -252,39 +257,32 @@ final class TtlInfo implements Comparable<TtlInfo> {
     final long leaderTtlStartMillis;
     final long ttlMillis;
     final long expireNanos;
-    private final int hash;
+    private final int ttlInfoIndex;
 
     boolean expireFailed;
     long lastFailNanos;
 
-    TtlInfo(ByteArray key, long createIndex, UUID owner, long leaderTtlStartMillis, long ttlMillis, long expireNanos) {
+    TtlInfo(ByteArray key, long createIndex, UUID owner, long leaderTtlStartMillis, long ttlMillis,
+            long expireNanos, int ttlInfoIndex) {
         this.key = key;
         this.createIndex = createIndex;
         this.owner = owner;
         this.leaderTtlStartMillis = leaderTtlStartMillis;
         this.ttlMillis = ttlMillis;
         this.expireNanos = expireNanos;
-
-        this.hash = Objects.hash(key, createIndex);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TtlInfo ttlInfo = (TtlInfo) o;
-        return createIndex == ttlInfo.createIndex &&
-                Objects.equals(key, ttlInfo.key);
-    }
-
-    @Override
-    public int hashCode() {
-        return hash;
+        this.ttlInfoIndex = ttlInfoIndex;
     }
 
     @Override
     public int compareTo(TtlInfo o) {
         long x = this.expireNanos - o.expireNanos;
-        return x < 0 ? -1 : (x > 0 ? 1 : 0);
+        if (x < 0) {
+            return -1;
+        } else if (x > 0) {
+            return 1;
+        } else {
+            int y = this.ttlInfoIndex - o.ttlInfoIndex;
+            return y < 0 ? -1 : y > 0 ? 1 : 0;
+        }
     }
 }

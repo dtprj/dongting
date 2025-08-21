@@ -68,36 +68,51 @@ class TtlManagerTest {
     void testTtlInfoCompareTo() {
         UUID owner = UUID.randomUUID();
 
-        TtlInfo ttlInfo1 = new TtlInfo(ba("k1"), 1, owner, 1, 5, 100000);
-        TtlInfo ttlInfo2 = new TtlInfo(ba("k2"), 2, owner, 1, 5, 200000);
-        TtlInfo ttlInfo3 = new TtlInfo(ba("k3"), 3, owner, 1, 5, -1);
+        TtlInfo t1 = new TtlInfo(ba("k1"), 1, owner, 1, 5, 100000, 1);
+        TtlInfo t2 = new TtlInfo(ba("k2"), 2, owner, 1, 5, 200000, 2);
+        TtlInfo t3 = new TtlInfo(ba("k3"), 3, owner, 1, 5, -1, 3);
 
         TreeSet<TtlInfo> q = new TreeSet<>();
-        q.add(ttlInfo2);
-        q.add(ttlInfo1);
-        q.add(ttlInfo3);
-        assertSame(ttlInfo3, q.first());
-        q.remove(ttlInfo3);
-        assertSame(ttlInfo1, q.first());
+        q.add(t2);
+        q.add(t1);
+        q.add(t3);
+        assertSame(t3, q.first());
+        q.remove(t3);
+        assertSame(t1, q.first());
+
+        q.clear();
+        TtlInfo t4 = new TtlInfo(ba("k1"), 1, owner, 1, 5, 1000, 4);
+        TtlInfo t5 = new TtlInfo(ba("k1"), 1, owner, 1, 5, 1000, 5);
+        q.add(t4);
+        q.add(t5);
+        assertSame(t4, q.first());
+
+        q.clear();
+        TtlInfo t6 = new TtlInfo(ba("k1"), 1, owner, 1, 5, 1000, Integer.MAX_VALUE);
+        TtlInfo t7 = new TtlInfo(ba("k1"), 1, owner, 1, 5, 1000, Integer.MAX_VALUE + 1);
+        q.add(t6);
+        q.add(t7);
+        assertSame(t6, q.first());
     }
 
     @Test
     void testCheckExistNodeForPut() {
         UUID owner = UUID.randomUUID();
+        ByteArray key = ba("k1");
 
         KvImpl.OpContext ctx = createOpContext(owner, 0);
         ctx.bizType = DtKV.BIZ_TYPE_PUT;
         assertNull(manager.checkExistNode(null, ctx));
 
-        KvNodeHolder removedHolder = createKvNodeHolder(true, null);
+        KvNodeHolder removedHolder = createKvNodeHolder(key, true, null);
         assertNull(manager.checkExistNode(removedHolder, ctx));
 
-        KvNodeHolder normalHolder = createKvNodeHolder(false, null);
+        KvNodeHolder normalHolder = createKvNodeHolder(key, false, null);
         assertNull(manager.checkExistNode(normalHolder, ctx));
 
         TtlInfo ttlInfo = new TtlInfo(ba("k1"), 1, owner, 1000, 5000,
-                ts.nanoTime + 5000000000L);
-        KvNodeHolder tempHolder = createKvNodeHolder(false, ttlInfo);
+                ts.nanoTime + 5000L, 1);
+        KvNodeHolder tempHolder = createKvNodeHolder(key, false, ttlInfo);
         KvResult result = manager.checkExistNode(tempHolder, ctx);
         assertNotNull(result);
         assertEquals(KvCodes.IS_TEMP_NODE, result.getBizCode());
@@ -107,6 +122,7 @@ class TtlManagerTest {
     void testCheckExistNodeForMkTempDir() {
         UUID owner = UUID.randomUUID();
         UUID otherOwner = UUID.randomUUID();
+        ByteArray key = ba("k1");
 
         KvImpl.OpContext ctx = createOpContext(owner, 0);
         ctx.bizType = DtKV.BIZ_MK_TEMP_DIR;
@@ -115,22 +131,22 @@ class TtlManagerTest {
         assertNull(manager.checkExistNode(null, ctx));
 
         // 2. removed
-        KvNodeHolder removedHolder = createKvNodeHolder(true, null);
+        KvNodeHolder removedHolder = createKvNodeHolder(key, true, null);
         assertNull(manager.checkExistNode(removedHolder, ctx));
 
         // 3. exists but not temp node
-        KvNodeHolder normalHolder = createKvNodeHolder(false, null);
+        KvNodeHolder normalHolder = createKvNodeHolder(key, false, null);
         KvResult result = manager.checkExistNode(normalHolder, ctx);
         assertEquals(KvCodes.NOT_TEMP_NODE, result.getBizCode());
 
         // 4. exists and is temp node, success
-        TtlInfo ttlInfo = new TtlInfo(ba("k1"), 1, owner, 1000, 5000, ts.nanoTime + 5000000000L);
-        KvNodeHolder tempHolder = createKvNodeHolder(false, ttlInfo);
+        TtlInfo ttlInfo = new TtlInfo(ba("k1"), 1, owner, 1000, 5000, ts.nanoTime + 5000L, 1);
+        KvNodeHolder tempHolder = createKvNodeHolder(key, false, ttlInfo);
         assertNull(manager.checkExistNode(tempHolder, ctx));
 
         // 5. exists and is temp node, but not owner
-        TtlInfo otherTtlInfo = new TtlInfo(ba("k1"), 1, otherOwner, 1000, 5000, ts.nanoTime + 5000000000L);
-        KvNodeHolder otherTempHolder = createKvNodeHolder(false, otherTtlInfo);
+        TtlInfo otherTtlInfo = new TtlInfo(ba("k1"), 1, otherOwner, 1000, 5000, ts.nanoTime + 5000L, 2);
+        KvNodeHolder otherTempHolder = createKvNodeHolder(key, false, otherTtlInfo);
         result = manager.checkExistNode(otherTempHolder, ctx);
         assertEquals(KvCodes.NOT_OWNER, result.getBizCode());
     }
@@ -139,6 +155,7 @@ class TtlManagerTest {
     void testCheckExistNodeForRemove() {
         UUID owner = UUID.randomUUID();
         UUID otherOwner = UUID.randomUUID();
+        ByteArray key = ba("k1");
 
         KvImpl.OpContext ctx = createOpContext(owner, 0);
         ctx.bizType = DtKV.BIZ_TYPE_REMOVE;
@@ -146,19 +163,19 @@ class TtlManagerTest {
         KvResult result = manager.checkExistNode(null, ctx);
         assertEquals(KvCodes.NOT_FOUND, result.getBizCode());
 
-        KvNodeHolder removedHolder = createKvNodeHolder(true, null);
+        KvNodeHolder removedHolder = createKvNodeHolder(key, true, null);
         result = manager.checkExistNode(removedHolder, ctx);
         assertEquals(KvCodes.NOT_FOUND, result.getBizCode());
 
-        KvNodeHolder normalHolder = createKvNodeHolder(false, null);
+        KvNodeHolder normalHolder = createKvNodeHolder(key, false, null);
         assertNull(manager.checkExistNode(normalHolder, ctx));
 
-        TtlInfo ttlInfo = new TtlInfo(ba("test"), 1, owner, 1000, 5000, ts.nanoTime + 5000000000L);
-        KvNodeHolder tempHolder = createKvNodeHolder(false, ttlInfo);
+        TtlInfo ttlInfo = new TtlInfo(ba("test"), 1, owner, 1000, 5000, ts.nanoTime + 5000L, 1);
+        KvNodeHolder tempHolder = createKvNodeHolder(key, false, ttlInfo);
         assertNull(manager.checkExistNode(tempHolder, ctx));
 
-        TtlInfo otherTtlInfo = new TtlInfo(new ByteArray("test".getBytes()), 1, otherOwner, 1000, 5000, ts.nanoTime + 5000000000L);
-        KvNodeHolder otherTempHolder = createKvNodeHolder(false, otherTtlInfo);
+        TtlInfo otherTtlInfo = new TtlInfo(new ByteArray("test".getBytes()), 1, otherOwner, 1000, 5000, ts.nanoTime + 5000L, 2);
+        KvNodeHolder otherTempHolder = createKvNodeHolder(key, false, otherTtlInfo);
         result = manager.checkExistNode(otherTempHolder, ctx);
         assertEquals(KvCodes.NOT_OWNER, result.getBizCode());
     }
@@ -167,6 +184,7 @@ class TtlManagerTest {
     void testCheckExistNodeForUpdateTtl() {
         UUID owner = UUID.randomUUID();
         UUID otherOwner = UUID.randomUUID();
+        ByteArray key = ba("k1");
 
         KvImpl.OpContext ctx = createOpContext(owner, 0);
         ctx.bizType = DtKV.BIZ_TYPE_UPDATE_TTL;
@@ -175,17 +193,17 @@ class TtlManagerTest {
         assertNotNull(result);
         assertEquals(KvCodes.NOT_FOUND, result.getBizCode());
 
-        KvNodeHolder normalHolder = createKvNodeHolder(false, null);
+        KvNodeHolder normalHolder = createKvNodeHolder(key, false, null);
         result = manager.checkExistNode(normalHolder, ctx);
         assertNotNull(result);
         assertEquals(KvCodes.NOT_TEMP_NODE, result.getBizCode());
 
-        TtlInfo ttlInfo = new TtlInfo(new ByteArray("test".getBytes()), 1, owner, 1000, 5000, ts.nanoTime + 5000000000L);
-        KvNodeHolder tempHolder = createKvNodeHolder(false, ttlInfo);
+        TtlInfo ttlInfo = new TtlInfo(new ByteArray("test".getBytes()), 1, owner, 1000, 5000, ts.nanoTime + 5000L, 1);
+        KvNodeHolder tempHolder = createKvNodeHolder(key, false, ttlInfo);
         assertNull(manager.checkExistNode(tempHolder, ctx));
 
-        TtlInfo otherTtlInfo = new TtlInfo(new ByteArray("test".getBytes()), 1, otherOwner, 1000, 5000, ts.nanoTime + 5000000000L);
-        KvNodeHolder otherTempHolder = createKvNodeHolder(false, otherTtlInfo);
+        TtlInfo otherTtlInfo = new TtlInfo(new ByteArray("test".getBytes()), 1, otherOwner, 1000, 5000, ts.nanoTime + 5000L, 2);
+        KvNodeHolder otherTempHolder = createKvNodeHolder(key, false, otherTtlInfo);
         result = manager.checkExistNode(otherTempHolder, ctx);
         assertNotNull(result);
         assertEquals(KvCodes.NOT_OWNER, result.getBizCode());
@@ -202,7 +220,7 @@ class TtlManagerTest {
     @Test
     void testInitTtlWithZeroTtl() {
         ByteArray key = new ByteArray("test".getBytes());
-        KvNodeEx node = createKvNode();
+        KvNodeEx node = createKvNode(key);
         KvImpl.OpContext ctx = createOpContext(UUID.randomUUID(), 0);
         manager.initTtl(key, node, ctx);
         assertNull(node.ttlInfo);
@@ -211,7 +229,7 @@ class TtlManagerTest {
     @Test
     void testInitTtl() {
         ByteArray key = ba("test");
-        KvNodeEx node = createKvNode();
+        KvNodeEx node = createKvNode(key);
         UUID owner = UUID.randomUUID();
         KvImpl.OpContext ctx = createOpContext(owner, 2);
 
@@ -229,7 +247,7 @@ class TtlManagerTest {
     @Test
     void testUpdateTtl() {
         ByteArray key = ba("test");
-        KvNodeEx node = createKvNode();
+        KvNodeEx node = createKvNode(key);
         UUID owner = UUID.randomUUID();
 
         KvImpl.OpContext initCtx = createOpContext(owner, 5);
@@ -253,9 +271,31 @@ class TtlManagerTest {
     }
 
     @Test
+    void testUpdateTtlInPendingQueue() {
+        ByteArray key = ba("test");
+        KvNodeEx node = createKvNode(key);
+        UUID owner = UUID.randomUUID();
+
+        KvImpl.OpContext initCtx = createOpContext(owner, 5);
+        manager.initTtl(key, node, initCtx);
+        ts.wallClockMillis += 6;
+        ts.nanoTime += 6 * 1000 * 1000;
+        assertEquals(manager.defaultDelayNanos, manager.task.execute()); // goto pendingQueue
+        assertEquals(1, expiredList.size());
+
+        expiredList.clear();
+        KvImpl.OpContext updateCtx = createOpContext(owner, 3);
+        manager.updateTtl(key, node, updateCtx);
+        assertEquals(3, node.ttlInfo.ttlMillis);
+        assertEquals(ts.nanoTime + 3_000_000L, node.ttlInfo.expireNanos);
+        assertEquals(3_000_000, manager.task.execute());
+        assertEquals(0, expiredList.size());
+    }
+
+    @Test
     void testRemove() {
         ByteArray key = ba("test");
-        KvNodeEx node = createKvNode();
+        KvNodeEx node = createKvNode(key);
         UUID owner = UUID.randomUUID();
         KvImpl.OpContext ctx = createOpContext(owner, 3);
 
@@ -271,11 +311,31 @@ class TtlManagerTest {
         assertEquals(0, expiredList.size());
     }
 
+    @Test
+    void testRemoveInPendingQueue() {
+        ByteArray key = ba("test");
+        KvNodeEx node = createKvNode(key);
+        UUID owner = UUID.randomUUID();
+
+        KvImpl.OpContext initCtx = createOpContext(owner, 5);
+        manager.initTtl(key, node, initCtx);
+        ts.wallClockMillis += 6;
+        ts.nanoTime += 6 * 1000 * 1000;
+        assertEquals(manager.defaultDelayNanos, manager.task.execute()); // goto pendingQueue
+        assertEquals(1, expiredList.size());
+
+        expiredList.clear();
+        manager.remove(node);
+
+        assertEquals(0, manager.ttlQueue.size());
+        assertEquals(0, manager.pendingQueue.size());
+    }
+
 
     @Test
     void testRetry() {
         ByteArray key = ba("test");
-        KvNodeEx node = createKvNode();
+        KvNodeEx node = createKvNode(key);
         UUID owner = UUID.randomUUID();
         KvImpl.OpContext ctx = createOpContext(owner, 3);
 
@@ -288,11 +348,10 @@ class TtlManagerTest {
         assertEquals(manager.defaultDelayNanos, manager.task.execute());
         assertEquals(1, expiredList.size());
 
-        manager.retry(expiredList.get(0), expireCallbackEx);
+        manager.retry(expiredList.remove(0), expireCallbackEx);
 
         ts.nanoTime += manager.retryDelayNanos / 2;
         ts.wallClockMillis = ts.nanoTime / 1_000_000 / 2;
-        expiredList.clear();
         assertEquals(manager.defaultDelayNanos, manager.task.execute());
         assertEquals(0, expiredList.size());
 
@@ -304,25 +363,77 @@ class TtlManagerTest {
 
     @Test
     void testRoleChange() {
+        ByteArray key = ba("test");
+        KvNodeEx node = createKvNode(key);
+        UUID owner = UUID.randomUUID();
+
+        KvImpl.OpContext initCtx = createOpContext(owner, 5);
+        manager.initTtl(key, node, initCtx);
+        ts.wallClockMillis += 6;
+        ts.nanoTime += 6 * 1000 * 1000;
+        assertEquals(manager.defaultDelayNanos, manager.task.execute()); // goto pendingQueue
+        assertEquals(1, expiredList.size());
+
         manager.roleChange(RaftRole.follower);
         assertTrue(manager.task.shouldPause());
+        assertEquals(1, manager.ttlQueue.size());
+        assertEquals(0, manager.pendingQueue.size());
+    }
+
+    @Test
+    void testExecuteBatch() {
+        UUID owner = UUID.randomUUID();
+        for (int i = 0; i < TtlManager.MAX_EXPIRE_BATCH + 1; i++) {
+            ByteArray key = ba("test" + i);
+            KvNodeEx node = createKvNode(key);
+            KvImpl.OpContext initCtx = createOpContext(owner, 5);
+            manager.initTtl(key, node, initCtx);
+        }
+        ts.wallClockMillis += 6;
+        ts.nanoTime += 6 * 1000 * 1000;
+        assertEquals(0, manager.task.execute());
+        assertEquals(TtlManager.MAX_EXPIRE_BATCH, expiredList.size());
+    }
+
+    @Test
+    void testExecuteBatchInPending() {
+        UUID owner = UUID.randomUUID();
+        for (int i = 0; i < TtlManager.MAX_RETRY_BATCH + 1; i++) {
+            ByteArray key = ba("test" + i);
+            KvNodeEx node = createKvNode(key);
+            KvImpl.OpContext initCtx = createOpContext(owner, 5);
+            manager.initTtl(key, node, initCtx);
+        }
+        ts.wallClockMillis += 6;
+        ts.nanoTime += 6 * 1000 * 1000;
+        while (manager.task.execute() == 0) {
+        }
+        Throwable ex = new MockRuntimeException();
+        for (TtlInfo ttlInfo : expiredList) {
+            manager.retry(ttlInfo, ex);
+        }
+        expiredList.clear();
+        ts.wallClockMillis += manager.retryDelayNanos / 1_000_000 + 1;
+        ts.nanoTime += manager.retryDelayNanos + 1;
+        assertEquals(0, manager.task.execute());
+        assertEquals(TtlManager.MAX_RETRY_BATCH, expiredList.size());
     }
 
     // Helper methods
 
-    private KvNodeEx createKvNode() {
+    private KvNodeEx createKvNode(ByteArray key) {
         // ttl manager does not distinguish between dir and data node, so use a simple data node for testing
         return new KvNodeEx(1, ts.wallClockMillis, 1,
-                ts.wallClockMillis, false, "test".getBytes());
+                ts.wallClockMillis, false, key.getData());
     }
 
-    private KvNodeHolder createKvNodeHolder(boolean removed, TtlInfo ttlInfo) {
+    private KvNodeHolder createKvNodeHolder(ByteArray key, boolean removed, TtlInfo ttlInfo) {
         KvNodeEx node;
 
         if (removed) {
             node = new KvNodeEx(1, ts.wallClockMillis, 1, ts.wallClockMillis, false);
         } else {
-            node = createKvNode();
+            node = createKvNode(key);
             node.ttlInfo = ttlInfo;
         }
 
