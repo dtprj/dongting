@@ -695,12 +695,8 @@ class KvImpl {
         if (r != null) {
             return r;
         }
-        long t = lock.writeLock();
-        try {
-            ttlManager.updateTtl(key, h.latest, opContext);
-        } finally {
-            lock.unlockWrite(t);
-        }
+        // no need to lock, because readers not check ttl
+        ttlManager.updateTtl(key, h.latest, opContext);
         return KvResult.SUCCESS;
     }
 
