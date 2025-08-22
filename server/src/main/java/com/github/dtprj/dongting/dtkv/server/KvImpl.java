@@ -723,10 +723,6 @@ class KvImpl {
             BugLog.getLog().error("ttl info is null: {}", key);
             return KvResult.NOT_FOUND;
         }
-        if (h.latest.ttlInfo.expireNanos - ts.nanoTime > 0) {
-            log.warn("key {} is not expired, maybe ttl updated", key);
-            return new KvResult(KvCodes.NOT_EXPIRED);
-        }
         long t = lock.writeLock();
         try {
             expireInLock(index, h);
