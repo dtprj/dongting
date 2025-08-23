@@ -168,7 +168,6 @@ class TtlManager {
                 }
                 return null;
             case DtKV.BIZ_TYPE_UPDATE_TTL:
-            case DtKV.BIZ_TYPE_PUT_TEMP_NODE:
                 if (h == null || h.latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
@@ -180,6 +179,7 @@ class TtlManager {
                 }
                 return null;
             case DtKV.BIZ_MK_TEMP_DIR:
+            case DtKV.BIZ_TYPE_PUT_TEMP_NODE:
                 if (h == null || h.latest.removed) {
                     return null;
                 }
