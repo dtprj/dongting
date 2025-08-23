@@ -197,16 +197,16 @@ class TtlManager {
         }
     }
 
-    public void updateTtl(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
+    public void updateTtl(ByteArray key, KvNodeEx newNode, KvImpl.OpContext ctx) {
         if (ctx.ttlMillis <= 0) {
             return;
         }
-        TtlInfo ttlInfo = n.ttlInfo;
+        TtlInfo ttlInfo = newNode.ttlInfo;
         if (ttlInfo == null) {
             return;
         }
         doRemove(ttlInfo);
-        if (addNodeTtlAndAddToQueue(key, n, ctx)) {
+        if (addNodeTtlAndAddToQueue(key, newNode, ctx)) {
             task.signal();
         }
     }
@@ -282,6 +282,7 @@ final class TtlInfo implements Comparable<TtlInfo> {
             return 1;
         } else {
             int y = this.ttlInfoIndex - o.ttlInfoIndex;
+            //noinspection UseCompareMethod
             return y < 0 ? -1 : y > 0 ? 1 : 0;
         }
     }

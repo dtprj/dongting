@@ -56,37 +56,37 @@ class KvImplTest {
         return new ByteArray(str.getBytes());
     }
 
-    private void initOpContext(int bizYpe) {
-        kv.opContext.init(bizYpe, selfUuid, 0, ts.wallClockMillis, ts.nanoTime);
+    private void initOpContext(int bizType, long ttlMillis) {
+        kv.opContext.init(bizType, selfUuid, ttlMillis, ts.wallClockMillis, ts.nanoTime);
     }
 
     private KvResult put(long index, ByteArray key, byte[] data) {
-        initOpContext(DtKV.BIZ_TYPE_PUT);
+        initOpContext(DtKV.BIZ_TYPE_PUT, 0);
         return kv.put(index, key, data);
     }
 
     private KvResult mkdir(long index, ByteArray key) {
-        initOpContext(DtKV.BIZ_TYPE_MKDIR);
+        initOpContext(DtKV.BIZ_TYPE_MKDIR, 0);
         return kv.mkdir(index, key);
     }
 
     private KvResult remove(long index, ByteArray key) {
-        initOpContext(DtKV.BIZ_TYPE_REMOVE);
+        initOpContext(DtKV.BIZ_TYPE_REMOVE, 0);
         return kv.remove(index, key);
     }
 
     private Pair<Integer, List<KvResult>> batchRemove(long index, List<byte[]> keys) {
-        initOpContext(DtKV.BIZ_TYPE_BATCH_REMOVE);
+        initOpContext(DtKV.BIZ_TYPE_BATCH_REMOVE, 0);
         return kv.batchRemove(index, keys);
     }
 
     private Pair<Integer, List<KvResult>> batchPut(long index, List<byte[]> keys, List<byte[]> values) {
-        initOpContext(DtKV.BIZ_TYPE_BATCH_PUT);
+        initOpContext(DtKV.BIZ_TYPE_BATCH_PUT, 0);
         return kv.batchPut(index, keys, values);
     }
 
     private KvResult compareAndSet(long index, ByteArray key, byte[] expectedValue, byte[] newValue) {
-        initOpContext(DtKV.BIZ_TYPE_CAS);
+        initOpContext(DtKV.BIZ_TYPE_CAS, 0);
         return kv.compareAndSet(index, key, expectedValue, newValue);
     }
 
@@ -296,6 +296,7 @@ class KvImplTest {
             protected void doClose() {
                 kv.closeSnapshot(this);
                 Supplier<Boolean> gc = kv.createGcTask();
+                //noinspection StatementWithEmptyBody
                 while (gc.get()) {
                 }
             }
@@ -613,6 +614,57 @@ class KvImplTest {
         // Test CAS with non-existent parent directory
         assertEquals(KvCodes.PARENT_DIR_NOT_EXISTS,
                 compareAndSet(ver++, ba("nonexistent.key1"), null, "value".getBytes()).getBizCode());
+    }
+
+    @Test
+    void testTempNode() {
+        ByteArray key = ba("temp1");
+        initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 5);
+        long createIndex = ver++;
+        assertEquals(KvCodes.SUCCESS, kv.put(createIndex, key, "tempValue1".getBytes()).getBizCode());
+        assertEquals(5, kv.map.get(ba("temp1")).latest.ttlInfo.ttlMillis);
+
+        initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 10);
+        assertEquals(KvCodes.SUCCESS_OVERWRITE, kv.put(ver++, key, "tempValue2".getBytes()).getBizCode());
+        assertEquals(10, kv.map.get(key).latest.ttlInfo.ttlMillis);
+
+        initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 0);
+        assertEquals(KvCodes.SUCCESS_OVERWRITE, kv.put(ver++, key, "tempValue3".getBytes()).getBizCode());
+        assertEquals(10, kv.map.get(key).latest.ttlInfo.ttlMillis);
+
+        initOpContext(DtKV.BIZ_TYPE_UPDATE_TTL, 20);
+        assertEquals(KvCodes.SUCCESS, kv.updateTtl(ver++, key).getBizCode());
+        assertEquals(20, kv.map.get(key).latest.ttlInfo.ttlMillis);
+
+        assertNotNull(kv.map.get(key));
+
+        initOpContext(DtKV.BIZ_TYPE_EXPIRE, 0);
+        assertEquals(KvCodes.SUCCESS, kv.expire(ver++, key, createIndex).getBizCode());
+
+        assertNull(kv.map.get(key));
+    }
+
+    @Test
+    void testExpire() {
+        ByteArray key = ba("temp1");
+
+        initOpContext(DtKV.BIZ_TYPE_EXPIRE, 0);
+        assertEquals(KvCodes.NOT_FOUND, kv.expire(ver++, key, 0).getBizCode());
+
+        initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 5);
+        long createIndex = ver++;
+        assertEquals(KvCodes.SUCCESS, kv.put(createIndex, key, "tempValue1".getBytes()).getBizCode());
+        assertEquals(5, kv.map.get(ba("temp1")).latest.ttlInfo.ttlMillis);
+
+        initOpContext(DtKV.BIZ_TYPE_REMOVE, 0);
+        kv.remove(ver++, key);
+        initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 5);
+        assertEquals(KvCodes.SUCCESS, kv.put(ver++, key, "tempValue1".getBytes()).getBizCode());
+
+        initOpContext(DtKV.BIZ_TYPE_EXPIRE, 0);
+        assertEquals(KvCodes.CREATE_INDEX_MISMATCH, kv.expire(ver++, key, createIndex).getBizCode());
+
+        assertNotNull(kv.map.get(key));
     }
 
 }

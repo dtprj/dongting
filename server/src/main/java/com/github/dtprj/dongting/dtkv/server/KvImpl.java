@@ -345,7 +345,7 @@ class KvImpl {
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
                     if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE) {
-                        ttlManager.updateTtl(current.key, oldNode, opContext);
+                        ttlManager.updateTtl(current.key, newKvNode, opContext);
                     }
                     addToUpdateQueue(index, current);
                     updateParent(index, opContext.leaderCreateTimeMillis, parent);
@@ -717,7 +717,7 @@ class KvImpl {
             if (log.isDebugEnabled()) {
                 log.debug("key {} is already removed and re-add", key);
             }
-            return KvResult.NOT_FOUND;
+            return new KvResult(KvCodes.CREATE_INDEX_MISMATCH);
         }
         if (h.latest.ttlInfo == null) {
             BugLog.getLog().error("ttl info is null: {}", key);

@@ -42,6 +42,7 @@ public interface KvCodes {
     int IS_TEMP_NODE = 19;
     int NOT_EXPIRED = 20;
     int TTL_TOO_LARGE = 21;
+    int CREATE_INDEX_MISMATCH = 22;
 
     static String toStr(int code) {
         switch (code) {
@@ -89,6 +90,8 @@ public interface KvCodes {
                 return "NOT_EXPIRED";
             case TTL_TOO_LARGE:
                 return "TTL_TOO_LARGE";
+            case CREATE_INDEX_MISMATCH:
+                return "CREATE_INDEX_MISMATCH";
             default:
                 return "UNKNOWN_CODE_" + code;
         }
