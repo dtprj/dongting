@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -469,7 +470,7 @@ class KvImpl {
                 if (costTimeMillis < 0) {
                     costTimeMillis = 0;
                 }
-                long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L ;
+                long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L;
                 opContext.init(DtKV.BIZ_TYPE_PUT, new UUID(encodeStatus.uuid1, encodeStatus.uuid2),
                         encodeStatus.ttlMillis, encodeStatus.leaderTtlStartTime, localCreateNanos);
                 ttlManager.initTtl(key, n, opContext);
@@ -735,10 +736,22 @@ class KvImpl {
 
     private void expireInLock(long index, KvNodeHolder h) {
         if (h.latest.isDir) {
-            for (KvNodeHolder child : h.latest.children.values()) {
-                if (!child.latest.removed) {
-                    expireInLock(index, child);
+            ArrayDeque<KvNodeHolder> stack = new ArrayDeque<>();
+            ArrayDeque<KvNodeHolder> output = new ArrayDeque<>();
+            stack.push(h);
+            while (!stack.isEmpty()) {
+                KvNodeHolder current = stack.pop();
+                output.push(current);
+                if (current.latest.isDir) {
+                    // the children map has no removed nodes, see doRemoveInLock
+                    for (KvNodeHolder child : current.latest.children.values()) {
+                        stack.push(child);
+                    }
                 }
+            }
+            while (!output.isEmpty()) {
+                KvNodeHolder current = output.pop();
+                doRemoveInLock(index, current);
             }
         } else {
             doRemoveInLock(index, h);

@@ -667,5 +667,36 @@ class KvImplTest {
         assertNotNull(kv.map.get(key));
     }
 
+    @Test
+    void testExpireDir() {
+        initOpContext(DtKV.BIZ_MK_TEMP_DIR, 5);
+        long createIndex = ver++;
+        assertEquals(KvCodes.SUCCESS, kv.mkdir(createIndex, ba("dir1")).getBizCode());
+        assertEquals(5, kv.map.get(ba("dir1")).latest.ttlInfo.ttlMillis);
+
+        initOpContext(DtKV.BIZ_TYPE_PUT, 0);
+        assertEquals(KvCodes.SUCCESS, kv.put(ver++, ba("dir1.key1"), "value1".getBytes()).getBizCode());
+        initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 30);
+        assertEquals(KvCodes.SUCCESS, kv.put(ver++, ba("dir1.key2"), "value2".getBytes()).getBizCode());
+        initOpContext(DtKV.BIZ_TYPE_MKDIR, 0);
+        assertEquals(KvCodes.SUCCESS, kv.mkdir(ver++, ba("dir1.subDir1")).getBizCode());
+        initOpContext(DtKV.BIZ_MK_TEMP_DIR, 40);
+        assertEquals(KvCodes.SUCCESS, kv.mkdir(ver++, ba("dir1.subDir2")).getBizCode());
+        initOpContext(DtKV.BIZ_TYPE_PUT, 0);
+        assertEquals(KvCodes.SUCCESS, kv.put(ver++, ba("dir1.subDir1.key3"), "value3".getBytes()).getBizCode());
+        assertEquals(KvCodes.SUCCESS, kv.put(ver++, ba("dir1.subDir1.key4"), "value4".getBytes()).getBizCode());
+
+        initOpContext(DtKV.BIZ_TYPE_EXPIRE, 0);
+        assertEquals(KvCodes.SUCCESS, kv.expire(ver++, ba("dir1"), createIndex).getBizCode());
+
+        assertNull(kv.map.get(ba("dir1")));
+        assertNull(kv.map.get(ba("dir1.key1")));
+        assertNull(kv.map.get(ba("dir1.key2")));
+        assertNull(kv.map.get(ba("dir1.subDir1")));
+        assertNull(kv.map.get(ba("dir1.subDir1.key3")));
+        assertNull(kv.map.get(ba("dir1.subDir1.key4")));
+        assertNull(kv.map.get(ba("dir1.subDir2")));
+    }
+
 }
 
