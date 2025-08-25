@@ -34,12 +34,15 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,24 +53,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class DtKVTest extends BaseFiberTest {
     private long ver;
-    private boolean useSeparateExecutor;
 
     private DtKV kv;
     private Timestamp ts;
+    private final UUID uuid = UUID.randomUUID();
 
     @BeforeEach
-    void setUp() {
+    public void setUp() {
         ver = 1;
     }
 
-    private DtKV createAndStart() throws Exception {
+    private DtKV createAndStart(boolean useSeparateExecutor) throws Exception {
         ts = fiberGroup.dispatcher.ts;
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.raftStatus = new RaftStatusImpl(1, ts);
         groupConfig.fiberGroup = fiberGroup;
         groupConfig.ts = ts;
         KvConfig kvConfig = new KvConfig();
-        kvConfig.useSeparateExecutor = this.useSeparateExecutor;
+        kvConfig.useSeparateExecutor = useSeparateExecutor;
         kvConfig.initMapCapacity = 16;
         DtKV kv = new DtKV(groupConfig, kvConfig);
         doInFiber(kv::start);
@@ -78,47 +81,55 @@ public class DtKVTest extends BaseFiberTest {
         kv.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private FiberFuture<KvResult> put(long index, String key, String value) {
         KvReq req = new KvReq(1, key.getBytes(), value.getBytes());
-        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
-                new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, i);
+        return exec(index, DtKV.BIZ_TYPE_PUT, req);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private FiberFuture<Pair<Integer, List<KvResult>>> batchPut(long index, List<String> keys, List<String> values) {
         List<byte[]> keyList = keys.stream().map(String::getBytes).collect(Collectors.toList());
         List<byte[]> valueList = values.stream().map(String::getBytes).collect(Collectors.toList());
         KvReq batchPutReq = new KvReq(1, keyList, valueList);
-        RaftInput batchPutInput = new RaftInput(DtKV.BIZ_TYPE_BATCH_PUT, null, batchPutReq,
-                new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, batchPutInput);
+        return exec(index, DtKV.BIZ_TYPE_BATCH_PUT, batchPutReq);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private FiberFuture<KvResult> remove(long index, String key) {
         KvReq req = new KvReq(1, key.getBytes(), null);
-        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_REMOVE, null, req,
-                new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, i);
+        return exec(index, DtKV.BIZ_TYPE_REMOVE, req);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private FiberFuture<Pair<Integer, List<KvResult>>> batchRemove(long index, List<String> keys) {
         List<byte[]> keyList = keys.stream().map(String::getBytes).collect(Collectors.toList());
         KvReq batchRemoveReq = new KvReq(1, keyList, null);
-        RaftInput batchRemoveInput = new RaftInput(DtKV.BIZ_TYPE_BATCH_REMOVE, null, batchRemoveReq,
-                new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, batchRemoveInput);
+        return exec(index, DtKV.BIZ_TYPE_BATCH_REMOVE, batchRemoveReq);
+    }
+
+    private FiberFuture<KvResult> mkdir(long index, String key) {
+        KvReq req = new KvReq(1, key.getBytes(), null);
+        return exec(index, DtKV.BIZ_TYPE_MKDIR, req);
+    }
+
+    private FiberFuture<KvResult> mkTempDir(long index, String key, long ttlMillis) {
+        KvReq req = new KvReq(1, key.getBytes(), null, ttlMillis);
+        return exec(index, DtKV.BIZ_MK_TEMP_DIR, req);
+    }
+
+    private FiberFuture<KvResult> putTempNode(long index, String key, String value, long ttlMillis) {
+        KvReq req = new KvReq(1, key.getBytes(), value.getBytes(), ttlMillis);
+        return exec(index, DtKV.BIZ_TYPE_PUT_TEMP_NODE, req);
+    }
+
+    private FiberFuture<KvResult> updateTtl(long index, String key, long ttlMillis) {
+        KvReq req = new KvReq(1, key.getBytes(), null, ttlMillis);
+        return exec(index, DtKV.BIZ_TYPE_UPDATE_TTL, req);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private FiberFuture<KvResult> mkdir(long index, String key) {
-        KvReq req = new KvReq(1, key.getBytes(), null);
-        RaftInput i = new RaftInput(DtKV.BIZ_TYPE_MKDIR, null,
+    private <T> FiberFuture<T> exec(long index, int bizType, KvReq req) {
+        RaftInput i = new RaftInput(bizType, null,
                 req, new DtTime(1, TimeUnit.SECONDS), false);
-        return (FiberFuture) kv.exec(index, ts.wallClockMillis,ts.nanoTime, i);
+        req.ownerUuid = uuid;
+        return (FiberFuture) kv.exec(index, ts.wallClockMillis, ts.nanoTime, i);
     }
 
     private KvResult get(String key) {
@@ -137,20 +148,10 @@ public class DtKVTest extends BaseFiberTest {
         return kv.list(new ByteArray(key.getBytes()));
     }
 
-    @Test
-    void simpleTest() throws Exception {
-        useSeparateExecutor = false;
-        kv = createAndStart();
-        simpleTest0();
-        stop(kv);
-
-        useSeparateExecutor = true;
-        kv = createAndStart();
-        simpleTest0();
-        stop(kv);
-    }
-
-    private void simpleTest0() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    public void simpleTest(boolean useSeparateExecutor) throws Exception {
+        kv = createAndStart(useSeparateExecutor);
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -213,18 +214,39 @@ public class DtKVTest extends BaseFiberTest {
                 // compareAndSet
                 put(ver++, "cas_key", "old_value");
                 KvReq casReq = new KvReq(1, "cas_key".getBytes(), "new_value".getBytes(), "old_value".getBytes());
-                RaftInput casInput = new RaftInput(DtKV.BIZ_TYPE_CAS, null, casReq,
-                        new DtTime(1, TimeUnit.SECONDS), false);
-                return kv.exec(ver++, ts.wallClockMillis,ts.nanoTime, casInput).await(this::afterCas);
+                casReq.ownerUuid = uuid;
+                return exec(ver++, DtKV.BIZ_TYPE_CAS, casReq).await(this::afterCas);
             }
 
             private FrameCallResult afterCas(Object result) {
                 KvResult casResult = (KvResult) result;
                 assertEquals(KvCodes.SUCCESS, casResult.getBizCode());
                 assertEquals("new_value", new String(get("cas_key").getNode().data));
+                return mkTempDir(ver++, "tmpDir", 1000).await(this::afterMkdirTmp);
+            }
+
+            private FrameCallResult afterMkdirTmp(KvResult r) {
+                assertEquals(KvCodes.SUCCESS, r.getBizCode());
+                KvNodeEx n = (KvNodeEx) get("tmpDir").getNode();
+                assertEquals(1000, n.ttlInfo.ttlMillis);
+                return putTempNode(ver++, "tmpKey", "v", 1000).await(this::afterPutTemp);
+            }
+
+            private FrameCallResult afterPutTemp(KvResult r) {
+                assertEquals(KvCodes.SUCCESS, r.getBizCode());
+                KvNodeEx n = (KvNodeEx) get("tmpKey").getNode();
+                assertEquals(1000, n.ttlInfo.ttlMillis);
+                return updateTtl(ver++, "tmpKey", 2000).await(this::afterUpdateTtl);
+            }
+
+            private FrameCallResult afterUpdateTtl(KvResult r) {
+                assertEquals(KvCodes.SUCCESS, r.getBizCode());
+                KvNodeEx n = (KvNodeEx) get("tmpKey").getNode();
+                assertEquals(2000, n.ttlInfo.ttlMillis);
                 return Fiber.frameReturn();
             }
         });
+        stop(kv);
     }
 
     private FrameCallResult takeSnapshot(FrameCall<Snapshot> resumePoint) {
@@ -235,8 +257,8 @@ public class DtKVTest extends BaseFiberTest {
         return f.await(resumePoint);
     }
 
-    private DtKV copyTo(KvSnapshot s) throws Exception {
-        DtKV kv2 = createAndStart();
+    private DtKV copyTo(KvSnapshot s, boolean useSeparateExecutor) throws Exception {
+        DtKV kv2 = createAndStart(useSeparateExecutor);
         doInFiber(new CopyFrame(s, kv2));
         return kv2;
     }
@@ -311,9 +333,10 @@ public class DtKVTest extends BaseFiberTest {
     long[] root_3, d1_3, k1_3, d1dd2_3;
     KvSnapshot s1, s2, s3;
 
-    @Test
-    void testSnapshot() throws Exception {
-        kv = createAndStart();
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    public void testSnapshot(boolean useSeparateExecutor) throws Exception {
+        kv = createAndStart(useSeparateExecutor);
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -427,7 +450,7 @@ public class DtKVTest extends BaseFiberTest {
         });
 
         {
-            DtKV newKv = copyTo(s1);
+            DtKV newKv = copyTo(s1, useSeparateExecutor);
             assertEquals("k1_v", getStr(newKv, "k1"));
             assertEquals("k2_v", getStr(newKv, "k2"));
             assertEquals("d1.k1_v", getStr(newKv, "d1.k1"));
@@ -448,7 +471,7 @@ public class DtKVTest extends BaseFiberTest {
             stop(newKv);
         }
         {
-            DtKV newKv = copyTo(s2);
+            DtKV newKv = copyTo(s2, useSeparateExecutor);
             assertEquals("d1.k2_v2", getStr(newKv, "d1.k2"));
 
             assertEquals("k1_v", getStr(newKv, "k1"));
@@ -470,7 +493,7 @@ public class DtKVTest extends BaseFiberTest {
             stop(newKv);
         }
         {
-            DtKV newKv = copyTo(s3);
+            DtKV newKv = copyTo(s3, useSeparateExecutor);
             assertTrue(get(newKv, "k1").getNode().isDir);
             assertEquals("k1.k1_v", getStr(newKv, "k1.k1"));
             assertEquals(KvCodes.NOT_FOUND, get(newKv, "d1.dd2.k1").getBizCode());
@@ -500,7 +523,7 @@ public class DtKVTest extends BaseFiberTest {
             s3.close();
         });
         {
-            DtKV newKv = createAndStart();
+            DtKV newKv = createAndStart(useSeparateExecutor);
             doInFiber(new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
@@ -517,6 +540,55 @@ public class DtKVTest extends BaseFiberTest {
             assertEquals(1, kv.kvStatus.kvImpl.map.size());
             stop(newKv);
         }
+        stop(kv);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    public void testSnapshotWithTempNodes(boolean useSeparateExecutor) throws Exception {
+        kv = createAndStart(useSeparateExecutor);
+        AtomicReference<KvSnapshot> snapshotRef = new AtomicReference<>();
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return mkTempDir(ver++, "tempDir", 500).await(this::afterMkTempDir);
+            }
+
+            private FrameCallResult afterMkTempDir(KvResult kvResult) {
+                List<String> keys = new ArrayList<>();
+                List<String> values = new ArrayList<>();
+                for (int i = 0; i < 50; i++) {
+                    keys.add("tempDir.key" + i);
+                    values.add("value" + i);
+                }
+                return batchPut(ver++, keys, values).await(this::afterBatchPut);
+            }
+
+            private FrameCallResult afterBatchPut(Pair<Integer, List<KvResult>> p) {
+                return putTempNode(ver++, "tempKey", "tempValue", 500).await(this::afterPutTemp);
+            }
+
+            private FrameCallResult afterPutTemp(KvResult r) {
+                return takeSnapshot(this::afterTakeSnapshot);
+            }
+
+            private FrameCallResult afterTakeSnapshot(Snapshot snapshot) {
+                snapshotRef.set((KvSnapshot) snapshot);
+                return Fiber.frameReturn();
+            }
+        });
+        DtKV newKv = copyTo(snapshotRef.get(), useSeparateExecutor);
+        for (int i = 0; i < 50; i++) {
+            assertEquals("value" + i, getStr(newKv, "tempDir.key" + i));
+        }
+        assertEquals("tempValue", getStr(newKv, "tempKey"));
+
+        KvNodeEx n = (KvNodeEx) get("tempKey").getNode();
+        assertEquals(500, n.ttlInfo.ttlMillis);
+        n = (KvNodeEx) get("tempDir").getNode();
+        assertEquals(500, n.ttlInfo.ttlMillis);
+
+        stop(newKv);
         stop(kv);
     }
 }
