@@ -137,9 +137,15 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     private static final long MAX_TTL_MILLIS = TimeUnit.DAYS.toMillis(100 * 365);
 
     private void checkTtlAndSubmit(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
-        if (req.ttlMillis > MAX_TTL_MILLIS) {
+        if (req.ttlMillis <= 0) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.TTL_TOO_LARGE);
+            p.setBizCode(KvCodes.INVALID_TTL);
+            p.setMsg("ttl must be positive");
+            reqInfo.reqContext.writeRespInBizThreads(p);
+        } else if (req.ttlMillis > MAX_TTL_MILLIS) {
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            p.setBizCode(KvCodes.INVALID_TTL);
+            p.setMsg("ttl too large");
             reqInfo.reqContext.writeRespInBizThreads(p);
         } else {
             submitWriteTask(reqInfo, bizType, req);
