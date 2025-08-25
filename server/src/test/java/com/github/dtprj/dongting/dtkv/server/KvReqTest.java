@@ -43,7 +43,7 @@ public class KvReqTest {
         req.value = "test_value".getBytes();
         req.expectValue = "test_expect_value".getBytes();
         req.ownerUuid = UUID.randomUUID();
-        req.ttlMillis = 10000;
+        req.ttlMillis = Integer.MAX_VALUE + 1L;
         req.keys = keys;
         req.values = values;
         return req;
