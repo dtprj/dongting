@@ -157,7 +157,7 @@ public class KvClient extends AbstractLifeCircle {
     public long put(int groupId, byte[] key, byte[] value) throws KvException, NetException {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
-        put(groupId, key, value, -1, timeout, FutureCallback.fromFuture(f));
+        put(groupId, key, value, 0, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
@@ -173,7 +173,7 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void put(int groupId, byte[] key, byte[] value, FutureCallback<Long> callback) {
-        put(groupId, key, value, -1, raftClient.createDefaultTimeout(), callback);
+        put(groupId, key, value, 0, raftClient.createDefaultTimeout(), callback);
     }
 
     /**
@@ -218,7 +218,7 @@ public class KvClient extends AbstractLifeCircle {
                      FutureCallback<Long> callback) {
         checkKey(key, false);
         notNullOrEmpty(value, "value");
-        KvReq r = new KvReq(groupId, key, value);
+        KvReq r = new KvReq(groupId, key, value, ttlMillis);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(ttlMillis > 0 ? Commands.DTKV_PUT_TEMP_NODE : Commands.DTKV_PUT);
         RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.SUCCESS_OVERWRITE);
@@ -377,7 +377,7 @@ public class KvClient extends AbstractLifeCircle {
     public long mkdir(int groupId, byte[] key) throws KvException, NetException {
         CompletableFuture<Long> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
-        mkdir(groupId, key, -1, timeout, FutureCallback.fromFuture(f));
+        mkdir(groupId, key, 0, timeout, FutureCallback.fromFuture(f));
         return waitFuture(f, timeout);
     }
 
@@ -392,7 +392,7 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void mkdir(int groupId, byte[] key, FutureCallback<Long> callback) {
-        mkdir(groupId, key, -1, raftClient.createDefaultTimeout(), callback);
+        mkdir(groupId, key, 0, raftClient.createDefaultTimeout(), callback);
     }
 
     /**
@@ -428,12 +428,13 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void makeTempDir(int groupId, byte[] key, long ttlMillis, FutureCallback<Long> callback) {
+        DtUtil.checkPositive(ttlMillis, "ttlMillis");
         mkdir(groupId, key, ttlMillis, raftClient.createDefaultTimeout(), callback);
     }
 
     private void mkdir(int groupId, byte[] key, long ttlMillis, DtTime timeout, FutureCallback<Long> callback) {
         checkKey(key, false);
-        KvReq r = new KvReq(groupId, key, null);
+        KvReq r = new KvReq(groupId, key, null, ttlMillis);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(ttlMillis > 0 ? Commands.DTKV_MAKE_TEMP_DIR : Commands.DTKV_MKDIR);
         RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.DIR_EXISTS);

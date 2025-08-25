@@ -89,7 +89,7 @@ public interface KvCodes {
             case NOT_EXPIRED:
                 return "NOT_EXPIRED";
             case INVALID_TTL:
-                return "TTL_TOO_LARGE";
+                return "INVALID_TTL";
             case CREATE_INDEX_MISMATCH:
                 return "CREATE_INDEX_MISMATCH";
             default:
