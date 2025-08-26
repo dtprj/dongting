@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.NetBizCodeException;
 import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
 
@@ -68,8 +69,11 @@ public class KvClient extends AbstractLifeCircle {
         return new ClientWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
     }
 
-    private static RpcCallback<KvResp> raftIndexCallback(FutureCallback<Long> c, int anotherSuccessCode) {
-        return (result, ex) -> {
+    private void sendAsyncAndGetRaftIndex(int groupId, int cmd, KvReq req, int anotherSuccessCode, FutureCallback<Long> c) {
+        DtTime timeout = raftClient.createDefaultTimeout();
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(req);
+        wf.setCommand(cmd);
+        raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
             if (ex != null) {
                 FutureCallback.callFail(c, ex);
             } else {
@@ -80,7 +84,7 @@ public class KvClient extends AbstractLifeCircle {
                     FutureCallback.callFail(c, new KvException(bc));
                 }
             }
-        };
+        });
     }
 
     private <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
@@ -90,14 +94,26 @@ public class KvClient extends AbstractLifeCircle {
             DtUtil.restoreInterruptStatus();
             throw new NetException("interrupted", e);
         } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof KvException) {
-                throw (KvException) cause;
-            }
             throw new NetException(e);
         } catch (TimeoutException e) {
             throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
         }
+    }
+
+    private long sendSyncAndGetRaftIndex(int groupId, int cmd, KvReq req, int anotherSuccessCode) {
+        CompletableFuture<ReadPacket<KvResp>> f = new CompletableFuture<>();
+        DtTime timeout = raftClient.createDefaultTimeout();
+
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(req);
+        wf.setCommand(cmd);
+        raftClient.sendRequest(groupId, wf, DECODER, timeout, RpcCallback.fromFuture(f));
+
+        ReadPacket<KvResp> p = waitFuture(f, timeout);
+        if (p.getBizCode() == KvCodes.SUCCESS || p.getBizCode() == anotherSuccessCode) {
+            return p.getBody().raftIndex;
+        }
+        // fill stack trace in caller's thread
+        throw new KvException(p.getBizCode());
     }
 
     private void notNullOrEmpty(byte[] key, String fieldName) {
@@ -155,10 +171,10 @@ public class KvClient extends AbstractLifeCircle {
      * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
      */
     public long put(int groupId, byte[] key, byte[] value) throws KvException, NetException {
-        CompletableFuture<Long> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        put(groupId, key, value, 0, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        checkKey(key, false);
+        notNullOrEmpty(value, "value");
+        KvReq r = new KvReq(groupId, key, value);
+        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_PUT, r, KvCodes.SUCCESS_OVERWRITE);
     }
 
     /**
@@ -173,7 +189,10 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void put(int groupId, byte[] key, byte[] value, FutureCallback<Long> callback) {
-        put(groupId, key, value, 0, raftClient.createDefaultTimeout(), callback);
+        checkKey(key, false);
+        notNullOrEmpty(value, "value");
+        KvReq r = new KvReq(groupId, key, value);
+        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_PUT, r, KvCodes.SUCCESS_OVERWRITE, callback);
     }
 
     /**
@@ -189,10 +208,11 @@ public class KvClient extends AbstractLifeCircle {
      */
     public long putTemp(int groupId, byte[] key, byte[] value, long ttlMillis) throws KvException, NetException {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
-        CompletableFuture<Long> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        put(groupId, key, value, ttlMillis, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        checkKey(key, false);
+        notNullOrEmpty(value, "value");
+
+        KvReq r = new KvReq(groupId, key, value, ttlMillis);
+        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_PUT_TEMP_NODE, r, KvCodes.SUCCESS_OVERWRITE);
     }
 
     /**
@@ -211,18 +231,11 @@ public class KvClient extends AbstractLifeCircle {
      */
     public void putTemp(int groupId, byte[] key, byte[] value, long ttlMillis, FutureCallback<Long> callback) {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
-        put(groupId, key, value, ttlMillis, raftClient.createDefaultTimeout(), callback);
-    }
-
-    private void put(int groupId, byte[] key, byte[] value, long ttlMillis, DtTime timeout,
-                     FutureCallback<Long> callback) {
         checkKey(key, false);
         notNullOrEmpty(value, "value");
+
         KvReq r = new KvReq(groupId, key, value, ttlMillis);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.setCommand(ttlMillis > 0 ? Commands.DTKV_PUT_TEMP_NODE : Commands.DTKV_PUT);
-        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.SUCCESS_OVERWRITE);
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
+        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_PUT_TEMP_NODE, r, KvCodes.SUCCESS_OVERWRITE, callback);
     }
 
     /**
@@ -231,11 +244,23 @@ public class KvClient extends AbstractLifeCircle {
      * @param key use '.' as path separator, null or empty indicates the root node
      * @return the KvNode contains value and meta information, return null if not found
      */
-    public KvNode get(int groupId, byte[] key) {
-        CompletableFuture<KvNode> f = new CompletableFuture<>();
+    public KvNode get(int groupId, byte[] key) throws NetException {
+        checkKey(key, true);
+        KvReq r = new KvReq(groupId, key, null);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
+        wf.setCommand(Commands.DTKV_GET);
+        CompletableFuture<ReadPacket<KvResp>> f = new CompletableFuture<>();
+
         DtTime timeout = raftClient.createDefaultTimeout();
-        get(groupId, key, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        raftClient.sendRequest(groupId, wf, DECODER, timeout, RpcCallback.fromFuture(f));
+        ReadPacket<KvResp> p = waitFuture(f, timeout);
+        int bc = p.getBizCode();
+        if (bc == KvCodes.SUCCESS || bc == KvCodes.NOT_FOUND) {
+            KvResp resp = p.getBody();
+            return (resp == null || resp.results == null || resp.results.isEmpty()) ? null : resp.results.get(0).getNode();
+        } else {
+            throw new KvException(bc);
+        }
     }
 
     /**
@@ -248,16 +273,12 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void get(int groupId, byte[] key, FutureCallback<KvNode> callback) {
-        get(groupId, key, raftClient.createDefaultTimeout(), callback);
-    }
-
-    private void get(int groupId, byte[] key, DtTime timeout, FutureCallback<KvNode> callback) {
         checkKey(key, true);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_GET);
 
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
+        raftClient.sendRequest(groupId, wf, DECODER, raftClient.createDefaultTimeout(), (result, ex) -> {
             if (ex != null) {
                 FutureCallback.callFail(callback, ex);
             } else {
@@ -279,11 +300,24 @@ public class KvClient extends AbstractLifeCircle {
      * @param key use '.' as path separator, null or empty indicates the root node
      * @return the KvNode contains value and meta information, return null if the key is not found
      */
-    public List<KvResult> list(int groupId, byte[] key) {
-        CompletableFuture<List<KvResult>> f = new CompletableFuture<>();
+    public List<KvResult> list(int groupId, byte[] key) throws KvException, NetException {
+        checkKey(key, true);
+        CompletableFuture<ReadPacket<KvResp>> f = new CompletableFuture<>();
+        KvReq r = new KvReq(groupId, key, null);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
+        wf.setCommand(Commands.DTKV_LIST);
+
         DtTime timeout = raftClient.createDefaultTimeout();
-        list(groupId, key, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        raftClient.sendRequest(groupId, wf, DECODER, timeout, RpcCallback.fromFuture(f));
+
+        ReadPacket<KvResp> result = waitFuture(f, timeout);
+        int bc = result.getBizCode();
+        if (bc == KvCodes.SUCCESS) {
+            KvResp resp = result.getBody();
+            return (resp == null || resp.results == null) ? Collections.emptyList() : resp.results;
+        } else {
+            throw new KvException(bc);
+        }
     }
 
     /**
@@ -296,16 +330,12 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void list(int groupId, byte[] key, FutureCallback<List<KvResult>> callback) {
-        list(groupId, key, raftClient.createDefaultTimeout(), callback);
-    }
-
-    private void list(int groupId, byte[] key, DtTime timeout, FutureCallback<List<KvResult>> callback) {
         checkKey(key, true);
         KvReq r = new KvReq(groupId, key, null);
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
         wf.setCommand(Commands.DTKV_LIST);
 
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
+        raftClient.sendRequest(groupId, wf, DECODER, raftClient.createDefaultTimeout(), (result, ex) -> {
             if (ex != null) {
                 FutureCallback.callFail(callback, ex);
             } else {
@@ -335,10 +365,9 @@ public class KvClient extends AbstractLifeCircle {
      * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
      */
     public long remove(int groupId, byte[] key) throws KvException, NetException {
-        CompletableFuture<Long> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        remove(groupId, key, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        checkKey(key, false);
+        KvReq r = new KvReq(groupId, key, null);
+        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_REMOVE, r, KvCodes.NOT_FOUND);
     }
 
     /**
@@ -354,16 +383,10 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void remove(int groupId, byte[] key, FutureCallback<Long> callback) {
-        remove(groupId, key, raftClient.createDefaultTimeout(), callback);
-    }
-
-    private void remove(int groupId, byte[] key, DtTime timeout, FutureCallback<Long> callback) {
         checkKey(key, false);
+
         KvReq r = new KvReq(groupId, key, null);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.setCommand(Commands.DTKV_REMOVE);
-        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.NOT_FOUND);
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
+        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_REMOVE, r, KvCodes.NOT_FOUND, callback);
     }
 
     /**
@@ -375,10 +398,10 @@ public class KvClient extends AbstractLifeCircle {
      * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
      */
     public long mkdir(int groupId, byte[] key) throws KvException, NetException {
-        CompletableFuture<Long> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        mkdir(groupId, key, 0, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        checkKey(key, false);
+
+        KvReq r = new KvReq(groupId, key, null);
+        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_MKDIR, r, KvCodes.DIR_EXISTS);
     }
 
     /**
@@ -392,7 +415,9 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void mkdir(int groupId, byte[] key, FutureCallback<Long> callback) {
-        mkdir(groupId, key, 0, raftClient.createDefaultTimeout(), callback);
+        checkKey(key, false);
+        KvReq r = new KvReq(groupId, key, null);
+        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_MKDIR, r, KvCodes.DIR_EXISTS, callback);
     }
 
     /**
@@ -409,10 +434,9 @@ public class KvClient extends AbstractLifeCircle {
      */
     public long makeTempDir(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
-        CompletableFuture<Long> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        mkdir(groupId, key, ttlMillis, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        checkKey(key, false);
+        KvReq r = new KvReq(groupId, key, null, ttlMillis);
+        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_MAKE_TEMP_DIR, r, KvCodes.DIR_EXISTS);
     }
 
     /**
@@ -429,16 +453,9 @@ public class KvClient extends AbstractLifeCircle {
      */
     public void makeTempDir(int groupId, byte[] key, long ttlMillis, FutureCallback<Long> callback) {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
-        mkdir(groupId, key, ttlMillis, raftClient.createDefaultTimeout(), callback);
-    }
-
-    private void mkdir(int groupId, byte[] key, long ttlMillis, DtTime timeout, FutureCallback<Long> callback) {
         checkKey(key, false);
         KvReq r = new KvReq(groupId, key, null, ttlMillis);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.setCommand(ttlMillis > 0 ? Commands.DTKV_MAKE_TEMP_DIR : Commands.DTKV_MKDIR);
-        RpcCallback<KvResp> c = raftIndexCallback(callback, KvCodes.DIR_EXISTS);
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, c);
+        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_MAKE_TEMP_DIR, r, KvCodes.DIR_EXISTS, callback);
     }
 
     /**
@@ -450,7 +467,7 @@ public class KvClient extends AbstractLifeCircle {
      *         you may check bizCode of each KvResult
      * @see KvCodes
      */
-    public KvResp batchPut(int groupId, List<byte[]> keys, List<byte[]> values) throws KvException, NetException {
+    public KvResp batchPut(int groupId, List<byte[]> keys, List<byte[]> values) throws NetException {
         CompletableFuture<KvResp> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         batchPut(groupId, keys, values, timeout, FutureCallback.fromFuture(f));
@@ -502,7 +519,7 @@ public class KvClient extends AbstractLifeCircle {
                     KvResp resp = result.getBody();
                     FutureCallback.callSuccess(callback, resp);
                 } else {
-                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                    FutureCallback.callFail(callback, new KvException(bc));
                 }
             }
         };
@@ -515,7 +532,7 @@ public class KvClient extends AbstractLifeCircle {
      * @return list of KvNode contains values and meta information, if a key not found,
      *         the corresponding KvNode will be null.
      */
-    public List<KvNode> batchGet(int groupId, List<byte[]> keys) {
+    public List<KvNode> batchGet(int groupId, List<byte[]> keys) throws NetException {
         CompletableFuture<List<KvNode>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         batchGet(groupId, keys, timeout, FutureCallback.fromFuture(f));
@@ -576,7 +593,7 @@ public class KvClient extends AbstractLifeCircle {
      *         you may check bizCode of each KvResult
      * @see KvCodes
      */
-    public KvResp batchRemove(int groupId, List<byte[]> keys) throws KvException, NetException {
+    public KvResp batchRemove(int groupId, List<byte[]> keys) throws NetException {
         CompletableFuture<KvResp> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         batchRemove(groupId, keys, timeout, FutureCallback.fromFuture(f));
@@ -621,7 +638,7 @@ public class KvClient extends AbstractLifeCircle {
      * @param newValue the new value, null or empty indicates delete the key
      * @return true if the operation is successful
      */
-    public boolean compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) throws KvException, NetException {
+    public boolean compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) throws NetException {
         CompletableFuture<Pair<Long, Integer>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
         compareAndSet(groupId, key, expectValue, newValue, timeout, FutureCallback.fromFuture(f));
@@ -676,10 +693,10 @@ public class KvClient extends AbstractLifeCircle {
      * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
      */
     public long updateTtl(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
-        CompletableFuture<Long> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        updateTtl(groupId, key, ttlMillis, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+        checkKey(key, false);
+        DtUtil.checkPositive(ttlMillis, "ttlMillis");
+        KvReq r = new KvReq(groupId, key, null, ttlMillis);
+        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_UPDATE_TTL, r, KvCodes.SUCCESS);
     }
 
     /**
@@ -693,16 +710,10 @@ public class KvClient extends AbstractLifeCircle {
      *                 these callbacks.
      */
     public void updateTtl(int groupId, byte[] key, long ttlMillis, FutureCallback<Long> callback) {
-        updateTtl(groupId, key, ttlMillis, raftClient.createDefaultTimeout(), callback);
-    }
-
-    private void updateTtl(int groupId, byte[] key, long ttlMillis, DtTime timeout, FutureCallback<Long> callback) {
         checkKey(key, false);
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         KvReq r = new KvReq(groupId, key, null, ttlMillis);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.setCommand(Commands.DTKV_UPDATE_TTL);
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, raftIndexCallback(callback, KvCodes.SUCCESS));
+        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_UPDATE_TTL, r, KvCodes.SUCCESS, callback);
     }
 
     @Override
