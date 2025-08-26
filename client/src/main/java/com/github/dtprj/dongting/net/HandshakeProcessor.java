@@ -48,13 +48,19 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
             return null;
         }
 
+        HandshakeBody reqBody = packet.getBody();
+        if (reqBody == null || reqBody.processInfo == null ||
+                (reqBody.processInfo.uuid1 == 0 && reqBody.processInfo.uuid2 == 0)) {
+            log.warn("handshake failed, invalid req from {}", dtc.getChannel());
+            ((DtChannelImpl) reqContext.getDtChannel()).close();
+            return null;
+        }
+
         HandshakeBody hb = new HandshakeBody();
         hb.majorVersion = DtUtil.RPC_MAJOR_VER;
         hb.minorVersion = DtUtil.RPC_MINOR_VER;
 
-        if (hb.processInfo != null) {
-            dtc.remoteUuid = new UUID(hb.processInfo.uuid1, hb.processInfo.uuid2);
-        }
+        dtc.remoteUuid = new UUID(reqBody.processInfo.uuid1, reqBody.processInfo.uuid2);
 
         if (config.serverHint) {
             hb.config = buildServerHint();

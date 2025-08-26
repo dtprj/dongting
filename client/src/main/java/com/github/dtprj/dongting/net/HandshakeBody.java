@@ -79,9 +79,12 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
 
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-        if (index == 8) {
+        if (index == IDX_CONFIG) {
             ConfigBody nestedCallback = currentPos == 0 ? new ConfigBody() : null;
             config = parseNested(buf, fieldLen, currentPos, nestedCallback);
+        } else if (index == IDX_PROCESS_INFO) {
+            ProcessInfoBody nestedCallback = currentPos == 0 ? new ProcessInfoBody() : null;
+            processInfo = parseNested(buf, fieldLen, currentPos, nestedCallback);
         }
         return true;
     }
@@ -92,6 +95,7 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
                 + PbUtil.sizeOfFix64Field(IDX_MAGIC2, MAGIC2)
                 + PbUtil.sizeOfInt32Field(IDX_MAJOR_VERSION, majorVersion)
                 + PbUtil.sizeOfInt32Field(IDX_MINOR_VERSION, minorVersion)
+                + EncodeUtil.sizeOf(IDX_PROCESS_INFO, processInfo)
                 + EncodeUtil.sizeOf(IDX_CONFIG, config);
     }
 
@@ -101,6 +105,7 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
         PbUtil.writeFix64Field(buf, IDX_MAGIC2, MAGIC2);
         PbUtil.writeInt32Field(buf, IDX_MAJOR_VERSION, majorVersion);
         PbUtil.writeInt32Field(buf, IDX_MINOR_VERSION, minorVersion);
+        EncodeUtil.encode(buf, IDX_PROCESS_INFO, processInfo);
         EncodeUtil.encode(buf, IDX_CONFIG, config);
     }
 }

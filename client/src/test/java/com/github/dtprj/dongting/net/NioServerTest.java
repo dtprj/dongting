@@ -139,6 +139,7 @@ public class NioServerTest {
                 .setMagic2(HandshakeBody.MAGIC2)
                 .setMajorVersion(DtUtil.RPC_MAJOR_VER)
                 .setMinorVersion(DtUtil.RPC_MINOR_VER)
+                .setProcessInfo(DtPacket.ProcessInfo.newBuilder().setUuid1(1).setUuid2(2).build())
                 .build();
         DtPacket.Packet reqPacket = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
                 .setSeq(1)
