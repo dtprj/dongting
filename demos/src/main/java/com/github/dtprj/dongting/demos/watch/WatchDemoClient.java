@@ -35,7 +35,7 @@ public class WatchDemoClient extends DemoClientBase implements GroupId {
         String servers = "1,127.0.0.1:5001"; // serverId,ip:servicePort
 
         kvClient = new KvClient();
-        kvClient.getClientWatchManager().setListener(WatchDemoClient::onUpdate, Executors.newSingleThreadExecutor());
+        kvClient.getWatchManager().setListener(WatchDemoClient::onUpdate, Executors.newSingleThreadExecutor());
         kvClient.start();
         kvClient.getRaftClient().clientAddNode(servers);
         kvClient.getRaftClient().clientAddOrUpdateGroup(GROUP_ID, new int[]{1});
@@ -44,7 +44,7 @@ public class WatchDemoClient extends DemoClientBase implements GroupId {
         kvClient.put(GROUP_ID, "key1".getBytes(), "key1_v1".getBytes());
         kvClient.mkdir(GROUP_ID, "dir1".getBytes());
 
-        kvClient.getClientWatchManager().addWatch(GROUP_ID, "key1".getBytes(), "dir1".getBytes());
+        kvClient.getWatchManager().addWatch(GROUP_ID, "key1".getBytes(), "dir1".getBytes());
 
         kvClient.put(GROUP_ID, "key1".getBytes(), "key1_v2".getBytes());
         kvClient.put(GROUP_ID, "dir1.key2".getBytes(), "key2_v1".getBytes());

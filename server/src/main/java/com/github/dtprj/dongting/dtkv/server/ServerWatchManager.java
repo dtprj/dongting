@@ -46,8 +46,8 @@ import java.util.stream.Collectors;
 /**
  * @author huangli
  */
-abstract class WatchManager {
-    private static final DtLog log = DtLogs.getLogger(WatchManager.class);
+abstract class ServerWatchManager {
+    private static final DtLog log = DtLogs.getLogger(ServerWatchManager.class);
     private final IdentityHashMap<DtChannel, ChannelInfo> channelInfoMap = new IdentityHashMap<>();
     private final LinkedHashSet<ChannelInfo> needNotifyChannels = new LinkedHashSet<>();
     private final PriorityQueue<ChannelInfo> retryQueue = new PriorityQueue<>();
@@ -65,11 +65,11 @@ abstract class WatchManager {
     private final ArrayList<Pair<ChannelWatch, WatchNotify>> pushNotifyTempList = new ArrayList<>(64);
     private final ArrayList<ChannelInfo> dispatchTempList;
 
-    WatchManager(int groupId, Timestamp ts, KvConfig config) {
+    ServerWatchManager(int groupId, Timestamp ts, KvConfig config) {
         this(groupId, ts, config, new long[]{1000, 10_000, 30_000, 60_000});
     }
 
-    WatchManager(int groupId, Timestamp ts, KvConfig config, long[] retryIntervalMillis) {
+    ServerWatchManager(int groupId, Timestamp ts, KvConfig config, long[] retryIntervalMillis) {
         this.groupId = groupId;
         this.ts = ts;
         this.config = config;

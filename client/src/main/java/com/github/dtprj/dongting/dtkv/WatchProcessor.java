@@ -29,9 +29,9 @@ import com.github.dtprj.dongting.net.WritePacket;
  */
 class WatchProcessor extends ReqProcessor<WatchNotifyReq> {
 
-    private final ClientWatchManager manager;
+    private final WatchManager manager;
 
-    WatchProcessor(ClientWatchManager manager) {
+    WatchProcessor(WatchManager manager) {
         this.manager = manager;
     }
 

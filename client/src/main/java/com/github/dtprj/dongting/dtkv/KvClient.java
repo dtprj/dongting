@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  */
 public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
-    private final ClientWatchManager clientWatchManager;
+    private final WatchManager watchManager;
 
     public static final byte SEPARATOR = '.';
     public static final int MAX_KEY_SIZE = 8 * 1024;
@@ -61,12 +61,12 @@ public class KvClient extends AbstractLifeCircle {
 
     public KvClient(NioClientConfig nioConfig) {
         this.raftClient = new RaftClient(nioConfig);
-        this.clientWatchManager = createClientWatchManager();
-        raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, new WatchProcessor(clientWatchManager));
+        this.watchManager = createClientWatchManager();
+        raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, new WatchProcessor(watchManager));
     }
 
-    protected ClientWatchManager createClientWatchManager() {
-        return new ClientWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
+    protected WatchManager createClientWatchManager() {
+        return new WatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
     }
 
     private void sendAsyncAndGetRaftIndex(int groupId, int cmd, KvReq req, int anotherSuccessCode, FutureCallback<Long> c) {
@@ -729,7 +729,7 @@ public class KvClient extends AbstractLifeCircle {
         return raftClient;
     }
 
-    public ClientWatchManager getClientWatchManager() {
-        return clientWatchManager;
+    public WatchManager getWatchManager() {
+        return watchManager;
     }
 }

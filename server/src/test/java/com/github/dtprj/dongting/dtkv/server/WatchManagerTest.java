@@ -15,885 +15,384 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvListener;
+import com.github.dtprj.dongting.dtkv.KvReq;
+import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
+import com.github.dtprj.dongting.dtkv.WatchManager;
+import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
+import com.github.dtprj.dongting.dtkv.WatchReq;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.DtChannel;
-import com.github.dtprj.dongting.net.NetCodeException;
-import com.github.dtprj.dongting.net.NioNet;
-import com.github.dtprj.dongting.net.Peer;
-import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.net.RpcCallback;
+import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
+import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.ServerTestBase;
+import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.test.Tick;
+import com.github.dtprj.dongting.test.WaitUtil;
 import com.github.dtprj.dongting.util.MockRuntimeException;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.SocketAddress;
-import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.UUID;
+import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
  */
-public class WatchManagerTest {
+public class WatchManagerTest implements KvListener {
 
-    private final UUID selfUuid = UUID.randomUUID();
+    private static Server server;
+    private static int groupId;
+    private KvClient client;
+    private MockWatchManager manager;
+    private ConcurrentLinkedQueue<WatchEvent> events;
 
-    private KvConfig kvConfig;
-    private WatchManager manager;
-    private KvImpl kv;
-    private Timestamp ts;
-    private ReadPacket<WatchNotifyRespCallback> rpcResult;
-    private Throwable rpcEx;
-    private long raftIndex;
+    private AtomicInteger mockSyncExCount;
+    private AtomicInteger mockQueryStatusExCount;
 
-    private static MockDtChannel dtc1;
-    private static MockDtChannel dtc2;
-    private static MockDtChannel dtc3;
-
-    private LinkedList<PushReqInfo> pushRequestList;
-    private LinkedList<Runnable> tasks;
+    @Override
+    public void onUpdate(WatchEvent event) {
+        events.add(event);
+    }
 
     @BeforeAll
-    public static void initStatic() throws Exception {
-        dtc1 = new MockDtChannel();
-        dtc1.channel = SocketChannel.open();
-        dtc2 = new MockDtChannel();
-        dtc2.channel = SocketChannel.open();
-        dtc3 = new MockDtChannel();
-        dtc3.channel = SocketChannel.open();
+    public static void initServer() throws Exception {
+        server = new Server();
+        server.startServers();
     }
 
     @AfterAll
-    public static void closeStatic() throws Exception {
-        dtc1.channel.close();
-        dtc2.channel.close();
-        dtc3.channel.close();
+    public static void stopServer() {
+        server.stopServers();
     }
 
-    private static class PushReqInfo {
-        final ChannelInfo ci;
-        final WatchNotifyReq req;
-        final ArrayList<ChannelWatch> watchList;
-        final int requestEpoch;
-        final boolean fireNext;
+    private static class Server extends ServerTestBase {
+        ServerInfo s1;
+        ServerInfo s2;
+        ServerInfo s3;
 
-        PushReqInfo(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
-                    int requestEpoch, boolean fireNext) {
-            this.ci = ci;
-            this.req = req;
-            this.watchList = watchList;
-            this.requestEpoch = requestEpoch;
-            this.fireNext = fireNext;
+        public void startServers() throws Exception {
+            String servers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+            String members = "1,2,3";
+            String observers = "";
+
+            s1 = createServer(1, servers, members, observers);
+            s2 = createServer(2, servers, members, observers);
+            s3 = createServer(3, servers, members, observers);
+            waitStart(s1);
+            waitStart(s2);
+            waitStart(s3);
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
+            WatchManagerTest.groupId = groupId;
+            // add first item and make raft index in statemachine greater than 0
+            KvReq req = new KvReq(groupId, "aaa".getBytes(), "bbb".getBytes());
+            RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
+                    new DtTime(3, TimeUnit.SECONDS), false);
+            CompletableFuture<Long> f = new CompletableFuture<>();
+            leader.raftServer.getRaftGroup(groupId).submitLinearTask(i, new RaftCallback() {
+                @Override
+                public void success(long raftIndex, Object result) {
+                    f.complete(raftIndex);
+                }
+
+                @Override
+                public void fail(Throwable ex) {
+                    f.completeExceptionally(ex);
+                }
+            });
+            long firstIndex = f.get();
+            // wait every server has applied the first item
+            waitFirstItemApplied(s1, firstIndex);
+            waitFirstItemApplied(s2, firstIndex);
+            waitFirstItemApplied(s3, firstIndex);
+        }
+
+        private void waitFirstItemApplied(ServerInfo si, long index) {
+            WaitUtil.waitUtil(() -> {
+                RaftGroupImpl g = (RaftGroupImpl) si.raftServer.getRaftGroup(groupId);
+                return g.groupComponents.raftStatus.getShareStatus().lastApplied >= index;
+            });
+        }
+
+        public void stopServers() {
+            waitStop(s1);
+            waitStop(s2);
+            waitStop(s3);
+        }
+
+        @Override
+        protected void config(KvConfig config) {
+            config.watchDispatchIntervalMillis = 1;
         }
     }
 
     @BeforeEach
     public void setup() {
-        ts = new Timestamp();
-        kvConfig = new KvConfig();
-        pushRequestList = new LinkedList<>();
-        tasks = new LinkedList<>();
-        raftIndex = 1;
-        int groupId = 0;
-        LinkedList<PushReqInfo> q = pushRequestList;
-        this.rpcEx = null;
-        this.rpcResult = null;
-        manager = new WatchManager(groupId, ts, kvConfig, new long[]{1, 1000}) {
+        events = new ConcurrentLinkedQueue<>();
+        mockSyncExCount = null;
+        mockQueryStatusExCount = null;
+        client = null;
+        manager = null;
+    }
+
+    private class MockWatchManager extends WatchManager {
+
+        protected MockWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
+            super(kvClient, stopped, heartbeatIntervalMillis);
+        }
+
+        @Override
+        protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
+            if (mockSyncExCount == null || mockSyncExCount.getAndDecrement() <= 0) {
+                super.sendSyncReq(n, req, c);
+            } else {
+                c.call(null, new MockRuntimeException());
+            }
+        }
+
+        @Override
+        protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> c) {
+            if (mockQueryStatusExCount == null || mockQueryStatusExCount.getAndDecrement() <= 0) {
+                super.sendQueryStatusReq(n, groupId, c);
+            } else {
+                c.call(null, new MockRuntimeException());
+            }
+        }
+
+        @Override
+        public WritePacket processNotify(WatchNotifyReq req, SocketAddress remote) {
+            return super.processNotify(req, remote);
+        }
+    }
+
+    private void init(long heartbeatIntervalMillis, boolean setListener) {
+        client = new KvClient() {
             @Override
-            protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
-                                       int requestEpoch, boolean fireNext) {
-                q.add(new PushReqInfo(ci, req, watchList, requestEpoch, fireNext));
-                Runnable run = () -> {
-                    try {
-                        ReadPacket<WatchNotifyRespCallback> r = rpcResult;
-                        if (rpcEx == null && r == null) {
-                            int[] codes = new int[watchList.size()];
-                            for (int i = 0; i < codes.length; i++) {
-                                codes[i] = CmdCodes.SUCCESS;
-                            }
-                            r = createRpcResult(codes);
-                        }
-                        manager.processNotifyResult(ci, watchList, r, rpcEx, requestEpoch, fireNext);
-                    } catch (Exception e) {
-                        fail();
-                    }
-                };
-                tasks.add(run);
+            protected WatchManager createClientWatchManager() {
+                return new MockWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
+                        Tick.tick(heartbeatIntervalMillis));
             }
         };
-        TtlManager tm = new TtlManager(ts, null);
-        kv = new KvImpl(manager, tm, ts, groupId, 16, 0.75f);
-        put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
-    }
-
-    private void mockClientResponse() {
-        // prevent the callback may update tasks while iterating
-        ArrayList<Runnable> tasksCopy = new ArrayList<>(tasks);
-        tasks.clear();
-        Collections.shuffle(tasksCopy);
-        for (Runnable r : tasksCopy) {
-            r.run();
+        client.start();
+        client.getRaftClient().clientAddNode("1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003");
+        client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+        manager = (MockWatchManager) client.getWatchManager();
+        if (setListener) {
+            manager.setListener(this, MockExecutors.ioExecutor());
         }
     }
 
-    @Test
-    public void testAddOrUpdateActiveQueue() {
-        ChannelInfo ci1 = new ChannelInfo(dtc1, ts.nanoTime);
-        ChannelInfo ci2 = new ChannelInfo(dtc2, ts.nanoTime);
-        ChannelInfo ci3 = new ChannelInfo(dtc3, ts.nanoTime);
-
-        manager.addOrUpdateActiveQueue(ci1);
-        assertEquals(ci1, manager.activeQueueHead);
-        assertEquals(ci1, manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci1);
-        assertEquals(ci1, manager.activeQueueHead);
-        assertEquals(ci1, manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci2);
-        assertEquals(ci1, manager.activeQueueHead);
-        assertEquals(ci2, manager.activeQueueTail);
-        assertSame(ci1.next, ci2);
-        assertSame(ci2.prev, ci1);
-
-        manager.addOrUpdateActiveQueue(ci3);
-        assertEquals(ci1, manager.activeQueueHead);
-        assertEquals(ci3, manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci1);
-        assertEquals(ci2, manager.activeQueueHead);
-        assertEquals(ci1, manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci3);
-        assertEquals(ci2, manager.activeQueueHead);
-        assertEquals(ci3, manager.activeQueueTail);
+    @AfterEach
+    public void teardown() {
+        client.stop(new DtTime(1, TimeUnit.SECONDS), true);
     }
 
-    @Test
-    public void testRemoveFromActiveQueue() {
-        ChannelInfo ci1 = new ChannelInfo(dtc1, ts.nanoTime);
-        ChannelInfo ci2 = new ChannelInfo(dtc2, ts.nanoTime);
-        ChannelInfo ci3 = new ChannelInfo(dtc3, ts.nanoTime);
+    private static class PushEvent {
+        final long raftIndex;
+        final String key;
+        final String value;
 
-        manager.addOrUpdateActiveQueue(ci1);
-        manager.removeFromActiveQueue(ci1);
-        assertNull(manager.activeQueueHead);
-        assertNull(manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci1);
-        manager.addOrUpdateActiveQueue(ci2);
-        manager.removeFromActiveQueue(ci1);
-        assertEquals(ci2, manager.activeQueueHead);
-        assertEquals(ci2, manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci1);
-        manager.addOrUpdateActiveQueue(ci2);
-        manager.removeFromActiveQueue(ci2);
-        assertEquals(ci1, manager.activeQueueHead);
-        assertEquals(ci1, manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci1);
-        manager.addOrUpdateActiveQueue(ci2);
-        manager.addOrUpdateActiveQueue(ci3);
-        manager.removeFromActiveQueue(ci1);
-        assertEquals(ci2, manager.activeQueueHead);
-        assertEquals(ci3, manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci1);
-        manager.addOrUpdateActiveQueue(ci2);
-        manager.addOrUpdateActiveQueue(ci3);
-        manager.removeFromActiveQueue(ci2);
-        assertEquals(ci1, manager.activeQueueHead);
-        assertEquals(ci3, manager.activeQueueTail);
-
-        manager.addOrUpdateActiveQueue(ci1);
-        manager.addOrUpdateActiveQueue(ci2);
-        manager.addOrUpdateActiveQueue(ci3);
-        manager.removeFromActiveQueue(ci3);
-        assertEquals(ci1, manager.activeQueueHead);
-        assertEquals(ci2, manager.activeQueueTail);
-    }
-
-    // basic test
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testSync_basic(boolean takeSnapshot) {
-        if (takeSnapshot) {
-            KvImplTest.takeSnapshot(kv);
+        private PushEvent(long raftIndex, String key, String value) {
+            this.raftIndex = raftIndex;
+            this.key = key;
+            this.value = value;
         }
-        long expectIndex = raftIndex - 1;
+    }
 
-        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
-        assertTrue(manager.dispatch());
-        mockClientResponse();
-        assertTrue(manager.dispatch());
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals(dtc1, pushReqInfo.ci.channel);
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertNull(pushReqInfo.req.notifyList.get(0).value);
-        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
-
-        expectIndex = raftIndex;
-        put("key1", "value1");
-        put("key2", "value2");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(dtc1, pushReqInfo.ci.channel);
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("value1", new String(pushReqInfo.req.notifyList.get(0).value));
-        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
-
-        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
-        expectIndex = raftIndex;
-        put("key1", "value1_2");
-        put("key2", "value2_2");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(dtc1, pushReqInfo.ci.channel);
-        assertEquals(2, pushReqInfo.req.notifyList.size());
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
-        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
-        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
-        assertEquals("value2_2", new String(pushReqInfo.req.notifyList.get(1).value));
-        assertEquals(expectIndex + 1, pushReqInfo.req.notifyList.get(1).raftIndex);
-
-        manager.sync(kv, dtc2, true, keys("key1", "key2"), new long[]{0, 0});
-        put("key1", "value1_3");
-        put("key2", "value2_3");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(2, pushRequestList.size());
-        for (int i = 0; i < 2; i++) {
-            pushReqInfo = pushRequestList.poll();
-            if (dtc1 == pushReqInfo.ci.channel) {
-                assertEquals(2, pushReqInfo.req.notifyList.size());
-                assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-                assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(0).value));
-                assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
-                assertEquals("value2_3", new String(pushReqInfo.req.notifyList.get(1).value));
-            } else {
-                assertEquals(dtc2, pushReqInfo.ci.channel);
-                assertEquals(2, pushReqInfo.req.notifyList.size());
-                assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-                assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(0).value));
-                assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
-                assertEquals("value2_3", new String(pushReqInfo.req.notifyList.get(1).value));
+    private void waitForEvents(PushEvent... expectEvents) {
+        ArrayList<PushEvent> expectEventsList = new ArrayList<>();
+        for (PushEvent e : expectEvents) {
+            if (e != null) {
+                expectEventsList.add(e);
             }
         }
+        WaitUtil.waitUtil(() -> {
+            if (events.isEmpty()) {
+                return false;
+            }
+            WatchEvent e = events.poll();
+            return checkEvent(expectEventsList, e);
+        });
+    }
 
-        manager.sync(kv, dtc1, true, keys("key2", "key3"), new long[]{0, 0});
-        manager.sync(kv, dtc2, false, keys("key2"), new long[]{-1});
-        put("key1", "value1_4");
-        put("key2", "value2_4");
-        put("key3", "value3_4");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(2, pushRequestList.size());
-        for (int i = 0; i < 2; i++) {
-            pushReqInfo = pushRequestList.poll();
-            if (dtc1 == pushReqInfo.ci.channel) {
-                assertEquals(2, pushReqInfo.req.notifyList.size());
-                assertEquals("key2", new String(pushReqInfo.req.notifyList.get(0).key));
-                assertEquals("value2_4", new String(pushReqInfo.req.notifyList.get(0).value));
-                assertEquals("key3", new String(pushReqInfo.req.notifyList.get(1).key));
-                assertEquals("value3_4", new String(pushReqInfo.req.notifyList.get(1).value));
-            } else {
-                assertEquals(dtc2, pushReqInfo.ci.channel);
-                assertEquals(1, pushReqInfo.req.notifyList.size());
-                assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-                assertEquals("value1_4", new String(pushReqInfo.req.notifyList.get(0).value));
+    private Boolean checkEvent(ArrayList<PushEvent> expectEventsList, WatchEvent e) {
+        for (Iterator<PushEvent> it = expectEventsList.iterator(); it.hasNext(); ) {
+            PushEvent expect = it.next();
+            if (expect.key.equals(new String(e.key))) {
+                String value = expect.value;
+                String actualValue = e.value == null ? null : new String(e.value);
+                // notice that the watch may process by a follower and it's data is not latest
+                if (value == null && actualValue != null || value != null && !value.equals(actualValue)) {
+                    System.out.println("got event value not match, expect: " + value + ", actual: " + actualValue);
+                    return false;
+                }
+                if (expect.raftIndex > 0) {
+                    assertEquals(expect.raftIndex, e.raftIndex);
+                }
+                it.remove();
+                return expectEventsList.isEmpty();
             }
         }
-
-        manager.sync(kv, dtc1, true, keys(), new long[]{});
-        manager.sync(kv, dtc2, true, keys(), new long[]{});
-        put("key1", "value1_5");
-        put("key2", "value2_5");
-        put("key3", "value3_5");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(0, pushRequestList.size());
-    }
-
-    // tree structure watch test
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testSync_tree(boolean takeSnapshot) {
-        if (takeSnapshot) {
-            KvImplTest.takeSnapshot(kv);
-        }
-        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
-        mkdir("dir1");
-        mkdir("dir1.dir2");
-        put("dir1.dir2.key1", "value1");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("value1", new String(pushReqInfo.req.notifyList.get(0).value));
-        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-
-        // add dir1 watch
-        manager.sync(kv, dtc1, false, keys("dir1"), new long[]{0});
-        long expectIndex = raftIndex;
-        put("dir1.dir2.key1", "value1_2");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(2, pushReqInfo.req.notifyList.size());
-        // the sync operation for dir1 make it is the first one
-        assertEquals("dir1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertNull(pushReqInfo.req.notifyList.get(0).value);
-        assertEquals(WatchEvent.STATE_DIRECTORY_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(1).key));
-        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(1).value));
-        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(1).state);
-        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(1).raftIndex);
-
-        expectIndex = raftIndex;
-        remove("dir1.dir2.key1");
-        remove("dir1.dir2");
-        remove("dir1");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(2, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertNull(pushReqInfo.req.notifyList.get(0).value);
-        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
-        assertEquals("dir1", new String(pushReqInfo.req.notifyList.get(1).key));
-        assertNull(pushReqInfo.req.notifyList.get(1).value);
-        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(1).state);
-        assertEquals(expectIndex + 2, pushReqInfo.req.notifyList.get(1).raftIndex);
-
-        mkdir("dir1");
-        mkdir("dir1.dir2");
-        expectIndex = raftIndex;
-        put("dir1.dir2.key1", "value1_3");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(2, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertNull(pushReqInfo.req.notifyList.get(0).value);
-        assertEquals(WatchEvent.STATE_DIRECTORY_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(1).key));
-        assertEquals("value1_3", new String(pushReqInfo.req.notifyList.get(1).value));
-        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(1).state);
-        assertEquals(expectIndex, pushReqInfo.req.notifyList.get(1).raftIndex);
-    }
-
-    // remove from kv tree when the watch holder is mount to parent watch holder
-    @Test
-    public void testSync_removeFromKvTreeWhenWatchHolderIsMountToParent() {
-        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertNull(pushReqInfo.req.notifyList.get(0).value);
-        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-
-        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{-1});
-        remove("dir1.dir2.key1");
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(0, pushRequestList.size());
-    }
-
-    // mount to parent and the parent has no watch holder
-    @Test
-    public void testSync_mountToPrentWhenParentHasNoWatchHolder() {
-        KvImplTest.takeSnapshot(kv);
-        mkdir("dir1");
-        mkdir("dir1.dir2");
-        put("dir1.dir2.key1", "value1");
-        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("value1", new String(pushReqInfo.req.notifyList.get(0).value));
-        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-
-        // mount to parent and the parent has no watch holder
-        remove("dir1.dir2.key1");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertNull(pushReqInfo.req.notifyList.get(0).value);
-        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-
-        // change to directory
-        mkdir("dir1.dir2.key1");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertNull(pushReqInfo.req.notifyList.get(0).value);
-        assertEquals(WatchEvent.STATE_DIRECTORY_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-    }
-
-    // mount to removed node
-    @Test
-    public void testSync_mountToRemovedNode() {
-        mkdir("dir1");
-        mkdir("dir1.dir2");
-        put("dir1.dir2.key1", "value1");
-        KvImplTest.takeSnapshot(kv);
-        remove("dir1.dir2.key1");
-        manager.sync(kv, dtc1, false, keys("dir1.dir2.key1"), new long[]{0});
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertNull(pushReqInfo.req.notifyList.get(0).value);
-        assertEquals(WatchEvent.STATE_NOT_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-
-        put("dir1.dir2.key1", "value1_2");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("dir1.dir2.key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
-        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-    }
-
-    // change epoch (reset)
-    @Test
-    public void testSync_changeEpoch() {
-        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-
-        long raftIndex = this.raftIndex;
-        ChannelWatch cw = manager.activeQueueHead.watches.values().iterator().next();
-        put("key1", "value1");
-        manager.dispatch();
-        manager.reset();
-        mockClientResponse();
-        assertTrue(cw.notifiedIndex < cw.notifiedIndexPending);
-        assertEquals(raftIndex, cw.notifiedIndexPending);
-    }
-
-    // update during notify
-    @Test
-    public void testSync_updateDuringNotify() {
-        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        pushRequestList.clear();
-
-        put("key1", "value1");
-        manager.dispatch();
-        put("key1", "value1_2");
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-
-        assertEquals(2, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("value1", new String(pushReqInfo.req.notifyList.get(0).value));
-        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
-        assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
+        throw new AssertionError("unexpected event: " + new String(e.key));
     }
 
     @Test
-    public void testSync_removeOneWatchByResp() {
-        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        pushRequestList.clear();
-
-        setRpcResult(KvCodes.SUCCESS, KvCodes.REMOVE_WATCH);
-        put("key1", "value1");
-        put("key2", "value2");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals(2, pushReqInfo.req.notifyList.size());
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
-
-        setRpcResult(KvCodes.REMOVE_WATCH);
-        put("key1", "value1_2");
-        put("key2", "value2_2");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(1, pushReqInfo.req.notifyList.size());
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-
-        assertNull(manager.activeQueueHead);
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testSync_removeAllWatchByResp(boolean error) {
-        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        pushRequestList.clear();
-
-        if (error) {
-            setRpcEx(new NetCodeException(CmdCodes.COMMAND_NOT_SUPPORT, "", null));
-        } else {
-            ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
-            r.setBizCode(KvCodes.REMOVE_ALL_WATCH);
-            setRpcResult(r);
-        }
-
-        put("key1", "value1");
-        put("key2", "value2");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-
-        assertNull(manager.activeQueueHead);
-
-        assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals(2, pushReqInfo.req.notifyList.size());
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(1).key));
-
-        this.rpcResult = null;
-        put("key1", "value1_2");
-        put("key2", "value2_2");
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(0, pushRequestList.size());
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testSync_exAndRetry(boolean useException) {
-        // retry interval new long[]{1, 1000}) in setup method
-        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
-        manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
-        manager.dispatch();
-        mockClientResponse();
-        manager.dispatch();
-        mockClientResponse();
-        pushRequestList.clear();
-
-        if (useException) {
-            setRpcEx(new MockRuntimeException());
-        } else {
-            ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
-            r.setBizCode(KvCodes.CLIENT_REQ_ERROR);
-            setRpcResult(r);
-        }
-
-        put("key2", "value2");
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushRequestList.clear();
-
-        TestUtil.plus(ts, 300, TimeUnit.MILLISECONDS);
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        PushReqInfo pushReqInfo = pushRequestList.poll();
-        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(0).key));
-
-        put("key1", "value1");
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(dtc2, pushReqInfo.ci.channel);
-
-        setRpcEx(null);
-        put("key1", "value1_2");
-
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(0, pushRequestList.size());
-
-        TestUtil.plus(ts, 20, TimeUnit.MILLISECONDS);
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(dtc2, pushReqInfo.ci.channel);
-        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(0).value));
-
-        TestUtil.plus1Hour(ts);
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        pushReqInfo = pushRequestList.poll();
-        assertEquals(dtc1, pushReqInfo.ci.channel);
-        assertEquals(2, pushReqInfo.req.notifyList.size());
-        assertEquals("key2", new String(pushReqInfo.req.notifyList.get(0).key));
-        assertEquals("value2", new String(pushReqInfo.req.notifyList.get(0).value));
-        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(1).key));
-        assertEquals("value1_2", new String(pushReqInfo.req.notifyList.get(1).value));
-
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(0, pushRequestList.size());
+    public void testInvalidParams() {
+        init(1000, true);
+        assertThrows(RaftException.class, () -> manager.addWatch(groupId + 100000, "key1".getBytes()));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "".getBytes()));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ".key1".getBytes()));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1.".getBytes()));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1..key2".getBytes()));
     }
 
     @Test
-    public void testSync_requestSizeExceed() {
-        kvConfig.watchMaxReqBytes = 1;
+    public void testAddRemoveWatch() {
+        init(1000, true);
+        String key1 = "testAddRemoveWatch_key1";
+        String key2 = "testAddRemoveWatch_key2";
+        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
+        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        manager.addWatch(groupId, key1.getBytes(), key2.getBytes());
+        waitForEvents(new PushEvent(idx1, key1, "value1"), new PushEvent(idx2, key2, "value2"));
 
-        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+        // key1 is readd
+        manager.addWatch(groupId, key1.getBytes());
+        idx1 = client.put(groupId, key1.getBytes(), "value1_2".getBytes());
+        idx2 = client.put(groupId, key2.getBytes(), "value2_2".getBytes());
+        waitForEvents(new PushEvent(idx1, key1, "value1_2"));
+        waitForEvents(new PushEvent(idx2, key2, "value2_2"));
 
-        manager.dispatch();
-        assertEquals(1, pushRequestList.size());
-        assertEquals(1, pushRequestList.get(0).req.notifyList.size());
-        pushRequestList.clear();
+        manager.removeWatch(groupId, key1.getBytes());
+        client.put(groupId, key1.getBytes(), "value1_3".getBytes());
+        idx2 = client.put(groupId, key2.getBytes(), "value2_3".getBytes());
+        waitForEvents(new PushEvent(idx2, key2, "value2_3"));
 
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
-        assertEquals(1, pushRequestList.get(0).req.notifyList.size());
-        pushRequestList.clear();
+        manager.removeWatch(groupId, key1.getBytes(), key2.getBytes());
+        client.put(groupId, key1.getBytes(), "value1_4".getBytes());
+        client.put(groupId, key2.getBytes(), "value2_4".getBytes());
+        assertEquals(0, events.size());
 
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(0, pushRequestList.size());
-        assertTrue(manager.activeQueueHead.needNotify.isEmpty());
+        manager.addWatch(groupId, "key3".getBytes());
+        waitForEvents(new PushEvent(-1, "key3", null));
+    }
+
+    private void waitForEventsByUserPull(PushEvent... expectEvents) {
+        ArrayList<PushEvent> expectEventsList = new ArrayList<>();
+        for (PushEvent e : expectEvents) {
+            if (e != null) {
+                expectEventsList.add(e);
+            }
+        }
+        WaitUtil.waitUtil(() -> {
+            WatchEvent e = manager.takeEvent();
+            if (e == null) {
+                return false;
+            }
+            return checkEvent(expectEventsList, e);
+        });
     }
 
     @Test
-    public void testSync_batch() {
-        kvConfig.watchMaxBatchSize = 2;
-
-        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
-        manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
-        manager.sync(kv, dtc3, false, keys("key1"), new long[]{0});
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(2, pushRequestList.size());
-        pushRequestList.clear();
-
-        manager.dispatch();
-        mockClientResponse();
-        assertEquals(1, pushRequestList.size());
+    public void testUserPullEvents() {
+        init(1000, false);
+        String key1 = "testUserPullEvents_key1";
+        String key2 = "testUserPullEvents_key2";
+        manager.removeListener();
+        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
+        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        manager.addWatch(groupId, key1.getBytes(), key2.getBytes());
+        waitForEventsByUserPull(new PushEvent(idx1, key1, "value1"), new PushEvent(idx2, key2, "value2"));
     }
 
     @Test
-    public void testCleanTimeoutChannel() {
-        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
-        manager.sync(kv, dtc2, false, keys("key1"), new long[]{0});
-
-        manager.cleanTimeoutChannel(1_000_000);
-        assertNotNull(manager.activeQueueHead);
-
-        TestUtil.plus1Hour(ts);
-
-        manager.cleanTimeoutChannel(1_000_000);
-        assertNull(manager.activeQueueHead);
-
-        manager.dispatch();
-        mockClientResponse();
-
-        assertEquals(0, pushRequestList.size());
+    public void testEx1() {
+        init(10, true);
+        String key1 = "testEx1_key1";
+        mockQueryStatusExCount = new AtomicInteger(3);
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null));
     }
 
     @Test
-    public void testUpdateWatchStatus() {
-        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+    public void testEx2() {
+        init(10, true);
+        String key1 = "testEx2_key1";
+        String key2 = "testEx2_key2";
 
-        TestUtil.plus1Hour(ts);
-        assertEquals(1, manager.updateWatchStatus(dtc1));
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null));
 
-        manager.cleanTimeoutChannel(1_000_000);
-        assertNotNull(manager.activeQueueHead);
+        mockSyncExCount = new AtomicInteger(1);
+        manager.addWatch(groupId, key2.getBytes());
+        waitForEvents(new PushEvent(-1, key2, null));
+
+        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
+        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        waitForEvents(new PushEvent(idx1, key1, "value1"));
+        waitForEvents(new PushEvent(idx2, key2, "value2"));
     }
 
+    @Test
+    public void testProcessNotify() {
+        init(1000, false);
+        String key1 = "testProcessNotify_key1";
+        WatchNotifyReq req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
+        WritePacket p = manager.processNotify(req, null);
+        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+        assertEquals(KvCodes.REMOVE_ALL_WATCH, p.getBizCode());
+        assertNull(manager.takeEvent());
 
-    private void put(String key, String value) {
-        kv.opContext.init(DtKV.BIZ_TYPE_PUT ,selfUuid, 0, ts.nanoTime, ts.nanoTime);
-        kv.put(raftIndex++, ba(key), value.getBytes());
-    }
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEventsByUserPull(new PushEvent(-1, key1, null));
 
-    private void mkdir(String key) {
-        kv.opContext.init(DtKV.BIZ_TYPE_MKDIR, selfUuid, 0, ts.nanoTime, ts.nanoTime);
-        kv.mkdir(raftIndex++, ba(key));
-    }
+        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                10000, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value2".getBytes())));
+        p = manager.processNotify(req, null);
+        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+        assertEquals(KvCodes.SUCCESS, p.getBizCode());
+        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                10001, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value3".getBytes())));
+        p = manager.processNotify(req, null);
+        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+        assertEquals(KvCodes.SUCCESS, p.getBizCode());
 
-    private void remove(String key) {
-        kv.opContext.init(DtKV.BIZ_TYPE_REMOVE, selfUuid, 0, ts.nanoTime, ts.nanoTime);
-        kv.remove(raftIndex++, ba(key));
-    }
+        WatchEvent event = manager.takeEvent();
+        assertNotNull(event);
+        assertEquals(10001, event.raftIndex);
+        assertEquals(WatchEvent.STATE_VALUE_EXISTS, event.state);
+        assertEquals(key1, new String(event.key));
+        assertEquals("value3", new String(event.value));
 
-    private ByteArray ba(String s) {
-        return new ByteArray(s.getBytes());
-    }
-
-    private ByteArray[] keys(String... k) {
-        ByteArray[] keys = new ByteArray[k.length];
-        for (int i = 0; i < k.length; i++) {
-            keys[i] = new ByteArray(k[i].getBytes());
-        }
-        return keys;
-    }
-
-    private void setRpcEx(Throwable ex) {
-        rpcEx = ex;
-        rpcResult = null;
-    }
-
-    private ReadPacket<WatchNotifyRespCallback> createRpcResult(int... results) {
-        WatchNotifyRespCallback resp = new WatchNotifyRespCallback(results.length);
-        System.arraycopy(results, 0, resp.results, 0, results.length);
-        ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
-        r.setBody(resp);
-        return r;
-    }
-
-    private void setRpcResult(int... results) {
-        rpcEx = null;
-        rpcResult = createRpcResult(results);
-    }
-
-    private void setRpcResult(ReadPacket<WatchNotifyRespCallback> r) {
-        rpcEx = null;
-        rpcResult = r;
-    }
-
-
-    private static class MockDtChannel implements DtChannel {
-
-        SocketChannel channel;
-
-        @Override
-        public SocketChannel getChannel() {
-            return channel;
-        }
-
-        @Override
-        public SocketAddress getRemoteAddr() {
-            return null;
-        }
-
-        @Override
-        public SocketAddress getLocalAddr() {
-            return null;
-        }
-
-        @Override
-        public Peer getPeer() {
-            return null;
-        }
-
-        @Override
-        public long getLastActiveTimeNanos() {
-            return 0;
-        }
-
-        @Override
-        public NioNet getOwner() {
-            return null;
-        }
-
-        @Override
-        public UUID getRemoteUuid(){
-            return null;
-        }
+        manager.removeWatch(groupId, key1.getBytes());
+        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                10002, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value4".getBytes())));
+        p = manager.processNotify(req, null);
+        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
+        assertEquals(KvCodes.REMOVE_ALL_WATCH, p.getBizCode());
+        event = manager.takeEvent();
+        assertNull(event);
     }
 }

@@ -68,12 +68,12 @@ class KvImpl {
     private long maxOpenSnapshotIndex = 0;
     private long minOpenSnapshotIndex = 0;
 
-    private final WatchManager watchManager;
+    private final ServerWatchManager watchManager;
     private final IndexedQueue<KvNodeHolder> updateQueue = new IndexedQueue<>(32);
 
     private final TtlManager ttlManager;
 
-    public KvImpl(WatchManager watchManager, TtlManager ttlManager, Timestamp ts, int groupId,
+    public KvImpl(ServerWatchManager watchManager, TtlManager ttlManager, Timestamp ts, int groupId,
                   int initCapacity, float loadFactor) {
         this.watchManager = watchManager;
         this.ts = ts;

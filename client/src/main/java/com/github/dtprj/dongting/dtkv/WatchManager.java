@@ -53,8 +53,8 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public class ClientWatchManager {
-    private static final DtLog log = DtLogs.getLogger(ClientWatchManager.class);
+public class WatchManager {
+    private static final DtLog log = DtLogs.getLogger(WatchManager.class);
 
     private final RaftClient raftClient;
     private final Supplier<Boolean> stopped;
@@ -106,7 +106,7 @@ public class ClientWatchManager {
         }
     }
 
-    protected ClientWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
+    protected WatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
         this.raftClient = kvClient.getRaftClient();
         this.stopped = stopped;
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;

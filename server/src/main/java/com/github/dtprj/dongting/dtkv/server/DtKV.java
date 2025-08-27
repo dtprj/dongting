@@ -90,7 +90,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     volatile KvStatus kvStatus;
     private EncodeStatus encodeStatus;
 
-    final WatchManager watchManager;
+    final ServerWatchManager watchManager;
     final TtlManager ttlManager;
 
     private RaftGroupImpl raftGroup;
@@ -106,7 +106,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             this.ts = config.ts;
         }
         this.dtkvExecutor = new DtKVExecutor(config.groupId, ts, useSeparateExecutor ? null : mainFiberGroup);
-        watchManager = new WatchManager(config.groupId, ts, kvConfig) {
+        watchManager = new ServerWatchManager(config.groupId, ts, kvConfig) {
             @Override
             protected void sendRequest(ChannelInfo ci, WatchNotifyReq req, ArrayList<ChannelWatch> watchList,
                                        int requestEpoch, boolean fireNext) {
