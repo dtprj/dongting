@@ -620,8 +620,7 @@ class KvImplTest {
     void testTempNode() {
         ByteArray key = ba("temp1");
         initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 5);
-        long createIndex = ver++;
-        assertEquals(KvCodes.SUCCESS, kv.put(createIndex, key, "tempValue1".getBytes()).getBizCode());
+        assertEquals(KvCodes.SUCCESS, kv.put(ver++, key, "tempValue1".getBytes()).getBizCode());
         assertEquals(5, kv.map.get(ba("temp1")).latest.ttlInfo.ttlMillis);
 
         initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 10);
@@ -633,13 +632,14 @@ class KvImplTest {
         assertEquals(10, kv.map.get(key).latest.ttlInfo.ttlMillis);
 
         initOpContext(DtKV.BIZ_TYPE_UPDATE_TTL, 20);
+        long expectTtlIndex = ver;
         assertEquals(KvCodes.SUCCESS, kv.updateTtl(ver++, key).getBizCode());
         assertEquals(20, kv.map.get(key).latest.ttlInfo.ttlMillis);
 
         assertNotNull(kv.map.get(key));
 
         initOpContext(DtKV.BIZ_TYPE_EXPIRE, 0);
-        assertEquals(KvCodes.SUCCESS, kv.expire(ver++, key, createIndex).getBizCode());
+        assertEquals(KvCodes.SUCCESS, kv.expire(ver++, key, expectTtlIndex).getBizCode());
 
         assertNull(kv.map.get(key));
     }
@@ -652,8 +652,8 @@ class KvImplTest {
         assertEquals(KvCodes.NOT_FOUND, kv.expire(ver++, key, 0).getBizCode());
 
         initOpContext(DtKV.BIZ_TYPE_PUT_TEMP_NODE, 5);
-        long createIndex = ver++;
-        assertEquals(KvCodes.SUCCESS, kv.put(createIndex, key, "tempValue1".getBytes()).getBizCode());
+        long oldTtlIndex = ver++;
+        assertEquals(KvCodes.SUCCESS, kv.put(oldTtlIndex, key, "tempValue1".getBytes()).getBizCode());
         assertEquals(5, kv.map.get(ba("temp1")).latest.ttlInfo.ttlMillis);
 
         initOpContext(DtKV.BIZ_TYPE_REMOVE, 0);
@@ -662,7 +662,7 @@ class KvImplTest {
         assertEquals(KvCodes.SUCCESS, kv.put(ver++, key, "tempValue1".getBytes()).getBizCode());
 
         initOpContext(DtKV.BIZ_TYPE_EXPIRE, 0);
-        assertEquals(KvCodes.CREATE_INDEX_MISMATCH, kv.expire(ver++, key, createIndex).getBizCode());
+        assertEquals(KvCodes.TTL_INDEX_MISMATCH, kv.expire(ver++, key, oldTtlIndex).getBizCode());
 
         assertNotNull(kv.map.get(key));
     }

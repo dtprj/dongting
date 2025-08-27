@@ -196,8 +196,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_CAS:
                 return kv.compareAndSet(index, key, req.expectValue, req.value);
             case BIZ_TYPE_EXPIRE:
-                long expectCreateRaftIndex = req.ttlMillis; // yes!
-                return kv.expire(index, key, expectCreateRaftIndex);
+                long expectRaftIndex = req.ttlMillis; // yes!
+                return kv.expire(index, key, expectRaftIndex);
             case BIZ_TYPE_UPDATE_TTL:
                 return kv.updateTtl(index, key);
             default:
@@ -375,7 +375,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         // this is, submit as a raft task.
         KvReq req = new KvReq();
         req.key = ttlInfo.key.getData();
-        req.ttlMillis = ttlInfo.createIndex;
+        req.ttlMillis = ttlInfo.raftIndex;
         RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_EXPIRE, null, req, null, false);
         RaftCallback callback = new RaftCallback() {
             @Override

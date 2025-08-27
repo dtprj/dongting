@@ -44,9 +44,11 @@ class TtlManagerTest {
     private List<TtlInfo> expiredList;
     private AtomicInteger expireCallbackCount;
     private RuntimeException expireCallbackEx;
+    private long ver;
 
     @BeforeEach
     void setUp() {
+        ver = 1;
         ts = new Timestamp();
         expiredList = new ArrayList<>();
         expireCallbackCount = new AtomicInteger(0);
@@ -222,7 +224,7 @@ class TtlManagerTest {
         ByteArray key = new ByteArray("test".getBytes());
         KvNodeEx node = createKvNode(key);
         KvImpl.OpContext ctx = createOpContext(UUID.randomUUID(), 0);
-        manager.initTtl(key, node, ctx);
+        manager.initTtl(ver++, key, node, ctx);
         assertNull(node.ttlInfo);
     }
 
@@ -233,7 +235,7 @@ class TtlManagerTest {
         UUID owner = UUID.randomUUID();
         KvImpl.OpContext ctx = createOpContext(owner, 2);
 
-        manager.initTtl(key, node, ctx);
+        manager.initTtl(ver++, key, node, ctx);
         assertEquals(2_000_000, manager.task.execute());
         assertEquals(0, expiredList.size());
 
@@ -251,12 +253,12 @@ class TtlManagerTest {
         UUID owner = UUID.randomUUID();
 
         KvImpl.OpContext initCtx = createOpContext(owner, 5);
-        manager.initTtl(key, node, initCtx);
+        manager.initTtl(ver++, key, node, initCtx);
         assertEquals(5_000_000, manager.task.execute());
         assertEquals(0, expiredList.size());
 
         KvImpl.OpContext updateCtx = createOpContext(owner, 3);
-        manager.updateTtl(key, node, updateCtx);
+        manager.updateTtl(ver++, key, node, updateCtx);
 
         assertEquals(3, node.ttlInfo.ttlMillis);
         assertEquals(ts.nanoTime + 3_000_000L, node.ttlInfo.expireNanos);
@@ -277,7 +279,7 @@ class TtlManagerTest {
         UUID owner = UUID.randomUUID();
 
         KvImpl.OpContext initCtx = createOpContext(owner, 5);
-        manager.initTtl(key, node, initCtx);
+        manager.initTtl(ver++, key, node, initCtx);
         ts.wallClockMillis += 6;
         ts.nanoTime += 6 * 1000 * 1000;
         assertEquals(manager.defaultDelayNanos, manager.task.execute()); // goto pendingQueue
@@ -285,7 +287,7 @@ class TtlManagerTest {
 
         expiredList.clear();
         KvImpl.OpContext updateCtx = createOpContext(owner, 3);
-        manager.updateTtl(key, node, updateCtx);
+        manager.updateTtl(ver++, key, node, updateCtx);
         assertEquals(3, node.ttlInfo.ttlMillis);
         assertEquals(ts.nanoTime + 3_000_000L, node.ttlInfo.expireNanos);
         assertEquals(3_000_000, manager.task.execute());
@@ -299,7 +301,7 @@ class TtlManagerTest {
         UUID owner = UUID.randomUUID();
         KvImpl.OpContext ctx = createOpContext(owner, 3);
 
-        manager.initTtl(key, node, ctx);
+        manager.initTtl(ver++, key, node, ctx);
         manager.remove(node);
         assertEquals(manager.defaultDelayNanos, manager.task.execute());
         assertEquals(0, expiredList.size());
@@ -318,7 +320,7 @@ class TtlManagerTest {
         UUID owner = UUID.randomUUID();
 
         KvImpl.OpContext initCtx = createOpContext(owner, 5);
-        manager.initTtl(key, node, initCtx);
+        manager.initTtl(ver++, key, node, initCtx);
         ts.wallClockMillis += 6;
         ts.nanoTime += 6 * 1000 * 1000;
         assertEquals(manager.defaultDelayNanos, manager.task.execute()); // goto pendingQueue
@@ -339,7 +341,7 @@ class TtlManagerTest {
         UUID owner = UUID.randomUUID();
         KvImpl.OpContext ctx = createOpContext(owner, 3);
 
-        manager.initTtl(key, node, ctx);
+        manager.initTtl(ver++, key, node, ctx);
 
         expireCallbackEx = new MockRuntimeException();
         ts.wallClockMillis += 2000;
@@ -368,7 +370,7 @@ class TtlManagerTest {
         UUID owner = UUID.randomUUID();
 
         KvImpl.OpContext initCtx = createOpContext(owner, 5);
-        manager.initTtl(key, node, initCtx);
+        manager.initTtl(ver++, key, node, initCtx);
         ts.wallClockMillis += 6;
         ts.nanoTime += 6 * 1000 * 1000;
         assertEquals(manager.defaultDelayNanos, manager.task.execute()); // goto pendingQueue
@@ -387,7 +389,7 @@ class TtlManagerTest {
             ByteArray key = ba("test" + i);
             KvNodeEx node = createKvNode(key);
             KvImpl.OpContext initCtx = createOpContext(owner, 5);
-            manager.initTtl(key, node, initCtx);
+            manager.initTtl(ver++, key, node, initCtx);
         }
         ts.wallClockMillis += 6;
         ts.nanoTime += 6 * 1000 * 1000;
@@ -402,7 +404,7 @@ class TtlManagerTest {
             ByteArray key = ba("test" + i);
             KvNodeEx node = createKvNode(key);
             KvImpl.OpContext initCtx = createOpContext(owner, 5);
-            manager.initTtl(key, node, initCtx);
+            manager.initTtl(ver++, key, node, initCtx);
         }
         ts.wallClockMillis += 6;
         ts.nanoTime += 6 * 1000 * 1000;

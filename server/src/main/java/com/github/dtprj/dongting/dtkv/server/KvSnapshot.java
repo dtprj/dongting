@@ -139,6 +139,7 @@ class KvSnapshot extends Snapshot {
             if (n.ttlInfo != null) {
                 encodeStatus.uuid1 = n.ttlInfo.owner.getMostSignificantBits();
                 encodeStatus.uuid2 = n.ttlInfo.owner.getLeastSignificantBits();
+                encodeStatus.ttlRaftIndex = n.ttlInfo.raftIndex;
                 encodeStatus.leaderTtlStartTime = n.ttlInfo.leaderTtlStartMillis;
                 encodeStatus.ttlMillis = n.ttlInfo.ttlMillis;
             }

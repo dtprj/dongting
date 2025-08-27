@@ -316,7 +316,7 @@ class KvImpl {
             } else {
                 updateHolderAndGc(current, newKvNode, current.latest);
             }
-            ttlManager.initTtl(current.key, newKvNode, opContext);
+            ttlManager.initTtl(index, current.key, newKvNode, opContext);
             if (watchManager != null) {
                 watchManager.mountWatchToChild(current);
             }
@@ -333,7 +333,7 @@ class KvImpl {
                 } else {
                     // dir has already existed, do nothing
                     if (opContext.bizType == DtKV.BIZ_MK_TEMP_DIR) {
-                        ttlManager.updateTtl(current.key, oldNode, opContext);
+                        ttlManager.updateTtl(index, current.key, oldNode, opContext);
                     }
                     return new KvResult(KvCodes.DIR_EXISTS);
                 }
@@ -346,7 +346,7 @@ class KvImpl {
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
                     if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE) {
-                        ttlManager.updateTtl(current.key, newKvNode, opContext);
+                        ttlManager.updateTtl(index, current.key, newKvNode, opContext);
                     }
                     addToUpdateQueue(index, current);
                     updateParent(index, opContext.leaderCreateTimeMillis, parent);
@@ -473,7 +473,7 @@ class KvImpl {
                 long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L;
                 opContext.init(DtKV.BIZ_TYPE_PUT, new UUID(encodeStatus.uuid1, encodeStatus.uuid2),
                         encodeStatus.ttlMillis, encodeStatus.leaderTtlStartTime, localCreateNanos);
-                ttlManager.initTtl(key, n, opContext);
+                ttlManager.initTtl(encodeStatus.ttlRaftIndex, key, n, opContext);
             }
         }
     }
@@ -682,7 +682,7 @@ class KvImpl {
     }
 
     // not update updateTime field and parent nodes, not fire watch event, raft index is not used
-    public KvResult updateTtl(long ignoredRaftIndex, ByteArray key) {
+    public KvResult updateTtl(long index, ByteArray key) {
         long newTtlMillis = opContext.ttlMillis;
         if (newTtlMillis <= 0) {
             return new KvResult(KvCodes.CLIENT_REQ_ERROR);
@@ -697,11 +697,11 @@ class KvImpl {
             return r;
         }
         // no need to lock, because readers not check ttl
-        ttlManager.updateTtl(key, h.latest, opContext);
+        ttlManager.updateTtl(index, key, h.latest, opContext);
         return KvResult.SUCCESS;
     }
 
-    public KvResult expire(long index, ByteArray key, long expectCreateRaftIndex) {
+    public KvResult expire(long index, ByteArray key, long expectRaftIndex) {
         int ck = checkKey(key, false, false);
         if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
@@ -713,16 +713,12 @@ class KvImpl {
             }
             return KvResult.NOT_FOUND;
         }
-        if (h.latest.createIndex != expectCreateRaftIndex) {
+        if (h.latest.ttlInfo == null || h.latest.ttlInfo.raftIndex != expectRaftIndex) {
             // the node is not the one we want to expire (maybe added after delete same key)
             if (log.isDebugEnabled()) {
                 log.debug("key {} is already removed and re-add", key);
             }
-            return new KvResult(KvCodes.CREATE_INDEX_MISMATCH);
-        }
-        if (h.latest.ttlInfo == null) {
-            BugLog.getLog().error("ttl info is null: {}", key);
-            return KvResult.NOT_FOUND;
+            return new KvResult(KvCodes.TTL_INDEX_MISMATCH);
         }
         long t = lock.writeLock();
         try {

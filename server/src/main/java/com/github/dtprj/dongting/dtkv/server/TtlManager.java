@@ -136,11 +136,11 @@ class TtlManager {
         log.warn("expire failed: {}", ex.toString());
     }
 
-    public void initTtl(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
+    public void initTtl(long raftIndex, ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
         if (ctx.ttlMillis <= 0) {
             return;
         }
-        if (addNodeTtlAndAddToQueue(key, n, ctx)) {
+        if (addNodeTtlAndAddToQueue(raftIndex, key, n, ctx)) {
             task.signal();
         }
     }
@@ -197,7 +197,7 @@ class TtlManager {
         }
     }
 
-    public void updateTtl(ByteArray key, KvNodeEx newNode, KvImpl.OpContext ctx) {
+    public void updateTtl(long raftIndex, ByteArray key, KvNodeEx newNode, KvImpl.OpContext ctx) {
         if (ctx.ttlMillis <= 0) {
             return;
         }
@@ -206,19 +206,19 @@ class TtlManager {
             return;
         }
         doRemove(ttlInfo);
-        if (addNodeTtlAndAddToQueue(key, newNode, ctx)) {
+        if (addNodeTtlAndAddToQueue(raftIndex, key, newNode, ctx)) {
             task.signal();
         }
     }
 
-    private boolean addNodeTtlAndAddToQueue(ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
-        TtlInfo ttlInfo = new TtlInfo(key, n.createIndex, ctx.operator, ctx.leaderCreateTimeMillis, ctx.ttlMillis,
+    private boolean addNodeTtlAndAddToQueue(long raftIndex, ByteArray key, KvNodeEx n, KvImpl.OpContext ctx) {
+        TtlInfo ttlInfo = new TtlInfo(key, raftIndex, ctx.operator, ctx.leaderCreateTimeMillis, ctx.ttlMillis,
                 ctx.localCreateNanos + ctx.ttlMillis * 1_000_000, ttlInfoIndex++);
         n.ttlInfo = ttlInfo;
 
         // assert not in ttl queue and pending queue pending queue
         if (!ttlQueue.add(ttlInfo)) {
-            BugLog.getLog().error("TtlInfo exists {}, {}", key, ttlInfo.createIndex);
+            BugLog.getLog().error("TtlInfo exists {}, {}", key, ttlInfo.raftIndex);
         }
         return ttlQueue.first() == ttlInfo;
     }
@@ -252,7 +252,7 @@ class TtlManager {
 final class TtlInfo implements Comparable<TtlInfo> {
 
     final ByteArray key;
-    final long createIndex;
+    final long raftIndex;
     final UUID owner;
     final long leaderTtlStartMillis;
     final long ttlMillis;
@@ -262,10 +262,10 @@ final class TtlInfo implements Comparable<TtlInfo> {
     boolean expireFailed;
     long lastFailNanos;
 
-    TtlInfo(ByteArray key, long createIndex, UUID owner, long leaderTtlStartMillis, long ttlMillis,
+    TtlInfo(ByteArray key, long raftIndex, UUID owner, long leaderTtlStartMillis, long ttlMillis,
             long expireNanos, int ttlInfoIndex) {
         this.key = key;
-        this.createIndex = createIndex;
+        this.raftIndex = raftIndex;
         this.owner = owner;
         this.leaderTtlStartMillis = leaderTtlStartMillis;
         this.ttlMillis = ttlMillis;
