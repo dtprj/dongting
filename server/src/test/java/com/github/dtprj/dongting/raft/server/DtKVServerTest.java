@@ -21,9 +21,12 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.dtkv.server.KvConfig;
+import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.WaitUtil;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Arrays;
 import java.util.List;
@@ -38,8 +41,19 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author huangli
  */
 public class DtKVServerTest extends ServerTestBase {
-    @Test
-    void test() throws Exception {
+
+    private boolean useSepExecutor;
+
+    @Override
+    protected void config(KvConfig config) {
+        config.watchDispatchIntervalMillis = 0;
+        config.useSeparateExecutor = this.useSepExecutor;
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testSingle(boolean useSepExecutor) throws Exception {
+        this.useSepExecutor = useSepExecutor;
         ServerInfo s1 = null;
         KvClient client = new KvClient();
 
@@ -53,6 +67,7 @@ public class DtKVServerTest extends ServerTestBase {
 
             testSimple(client);
             testTtl(client);
+            testWatchManager(client);
 
         } finally {
             TestUtil.stop(client);
@@ -135,4 +150,20 @@ public class DtKVServerTest extends ServerTestBase {
         assertNull(client.get(groupId, "tempDir1.k1".getBytes()));
         assertNotNull(client.get(groupId, "tempKey1".getBytes()));
     }
+
+
+    private void testWatchManager(KvClient client) throws Exception {
+        String key = "watchKey1";
+        String value = "watchValue1";
+        CountDownLatch latch = new CountDownLatch(1);
+        client.getWatchManager().setListener(event -> {
+            if (key.equals(new String(event.key)) && value.equals(new String(event.value))) {
+                latch.countDown();
+            }
+        }, MockExecutors.singleExecutor());
+        client.getWatchManager().addWatch(groupId, key.getBytes());
+        client.put(groupId, key.getBytes(), value.getBytes());
+        assertTrue(latch.await(2, TimeUnit.SECONDS));
+    }
+
 }
