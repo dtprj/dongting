@@ -75,6 +75,39 @@ public class DtKVServerTest extends ServerTestBase {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testMulti(boolean useSepExecutor) throws Exception {
+        this.useSepExecutor = useSepExecutor;
+        ServerInfo s1 = null, s2 = null, s3 = null;
+        KvClient client = new KvClient();
+
+        String repServers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
+        String servServers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
+        try {
+            s1 = createServer(1, repServers, "1,2,3", "");
+            s2 = createServer(2, repServers, "1,2,3", "");
+            s3 = createServer(3, repServers, "1,2,3", "");
+            waitStart(s1);
+            waitStart(s2);
+            waitStart(s3);
+
+            client.start();
+            client.getRaftClient().clientAddNode(servServers);
+            client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
+
+            testSimple(client);
+            testTtl(client);
+            testWatchManager(client);
+
+        } finally {
+            TestUtil.stop(client);
+            waitStop(s1);
+            waitStop(s2);
+            waitStop(s3);
+        }
+    }
+
     private void testSimple(KvClient client) {
         client.mkdir(groupId, "dir1".getBytes());
         client.put(groupId, "dir1.k1".getBytes(), "v1".getBytes());
@@ -136,9 +169,9 @@ public class DtKVServerTest extends ServerTestBase {
         };
         long ttlMillis = 10;
         client.makeTempDir(groupId, "tempDir1".getBytes(), tick(ttlMillis), callback);
+        client.put(groupId, "tempDir1.k1".getBytes(), "tempValue2".getBytes(), callback);
         client.putTemp(groupId, "tempKey1".getBytes(), "tempValue1".getBytes(), tick(ttlMillis), callback);
         client.putTemp(groupId, "tempKey2".getBytes(), "tempValue2".getBytes(), tick(ttlMillis), callback);
-        client.put(groupId, "tempDir1.k1".getBytes(), "tempValue2".getBytes(), callback);
         assertTrue(latch.await(2, TimeUnit.SECONDS));
         assertNull(exRef.get());
 
