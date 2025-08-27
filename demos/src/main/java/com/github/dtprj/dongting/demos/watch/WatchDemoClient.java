@@ -44,7 +44,7 @@ public class WatchDemoClient extends DemoClientBase implements GroupId {
         kvClient.put(GROUP_ID, "key1".getBytes(), "key1_v1".getBytes());
         kvClient.mkdir(GROUP_ID, "dir1".getBytes());
 
-        kvClient.getClientWatchManager().addWatch(GROUP_ID, "key1", "dir1");
+        kvClient.getClientWatchManager().addWatch(GROUP_ID, "key1".getBytes(), "dir1".getBytes());
 
         kvClient.put(GROUP_ID, "key1".getBytes(), "key1_v2".getBytes());
         kvClient.put(GROUP_ID, "dir1.key2".getBytes(), "key2_v1".getBytes());
@@ -66,18 +66,19 @@ public class WatchDemoClient extends DemoClientBase implements GroupId {
 
     private static void onUpdate(WatchEvent event) {
         System.out.println("--------------------------");
+        String key = new String(event.key);
         switch (event.state) {
             case WatchEvent.STATE_NOT_EXISTS:
                 // in this case event.value is null
-                System.out.println("get STATE_NOT_EXISTS event: key=" + event.key + ", raftLogIndex=" + event.raftIndex);
+                System.out.println("get STATE_NOT_EXISTS event: key=" + key+ ", raftLogIndex=" + event.raftIndex);
                 break;
             case WatchEvent.STATE_VALUE_EXISTS:
-                System.out.println("get STATE_VALUE_EXISTS event: key=" + event.key + ", value=" + new String(event.value) +
+                System.out.println("get STATE_VALUE_EXISTS event: key=" + key + ", value=" + new String(event.value) +
                         ", raftLogIndex=" + event.raftIndex);
                 break;
             case WatchEvent.STATE_DIRECTORY_EXISTS:
                 // in this case event.value is null
-                System.out.println("get STATE_DIRECTORY_EXISTS event: dir=" + event.key + ", raftLogIndex=" + event.raftIndex);
+                System.out.println("get STATE_DIRECTORY_EXISTS event: dir=" + key + ", raftLogIndex=" + event.raftIndex);
                 // we should check the sub keys by ourselves
                 KvNode n2 = kvClient.get(GROUP_ID, "dir1.key2".getBytes());
                 KvNode n3 = kvClient.get(GROUP_ID, "dir1.key3".getBytes());

@@ -25,13 +25,15 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import static com.github.dtprj.dongting.dtkv.server.KvImplTest.ba;
+
 /**
  * @author huangli
  */
 class WatchReqTest {
     public static WatchReq buildTestData() {
         return new WatchReq(100, true,
-                Arrays.asList("key1".getBytes(), "key2".getBytes()), new long[]{10000, 20000});
+                Arrays.asList(ba("key1"), ba("key2")), new long[]{10000, 20000});
     }
 
     @Test
@@ -57,7 +59,7 @@ class WatchReqTest {
         Assertions.assertEquals(expect.groupId, protoResult.getGroupId());
         Assertions.assertEquals(expect.syncAll, protoResult.getSyncAll());
         for (int i = 0; i < expect.keys.size(); i++) {
-            Assertions.assertArrayEquals(expect.keys.get(i), protoResult.getKeys(i).getBytes(StandardCharsets.UTF_8));
+            Assertions.assertArrayEquals(expect.keys.get(i).getData(), protoResult.getKeys(i).getBytes(StandardCharsets.UTF_8));
             Assertions.assertEquals(expect.knownRaftIndexes[i], protoResult.getKnownRaftIndex(i));
         }
     }
@@ -66,7 +68,7 @@ class WatchReqTest {
         Assertions.assertEquals(expect.groupId, parseResult.groupId);
         Assertions.assertEquals(expect.syncAll, parseResult.syncAll);
         for (int i = 0; i < expect.keys.size(); i++) {
-            Assertions.assertArrayEquals(expect.keys.get(i), parseResult.keys[i].getData());
+            Assertions.assertArrayEquals(expect.keys.get(i).getData(), parseResult.keys[i].getData());
             Assertions.assertEquals(expect.knownRaftIndexes[i], parseResult.knownRaftIndexes[i]);
         }
     }

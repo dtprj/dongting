@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -35,7 +36,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.net.SocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -56,8 +56,6 @@ import java.util.function.Supplier;
 public class ClientWatchManager {
     private static final DtLog log = DtLogs.getLogger(ClientWatchManager.class);
 
-    public static final byte SEPARATOR = '.';
-
     private final RaftClient raftClient;
     private final Supplier<Boolean> stopped;
     private final long heartbeatIntervalMillis;
@@ -74,7 +72,7 @@ public class ClientWatchManager {
 
     private static class GroupWatches {
         final int groupId;
-        final HashMap<String, KeyWatch> watches = new HashMap<>();
+        final HashMap<ByteArray, KeyWatch> watches = new HashMap<>();
         RaftNode server;
         long serversEpoch;
         boolean busy;
@@ -91,7 +89,7 @@ public class ClientWatchManager {
     }
 
     static class KeyWatch {
-        private final String key;
+        private final ByteArray key;
         private final GroupWatches gw;
 
         private boolean needRegister = true;
@@ -102,7 +100,7 @@ public class ClientWatchManager {
         private WatchEvent event;
         private KeyWatch next;
 
-        private KeyWatch(String key, GroupWatches gw) {
+        private KeyWatch(ByteArray key, GroupWatches gw) {
             this.key = key;
             this.gw = gw;
         }
@@ -114,25 +112,13 @@ public class ClientWatchManager {
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;
     }
 
-    private void check(int groupId, String... keys) {
+    private void check(int groupId, byte[]... keys) {
         Objects.requireNonNull(keys);
-        for (String key : keys) {
+        for (byte[] key : keys) {
             Objects.requireNonNull(key);
-            if (key.isEmpty()) {
-                throw new IllegalArgumentException("key must not be empty");
-            }
-            int len = key.length();
-            if (key.charAt(0) == SEPARATOR || key.charAt(len - 1) == SEPARATOR) {
-                throw new IllegalArgumentException("invalid key: " + key);
-            }
-            int lastSep = -1;
-            for (int i = 0; i < len; i++) {
-                if (key.charAt(i) == SEPARATOR) {
-                    if (lastSep == i - 1) {
-                        throw new IllegalArgumentException("invalid key: " + key);
-                    }
-                    lastSep = i;
-                }
+            int c = KvClient.checkKey(key, KvClient.MAX_KEY_SIZE, false, true);
+            if (c != KvCodes.SUCCESS) {
+                throw new IllegalArgumentException(KvCodes.toStr(c));
             }
         }
 
@@ -141,7 +127,7 @@ public class ClientWatchManager {
         }
     }
 
-    public void addWatch(int groupId, String... keys) {
+    public void addWatch(int groupId, byte[]... keys) {
         check(groupId, keys);
         lock.lock();
         try {
@@ -162,11 +148,12 @@ public class ClientWatchManager {
                 gw.scheduledFuture = DtUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(checkTask,
                         heartbeatIntervalMillis, heartbeatIntervalMillis, TimeUnit.MILLISECONDS);
             }
-            for (String k : keys) {
-                KeyWatch w = gw.watches.get(k);
+            for (byte[] k : keys) {
+                ByteArray key = new ByteArray(k);
+                KeyWatch w = gw.watches.get(key);
                 if (w == null || w.needRemove) {
-                    w = new KeyWatch(k, gw);
-                    gw.watches.put(k, w);
+                    w = new KeyWatch(key, gw);
+                    gw.watches.put(key, w);
                     gw.needSync = true;
                 }
             }
@@ -178,7 +165,7 @@ public class ClientWatchManager {
         }
     }
 
-    public void removeWatch(int groupId, String... keys) {
+    public void removeWatch(int groupId, byte[]... keys) {
         check(groupId, keys);
         lock.lock();
         try {
@@ -186,8 +173,9 @@ public class ClientWatchManager {
             if (gw == null || gw.removed) {
                 return;
             }
-            for (String k : keys) {
-                KeyWatch w = gw.watches.get(k);
+            for (byte[] k : keys) {
+                ByteArray key = new ByteArray(k);
+                KeyWatch w = gw.watches.get(key);
                 if (w != null) {
                     w.needRemove = true;
                     gw.needSync = true;
@@ -258,7 +246,7 @@ public class ClientWatchManager {
     }
 
     private void syncGroupInLock0(GroupWatches gw) {
-        List<byte[]> keys;
+        List<ByteArray> keys;
         long[] knownRaftIndexes;
         if (gw.fullSync) {
             for (Iterator<KeyWatch> it = gw.watches.values().iterator(); it.hasNext(); ) {
@@ -273,7 +261,7 @@ public class ClientWatchManager {
             knownRaftIndexes = new long[gw.watches.size()];
             int i = 0;
             for (KeyWatch w : gw.watches.values()) {
-                keys.add(w.key.getBytes(StandardCharsets.UTF_8));
+                keys.add(w.key);
                 knownRaftIndexes[i++] = w.raftIndex;
             }
         } else {
@@ -291,7 +279,7 @@ public class ClientWatchManager {
             knownRaftIndexes = new long[list.size()];
             int i = 0;
             for (KeyWatch w : list) {
-                keys.add(w.key.getBytes(StandardCharsets.UTF_8));
+                keys.add(w.key);
                 knownRaftIndexes[i++] = w.raftIndex;
                 w.needRegister = false;
                 w.needRemove = false;
@@ -305,7 +293,7 @@ public class ClientWatchManager {
         sendSyncReq(gw, keys, knownRaftIndexes);
     }
 
-    private void sendSyncReq(GroupWatches gw, List<byte[]> keys, long[] knownRaftIndexes) {
+    private void sendSyncReq(GroupWatches gw, List<ByteArray> keys, long[] knownRaftIndexes) {
         RpcCallback<Void> c = (frame, ex) -> {
             if (stopped.get()) {
                 return;
@@ -497,14 +485,14 @@ public class ClientWatchManager {
             int[] results = new int[req.notifyList.size()];
             int i = 0;
             for (WatchNotify n : req.notifyList) {
-                String k = new String(n.key, StandardCharsets.UTF_8);
+                ByteArray k = new ByteArray(n.key);
                 KeyWatch w = watch.watches.get(k);
                 if (w == null || w.needRemove) {
                     results[i] = KvCodes.REMOVE_WATCH;
                 } else {
                     if (w.raftIndex < n.raftIndex) {
                         w.raftIndex = n.raftIndex;
-                        WatchEvent e = new WatchEvent(watch.groupId, n.raftIndex, n.state, k, n.value);
+                        WatchEvent e = new WatchEvent(watch.groupId, n.raftIndex, n.state, n.key, n.value);
                         addOrUpdateToNotifyQueue(w, e);
                     }
                     results[i] = KvCodes.SUCCESS;

@@ -27,10 +27,10 @@ public class WatchEvent {
     public final int groupId;
     public final long raftIndex;
     public final int state;
-    public final String key;
+    public final byte[] key;
     public final byte[] value;
 
-    WatchEvent(int groupId, long raftIndex, int state, String key, byte[] value) {
+    WatchEvent(int groupId, long raftIndex, int state, byte[] key, byte[] value) {
         this.groupId = groupId;
         this.raftIndex = raftIndex;
         this.state = state;

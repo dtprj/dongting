@@ -239,7 +239,7 @@ public class ClientWatchManagerTest implements KvListener {
     private Boolean checkEvent(ArrayList<PushEvent> expectEventsList, WatchEvent e) {
         for (Iterator<PushEvent> it = expectEventsList.iterator(); it.hasNext(); ) {
             PushEvent expect = it.next();
-            if (expect.key.equals(e.key)) {
+            if (expect.key.equals(new String(e.key))) {
                 String value = expect.value;
                 String actualValue = e.value == null ? null : new String(e.value);
                 // notice that the watch may process by a follower and it's data is not latest
@@ -254,17 +254,17 @@ public class ClientWatchManagerTest implements KvListener {
                 return expectEventsList.isEmpty();
             }
         }
-        throw new AssertionError("unexpected event: " + e.key);
+        throw new AssertionError("unexpected event: " + new String(e.key));
     }
 
     @Test
     public void testInvalidParams() {
         init(1000, true);
-        assertThrows(RaftException.class, () -> manager.addWatch(groupId + 100000, "key1"));
-        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ""));
-        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ".key1"));
-        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1."));
-        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1..key2"));
+        assertThrows(RaftException.class, () -> manager.addWatch(groupId + 100000, "key1".getBytes()));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "".getBytes()));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, ".key1".getBytes()));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1.".getBytes()));
+        assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1..key2".getBytes()));
     }
 
     @Test
@@ -274,27 +274,27 @@ public class ClientWatchManagerTest implements KvListener {
         String key2 = "testAddRemoveWatch_key2";
         long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
         long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
-        manager.addWatch(groupId, key1, key2);
+        manager.addWatch(groupId, key1.getBytes(), key2.getBytes());
         waitForEvents(new PushEvent(idx1, key1, "value1"), new PushEvent(idx2, key2, "value2"));
 
         // key1 is readd
-        manager.addWatch(groupId, key1);
+        manager.addWatch(groupId, key1.getBytes());
         idx1 = client.put(groupId, key1.getBytes(), "value1_2".getBytes());
         idx2 = client.put(groupId, key2.getBytes(), "value2_2".getBytes());
         waitForEvents(new PushEvent(idx1, key1, "value1_2"));
         waitForEvents(new PushEvent(idx2, key2, "value2_2"));
 
-        manager.removeWatch(groupId, key1);
+        manager.removeWatch(groupId, key1.getBytes());
         client.put(groupId, key1.getBytes(), "value1_3".getBytes());
         idx2 = client.put(groupId, key2.getBytes(), "value2_3".getBytes());
         waitForEvents(new PushEvent(idx2, key2, "value2_3"));
 
-        manager.removeWatch(groupId, key1, key2);
+        manager.removeWatch(groupId, key1.getBytes(), key2.getBytes());
         client.put(groupId, key1.getBytes(), "value1_4".getBytes());
         client.put(groupId, key2.getBytes(), "value2_4".getBytes());
         assertEquals(0, events.size());
 
-        manager.addWatch(groupId, "key3");
+        manager.addWatch(groupId, "key3".getBytes());
         waitForEvents(new PushEvent(-1, "key3", null));
     }
 
@@ -322,7 +322,7 @@ public class ClientWatchManagerTest implements KvListener {
         manager.removeListener();
         long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
         long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
-        manager.addWatch(groupId, key1, key2);
+        manager.addWatch(groupId, key1.getBytes(), key2.getBytes());
         waitForEventsByUserPull(new PushEvent(idx1, key1, "value1"), new PushEvent(idx2, key2, "value2"));
     }
 
@@ -331,7 +331,7 @@ public class ClientWatchManagerTest implements KvListener {
         init(10, true);
         String key1 = "testEx1_key1";
         mockQueryStatusExCount = new AtomicInteger(3);
-        manager.addWatch(groupId, key1);
+        manager.addWatch(groupId, key1.getBytes());
         waitForEvents(new PushEvent(-1, key1, null));
     }
 
@@ -341,11 +341,11 @@ public class ClientWatchManagerTest implements KvListener {
         String key1 = "testEx2_key1";
         String key2 = "testEx2_key2";
 
-        manager.addWatch(groupId, key1);
+        manager.addWatch(groupId, key1.getBytes());
         waitForEvents(new PushEvent(-1, key1, null));
 
         mockSyncExCount = new AtomicInteger(1);
-        manager.addWatch(groupId, key2);
+        manager.addWatch(groupId, key2.getBytes());
         waitForEvents(new PushEvent(-1, key2, null));
 
         long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
@@ -365,7 +365,7 @@ public class ClientWatchManagerTest implements KvListener {
         assertEquals(KvCodes.REMOVE_ALL_WATCH, p.getBizCode());
         assertNull(manager.takeEvent());
 
-        manager.addWatch(groupId, key1);
+        manager.addWatch(groupId, key1.getBytes());
         waitForEventsByUserPull(new PushEvent(-1, key1, null));
 
         req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
@@ -383,10 +383,10 @@ public class ClientWatchManagerTest implements KvListener {
         assertNotNull(event);
         assertEquals(10001, event.raftIndex);
         assertEquals(WatchEvent.STATE_VALUE_EXISTS, event.state);
-        assertEquals(key1, event.key);
+        assertEquals(key1, new String(event.key));
         assertEquals("value3", new String(event.value));
 
-        manager.removeWatch(groupId, key1);
+        manager.removeWatch(groupId, key1.getBytes());
         req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
                 10002, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value4".getBytes())));
         p = manager.processNotify(req, null);

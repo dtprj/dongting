@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.common.ByteArray;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -37,9 +38,9 @@ public class WatchReq implements Encodable {
     public final int groupId;
     public final boolean syncAll;
     public final long[] knownRaftIndexes;
-    public final List<byte[]> keys;
+    public final List<ByteArray> keys;
 
-    public WatchReq(int groupId, boolean syncAll, List<byte[]> keys, long[] knownRaftIndexes) {
+    public WatchReq(int groupId, boolean syncAll, List<ByteArray> keys, long[] knownRaftIndexes) {
         if (!syncAll && (keys == null || keys.isEmpty())) {
             throw new IllegalArgumentException("keys size must > 0");
         }
@@ -76,7 +77,7 @@ public class WatchReq implements Encodable {
                 }
                 // fall through
             case IDX_KNOWN_RAFT_INDEXES:
-                return EncodeUtil.encodeBytesList(context, destBuffer, IDX_KEYS, keys);
+                return EncodeUtil.encodeList(context, destBuffer, IDX_KEYS, keys);
             default:
                 throw new IllegalStateException("stage=" + context.stage);
         }
@@ -88,6 +89,6 @@ public class WatchReq implements Encodable {
                 + PbUtil.sizeOfInt32Field(IDX_SYNC_ALL, syncAll ? 1 : 0)
                 + PbUtil.sizeOfInt32Field(IDX_KEYS_SIZE, keys.size())
                 + PbUtil.sizeOfFix64Field(IDX_KNOWN_RAFT_INDEXES, knownRaftIndexes)
-                + PbUtil.sizeOfBytesListField(IDX_KEYS, keys);
+                + EncodeUtil.sizeOfList(IDX_KEYS, keys);
     }
 }
