@@ -145,6 +145,7 @@ public class VoteManager {
         }
 
         RaftUtil.resetElectTimer(raftStatus);
+        raftStatus.self.lastConfirmReqNanos = raftStatus.ts.nanoTime;
 
         Set<RaftMember> voter = RaftUtil.union(raftStatus.members, raftStatus.preparedMembers);
         initStatusForVoting();
@@ -450,6 +451,9 @@ public class VoteManager {
                         groupId, raftStatus.currentTerm, raftStatus.lastLogTerm, raftStatus.lastLogIndex);
                 raftStatus.setRole(RaftRole.candidate);
             }
+
+            RaftUtil.resetElectTimer(raftStatus);
+            raftStatus.self.lastConfirmReqNanos = raftStatus.ts.nanoTime;
 
             raftStatus.currentTerm = raftStatus.currentTerm + 1;
             raftStatus.votedFor = config.nodeId;
