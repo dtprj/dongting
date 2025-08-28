@@ -180,7 +180,6 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
         int remoteTerm = getRemoteTerm();
         int leaderId = getLeaderId();
         RaftStatusImpl raftStatus = gc.raftStatus;
-        raftStatus.ts.refresh(1); // make sure timestamp is not too old
         if (gc.memberManager.isValidCandidate(leaderId)) {
             int localTerm = raftStatus.currentTerm;
             if (remoteTerm == localTerm) {

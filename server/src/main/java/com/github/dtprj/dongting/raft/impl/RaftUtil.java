@@ -196,7 +196,8 @@ public final class RaftUtil {
     }
 
     public static void resetElectTimer(RaftStatusImpl raftStatus) {
-        raftStatus.lastElectTime = raftStatus.ts.getNanoTime();
+        raftStatus.ts.refresh(1);
+        raftStatus.lastElectTime = raftStatus.ts.nanoTime;
     }
 
     public static void updateLease(RaftStatusImpl raftStatus) {
