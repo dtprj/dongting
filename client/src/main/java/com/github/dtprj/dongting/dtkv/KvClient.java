@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
-import com.github.dtprj.dongting.net.NetBizCodeException;
 import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClientConfig;
@@ -288,7 +287,7 @@ public class KvClient extends AbstractLifeCircle {
                     KvNode n = (resp == null || resp.results == null || resp.results.isEmpty()) ? null : resp.results.get(0).getNode();
                     FutureCallback.callSuccess(callback, n);
                 } else {
-                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                    FutureCallback.callFail(callback, new KvException(bc));
                 }
             }
         });
@@ -345,7 +344,7 @@ public class KvClient extends AbstractLifeCircle {
                     FutureCallback.callSuccess(callback, (resp == null || resp.results == null)
                             ? Collections.emptyList() : resp.results);
                 } else {
-                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                    FutureCallback.callFail(callback, new KvException(bc));
                 }
             }
         });
@@ -579,7 +578,7 @@ public class KvClient extends AbstractLifeCircle {
                         FutureCallback.callSuccess(callback, nodes);
                     }
                 } else {
-                    FutureCallback.callFail(callback, new NetBizCodeException(bc, KvCodes.toStr(result.getBizCode())));
+                    FutureCallback.callFail(callback, new KvException(bc));
                 }
             }
         });
