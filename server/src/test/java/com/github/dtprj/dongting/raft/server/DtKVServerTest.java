@@ -46,8 +46,15 @@ public class DtKVServerTest extends ServerTestBase {
 
     @Override
     protected void config(KvConfig config) {
+        super.config(config);
         config.watchDispatchIntervalMillis = 0;
         config.useSeparateExecutor = this.useSepExecutor;
+    }
+
+    @Override
+    protected void config(RaftGroupConfig config) {
+        super.config(config);
+        config.syncForce = this.useSepExecutor;
     }
 
     @ParameterizedTest
@@ -159,7 +166,7 @@ public class DtKVServerTest extends ServerTestBase {
     }
 
     private void testTtl(KvClient client) throws Exception {
-        CountDownLatch latch = new CountDownLatch(4);
+        CountDownLatch latch = new CountDownLatch(5);
         AtomicReference<Throwable> exRef = new AtomicReference<>();
         FutureCallback<Long> callback = (r, e) -> {
             if (e != null) {
@@ -172,10 +179,9 @@ public class DtKVServerTest extends ServerTestBase {
         client.put(groupId, "tempDir1.k1".getBytes(), "tempValue2".getBytes(), callback);
         client.putTemp(groupId, "tempKey1".getBytes(), "tempValue1".getBytes(), tick(ttlMillis), callback);
         client.putTemp(groupId, "tempKey2".getBytes(), "tempValue2".getBytes(), tick(ttlMillis), callback);
+        client.updateTtl(groupId, "tempKey1".getBytes(), 100000, callback);
         assertTrue(latch.await(2, TimeUnit.SECONDS));
         assertNull(exRef.get());
-
-        client.updateTtl(groupId, "tempKey1".getBytes(), 100000);
 
         WaitUtil.waitUtil(null, () -> client.get(groupId, "tempDir1".getBytes()));
         WaitUtil.waitUtil(null, () -> client.get(groupId, "tempKey2".getBytes()));
