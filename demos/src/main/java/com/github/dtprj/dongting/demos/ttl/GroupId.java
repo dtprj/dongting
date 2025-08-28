@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.demos.watch;
+package com.github.dtprj.dongting.demos.ttl;
 
 /**
  * @author huangli
@@ -21,5 +21,5 @@ package com.github.dtprj.dongting.demos.watch;
 interface GroupId {
     // the group id is used to auto generate storage dir name in target dir (see DemoKvServer),
     // use different group id to ensure different demos will use different storage dir.
-    int GROUP_ID = 5;
+    int GROUP_ID = 4;
 }
