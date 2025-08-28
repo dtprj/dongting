@@ -78,6 +78,10 @@ public class NodeManager extends AbstractLifeCircle {
 
         this.allNodesEx = new IntObjMap<>(allRaftNodes.size() * 2, 0.75f);
         this.allRaftNodesOnlyForInit = allRaftNodes;
+
+        if (allRaftNodes.stream().noneMatch(n -> n.nodeId == selfNodeId)) {
+            throw new IllegalArgumentException("self node id not exist in servers: " + selfNodeId);
+        }
     }
 
     private CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
