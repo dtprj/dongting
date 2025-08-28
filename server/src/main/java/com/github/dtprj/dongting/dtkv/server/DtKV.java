@@ -381,9 +381,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             @Override
             public void success(long raftIndex, Object result) {
                 // nothing to do here, to remove from pendingQueue:
-                // if CODE_SUCCESS, removed in KvImpl.doRemoveInLock
-                // if KvCodes.CODE_NOT_FOUND, no need to remove, already removed
-                // if KvCodes.CODE_NOT_EXPIRED, removed when updateTtl() called
+                // if KvCodes.SUCCESS, removed in KvImpl.doRemoveInLock
+                // if KvCodes.NOT_FOUND, no need to remove, already removed
+                // if KvCodes.TTL_INDEX_MISMATCH, removed when updateTtl() called (or KvImpl.doRemoveInLock)
             }
 
             @Override

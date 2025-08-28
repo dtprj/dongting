@@ -132,7 +132,7 @@ class TtlManager {
         }
         ttlInfo.expireFailed = true;
         ttlInfo.lastFailNanos = ts.nanoTime;
-        // already in pending queue, no need to add again
+        // if already in pending queue, no need to add again
         log.warn("expire failed: {}", ex.toString());
     }
 
