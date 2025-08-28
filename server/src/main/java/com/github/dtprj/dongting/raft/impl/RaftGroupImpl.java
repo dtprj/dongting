@@ -147,7 +147,7 @@ public final class RaftGroupImpl extends RaftGroup {
             long t = readTimestamp.getNanoTime();
             if (ss.leaseEndNanos - t < 0) {
                 FutureCallback.callFail(callback, new NotLeaderException(null,
-                        "lease expired for " + (t - ss.leaseEndNanos) / 1_000_1000 + "ms"));
+                        "lease expired for " + (t - ss.leaseEndNanos) / 1_000_000 + "ms"));
             } else {
                 FutureCallback.callSuccess(callback, ss.lastApplied);
             }
