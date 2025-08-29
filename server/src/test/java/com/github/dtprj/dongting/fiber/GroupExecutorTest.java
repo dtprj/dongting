@@ -106,9 +106,11 @@ class GroupExecutorTest extends AbstractFiberTest {
         assertEquals(1, result.get());
 
         long t = System.nanoTime();
-        f1 = e.schedule(() -> result.set(2), 1, TimeUnit.MILLISECONDS);
+        f1 = e.schedule(() -> result.set(2), 2, TimeUnit.MILLISECONDS);
         f1.get();
         assertEquals(2, result.get());
+        // Theoretically, should be greater or equals than 2_000_000,
+        // but Timestamp.refresh(1) has a maximum error of 1 ms, so we use 1_000_000 here.
         assertTrue(System.nanoTime() - t >= 1_000_000);
 
         f1 = e.schedule(() -> {
@@ -131,8 +133,10 @@ class GroupExecutorTest extends AbstractFiberTest {
         assertEquals(1, f2.get());
 
         t = System.nanoTime();
-        f2 = e.schedule(() -> 2, 1, TimeUnit.MILLISECONDS);
+        f2 = e.schedule(() -> 2, 2, TimeUnit.MILLISECONDS);
         assertEquals(2, f2.get());
+        // Theoretically, should be greater or equals than 2_000_000,
+        // but Timestamp.refresh(1) has a maximum error of 1 ms, so we use 1_000_000 here.
         assertTrue(System.nanoTime() - t >= 1_000_000);
 
         f2 = e.schedule(() -> {
@@ -154,19 +158,21 @@ class GroupExecutorTest extends AbstractFiberTest {
 
     @Test
     public void testScheduleWithFixedDelay() {
-        testScheduleWithFixedDelay(1, TimeUnit.MILLISECONDS);
+        testScheduleWithFixedDelay(2, TimeUnit.MILLISECONDS);
         testScheduleWithFixedDelay(0, TimeUnit.MICROSECONDS);
     }
 
     private void testScheduleWithFixedDelay(long initDelay, TimeUnit unit) {
         GroupExecutor e = (GroupExecutor) fiberGroup.getExecutor();
-        AtomicLong lastRunTime = new AtomicLong(System.nanoTime() - 1_000_000);
+        AtomicLong lastRunTime = new AtomicLong(System.nanoTime());
         AtomicInteger count = new AtomicInteger();
         Runnable r = () -> {
             count.incrementAndGet();
             if (unit == TimeUnit.MILLISECONDS) {
                 long now = System.nanoTime();
                 long diff = now - lastRunTime.get();
+                // Theoretically, should be greater or equals than 2_000_000,
+                // but Timestamp.refresh(1) has a maximum error of 1 ms, so we use 1_000_000 here.
                 assertTrue(diff >= 1_000_000);
                 lastRunTime.set(now);
             }
