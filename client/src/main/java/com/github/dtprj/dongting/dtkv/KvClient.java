@@ -197,6 +197,8 @@ public class KvClient extends AbstractLifeCircle {
     /**
      * Synchronously put a key-value pair into the kv store, with a ttl.
      * If K/V node already exists with a tll, it will be overwritten and ttl will be updated.
+     * Only the client who created the temporary K/V node can update or remove it.
+     *
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
      * @param value not null or empty
@@ -216,6 +218,7 @@ public class KvClient extends AbstractLifeCircle {
 
     /**
      * Asynchronously put a key-value pair into the kv store, with a ttl.
+     * Only the client who created the temporary K/V node can update or remove it.
      * If K/V node already exists with a tll, it will be overwritten and ttl will be updated.
      * If K/V node already exists without a tll, the callback will complete with a KvException with code NOT_TEMP_NODE.
      * If try to update K/V node created by another client, the callback will complete with a KvException with code NOT_OWNER.
@@ -420,8 +423,14 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * Synchronously create a temporary directory with a ttl. If the directory already exists, and it's a temporary
-     * directory created by this client, update ttl and return the new raft index.
+     * Synchronously create a temporary directory with a ttl.
+     *
+     * Only the client who created the temporary directory can update ttl or remove it. Temporary directory can
+     * contain normal nodes (anyone can write) or temporary nodes, all sub-nodes will be removed when the temporary
+     * dir expired.
+     *
+     * If the directory already exists, and it's a temporary directory created by this client, update ttl and
+     * return the new raft index.
      *
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
@@ -439,8 +448,14 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * Asynchronously create a temporary directory with a ttl. If the directory already exists, and it's a temporary
-     * directory created by this client, update ttl and complete the callback with the new raft index.
+     * Asynchronously create a temporary directory with a ttl.
+     *
+     * Only the client who created the temporary directory can update ttl or remove it. Temporary directory can
+     * contain normal nodes (anyone can write) or temporary nodes, all sub-nodes will be removed when the temporary
+     * dir expired.
+     *
+     * If the directory already exists, and it's a temporary directory created by this client, update ttl and
+     * complete the callback with the new raft index.
      *
      * @param groupId the raft group id
      * @param key not null or empty, use '.' as path separator
