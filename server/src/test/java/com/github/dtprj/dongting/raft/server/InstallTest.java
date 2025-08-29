@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.HashMap;
 import java.util.List;
@@ -57,20 +59,15 @@ public class InstallTest extends ServerTestBase {
         config.saveSnapshotWhenClose = false;
     }
 
-    @Test
-    void testNewEmptyFollowerAddToGroup() throws Exception {
-        testNewEmptyFollowerAddToGroup(1, 200);
-        dirMap.clear();
-        testNewEmptyFollowerAddToGroup(2, 400);
-        dirMap.clear();
-        testNewEmptyFollowerAddToGroup(3, 400);
-        dirMap.clear();
-        testNewEmptyFollowerAddToGroup(4, 400);
-        dirMap.clear();
-        testNewEmptyFollowerAddToGroup(5, 400);
-    }
-
-    private void testNewEmptyFollowerAddToGroup(int count, int bodySize) throws Exception {
+    @ParameterizedTest
+    @CsvSource({
+            "1, 200",
+            "2, 400",
+            "3, 400",
+            "4, 400",
+            "5, 400"
+    })
+    void testNewEmptyFollowerAddToGroup(int count, int bodySize) throws Exception {
         AdminRaftClient adminClient = new AdminRaftClient();
         KvClient client = new KvClient();
         ServerInfo s1 = null, s2 = null, s3 = null;
