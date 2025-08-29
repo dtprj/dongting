@@ -88,8 +88,6 @@ public class CommitManager {
             self.nextIndex = lastPersistIndex + 1;
             self.matchIndex = lastPersistIndex;
 
-            RaftUtil.updateLease(raftStatus);
-
             if (leaderTryCommit(lastPersistIndex)) {
                 // try replicate new leaderCommit field to followers
                 raftStatus.needRepCondition.signalAll();
@@ -128,6 +126,7 @@ public class CommitManager {
         }
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.self.lastConfirmReqNanos = raftStatus.ts.nanoTime;
+        RaftUtil.updateLease(raftStatus);
 
         // leader can only commit log in current term, see raft paper 5.4.2
         if (recentMatchIndex < raftStatus.groupReadyIndex) {
