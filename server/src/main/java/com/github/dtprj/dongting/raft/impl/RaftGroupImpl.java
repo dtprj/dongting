@@ -128,6 +128,8 @@ public final class RaftGroupImpl extends RaftGroup {
         groupComponents.linearTaskRunner.submitRaftTaskInBizThread(type, input, wrapper);
     }
 
+    private long lastLeaseTimeoutLogNanoTime;
+
     @Override
     public void leaseRead(DtTime deadline, FutureCallback<Long> callback) {
         if (fiberGroup.isShouldStop()) {
@@ -144,10 +146,14 @@ public final class RaftGroupImpl extends RaftGroup {
         // NOTICE : timestamp is not thread safe
         if (ss.groupReady) {
             readTimestamp.refresh(1);
-            long t = readTimestamp.getNanoTime();
+            long t = readTimestamp.nanoTime;
             if (ss.leaseEndNanos - t < 0) {
-                FutureCallback.callFail(callback, new NotLeaderException(null,
-                        "lease expired for " + (t - ss.leaseEndNanos) / 1_000_000 + "ms"));
+                long x = (t - ss.leaseEndNanos) / 1_000_000;
+                if (lastLeaseTimeoutLogNanoTime == 0 || t - lastLeaseTimeoutLogNanoTime > 1_000_000_000L) {
+                    log.error("lease expired for {} ms. lastApplied={}", x, ss.lastApplied);
+                    lastLeaseTimeoutLogNanoTime = t;
+                }
+                FutureCallback.callFail(callback, new NotLeaderException(null, "lease expired for " + x + "ms"));
             } else {
                 FutureCallback.callSuccess(callback, ss.lastApplied);
             }

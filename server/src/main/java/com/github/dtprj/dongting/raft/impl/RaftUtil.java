@@ -281,14 +281,14 @@ public final class RaftUtil {
         raftStatus.setRole(RaftRole.leader);
         raftStatus.setCurrentLeader(raftStatus.self);
         raftStatus.groupReadyIndex = raftStatus.lastLogIndex + 1;
-        log.info("set groupReadyIndex to {}, groupId={}", raftStatus.groupReadyIndex, raftStatus.groupId);
         for (RaftMember node : raftStatus.replicateList) {
             node.nextIndex = raftStatus.lastLogIndex + 1;
         }
         updateLease(raftStatus);
         raftStatus.copyShareStatus();
-        log.info("change to leader. term={}, lease rest {}ms", raftStatus.currentTerm,
-                (raftStatus.getShareStatus().leaseEndNanos - raftStatus.ts.getNanoTime()) / 1_000_000);
+        long restLeaseMillis = (raftStatus.getShareStatus().leaseEndNanos - raftStatus.ts.nanoTime) / 1_000_000;
+        log.info("change to leader. groupId={}, term={}, lastLogIndex={}, lease rest {}ms",
+                raftStatus.groupId, raftStatus.currentTerm, raftStatus.lastLogIndex, restLeaseMillis);
     }
 
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
