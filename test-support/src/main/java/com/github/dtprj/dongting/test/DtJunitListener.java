@@ -49,11 +49,12 @@ public class DtJunitListener implements TestExecutionListener {
     private String getDisplayName(TestIdentifier identifier) {
         Optional<TestSource> source = identifier.getSource();
         if (source.isPresent() && source.get() instanceof MethodSource methodSource) {
-            if (identifier.getDisplayName().contains(methodSource.getMethodName())) {
-                return identifier.getDisplayName();
-            } else {
-                return methodSource.getMethodName() + "() " + identifier.getDisplayName();
+            String s = methodSource.getJavaClass().getSimpleName() + "." + methodSource.getMethodName() + "()";
+            if (!identifier.getDisplayName().contains(methodSource.getMethodName())) {
+                // eg: "[1] false" for @ParameterizedTest
+                s = s  + " " + identifier.getDisplayName();
             }
+            return s;
         } else {
             return identifier.getDisplayName();
         }
