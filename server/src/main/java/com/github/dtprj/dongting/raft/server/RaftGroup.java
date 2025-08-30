@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FutureCallback;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.Set;
@@ -44,7 +45,7 @@ public abstract class RaftGroup {
      * callback will fail with a NotLeaderException. </li>
      * <li>If it can't get the index before deadline, callback will fail with a RaftExecTimeoutException. </li>
      */
-    public abstract void leaseRead(DtTime deadline, FutureCallback<Long> callback);
+    public abstract void leaseRead(Timestamp ts, DtTime deadline, FutureCallback<Long> callback);
 
 
     /**

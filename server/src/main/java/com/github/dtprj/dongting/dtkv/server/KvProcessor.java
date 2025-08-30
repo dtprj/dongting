@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
@@ -30,6 +31,7 @@ import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RetryableWritePacket;
+import com.github.dtprj.dongting.net.WorkerThread;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
@@ -171,7 +173,9 @@ final class KvProcessor extends RaftProcessor<KvReq> {
      * the callback may run in other thread (raft thread etc.).
      */
     private void leaseRead(ReqInfo<KvReq> reqInfo, LeaseCallback callback) {
-        reqInfo.raftGroup.leaseRead(reqInfo.reqContext.getTimeout(), (lastApplied, ex) -> {
+        // run in io thread, so we should use ts of io worker
+        Timestamp ts = ((WorkerThread) Thread.currentThread()).ts;
+        reqInfo.raftGroup.leaseRead(ts, reqInfo.reqContext.getTimeout(), (lastApplied, ex) -> {
             if (ex == null) {
                 try {
                     WritePacket p = callback.apply(lastApplied, reqInfo.reqFrame.getBody());

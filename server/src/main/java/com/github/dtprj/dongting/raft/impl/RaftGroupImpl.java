@@ -55,8 +55,6 @@ public final class RaftGroupImpl extends RaftGroup {
     private final PendingStat serverStat;
     private final StateMachine stateMachine;
 
-    private final Timestamp readTimestamp = new Timestamp();
-
     public RaftGroupImpl(GroupComponents groupComponents) {
         this.groupComponents = groupComponents;
         this.groupId = groupComponents.groupConfig.groupId;
@@ -131,7 +129,7 @@ public final class RaftGroupImpl extends RaftGroup {
     private long lastLeaseTimeoutLogNanoTime;
 
     @Override
-    public void leaseRead(DtTime deadline, FutureCallback<Long> callback) {
+    public void leaseRead(Timestamp ts, DtTime deadline, FutureCallback<Long> callback) {
         if (fiberGroup.isShouldStop()) {
             FutureCallback.callFail(callback, new RaftException("raft group thread is stop"));
             return;
@@ -143,10 +141,9 @@ public final class RaftGroupImpl extends RaftGroup {
             return;
         }
 
-        // NOTICE : timestamp is not thread safe
         if (ss.groupReady) {
-            readTimestamp.refresh(1);
-            long t = readTimestamp.nanoTime;
+            ts.refresh(1);
+            long t = ts.nanoTime;
             if (ss.leaseEndNanos - t < 0) {
                 long x = (t - ss.leaseEndNanos) / 1_000_000;
                 if (lastLeaseTimeoutLogNanoTime == 0 || t - lastLeaseTimeoutLogNanoTime > 1_000_000_000L) {

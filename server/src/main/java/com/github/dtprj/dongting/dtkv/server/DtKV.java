@@ -211,7 +211,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      *
-     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(DtTime, FutureCallback)
+     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(Timestamp, DtTime, FutureCallback)
      */
     public KvResult get(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;
@@ -227,7 +227,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      *
-     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(DtTime, FutureCallback)
+     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(Timestamp, DtTime, FutureCallback)
      */
     public Pair<Integer, List<KvResult>> batchGet(List<byte[]> keys) {
         KvStatus kvStatus = this.kvStatus;
@@ -243,7 +243,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * For simplification, this method reads the latest snapshot, rather than the one specified by
      * the raftIndex parameter, and this does not violate linearizability.
      *
-     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(DtTime, FutureCallback)
+     * @see com.github.dtprj.dongting.raft.server.RaftGroup#leaseRead(Timestamp, DtTime, FutureCallback)
      */
     public Pair<Integer, List<KvResult>> list(ByteArray key) {
         KvStatus kvStatus = this.kvStatus;

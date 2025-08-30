@@ -60,7 +60,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     static long incomingConnectTimeout = 5 * 1000 * 1000 * 1000L;
 
     private final String workerName;
-    private final Thread thread;
+    private final WorkerThread thread;
     private final NioStatus nioStatus;
     private final NioConfig config;
     final NioNet owner;
@@ -102,7 +102,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.nioStatus = nioStatus;
         this.config = config;
         this.owner = owner;
-        this.thread = new Thread(this, workerName);
+        this.thread = new WorkerThread(this, workerName, timestamp);
         this.workerName = workerName;
         this.cleanIntervalNanos = config.cleanInterval * 1000 * 1000;
         this.perfCallback = config.perfCallback;
