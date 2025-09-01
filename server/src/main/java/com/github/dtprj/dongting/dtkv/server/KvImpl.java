@@ -85,6 +85,58 @@ class KvImpl {
         this.ttlManager = ttlManager;
     }
 
+    static KvResult checkExistNode(KvNodeHolder h, KvImpl.OpContext ctx) {
+        switch (ctx.bizType) {
+            case DtKV.BIZ_TYPE_PUT:
+            case DtKV.BIZ_TYPE_MKDIR:
+            case DtKV.BIZ_TYPE_BATCH_PUT:
+            case DtKV.BIZ_TYPE_CAS:
+                if (h == null || h.latest.removed) {
+                    return null;
+                }
+                if (h.latest.ttlInfo != null) {
+                    return new KvResult(KvCodes.IS_TEMP_NODE);
+                }
+                return null;
+            case DtKV.BIZ_TYPE_REMOVE:
+            case DtKV.BIZ_TYPE_BATCH_REMOVE:
+                if (h == null || h.latest.removed) {
+                    return KvResult.NOT_FOUND;
+                }
+                if (h.latest.ttlInfo != null && !h.latest.ttlInfo.owner.equals(ctx.operator)) {
+                    return new KvResult(KvCodes.NOT_OWNER);
+                }
+                return null;
+            case DtKV.BIZ_TYPE_UPDATE_TTL:
+                if (h == null || h.latest.removed) {
+                    return KvResult.NOT_FOUND;
+                }
+                if (h.latest.ttlInfo == null) {
+                    return new KvResult(KvCodes.NOT_TEMP_NODE);
+                }
+                if (!h.latest.ttlInfo.owner.equals(ctx.operator)) {
+                    return new KvResult(KvCodes.NOT_OWNER);
+                }
+                return null;
+            case DtKV.BIZ_MK_TEMP_DIR:
+            case DtKV.BIZ_TYPE_PUT_TEMP_NODE:
+                if (h == null || h.latest.removed) {
+                    return null;
+                }
+                if (h.latest.ttlInfo == null) {
+                    return new KvResult(KvCodes.NOT_TEMP_NODE);
+                }
+                if (!h.latest.ttlInfo.owner.equals(ctx.operator)) {
+                    return new KvResult(KvCodes.NOT_OWNER);
+                }
+                return null;
+            case DtKV.BIZ_TYPE_EXPIRE:
+                // call by raft leader, do not call this method
+            default:
+                throw new IllegalStateException(String.valueOf(ctx.bizType));
+        }
+    }
+
     private void addToUpdateQueue(long updateIndex, KvNodeHolder h) {
         h.updateIndex = updateIndex;
         if (h.watchHolder == null || h.watchHolder.watches.isEmpty()) {
@@ -285,7 +337,7 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        KvResult r = ttlManager.checkExistNode(h, opContext);
+        KvResult r = checkExistNode(h, opContext);
         if (r != null) {
             return r;
         }
@@ -512,7 +564,7 @@ class KvImpl {
             return new KvResult(ck);
         }
         KvNodeHolder h = map.get(key);
-        KvResult r = ttlManager.checkExistNode(h, opContext);
+        KvResult r = checkExistNode(h, opContext);
         if (r != null) {
             return r;
         }
@@ -602,7 +654,7 @@ class KvImpl {
             parent = root;
         }
         KvNodeHolder h = map.get(key);
-        KvResult r = ttlManager.checkExistNode(h, opContext);
+        KvResult r = checkExistNode(h, opContext);
         if (r != null) {
             return r;
         }
@@ -693,7 +745,7 @@ class KvImpl {
             return new KvResult(ck);
         }
         KvNodeHolder h = map.get(key);
-        KvResult r = ttlManager.checkExistNode(h, opContext);
+        KvResult r = checkExistNode(h, opContext);
         if (r != null) {
             return r;
         }
