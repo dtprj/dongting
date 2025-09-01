@@ -107,7 +107,7 @@ class IoWorkerQueue {
     }
 
     private DtChannelImpl selectChannel() {
-        ArrayList<DtChannelImpl> list = worker.getChannelsList();
+        ArrayList<DtChannelImpl> list = worker.channelsList;
         int size = list.size();
         if (size == 0) {
             return null;

@@ -199,7 +199,7 @@ public class NioClient extends NioNet implements ChannelListener {
         try {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
             if (rest > 0) {
-                worker.getThread().join(rest);
+                worker.thread.join(rest);
             }
         } catch (InterruptedException e) {
             DtUtil.restoreInterruptStatus();

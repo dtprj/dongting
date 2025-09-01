@@ -166,7 +166,7 @@ public class NioServer extends NioNet implements Runnable {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
             if (rest > 0) {
                 try {
-                    worker.getThread().join(rest);
+                    worker.thread.join(rest);
                 } catch (InterruptedException e) {
                     DtUtil.restoreInterruptStatus();
                     break;

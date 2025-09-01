@@ -60,7 +60,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     static long incomingConnectTimeout = 5 * 1000 * 1000 * 1000L;
 
     private final String workerName;
-    private final WorkerThread thread;
+    final WorkerThread thread;
     private final NioStatus nioStatus;
     private final NioConfig config;
     final NioNet owner;
@@ -73,7 +73,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final CompletableFuture<Void> prepareStopFuture = new CompletableFuture<>();
 
     private int channelIndex;
-    private final ArrayList<DtChannelImpl> channelsList;// client side only
+    final ArrayList<DtChannelImpl> channelsList;// client side only
     private final IntObjMap<DtChannelImpl> channels;
     private final IoWorkerQueue ioWorkerQueue;
 
@@ -881,14 +881,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     @Override
     public void doStop(DtTime timeout, boolean force) {
         wakeup();
-    }
-
-    public Thread getThread() {
-        return thread;
-    }
-
-    public ArrayList<DtChannelImpl> getChannelsList() {
-        return channelsList;
     }
 
     protected void logWorkerStatus() {

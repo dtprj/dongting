@@ -47,7 +47,7 @@ public class ReqContext {
 
         WriteData data = new WriteData(dtc, resp, timeout);
         NioWorker worker = dtc.workerStatus.worker;
-        if (Thread.currentThread() == worker.getThread()) {
+        if (Thread.currentThread() == worker.thread) {
             dtc.subQueue.enqueue(data);
             worker.markWakeupInIoThread();
         } else {
