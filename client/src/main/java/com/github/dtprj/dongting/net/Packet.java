@@ -29,14 +29,14 @@ public abstract class Packet {
     public static final int IDX_EXTRA = 8;
     public static final int IDX_BODY = 15;
 
-    int packetType;
-    int command;
-    int seq;
-    int respCode;
-    int bizCode;
-    String msg;
-    long timeout;
-    byte[] extra;
+    public int packetType;
+    public int command;
+    public int seq;
+    public int respCode;
+    public int bizCode;
+    public String msg;
+    public long timeout;
+    public byte[] extra;
 
     @Override
     public String toString() {
@@ -46,70 +46,5 @@ public abstract class Packet {
                 ",respCode=" + respCode +
                 ",bizCode=" + bizCode +
                 ")";
-    }
-
-
-    public int getPacketType() {
-        return packetType;
-    }
-
-    void setPacketType(int packetType) {
-        this.packetType = packetType;
-    }
-
-    public int getCommand() {
-        return command;
-    }
-
-    public void setCommand(int command) {
-        this.command = command;
-    }
-
-    public int getSeq() {
-        return seq;
-    }
-
-    void setSeq(int seq) {
-        this.seq = seq;
-    }
-
-    public int getRespCode() {
-        return respCode;
-    }
-
-    public void setRespCode(int respCode) {
-        this.respCode = respCode;
-    }
-
-    public int getBizCode() {
-        return bizCode;
-    }
-
-    public void setBizCode(int bizCode) {
-        this.bizCode = bizCode;
-    }
-
-    public String getMsg() {
-        return msg;
-    }
-
-    public void setMsg(String msg) {
-        this.msg = msg;
-    }
-
-    long getTimeout() {
-        return timeout;
-    }
-
-    void setTimeout(long timeout) {
-        this.timeout = timeout;
-    }
-
-    public byte[] getExtra() {
-        return extra;
-    }
-
-    public void setExtra(byte[] extra) {
-        this.extra = extra;
     }
 }

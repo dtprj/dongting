@@ -379,7 +379,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
     private void sendAppendRequest(RaftMember member, List<LogItem> items) {
         AppendReqWritePacket req = new AppendReqWritePacket();
-        req.setCommand(Commands.RAFT_APPEND_ENTRIES);
+        req.command = Commands.RAFT_APPEND_ENTRIES;
         req.groupId = groupId;
         req.term = raftStatus.currentTerm;
         req.leaderId = serverConfig.nodeId;
@@ -494,7 +494,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             } else if (appendCode == AppendProcessor.APPEND_SERVER_ERROR) {
                 updateLease(member, leaseStartNanos, raftStatus);
                 log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
-                        groupId, prevLogIndex, resp.getMsg());
+                        groupId, prevLogIndex, resp.msg);
             } else if (appendCode == AppendProcessor.APPEND_INSTALL_SNAPSHOT) {
                 log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
                         groupId, member.node.nodeId);
@@ -736,7 +736,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
 
         // data buffer released in WritePacket
         InstallSnapshotReq.InstallReqWritePacket wf = new InstallSnapshotReq.InstallReqWritePacket(req);
-        wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
+        wf.command = Commands.RAFT_INSTALL_SNAPSHOT;
         FiberGroup fg = groupConfig.fiberGroup;
         FiberFuture<Void> f = fg.newFuture("install-" + groupId + "-" + req.offset);
         DtTime timeout = new DtTime(serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);

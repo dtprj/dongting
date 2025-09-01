@@ -55,14 +55,14 @@ public class PacketPbTest {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
         ByteBufferWritePacket f = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
-        f.setPacketType(packetType);
-        f.setCommand(command);
-        f.setSeq(seq);
-        f.setRespCode(respCode);
-        f.setBizCode(bizCode);
-        f.setMsg(msg);
-        f.setTimeout(timeout);
-        f.setExtra(extra);
+        f.packetType = packetType;
+        f.command = command;
+        f.seq = seq;
+        f.respCode = respCode;
+        f.bizCode = bizCode;
+        f.msg = msg;
+        f.timeout = timeout;
+        f.extra = extra;
         ByteBuffer buf = ByteBuffer.allocate(f.actualSize());
         f.encode(new EncodeContext(null), buf);
         buf.flip();
@@ -133,13 +133,13 @@ public class PacketPbTest {
             }
         };
         dtc.getParser().parse(buf);
-        assertEquals(packetType, dtc.getPacket().getPacketType());
-        assertEquals(command, dtc.getPacket().getCommand());
-        assertEquals(seq, dtc.getPacket().getSeq());
-        assertEquals(respCode, dtc.getPacket().getRespCode());
-        assertEquals(bizCode, dtc.getPacket().getBizCode());
-        assertEquals(msg, dtc.getPacket().getMsg());
-        assertArrayEquals(extra, dtc.getPacket().getExtra());
-        assertEquals(timeout, dtc.getPacket().getTimeout());
+        assertEquals(packetType, dtc.getPacket().packetType);
+        assertEquals(command, dtc.getPacket().command);
+        assertEquals(seq, dtc.getPacket().seq);
+        assertEquals(respCode, dtc.getPacket().respCode);
+        assertEquals(bizCode, dtc.getPacket().bizCode);
+        assertEquals(msg, dtc.getPacket().msg);
+        assertArrayEquals(extra, dtc.getPacket().extra);
+        assertEquals(timeout, dtc.getPacket().timeout);
     }
 }

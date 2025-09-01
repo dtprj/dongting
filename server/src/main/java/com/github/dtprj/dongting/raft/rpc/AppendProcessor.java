@@ -79,7 +79,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     protected int getGroupId(ReadPacket frame) {
-        if (frame.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
+        if (frame.command == Commands.RAFT_APPEND_ENTRIES) {
             ReadPacket<AppendReq> f = (ReadPacket<AppendReq>) frame;
             return f.getBody().groupId;
         } else {
@@ -96,7 +96,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         if (f.getBody() == null) {
             return;
         }
-        if (f.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
+        if (f.command == Commands.RAFT_APPEND_ENTRIES) {
             AppendReq req = (AppendReq) f.getBody();
             RaftUtil.release(req.logs);
         } else {
@@ -119,7 +119,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx reqInfo) {
-        if (reqInfo.reqFrame.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
+        if (reqInfo.reqFrame.command == Commands.RAFT_APPEND_ENTRIES) {
             return new AppendFiberFrame(reqInfo, this);
         } else {
             return new InstallFiberFrame(reqInfo, this);
@@ -241,8 +241,8 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
         resp.suggestTerm = suggestTerm;
         resp.suggestIndex = suggestIndex;
         SimpleWritePacket p = new SimpleWritePacket(resp);
-        p.setRespCode(CmdCodes.SUCCESS);
-        p.setMsg(msg);
+        p.respCode = CmdCodes.SUCCESS;
+        p.msg = msg;
         reqInfo.reqContext.writeRespInBizThreads(p);
         return Fiber.frameReturn();
     }

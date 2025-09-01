@@ -81,7 +81,7 @@ public class AdminRaftClient extends RaftClient {
             req.oldLeaderId = oldLeader;
             req.newLeaderId = newLeader;
             SimpleWritePacket p = new SimpleWritePacket(req);
-            p.setCommand(Commands.RAFT_ADMIN_TRANSFER_LEADER);
+            p.command = Commands.RAFT_ADMIN_TRANSFER_LEADER;
             DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
             CompletableFuture<ReadPacket<Void>> f = new CompletableFuture<>();
             nioClient.sendRequest(leaderGroup.leader.peer, p, dc, timeout, RpcCallback.fromFuture(f));

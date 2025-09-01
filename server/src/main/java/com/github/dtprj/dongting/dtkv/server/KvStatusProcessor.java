@@ -76,7 +76,7 @@ class KvStatusProcessor extends RaftProcessor<Integer> {
     private void finishAndWriteResp(DtKV kv, KvStatusResp resp, ReqInfo<?> reqInfo) {
         resp.watchCount = kv.watchManager.updateWatchStatus(reqInfo.reqContext.getDtChannel());
         SimpleWritePacket wf = new SimpleWritePacket(resp);
-        wf.setRespCode(CmdCodes.SUCCESS);
+        wf.respCode = CmdCodes.SUCCESS;
         reqInfo.reqContext.writeRespInBizThreads(wf);
     }
 }

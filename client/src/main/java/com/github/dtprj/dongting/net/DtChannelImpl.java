@@ -127,8 +127,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
 
         if (!handshake && peer == null) { // peer is null is server side
-            if (packet.getCommand() != Commands.CMD_HANDSHAKE || packet.getPacketType() != PacketType.TYPE_REQ) {
-                throw new NetException("first command is not handshake, command=" + packet.getCommand());
+            if (packet.command != Commands.CMD_HANDSHAKE || packet.packetType != PacketType.TYPE_REQ) {
+                throw new NetException("first command is not handshake, command=" + packet.command);
             }
         }
 
@@ -140,7 +140,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         currentDecoderCallback = null;
 
-        if (packet.getPacketType() == PacketType.TYPE_RESP) {
+        if (packet.packetType == PacketType.TYPE_RESP) {
             processIncomingResponse(packet, requestForResp);
         } else {
             // req or one way
@@ -222,8 +222,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {
-        if (packet.getCommand() <= 0) {
-            throw new NetException("command invalid :" + packet.getCommand());
+        if (packet.command <= 0) {
+            throw new NetException("command invalid :" + packet.command);
         }
         // the body field should encode as last field
         if (!initRelatedDataForPacket()) {
@@ -247,7 +247,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 // so if the body is not last field, exception throws
                 readBody = true;
                 if (context.createOrGetNestedDecoder().shouldSkip()) {
-                    log.warn("skip parse, command={}", packet.getCommand());
+                    log.warn("skip parse, command={}", packet.command);
                 }
             }
         }
@@ -257,10 +257,10 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean initRelatedDataForPacket() {
         ReadPacket packet = this.packet;
-        if (packet.getPacketType() == PacketType.TYPE_RESP) {
+        if (packet.packetType == PacketType.TYPE_RESP) {
             WriteData requestForResp = this.requestForResp;
             if (requestForResp == null) {
-                requestForResp = this.workerStatus.pendingRequests.remove(BitUtil.toLong(channelIndexInWorker, packet.getSeq()));
+                requestForResp = this.workerStatus.pendingRequests.remove(BitUtil.toLong(channelIndexInWorker, packet.seq));
                 if (requestForResp == null) {
                     log.info("pending request not found. channel={}, resp={}", channel, packet);
                     return false;
@@ -278,15 +278,15 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 return false;
             }
             if (processorForRequest == null) {
-                processorForRequest = nioStatus.getProcessor(packet.getCommand());
-                if (processorForRequest == null && packet.getPacketType() == PacketType.TYPE_REQ) {
-                    log.warn("command {} is not support", packet.getCommand());
+                processorForRequest = nioStatus.getProcessor(packet.command);
+                if (processorForRequest == null && packet.packetType == PacketType.TYPE_REQ) {
+                    log.warn("command {} is not support", packet.command);
                     writeErrorInIoThread(packet, CmdCodes.COMMAND_NOT_SUPPORT, null);
                     return false;
                 }
             }
             if (currentDecoderCallback == null) {
-                currentDecoderCallback = processorForRequest.createDecoderCallback(packet.getCommand(), decodeContext.createOrGetNestedContext());
+                currentDecoderCallback = processorForRequest.createDecoderCallback(packet.command, decodeContext.createOrGetNestedContext());
             }
         }
         return true;
@@ -304,7 +304,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private void processIncomingResponse(ReadPacket resp, WriteData wo) {
         WritePacket req = wo.getData();
-        if (resp.getCommand() != req.getCommand()) {
+        if (resp.command != req.command) {
             wo.callFail(false, new NetException("command not match"));
             return;
         }
@@ -342,7 +342,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             flowControl = true;
         }
 
-        ReqContext reqContext = new ReqContext(this, req, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
+        ReqContext reqContext = new ReqContext(this, req, new DtTime(roundTime, req.timeout, TimeUnit.NANOSECONDS));
         if (p.executor == null) {
             if (timeout(req, reqContext, roundTime)) {
                 return;
@@ -352,7 +352,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 resp = p.process(req, reqContext);
             } catch (NetCodeException e) {
                 log.warn("ReqProcessor.process fail, command={}, code={}, msg={}",
-                        req.getCommand(), e.getCode(), e.getMessage());
+                        req.command, e.getCode(), e.getMessage());
                 writeErrorInIoThread(req, e.getCode(), e.getMessage(), reqContext.getTimeout());
                 return;
             } catch (Throwable e) {
@@ -365,9 +365,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 }
             }
             if (resp != null) {
-                resp.setCommand(req.getCommand());
-                resp.setPacketType(PacketType.TYPE_RESP);
-                resp.setSeq(req.getSeq());
+                resp.command = req.command;
+                resp.packetType = PacketType.TYPE_RESP;
+                resp.seq = req.seq;
                 subQueue.enqueue(new WriteData(this, resp, reqContext.getTimeout()));
             }
         } else {
@@ -390,9 +390,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         DtTime t = reqContext.getTimeout();
         boolean timeout = ts == null ? t.isTimeout() : t.isTimeout(ts);
         if (timeout) {
-            String type = PacketType.toStr(rf.getPacketType());
+            String type = PacketType.toStr(rf.packetType);
             log.debug("drop timeout {}, remote={}, seq={}, timeout={}ms", type,
-                    reqContext.getDtChannel().getRemoteAddr(), rf.getSeq(), t.getTimeout(TimeUnit.MILLISECONDS));
+                    reqContext.getDtChannel().getRemoteAddr(), rf.seq, t.getTimeout(TimeUnit.MILLISECONDS));
             return true;
         } else {
             return false;
@@ -404,14 +404,14 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private void writeErrorInIoThread(Packet req, int code, String msg, DtTime timeout) {
-        if (req.getPacketType() == PacketType.TYPE_ONE_WAY) {
+        if (req.packetType == PacketType.TYPE_ONE_WAY) {
             return;
         }
         EmptyBodyRespPacket resp = new EmptyBodyRespPacket(code);
-        resp.setCommand(req.getCommand());
-        resp.setPacketType(PacketType.TYPE_RESP);
-        resp.setSeq(req.getSeq());
-        resp.setMsg(msg);
+        resp.command = req.command;
+        resp.packetType = PacketType.TYPE_RESP;
+        resp.seq = req.seq;
+        resp.msg = msg;
         subQueue.enqueue(new WriteData(this, resp, timeout));
     }
 
@@ -530,16 +530,16 @@ class ProcessInBizThreadTask implements Runnable {
             }
             resp = processor.process(req, reqContext);
         } catch (NetCodeException e) {
-            log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.getCommand(), e.getCode(), e.getMessage());
-            if (req.getPacketType() == PacketType.TYPE_REQ) {
+            log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.command, e.getCode(), e.getMessage());
+            if (req.packetType == PacketType.TYPE_REQ) {
                 resp = new EmptyBodyRespPacket(e.getCode());
-                resp.setMsg(e.toString());
+                resp.msg = e.toString();
             }
         } catch (Throwable e) {
-            log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
-            if (req.getPacketType() == PacketType.TYPE_REQ) {
+            log.warn("ReqProcessor.process fail, command={}", req.command, e);
+            if (req.packetType == PacketType.TYPE_REQ) {
                 resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.setMsg(e.toString());
+                resp.msg = e.toString();
             }
         } finally {
             if (flowControl) {

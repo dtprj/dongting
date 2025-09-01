@@ -83,7 +83,7 @@ public class TimeoutTest {
 
     private CompletableFuture<?> send(DtTime timeout, int bytes) {
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(bytes));
-        wf.setCommand(CMD);
+        wf.command = CMD;
         CompletableFuture<ReadPacket<RefBuffer>> f = new CompletableFuture<>();
         client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(), timeout, RpcCallback.fromFuture(f));
         return f;
@@ -212,7 +212,7 @@ public class TimeoutTest {
             @Override
             public WritePacket process(ReadPacket<ByteBuffer> packet, ReqContext reqContext) {
                 ByteBufferWritePacket resp = new ByteBufferWritePacket(packet.getBody());
-                resp.setRespCode(CmdCodes.SUCCESS);
+                resp.respCode = CmdCodes.SUCCESS;
                 processCount.incrementAndGet();
                 return resp;
             }

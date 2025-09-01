@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 public class EmptyBodyReqPacket extends RetryableWritePacket {
 
     public EmptyBodyReqPacket(int command) {
-        setCommand(command);
+        this.command = command;
     }
 
     @Override

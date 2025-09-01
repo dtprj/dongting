@@ -98,7 +98,7 @@ public class NioServerTest {
             public WritePacket process(ReadPacket packet, ReqContext reqContext) {
                 ByteBuffer buf = (ByteBuffer) packet.getBody();
                 ByteBufferWritePacket resp = new ByteBufferWritePacket(buf);
-                resp.setRespCode(CmdCodes.SUCCESS);
+                resp.respCode = CmdCodes.SUCCESS;
                 return resp;
             }
 
@@ -604,7 +604,7 @@ public class NioServerTest {
             public WritePacket process(ReadPacket packet, ReqContext reqContext) {
                 Thread t = new Thread(() -> {
                     RefBufWritePacket resp = new RefBufWritePacket((RefBuffer) packet.getBody());
-                    resp.setRespCode(CmdCodes.SUCCESS);
+                    resp.respCode = CmdCodes.SUCCESS;
                     reqContext.writeRespInBizThreads(resp);
                 });
                 t.start();

@@ -55,8 +55,8 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
     public final WritePacket process(ReadPacket<T> packet, ReqContext reqContext) {
         if (packet.getBody() == null) {
             EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-            errorResp.setMsg("request has no body");
-            log.warn("request has no body: cmd={}, channel={}", packet.getCommand(), reqContext.getDtChannel());
+            errorResp.msg = "request has no body";
+            log.warn("request has no body: cmd={}, channel={}", packet.command, reqContext.getDtChannel());
             return errorResp;
         }
         int groupId = getGroupId(packet);
@@ -65,15 +65,15 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         if (g == null) {
             invokeCleanReq(reqInfo);
             EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_FOUND);
-            errorResp.setMsg("raft group not found: " + groupId);
-            log.error(errorResp.getMsg());
+            errorResp.msg = "raft group not found: " + groupId;
+            log.error(errorResp.msg);
             return errorResp;
         }
         GroupComponents gc = g.groupComponents;
         if (!gc.raftStatus.initialized) {
             invokeCleanReq(reqInfo);
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
-            wf.setMsg("raft group not initialized: " + groupId);
+            wf.msg = "raft group not initialized: " + groupId;
             return wf;
         }
         if (gc.fiberGroup.isShouldStop()) {
@@ -108,7 +108,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         Throwable root = DtUtil.rootCause(ex);
         if (root instanceof RaftTimeoutException) {
             ReadPacket<?> reqFrame = reqInfo.reqFrame;
-            log.warn("raft operation timeout: command={}, seq={}", reqFrame.getCommand(), reqFrame.getSeq());
+            log.warn("raft operation timeout: command={}, seq={}", reqFrame.command, reqFrame.seq);
             return;
         }
         EmptyBodyRespPacket errorResp;
@@ -118,20 +118,20 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             errorResp = new EmptyBodyRespPacket(CmdCodes.NOT_RAFT_LEADER);
             RaftNode leader = ((NotLeaderException) root).getCurrentLeader();
             if (leader != null) {
-                errorResp.setExtra(String.valueOf(leader.nodeId).getBytes(StandardCharsets.UTF_8));
+                errorResp.extra = String.valueOf(leader.nodeId).getBytes(StandardCharsets.UTF_8);
             }
             log.warn("not leader, current leader is {}", leader);
         } else {
             errorResp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
             log.warn("raft processor error", ex);
         }
-        errorResp.setMsg(root.toString());
+        errorResp.msg = root.toString();
         reqInfo.reqContext.writeRespInBizThreads(errorResp);
     }
 
     protected EmptyBodyRespPacket createStoppedResp(int groupId) {
         EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
-        wf.setMsg("raft group is stopped: " + groupId);
+        wf.msg = "raft group is stopped: " + groupId;
         return wf;
     }
 }

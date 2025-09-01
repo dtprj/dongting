@@ -327,7 +327,7 @@ public class WatchManager {
 
     protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(req);
-        packet.setCommand(Commands.DTKV_SYNC_WATCH);
+        packet.command = Commands.DTKV_SYNC_WATCH;
         raftClient.getNioClient().sendRequest(n.peer, packet,
                 DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, raftClient.createDefaultTimeout(), c);
     }
@@ -476,7 +476,7 @@ public class WatchManager {
             if (watch == null) {
                 log.warn("watch group not found, groupId={}, server={}", req.groupId, remote);
                 EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                p.setBizCode(KvCodes.REMOVE_ALL_WATCH);
+                p.bizCode = KvCodes.REMOVE_ALL_WATCH;
                 return p;
             }
             if (req.notifyList == null || req.notifyList.isEmpty()) {

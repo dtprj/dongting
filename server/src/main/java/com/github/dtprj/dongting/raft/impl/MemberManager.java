@@ -222,7 +222,7 @@ public class MemberManager {
             DtTime timeout = new DtTime(serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
 
             SimpleWritePacket f = RaftUtil.buildRaftPingPacket(serverConfig.nodeId, raftStatus);
-            f.setCommand(Commands.RAFT_PING);
+            f.command = Commands.RAFT_PING;
 
             Executor executor = groupConfig.fiberGroup.getExecutor();
             RpcCallback<RaftPing> callback = (result, ex) -> executor.execute(
@@ -989,7 +989,7 @@ public class MemberManager {
             req.newLeaderId = newLeader.nodeId;
             req.groupId = groupId;
             SimpleWritePacket frame = new SimpleWritePacket(req);
-            frame.setCommand(Commands.RAFT_TRANSFER_LEADER);
+            frame.command = Commands.RAFT_TRANSFER_LEADER;
             DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
             client.sendRequest(newLeader.peer, frame, dc, new DtTime(5, TimeUnit.SECONDS),
                     (result, ex) -> {

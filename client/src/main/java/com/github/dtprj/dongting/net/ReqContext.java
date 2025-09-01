@@ -41,9 +41,9 @@ public class ReqContext {
 
     // invoke by other threads
     public void writeRespInBizThreads(WritePacket resp) {
-        resp.setSeq(req.getSeq());
-        resp.setCommand(req.getCommand());
-        resp.setPacketType(PacketType.TYPE_RESP);
+        resp.seq = req.seq;
+        resp.command = req.command;
+        resp.packetType = PacketType.TYPE_RESP;
 
         WriteData data = new WriteData(dtc, resp, timeout);
         NioWorker worker = dtc.workerStatus.worker;

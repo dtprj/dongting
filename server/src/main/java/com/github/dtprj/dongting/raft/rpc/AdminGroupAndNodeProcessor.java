@@ -49,7 +49,7 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
 
     @Override
     public WritePacket process(ReadPacket<Object> packet, ReqContext reqContext) throws Exception {
-        int cmd = packet.getCommand();
+        int cmd = packet.command;
         if (cmd == Commands.RAFT_ADMIN_ADD_GROUP) {
             AdminAddGroupReq req = (AdminAddGroupReq) packet.getBody();
             addGroup(req, reqContext);
@@ -91,7 +91,7 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
                 reqContext.writeRespInBizThreads(resp);
             } else {
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.setMsg(ex.toString());
+                resp.msg = ex.toString();
                 reqContext.writeRespInBizThreads(resp);
             }
         });

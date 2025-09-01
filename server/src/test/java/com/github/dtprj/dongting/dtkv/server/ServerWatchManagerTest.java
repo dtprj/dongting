@@ -635,7 +635,7 @@ public class ServerWatchManagerTest {
             setRpcEx(new NetCodeException(CmdCodes.COMMAND_NOT_SUPPORT, "", null));
         } else {
             ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
-            r.setBizCode(KvCodes.REMOVE_ALL_WATCH);
+            r.bizCode = KvCodes.REMOVE_ALL_WATCH;
             setRpcResult(r);
         }
 
@@ -680,7 +680,7 @@ public class ServerWatchManagerTest {
             setRpcEx(new MockRuntimeException());
         } else {
             ReadPacket<WatchNotifyRespCallback> r = new ReadPacket<>();
-            r.setBizCode(KvCodes.CLIENT_REQ_ERROR);
+            r.bizCode = KvCodes.CLIENT_REQ_ERROR;
             setRpcResult(r);
         }
 

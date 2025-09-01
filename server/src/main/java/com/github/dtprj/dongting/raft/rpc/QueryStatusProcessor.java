@@ -50,7 +50,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         QueryStatusResp resp = buildQueryStatusResp(raftServer.getServerConfig().nodeId, raftStatus);
 
         SimpleWritePacket wf = new SimpleWritePacket(resp);
-        wf.setRespCode(CmdCodes.SUCCESS);
+        wf.respCode = CmdCodes.SUCCESS;
         reqInfo.reqContext.writeRespInBizThreads(wf);
         return FiberFrame.voidCompletedFrame();
     }

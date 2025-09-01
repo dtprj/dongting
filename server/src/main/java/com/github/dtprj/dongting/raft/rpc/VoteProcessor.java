@@ -75,7 +75,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         voteReq.candidateId, voteReq.groupId,
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.setMsg("receive vote request from unknown member");
+                resp.msg = "receive vote request from unknown member";
                 reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
             }
@@ -84,7 +84,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         voteReq.candidateId, voteReq.groupId,
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
                 EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.setMsg("current node is not members and can't process vote");
+                resp.msg = "current node is not members and can't process vote";
                 reqInfo.reqContext.writeRespInBizThreads(resp);
                 return Fiber.frameReturn();
             }
@@ -156,7 +156,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             resp.voteGranted = grant;
             resp.term = raftStatus.currentTerm;
             SimpleWritePacket wf = new SimpleWritePacket(resp);
-            wf.setRespCode(CmdCodes.SUCCESS);
+            wf.respCode = CmdCodes.SUCCESS;
             reqInfo.reqContext.writeRespInBizThreads(wf);
             log.info("receive {} request from node {}. granted={}", voteReq.preVote ? "pre-vote" : "vote",
                     voteReq.candidateId, resp.voteGranted);

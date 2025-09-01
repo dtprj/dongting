@@ -64,6 +64,7 @@ public abstract class WritePacket extends Packet implements Encodable {
 
     public final int calcMaxPacketSize() {
         if (maxPacketSize == 0) {
+            byte[] msgBytes = getMsgBytes();
             maxPacketSize = MAX_HEADER_SIZE
                     + (msgBytes == null ? 0 : msgBytes.length)
                     + (extra == null ? 0 : extra.length)
@@ -81,12 +82,11 @@ public abstract class WritePacket extends Packet implements Encodable {
         return bodySize;
     }
 
-    @Override
-    public void setMsg(String msg) {
-        super.setMsg(msg);
-        if (msg != null && !msg.isEmpty()) {
+    private byte[] getMsgBytes() {
+        if (msgBytes == null && msg != null) {
             msgBytes = msg.getBytes(StandardCharsets.UTF_8);
         }
+        return msgBytes;
     }
 
     @Override
@@ -99,7 +99,7 @@ public abstract class WritePacket extends Packet implements Encodable {
                     + PbUtil.sizeOfFix32Field(IDX_SEQ, seq) // fixed32 seq = 3;
                     + PbUtil.sizeOfInt32Field(IDX_RESP_CODE, respCode) // uint32 resp_code = 4;
                     + PbUtil.sizeOfInt32Field(IDX_BIZ_CODE, bizCode) // uint32 biz_code = 5;
-                    + PbUtil.sizeOfBytesField(IDX_MSG, msgBytes) // string resp_msg = 6;
+                    + PbUtil.sizeOfBytesField(IDX_MSG, getMsgBytes()) // string resp_msg = 6;
                     + PbUtil.sizeOfFix64Field(IDX_TIMEOUT, timeout) // fixed64 timeout = 7;
                     + PbUtil.sizeOfBytesField(IDX_EXTRA, extra); // bytes extra = 8;
             int bodySize = actualBodySize();
@@ -127,7 +127,7 @@ public abstract class WritePacket extends Packet implements Encodable {
                 PbUtil.writeFix32Field(buf, IDX_SEQ, seq);
                 PbUtil.writeInt32Field(buf, IDX_RESP_CODE, respCode);
                 PbUtil.writeInt32Field(buf, IDX_BIZ_CODE, bizCode);
-                PbUtil.writeBytesField(buf, IDX_MSG, msgBytes);
+                PbUtil.writeBytesField(buf, IDX_MSG, getMsgBytes());
                 PbUtil.writeFix64Field(buf, IDX_TIMEOUT, timeout);
                 PbUtil.writeBytesField(buf, IDX_EXTRA, extra);
                 if (bodySize > 0) {

@@ -67,7 +67,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         }
 
         SimpleWritePacket p = new SimpleWritePacket(hb);
-        p.setRespCode(CmdCodes.SUCCESS);
+        p.respCode = CmdCodes.SUCCESS;
 
         dtc.workerStatus.worker.finishHandshake(dtc);
 

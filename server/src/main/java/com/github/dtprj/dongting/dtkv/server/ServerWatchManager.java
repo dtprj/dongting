@@ -395,7 +395,7 @@ abstract class ServerWatchManager {
                     }
                 }
                 retryByChannel(ci, watches);
-            } else if (result.getBizCode() == KvCodes.SUCCESS) {
+            } else if (result.bizCode == KvCodes.SUCCESS) {
                 WatchNotifyRespCallback callback = result.getBody();
                 if (callback.results.length != watches.size()) {
                     log.error("response results size not match, expect {}, but got {}",
@@ -434,10 +434,10 @@ abstract class ServerWatchManager {
                 } else if (ci.needNotify != null && !ci.needNotify.isEmpty()) {
                     needNotifyChannels.add(ci);
                 }
-            } else if (result.getBizCode() == KvCodes.REMOVE_ALL_WATCH) {
+            } else if (result.bizCode == KvCodes.REMOVE_ALL_WATCH) {
                 removeByChannel(ci.channel);
             } else {
-                log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), result.getBizCode());
+                log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), result.bizCode);
                 retryByChannel(ci, watches);
             }
         } catch (Exception e) {

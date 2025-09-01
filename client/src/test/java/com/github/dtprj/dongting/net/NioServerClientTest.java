@@ -62,12 +62,12 @@ public class NioServerClientTest {
         ByteBuffer buf = ByteBuffer.allocate(len);
         r.nextBytes(buf.array());
         ByteBufferWritePacket wf = new ByteBufferWritePacket(buf);
-        wf.setCommand(Commands.CMD_PING);
+        wf.command = Commands.CMD_PING;
 
         ReadPacket<RefBuffer> rf = client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
-        assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
-        assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
+        assertEquals(wf.seq, rf.seq);
+        assertEquals(PacketType.TYPE_RESP, rf.packetType);
+        assertEquals(CmdCodes.SUCCESS, rf.respCode);
         RefBuffer rc = rf.getBody();
         if (rc != null) {
             assertEquals(buf, rc.getBuffer());
@@ -112,10 +112,10 @@ public class NioServerClientTest {
 
             // dup seq test
             ByteBufferWritePacket wf1 = new ByteBufferWritePacket(SimpleByteBufferPool.EMPTY_BUFFER);
-            wf1.setCommand(12345);
+            wf1.command = 12345;
 
             ByteBufferWritePacket wf2 = new ByteBufferWritePacket(SimpleByteBufferPool.EMPTY_BUFFER);
-            wf2.setCommand(12345);
+            wf2.command = 12345;
 
             CompletableFuture<ReadPacket<RefBuffer>> f1 = new CompletableFuture<>();
             client.sendRequest(wf1, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS), RpcCallback.fromFuture(f1));
@@ -124,7 +124,7 @@ public class NioServerClientTest {
             CompletableFuture<ReadPacket<RefBuffer>> f2 = new CompletableFuture<>();
             client.sendRequest(wf2, ctx -> new RefBufferDecoderCallback(), new DtTime(1, TimeUnit.SECONDS), RpcCallback.fromFuture(f2));
             ReadPacket<RefBuffer> rf2 = f2.get(1, TimeUnit.SECONDS);
-            Assertions.assertEquals(CmdCodes.SUCCESS, rf2.getRespCode());
+            Assertions.assertEquals(CmdCodes.SUCCESS, rf2.respCode);
 
             try {
                 f1.get(1, TimeUnit.SECONDS);

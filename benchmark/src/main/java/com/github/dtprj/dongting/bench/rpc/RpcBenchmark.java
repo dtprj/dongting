@@ -128,7 +128,7 @@ public class RpcBenchmark extends BenchBase {
         try {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWritePacket req = new ByteBufferWritePacket(ByteBuffer.wrap(data));
-            req.setCommand(cmd);
+            req.command = cmd;
 
             if (SYNC) {
                 ReadPacket<RefBuffer> rf = client.sendRequest(req,

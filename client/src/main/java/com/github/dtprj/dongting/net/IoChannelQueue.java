@@ -160,8 +160,8 @@ class IoChannelQueue {
                 } else {
                     if (encodeResult == ENCODE_FINISH) {
                         WritePacket f = wd.getData();
-                        if (f.getPacketType() == PacketType.TYPE_REQ) {
-                            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
+                        if (f.packetType == PacketType.TYPE_REQ) {
+                            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.seq);
                             WriteData old = workerStatus.pendingRequests.put(key, wd);
                             if (old != null) {
                                 String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
@@ -170,7 +170,7 @@ class IoChannelQueue {
                             }
                         }
                         packetsInBuffer++;
-                        if (f.getPacketType() == PacketType.TYPE_ONE_WAY) {
+                        if (f.packetType == PacketType.TYPE_ONE_WAY) {
                             // TODO complete after write finished
                             wd.callSuccess(null);
                         }
@@ -217,24 +217,23 @@ class IoChannelQueue {
     private int encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
         WritePacket f = wd.getData();
         // request or one way request
-        boolean request = f.getPacketType() != PacketType.TYPE_RESP;
+        boolean request = f.packetType != PacketType.TYPE_RESP;
         DtTime t = wd.getTimeout();
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
         if (rest <= 0) {
             if (request) {
                 log.warn("request timeout before send: {}ms, cmd={}, seq={}, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), f.getCommand(), f.getSeq(), wd.getDtc().getChannel());
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, wd.getDtc().getChannel());
             } else {
                 log.warn("response timeout before send: {}ms, cmd={}, seq={}, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), f.getCommand(), f.getSeq(), wd.getDtc().getChannel());
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, wd.getDtc().getChannel());
             }
             return ENCODE_CANCEL;
         }
 
         if (request) {
-            int seq = dtc.getAndIncSeq();
-            f.setSeq(seq);
-            f.setTimeout(rest);
+            f.seq = dtc.getAndIncSeq();
+            f.timeout = rest;
         }
         encodeContext.reset();
         return doEncode(buf, wd);

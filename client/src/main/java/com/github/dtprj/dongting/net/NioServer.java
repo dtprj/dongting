@@ -234,7 +234,7 @@ public class NioServer extends NioNet implements Runnable {
         @Override
         public WritePacket process(ReadPacket<RefBuffer> packet, ReqContext reqContext) {
             RefBufWritePacket resp = new RefBufWritePacket(packet.getBody());
-            resp.setRespCode(CmdCodes.SUCCESS);
+            resp.respCode = CmdCodes.SUCCESS;
             return resp;
         }
 

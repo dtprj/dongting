@@ -107,7 +107,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         boolean acquirePermit = false;
         try {
             generalCheck(request, timeout, callback);
-            request.setPacketType(decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
+            request.packetType = decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY;
 
             if (!server && request.command != Commands.CMD_HANDSHAKE && !request.acquirePermit) {
                 acquirePermit = acquirePermit(request, timeout);
@@ -184,7 +184,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(callback);
         Objects.requireNonNull(request);
-        DtUtil.checkPositive(request.getCommand(), "request.command");
+        DtUtil.checkPositive(request.command, "request.command");
 
         if (status != STATUS_RUNNING) {
             throw new NetException("error state: " + status);

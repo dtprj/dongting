@@ -45,7 +45,7 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     protected int getGroupId(ReadPacket frame) {
-        if (frame.getCommand() == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
+        if (frame.command == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
             ReadPacket<AdminPrepareConfigChangeReq> f = (ReadPacket<AdminPrepareConfigChangeReq>) frame;
             AdminPrepareConfigChangeReq req = f.getBody();
             return req.groupId;
@@ -73,11 +73,11 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
         RaftGroup rg = reqInfo.raftGroup;
         String type;
         CompletableFuture<Long> f;
-        if (reqFrame.getCommand() == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
+        if (reqFrame.command == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
             type = "prepare";
             AdminPrepareConfigChangeReq req = (AdminPrepareConfigChangeReq) reqFrame.getBody();
             f = rg.leaderPrepareJointConsensus(req.members, req.observers, req.preparedMembers, req.preparedObservers);
-        } else if (reqFrame.getCommand() == Commands.RAFT_ADMIN_COMMIT_CHANGE) {
+        } else if (reqFrame.command == Commands.RAFT_ADMIN_COMMIT_CHANGE) {
             type = "commit";
             AdminCommitOrAbortReq req = (AdminCommitOrAbortReq) reqFrame.getBody();
             f = rg.leaderCommitJointConsensus(req.prepareIndex);

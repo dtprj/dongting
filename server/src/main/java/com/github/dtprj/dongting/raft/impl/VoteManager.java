@@ -174,7 +174,7 @@ public class VoteManager {
         req.lastLogTerm = raftStatus.lastLogTerm;
         req.preVote = preVote;
         SimpleWritePacket wf = new SimpleWritePacket(req);
-        wf.setCommand(Commands.RAFT_REQUEST_VOTE);
+        wf.command = Commands.RAFT_REQUEST_VOTE;
         DtTime timeout = new DtTime(config.rpcTimeout, TimeUnit.MILLISECONDS);
 
         final int voteIdOfRequest = this.currentVoteId;

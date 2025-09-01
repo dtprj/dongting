@@ -80,7 +80,7 @@ public class CloseTest {
         setup(Tick.tick(30), false, 1);
 
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
-        wf.setCommand(CMD);
+        wf.command = CMD;
         CompletableFuture<ReadPacket<RefBuffer>> f = new CompletableFuture<>();
         client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
                 new DtTime(10, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
@@ -104,7 +104,7 @@ public class CloseTest {
         setup(Tick.tick(30), true, 1000000);
 
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
-        wf.setCommand(CMD);
+        wf.command = CMD;
         CompletableFuture<ReadPacket<RefBuffer>> f = new CompletableFuture<>();
         client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
                 new DtTime(10, TimeUnit.SECONDS), RpcCallback.fromFuture(f));

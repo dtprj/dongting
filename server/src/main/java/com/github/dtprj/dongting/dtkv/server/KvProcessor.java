@@ -81,14 +81,14 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         req.ownerUuid = reqInfo.reqContext.getDtChannel().getRemoteUuid();
 
         try {
-            switch (frame.getCommand()) {
+            switch (frame.command) {
                 case Commands.DTKV_GET:
                     leaseRead(reqInfo, (raftIndex, kvReq) -> {
                         KvResult r = dtKV.get(kvReq.key == null ? null : new ByteArray(kvReq.key));
                         KvResp resp = new KvResp(raftIndex, Collections.singletonList(r));
                         EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
-                        p.setRespCode(CmdCodes.SUCCESS);
-                        p.setBizCode(r.getBizCode());
+                        p.respCode = CmdCodes.SUCCESS;
+                        p.bizCode = r.getBizCode();
                         return p;
                     });
                     break;
@@ -128,7 +128,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_UPDATE_TTL, req);
                     break;
                 default:
-                    throw new RaftException("unknown command: " + frame.getCommand());
+                    throw new RaftException("unknown command: " + frame.command);
             }
         } catch (Exception e) {
             writeErrorResp(reqInfo, e);
@@ -141,13 +141,13 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     private void checkTtlAndSubmit(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
         if (req.ttlMillis <= 0) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.INVALID_TTL);
-            p.setMsg("ttl must be positive");
+            p.bizCode = KvCodes.INVALID_TTL;
+            p.msg = "ttl must be positive";
             reqInfo.reqContext.writeRespInBizThreads(p);
         } else if (req.ttlMillis > MAX_TTL_MILLIS) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.INVALID_TTL);
-            p.setMsg("ttl too large");
+            p.bizCode = KvCodes.INVALID_TTL;
+            p.msg = "ttl too large";
             reqInfo.reqContext.writeRespInBizThreads(p);
         } else {
             submitWriteTask(reqInfo, bizType, req);
@@ -158,13 +158,13 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         List<KvResult> results = r.getRight();
         if (results == null) {
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.setBizCode(r.getLeft());
+            p.bizCode = r.getLeft();
             return p;
         } else {
             KvResp resp = new KvResp(raftIndex, results);
             EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
-            p.setRespCode(CmdCodes.SUCCESS);
-            p.setBizCode(KvCodes.SUCCESS);
+            p.respCode = CmdCodes.SUCCESS;
+            p.bizCode = KvCodes.SUCCESS;
             return p;
         }
     }
@@ -210,7 +210,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         @Override
         public void success(long raftIndex, Object result) {
             WritePacket resp;
-            switch (reqInfo.reqFrame.getCommand()) {
+            switch (reqInfo.reqFrame.command) {
                 case Commands.DTKV_PUT:
                 case Commands.DTKV_REMOVE:
                 case Commands.DTKV_MKDIR:
@@ -220,7 +220,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_UPDATE_TTL: {
                     KvResult r = (KvResult) result;
                     resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
-                    resp.setBizCode(r.getBizCode());
+                    resp.bizCode = r.getBizCode();
                     break;
                 }
                 case Commands.DTKV_BATCH_PUT:
@@ -230,16 +230,16 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     if (p.getLeft() == KvCodes.SUCCESS) {
                         List<KvResult> results = new ArrayList<>(p.getRight());
                         resp = new EncodableBodyWritePacket(new KvResp(raftIndex, results));
-                        resp.setRespCode(CmdCodes.SUCCESS);
+                        resp.respCode = CmdCodes.SUCCESS;
                     } else {
                         resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
                     }
-                    resp.setBizCode(p.getLeft());
+                    resp.bizCode = p.getLeft();
                     break;
                 }
                 default:
                     resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                    resp.setMsg("unknown command: " + reqInfo.reqFrame.getCommand());
+                    resp.msg = "unknown command: " + reqInfo.reqFrame.command;
             }
             reqInfo.reqContext.writeRespInBizThreads(resp);
         }

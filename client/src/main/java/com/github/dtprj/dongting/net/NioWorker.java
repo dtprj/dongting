@@ -723,9 +723,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     } else if (t.isTimeout(timestamp)) {
                         WritePacket wp = wd.getData();
                         long timeout = t.getTimeout(TimeUnit.MILLISECONDS);
-                        log.debug("drop timeout request: {}ms, cmd={}, seq={}, {}", timeout, wp.getCommand(),
-                                wp.getSeq(), wd.getDtc().getChannel());
-                        String msg = "request is timeout: " + timeout + "ms, cmd=" + wp.getCommand()
+                        log.debug("drop timeout request: {}ms, cmd={}, seq={}, {}", timeout, wp.command,
+                                wp.seq, wd.getDtc().getChannel());
+                        String msg = "request is timeout: " + timeout + "ms, cmd=" + wp.command
                                 + ", remote=" + wd.getDtc().getRemoteAddr();
                         wd.callFail(false, new NetTimeoutException(msg));
                     }

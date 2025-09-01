@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 public class EmptyBodyRespPacket extends RetryableWritePacket {
 
     public EmptyBodyRespPacket(int respCode) {
-        setRespCode(respCode);
+        this.respCode = respCode;
     }
 
     @Override

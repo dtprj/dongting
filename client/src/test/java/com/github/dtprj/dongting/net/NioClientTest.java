@@ -304,14 +304,14 @@ public class NioClientTest {
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
-        wf.setCommand(Commands.CMD_PING);
+        wf.command = Commands.CMD_PING;
 
         ReadPacket<?> rf = client.sendRequest(wf, ctx -> decoderCallback,
                 new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
-        assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
-        assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-        assertEquals("msg", rf.getMsg());
+        assertEquals(wf.seq, rf.seq);
+        assertEquals(PacketType.TYPE_RESP, rf.packetType);
+        assertEquals(CmdCodes.SUCCESS, rf.respCode);
+        assertEquals("msg", rf.msg);
         if (rf.getBody() instanceof RefBuffer) {
             RefBuffer rc = (RefBuffer) rf.getBody();
             assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
@@ -326,13 +326,13 @@ public class NioClientTest {
         byte[] bs = new byte[ThreadLocalRandom.current().nextInt(maxBodySize)];
         ThreadLocalRandom.current().nextBytes(bs);
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
-        wf.setCommand(Commands.CMD_PING);
+        wf.command = Commands.CMD_PING;
 
         ReadPacket<RefBuffer> rf = client.sendRequest(peer, wf,
                 ctx -> new RefBufferDecoderCallback(), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
-        assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
-        assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
+        assertEquals(wf.seq, rf.seq);
+        assertEquals(PacketType.TYPE_RESP, rf.packetType);
+        assertEquals(CmdCodes.SUCCESS, rf.respCode);
         RefBuffer rc = rf.getBody();
         assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
         rc.release();
@@ -343,15 +343,15 @@ public class NioClientTest {
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
-        wf.setCommand(Commands.CMD_PING);
+        wf.command = Commands.CMD_PING;
 
         CompletableFuture<ReadPacket<RefBuffer>> f = new CompletableFuture<>();
         client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
                 new DtTime(timeoutMillis, TimeUnit.MILLISECONDS), RpcCallback.fromFuture(f));
         return f.thenApply(rf -> {
-            assertEquals(wf.getSeq(), rf.getSeq());
-            assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
-            assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
+            assertEquals(wf.seq, rf.seq);
+            assertEquals(PacketType.TYPE_RESP, rf.packetType);
+            assertEquals(CmdCodes.SUCCESS, rf.respCode);
             RefBuffer rc = rf.getBody();
             assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
             rc.release();
@@ -663,7 +663,7 @@ public class NioClientTest {
         Peer peer = client.addPeer(new HostPort("110.110.110.110", 2345)).get();
 
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(new byte[]{1}));
-        wf.setCommand(Commands.CMD_PING);
+        wf.command = Commands.CMD_PING;
 
         CompletableFuture<Void> f = new CompletableFuture<>();
         client.sendRequest(peer, wf, ctx -> new RefBufferDecoderCallback(),
@@ -701,7 +701,7 @@ public class NioClientTest {
         CountDownLatch cl = new CountDownLatch(loop);
         for (int i = 0; i < loop; i++) {
             ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
-            wf.setCommand(Commands.CMD_PING);
+            wf.command = Commands.CMD_PING;
             int index = i;
             client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
                     new DtTime(100, TimeUnit.SECONDS), (result, ex) -> {
@@ -739,7 +739,7 @@ public class NioClientTest {
         {
             // decoder fail in io thread
             ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
-            wf.setCommand(Commands.CMD_PING);
+            wf.command = Commands.CMD_PING;
             DecoderCallback<Object> decoderCallback = new DecoderCallback<Object>() {
 
                 @Override
@@ -790,7 +790,7 @@ public class NioClientTest {
                     return true;
                 }
             };
-            wf.setCommand(Commands.CMD_PING);
+            wf.command = Commands.CMD_PING;
             CompletableFuture<ReadPacket<byte[]>> f = new CompletableFuture<>();
             client.sendRequest(wf, ctx -> new BytesDecoderCallback(),
                     new DtTime(tick(1), TimeUnit.SECONDS), RpcCallback.fromFuture(f));
@@ -821,7 +821,7 @@ public class NioClientTest {
                     throw new MockRuntimeException();
                 }
             };
-            wf.setCommand(Commands.CMD_PING);
+            wf.command = Commands.CMD_PING;
             CompletableFuture<ReadPacket<byte[]>> f = new CompletableFuture<>();
             client.sendRequest(wf, ctx -> new BytesDecoderCallback(),
                     new DtTime(tick(1), TimeUnit.SECONDS), RpcCallback.fromFuture(f));
@@ -856,7 +856,7 @@ public class NioClientTest {
         ByteBuffer buf = ByteBuffer.allocate(101 + 128 * 1024);
         try {
             ByteBufferWritePacket f = new ByteBufferWritePacket(buf);
-            f.setCommand(Commands.CMD_PING);
+            f.command = Commands.CMD_PING;
             client.sendRequest(peer, f, ctx -> new BytesDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
             fail();
         } catch (Exception e) {
@@ -867,7 +867,7 @@ public class NioClientTest {
         buf.limit(101);
         try {
             ByteBufferWritePacket f = new ByteBufferWritePacket(buf);
-            f.setCommand(Commands.CMD_PING);
+            f.command = Commands.CMD_PING;
             client.sendRequest(peer, f, ctx -> new BytesDecoderCallback(), new DtTime(1, TimeUnit.SECONDS));
             fail();
         } catch (Exception e) {

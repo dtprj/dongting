@@ -361,8 +361,8 @@ public class WatchManagerTest implements KvListener {
         WatchNotifyReq req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
                 1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
         WritePacket p = manager.processNotify(req, null);
-        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
-        assertEquals(KvCodes.REMOVE_ALL_WATCH, p.getBizCode());
+        assertEquals(CmdCodes.SUCCESS, p.respCode);
+        assertEquals(KvCodes.REMOVE_ALL_WATCH, p.bizCode);
         assertNull(manager.takeEvent());
 
         manager.addWatch(groupId, key1.getBytes());
@@ -371,13 +371,13 @@ public class WatchManagerTest implements KvListener {
         req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
                 10000, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value2".getBytes())));
         p = manager.processNotify(req, null);
-        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
-        assertEquals(KvCodes.SUCCESS, p.getBizCode());
+        assertEquals(CmdCodes.SUCCESS, p.respCode);
+        assertEquals(KvCodes.SUCCESS, p.bizCode);
         req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
                 10001, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value3".getBytes())));
         p = manager.processNotify(req, null);
-        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
-        assertEquals(KvCodes.SUCCESS, p.getBizCode());
+        assertEquals(CmdCodes.SUCCESS, p.respCode);
+        assertEquals(KvCodes.SUCCESS, p.bizCode);
 
         WatchEvent event = manager.takeEvent();
         assertNotNull(event);
@@ -390,8 +390,8 @@ public class WatchManagerTest implements KvListener {
         req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
                 10002, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value4".getBytes())));
         p = manager.processNotify(req, null);
-        assertEquals(CmdCodes.SUCCESS, p.getRespCode());
-        assertEquals(KvCodes.REMOVE_ALL_WATCH, p.getBizCode());
+        assertEquals(CmdCodes.SUCCESS, p.respCode);
+        assertEquals(KvCodes.REMOVE_ALL_WATCH, p.bizCode);
         event = manager.takeEvent();
         assertNull(event);
     }

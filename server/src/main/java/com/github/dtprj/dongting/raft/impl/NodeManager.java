@@ -164,7 +164,7 @@ public class NodeManager extends AbstractLifeCircle {
 
         DtTime timeout = new DtTime(config.rpcTimeout, TimeUnit.MILLISECONDS);
         SimpleWritePacket packet = new SimpleWritePacket(new NodePing(selfNodeId, nodeEx.nodeId, uuid));
-        packet.setCommand(Commands.NODE_PING);
+        packet.command = Commands.NODE_PING;
         CompletableFuture<ReadPacket<NodePing>> f = new CompletableFuture<>();
         client.sendRequest(nodeEx.peer, packet, ctx -> ctx.toDecoderCallback(new NodePing()),
                 timeout, RpcCallback.fromFuture(f));
