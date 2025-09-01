@@ -433,7 +433,7 @@ class TtlManagerTest {
         KvNodeEx node;
 
         if (removed) {
-            node = new KvNodeEx(1, ts.wallClockMillis, 1, ts.wallClockMillis, false);
+            node = new KvNodeEx(1, ts.wallClockMillis, 1, ts.wallClockMillis);
         } else {
             node = createKvNode(key);
             node.ttlInfo = ttlInfo;

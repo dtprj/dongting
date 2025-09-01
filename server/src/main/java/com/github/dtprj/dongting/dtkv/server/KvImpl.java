@@ -534,8 +534,7 @@ class KvImpl {
         addToUpdateQueue(index, h);
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx n = h.latest;
-            KvNodeEx newKvNode = new KvNodeEx(n.createIndex, n.createTime, index,
-                    logTime, n.isDir);
+            KvNodeEx newKvNode = new KvNodeEx(n.createIndex, n.createTime, index, logTime);
             h.latest = newKvNode;
             newKvNode.previous = n;
             gc(h);

@@ -43,14 +43,10 @@ final class KvNodeEx extends KvNode {
         }
     }
 
-    public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir) {
-        super(createIndex, createTime, updateIndex, updateTime, dir, null);
+    public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime) {
+        super(createIndex, createTime, updateIndex, updateTime, false, null);
         this.removed = true;
-        if (dir) {
-            children = EMPTY_MAP;
-        } else {
-            children = null;
-        }
+        this.children = null;
     }
 
     public KvNodeEx(KvNodeEx old, long updateIndex, long updateTime, byte[] newData) {
