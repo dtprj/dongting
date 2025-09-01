@@ -134,7 +134,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
         if (requestForResp == null && processorForRequest == null) {
             // empty body
-            if(!readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, true)) {
+            if (!readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, true)) {
                 return false;
             }
         }
@@ -279,9 +279,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             }
             if (processorForRequest == null) {
                 processorForRequest = nioStatus.getProcessor(packet.command);
-                if (processorForRequest == null && packet.packetType == PacketType.TYPE_REQ) {
+                if (processorForRequest == null) {
                     log.warn("command {} is not support", packet.command);
-                    writeErrorInIoThread(packet, CmdCodes.COMMAND_NOT_SUPPORT, null);
+                    if (packet.packetType == PacketType.TYPE_REQ) {
+                        writeErrorInIoThread(packet, CmdCodes.COMMAND_NOT_SUPPORT, null);
+                    }
                     return false;
                 }
             }
