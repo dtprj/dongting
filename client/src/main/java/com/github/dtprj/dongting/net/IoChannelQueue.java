@@ -72,7 +72,7 @@ class IoChannelQueue {
     }
 
     public void enqueue(WriteData writeData) {
-        WritePacket wf = writeData.getData();
+        WritePacket wf = writeData.data;
         if (wf.use) {
             writeData.callFail(true, new NetException("WritePacket is used"));
             return;
@@ -159,12 +159,12 @@ class IoChannelQueue {
                     return flipAndReturnBuffer(buf);
                 } else {
                     if (encodeResult == ENCODE_FINISH) {
-                        WritePacket f = wd.getData();
+                        WritePacket f = wd.data;
                         if (f.packetType == PacketType.TYPE_REQ) {
                             long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.seq);
                             WriteData old = workerStatus.pendingRequests.put(key, wd);
                             if (old != null) {
-                                String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
+                                String errMsg = "dup seq: old=" + old.data + ", new=" + f;
                                 BugLog.getLog().error(errMsg);
                                 old.callFail(true, new NetException(errMsg));
                             }
@@ -177,13 +177,13 @@ class IoChannelQueue {
                     } else {
                         // cancel
                         workerStatus.addPacketsToWrite(-1);
-                        String msg = "timeout before send: " + wd.getTimeout().getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                        String msg = "timeout before send: " + wd.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                         wd.callFail(false, new NetTimeoutException(msg));
                     }
 
                     subQueueBytes = Math.max(0, subQueueBytes - wd.estimateSize);
                     try {
-                        wd.getData().clean();
+                        wd.data.clean();
                     } finally {
                         encodeContext.reset();
                         wd = null;
@@ -215,18 +215,18 @@ class IoChannelQueue {
     }
 
     private int encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
-        WritePacket f = wd.getData();
+        WritePacket f = wd.data;
         // request or one way request
         boolean request = f.packetType != PacketType.TYPE_RESP;
-        DtTime t = wd.getTimeout();
+        DtTime t = wd.timeout;
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
         if (rest <= 0) {
             if (request) {
                 log.warn("request timeout before send: {}ms, cmd={}, seq={}, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, wd.getDtc().getChannel());
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, wd.dtc.getChannel());
             } else {
                 log.warn("response timeout before send: {}ms, cmd={}, seq={}, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, wd.getDtc().getChannel());
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, wd.dtc.getChannel());
             }
             return ENCODE_CANCEL;
         }
@@ -240,7 +240,7 @@ class IoChannelQueue {
     }
 
     private int doEncode(ByteBuffer buf, WriteData wd) {
-        WritePacket wf = wd.getData();
+        WritePacket wf = wd.data;
         return wf.encode(encodeContext, buf) ? ENCODE_FINISH : ENCODE_NOT_FINISH;
     }
 

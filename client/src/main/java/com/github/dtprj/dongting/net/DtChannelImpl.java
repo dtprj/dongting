@@ -305,7 +305,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private void processIncomingResponse(ReadPacket resp, WriteData wo) {
-        WritePacket req = wo.getData();
+        WritePacket req = wo.data;
         if (resp.command != req.command) {
             wo.callFail(false, new NetException("command not match"));
             return;

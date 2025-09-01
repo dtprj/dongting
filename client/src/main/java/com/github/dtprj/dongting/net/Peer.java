@@ -84,7 +84,7 @@ public class Peer {
         for (Iterator<WriteData> it = waitConnectList.iterator(); it.hasNext(); ) {
             WriteData wd = it.next();
             it.remove();
-            wd.setDtc(dtChannel);
+            wd.dtc = dtChannel;
             dtChannel.getSubQueue().enqueue(wd);
         }
         waitConnectList = null;

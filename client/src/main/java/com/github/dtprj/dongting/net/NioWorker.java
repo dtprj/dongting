@@ -689,8 +689,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                         return true;
                     }
                 } else if (mode == 2) {
-                    DtTime t = wd.getTimeout();
-                    if (wd.getDtc().isClosed() || t.isTimeout(timestamp)) {
+                    DtTime t = wd.timeout;
+                    if (wd.dtc.isClosed() || t.isTimeout(timestamp)) {
                         if (wd.callback != null) {
                             list.add(new Pair<>(key, wd));
                         }
@@ -717,16 +717,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 if (mode == 1) {
                     wd.callFail(false, new NetException("channel closed, cancel pending request in NioWorker"));
                 } else if (mode == 2) {
-                    DtTime t = wd.getTimeout();
-                    if (wd.getDtc().isClosed()) {
+                    DtTime t = wd.timeout;
+                    if (wd.dtc.isClosed()) {
                         wd.callFail(false, new NetException("channel closed, future cancelled by timeout cleaner"));
                     } else if (t.isTimeout(timestamp)) {
-                        WritePacket wp = wd.getData();
+                        WritePacket wp = wd.data;
                         long timeout = t.getTimeout(TimeUnit.MILLISECONDS);
                         log.debug("drop timeout request: {}ms, cmd={}, seq={}, {}", timeout, wp.command,
-                                wp.seq, wd.getDtc().getChannel());
+                                wp.seq, wd.dtc.getChannel());
                         String msg = "request is timeout: " + timeout + "ms, cmd=" + wp.command
-                                + ", remote=" + wd.getDtc().getRemoteAddr();
+                                + ", remote=" + wd.dtc.getRemoteAddr();
                         wd.callFail(false, new NetTimeoutException(msg));
                     }
                 } else {
@@ -793,7 +793,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         if (!server) {
             ((NioClient) owner).cleanWaitConnectReq(wd -> {
-                if (wd.getTimeout().isTimeout(timestamp)) {
+                if (wd.timeout.isTimeout(timestamp)) {
                     return new NetTimeoutException("wait connect timeout");
                 }
                 return null;

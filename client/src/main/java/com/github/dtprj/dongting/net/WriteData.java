@@ -25,15 +25,15 @@ import com.github.dtprj.dongting.common.FutureCallback;
 class WriteData {
     DtChannelImpl dtc;
 
-    private final WritePacket data;
-    private final DtTime timeout;
+    final WritePacket data;
+    final DtTime timeout;
 
     final int estimateSize;
 
     long perfTime;
 
     // only for request or one way request
-    private final Peer peer;
+    final Peer peer;
     RpcCallback<?> callback;
     final DecoderCallbackCreator<?> respDecoderCallback;
 
@@ -99,25 +99,5 @@ class WriteData {
         } finally {
             callback = null;
         }
-    }
-
-    public DtChannelImpl getDtc() {
-        return dtc;
-    }
-
-    public WritePacket getData() {
-        return data;
-    }
-
-    public DtTime getTimeout() {
-        return timeout;
-    }
-
-    public Peer getPeer() {
-        return peer;
-    }
-
-    public void setDtc(DtChannelImpl dtc) {
-        this.dtc = dtc;
     }
 }

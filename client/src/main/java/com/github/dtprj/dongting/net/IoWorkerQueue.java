@@ -65,12 +65,12 @@ class IoWorkerQueue {
 
     private void processWriteData(WriteData wo) {
         perfCallback.fireTime(PerfConsts.RPC_D_WORKER_QUEUE, wo.perfTime);
-        WritePacket packet = wo.getData();
-        Peer peer = wo.getPeer();
+        WritePacket packet = wo.data;
+        Peer peer = wo.peer;
         if (peer != null) {
             if (peer.status == PeerStatus.connected) {
                 DtChannelImpl dtc = peer.dtChannel;
-                wo.setDtc(dtc);
+                wo.dtc = dtc;
                 dtc.getSubQueue().enqueue(wo);
             } else if (peer.status == PeerStatus.removed) {
                 wo.callFail(true, new NetException("peer is removed"));
@@ -82,14 +82,14 @@ class IoWorkerQueue {
                 }
             }
         } else {
-            DtChannelImpl dtc = wo.getDtc();
+            DtChannelImpl dtc = wo.dtc;
             if (dtc == null) {
                 if (!worker.server && packet.packetType != PacketType.TYPE_RESP) {
                     dtc = selectChannel();
                     if (dtc == null) {
                         wo.callFail(true, new NetException("no available channel"));
                     } else {
-                        wo.setDtc(dtc);
+                        wo.dtc = dtc;
                         dtc.getSubQueue().enqueue(wo);
                     }
                 } else {
