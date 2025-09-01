@@ -21,7 +21,7 @@
     <parent>
         <artifactId>dongting</artifactId>
         <groupId>com.github.dtprj.dongting</groupId>
-        <version>0.8.2-ALPHA</version>
+        <version>0.8.3-SNAPSHOT</version>
     </parent>
     <artifactId>dongting-client</artifactId>
 
@@ -29,7 +29,7 @@
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>test-support</artifactId>
-            <version>0.8.2-ALPHA</version>
+            <version>0.8.3-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

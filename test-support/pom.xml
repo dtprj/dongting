@@ -21,7 +21,7 @@
     <parent>
         <artifactId>dongting</artifactId>
         <groupId>com.github.dtprj.dongting</groupId>
-        <version>0.8.2-ALPHA</version>
+        <version>0.8.3-SNAPSHOT</version>
     </parent>
     <artifactId>test-support</artifactId>
     <properties>
