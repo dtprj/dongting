@@ -133,16 +133,18 @@ class KvImpl {
         if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
-        long s = lock.tryOptimisticRead();
-        KvResult r = get0(key);
-        if (lock.validate(s)) {
-            return r;
+        long stamp = lock.tryOptimisticRead();
+        if (stamp != 0) {
+            KvResult r = get0(key);
+            if (lock.validate(stamp)) {
+                return r;
+            }
         }
-        s = lock.readLock();
+        stamp = lock.readLock();
         try {
             return get0(key);
         } finally {
-            lock.unlockRead(s);
+            lock.unlockRead(stamp);
         }
     }
 
