@@ -71,7 +71,7 @@ class IoWorkerQueue {
             if (peer.status == PeerStatus.connected) {
                 DtChannelImpl dtc = peer.dtChannel;
                 wo.dtc = dtc;
-                dtc.getSubQueue().enqueue(wo);
+                dtc.subQueue.enqueue(wo);
             } else if (peer.status == PeerStatus.removed) {
                 wo.callFail(true, new NetException("peer is removed"));
             } else {
@@ -90,7 +90,7 @@ class IoWorkerQueue {
                         wo.callFail(true, new NetException("no available channel"));
                     } else {
                         wo.dtc = dtc;
-                        dtc.getSubQueue().enqueue(wo);
+                        dtc.subQueue.enqueue(wo);
                     }
                 } else {
                     log.error("no peer set");
@@ -100,7 +100,7 @@ class IoWorkerQueue {
                 if (dtc.isClosed()) {
                     wo.callFail(true, new NetException("channel closed during dispatch"));
                 } else {
-                    dtc.getSubQueue().enqueue(wo);
+                    dtc.subQueue.enqueue(wo);
                 }
             }
         }

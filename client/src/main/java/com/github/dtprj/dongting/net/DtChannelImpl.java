@@ -52,7 +52,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private final SocketAddress remoteAddr;
     private final SocketAddress localAddr;
 
-    private final int channelIndexInWorker;
+    final int channelIndexInWorker;
     final long createTimeNanos;
 
     int seq = 1;
@@ -424,14 +424,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             c = 1;
         }
         return c;
-    }
-
-    public int getChannelIndexInWorker() {
-        return channelIndexInWorker;
-    }
-
-    public IoChannelQueue getSubQueue() {
-        return subQueue;
     }
 
     @Override

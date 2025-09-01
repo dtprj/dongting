@@ -327,7 +327,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             stage = "process socket write";
             if (key.isWritable()) {
-                IoChannelQueue subQueue = dtc.getSubQueue();
+                IoChannelQueue subQueue = dtc.subQueue;
                 ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
                 if (buf != null) {
                     subQueue.setWriting(true);
@@ -380,7 +380,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
-        dtc.getSubQueue().setRegisterForWrite(new RegWriteRunner(selectionKey));
+        dtc.subQueue.setRegisterForWrite(new RegWriteRunner(selectionKey));
 
         log.info("new DtChannel init: {}", sc);
         return dtc;
@@ -424,7 +424,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 closeChannel0(sc);
                 return;
             }
-            channels.put(dtc.getChannelIndexInWorker(), dtc);
+            channels.put(dtc.channelIndexInWorker, dtc);
             incomingConnects.addLast(dtc);
         }, null);
     }
@@ -535,7 +535,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         try {
             channel.finishConnect();
             dtc = initNewChannel(channel, ci.peer);
-            channels.put(dtc.getChannelIndexInWorker(), dtc);
+            channels.put(dtc.channelIndexInWorker, dtc);
             channelsList.add(dtc);
         } catch (Throwable e) {
             log.warn("connect channel fail: {}, {}", ci.peer.endPoint, e.toString());
@@ -593,7 +593,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         WriteData wd = new WriteData(dtc, p, ci.deadline, rpcCallback,
                 ctx -> ctx.toDecoderCallback(new HandshakeBody()));
-        dtc.getSubQueue().enqueue(wd);
+        dtc.subQueue.enqueue(wd);
         // send pending request as quickly as possible, even before handshake finished
         ci.peer.enqueueAfterConnect();
     }
@@ -762,7 +762,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             peer.dtChannel = null;
             peer.markNotConnect(config, workerStatus, false);
         }
-        channels.remove(dtc.getChannelIndexInWorker());
+        channels.remove(dtc.channelIndexInWorker);
         if (channelsList != null) {
             // O(n) in client side
             channelsList.remove(dtc);
@@ -774,7 +774,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (config.finishPendingImmediatelyWhenChannelClose) {
             cleanPendingOutgoingRequests(dtc, 1);
         }
-        dtc.getSubQueue().cleanChannelQueue();
+        dtc.subQueue.cleanChannelQueue();
     }
 
     private void closeChannel0(SocketChannel sc) {

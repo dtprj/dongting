@@ -161,7 +161,7 @@ class IoChannelQueue {
                     if (encodeResult == ENCODE_FINISH) {
                         WritePacket f = wd.data;
                         if (f.packetType == PacketType.TYPE_REQ) {
-                            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.seq);
+                            long key = BitUtil.toLong(dtc.channelIndexInWorker, f.seq);
                             WriteData old = workerStatus.pendingRequests.put(key, wd);
                             if (old != null) {
                                 String errMsg = "dup seq: old=" + old.data + ", new=" + f;

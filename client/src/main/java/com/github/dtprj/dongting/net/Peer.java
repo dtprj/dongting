@@ -85,7 +85,7 @@ public class Peer {
             WriteData wd = it.next();
             it.remove();
             wd.dtc = dtChannel;
-            dtChannel.getSubQueue().enqueue(wd);
+            dtChannel.subQueue.enqueue(wd);
         }
         waitConnectList = null;
     }
