@@ -143,12 +143,18 @@ class TtlManager {
         }
     }
 
+    // this method should be idempotent
     public void updateTtl(long raftIndex, ByteArray key, KvNodeEx newNode, KvImpl.OpContext ctx) {
         if (ctx.ttlMillis <= 0) {
             return;
         }
         TtlInfo ttlInfo = newNode.ttlInfo;
         if (ttlInfo == null) {
+            return;
+        }
+        if (ttlInfo.raftIndex >= raftIndex) {
+            // this occurs after install snapshot, since KvImpl.updateTtl/doPutInLock may not create new KvNodeEx, and
+            // takeSnapshot may save newer ttlInfo than snapshot lastIncludedIndex.
             return;
         }
         doRemove(ttlInfo);
