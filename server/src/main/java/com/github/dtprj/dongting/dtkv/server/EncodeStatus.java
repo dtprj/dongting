@@ -29,6 +29,7 @@ class EncodeStatus {
     long createTime;
     long updateIndex;
     long updateTime;
+    boolean lock;
 
     long uuid1;
     long uuid2;

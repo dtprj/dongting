@@ -78,6 +78,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_MK_TEMP_DIR = 12;
     public static final int BIZ_TYPE_EXPIRE = 13; // no expire command in Commands class, since it's launched by raft leader
     public static final int BIZ_TYPE_UPDATE_TTL = 14;
+    public static final int BIZ_TYPE_LOCK = 15;
+    public static final int BIZ_TYPE_TRY_LOCK = 16;
+    public static final int BIZ_TYPE_UNLOCK = 17;
 
     private final Timestamp ts;
     final DtKVExecutor dtkvExecutor;

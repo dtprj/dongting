@@ -54,7 +54,7 @@ class KvCheckTest {
         } else {
             // ttl manager does not distinguish between dir and data node, so use a simple data node for testing
             node = new KvNodeEx(1, ts.wallClockMillis, 1,
-                    ts.wallClockMillis, false, key.getData());
+                    ts.wallClockMillis, false, false, key.getData());
             node.ttlInfo = ttlInfo;
         }
 

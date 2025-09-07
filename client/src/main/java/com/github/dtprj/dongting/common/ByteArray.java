@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * @author huangli
  */
-public class ByteArray implements Encodable {
+public class ByteArray implements Encodable, Comparable<ByteArray> {
     private final byte[] data;
     private byte[] copy;
     private final int startPos;
@@ -110,6 +110,19 @@ public class ByteArray implements Encodable {
             this.hash = h;
         }
         return hash;
+    }
+
+    @Override
+    public int compareTo(ByteArray o) {
+        int minLen = Math.min(length, o.length);
+        for (int i = 0; i < minLen; i++) {
+            int a = data[startPos + i] & 0xff;
+            int b = o.data[o.startPos + i] & 0xff;
+            if (a != b) {
+                return a - b;
+            }
+        }
+        return length - o.length;
     }
 
     @Override

@@ -43,6 +43,10 @@ public interface KvCodes {
     int NOT_EXPIRED = 20;
     int INVALID_TTL = 21;
     int TTL_INDEX_MISMATCH = 22;
+    int UNDER_TEMP_DIR = 23;
+    int PARENT_IS_LOCK = 24;
+    int LOCK_BY_SELF = 25;
+    int LOCK_BY_OTHER = 26;
 
     static String toStr(int code) {
         switch (code) {
@@ -92,6 +96,14 @@ public interface KvCodes {
                 return "INVALID_TTL";
             case TTL_INDEX_MISMATCH:
                 return "TTL_INDEX_MISMATCH";
+            case UNDER_TEMP_DIR:
+                return "UNDER_TEMP_DIR";
+            case PARENT_IS_LOCK:
+                return "PARENT_IS_LOCK";
+            case LOCK_BY_SELF:
+                return "LOCK_BY_SELF";
+            case LOCK_BY_OTHER:
+                return "LOCK_BY_OTHER";
             default:
                 return "UNKNOWN_CODE_" + code;
         }

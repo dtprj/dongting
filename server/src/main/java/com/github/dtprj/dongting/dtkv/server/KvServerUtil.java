@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
@@ -62,5 +64,24 @@ public class KvServerUtil {
             reqInfo.reqContext.writeRespInBizThreads(errorResp);
             return null;
         }
+    }
+
+    private static final byte[] HEX = new byte[]{
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+    };
+
+    static ByteArray buildLockKey(ByteArray parent, long uuid1, long uuid2) {
+        byte[] pb = parent.getData();
+        byte[] lockKey = new byte[pb.length + 33];
+        System.arraycopy(pb, 0, lockKey, 0, pb.length);
+        int pos = pb.length;
+        lockKey[pos++] = KvClient.SEPARATOR;
+        for (int shiftBits = 60; shiftBits >= 0; shiftBits -= 4) {
+            lockKey[pos++] = HEX[(int) ((uuid1 >>> shiftBits) & 0xF)];
+        }
+        for (int shiftBits = 60; shiftBits >= 0; shiftBits -= 4) {
+            lockKey[pos++] = HEX[(int) ((uuid2 >>> shiftBits) & 0xF)];
+        }
+        return new ByteArray(lockKey);
     }
 }

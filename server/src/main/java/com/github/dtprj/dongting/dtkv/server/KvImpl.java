@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 
 import java.util.ArrayDeque;
@@ -79,7 +80,8 @@ class KvImpl {
         this.ts = ts;
         this.groupId = groupId;
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
-        KvNodeEx n = new KvNodeEx(0, 0, 0, 0, true, null);
+        KvNodeEx n = new KvNodeEx(0, 0, 0, 0,
+                true, false, null);
         this.root = new KvNodeHolder(ByteArray.EMPTY, ByteArray.EMPTY, n, null);
         this.map.put(ByteArray.EMPTY, root);
         this.ttlManager = ttlManager;
@@ -132,6 +134,38 @@ class KvImpl {
                 return null;
             case DtKV.BIZ_TYPE_EXPIRE:
                 // call by raft leader, do not call this method
+            default:
+                throw new IllegalStateException(String.valueOf(ctx.bizType));
+        }
+    }
+
+    static KvResult checkParentBeforePut(KvNodeHolder parent, KvImpl.OpContext ctx) {
+        if (parent == null || parent.latest.removed) {
+            return new KvResult(KvCodes.PARENT_DIR_NOT_EXISTS);
+        }
+        if (!parent.latest.isDir) {
+            return new KvResult(KvCodes.PARENT_NOT_DIR);
+        }
+        if (parent.latest.lock) {
+            return new KvResult(KvCodes.PARENT_IS_LOCK);
+        }
+        switch (ctx.bizType) {
+            case DtKV.BIZ_TYPE_TRY_LOCK:
+            case DtKV.BIZ_TYPE_LOCK:
+                while (parent != null) {
+                    if (parent.latest.ttlInfo != null) {
+                        return new KvResult(KvCodes.UNDER_TEMP_DIR);
+                    }
+                    parent = parent.parent;
+                }
+                return null;
+            case DtKV.BIZ_TYPE_PUT:
+            case DtKV.BIZ_TYPE_MKDIR:
+            case DtKV.BIZ_TYPE_BATCH_PUT:
+            case DtKV.BIZ_TYPE_CAS:
+            case DtKV.BIZ_TYPE_PUT_TEMP_NODE:
+            case DtKV.BIZ_MK_TEMP_DIR:
+                return null;
             default:
                 throw new IllegalStateException(String.valueOf(ctx.bizType));
         }
@@ -276,10 +310,7 @@ class KvImpl {
             if (!kvNode.isDir) {
                 return new Pair<>(KvCodes.PARENT_NOT_DIR, null);
             }
-            ArrayList<KvResult> list = new ArrayList<>(kvNode.children.size());
-            for (KvNodeHolder child : kvNode.children.values()) {
-                list.add(new KvResult(KvCodes.SUCCESS, child.latest, child.keyInDir));
-            }
+            ArrayList<KvResult> list = kvNode.list();
             return new Pair<>(KvCodes.SUCCESS, list);
         } finally {
             lock.unlockRead(stamp);
@@ -327,11 +358,9 @@ class KvImpl {
         if (lastIndexOfSep > 0) {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
-            if (parent == null || parent.latest.removed) {
-                return new KvResult(KvCodes.PARENT_DIR_NOT_EXISTS);
-            }
-            if (!parent.latest.isDir) {
-                return new KvResult(KvCodes.PARENT_NOT_DIR);
+            KvResult r = checkParentBeforePut(parent, opContext);
+            if (r != null) {
+                return r;
             }
         } else {
             parent = root;
@@ -352,6 +381,8 @@ class KvImpl {
         }
     }
 
+    private KvNodeHolder lastPutNodeHolder = null;
+
     private KvResult doPutInLock(long index, ByteArray key, byte[] data, KvNodeHolder current,
                                  KvNodeHolder parent, int lastIndexOfSep) {
         if (current != null && current.parent != parent) {
@@ -359,14 +390,16 @@ class KvImpl {
             map.remove(key);
             current = null;
         }
-        boolean newValueIsDir = data == null || data.length == 0;
+        lastPutNodeHolder = null;
         if (current == null || current.latest.removed) {
             KvNodeEx newKvNode = new KvNodeEx(index, opContext.leaderCreateTimeMillis, index,
-                    opContext.leaderCreateTimeMillis, newValueIsDir, data);
+                    opContext.leaderCreateTimeMillis, data == null || data.length == 0,
+                    opContext.bizType == DtKV.BIZ_TYPE_LOCK || opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK,
+                    data);
             if (current == null) {
                 current = new KvNodeHolder(key, key.sub(lastIndexOfSep + 1), newKvNode, parent);
                 map.put(key, current);
-                parent.latest.children.put(current.keyInDir, current);
+                parent.latest.addChild(current);
             } else {
                 updateHolderAndGc(current, newKvNode, current.latest);
             }
@@ -376,11 +409,12 @@ class KvImpl {
             }
             addToUpdateQueue(index, current);
             updateParent(index, opContext.leaderCreateTimeMillis, parent);
+            lastPutNodeHolder = current;
             return KvResult.SUCCESS;
         } else {
             // has existing node
             KvNodeEx oldNode = current.latest;
-            if (newValueIsDir) {
+            if (data == null || data.length == 0) {
                 if (!oldNode.isDir) {
                     // node type not match, return error response
                     return new KvResult(KvCodes.VALUE_EXISTS);
@@ -389,6 +423,7 @@ class KvImpl {
                     if (opContext.bizType == DtKV.BIZ_MK_TEMP_DIR) {
                         ttlManager.updateTtl(index, current.key, oldNode, opContext);
                     }
+                    lastPutNodeHolder = current;
                     return new KvResult(KvCodes.DIR_EXISTS);
                 }
             } else {
@@ -399,11 +434,13 @@ class KvImpl {
                     // update value
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
-                    if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE) {
+                    if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE || opContext.bizType == DtKV.BIZ_TYPE_LOCK ||
+                            opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
                         ttlManager.updateTtl(index, current.key, newKvNode, opContext);
                     }
                     addToUpdateQueue(index, current);
                     updateParent(index, opContext.leaderCreateTimeMillis, parent);
+                    lastPutNodeHolder = current;
                     return KvResult.SUCCESS_OVERWRITE;
                 }
             }
@@ -499,7 +536,7 @@ class KvImpl {
         // do not need lock, no other requests during install snapshot
         KvNodeEx n = new KvNodeEx(encodeStatus.createIndex, encodeStatus.createTime, encodeStatus.updateIndex,
                 encodeStatus.updateTime, encodeStatus.valueBytes == null || encodeStatus.valueBytes.length == 0,
-                encodeStatus.valueBytes);
+                encodeStatus.lock, encodeStatus.valueBytes);
         if (encodeStatus.keyBytes == null || encodeStatus.keyBytes.length == 0) {
             root.latest = n;
         } else {
@@ -516,7 +553,7 @@ class KvImpl {
                 keyInDir = key.sub(lastIndexOfSep + 1);
             }
             KvNodeHolder h = new KvNodeHolder(key, keyInDir, n, parent);
-            parent.latest.children.put(keyInDir, h);
+            parent.latest.addChild(h);
             map.put(key, h);
             if (encodeStatus.ttlMillis > 0) {
                 // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
@@ -569,7 +606,7 @@ class KvImpl {
             return r;
         }
         KvNodeEx n = h.latest;
-        if (n.isDir && !n.children.isEmpty()) {
+        if (n.childCount() > 0) {
             return new KvResult(KvCodes.HAS_CHILDREN);
         }
         long stamp = lock ? this.lock.writeLock() : 0;
@@ -598,7 +635,7 @@ class KvImpl {
 
         // The children list only used in list and remove check, and always read the latest data.
         // So we can remove it from children list safely even if there is a snapshot being reading.
-        h.parent.latest.children.remove(h.keyInDir);
+        h.parent.latest.removeChild(h.keyInDir);
 
         ttlManager.remove(h.latest);
         if (watchManager != null) {
@@ -644,11 +681,9 @@ class KvImpl {
         if (lastIndexOfSep > 0) {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
-            if (parent == null || parent.latest.removed) {
-                return new KvResult(KvCodes.PARENT_DIR_NOT_EXISTS);
-            }
-            if (!parent.latest.isDir) {
-                return new KvResult(KvCodes.PARENT_NOT_DIR);
+            KvResult r = checkParentBeforePut(parent, opContext);
+            if (r != null) {
+                return r;
             }
         } else {
             parent = root;
@@ -793,7 +828,7 @@ class KvImpl {
                 output.push(current);
                 if (current.latest.isDir) {
                     // the children map has no removed nodes, see doRemoveInLock
-                    for (KvNodeHolder child : current.latest.children.values()) {
+                    for (KvNodeHolder child : current.latest.childrenValues()) {
                         stack.push(child);
                     }
                 }
@@ -804,6 +839,45 @@ class KvImpl {
             }
         } else {
             doRemoveInLock(index, h);
+        }
+    }
+
+    public KvResult lock(long index, ByteArray key) {
+        long ttlMillis = opContext.ttlMillis;
+        if (ttlMillis <= 0) {
+            return new KvResult(KvCodes.CLIENT_REQ_ERROR);
+        }
+        opContext.ttlMillis = 0; // the lock dir has no ttl
+        long stamp = lock.writeLock();
+        try {
+            KvResult r = checkAndPut(index, key, null, false);
+            if (r.getBizCode() != KvCodes.SUCCESS && r.getBizCode() != KvCodes.DIR_EXISTS) {
+                return r;
+            }
+            opContext.ttlMillis = ttlMillis; // restore ttl
+            KvNodeHolder parent = lastPutNodeHolder;
+            ByteArray fullKey = KvServerUtil.buildLockKey(parent.key,
+                    opContext.operator.getMostSignificantBits(), opContext.operator.getLeastSignificantBits());
+            KvNodeHolder sub = map.get(fullKey);
+            r = doPutInLock(index, fullKey, new byte[1], sub, parent, parent.key.length);
+            if (r == KvResult.SUCCESS) {
+                if (parent.latest.peekNext() == lastPutNodeHolder) {
+                    return r;
+                } else {
+                    return new KvResult(KvCodes.LOCK_BY_OTHER);
+                }
+            } else if (r == KvResult.SUCCESS_OVERWRITE) {
+                if (parent.latest.peekNext() == lastPutNodeHolder) {
+                    return new KvResult(KvCodes.LOCK_BY_SELF);
+                } else {
+                    return new KvResult(KvCodes.LOCK_BY_OTHER);
+                }
+            } else {
+                throw new RaftException("unexpected code in lock: " + r.getBizCode());
+            }
+        } finally {
+            lock.unlockWrite(stamp);
+            afterUpdate();
         }
     }
 }
