@@ -45,8 +45,10 @@ public interface KvCodes {
     int TTL_INDEX_MISMATCH = 22;
     int UNDER_TEMP_DIR = 23;
     int PARENT_IS_LOCK = 24;
-    int LOCK_BY_SELF = 25;
-    int LOCK_BY_OTHER = 26;
+    int NOT_LOCK_NODE = 25;
+    int LOCK_BY_SELF = 26;
+    int LOCK_BY_OTHER = 27;
+
 
     static String toStr(int code) {
         switch (code) {
@@ -100,6 +102,8 @@ public interface KvCodes {
                 return "UNDER_TEMP_DIR";
             case PARENT_IS_LOCK:
                 return "PARENT_IS_LOCK";
+            case NOT_LOCK_NODE:
+                return "NOT_LOCK_NODE";
             case LOCK_BY_SELF:
                 return "LOCK_BY_SELF";
             case LOCK_BY_OTHER:

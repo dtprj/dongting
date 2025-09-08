@@ -132,6 +132,23 @@ class KvImpl {
                     return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
+            case DtKV.BIZ_TYPE_LOCK:
+            case DtKV.BIZ_TYPE_TRY_LOCK:
+                if (h == null || h.latest.removed) {
+                    return null;
+                }
+                if (!h.latest.lock) {
+                    return new KvResult(KvCodes.NOT_LOCK_NODE);
+                }
+                return null;
+            case DtKV.BIZ_TYPE_UNLOCK:
+                if (h == null || h.latest.removed) {
+                    return KvResult.NOT_FOUND;
+                }
+                if (!h.latest.lock) {
+                    return new KvResult(KvCodes.NOT_LOCK_NODE);
+                }
+                return null;
             case DtKV.BIZ_TYPE_EXPIRE:
                 // call by raft leader, do not call this method
             default:
@@ -838,7 +855,11 @@ class KvImpl {
                 doRemoveInLock(index, current);
             }
         } else {
+            boolean isLock = h.latest.lock;
             doRemoveInLock(index, h);
+            if (isLock && h.parent.latest.childCount() == 0) {
+                doRemoveInLock(index, h.parent);
+            }
         }
     }
 
@@ -879,5 +900,37 @@ class KvImpl {
             lock.unlockWrite(stamp);
             afterUpdate();
         }
+    }
+
+    public KvResult unlock(long index, ByteArray key) {
+        int ck = checkKey(key, false, false);
+        if (ck != KvCodes.SUCCESS) {
+            return new KvResult(ck);
+        }
+        KvNodeHolder parent = map.get(key);
+        KvResult r = checkExistNode(parent, opContext);
+        if (r != null) {
+            return r;
+        }
+        ByteArray fullKey = KvServerUtil.buildLockKey(parent.key,
+                opContext.operator.getMostSignificantBits(), opContext.operator.getLeastSignificantBits());
+        KvNodeHolder sub = map.get(fullKey);
+        if (sub == null) {
+            return KvResult.NOT_FOUND;
+        }
+        if (sub != parent.latest.peekNext()) {
+            return new KvResult(KvCodes.LOCK_BY_OTHER);
+        }
+        long stamp = lock.writeLock();
+        try {
+            doRemoveInLock(index, sub);
+            if (parent.latest.childCount() == 0) {
+                doRemoveInLock(index, parent);
+            }
+        } finally {
+            lock.unlockWrite(stamp);
+            afterUpdate();
+        }
+        return KvResult.SUCCESS;
     }
 }
