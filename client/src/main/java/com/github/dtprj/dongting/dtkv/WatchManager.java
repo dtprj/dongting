@@ -280,7 +280,7 @@ public class WatchManager {
             int i = 0;
             for (KeyWatch w : list) {
                 keys.add(w.key);
-                knownRaftIndexes[i++] = w.raftIndex;
+                knownRaftIndexes[i++] = w.needRemove ? -1 : w.raftIndex;
                 w.needRegister = false;
                 w.needRemove = false;
             }
