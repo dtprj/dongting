@@ -492,14 +492,14 @@ abstract class ServerWatchManager {
             long knownRaftIndex = knownRaftIndexes[i];
             if (knownRaftIndex >= 0) {
                 ChannelWatch w = ci.watches.get(key);
-                if (w == null) {
+                if (w == null || w.removed) {
                     w = createWatch(kv, key, ci, knownRaftIndex);
                     ci.watches.put(w.watchHolder.key, w);
                 } else {
                     w.notifiedIndex = Math.max(w.notifiedIndex, knownRaftIndex);
                     w.needRemoveAfterSyncAll = false;
                 }
-                if (w.removed || w.pending) {
+                if (w.pending) {
                     continue;
                 }
                 ci.addNeedNotify(w);
