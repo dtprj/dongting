@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.WatchEvent;
 import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
@@ -352,7 +353,7 @@ abstract class ServerWatchManager {
             byte[] key = node.key.getData();
             w.notifiedIndexPending = updateIndex;
             // assert note.latest.removed == false
-            if (node.latest.isDir) {
+            if ((node.latest.flag & KvNode.FLAG_DIR_MASK) != 0) {
                 return new WatchNotify(updateIndex, WatchEvent.STATE_DIRECTORY_EXISTS, key, null);
             } else {
                 return new WatchNotify(updateIndex, WatchEvent.STATE_VALUE_EXISTS, key, node.latest.data);

@@ -34,20 +34,17 @@ final class KvNodeEx extends KvNode {
     private final HashMap<ByteArray, KvNodeHolder> children;
     private final TreeSet<KvNodeHolder> lockOrderQueue;
     final boolean removed;
-    final boolean lock;
 
     KvNodeEx previous;
 
     TtlInfo ttlInfo;
 
-    public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir,
-                    boolean lock, byte[] data) {
-        super(createIndex, createTime, updateIndex, updateTime, dir, data);
+    public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime, int flag, byte[] data) {
+        super(createIndex, createTime, updateIndex, updateTime, flag, data);
         this.removed = false;
-        this.lock = lock;
-        if (dir) {
+        if ((flag & KvNode.FLAG_DIR_MASK) != 0) {
             children = new HashMap<>();
-            if (lock) {
+            if ((flag & KvNode.FLAG_LOCK_MASK) != 0) {
                 lockOrderQueue = new TreeSet<>(Comparator.comparingLong(a -> a.latest.createIndex));
             } else {
                 lockOrderQueue = null;
@@ -60,19 +57,17 @@ final class KvNodeEx extends KvNode {
 
     // remove shadow
     public KvNodeEx(long createIndex, long createTime, long updateIndex, long updateTime) {
-        super(createIndex, createTime, updateIndex, updateTime, false, null);
+        super(createIndex, createTime, updateIndex, updateTime, 0, null);
         this.removed = true;
         this.children = null;
-        this.lock = false;
         this.lockOrderQueue = null;
     }
 
     public KvNodeEx(KvNodeEx old, long updateIndex, long updateTime, byte[] newData) {
-        super(old.createIndex, old.createTime, updateIndex, updateTime, old.isDir, newData);
+        super(old.createIndex, old.createTime, updateIndex, updateTime, old.flag, newData);
         this.children = old.children;
         this.lockOrderQueue = old.lockOrderQueue;
         this.removed = false;
-        this.lock = old.lock;
         this.ttlInfo = old.ttlInfo;
     }
 
@@ -86,7 +81,7 @@ final class KvNodeEx extends KvNode {
 
     void addChild(KvNodeHolder c) {
         children.put(c.keyInDir, c);
-        if (lock) {
+        if ((flag & KvNode.FLAG_LOCK_MASK) != 0) {
             lockOrderQueue.add(c);
         }
     }
@@ -97,7 +92,7 @@ final class KvNodeEx extends KvNode {
 
     void removeChild(ByteArray keyInDir) {
         KvNodeHolder h = children.remove(keyInDir);
-        if (lock && h != null) {
+        if ((flag & KvNode.FLAG_LOCK_MASK) != 0 && h != null) {
             lockOrderQueue.remove(h);
         }
     }

@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -81,7 +82,7 @@ class KvImpl {
         this.groupId = groupId;
         this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
         KvNodeEx n = new KvNodeEx(0, 0, 0, 0,
-                true, false, null);
+                KvNode.FLAG_DIR_MASK, null);
         this.root = new KvNodeHolder(ByteArray.EMPTY, ByteArray.EMPTY, n, null);
         this.map.put(ByteArray.EMPTY, root);
         this.ttlManager = ttlManager;
@@ -137,7 +138,7 @@ class KvImpl {
                 if (h == null || h.latest.removed) {
                     return null;
                 }
-                if (!h.latest.lock) {
+                if ((h.latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
                     return new KvResult(KvCodes.NOT_LOCK_NODE);
                 }
                 return null;
@@ -145,7 +146,7 @@ class KvImpl {
                 if (h == null || h.latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
-                if (!h.latest.lock) {
+                if ((h.latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
                     return new KvResult(KvCodes.NOT_LOCK_NODE);
                 }
                 return null;
@@ -160,10 +161,10 @@ class KvImpl {
         if (parent == null || parent.latest.removed) {
             return new KvResult(KvCodes.PARENT_DIR_NOT_EXISTS);
         }
-        if (!parent.latest.isDir) {
+        if ((parent.latest.flag & KvNode.FLAG_DIR_MASK) == 0) {
             return new KvResult(KvCodes.PARENT_NOT_DIR);
         }
-        if (parent.latest.lock) {
+        if ((parent.latest.flag & KvNode.FLAG_LOCK_MASK) != 0) {
             return new KvResult(KvCodes.PARENT_IS_LOCK);
         }
         switch (ctx.bizType) {
@@ -324,7 +325,7 @@ class KvImpl {
             if (kvNode.removed) {
                 return new Pair<>(KvCodes.NOT_FOUND, null);
             }
-            if (!kvNode.isDir) {
+            if ((kvNode.flag & KvNode.FLAG_DIR_MASK) == 0) {
                 return new Pair<>(KvCodes.PARENT_NOT_DIR, null);
             }
             ArrayList<KvResult> list = kvNode.list();
@@ -409,10 +410,10 @@ class KvImpl {
         }
         lastPutNodeHolder = null;
         if (current == null || current.latest.removed) {
+            int flag = (data == null || data.length == 0 ? KvNode.FLAG_DIR_MASK : 0) | (opContext.bizType ==
+                    DtKV.BIZ_TYPE_LOCK || opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK ? KvNode.FLAG_LOCK_MASK : 0);
             KvNodeEx newKvNode = new KvNodeEx(index, opContext.leaderCreateTimeMillis, index,
-                    opContext.leaderCreateTimeMillis, data == null || data.length == 0,
-                    opContext.bizType == DtKV.BIZ_TYPE_LOCK || opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK,
-                    data);
+                    opContext.leaderCreateTimeMillis, flag, data);
             if (current == null) {
                 current = new KvNodeHolder(key, key.sub(lastIndexOfSep + 1), newKvNode, parent);
                 map.put(key, current);
@@ -432,7 +433,8 @@ class KvImpl {
             // has existing node
             KvNodeEx oldNode = current.latest;
             if (data == null || data.length == 0) {
-                if (!oldNode.isDir) {
+                // new node is dir
+                if ((oldNode.flag & KvNode.FLAG_DIR_MASK) == 0) {
                     // node type not match, return error response
                     return new KvResult(KvCodes.VALUE_EXISTS);
                 } else {
@@ -444,7 +446,8 @@ class KvImpl {
                     return new KvResult(KvCodes.DIR_EXISTS);
                 }
             } else {
-                if (oldNode.isDir) {
+                // new node is not dir
+                if ((oldNode.flag & KvNode.FLAG_DIR_MASK) != 0) {
                     // node type not match, return error response
                     return new KvResult(KvCodes.DIR_EXISTS);
                 } else {
@@ -552,8 +555,7 @@ class KvImpl {
     void installSnapshotPut(EncodeStatus encodeStatus) {
         // do not need lock, no other requests during install snapshot
         KvNodeEx n = new KvNodeEx(encodeStatus.createIndex, encodeStatus.createTime, encodeStatus.updateIndex,
-                encodeStatus.updateTime, encodeStatus.valueBytes == null || encodeStatus.valueBytes.length == 0,
-                encodeStatus.lock, encodeStatus.valueBytes);
+                encodeStatus.updateTime, encodeStatus.flag, encodeStatus.valueBytes);
         if (encodeStatus.keyBytes == null || encodeStatus.keyBytes.length == 0) {
             root.latest = n;
         } else {
@@ -723,7 +725,7 @@ class KvImpl {
                     return new KvResult(KvCodes.CAS_MISMATCH);
                 }
                 KvNodeEx n = h.latest;
-                if (n.removed || n.isDir) {
+                if (n.removed || (n.flag & KvNode.FLAG_DIR_MASK) != 0) {
                     return new KvResult(KvCodes.CAS_MISMATCH);
                 }
                 byte[] bs = n.data;
@@ -836,14 +838,14 @@ class KvImpl {
     }
 
     private void expireInLock(long index, KvNodeHolder h) {
-        if (h.latest.isDir) {
+        if ((h.latest.flag & KvNode.FLAG_DIR_MASK) != 0) {
             ArrayDeque<KvNodeHolder> stack = new ArrayDeque<>();
             ArrayDeque<KvNodeHolder> output = new ArrayDeque<>();
             stack.push(h);
             while (!stack.isEmpty()) {
                 KvNodeHolder current = stack.pop();
                 output.push(current);
-                if (current.latest.isDir) {
+                if ((current.latest.flag & KvNode.FLAG_DIR_MASK) != 0) {
                     // the children map has no removed nodes, see doRemoveInLock
                     for (KvNodeHolder child : current.latest.childrenValues()) {
                         stack.push(child);
@@ -855,7 +857,7 @@ class KvImpl {
                 doRemoveInLock(index, current);
             }
         } else {
-            boolean isLock = h.latest.lock;
+            boolean isLock = (h.latest.flag & KvNode.FLAG_LOCK_MASK) != 0;
             doRemoveInLock(index, h);
             if (isLock && h.parent.latest.childCount() == 0) {
                 doRemoveInLock(index, h.parent);

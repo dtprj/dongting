@@ -33,6 +33,7 @@ public class KvNode implements Encodable {
     private static final int IDX_CREATE_TIME = 2;
     private static final int IDX_UPDATE_INDEX = 3;
     private static final int IDX_UPDATE_TIME = 4;
+    private static final int IDX_FLAG = 5;
     private static final int IDX_DATA = 15;
 
     public final long createIndex;
@@ -40,18 +41,25 @@ public class KvNode implements Encodable {
     public final long updateIndex;
     public final long updateTime;
 
-    public final boolean isDir;
     public final byte[] data;
+
+    public final int flag;
+    public static final int FLAG_DIR_MASK = 0x1;
+    public static final int FLAG_LOCK_MASK = 0x2;
 
     private int encodeSize;
 
-    public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, boolean dir, byte[] data) {
+    public KvNode(long createIndex, long createTime, long updateIndex, long updateTime, int flag, byte[] data) {
         this.createIndex = createIndex;
         this.createTime = createTime;
         this.updateIndex = updateIndex;
         this.updateTime = updateTime;
-        this.isDir = dir;
+        this.flag = flag;
         this.data = data;
+    }
+
+    public boolean isDir() {
+        return (flag & FLAG_DIR_MASK) != 0;
     }
 
     @Override
@@ -78,9 +86,15 @@ public class KvNode implements Encodable {
                 }
                 // fall through
             case IDX_UPDATE_TIME:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_FLAG, flag)) {
+                    return false;
+                }
+                // fall through
+            case IDX_FLAG:
                 return data == null || EncodeUtil.encode(context, destBuffer, IDX_DATA, data);
             default:
                 throw new CodecException(context);
+
         }
     }
 
@@ -91,6 +105,7 @@ public class KvNode implements Encodable {
                     + PbUtil.sizeOfFix64Field(IDX_CREATE_TIME, createTime)
                     + PbUtil.sizeOfFix64Field(IDX_UPDATE_INDEX, updateIndex)
                     + PbUtil.sizeOfFix64Field(IDX_UPDATE_TIME, updateTime)
+                    + PbUtil.sizeOfInt32Field(IDX_FLAG, flag)
                     + EncodeUtil.sizeOf(IDX_DATA, data);
         }
         return encodeSize;
@@ -103,6 +118,7 @@ public class KvNode implements Encodable {
         private long createTime;
         private long updateIndex;
         private long updateTime;
+        private int flag;
         private byte[] data;
 
         @Override
@@ -113,6 +129,14 @@ public class KvNode implements Encodable {
             updateTime = 0;
             data = null;
             return success;
+        }
+
+        @Override
+        public boolean readVarNumber(int index, long value) {
+            if (index == IDX_FLAG) {
+                flag = (int) value;
+            }
+            return true;
         }
 
         @Override
@@ -144,7 +168,7 @@ public class KvNode implements Encodable {
 
         @Override
         protected KvNode getResult() {
-            return new KvNode(createIndex, createTime, updateIndex, updateTime, data == null || data.length == 0, data);
+            return new KvNode(createIndex, createTime, updateIndex, updateTime, flag, data);
         }
     }
 }

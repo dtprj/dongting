@@ -302,7 +302,7 @@ class TtlManagerTest {
     private KvNodeEx createKvNode(ByteArray key) {
         // ttl manager does not distinguish between dir and data node, so use a simple data node for testing
         return new KvNodeEx(1, ts.wallClockMillis, 1,
-                ts.wallClockMillis, false, false, key.getData());
+                ts.wallClockMillis, 0, key.getData());
     }
 
     private KvImpl.OpContext createOpContext(UUID operator, long ttlMillis) {

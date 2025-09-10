@@ -32,7 +32,8 @@ public class KvNodeTest {
 
     public static KvNode buildNode() {
         Random r = new Random();
-        return new KvNode(r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong(), false, TestUtil.randomStr(5).getBytes());
+        return new KvNode(r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong(), 12345,
+                TestUtil.randomStr(5).getBytes());
     }
 
     @Test
@@ -59,6 +60,7 @@ public class KvNodeTest {
         Assertions.assertEquals(expect.createTime, node.getCreateTime());
         Assertions.assertEquals(expect.updateIndex, node.getUpdateIndex());
         Assertions.assertEquals(expect.updateTime, node.getUpdateTime());
+        Assertions.assertEquals(expect.flag, node.getFlag());
         Assertions.assertArrayEquals(expect.data, node.getValue().toByteArray());
     }
 
@@ -67,6 +69,7 @@ public class KvNodeTest {
         Assertions.assertEquals(expect.createTime, n.createTime);
         Assertions.assertEquals(expect.updateIndex, n.updateIndex);
         Assertions.assertEquals(expect.updateTime, n.updateTime);
+        Assertions.assertEquals(expect.flag, n.flag);
         Assertions.assertArrayEquals(expect.data, n.data);
     }
 }

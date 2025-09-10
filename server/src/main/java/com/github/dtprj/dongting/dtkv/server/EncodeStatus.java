@@ -29,7 +29,7 @@ class EncodeStatus {
     long createTime;
     long updateIndex;
     long updateTime;
-    boolean lock;
+    int flag;
 
     long uuid1;
     long uuid2;
@@ -39,9 +39,9 @@ class EncodeStatus {
 
     private int offset;
 
-    // createIndex(8) + createTime(8) + updateIndex(8) + updateTime(8) + uuid1(8) + uuid2(8)
+    // createIndex(8) + createTime(8) + updateIndex(8) + updateTime(8) + flag(4) + uuid1(8) + uuid2(8)
     // + ttlRaftIndex(8) + leaderTtlStartTime(8) + ttlMillis(8) + keySize(4) + valueSize(4)
-    private static final int HEADER_SIZE = 80;
+    private static final int HEADER_SIZE = 84;
     private final ByteBuffer headerBuffer = ByteBuffer.allocate(HEADER_SIZE);
 
     private int state;
@@ -57,6 +57,7 @@ class EncodeStatus {
         createTime = 0;
         updateIndex = 0;
         updateTime = 0;
+        flag = 0;
 
         uuid1 = 0;
         uuid2 = 0;
@@ -112,6 +113,7 @@ class EncodeStatus {
         buf.putLong(createTime);
         buf.putLong(updateIndex);
         buf.putLong(updateTime);
+        buf.putInt(flag);
         buf.putLong(uuid1);
         buf.putLong(uuid2);
         buf.putLong(ttlRaftIndex);
@@ -187,6 +189,7 @@ class EncodeStatus {
         createTime = buf.getLong();
         updateIndex = buf.getLong();
         updateTime = buf.getLong();
+        flag = buf.getInt();
         uuid1 = buf.getLong();
         uuid2 = buf.getLong();
         ttlRaftIndex = buf.getLong();

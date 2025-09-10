@@ -116,7 +116,7 @@ class KvSnapshot extends Snapshot {
                 if (n == null) {
                     continue;
                 }
-                if (n.isDir && processedDirs.contains(h.key)) {
+                if ((n.flag & KvNode.FLAG_DIR_MASK) != 0 && processedDirs.contains(h.key)) {
                     continue;
                 }
                 if (h.parent != null && !processedDirs.contains(h.parent.key)) {
@@ -127,7 +127,7 @@ class KvSnapshot extends Snapshot {
                     n = getNode(h);
                 }
             }
-            if (Objects.requireNonNull(n).isDir) {
+            if ((Objects.requireNonNull(n).flag & KvNode.FLAG_DIR_MASK) != 0) {
                 processedDirs.add(h.key);
             }
             encodeStatus.keyBytes = h.key.getData();
@@ -136,6 +136,7 @@ class KvSnapshot extends Snapshot {
             encodeStatus.createTime = n.createTime;
             encodeStatus.updateIndex = n.updateIndex;
             encodeStatus.updateTime = n.updateTime;
+            encodeStatus.flag = n.flag;
             if (n.ttlInfo != null) {
                 encodeStatus.uuid1 = n.ttlInfo.owner.getMostSignificantBits();
                 encodeStatus.uuid2 = n.ttlInfo.owner.getLeastSignificantBits();

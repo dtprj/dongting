@@ -494,7 +494,7 @@ public class DtKVTest extends BaseFiberTest {
         }
         {
             DtKV newKv = copyTo(s3, useSeparateExecutor);
-            assertTrue(get(newKv, "k1").getNode().isDir);
+            assertTrue(get(newKv, "k1").getNode().isDir());
             assertEquals("k1.k1_v", getStr(newKv, "k1.k1"));
             assertEquals(KvCodes.NOT_FOUND, get(newKv, "d1.dd2.k1").getBizCode());
             assertEquals(KvCodes.NOT_FOUND, get(newKv, "d1.dd2.k2").getBizCode());

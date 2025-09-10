@@ -100,7 +100,7 @@ class KvImplTest {
         r = kv.get(ba("key1"));
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
         assertArrayEquals("value1".getBytes(), r.getNode().data);
-        assertFalse(r.getNode().isDir);
+        assertFalse(r.getNode().isDir());
         assertEquals(ts.getWallClockMillis(), r.getNode().createTime);
         assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
@@ -111,7 +111,7 @@ class KvImplTest {
         r = kv.get(ba("key1"));
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
         assertArrayEquals("value2".getBytes(), r.getNode().data);
-        assertFalse(r.getNode().isDir);
+        assertFalse(r.getNode().isDir());
         assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
         assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
@@ -134,7 +134,7 @@ class KvImplTest {
         assertArrayEquals("value1".getBytes(), r.getNode().data);
         r = kv.get(ba("parent"));
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
-        assertTrue(r.getNode().isDir);
+        assertTrue(r.getNode().isDir());
         assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
         assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
@@ -244,7 +244,7 @@ class KvImplTest {
         assertEquals(KvCodes.DIR_EXISTS, mkdir(2, ba("dir1")).getBizCode());
         KvResult r = kv.get(ba("dir1"));
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
-        assertTrue(r.getNode().isDir);
+        assertTrue(r.getNode().isDir());
         assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
         assertEquals(r.getNode().createTime, r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
@@ -256,9 +256,9 @@ class KvImplTest {
     @Test
     void testInvalidKeyValue() {
         assertEquals(KvCodes.SUCCESS, kv.get(ba("")).getBizCode());
-        assertTrue(kv.get(ba("")).getNode().isDir);
+        assertTrue(kv.get(ba("")).getNode().isDir());
         assertEquals(KvCodes.SUCCESS, kv.get(null).getBizCode());
-        assertTrue(kv.get(null).getNode().isDir);
+        assertTrue(kv.get(null).getNode().isDir());
 
         assertEquals(KvCodes.INVALID_KEY, put(1, ba(""), "value1".getBytes()).getBizCode());
         assertEquals(KvCodes.INVALID_KEY, put(1, null, "value1".getBytes()).getBizCode());
