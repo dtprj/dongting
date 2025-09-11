@@ -39,16 +39,12 @@ public class KvResult implements Encodable {
 
     private final int encodeSize;
 
-    public static final KvResult SUCCESS = new KvResult(KvCodes.SUCCESS, null);
-    public static final KvResult NOT_FOUND = new KvResult(KvCodes.NOT_FOUND, null);
-    public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.SUCCESS_OVERWRITE, null);
+    public static final KvResult SUCCESS = new KvResult(KvCodes.SUCCESS);
+    public static final KvResult NOT_FOUND = new KvResult(KvCodes.NOT_FOUND);
+    public static final KvResult SUCCESS_OVERWRITE = new KvResult(KvCodes.SUCCESS_OVERWRITE);
 
     public KvResult(int bizCode) {
         this(bizCode, null, null);
-    }
-
-    public KvResult(int bizCode, KvNode node) {
-        this(bizCode, node, null);
     }
 
     public KvResult(int bizCode, KvNode node, ByteArray keyInDir) {

@@ -266,7 +266,7 @@ class KvImpl {
         if (kvNode.removed) {
             return KvResult.NOT_FOUND;
         }
-        return new KvResult(KvCodes.SUCCESS, kvNode);
+        return new KvResult(KvCodes.SUCCESS, kvNode, null);
     }
 
     /**
@@ -829,16 +829,16 @@ class KvImpl {
         }
         long t = lock.writeLock();
         try {
-            expireInLock(index, h);
-            return KvResult.SUCCESS;
+            return expireInLock(index, h);
         } finally {
             lock.unlockWrite(t);
             afterUpdate();
         }
     }
 
-    private void expireInLock(long index, KvNodeHolder h) {
+    private KvResult expireInLock(long index, KvNodeHolder h) {
         if ((h.latest.flag & KvNode.FLAG_DIR_MASK) != 0) {
+            // is dir
             ArrayDeque<KvNodeHolder> stack = new ArrayDeque<>();
             ArrayDeque<KvNodeHolder> output = new ArrayDeque<>();
             stack.push(h);
@@ -857,15 +857,22 @@ class KvImpl {
                 doRemoveInLock(index, current);
             }
         } else {
+            // not dir
             boolean isLock = (h.latest.flag & KvNode.FLAG_LOCK_MASK) != 0;
             doRemoveInLock(index, h);
-            if (isLock && h.parent.latest.childCount() == 0) {
-                doRemoveInLock(index, h.parent);
+            if (isLock) {
+                if (h.parent.latest.childCount() == 0) {
+                    doRemoveInLock(index, h.parent);
+                } else {
+                    KvNodeHolder nextLockOwner = h.parent.latest.peekNext();
+                    return new KvResult(KvCodes.SUCCESS, nextLockOwner.latest, null);
+                }
             }
         }
+        return KvResult.SUCCESS;
     }
 
-    public KvResult lock(long index, ByteArray key) {
+    public KvResult lock(long index, ByteArray key, byte[] data) {
         long ttlMillis = opContext.ttlMillis;
         if (ttlMillis <= 0) {
             return new KvResult(KvCodes.CLIENT_REQ_ERROR);
@@ -882,7 +889,7 @@ class KvImpl {
             ByteArray fullKey = KvServerUtil.buildLockKey(parent.key,
                     opContext.operator.getMostSignificantBits(), opContext.operator.getLeastSignificantBits());
             KvNodeHolder sub = map.get(fullKey);
-            r = doPutInLock(index, fullKey, new byte[1], sub, parent, parent.key.length);
+            r = doPutInLock(index, fullKey, data, sub, parent, parent.key.length);
             if (r == KvResult.SUCCESS) {
                 if (parent.latest.peekNext() == lastPutNodeHolder) {
                     return r;
@@ -928,6 +935,9 @@ class KvImpl {
             doRemoveInLock(index, sub);
             if (parent.latest.childCount() == 0) {
                 doRemoveInLock(index, parent);
+            } else {
+                KvNodeHolder nextLockOwner = parent.latest.peekNext();
+                return new KvResult(KvCodes.SUCCESS, nextLockOwner.latest, null);
             }
         } finally {
             lock.unlockWrite(stamp);
