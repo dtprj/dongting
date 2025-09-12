@@ -45,18 +45,22 @@ public interface Commands {
     int RAFT_ADMIN_ADD_GROUP = 52;
     int RAFT_ADMIN_REMOVE_GROUP = 53;
 
-    // 80 ~ 109 for dt kv
-    int DTKV_REMOVE = 80;
-    int DTKV_MKDIR = 81;
-    int DTKV_LIST = 82;
-    int DTKV_BATCH_GET = 83;
-    int DTKV_BATCH_PUT = 84;
-    int DTKV_BATCH_REMOVE = 85;
-    int DTKV_CAS = 86;
-    int DTKV_SYNC_WATCH = 87;
-    int DTKV_WATCH_NOTIFY_PUSH = 88;
-    int DTKV_QUERY_STATUS = 89;
-    int DTKV_PUT_TEMP_NODE = 90;
-    int DTKV_MAKE_TEMP_DIR = 91;
-    int DTKV_UPDATE_TTL = 92;
+    // 70 ~ 99 for dt kv
+    int DTKV_REMOVE = 70;
+    int DTKV_MKDIR = 71;
+    int DTKV_LIST = 72;
+    int DTKV_BATCH_GET = 73;
+    int DTKV_BATCH_PUT = 74;
+    int DTKV_BATCH_REMOVE = 75;
+    int DTKV_CAS = 76;
+    int DTKV_SYNC_WATCH = 77;
+    int DTKV_WATCH_NOTIFY_PUSH = 78;
+    int DTKV_QUERY_STATUS = 79;
+    int DTKV_PUT_TEMP_NODE = 80;
+    int DTKV_MAKE_TEMP_DIR = 81;
+    int DTKV_UPDATE_TTL = 82;
+    int DTKV_LOCK = 83;
+    int DTKV_TRY_LOCK = 84;
+    int DTKV_UNLOCK = 85;
+    int DTKV_LOCK_PUSH = 86;
 }

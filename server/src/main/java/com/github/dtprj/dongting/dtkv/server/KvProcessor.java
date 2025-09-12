@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -127,6 +128,15 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_UPDATE_TTL:
                     checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_UPDATE_TTL, req);
                     break;
+                case Commands.DTKV_LOCK:
+                    checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_LOCK, req);
+                    break;
+                case Commands.DTKV_TRY_LOCK:
+                    checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_TRY_LOCK, req);
+                    break;
+                case Commands.DTKV_UNLOCK:
+                    submitWriteTask(reqInfo, DtKV.BIZ_TYPE_UNLOCK, req);
+                    break;
                 default:
                     throw new RaftException("unknown command: " + frame.command);
             }
@@ -217,7 +227,9 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_CAS:
                 case Commands.DTKV_PUT_TEMP_NODE:
                 case Commands.DTKV_MAKE_TEMP_DIR:
-                case Commands.DTKV_UPDATE_TTL: {
+                case Commands.DTKV_UPDATE_TTL:
+                case Commands.DTKV_LOCK:
+                case Commands.DTKV_TRY_LOCK: {
                     KvResult r = (KvResult) result;
                     resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
                     resp.bizCode = r.getBizCode();
@@ -236,6 +248,23 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     }
                     resp.bizCode = p.getLeft();
                     break;
+                }
+                case Commands.DTKV_UNLOCK: {
+                    KvResult r = (KvResult) result;
+                    KvNode newOwner = r.getNode();
+                    // remove nodes info
+                    r = new KvResult(r.getBizCode());
+
+                    // send response first
+                    resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
+                    resp.bizCode = r.getBizCode();
+                    reqInfo.reqContext.writeRespInBizThreads(resp);
+
+                    // TODO: then notify the new lock owner if any
+                    if (newOwner != null) {
+                    }
+
+                    return; // the response is sent, so here use return
                 }
                 default:
                     resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);

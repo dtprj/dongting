@@ -45,13 +45,17 @@ public class KvServerUtil {
         nioServer.register(Commands.DTKV_BATCH_PUT, p);
         nioServer.register(Commands.DTKV_BATCH_REMOVE, p);
         nioServer.register(Commands.DTKV_CAS, p);
+
+        nioServer.register(Commands.DTKV_SYNC_WATCH, new WatchProcessor(server));
+        nioServer.register(Commands.DTKV_QUERY_STATUS, new KvStatusProcessor(server));
+
         nioServer.register(Commands.DTKV_PUT_TEMP_NODE, p);
         nioServer.register(Commands.DTKV_MAKE_TEMP_DIR, p);
         nioServer.register(Commands.DTKV_UPDATE_TTL, p);
 
-        nioServer.register(Commands.DTKV_SYNC_WATCH, new WatchProcessor(server));
-
-        nioServer.register(Commands.DTKV_QUERY_STATUS, new KvStatusProcessor(server));
+        nioServer.register(Commands.DTKV_LOCK, p);
+        nioServer.register(Commands.DTKV_TRY_LOCK, p);
+        nioServer.register(Commands.DTKV_UNLOCK, p);
     }
 
     static DtKV getStateMachine(ReqInfo<?> reqInfo) {
