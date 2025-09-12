@@ -745,6 +745,24 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         dtc.close();
 
+        if (server) {
+            incomingConnects.remove(dtc);
+            if (dtc.remoteUuid != null) {
+                ((NioServer) owner).getClients().remove(dtc.remoteUuid);
+            }
+        } else {
+            dtc.peer.dtChannel = null;
+            dtc.peer.markNotConnect(config, workerStatus, false);
+            // O(n) in client side
+            channelsList.remove(dtc);
+        }
+        channels.remove(dtc.channelIndexInWorker);
+        closeChannel0(dtc.getChannel());
+        if (config.finishPendingImmediatelyWhenChannelClose) {
+            cleanPendingOutgoingRequests(dtc, 1);
+        }
+        dtc.subQueue.cleanChannelQueue();
+
         if (dtc.listenerOnConnectedCalled && !config.channelListeners.isEmpty()) {
             for (int size = config.channelListeners.size(), i = 0; i < size; i++) {
                 try {
@@ -755,26 +773,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 }
             }
         }
-
-
-        Peer peer = dtc.peer;
-        if (peer != null) {
-            peer.dtChannel = null;
-            peer.markNotConnect(config, workerStatus, false);
-        }
-        channels.remove(dtc.channelIndexInWorker);
-        if (channelsList != null) {
-            // O(n) in client side
-            channelsList.remove(dtc);
-        }
-        if (incomingConnects != null) {
-            incomingConnects.remove(dtc);
-        }
-        closeChannel0(dtc.getChannel());
-        if (config.finishPendingImmediatelyWhenChannelClose) {
-            cleanPendingOutgoingRequests(dtc, 1);
-        }
-        dtc.subQueue.cleanChannelQueue();
     }
 
     private void closeChannel0(SocketChannel sc) {

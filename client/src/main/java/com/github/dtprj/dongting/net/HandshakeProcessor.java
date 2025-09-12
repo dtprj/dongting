@@ -70,6 +70,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         p.respCode = CmdCodes.SUCCESS;
 
         dtc.workerStatus.worker.finishHandshake(dtc);
+        ((NioServer) dtc.getOwner()).getClients().put(dtc.remoteUuid, dtc);
 
         return p;
     }

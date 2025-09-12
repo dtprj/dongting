@@ -36,7 +36,9 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -52,6 +54,7 @@ public class NioServer extends NioNet implements Runnable {
     private volatile boolean stop;
     private final Thread acceptThread;
     final NioWorker[] workers;
+    private final ConcurrentHashMap<UUID, DtChannel> clients = new ConcurrentHashMap<>();
 
     public NioServer(NioServerConfig config) {
         super(config);
@@ -224,6 +227,10 @@ public class NioServer extends NioNet implements Runnable {
 
     public NioServerConfig getConfig() {
         return config;
+    }
+
+    public ConcurrentHashMap<UUID, DtChannel> getClients() {
+        return clients;
     }
 
     public static class PingProcessor extends ReqProcessor<RefBuffer> {
