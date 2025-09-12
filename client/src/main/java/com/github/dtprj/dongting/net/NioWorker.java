@@ -211,11 +211,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 if (readBuffer != null && ts.getNanoTime() - readBufferUseTime > cleanIntervalNanos) {
                     releaseReadBuffer();
                 }
-                cleanTimeoutReq();
+                cleanPendingOutgoingRequests(null, 2);
                 if (server) {
                     cleanIncomingConnects(ts);
                 } else {
+                    // clean by request timeout
+                    ((NioClient) owner).cleanWaitConnectReq(wd -> {
+                        if (wd.timeout.isTimeout(timestamp)) {
+                            return new NetTimeoutException("wait connect timeout");
+                        }
+                        return null;
+                    });
+
+                    // clean by timeout connect
                     cleanOutgoingTimeoutConnect(ts);
+
                     if (status == STATUS_RUNNING) {
                         tryReconnect(ts);
                     }
@@ -783,19 +793,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         } catch (Exception e) {
             log.warn("close channel fail: {}, {}", sc, e.getMessage());
-        }
-    }
-
-    private void cleanTimeoutReq() {
-        cleanPendingOutgoingRequests(null, 2);
-
-        if (!server) {
-            ((NioClient) owner).cleanWaitConnectReq(wd -> {
-                if (wd.timeout.isTimeout(timestamp)) {
-                    return new NetTimeoutException("wait connect timeout");
-                }
-                return null;
-            });
         }
     }
 
