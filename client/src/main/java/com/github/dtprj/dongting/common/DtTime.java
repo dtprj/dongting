@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class DtTime {
+public class DtTime implements Comparable<DtTime> {
     private final long createTime;
     private final long deadline;
 
@@ -42,6 +42,29 @@ public class DtTime {
     public DtTime(long nanoTime, long timeout, TimeUnit unit) {
         this.createTime = nanoTime;
         this.deadline = createTime + unit.toNanos(timeout);
+    }
+
+    @Override
+    public int compareTo(DtTime o) {
+        long x = this.deadline - o.deadline;
+        return x < 0 ? -1 : (x == 0 ? 0 : 1);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof DtTime)) {
+            return false;
+        }
+        DtTime other = (DtTime) obj;
+        return this.deadline == other.deadline && this.createTime == other.createTime;
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(deadline) ^ Long.hashCode(createTime);
     }
 
     public long elapse(TimeUnit unit) {
