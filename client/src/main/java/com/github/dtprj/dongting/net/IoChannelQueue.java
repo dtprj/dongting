@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -161,8 +160,7 @@ class IoChannelQueue {
                     if (encodeResult == ENCODE_FINISH) {
                         WritePacket f = wd.data;
                         if (f.packetType == PacketType.TYPE_REQ) {
-                            long key = BitUtil.toLong(dtc.channelIndexInWorker, f.seq);
-                            WriteData old = workerStatus.pendingRequests.put(key, wd);
+                            WriteData old = workerStatus.addPendingReq(wd);
                             if (old != null) {
                                 String errMsg = "dup seq: old=" + old.data + ", new=" + f;
                                 BugLog.getLog().error(errMsg);

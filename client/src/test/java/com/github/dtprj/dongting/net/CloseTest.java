@@ -113,7 +113,7 @@ public class CloseTest {
 
         Peer p = client.getPeers().get(0);
         client.disconnect(p).get(10, TimeUnit.SECONDS);
-        assertEquals(0, client.worker.pendingOutgoingRequests.size());
+        assertEquals(0, client.worker.workerStatus.pendingReqSize());
         try {
             f.get(10, TimeUnit.SECONDS);
             fail();

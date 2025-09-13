@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
-import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
@@ -260,7 +259,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (packet.packetType == PacketType.TYPE_RESP) {
             WriteData requestForResp = this.requestForResp;
             if (requestForResp == null) {
-                requestForResp = this.workerStatus.pendingRequests.remove(BitUtil.toLong(channelIndexInWorker, packet.seq));
+                requestForResp = this.workerStatus.removePendingReq(channelIndexInWorker, packet.seq);
                 if (requestForResp == null) {
                     log.info("pending request not found. channel={}, resp={}", channel, packet);
                     return false;

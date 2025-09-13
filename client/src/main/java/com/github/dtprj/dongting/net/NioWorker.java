@@ -22,8 +22,6 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
-import com.github.dtprj.dongting.common.LongObjMap;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -81,7 +79,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final LinkedList<DtChannelImpl> incomingConnects;//server side only
     private final LinkedList<ConnectInfo> outgoingConnects;//client side only
-    final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
 
     private final ByteBufferPool directPool;
     private final ByteBufferPool heapPool;
@@ -95,8 +92,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private long lastCleanNanos;
 
     private final PerfCallback perfCallback;
-
-    private final ArrayList<Pair<Long, WriteData>> tempSortList = new ArrayList<>();
 
     public NioWorker(NioStatus nioStatus, String workerName, NioConfig config, NioNet owner) {
         this.nioStatus = nioStatus;
@@ -126,7 +121,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
         RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 800);
 
-        workerStatus = new WorkerStatus(this, ioWorkerQueue, pendingOutgoingRequests, directPool,
+        workerStatus = new WorkerStatus(this, ioWorkerQueue, directPool,
                 refBufferFactory, timestamp);
     }
 
@@ -153,7 +148,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             ioWorkerQueue.dispatchActions();
             selector.close();
 
-            cleanPendingOutgoingRequests(null, 3);
+            workerStatus.cleanAllPendingReq();
 
             List<DtChannelImpl> tempList = new ArrayList<>(channels.size());
             // can't modify channels map in foreach
@@ -203,7 +198,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             if (status >= STATUS_PREPARE_STOP) {
                 ioWorkerQueue.dispatchActions();
-                if (workerStatus.packetsToWrite == 0 && pendingOutgoingRequests.size() == 0) {
+                if (workerStatus.packetsToWrite == 0 && workerStatus.pendingReqSize() == 0) {
                     prepareStopFuture.complete(null);
                 }
             }
@@ -211,7 +206,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 if (readBuffer != null && ts.getNanoTime() - readBufferUseTime > cleanIntervalNanos) {
                     releaseReadBuffer();
                 }
-                cleanPendingOutgoingRequests(null, 2);
+                workerStatus.cleanPendingReqByTimeout();
                 if (server) {
                     cleanIncomingConnects(ts);
                 } else {
@@ -249,12 +244,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             ts.refresh(1);
         }
         c.fireTime(PerfConsts.RPC_D_WORKER_WORK, startTime, 1, 0, ts);
-    }
-
-    private int compare(Pair<Long, ?> a, Pair<Long, ?> b) {
-        // we only need keep order in same connection, so we only use lower 32 bits.
-        // the lower 32 bits may overflow, so we use subtraction to compare, can't use < or >
-        return a.getLeft().intValue() - b.getLeft().intValue();
     }
 
     private boolean sel(Selector selector, Timestamp ts) {
@@ -574,7 +563,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         RpcCallback<HandshakeBody> rpcCallback = (resp, ex) -> {
             if (ex != null) {
                 log.error("handshake fail: {}", ex);
-                close(dtc);
+                closeLater(dtc);
             } else {
                 handshakeSuccess(dtc, ci, resp);
             }
@@ -611,12 +600,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void handshakeSuccess(DtChannelImpl dtc, ConnectInfo ci, ReadPacket<HandshakeBody> resp) {
         if (status >= STATUS_PREPARE_STOP) {
             log.info("handshake while worker closed, ignore it: {}", dtc.getChannel());
-            close(dtc);
+            closeLater(dtc);
             return;
         }
         if (resp.getBody() == null || resp.getBody().config == null) {
             log.error("handshake fail: invalid response");
-            close(dtc);
+            closeLater(dtc);
             return;
         }
         ConfigBody cb = resp.getBody().config;
@@ -677,75 +666,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    // 1 clean by dtc, 2 clean by timeout, 3 clean all
-    private void cleanPendingOutgoingRequests(DtChannelImpl dtc, int mode) {
-        ArrayList<Pair<Long, WriteData>> list;
-        if (mode == 1) {
-            // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
-            // use new array list to avoid ConcurrentModificationException
-            list = new ArrayList<>();
-        } else {
-            list = this.tempSortList;
-        }
-        try {
-            this.pendingOutgoingRequests.forEach((key, wd) -> {
-                if (mode == 1) {
-                    if (wd.dtc == dtc) {
-                        if (wd.callback != null) {
-                            list.add(new Pair<>(key, wd));
-                        }
-                        return false;
-                    } else {
-                        return true;
-                    }
-                } else if (mode == 2) {
-                    DtTime t = wd.timeout;
-                    if (wd.dtc.isClosed() || t.isTimeout(timestamp)) {
-                        if (wd.callback != null) {
-                            list.add(new Pair<>(key, wd));
-                        }
-                        return false;
-                    } else {
-                        return true;
-                    }
-                } else {
-                    if (wd.callback != null) {
-                        list.add(new Pair<>(key, wd));
-                    }
-                    return false;
-                }
-            });
-
-            if (list.isEmpty()) {
-                return;
-            }
-            list.sort(this::compare);
-            for (Pair<Long, WriteData> p : list) {
-                WriteData wd = p.getRight();
-                // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
-                // so callFail should be idempotent
-                if (mode == 1) {
-                    wd.callFail(false, new NetException("channel closed, cancel pending request in NioWorker"));
-                } else if (mode == 2) {
-                    DtTime t = wd.timeout;
-                    if (wd.dtc.isClosed()) {
-                        wd.callFail(false, new NetException("channel closed, future cancelled by timeout cleaner"));
-                    } else if (t.isTimeout(timestamp)) {
-                        WritePacket wp = wd.data;
-                        long timeout = t.getTimeout(TimeUnit.MILLISECONDS);
-                        log.debug("drop timeout request: {}ms, cmd={}, seq={}, {}", timeout, wp.command,
-                                wp.seq, wd.dtc.getChannel());
-                        String msg = "request is timeout: " + timeout + "ms, cmd=" + wp.command
-                                + ", remote=" + wd.dtc.getRemoteAddr();
-                        wd.callFail(false, new NetTimeoutException(msg));
-                    }
-                } else {
-                    wd.callFail(false, new NetException("client closed"));
-                }
-            }
-        } finally {
-            list.clear();
-        }
+    // make sure not re-use tempSortList when iterate it (callFail may cause use tempSortList again during close dtc)
+    private void closeLater(DtChannelImpl dtc) {
+        ioWorkerQueue.scheduleFromBizThread(() -> close(dtc));
     }
 
     void close(DtChannelImpl dtc) {
@@ -769,7 +692,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         channels.remove(dtc.channelIndexInWorker);
         closeChannel0(dtc.getChannel());
         if (config.finishPendingImmediatelyWhenChannelClose) {
-            cleanPendingOutgoingRequests(dtc, 1);
+            workerStatus.cleanPendingReqByChannel(dtc);
         }
         dtc.subQueue.cleanChannelQueue();
 
@@ -880,6 +803,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     protected void logWorkerStatus() {
         log.info("worker={}, outgoingConnects={}, pendingOutgoingRequests={}",
-                workerName, outgoingConnects == null ? 0 : outgoingConnects.size(), pendingOutgoingRequests.size());
+                workerName, outgoingConnects == null ? 0 : outgoingConnects.size(), workerStatus.pendingReqSize());
     }
 }
