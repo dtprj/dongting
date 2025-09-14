@@ -108,14 +108,18 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     public void init(FiberGroup fiberGroup) {
         this.initCommitIndex = raftStatus.commitIndex;
         startApplyFiber(fiberGroup);
-        new Fiber("waitGroupReadyTimeout", fiberGroup, new WaitGroupReadyTimeoutFrame(), true).start();
         new Fiber("applyFiberMonitor", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 if (applyFiber.isFinished() && !shouldStopApply()) {
                     startApplyFiber(fiberGroup);
                 }
-                return applyMonitorCond.await(1000, this);
+                if (raftStatus.isGroupReady()) {
+                    return applyMonitorCond.await(1000, this);
+                } else {
+                    processWaitGroupReadyQueue(false, null);
+                    return applyMonitorCond.await(100, this);
+                }
             }
         }, true).start();
         if (raftStatus.getLastApplied() >= raftStatus.commitIndex) {
@@ -445,7 +449,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             if (costTimeMillis < 0) {
                 costTimeMillis = 0;
             }
-            long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L ;
+            long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L;
             rt.init(item, localCreateNanos);
 
             return exec(rt, item.getIndex(), this);
@@ -520,11 +524,4 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
     }
 
-    private class WaitGroupReadyTimeoutFrame extends FiberFrame<Void> {
-        @Override
-        public FrameCallResult execute(Void input) {
-            processWaitGroupReadyQueue(false, null);
-            return Fiber.sleep(100, this);
-        }
-    }
 }
