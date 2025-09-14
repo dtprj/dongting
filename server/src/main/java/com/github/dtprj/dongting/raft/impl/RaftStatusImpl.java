@@ -120,7 +120,6 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public void copyShareStatus() {
         if (shareStatusUpdated) {
-            RaftRole oldRole = shareStatus == null ? null : shareStatus.role;
             ShareStatus ss = new ShareStatus();
             ss.role = role;
             ss.lastApplied = lastApplied;
@@ -132,6 +131,7 @@ public final class RaftStatusImpl extends RaftStatus {
             ss.currentLeader = currentLeader;
             ss.groupReady = groupReady;
 
+            RaftRole oldRole = shareStatus == null ? null : shareStatus.role;
             this.shareStatusUpdated = false;
             this.shareStatus = ss;
             if (oldRole != role && roleChangeListener != null) {
