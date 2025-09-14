@@ -687,7 +687,6 @@ public class NioClientTest {
         c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
         c.cleanInterval = 0;
         c.selectTimeout = 1;
-        c.finishPendingImmediatelyWhenChannelClose = true;
         client = new NioClient(c);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));

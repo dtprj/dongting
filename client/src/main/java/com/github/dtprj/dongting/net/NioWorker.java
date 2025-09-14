@@ -691,9 +691,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         channels.remove(dtc.channelIndexInWorker);
         closeChannel0(dtc.getChannel());
-        if (config.finishPendingImmediatelyWhenChannelClose) {
-            workerStatus.cleanPendingReqByChannel(dtc);
-        }
+        workerStatus.cleanPendingReqByChannel(dtc);
         dtc.subQueue.cleanChannelQueue();
 
         if (dtc.listenerOnConnectedCalled && !config.channelListeners.isEmpty()) {

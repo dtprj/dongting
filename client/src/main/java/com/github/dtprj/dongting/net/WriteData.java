@@ -31,6 +31,10 @@ class WriteData {
     final int estimateSize;
 
     long perfTime;
+    long addOrder;
+
+    WriteData nextInChannel;
+    WriteData prevInChannel;
 
     // only for request or one way request
     final Peer peer;

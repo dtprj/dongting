@@ -49,8 +49,6 @@ public abstract class NioConfig {
 
     public int readBufferSize = 128 * 1024;
 
-    public boolean finishPendingImmediatelyWhenChannelClose = false;
-
     public PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
     public Supplier<DecodeContext> decodeContextFactory = DecodeContext::new;
 

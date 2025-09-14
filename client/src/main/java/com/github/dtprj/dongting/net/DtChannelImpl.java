@@ -75,6 +75,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     long lastActiveTimeNanos;
 
+    WriteData pendingReqHead;
+    WriteData pendingReqTail;
+
     public DtChannelImpl(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig, Peer peer,
                          SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;

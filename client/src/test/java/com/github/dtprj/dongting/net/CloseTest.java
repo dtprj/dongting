@@ -41,7 +41,7 @@ public class CloseTest {
     private NioClient client;
     private volatile boolean received;
 
-    private void setup(int sleepTime, boolean finishWhenClose, int cleanInterval) {
+    private void setup(int sleepTime, int cleanInterval) {
         received = false;
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.port = 9000;
@@ -61,7 +61,6 @@ public class CloseTest {
 
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.cleanInterval = cleanInterval;
-        clientConfig.finishPendingImmediatelyWhenChannelClose = finishWhenClose;
         clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
         client = new NioClient(clientConfig);
 
@@ -76,32 +75,8 @@ public class CloseTest {
     }
 
     @Test
-    public void testCleanInterval() {
-        setup(Tick.tick(30), false, 1);
-
-        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
-        wf.command = CMD;
-        CompletableFuture<ReadPacket<RefBuffer>> f = new CompletableFuture<>();
-        client.sendRequest(wf, ctx -> new RefBufferDecoderCallback(),
-                new DtTime(10, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
-
-        WaitUtil.waitUtil(() -> received);
-
-        Peer p = client.getPeers().get(0);
-        client.disconnect(p);
-        try {
-            f.get(10, TimeUnit.SECONDS);
-            fail();
-        } catch (ExecutionException e) {
-            assertTrue(e.getMessage().contains("channel closed, future cancelled by timeout cleaner"), e.getMessage());
-        } catch (Exception e) {
-            fail();
-        }
-    }
-
-    @Test
     public void testCleanWhenClose() throws Exception {
-        setup(Tick.tick(30), true, 1000000);
+        setup(Tick.tick(30), 1000000);
 
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
         wf.command = CMD;

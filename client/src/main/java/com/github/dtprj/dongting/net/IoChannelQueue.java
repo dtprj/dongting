@@ -160,12 +160,7 @@ class IoChannelQueue {
                     if (encodeResult == ENCODE_FINISH) {
                         WritePacket f = wd.data;
                         if (f.packetType == PacketType.TYPE_REQ) {
-                            WriteData old = workerStatus.addPendingReq(wd);
-                            if (old != null) {
-                                String errMsg = "dup seq: old=" + old.data + ", new=" + f;
-                                BugLog.getLog().error(errMsg);
-                                old.callFail(true, new NetException(errMsg));
-                            }
+                            workerStatus.addPendingReq(wd);
                         }
                         packetsInBuffer++;
                         if (f.packetType == PacketType.TYPE_ONE_WAY) {

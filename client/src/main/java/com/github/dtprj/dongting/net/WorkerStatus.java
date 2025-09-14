@@ -18,13 +18,15 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.BitUtil;
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.PriorityQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -41,9 +43,20 @@ class WorkerStatus {
     int retryConnect;
     int packetsToWrite;
 
-    // TODO iterate this by channel or timeout is o(n)
     private final LongObjMap<WriteData> pendingRequests = new LongObjMap<>();
-    private final ArrayList<WriteData> tempSortList = new ArrayList<>();
+    private final PriorityQueue<WriteData> pendingTimeoutQueue = new PriorityQueue<>((o1, o2) -> {
+        int x = o1.timeout.compareTo(o2.timeout);
+        if (x != 0) {
+            return x;
+        } else {
+            // timeout is same, use add order.
+            // addOrder may overflow, so we use subtraction to compare, can't use < or >
+            long y = o1.addOrder - o2.addOrder;
+            return y < 0 ? -1 : (y == 0 ? 0 : 1);
+        }
+    });
+
+    private long addOrder;
 
     public WorkerStatus(NioWorker worker, IoWorkerQueue ioWorkerQueue, ByteBufferPool directPool,
                         RefBufferFactory heapPool, Timestamp ts) {
@@ -58,13 +71,60 @@ class WorkerStatus {
         this.packetsToWrite = Math.max(packetsToWrite + delta, 0);
     }
 
-    public WriteData addPendingReq(WriteData wd) {
-        long key = BitUtil.toLong(wd.dtc.channelIndexInWorker, wd.data.seq);
-        return pendingRequests.put(key, wd);
+    public void addPendingReq(WriteData wd) {
+        wd.addOrder = addOrder;
+        addOrder++;
+        DtChannelImpl dtc = wd.dtc;
+
+        WriteData old = pendingRequests.put(BitUtil.toLong(dtc.channelIndexInWorker, wd.data.seq), wd);
+        if (old != null) {
+            // seq overflow and reuse, or bug
+            String errMsg = "dup seq: old=" + old.data + ", new=" + wd.data;
+            BugLog.getLog().error(errMsg);
+            pendingTimeoutQueue.remove(old);
+            removeFromChannelQueue(old);
+            old.callFail(true, new NetException(errMsg));
+        }
+        pendingTimeoutQueue.offer(wd);
+
+        // add to channel queue
+        if (dtc.pendingReqHead == null) {
+            dtc.pendingReqHead = wd;
+        } else {
+            dtc.pendingReqTail.nextInChannel = wd;
+            wd.prevInChannel = dtc.pendingReqTail;
+        }
+        dtc.pendingReqTail = wd;
     }
 
     public WriteData removePendingReq(int channelIndex, int seq) {
-        return pendingRequests.remove(BitUtil.toLong(channelIndex, seq));
+        WriteData o = pendingRequests.remove(BitUtil.toLong(channelIndex, seq));
+        if (o != null) {
+            pendingTimeoutQueue.remove(o);
+            removeFromChannelQueue(o);
+        }
+        return o;
+    }
+
+    private void removeFromChannelQueue(WriteData wd) {
+        DtChannelImpl dtc = wd.dtc;
+        WriteData prev = wd.prevInChannel;
+        WriteData next = wd.nextInChannel;
+
+        if (prev != null) {
+            prev.nextInChannel = next;
+        } else {
+            dtc.pendingReqHead = next;
+        }
+
+        if (next != null) {
+            next.prevInChannel = prev;
+        } else {
+            dtc.pendingReqTail = prev;
+        }
+
+        wd.nextInChannel = null;
+        wd.prevInChannel = null;
     }
 
     public int pendingReqSize() {
@@ -72,87 +132,76 @@ class WorkerStatus {
     }
 
     public void cleanAllPendingReq() {
+        ArrayList<WriteData> tempSortList = new ArrayList<>(pendingRequests.size());
         pendingRequests.forEach((key, wd) -> {
+            pendingTimeoutQueue.remove(wd);
+            removeFromChannelQueue(wd);
             if (wd.callback != null) {
-                wd.callFail(false, new NetException("NioWorker closed"));
+                tempSortList.add(wd);
             }
             return false;
         });
+        if (tempSortList.isEmpty()) {
+            return;
+        }
+        tempSortList.sort((a, b) -> {
+            // addOrder may overflow, so we use subtraction to compare, can't use < or >
+            long x = a.addOrder - b.addOrder;
+            return x < 0 ? -1 : (x == 0 ? 0 : 1);
+        });
+        NetException e = new NetException("NioWorker closed");
+        for (WriteData wd : tempSortList) {
+            // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
+            // so callFail should be idempotent
+            wd.callFail(false, e);
+        }
     }
 
     public void cleanPendingReqByChannel(DtChannelImpl dtc) {
-        ArrayList<WriteData> list = this.tempSortList;
-        try {
-            pendingRequests.forEach((noUsedKey, wd) -> {
-                if (wd.dtc == dtc) {
-                    if (wd.callback != null) {
-                        list.add(wd);
-                    }
-                    return false;
-                } else {
-                    return true;
-                }
-            });
-
-            if (list.isEmpty()) {
-                return;
+        NetException e = null;
+        while (dtc.pendingReqHead != null) {
+            WriteData wd = dtc.pendingReqHead;
+            pendingRequests.remove(BitUtil.toLong(dtc.channelIndexInWorker, wd.data.seq));
+            pendingTimeoutQueue.remove(wd);
+            removeFromChannelQueue(wd);
+            if (e == null) {
+                e = new NetException("channel closed, cancel pending request in NioWorker");
             }
-            list.sort(this::compare);
-            for (WriteData wd : list) {
-                // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
-                // so callFail should be idempotent
-                wd.callFail(false, new NetException("channel closed, cancel pending request in NioWorker"));
-            }
-        } finally {
-            list.clear();
+            // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
+            // so callFail should be idempotent
+            wd.callFail(false, e);
         }
     }
 
     public void cleanPendingReqByTimeout() {
-        ArrayList<WriteData> list = this.tempSortList;
-        try {
-            pendingRequests.forEach((noUsedKey, wd) -> {
-                DtTime t = wd.timeout;
-                if (wd.dtc.isClosed() || t.isTimeout(ts)) {
-                    if (wd.callback != null) {
-                        list.add(wd);
-                    }
-                    return false;
-                } else {
-                    return true;
-                }
-            });
-
-            if (list.isEmpty()) {
-                return;
-            }
-            list.sort(this::compare);
-            for (WriteData wd : list) {
-                // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
-                // so callFail should be idempotent
-
-                DtTime t = wd.timeout;
-                if (wd.dtc.isClosed()) {
-                    wd.callFail(false, new NetException("channel closed, future cancelled by timeout cleaner"));
-                } else if (t.isTimeout(ts)) {
-                    WritePacket wp = wd.data;
-                    long timeout = t.getTimeout(TimeUnit.MILLISECONDS);
+        Iterator<WriteData> it = pendingTimeoutQueue.iterator();
+        NetTimeoutException e = null;
+        while (it.hasNext()) {
+            WriteData wd = it.next();
+            if (wd.timeout.isTimeout(ts)) {
+                WritePacket wp = wd.data;
+                long timeout = wd.timeout.getTimeout(TimeUnit.MILLISECONDS);
+                if (log.isDebugEnabled()) {
                     log.debug("drop timeout request: {}ms, cmd={}, seq={}, {}", timeout, wp.command,
                             wp.seq, wd.dtc.getChannel());
+                }
+                it.remove();
+                pendingRequests.remove(BitUtil.toLong(wd.dtc.channelIndexInWorker, wp.seq));
+                removeFromChannelQueue(wd);
+
+                if (e == null) {
                     String msg = "request is timeout: " + timeout + "ms, cmd=" + wp.command
                             + ", remote=" + wd.dtc.getRemoteAddr();
-                    wd.callFail(false, new NetTimeoutException(msg));
+                    e = new NetTimeoutException(msg);
                 }
-            }
-        } finally {
-            list.clear();
-        }
-    }
 
-    private int compare(WriteData a, WriteData b) {
-        // we only need keep order in same connection, so we only use seq.
-        // seq may overflow, so we use subtraction to compare, can't use < or >
-        return a.data.seq - b.data.seq;
+                // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
+                // so callFail should be idempotent
+                wd.callFail(false, e);
+            } else {
+                break;
+            }
+        }
     }
 
 }
