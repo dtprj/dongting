@@ -90,4 +90,8 @@ public class DtTime implements Comparable<DtTime> {
     public long getTimeout(TimeUnit unit) {
         return unit.convert(deadline - createTime, TimeUnit.NANOSECONDS);
     }
+
+    public long getDeadlineNanos() {
+        return deadline;
+    }
 }

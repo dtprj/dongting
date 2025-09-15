@@ -36,6 +36,9 @@ class WriteData {
     WriteData nextInChannel;
     WriteData prevInChannel;
 
+    WriteData nearTimeoutQueueNext;
+    WriteData nearTimeoutQueuePrev;
+
     // only for request or one way request
     final Peer peer;
     RpcCallback<?> callback;

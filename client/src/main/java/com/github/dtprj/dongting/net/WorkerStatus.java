@@ -25,8 +25,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.PriorityQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,18 +41,15 @@ class WorkerStatus {
     int retryConnect;
     int packetsToWrite;
 
+    private boolean iteratingPendingQueue;
     private final LongObjMap<WriteData> pendingRequests = new LongObjMap<>();
-    private final PriorityQueue<WriteData> pendingTimeoutQueue = new PriorityQueue<>((o1, o2) -> {
-        int x = o1.timeout.compareTo(o2.timeout);
-        if (x != 0) {
-            return x;
-        } else {
-            // timeout is same, use add order.
-            // addOrder may overflow, so we use subtraction to compare, can't use < or >
-            long y = o1.addOrder - o2.addOrder;
-            return y < 0 ? -1 : (y == 0 ? 0 : 1);
-        }
-    });
+
+    private final ArrayList<WriteData> tempSortList = new ArrayList<>();
+
+    private static final long NEAR_TIMEOUT_THRESHOLD_NANOS = 800_000_000L;
+    private long lastCleanTimeNanos;
+    private WriteData nearTimeoutQueueHead;
+    private WriteData nearTimeoutQueueTail;
 
     private long addOrder;
 
@@ -65,45 +60,11 @@ class WorkerStatus {
         this.directPool = directPool;
         this.heapPool = heapPool;
         this.ts = ts;
+        this.lastCleanTimeNanos = ts.nanoTime;
     }
 
     public void addPacketsToWrite(int delta) {
         this.packetsToWrite = Math.max(packetsToWrite + delta, 0);
-    }
-
-    public void addPendingReq(WriteData wd) {
-        wd.addOrder = addOrder;
-        addOrder++;
-        DtChannelImpl dtc = wd.dtc;
-
-        WriteData old = pendingRequests.put(BitUtil.toLong(dtc.channelIndexInWorker, wd.data.seq), wd);
-        if (old != null) {
-            // seq overflow and reuse, or bug
-            String errMsg = "dup seq: old=" + old.data + ", new=" + wd.data;
-            BugLog.getLog().error(errMsg);
-            pendingTimeoutQueue.remove(old);
-            removeFromChannelQueue(old);
-            old.callFail(true, new NetException(errMsg));
-        }
-        pendingTimeoutQueue.offer(wd);
-
-        // add to channel queue
-        if (dtc.pendingReqHead == null) {
-            dtc.pendingReqHead = wd;
-        } else {
-            dtc.pendingReqTail.nextInChannel = wd;
-            wd.prevInChannel = dtc.pendingReqTail;
-        }
-        dtc.pendingReqTail = wd;
-    }
-
-    public WriteData removePendingReq(int channelIndex, int seq) {
-        WriteData o = pendingRequests.remove(BitUtil.toLong(channelIndex, seq));
-        if (o != null) {
-            pendingTimeoutQueue.remove(o);
-            removeFromChannelQueue(o);
-        }
-        return o;
     }
 
     private void removeFromChannelQueue(WriteData wd) {
@@ -127,80 +88,191 @@ class WorkerStatus {
         wd.prevInChannel = null;
     }
 
+
+    private void addToNearTimeoutQueueIfNeed(WriteData wd) {
+        if (wd.timeout.getDeadlineNanos() - ts.nanoTime < NEAR_TIMEOUT_THRESHOLD_NANOS) {
+            // add to near timeout queue
+            if (nearTimeoutQueueHead == null) {
+                nearTimeoutQueueHead = wd;
+            } else {
+                nearTimeoutQueueTail.nearTimeoutQueueNext = wd;
+                wd.nearTimeoutQueuePrev = nearTimeoutQueueTail;
+            }
+            nearTimeoutQueueTail = wd;
+        }
+    }
+
+    private void removeFromNearTimeoutQueue(WriteData wd) {
+        WriteData prev = wd.nearTimeoutQueuePrev;
+        WriteData next = wd.nearTimeoutQueueNext;
+        if (prev == null && next == null && nearTimeoutQueueHead != wd) {
+            // not in near timeout queue
+            return;
+        }
+
+        if (prev != null) {
+            prev.nearTimeoutQueueNext = next;
+        } else {
+            nearTimeoutQueueHead = next;
+        }
+
+        if (next != null) {
+            next.nearTimeoutQueuePrev = prev;
+        } else {
+            nearTimeoutQueueTail = prev;
+        }
+
+        wd.nearTimeoutQueueNext = null;
+        wd.nearTimeoutQueuePrev = null;
+    }
+
+    public void addPendingReq(WriteData wd) {
+        wd.addOrder = addOrder;
+        addOrder++;
+        DtChannelImpl dtc = wd.dtc;
+
+        WriteData old = pendingRequests.put(BitUtil.toLong(dtc.channelIndexInWorker, wd.data.seq), wd);
+        if (old != null) {
+            // seq overflow and reuse, or bug
+            String errMsg = "dup seq: old=" + old.data + ", new=" + wd.data;
+            BugLog.getLog().error(errMsg);
+            removeFromChannelQueue(old);
+            removeFromNearTimeoutQueue(old);
+            old.callFail(true, new NetException(errMsg));
+        }
+        addToNearTimeoutQueueIfNeed(wd);
+
+        // add to channel queue
+        if (dtc.pendingReqHead == null) {
+            dtc.pendingReqHead = wd;
+        } else {
+            dtc.pendingReqTail.nextInChannel = wd;
+            wd.prevInChannel = dtc.pendingReqTail;
+        }
+        dtc.pendingReqTail = wd;
+    }
+
+    public WriteData removePendingReq(int channelIndex, int seq) {
+        WriteData o = pendingRequests.remove(BitUtil.toLong(channelIndex, seq));
+        if (o != null) {
+            removeFromChannelQueue(o);
+            removeFromNearTimeoutQueue(o);
+        }
+        return o;
+    }
+
     public int pendingReqSize() {
         return pendingRequests.size();
     }
 
     public void cleanAllPendingReq() {
-        ArrayList<WriteData> tempSortList = new ArrayList<>(pendingRequests.size());
-        pendingRequests.forEach((key, wd) -> {
-            pendingTimeoutQueue.remove(wd);
-            removeFromChannelQueue(wd);
-            if (wd.callback != null) {
-                tempSortList.add(wd);
-            }
-            return false;
-        });
-        if (tempSortList.isEmpty()) {
-            return;
+        if (iteratingPendingQueue) {
+            throw new IllegalStateException("iteratingPendingQueue");
         }
-        tempSortList.sort((a, b) -> {
-            // addOrder may overflow, so we use subtraction to compare, can't use < or >
-            long x = a.addOrder - b.addOrder;
-            return x < 0 ? -1 : (x == 0 ? 0 : 1);
-        });
-        NetException e = new NetException("NioWorker closed");
-        for (WriteData wd : tempSortList) {
-            // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
-            // so callFail should be idempotent
-            wd.callFail(false, e);
+        iteratingPendingQueue = true;
+        ArrayList<WriteData> list = this.tempSortList;
+        try {
+            pendingRequests.forEach((key, wd) -> {
+                removeFromChannelQueue(wd);
+                removeFromNearTimeoutQueue(wd);
+                list.add(wd);
+                return false;
+            });
+            if (list.isEmpty()) {
+                return;
+            }
+            list.sort(this::compare);
+            NetException e = new NetException("NioWorker closed");
+            for (WriteData wd : list) {
+                // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
+                // so callFail should be idempotent
+                wd.callFail(false, e);
+            }
+        } finally {
+            iteratingPendingQueue = false;
+            list.clear();
         }
     }
 
+    private int compare(WriteData a, WriteData b) {
+        // addOrder may overflow, so we use subtraction to compare, can't use < or >
+        long x = a.addOrder - b.addOrder;
+        return x < 0 ? -1 : (x == 0 ? 0 : 1);
+    }
+
     public void cleanPendingReqByChannel(DtChannelImpl dtc) {
-        NetException e = null;
-        while (dtc.pendingReqHead != null) {
-            WriteData wd = dtc.pendingReqHead;
-            pendingRequests.remove(BitUtil.toLong(dtc.channelIndexInWorker, wd.data.seq));
-            pendingTimeoutQueue.remove(wd);
-            removeFromChannelQueue(wd);
-            if (e == null) {
-                e = new NetException("channel closed, cancel pending request in NioWorker");
+        if (iteratingPendingQueue) {
+            throw new IllegalStateException("iteratingPendingQueue");
+        }
+        iteratingPendingQueue = true;
+        try {
+            NetException e = null;
+            while (dtc.pendingReqHead != null) {
+                WriteData wd = dtc.pendingReqHead;
+                pendingRequests.remove(BitUtil.toLong(dtc.channelIndexInWorker, wd.data.seq));
+                removeFromChannelQueue(wd);
+                if (e == null) {
+                    e = new NetException("channel closed, cancel pending request in NioWorker");
+                }
+                // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
+                // so callFail should be idempotent
+                wd.callFail(false, e);
             }
-            // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
-            // so callFail should be idempotent
-            wd.callFail(false, e);
+        } finally {
+            iteratingPendingQueue = false;
         }
     }
 
     public void cleanPendingReqByTimeout() {
-        Iterator<WriteData> it = pendingTimeoutQueue.iterator();
-        NetTimeoutException e = null;
-        while (it.hasNext()) {
-            WriteData wd = it.next();
-            if (wd.timeout.isTimeout(ts)) {
+        if (iteratingPendingQueue) {
+            throw new IllegalStateException("iteratingPendingQueue");
+        }
+        iteratingPendingQueue = true;
+
+        ArrayList<WriteData> list = this.tempSortList;
+        try {
+            Timestamp ts = this.ts;
+            LongObjMap<WriteData> pendingRequests = this.pendingRequests;
+            if (ts.nanoTime - lastCleanTimeNanos > NEAR_TIMEOUT_THRESHOLD_NANOS) {
+                // this iterate is o(n), so not do it too frequently
+                pendingRequests.forEach((key, wd) -> {
+                    addToNearTimeoutQueueIfNeed(wd);
+                });
+                lastCleanTimeNanos = ts.nanoTime;
+            }
+
+            while (nearTimeoutQueueHead != null) {
+                WriteData wd = nearTimeoutQueueHead;
+                if (wd.timeout.isTimeout(ts)) {
+                    pendingRequests.remove(BitUtil.toLong(wd.dtc.channelIndexInWorker, wd.data.seq));
+                    removeFromChannelQueue(wd);
+                    removeFromNearTimeoutQueue(wd);
+                    list.add(wd);
+                } else {
+                    break;
+                }
+            }
+            if (list.isEmpty()) {
+                return;
+            }
+
+            list.sort(this::compare);
+            for (WriteData wd : list) {
                 WritePacket wp = wd.data;
                 long timeout = wd.timeout.getTimeout(TimeUnit.MILLISECONDS);
                 if (log.isDebugEnabled()) {
                     log.debug("drop timeout request: {}ms, cmd={}, seq={}, {}", timeout, wp.command,
                             wp.seq, wd.dtc.getChannel());
                 }
-                it.remove();
-                pendingRequests.remove(BitUtil.toLong(wd.dtc.channelIndexInWorker, wp.seq));
-                removeFromChannelQueue(wd);
-
-                if (e == null) {
-                    String msg = "request is timeout: " + timeout + "ms, cmd=" + wp.command
-                            + ", remote=" + wd.dtc.getRemoteAddr();
-                    e = new NetTimeoutException(msg);
-                }
-
+                String msg = "request is timeout: " + timeout + "ms, cmd=" + wp.command
+                        + ", remote=" + wd.dtc.getRemoteAddr();
                 // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
                 // so callFail should be idempotent
-                wd.callFail(false, e);
-            } else {
-                break;
+                wd.callFail(false, new NetTimeoutException(msg));
             }
+        } finally {
+            iteratingPendingQueue = false;
+            list.clear();
         }
     }
 

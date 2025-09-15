@@ -204,7 +204,7 @@ public class TimeoutTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void serverTimeoutBeforeProcessTest(boolean runProcessInIoThread) throws Exception {
+    public void serverTimeoutBeforeProcessTest(boolean runProcessInIoThread) throws Exception {
         CountDownLatch latch1 = new CountDownLatch(1);
         CountDownLatch latch2 = new CountDownLatch(1);
         AtomicInteger processCount = new AtomicInteger();
