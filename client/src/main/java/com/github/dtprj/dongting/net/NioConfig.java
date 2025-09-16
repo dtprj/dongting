@@ -39,8 +39,9 @@ public abstract class NioConfig {
     public int maxInRequests;
     public long maxInBytes;
 
-    public long selectTimeout = 50;
-    public long cleanInterval = 100;
+    public long selectTimeout = 50; // in milliseconds
+    public long cleanInterval = 100; // in milliseconds
+    public long nearTimeoutThreshold = 850; // in milliseconds
 
     public int maxPacketSize = 5 * 1024 * 1024;
     public int maxBodySize = 4 * 1024 * 1024;

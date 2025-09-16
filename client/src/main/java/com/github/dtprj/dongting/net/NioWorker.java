@@ -122,7 +122,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 800);
 
         workerStatus = new WorkerStatus(this, ioWorkerQueue, directPool,
-                refBufferFactory, timestamp);
+                refBufferFactory, timestamp, config.nearTimeoutThreshold);
     }
 
     private ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoWorkerQueue ioWorkerQueue) {

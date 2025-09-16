@@ -106,7 +106,7 @@ public class PacketPbTest {
         buf.flip();
 
         WorkerStatus workerStatus = new WorkerStatus(null, null ,
-                null, CodecTestUtil.createContext().getHeapPool(), new Timestamp());
+                null, CodecTestUtil.createContext().getHeapPool(), new Timestamp(), 1000);
 
         DtChannelImpl dtc = new DtChannelImpl(new NioStatus(), workerStatus,
                 new NioClientConfig(), null, SocketChannel.open(), 0) {

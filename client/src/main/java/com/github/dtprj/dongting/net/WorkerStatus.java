@@ -46,7 +46,7 @@ class WorkerStatus {
 
     private final ArrayList<WriteData> tempSortList = new ArrayList<>();
 
-    private static final long NEAR_TIMEOUT_THRESHOLD_NANOS = 800_000_000L;
+    private final long nearTimeoutThresholdNanos;
     private long lastCleanTimeNanos;
     private WriteData nearTimeoutQueueHead;
     private WriteData nearTimeoutQueueTail;
@@ -54,13 +54,14 @@ class WorkerStatus {
     private long addOrder;
 
     public WorkerStatus(NioWorker worker, IoWorkerQueue ioWorkerQueue, ByteBufferPool directPool,
-                        RefBufferFactory heapPool, Timestamp ts) {
+                        RefBufferFactory heapPool, Timestamp ts, long nearTimeoutThresholdMillis) {
         this.worker = worker;
         this.ioWorkerQueue = ioWorkerQueue;
         this.directPool = directPool;
         this.heapPool = heapPool;
         this.ts = ts;
         this.lastCleanTimeNanos = ts.nanoTime;
+        this.nearTimeoutThresholdNanos = TimeUnit.MILLISECONDS.toNanos(nearTimeoutThresholdMillis);
     }
 
     public void addPacketsToWrite(int delta) {
@@ -90,7 +91,7 @@ class WorkerStatus {
 
 
     private void addToNearTimeoutQueueIfNeed(WriteData wd) {
-        if (wd.timeout.deadlineNanos - ts.nanoTime < NEAR_TIMEOUT_THRESHOLD_NANOS) {
+        if (wd.timeout.deadlineNanos - ts.nanoTime < nearTimeoutThresholdNanos) {
             // add to near timeout queue
             if (nearTimeoutQueueHead == null) {
                 nearTimeoutQueueHead = wd;
@@ -233,7 +234,7 @@ class WorkerStatus {
         try {
             Timestamp ts = this.ts;
             LongObjMap<WriteData> pendingRequests = this.pendingRequests;
-            if (ts.nanoTime - lastCleanTimeNanos > NEAR_TIMEOUT_THRESHOLD_NANOS) {
+            if (ts.nanoTime - lastCleanTimeNanos > nearTimeoutThresholdNanos) {
                 // this iterate is o(n), so not do it too frequently
                 pendingRequests.forEach((key, wd) -> {
                     addToNearTimeoutQueueIfNeed(wd);
