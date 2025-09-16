@@ -110,7 +110,7 @@ class IoChannelQueue {
         }
     }
 
-    void afterBufferWriteFinish(){
+    void afterBufferWriteFinish() {
         // current buffer write finished
         workerStatus.addPacketsToWrite(-packetsInBuffer);
         directPool.release(writeBuffer);
@@ -157,25 +157,26 @@ class IoChannelQueue {
                     }
                     return flipAndReturnBuffer(buf);
                 } else {
-                    if (encodeResult == ENCODE_FINISH) {
-                        WritePacket f = wd.data;
-                        if (f.packetType == PacketType.TYPE_REQ) {
-                            workerStatus.addPendingReq(wd);
-                        }
-                        packetsInBuffer++;
-                        if (f.packetType == PacketType.TYPE_ONE_WAY) {
-                            // TODO complete after write finished
-                            wd.callSuccess(null);
-                        }
-                    } else {
-                        // cancel
-                        workerStatus.addPacketsToWrite(-1);
-                        String msg = "timeout before send: " + wd.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                        wd.callFail(false, new NetTimeoutException(msg));
-                    }
-
-                    subQueueBytes = Math.max(0, subQueueBytes - wd.estimateSize);
                     try {
+                        if (encodeResult == ENCODE_FINISH) {
+                            WritePacket f = wd.data;
+                            if (f.packetType == PacketType.TYPE_REQ) {
+                                workerStatus.addPendingReq(wd);
+                            }
+                            packetsInBuffer++;
+                            if (f.packetType == PacketType.TYPE_ONE_WAY) {
+                                // TODO complete after write finished
+                                wd.callSuccess(null);
+                            }
+                        } else {
+                            // cancel
+                            workerStatus.addPacketsToWrite(-1);
+                            String msg = "timeout before send: " + wd.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                            wd.callFail(false, new NetTimeoutException(msg));
+                        }
+
+                        subQueueBytes = Math.max(0, subQueueBytes - wd.estimateSize);
+
                         wd.data.clean();
                     } finally {
                         encodeContext.reset();
