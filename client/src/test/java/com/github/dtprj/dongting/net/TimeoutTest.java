@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.MockDtTime;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.test.WaitUtil;
@@ -38,6 +37,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.github.dtprj.dongting.test.Tick.tick;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -64,6 +64,7 @@ public class TimeoutTest {
         clientConfig.selectTimeout = 1;
         clientConfig.maxOutRequests = 1;
         clientConfig.maxOutBytes = 5000;
+        clientConfig.nearTimeoutThreshold = tick(10);
         clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
         client = new NioClient(clientConfig);
 
@@ -176,20 +177,19 @@ public class TimeoutTest {
         CountDownLatch latch2 = new CountDownLatch(1);
         setup(() -> registerDelayPingProcessor(latch1, latch2));
         try {
-            MockDtTime dtTime = new MockDtTime(1, TimeUnit.SECONDS);
+            DtTime dtTime = new DtTime(client.getConfig().nearTimeoutThreshold + tick(3), TimeUnit.MILLISECONDS);
             CompletableFuture<?> f = send(dtTime);
 
             // make sure server receive the request
             latch1.await();
 
-            dtTime.markTimeout();
             f.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("request is timeout: "), e.getCause().getMessage());
         }
-        // wait server process finished
+        // make server process finished
         latch2.countDown();
 
         // need more check server side status
@@ -239,10 +239,9 @@ public class TimeoutTest {
         setup(reg);
 
         try {
-            MockDtTime dtTime = new MockDtTime(1, TimeUnit.SECONDS);
+            DtTime dtTime = new DtTime(client.getConfig().nearTimeoutThreshold - 1, TimeUnit.MILLISECONDS);
             CompletableFuture<?> f = send(dtTime);
             latch1.await();
-            dtTime.markTimeout();
             f.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
@@ -253,8 +252,6 @@ public class TimeoutTest {
         assertEquals(0, client.pendingRequests);
 
         latch2.countDown();
-
-        WaitUtil.waitUtil(() -> processCount.get() == 1);
 
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
