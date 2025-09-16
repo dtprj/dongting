@@ -90,7 +90,7 @@ class WorkerStatus {
 
 
     private void addToNearTimeoutQueueIfNeed(WriteData wd) {
-        if (wd.timeout.getDeadlineNanos() - ts.nanoTime < NEAR_TIMEOUT_THRESHOLD_NANOS) {
+        if (wd.timeout.deadlineNanos - ts.nanoTime < NEAR_TIMEOUT_THRESHOLD_NANOS) {
             // add to near timeout queue
             if (nearTimeoutQueueHead == null) {
                 nearTimeoutQueueHead = wd;

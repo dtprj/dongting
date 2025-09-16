@@ -21,32 +21,32 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class DtTime implements Comparable<DtTime> {
-    private final long createTime;
-    private final long deadline;
+    public final long createTimeNanos;
+    public final long deadlineNanos;
 
     public DtTime() {
-        this.createTime = System.nanoTime();
-        this.deadline = createTime;
+        this.createTimeNanos = System.nanoTime();
+        this.deadlineNanos = createTimeNanos;
     }
 
     public DtTime(long timeout, TimeUnit unit) {
-        this.createTime = System.nanoTime();
-        this.deadline = createTime + unit.toNanos(timeout);
+        this.createTimeNanos = System.nanoTime();
+        this.deadlineNanos = createTimeNanos + unit.toNanos(timeout);
     }
 
     public DtTime(Timestamp ts, long timeout, TimeUnit unit) {
-        this.createTime = ts.nanoTime;
-        this.deadline = createTime + unit.toNanos(timeout);
+        this.createTimeNanos = ts.nanoTime;
+        this.deadlineNanos = createTimeNanos + unit.toNanos(timeout);
     }
 
     public DtTime(long nanoTime, long timeout, TimeUnit unit) {
-        this.createTime = nanoTime;
-        this.deadline = createTime + unit.toNanos(timeout);
+        this.createTimeNanos = nanoTime;
+        this.deadlineNanos = createTimeNanos + unit.toNanos(timeout);
     }
 
     @Override
     public int compareTo(DtTime o) {
-        long x = this.deadline - o.deadline;
+        long x = this.deadlineNanos - o.deadlineNanos;
         return x < 0 ? -1 : (x == 0 ? 0 : 1);
     }
 
@@ -59,39 +59,35 @@ public class DtTime implements Comparable<DtTime> {
             return false;
         }
         DtTime other = (DtTime) obj;
-        return this.deadline == other.deadline && this.createTime == other.createTime;
+        return this.deadlineNanos == other.deadlineNanos && this.createTimeNanos == other.createTimeNanos;
     }
 
     @Override
     public int hashCode() {
-        return Long.hashCode(deadline) ^ Long.hashCode(createTime);
+        return Long.hashCode(deadlineNanos) ^ Long.hashCode(createTimeNanos);
     }
 
     public long elapse(TimeUnit unit) {
-        return unit.convert(System.nanoTime() - createTime, TimeUnit.NANOSECONDS);
+        return unit.convert(System.nanoTime() - createTimeNanos, TimeUnit.NANOSECONDS);
     }
 
     public long rest(TimeUnit unit) {
-        return unit.convert(deadline - System.nanoTime(), TimeUnit.NANOSECONDS);
+        return unit.convert(deadlineNanos - System.nanoTime(), TimeUnit.NANOSECONDS);
     }
 
     public long rest(TimeUnit unit, Timestamp ts) {
-        return unit.convert(deadline - ts.nanoTime, TimeUnit.NANOSECONDS);
+        return unit.convert(deadlineNanos - ts.nanoTime, TimeUnit.NANOSECONDS);
     }
 
     public boolean isTimeout() {
-        return deadline - System.nanoTime() <= 0;
+        return deadlineNanos - System.nanoTime() <= 0;
     }
 
     public boolean isTimeout(Timestamp ts) {
-        return deadline - ts.nanoTime <= 0;
+        return deadlineNanos - ts.nanoTime <= 0;
     }
 
     public long getTimeout(TimeUnit unit) {
-        return unit.convert(deadline - createTime, TimeUnit.NANOSECONDS);
-    }
-
-    public long getDeadlineNanos() {
-        return deadline;
+        return unit.convert(deadlineNanos - createTimeNanos, TimeUnit.NANOSECONDS);
     }
 }
