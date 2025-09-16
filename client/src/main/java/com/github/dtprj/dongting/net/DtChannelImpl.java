@@ -86,7 +86,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.peer = peer;
-        this.createTimeNanos = workerStatus.ts.getNanoTime();
+        this.createTimeNanos = workerStatus.ts.nanoTime;
 
         this.decodeContext = nioConfig.decodeContextFactory.get();
         this.decodeContext.setHeapPool(workerStatus.heapPool);
@@ -97,7 +97,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.localAddr = channel.getLocalAddress();
 
         this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, workerStatus.heapPool);
-        this.lastActiveTimeNanos = workerStatus.ts.getNanoTime();
+        this.lastActiveTimeNanos = workerStatus.ts.nanoTime;
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -148,7 +148,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             // req or one way
             processIncomingRequest(packet, processorForRequest, workerStatus.ts);
         }
-        this.lastActiveTimeNanos = workerStatus.ts.getNanoTime();
+        this.lastActiveTimeNanos = workerStatus.ts.nanoTime;
         return true;
     }
 

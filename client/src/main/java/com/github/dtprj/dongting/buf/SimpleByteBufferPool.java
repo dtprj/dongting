@@ -218,7 +218,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             }
             return;
         }
-        pools[poolIndex].release(buf, ts.getNanoTime());
+        pools[poolIndex].release(buf, ts.nanoTime);
     }
 
     @Override
@@ -233,7 +233,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     private void clean0() {
-        long expireNanos = ts.getNanoTime() - this.timeoutNanos;
+        long expireNanos = ts.nanoTime - this.timeoutNanos;
         for (FixSizeBufferPool pool : pools) {
             pool.clean(expireNanos);
         }

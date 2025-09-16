@@ -338,7 +338,7 @@ public final class DefaultRaftLog implements RaftLog {
         }
 
         private boolean shouldDeleteFirstLog() {
-            long taskStartTimestamp = ts.getWallClockMillis();
+            long taskStartTimestamp = ts.wallClockMillis;
             IndexedQueue<LogFile> q = logFiles.queue;
             if (q.size() <= 1) {
                 return false;

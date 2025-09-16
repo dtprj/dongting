@@ -208,7 +208,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void processScheduleFibers() {
-        long now = ts.getNanoTime();
+        long now = ts.nanoTime;
         PriorityQueue<Fiber> scheduleQueue = this.scheduleQueue;
         while (true) {
             Fiber f = scheduleQueue.peek();
@@ -233,8 +233,8 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void cleanPool(long timeoutNanos) {
-        if (ts.getNanoTime() - lastCleanNanos > timeoutNanos) {
-            lastCleanNanos = ts.getNanoTime();
+        if (ts.nanoTime - lastCleanNanos > timeoutNanos) {
+            lastCleanNanos = ts.nanoTime;
             thread.heapPool.getPool().clean();
             thread.directPool.clean();
         }
@@ -497,7 +497,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private void addToScheduleQueue(long nanoTime, Fiber fiber) {
         if (nanoTime > 0) {
-            fiber.scheduleNanoTime = ts.getNanoTime() + nanoTime;
+            fiber.scheduleNanoTime = ts.nanoTime + nanoTime;
             scheduleQueue.add(fiber);
         }
     }
@@ -584,7 +584,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private void fill(Timestamp ts, ArrayList<FiberQueueTask> localData) {
         try {
-            long oldNanos = ts.getNanoTime();
+            long oldNanos = ts.nanoTime;
 
             if (!poll || readyGroups.size() > 0) {
                 shareQueue.drainTo(localData);
@@ -616,7 +616,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
             }
 
-            poll = ts.getNanoTime() - oldNanos > 2_000_000 || localData.isEmpty();
+            poll = ts.nanoTime - oldNanos > 2_000_000 || localData.isEmpty();
         } catch (InterruptedException e) {
             log.info("fiber dispatcher receive interrupt signal");
             pollTimeout = TimeUnit.MICROSECONDS.toNanos(1);

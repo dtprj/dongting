@@ -396,7 +396,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         member.repCommitIndex = raftStatus.commitIndex;
 
 
-        DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
+        DtTime timeout = new DtTime(ts.nanoTime, serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {

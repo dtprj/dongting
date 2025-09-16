@@ -96,7 +96,7 @@ public class Peer {
             long base;
             int index;
             if (connectRetryCount == 0) {
-                base = workerStatus.ts.getNanoTime();
+                base = workerStatus.ts.nanoTime;
                 index = 0;
                 workerStatus.retryConnect++;
             } else {

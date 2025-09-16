@@ -819,7 +819,7 @@ public class MemberManager {
             this.m = m;
             this.raftIndex = raftIndex;
             this.repFiber = repFiber;
-            this.startNanos = raftStatus.ts.getNanoTime();
+            this.startNanos = raftStatus.ts.nanoTime;
         }
 
         @Override
@@ -827,7 +827,7 @@ public class MemberManager {
             // delay stop replicate to ensure the commit config change log is replicate to the legacy member.
             // otherwise the legacy member may start pre-vote and generate WARN logs in other members.
             // however this is not necessary.
-            boolean timeout = raftStatus.ts.getNanoTime() - startNanos > 5000L * 1000 * 1000;
+            boolean timeout = raftStatus.ts.nanoTime - startNanos > 5000L * 1000 * 1000;
             if ((m.matchIndex >= raftIndex && m.repCommitIndexAcked >= raftIndex) || timeout) {
                 return afterSleep();
             }

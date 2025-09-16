@@ -202,8 +202,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     prepareStopFuture.complete(null);
                 }
             }
-            if (ts.getNanoTime() - lastCleanNanos > cleanIntervalNanos || cleanIntervalNanos <= 0) {
-                if (readBuffer != null && ts.getNanoTime() - readBufferUseTime > cleanIntervalNanos) {
+            if (ts.nanoTime - lastCleanNanos > cleanIntervalNanos || cleanIntervalNanos <= 0) {
+                if (readBuffer != null && ts.nanoTime - readBufferUseTime > cleanIntervalNanos) {
                     releaseReadBuffer();
                 }
                 workerStatus.cleanPendingReqByTimeout();
@@ -227,7 +227,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 }
                 directPool.clean();
                 heapPool.clean();
-                lastCleanNanos = ts.getNanoTime();
+                lastCleanNanos = ts.nanoTime;
             }
         } catch (Throwable e) {
             log.error("NioWorker loop exception", e);
@@ -285,7 +285,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             readBuffer = directPool.borrow(config.readBufferSize);
         }
         readBuffer.clear();
-        readBufferUseTime = roundTime.getNanoTime();
+        readBufferUseTime = roundTime.nanoTime;
     }
 
     private void releaseReadBuffer() {
@@ -742,7 +742,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanIncomingConnects(Timestamp roundStartTime) {
-        long t = roundStartTime.getNanoTime() - incomingConnectTimeout;
+        long t = roundStartTime.nanoTime - incomingConnectTimeout;
         for (Iterator<DtChannelImpl> it = this.incomingConnects.iterator(); it.hasNext(); ) {
             DtChannelImpl dtc = it.next();
             if (dtc.createTimeNanos - t < 0) {
@@ -764,7 +764,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (!p.autoReconnect || p.status != PeerStatus.not_connect) {
                 continue;
             }
-            if (ts.getNanoTime() - p.lastRetryNanos > 0) {
+            if (ts.nanoTime - p.lastRetryNanos > 0) {
                 CompletableFuture<Void> f = new CompletableFuture<>();
                 DtTime deadline = new DtTime(((NioClient) owner).getConfig().connectTimeoutMillis, TimeUnit.MILLISECONDS);
                 doConnect(f, p, deadline, true);

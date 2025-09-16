@@ -101,19 +101,19 @@ class KvImplTest {
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
         assertArrayEquals("value1".getBytes(), r.getNode().data);
         assertFalse(r.getNode().isDir());
-        assertEquals(ts.getWallClockMillis(), r.getNode().createTime);
-        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(ts.wallClockMillis, r.getNode().createTime);
+        assertEquals(ts.wallClockMillis, r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
         assertEquals(1, r.getNode().updateIndex);
 
-        TestUtil.updateTimestamp(ts, ts.getNanoTime() + 1, ts.getWallClockMillis() + 1);
+        TestUtil.updateTimestamp(ts, ts.nanoTime + 1, ts.wallClockMillis + 1);
         assertEquals(KvCodes.SUCCESS_OVERWRITE, put(2, ba("key1"), "value2".getBytes()).getBizCode());
         r = kv.get(ba("key1"));
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
         assertArrayEquals("value2".getBytes(), r.getNode().data);
         assertFalse(r.getNode().isDir());
-        assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
-        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(ts.wallClockMillis - 1, r.getNode().createTime);
+        assertEquals(ts.wallClockMillis, r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
         assertEquals(2, r.getNode().updateIndex);
 
@@ -125,7 +125,7 @@ class KvImplTest {
         mkdir(1, ba("parent"));
         assertEquals(KvCodes.NOT_FOUND, kv.get(ba("parent.key1")).getBizCode());
 
-        TestUtil.updateTimestamp(ts, ts.getNanoTime() + 1, ts.getWallClockMillis() + 1);
+        TestUtil.updateTimestamp(ts, ts.nanoTime + 1, ts.wallClockMillis + 1);
         assertEquals(KvCodes.SUCCESS, put(2, ba("parent.key1"), "value1".getBytes()).getBizCode());
         assertEquals(KvCodes.PARENT_NOT_DIR, put(3, ba("parent.key1.key2"), "xxx".getBytes()).getBizCode());
         assertEquals(KvCodes.PARENT_DIR_NOT_EXISTS, put(3, ba("xxx.yyy"), "xxx".getBytes()).getBizCode());
@@ -135,13 +135,13 @@ class KvImplTest {
         r = kv.get(ba("parent"));
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
         assertTrue(r.getNode().isDir());
-        assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
-        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(ts.wallClockMillis - 1, r.getNode().createTime);
+        assertEquals(ts.wallClockMillis, r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
         assertEquals(2, r.getNode().updateIndex);
         r = kv.get(ba(""));
         assertEquals(0, r.getNode().createTime);
-        assertEquals(ts.getWallClockMillis(), r.getNode().updateTime);
+        assertEquals(ts.wallClockMillis, r.getNode().updateTime);
         assertEquals(0, r.getNode().createIndex);
         assertEquals(2, r.getNode().updateIndex);
     }
@@ -162,19 +162,19 @@ class KvImplTest {
         assertEquals(1, kv.get(ba("")).getNode().updateIndex);
 
         put(3, ba("parent.key1"), "value1".getBytes());
-        TestUtil.updateTimestamp(ts, ts.getNanoTime() + 1, ts.getWallClockMillis() + 1);
+        TestUtil.updateTimestamp(ts, ts.nanoTime + 1, ts.wallClockMillis + 1);
         assertEquals(KvCodes.SUCCESS, remove(4, ba("parent.key1")).getBizCode());
         assertEquals(KvCodes.NOT_FOUND, kv.get(ba("parent.key1")).getBizCode());
 
         assertEquals(1, kv.get(ba("parent")).getNode().createIndex);
         assertEquals(4, kv.get(ba("parent")).getNode().updateIndex);
-        assertEquals(ts.getWallClockMillis() - 1, kv.get(ba("parent")).getNode().createTime);
-        assertEquals(ts.getWallClockMillis(), kv.get(ba("parent")).getNode().updateTime);
+        assertEquals(ts.wallClockMillis - 1, kv.get(ba("parent")).getNode().createTime);
+        assertEquals(ts.wallClockMillis, kv.get(ba("parent")).getNode().updateTime);
 
         assertEquals(0, kv.get(ba("")).getNode().createIndex);
         assertEquals(4, kv.get(ba("")).getNode().updateIndex);
         assertEquals(0, kv.get(ba("")).getNode().createTime);
-        assertEquals(ts.getWallClockMillis(), kv.get(ba("")).getNode().updateTime);
+        assertEquals(ts.wallClockMillis, kv.get(ba("")).getNode().updateTime);
     }
 
     @Test
@@ -240,12 +240,12 @@ class KvImplTest {
     @Test
     void testMkdir() {
         assertEquals(KvCodes.SUCCESS, mkdir(1, ba("dir1")).getBizCode());
-        TestUtil.updateTimestamp(ts, ts.getNanoTime() + 1, ts.getWallClockMillis() + 1);
+        TestUtil.updateTimestamp(ts, ts.nanoTime + 1, ts.wallClockMillis + 1);
         assertEquals(KvCodes.DIR_EXISTS, mkdir(2, ba("dir1")).getBizCode());
         KvResult r = kv.get(ba("dir1"));
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
         assertTrue(r.getNode().isDir());
-        assertEquals(ts.getWallClockMillis() - 1, r.getNode().createTime);
+        assertEquals(ts.wallClockMillis - 1, r.getNode().createTime);
         assertEquals(r.getNode().createTime, r.getNode().updateTime);
         assertEquals(1, r.getNode().createIndex);
         assertEquals(1, r.getNode().updateIndex);

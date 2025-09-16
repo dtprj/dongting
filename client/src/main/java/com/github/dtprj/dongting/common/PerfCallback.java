@@ -58,9 +58,9 @@ public abstract class PerfCallback implements PerfConsts {
 
     private long takeTime0(Timestamp ts) {
         if (useNanos) {
-            return ts.getNanoTime();
+            return ts.nanoTime;
         } else {
-            return ts.getWallClockMillis();
+            return ts.wallClockMillis;
         }
     }
 

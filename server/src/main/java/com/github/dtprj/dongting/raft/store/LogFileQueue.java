@@ -187,7 +187,7 @@ final class LogFileQueue extends FileQueue {
     }
 
     public void markDelete(long boundIndex, long timestampBound, long delayMills) {
-        long deleteTimestamp = ts.getWallClockMillis() + delayMills;
+        long deleteTimestamp = ts.wallClockMillis + delayMills;
         int queueSize = queue.size();
         for (int i = 0; i < queueSize - 1; i++) {
             LogFile logFile = queue.get(i);

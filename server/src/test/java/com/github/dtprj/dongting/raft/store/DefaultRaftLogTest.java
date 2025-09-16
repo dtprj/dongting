@@ -192,7 +192,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         }
         {
             plus1Hour();
-            doInFiber(() -> raftLog.markTruncateByTimestamp(raftStatus.ts.getWallClockMillis(), 0));
+            doInFiber(() -> raftLog.markTruncateByTimestamp(raftStatus.ts.wallClockMillis, 0));
 
             // can't delete after next persist index and apply index, so only delete to index 4
             Supplier<Boolean> deleted = fileDeleted(dir, 1024);

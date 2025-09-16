@@ -30,8 +30,8 @@ public class SimpleByteBufferPoolTest {
 
     private void plus(SimpleByteBufferPool pool, long millis) {
         Timestamp ts = pool.getTs();
-        Timestamp tsNew = new Timestamp(ts.getNanoTime() + millis * 1000 * 1000,
-                ts.getWallClockMillis() + millis);
+        Timestamp tsNew = new Timestamp(ts.nanoTime + millis * 1000 * 1000,
+                ts.wallClockMillis + millis);
         pool.setTs(tsNew);
     }
 

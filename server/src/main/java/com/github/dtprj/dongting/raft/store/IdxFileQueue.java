@@ -83,7 +83,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         }
         this.statusManager = statusManager;
         this.ts = groupConfig.ts;
-        this.lastFlushNanos = ts.getNanoTime();
+        this.lastFlushNanos = ts.nanoTime;
         this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
 
         this.maxCacheItems = groupConfig.idxCacheSize;
@@ -323,7 +323,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                     flushType = 2;
                 }
             } else {
-                long restMillis = (lastFlushNanos + FLUSH_INTERVAL_NANOS - ts.getNanoTime()) / 1000 / 1000;
+                long restMillis = (lastFlushNanos + FLUSH_INTERVAL_NANOS - ts.nanoTime) / 1000 / 1000;
                 if (restMillis > 0) {
                     return needFlushCondition.await(restMillis, this);
                 } else {
@@ -332,7 +332,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             }
 
             // begin prepare flush
-            lastFlushNanos = ts.getNanoTime();
+            lastFlushNanos = ts.nanoTime;
             FrameCall<Void> resumePoint;
             if (flushType == 0) {
                 resumePoint = v -> afterPosReady(false);

@@ -161,7 +161,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         item.setTerm(term);
         item.setPrevLogTerm(prevTerm);
         item.setIndex(index);
-        item.setTimestamp(config.ts.getWallClockMillis());
+        item.setTimestamp(config.ts.wallClockMillis);
         byte[] bs = new byte[bizHeaderLen];
         for (int i = 0; i < bizHeaderLen; i++) {
             bs[i] = (byte) i;

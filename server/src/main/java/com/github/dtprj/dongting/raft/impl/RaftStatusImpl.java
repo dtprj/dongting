@@ -114,7 +114,7 @@ public final class RaftStatusImpl extends RaftStatus {
     public RaftStatusImpl(int groupId, Timestamp ts) {
         super(groupId);
         this.ts = ts;
-        lastElectTime = ts.getNanoTime() - Duration.ofDays(1).toNanos();
+        lastElectTime = ts.nanoTime - Duration.ofDays(1).toNanos();
         initFuture.thenRun(() -> this.initialized = true);
     }
 

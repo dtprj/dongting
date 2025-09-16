@@ -153,7 +153,7 @@ public final class RaftUtil {
             member.repCommitIndex = 0;
             member.repCommitIndexAcked = 0;
             if (cleanLastConfirmReqNanos) {
-                member.lastConfirmReqNanos = raftStatus.ts.getNanoTime() - Duration.ofDays(1).toNanos();
+                member.lastConfirmReqNanos = raftStatus.ts.nanoTime - Duration.ofDays(1).toNanos();
             }
 
             member.installSnapshot = false;

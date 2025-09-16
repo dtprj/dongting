@@ -156,15 +156,15 @@ class GroupExecutor implements ScheduledExecutorService {
                 return Fiber.frameReturn();
             }
             Timestamp ts = fiber.group.dispatcher.ts;
-            long n = ts.getNanoTime();
+            long n = ts.nanoTime;
             run();
             if (delayNanos > 0) {
                 ts.refresh(1);
                 if (fixedRate) {
                     nextRunTimeNanos = n + delayNanos;
-                    n = nextRunTimeNanos - ts.getNanoTime();
+                    n = nextRunTimeNanos - ts.nanoTime;
                 } else {
-                    nextRunTimeNanos = ts.getNanoTime() + delayNanos;
+                    nextRunTimeNanos = ts.nanoTime + delayNanos;
                     n = delayNanos;
                 }
                 if (n > 0) {
