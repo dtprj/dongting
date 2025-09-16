@@ -30,8 +30,7 @@ class WriteData {
 
     final int estimateSize;
 
-    long perfTime;
-    long addOrder;
+    long perfTimeOrAddOrder;
 
     WriteData nextInChannel;
     WriteData prevInChannel;

@@ -127,7 +127,7 @@ class WorkerStatus {
     }
 
     public void addPendingReq(WriteData wd) {
-        wd.addOrder = addOrder;
+        wd.perfTimeOrAddOrder = addOrder;
         addOrder++;
         DtChannelImpl dtc = wd.dtc;
 
@@ -196,7 +196,7 @@ class WorkerStatus {
 
     private int compare(WriteData a, WriteData b) {
         // addOrder may overflow, so we use subtraction to compare, can't use < or >
-        long x = a.addOrder - b.addOrder;
+        long x = a.perfTimeOrAddOrder - b.perfTimeOrAddOrder;
         return x < 0 ? -1 : (x == 0 ? 0 : 1);
     }
 

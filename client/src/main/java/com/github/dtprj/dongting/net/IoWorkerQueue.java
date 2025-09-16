@@ -42,7 +42,7 @@ class IoWorkerQueue {
     }
 
     public void writeFromBizThread(WriteData data) {
-        data.perfTime = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_QUEUE);
+        data.perfTimeOrAddOrder = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_QUEUE);
         if (!queue.offer(data)) {
             data.callFail(true, new NetException("IoQueue closed"));
         }
@@ -64,7 +64,7 @@ class IoWorkerQueue {
     }
 
     private void processWriteData(WriteData wo) {
-        perfCallback.fireTime(PerfConsts.RPC_D_WORKER_QUEUE, wo.perfTime);
+        perfCallback.fireTime(PerfConsts.RPC_D_WORKER_QUEUE, wo.perfTimeOrAddOrder);
         WritePacket packet = wo.data;
         Peer peer = wo.peer;
         if (peer != null) {
@@ -108,7 +108,7 @@ class IoWorkerQueue {
 
     private DtChannelImpl selectChannel() {
         ArrayList<DtChannelImpl> list = worker.channelsList;
-        int size = list.size();
+        @SuppressWarnings("DataFlowIssue") int size = list.size();
         if (size == 0) {
             return null;
         }
