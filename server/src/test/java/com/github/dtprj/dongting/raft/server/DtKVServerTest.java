@@ -91,6 +91,8 @@ public class DtKVServerTest extends ServerTestBase {
 
         String repServers = "1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003";
         String servServers = "1,127.0.0.1:5001;2,127.0.0.1:5002;3,127.0.0.1:5003";
+        long oldElectTimeout = electTimeout;
+        electTimeout = 50;
         try {
             s1 = createServer(1, repServers, "1,2,3", "");
             s2 = createServer(2, repServers, "1,2,3", "");
@@ -112,6 +114,7 @@ public class DtKVServerTest extends ServerTestBase {
             waitStop(s1);
             waitStop(s2);
             waitStop(s3);
+            electTimeout = oldElectTimeout;
         }
     }
 

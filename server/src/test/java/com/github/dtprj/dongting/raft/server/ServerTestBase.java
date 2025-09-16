@@ -65,8 +65,8 @@ public class ServerTestBase {
     protected boolean initSnapshot = false;
     protected int groupId = 1;
 
-    protected int electTimeout = 30;
-    protected int rpcTimeout = 100;
+    protected long electTimeout = 30;
+    protected long rpcTimeout = 100;
 
     protected int idxCacheSize = 128;
     protected int idxFlushThreshold = 64;
