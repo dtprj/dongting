@@ -49,11 +49,11 @@ class IoChannelQueue {
     private ByteBuffer writeBuffer;
     private int packetsInBuffer;
 
-    private final ArrayDeque<WriteData> subQueue = new ArrayDeque<>();
+    private final ArrayDeque<PacketInfo> subQueue = new ArrayDeque<>();
     private int subQueueBytes;
     private boolean writing;
 
-    private WriteData lastWriteData;
+    private PacketInfo lastPacketInfo;
     private final EncodeContext encodeContext;
 
     private final PerfCallback perfCallback;
@@ -70,20 +70,20 @@ class IoChannelQueue {
         this.registerForWrite = registerForWrite;
     }
 
-    public void enqueue(WriteData writeData) {
-        WritePacket wf = writeData.data;
+    public void enqueue(PacketInfo packetInfo) {
+        WritePacket wf = packetInfo.packet;
         if (wf.use) {
-            writeData.callFail(true, new NetException("WritePacket is used"));
+            packetInfo.callFail(true, new NetException("WritePacket is used"));
             return;
         }
         wf.use = true;
 
-        writeData.perfTimeOrAddOrder = perfCallback.takeTime(PerfConsts.RPC_D_CHANNEL_QUEUE);
-        subQueue.addLast(writeData);
+        packetInfo.perfTimeOrAddOrder = perfCallback.takeTime(PerfConsts.RPC_D_CHANNEL_QUEUE);
+        subQueue.addLast(packetInfo);
 
         // the subQueueBytes is not accurate
         // can't invoke actualSize() here because seq and timeout field is not set yet
-        subQueueBytes += writeData.estimateSize;
+        subQueueBytes += packetInfo.estimateSize;
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
@@ -99,13 +99,13 @@ class IoChannelQueue {
             this.writeBuffer = null;
         }
 
-        if (lastWriteData != null) {
+        if (lastPacketInfo != null) {
             workerStatus.addPacketsToWrite(-1);
-            lastWriteData.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
+            lastPacketInfo.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
-        WriteData wd;
-        while ((wd = subQueue.pollFirst()) != null) {
-            wd.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
+        PacketInfo pi;
+        while ((pi = subQueue.pollFirst()) != null) {
+            pi.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.addPacketsToWrite(-1);
         }
     }
@@ -126,32 +126,32 @@ class IoChannelQueue {
             }
         }
         int subQueueBytes = this.subQueueBytes;
-        ArrayDeque<WriteData> subQueue = this.subQueue;
-        if (subQueue.isEmpty() && lastWriteData == null) {
+        ArrayDeque<PacketInfo> subQueue = this.subQueue;
+        if (subQueue.isEmpty() && lastPacketInfo == null) {
             // no packet to write
             return null;
         }
         ByteBuffer buf = subQueueBytes <= MAX_BUFFER_SIZE ? directPool.borrow(subQueueBytes) : directPool.borrow(MAX_BUFFER_SIZE);
 
-        WriteData wd = this.lastWriteData;
+        PacketInfo pi = this.lastPacketInfo;
         try {
-            while (!subQueue.isEmpty() || wd != null) {
+            while (!subQueue.isEmpty() || pi != null) {
                 int encodeResult;
-                if (wd == null) {
-                    wd = subQueue.pollFirst();
-                    perfCallback.fireTime(PerfConsts.RPC_D_CHANNEL_QUEUE, wd.perfTimeOrAddOrder);
-                    encodeResult = encode(buf, wd, roundTime);
+                if (pi == null) {
+                    pi = subQueue.pollFirst();
+                    perfCallback.fireTime(PerfConsts.RPC_D_CHANNEL_QUEUE, pi.perfTimeOrAddOrder);
+                    encodeResult = encode(buf, pi, roundTime);
                 } else {
-                    encodeResult = doEncode(buf, wd);
+                    encodeResult = doEncode(buf, pi);
                 }
                 if (encodeResult == ENCODE_NOT_FINISH) {
                     if (buf.position() == 0) {
                         workerStatus.addPacketsToWrite(-1);
-                        subQueueBytes = Math.max(0, subQueueBytes - wd.estimateSize);
+                        subQueueBytes = Math.max(0, subQueueBytes - pi.estimateSize);
                         encodeContext.reset();
                         Throwable ex = new NetException("encode fail when buffer is empty");
-                        wd.callFail(true, ex);
-                        wd = null;
+                        pi.callFail(true, ex);
+                        pi = null;
                         BugLog.log(ex);
                         continue;
                     }
@@ -159,28 +159,28 @@ class IoChannelQueue {
                 } else {
                     try {
                         if (encodeResult == ENCODE_FINISH) {
-                            WritePacket f = wd.data;
+                            WritePacket f = pi.packet;
                             if (f.packetType == PacketType.TYPE_REQ) {
-                                workerStatus.addPendingReq(wd);
+                                workerStatus.addPendingReq(pi);
                             }
                             packetsInBuffer++;
                             if (f.packetType == PacketType.TYPE_ONE_WAY) {
                                 // TODO complete after write finished
-                                wd.callSuccess(null);
+                                pi.callSuccess(null);
                             }
                         } else {
                             // cancel
                             workerStatus.addPacketsToWrite(-1);
-                            String msg = "timeout before send: " + wd.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                            wd.callFail(false, new NetTimeoutException(msg));
+                            String msg = "timeout before send: " + pi.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                            pi.callFail(false, new NetTimeoutException(msg));
                         }
 
-                        subQueueBytes = Math.max(0, subQueueBytes - wd.estimateSize);
+                        subQueueBytes = Math.max(0, subQueueBytes - pi.estimateSize);
 
-                        wd.data.clean();
+                        pi.packet.clean();
                     } finally {
                         encodeContext.reset();
-                        wd = null;
+                        pi = null;
                     }
                 }
             }
@@ -191,7 +191,7 @@ class IoChannelQueue {
             // channel will be closed, and cleanChannelQueue will be called
             throw e;
         } finally {
-            this.lastWriteData = wd;
+            this.lastPacketInfo = pi;
             this.subQueueBytes = subQueueBytes;
         }
     }
@@ -208,19 +208,19 @@ class IoChannelQueue {
         }
     }
 
-    private int encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
-        WritePacket f = wd.data;
+    private int encode(ByteBuffer buf, PacketInfo pi, Timestamp roundTime) {
+        WritePacket f = pi.packet;
         // request or one way request
         boolean request = f.packetType != PacketType.TYPE_RESP;
-        DtTime t = wd.timeout;
+        DtTime t = pi.timeout;
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
         if (rest <= 0) {
             if (request) {
                 log.warn("request timeout before send: {}ms, cmd={}, seq={}, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, wd.dtc.getChannel());
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, pi.dtc.getChannel());
             } else {
                 log.warn("response timeout before send: {}ms, cmd={}, seq={}, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, wd.dtc.getChannel());
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.command, f.seq, pi.dtc.getChannel());
             }
             return ENCODE_CANCEL;
         }
@@ -230,11 +230,11 @@ class IoChannelQueue {
             f.timeout = rest;
         }
         encodeContext.reset();
-        return doEncode(buf, wd);
+        return doEncode(buf, pi);
     }
 
-    private int doEncode(ByteBuffer buf, WriteData wd) {
-        WritePacket wf = wd.data;
+    private int doEncode(ByteBuffer buf, PacketInfo pi) {
+        WritePacket wf = pi.packet;
         return wf.encode(encodeContext, buf) ? ENCODE_FINISH : ENCODE_NOT_FINISH;
     }
 

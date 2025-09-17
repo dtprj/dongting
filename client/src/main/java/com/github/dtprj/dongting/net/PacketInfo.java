@@ -22,21 +22,21 @@ import com.github.dtprj.dongting.common.FutureCallback;
 /**
  * @author huangli
  */
-class WriteData {
+final class PacketInfo {
     DtChannelImpl dtc;
 
-    final WritePacket data;
+    final WritePacket packet;
     final DtTime timeout;
 
     final int estimateSize;
 
     long perfTimeOrAddOrder;
 
-    WriteData nextInChannel;
-    WriteData prevInChannel;
+    PacketInfo nextInChannel;
+    PacketInfo prevInChannel;
 
-    WriteData nearTimeoutQueueNext;
-    WriteData nearTimeoutQueuePrev;
+    PacketInfo nearTimeoutQueueNext;
+    PacketInfo nearTimeoutQueuePrev;
 
     // only for request or one way request
     final Peer peer;
@@ -44,37 +44,37 @@ class WriteData {
     final DecoderCallbackCreator<?> respDecoderCallback;
 
     // for request or one way request (client side)
-    public <T> WriteData(Peer peer, WritePacket data, DtTime timeout, RpcCallback<T> callback,
-                         DecoderCallbackCreator<T> respDecoderCallback) {
+    public <T> PacketInfo(Peer peer, WritePacket packet, DtTime timeout, RpcCallback<T> callback,
+                          DecoderCallbackCreator<T> respDecoderCallback) {
         this.peer = peer;
-        this.data = data;
+        this.packet = packet;
         this.timeout = timeout;
         this.callback = callback;
         this.respDecoderCallback = respDecoderCallback;
-        this.estimateSize = data.calcMaxPacketSize();
+        this.estimateSize = packet.calcMaxPacketSize();
     }
 
     // for request or one way request (server push), client handshake
-    public <T> WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout, RpcCallback<T> callback,
-                         DecoderCallbackCreator<T> respDecoderCallback) {
+    public <T> PacketInfo(DtChannelImpl dtc, WritePacket packet, DtTime timeout, RpcCallback<T> callback,
+                          DecoderCallbackCreator<T> respDecoderCallback) {
         this.dtc = dtc;
         this.peer = null;
-        this.data = data;
+        this.packet = packet;
         this.timeout = timeout;
         this.callback = callback;
         this.respDecoderCallback = respDecoderCallback;
-        this.estimateSize = data.calcMaxPacketSize();
+        this.estimateSize = packet.calcMaxPacketSize();
     }
 
     // for response
-    public WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout) {
+    public PacketInfo(DtChannelImpl dtc, WritePacket packet, DtTime timeout) {
         this.dtc = dtc;
         this.peer = null;
-        this.data = data;
+        this.packet = packet;
         this.timeout = timeout;
         this.callback = null;
         this.respDecoderCallback = null;
-        this.estimateSize = data.calcMaxPacketSize();
+        this.estimateSize = packet.calcMaxPacketSize();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -83,7 +83,7 @@ class WriteData {
             return;
         }
         try {
-            if (data.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
+            if (packet.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
                 FutureCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
             } else {
                 FutureCallback.callSuccess(callback, resp);
@@ -99,7 +99,7 @@ class WriteData {
         }
         try {
             if (callClean) {
-                data.clean();
+                packet.clean();
             }
             FutureCallback.callFail(callback, ex);
         } finally {

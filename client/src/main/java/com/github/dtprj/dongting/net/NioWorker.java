@@ -590,7 +590,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         p.packetType = PacketType.TYPE_REQ;
         p.command = Commands.CMD_HANDSHAKE;
 
-        WriteData wd = new WriteData(dtc, p, ci.deadline, rpcCallback,
+        PacketInfo wd = new PacketInfo(dtc, p, ci.deadline, rpcCallback,
                 ctx -> ctx.toDecoderCallback(new HandshakeBody()));
         dtc.subQueue.enqueue(wd);
         // send pending request as quickly as possible, even before handshake finished
@@ -773,7 +773,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     // invoke by other threads
-    void writeReqInBizThreads(WriteData data) {
+    void writeReqInBizThreads(PacketInfo data) {
         this.ioWorkerQueue.writeFromBizThread(data);
         wakeup();
     }

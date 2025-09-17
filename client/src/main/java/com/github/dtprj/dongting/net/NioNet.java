@@ -129,11 +129,11 @@ public abstract class NioNet extends AbstractLifeCircle {
                 }
             };
         }
-        WriteData wd;
+        PacketInfo wd;
         if (peer != null) {
-            wd = new WriteData(peer, request, timeout, callback, decoder);
+            wd = new PacketInfo(peer, request, timeout, callback, decoder);
         } else {
-            wd = new WriteData(dtc, request, timeout, callback, decoder);
+            wd = new PacketInfo(dtc, request, timeout, callback, decoder);
         }
         worker.writeReqInBizThreads(wd);
     }

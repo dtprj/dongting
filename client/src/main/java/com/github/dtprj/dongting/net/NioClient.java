@@ -274,7 +274,7 @@ public class NioClient extends NioNet implements ChannelListener {
     }
 
     // if ts is null, then clean all
-    void cleanWaitConnectReq(Function<WriteData, NetException> exceptionSupplier) {
+    void cleanWaitConnectReq(Function<PacketInfo, NetException> exceptionSupplier) {
         // O(n)
         List<Peer> list = this.peers;
         //noinspection ForLoopReplaceableByForEach

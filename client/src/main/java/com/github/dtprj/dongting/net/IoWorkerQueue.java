@@ -41,7 +41,7 @@ class IoWorkerQueue {
         this.perfCallback = config.perfCallback;
     }
 
-    public void writeFromBizThread(WriteData data) {
+    public void writeFromBizThread(PacketInfo data) {
         data.perfTimeOrAddOrder = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_QUEUE);
         if (!queue.offer(data)) {
             data.callFail(true, new NetException("IoQueue closed"));
@@ -55,17 +55,17 @@ class IoWorkerQueue {
     public void dispatchActions() {
         Object data;
         while ((data = queue.relaxedPoll()) != null) {
-            if (data instanceof WriteData) {
-                processWriteData((WriteData) data);
+            if (data instanceof PacketInfo) {
+                processWriteData((PacketInfo) data);
             } else {
                 ((Runnable) data).run();
             }
         }
     }
 
-    private void processWriteData(WriteData wo) {
+    private void processWriteData(PacketInfo wo) {
         perfCallback.fireTime(PerfConsts.RPC_D_WORKER_QUEUE, wo.perfTimeOrAddOrder);
-        WritePacket packet = wo.data;
+        WritePacket packet = wo.packet;
         Peer peer = wo.peer;
         if (peer != null) {
             if (peer.status == PeerStatus.connected) {

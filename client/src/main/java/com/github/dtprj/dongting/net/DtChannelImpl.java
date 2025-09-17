@@ -61,7 +61,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     // read status
     private ReadPacket packet;
     private boolean readBody;
-    private WriteData requestForResp;
+    private PacketInfo requestForResp;
     private ReqProcessor processorForRequest;
     private int currentReadPacketSize;
     private DecoderCallback currentDecoderCallback;
@@ -75,8 +75,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     long lastActiveTimeNanos;
 
-    WriteData pendingReqHead;
-    WriteData pendingReqTail;
+    PacketInfo pendingReqHead;
+    PacketInfo pendingReqTail;
 
     public DtChannelImpl(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig, Peer peer,
                          SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
@@ -260,7 +260,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private boolean initRelatedDataForPacket() {
         ReadPacket packet = this.packet;
         if (packet.packetType == PacketType.TYPE_RESP) {
-            WriteData requestForResp = this.requestForResp;
+            PacketInfo requestForResp = this.requestForResp;
             if (requestForResp == null) {
                 requestForResp = this.workerStatus.removePendingReq(channelIndexInWorker, packet.seq);
                 if (requestForResp == null) {
@@ -306,8 +306,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
     }
 
-    private void processIncomingResponse(ReadPacket resp, WriteData wo) {
-        WritePacket req = wo.data;
+    private void processIncomingResponse(ReadPacket resp, PacketInfo wo) {
+        WritePacket req = wo.packet;
         if (resp.command != req.command) {
             wo.callFail(false, new NetException("command not match"));
             return;
@@ -372,7 +372,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 resp.command = req.command;
                 resp.packetType = PacketType.TYPE_RESP;
                 resp.seq = req.seq;
-                subQueue.enqueue(new WriteData(this, resp, reqContext.getTimeout()));
+                subQueue.enqueue(new PacketInfo(this, resp, reqContext.getTimeout()));
             }
         } else {
             try {
@@ -416,7 +416,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         resp.packetType = PacketType.TYPE_RESP;
         resp.seq = req.seq;
         resp.msg = msg;
-        subQueue.enqueue(new WriteData(this, resp, timeout));
+        subQueue.enqueue(new PacketInfo(this, resp, timeout));
     }
 
     public int getAndIncSeq() {

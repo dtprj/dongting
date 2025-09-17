@@ -45,7 +45,7 @@ public class ReqContext {
         resp.command = req.command;
         resp.packetType = PacketType.TYPE_RESP;
 
-        WriteData data = new WriteData(dtc, resp, timeout);
+        PacketInfo data = new PacketInfo(dtc, resp, timeout);
         NioWorker worker = dtc.workerStatus.worker;
         if (Thread.currentThread() == worker.thread) {
             dtc.subQueue.enqueue(data);
