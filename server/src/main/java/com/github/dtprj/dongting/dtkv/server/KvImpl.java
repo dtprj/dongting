@@ -927,17 +927,18 @@ class KvImpl {
         if (sub == null) {
             return KvResult.NOT_FOUND;
         }
-        if (sub != parent.latest.peekNext()) {
-            return new KvResult(KvCodes.LOCK_BY_OTHER);
-        }
+        boolean holdLock = sub == parent.latest.peekNext();
         long stamp = lock.writeLock();
         try {
             doRemoveInLock(index, sub);
             if (parent.latest.childCount() == 0) {
                 doRemoveInLock(index, parent);
-            } else {
+            } else if (holdLock) {
                 KvNodeHolder nextLockOwner = parent.latest.peekNext();
                 return new KvResult(KvCodes.SUCCESS, nextLockOwner.latest, null);
+            } else {
+                // lock by others, remove the temp node, and return success to avoid client exception
+                return KvResult.SUCCESS;
             }
         } finally {
             lock.unlockWrite(stamp);
