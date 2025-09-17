@@ -859,13 +859,20 @@ class KvImpl {
         } else {
             // not dir
             boolean isLock = (h.latest.flag & KvNode.FLAG_LOCK_MASK) != 0;
+            KvNodeHolder parent = h.parent;
+            boolean ownersLock = isLock && h == parent.latest.peekNext();
             doRemoveInLock(index, h);
             if (isLock) {
-                if (h.parent.latest.childCount() == 0) {
-                    doRemoveInLock(index, h.parent);
+                // KvNodeEx.children has no removed nodes
+                if (parent.latest.childCount() == 0) {
+                    doRemoveInLock(index, parent);
                 } else {
-                    KvNodeHolder nextLockOwner = h.parent.latest.peekNext();
-                    return new KvResult(KvCodes.SUCCESS, nextLockOwner.latest, null);
+                    if (ownersLock) {
+                        KvNodeHolder nextLockOwner = parent.latest.peekNext();
+                        return new KvResult(KvCodes.SUCCESS, nextLockOwner.latest, null);
+                    } else {
+                        return KvResult.SUCCESS;
+                    }
                 }
             }
         }
