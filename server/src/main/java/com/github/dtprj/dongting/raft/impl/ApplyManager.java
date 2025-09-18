@@ -96,7 +96,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
     @Override
     public int compare(Pair<DtTime, CompletableFuture<Long>> o1, Pair<DtTime, CompletableFuture<Long>> o2) {
-        long diff = o1.getLeft().rest(TimeUnit.NANOSECONDS, ts) - o2.getLeft().rest(TimeUnit.NANOSECONDS, ts);
+        long now = ts.nanoTime;
+        long diff = (o1.getLeft().deadlineNanos - now) - (o2.getLeft().deadlineNanos - now);
         return diff < 0 ? -1 : diff > 0 ? 1 : 0;
     }
 

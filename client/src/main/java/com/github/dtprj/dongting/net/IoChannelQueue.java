@@ -213,7 +213,7 @@ class IoChannelQueue {
         // request or one way request
         boolean request = f.packetType != PacketType.TYPE_RESP;
         DtTime t = pi.timeout;
-        long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
+        long rest = t.deadlineNanos - roundTime.nanoTime;
         if (rest <= 0) {
             if (request) {
                 log.warn("request timeout before send: {}ms, cmd={}, seq={}, channel={}",

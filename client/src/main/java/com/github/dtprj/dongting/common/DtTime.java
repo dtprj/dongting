@@ -75,10 +75,6 @@ public class DtTime implements Comparable<DtTime> {
         return unit.convert(deadlineNanos - System.nanoTime(), TimeUnit.NANOSECONDS);
     }
 
-    public long rest(TimeUnit unit, Timestamp ts) {
-        return unit.convert(deadlineNanos - ts.nanoTime, TimeUnit.NANOSECONDS);
-    }
-
     public boolean isTimeout() {
         return deadlineNanos - System.nanoTime() <= 0;
     }
