@@ -383,7 +383,15 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         RaftCallback callback = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {
-                // nothing to do here, to remove from pendingQueue:
+                // Check if there's a new lock owner to notify
+                KvResult kvResult = (KvResult) result;
+                if (kvResult.getBizCode() == KvCodes.SUCCESS && kvResult.getNode() != null) {
+                    // There's a new lock owner, notify it
+                    LockManager.notifyNewLockOwner(
+                            raftGroup.groupComponents.raftStatus.serviceNioServer,
+                            ttlInfo.key, config.groupId);
+                }
+                // to remove from pendingQueue:
                 // if KvCodes.SUCCESS, removed in KvImpl.doRemoveInLock
                 // if KvCodes.NOT_FOUND, no need to remove, already removed
                 // if KvCodes.TTL_INDEX_MISMATCH, removed when updateTtl() called (or KvImpl.doRemoveInLock)

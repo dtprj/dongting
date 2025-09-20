@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
@@ -41,6 +42,8 @@ public final class RaftStatusImpl extends RaftStatus {
     private RaftMember currentLeader; // shared
 
     public BiConsumer<RaftRole, RaftRole> roleChangeListener;
+
+    public NioServer serviceNioServer;
 
     public final Timestamp ts;
 

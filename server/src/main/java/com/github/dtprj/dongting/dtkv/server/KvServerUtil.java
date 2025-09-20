@@ -25,6 +25,8 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
+import java.util.UUID;
+
 /**
  * @author huangli
  */
@@ -35,6 +37,7 @@ public class KvServerUtil {
      */
     public static void initKvServer(RaftServer server) {
         NioServer nioServer = server.getServiceNioServer();
+        
         KvProcessor p = new KvProcessor(server);
         nioServer.register(Commands.DTKV_GET, p);
         nioServer.register(Commands.DTKV_PUT, p);
@@ -87,5 +90,57 @@ public class KvServerUtil {
             lockKey[pos++] = HEX[(int) ((uuid2 >>> shiftBits) & 0xF)];
         }
         return new ByteArray(lockKey);
+    }
+
+    /**
+     * Parse UUID from lock key
+     * @param lockKey the lock key created by buildLockKey
+     * @return UUID or null if parsing failed
+     */
+    static UUID parseLockKeyUuid(ByteArray lockKey) {
+        byte[] keyBytes = lockKey.getData();
+        if (keyBytes.length < 33) {
+            return null;
+        }
+        
+        // Check if the separator is at the expected position (倒数33位)
+        int separatorPos = keyBytes.length - 33;
+        if (keyBytes[separatorPos] != KvClient.SEPARATOR) {
+            return null;
+        }
+        
+        long uuid1 = 0;
+        long uuid2 = 0;
+        int pos = separatorPos + 1;
+        
+        // Parse first part of UUID (16 hex chars)
+        for (int i = 0; i < 16; i++) {
+            int hexValue = hexCharToValue(keyBytes[pos++]);
+            if (hexValue == -1) {
+                return null; // Invalid hex character
+            }
+            uuid1 = (uuid1 << 4) | hexValue;
+        }
+        
+        // Parse second part of UUID (16 hex chars)
+        for (int i = 0; i < 16; i++) {
+            int hexValue = hexCharToValue(keyBytes[pos++]);
+            if (hexValue == -1) {
+                return null; // Invalid hex character
+            }
+            uuid2 = (uuid2 << 4) | hexValue;
+        }
+        
+        return new UUID(uuid1, uuid2);
+    }
+    
+    private static int hexCharToValue(byte hexChar) {
+        if (hexChar >= '0' && hexChar <= '9') {
+            return hexChar - '0';
+        }
+        if (hexChar >= 'a' && hexChar <= 'f') {
+            return hexChar - 'a' + 10;
+        }
+        return -1; // Invalid hex character
     }
 }

@@ -36,6 +36,8 @@ import com.github.dtprj.dongting.net.WorkerThread;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
@@ -260,8 +262,9 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     resp.bizCode = r.getBizCode();
                     reqInfo.reqContext.writeRespInBizThreads(resp);
 
-                    // TODO: then notify the new lock owner if any
+                    // notify the new lock owner if any
                     if (newOwner != null) {
+                        notifyNewLockOwner(newOwner, reqInfo);
                     }
 
                     return; // the response is sent, so here use return
@@ -276,6 +279,24 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         @Override
         public void fail(Throwable ex) {
             writeErrorResp(reqInfo, ex);
+        }
+    }
+
+    private void notifyNewLockOwner(KvNode newOwner, ReqInfo<KvReq> reqInfo) {
+        // Convert KvNode to KvNodeEx to access ttlInfo
+        KvNodeEx newOwnerEx = (KvNodeEx) newOwner;
+        
+        // ttlInfo must not be null at this point
+        if (newOwnerEx.ttlInfo != null) {
+            // Get NioServer from RaftStatusImpl
+            RaftStatusImpl raftStatus = ((RaftGroupImpl) reqInfo.raftGroup).groupComponents.raftStatus;
+            
+            // Notify the new lock owner
+            LockManager.notifyNewLockOwner(
+                raftStatus.serviceNioServer,
+                newOwnerEx.ttlInfo.key,
+                reqInfo.raftGroup.getGroupId()
+            );
         }
     }
 
