@@ -5,3 +5,10 @@ alwaysApply: true
 这个项目的英文名称是dongting，中文名称应该是洞庭湖的“洞庭”，但是在文档中，应该全部使用英文名称。
 
 java源代码和其中的注释都使用英文，文档可以用中文。
+
+代码应该以性能为优先考虑事项。
+
+对于字段及其getter/setter，如果这个字段的getter/setter预期以后不会有额外行为，那么对外API可以生成getter/setter方法，内部使用的可以直接访问public或package private字段。
+
+本项目中，除去测试代码，DtChannel类只有一个子类DtChannelImpl，RaftGroupConfig只有一个子类RaftGroupConfigEx，RaftNode只有一个子类RaftNodeEx，RaftGroup只有一个子类RaftGroupImpl，RaftStatus只有一个子类RaftStatusImpl（等等，可能还有类似的例子）。
+这样做的目的是为了实现封装，将一些内部字段、方法隐藏起来不暴露给外部，所以，如果遇到父类的实例，但是要访问子类的方法时，可以直接类型转换为子类，不会出错。
