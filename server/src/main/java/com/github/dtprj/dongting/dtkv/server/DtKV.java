@@ -203,6 +203,11 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 return kv.expire(index, key, expectRaftIndex);
             case BIZ_TYPE_UPDATE_TTL:
                 return kv.updateTtl(index, key);
+            case BIZ_TYPE_LOCK:
+            case BIZ_TYPE_TRY_LOCK:
+                return kv.lock(index, key, req.value);
+            case BIZ_TYPE_UNLOCK:
+                return kv.unlock(index, key);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
