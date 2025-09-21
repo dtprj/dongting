@@ -61,6 +61,7 @@ public class KvClient extends AbstractLifeCircle {
     public KvClient(NioClientConfig nioConfig) {
         this.raftClient = new RaftClient(nioConfig);
         this.watchManager = createClientWatchManager();
+        // use bizExecutor in NioClient
         raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, new WatchProcessor(watchManager));
     }
 

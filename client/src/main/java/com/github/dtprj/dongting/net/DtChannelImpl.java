@@ -30,6 +30,7 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -347,7 +348,15 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
 
         ReqContext reqContext = new ReqContext(this, req, new DtTime(roundTime, req.timeout, TimeUnit.NANOSECONDS));
-        if (p.executor == null) {
+
+        Executor executor;
+        if (p.useDefaultExecutor) {
+            executor = workerStatus.worker.owner.bizExecutor;
+        } else {
+            executor = p.executor;
+        }
+
+        if (executor == null) {
             if (timeout(req, reqContext, roundTime)) {
                 return;
             }
@@ -376,7 +385,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             }
         } else {
             try {
-                p.executor.execute(new ProcessInBizThreadTask(
+                executor.execute(new ProcessInBizThreadTask(
                         req, p, currentReadPacketSize, this, flowControl, reqContext));
             } catch (RejectedExecutionException e) {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",

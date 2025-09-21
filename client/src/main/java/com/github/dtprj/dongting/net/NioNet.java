@@ -48,7 +48,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
     final NioStatus nioStatus;
-    private ExecutorService bizExecutor;
+    ExecutorService bizExecutor;
     private final PerfCallback perfCallback;
 
     protected final ReentrantLock lock = new ReentrantLock();
@@ -235,13 +235,6 @@ public abstract class NioNet extends AbstractLifeCircle {
                     1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
                     new DtThreadFactory(config.name + "Biz", false));
         }
-        nioStatus.getProcessors().forEach((command, p) -> {
-            if (p.useDefaultExecutor) {
-                if (bizExecutor != null) {
-                    p.executor = bizExecutor;
-                }
-            }
-        });
     }
 
     void stopWorker(NioWorker worker, DtTime timeout) {
