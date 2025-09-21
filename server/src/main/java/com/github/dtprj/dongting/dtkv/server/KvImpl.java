@@ -896,15 +896,20 @@ class KvImpl {
             ByteArray fullKey = KvServerUtil.buildLockKey(parent.key,
                     opContext.operator.getMostSignificantBits(), opContext.operator.getLeastSignificantBits());
             KvNodeHolder sub = map.get(fullKey);
+            KvNodeHolder oldOwner = parent.latest.peekNext();
+            if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK && oldOwner != null && oldOwner != sub) {
+                // tryLock and has lock owner
+                return new KvResult(KvCodes.LOCK_BY_OTHER);
+            }
             r = doPutInLock(index, fullKey, data, sub, parent, parent.key.length);
             if (r == KvResult.SUCCESS) {
-                if (parent.latest.peekNext() == lastPutNodeHolder) {
+                if (oldOwner == null) {
                     return r;
                 } else {
                     return new KvResult(KvCodes.LOCK_BY_OTHER);
                 }
             } else if (r == KvResult.SUCCESS_OVERWRITE) {
-                if (parent.latest.peekNext() == lastPutNodeHolder) {
+                if (oldOwner == sub) {
                     return new KvResult(KvCodes.LOCK_BY_SELF);
                 } else {
                     return new KvResult(KvCodes.LOCK_BY_OTHER);
