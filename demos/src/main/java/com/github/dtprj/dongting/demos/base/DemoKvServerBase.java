@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.demos.base;
 
 import com.github.dtprj.dongting.dtkv.server.DtKV;
-import com.github.dtprj.dongting.dtkv.server.KvConfig;
+import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
@@ -55,7 +55,7 @@ public abstract class DemoKvServerBase {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 // the state machine can be customized, here use DtKV, a simple key-value store
-                return new DtKV(groupConfig, new KvConfig());
+                return new DtKV(groupConfig, new KvServerConfig());
             }
 
             // called when add group at runtime

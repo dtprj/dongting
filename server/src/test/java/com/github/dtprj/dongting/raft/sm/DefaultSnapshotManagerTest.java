@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
-import com.github.dtprj.dongting.dtkv.server.KvConfig;
+import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -67,7 +67,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         groupConfig.ts = dispatcher.ts;
         groupConfig.dataDir = dataDir;
         groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
-        KvConfig kvConfig = new KvConfig();
+        KvServerConfig kvConfig = new KvServerConfig();
         kvConfig.useSeparateExecutor = separateExecutor;
         kvConfig.initMapCapacity = 16;
         kv = new DtKV(groupConfig, kvConfig) {

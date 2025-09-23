@@ -69,7 +69,7 @@ public class DtKVTest extends BaseFiberTest {
         groupConfig.raftStatus = new RaftStatusImpl(1, ts);
         groupConfig.fiberGroup = fiberGroup;
         groupConfig.ts = ts;
-        KvConfig kvConfig = new KvConfig();
+        KvServerConfig kvConfig = new KvServerConfig();
         kvConfig.useSeparateExecutor = useSeparateExecutor;
         kvConfig.initMapCapacity = 16;
         DtKV kv = new DtKV(groupConfig, kvConfig);

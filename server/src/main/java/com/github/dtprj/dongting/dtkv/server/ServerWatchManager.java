@@ -59,18 +59,18 @@ abstract class ServerWatchManager {
 
     private final int groupId;
     private final Timestamp ts;
-    private final KvConfig config;
+    private final KvServerConfig config;
     private final long[] retryIntervalNanos;
     private int epoch;
 
     private final ArrayList<Pair<ChannelWatch, WatchNotify>> pushNotifyTempList = new ArrayList<>(64);
     private final ArrayList<ChannelInfo> dispatchTempList;
 
-    ServerWatchManager(int groupId, Timestamp ts, KvConfig config) {
+    ServerWatchManager(int groupId, Timestamp ts, KvServerConfig config) {
         this(groupId, ts, config, new long[]{1000, 10_000, 30_000, 60_000});
     }
 
-    ServerWatchManager(int groupId, Timestamp ts, KvConfig config, long[] retryIntervalMillis) {
+    ServerWatchManager(int groupId, Timestamp ts, KvServerConfig config, long[] retryIntervalMillis) {
         this.groupId = groupId;
         this.ts = ts;
         this.config = config;

@@ -52,7 +52,7 @@ public class ServerWatchManagerTest {
 
     private final UUID selfUuid = UUID.randomUUID();
 
-    private KvConfig kvConfig;
+    private KvServerConfig kvConfig;
     private ServerWatchManager manager;
     private KvImpl kv;
     private Timestamp ts;
@@ -104,7 +104,7 @@ public class ServerWatchManagerTest {
     @BeforeEach
     public void setup() {
         ts = new Timestamp();
-        kvConfig = new KvConfig();
+        kvConfig = new KvServerConfig();
         pushRequestList = new LinkedList<>();
         tasks = new LinkedList<>();
         raftIndex = 1;

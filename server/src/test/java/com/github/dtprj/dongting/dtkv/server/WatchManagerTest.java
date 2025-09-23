@@ -142,7 +142,7 @@ public class WatchManagerTest implements KvListener {
         }
 
         @Override
-        protected void config(KvConfig config) {
+        protected void config(KvServerConfig config) {
             config.watchDispatchIntervalMillis = 1;
         }
     }

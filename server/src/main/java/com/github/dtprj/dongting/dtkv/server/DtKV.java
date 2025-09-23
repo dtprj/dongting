@@ -87,7 +87,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private final FiberGroup mainFiberGroup;
     private final RaftGroupConfigEx config;
-    private final KvConfig kvConfig;
+    private final KvServerConfig kvConfig;
     final boolean useSeparateExecutor;
 
     volatile KvStatus kvStatus;
@@ -98,7 +98,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private RaftGroupImpl raftGroup;
 
-    public DtKV(RaftGroupConfigEx config, KvConfig kvConfig) {
+    public DtKV(RaftGroupConfigEx config, KvServerConfig kvConfig) {
         this.mainFiberGroup = config.fiberGroup;
         this.config = config;
         this.useSeparateExecutor = kvConfig.useSeparateExecutor;

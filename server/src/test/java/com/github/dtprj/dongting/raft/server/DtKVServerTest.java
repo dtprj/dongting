@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
-import com.github.dtprj.dongting.dtkv.server.KvConfig;
+import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.WaitUtil;
@@ -44,7 +44,7 @@ public class DtKVServerTest extends ServerTestBase {
     private boolean useSepExecutor;
 
     @Override
-    protected void config(KvConfig config) {
+    protected void config(KvServerConfig config) {
         super.config(config);
         config.watchDispatchIntervalMillis = 0;
         config.useSeparateExecutor = this.useSepExecutor;
