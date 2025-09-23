@@ -46,7 +46,6 @@ public class KvNode implements Encodable {
     public final int flag;
     public static final int FLAG_DIR_MASK = 0x1;
     public static final int FLAG_LOCK_MASK = 0x2;
-    public static final int FLAG_NOTIFY_MASK = 0x4;
 
     private int encodeSize;
 

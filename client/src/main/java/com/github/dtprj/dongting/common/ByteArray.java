@@ -71,13 +71,6 @@ public class ByteArray implements Encodable, Comparable<ByteArray> {
         return new ByteArray(data, startPos + begin, end - begin);
     }
 
-    public byte get(int i) {
-        if (i < 0 || i >= length) {
-            throw new IndexOutOfBoundsException(String.valueOf(i));
-        }
-        return data[startPos + i];
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (obj == this) {
