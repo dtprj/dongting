@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.dtkv.server.KvReqCallback;
 import com.github.dtprj.dongting.raft.rpc.AppendReq;
 import com.github.dtprj.dongting.raft.rpc.AppendResp;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -30,7 +29,6 @@ public final class DecodeContextEx extends DecodeContext {
 
     private AppendReq.Callback appendReqCallback;
     private AppendResp.Callback appendRespCallback;
-    private KvReqCallback kvReqCallback;
 
     public DecodeContextEx() {
     }
@@ -52,12 +50,5 @@ public final class DecodeContextEx extends DecodeContext {
             appendRespCallback = new AppendResp.Callback();
         }
         return appendRespCallback;
-    }
-
-    public KvReqCallback kvReqCallback() {
-        if (kvReqCallback == null) {
-            kvReqCallback = new KvReqCallback();
-        }
-        return kvReqCallback;
     }
 }

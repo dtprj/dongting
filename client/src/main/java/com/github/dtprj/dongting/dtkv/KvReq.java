@@ -15,11 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
-import com.github.dtprj.dongting.codec.CodecException;
-import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.EncodeUtil;
-import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.codec.*;
 import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
@@ -162,6 +158,104 @@ public class KvReq extends RaftRpcData implements Encodable {
                 return values == null || EncodeUtil.encodeBytesList(context, destBuffer, IDX_VALUES, values);
             default:
                 throw new CodecException(context);
+        }
+    }
+
+    /**
+     * @author huangli
+     */
+    // re-used
+    public static class KvReqCallback extends PbCallback<KvReq> {
+
+        private int keysSize;
+        private long uuid1;
+        private long uuid2;
+        KvReq req;
+
+        @Override
+        protected void begin(int len) {
+            req = new KvReq();
+        }
+
+        @Override
+        protected boolean end(boolean success) {
+            req = null;
+            keysSize = 0;
+            uuid1 = 0;
+            uuid2 = 0;
+            return success;
+        }
+
+        @Override
+        public boolean readVarNumber(int index, long value) {
+            switch (index) {
+                case IDX_GROUP_ID:
+                    req.groupId = (int) value;
+                    break;
+                case IDX_TTL_MILLIS:
+                    req.ttlMillis = value;
+                    break;
+                case IDX_KEYS_SIZE:
+                    keysSize = (int) value;
+                    break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+            switch (index) {
+                case IDX_KEY:
+                    req.key = parseBytes(buf, fieldLen, currentPos);
+                    break;
+                case IDX_VALUE:
+                    req.value = parseBytes(buf, fieldLen, currentPos);
+                    break;
+                case IDX_KEYS:
+                    if (req.keys == null) {
+                        req.keys = createArrayList(keysSize);
+                    }
+                    byte[] k = parseBytes(buf, fieldLen, currentPos);
+                    if (k != null) {
+                        req.keys.add(k);
+                    }
+                    break;
+                case IDX_VALUES:
+                    if (req.values == null) {
+                        req.values = createArrayList(keysSize);
+                    }
+                    byte[] v = parseBytes(buf, fieldLen, currentPos);
+                    if (v != null) {
+                        req.values.add(v);
+                    }
+                    break;
+                case IDX_EXPECT_VALUE:
+                    req.expectValue = parseBytes(buf, fieldLen, currentPos);
+                    break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readFix64(int index, long value) {
+            switch (index) {
+                case IDX_OWNER_UUID1:
+                    uuid1 = value;
+                    break;
+                case IDX_OWNER_UUID2:
+                    uuid2 = value;
+                    break;
+            }
+            return true;
+        }
+
+        @Override
+        protected KvReq getResult() {
+            req.checkKeysAndValues();
+            if (uuid1 != 0 && uuid2 != 0) {
+                req.ownerUuid = new UUID(uuid1, uuid2);
+            }
+            return req;
         }
     }
 }

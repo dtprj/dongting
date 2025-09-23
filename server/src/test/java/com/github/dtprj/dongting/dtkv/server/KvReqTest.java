@@ -56,7 +56,7 @@ public class KvReqTest {
         DtKv.KvReq protoReq = DtKv.KvReq.parseFrom(buf);
         compare1(req, protoReq);
 
-        KvReqCallback callback = new KvReqCallback();
+        KvReq.KvReqCallback callback = new KvReq.KvReqCallback();
         KvReq r = CodecTestUtil.fullBufferDecode(buf, callback);
         compare2(req, r);
     }
@@ -64,7 +64,7 @@ public class KvReqTest {
     @Test
     public void testSmallBuffer() {
         KvReq req = buildReq();
-        KvReq r = (KvReq) CodecTestUtil.smallBufferEncodeAndParse(req, new KvReqCallback());
+        KvReq r = (KvReq) CodecTestUtil.smallBufferEncodeAndParse(req, new KvReq.KvReqCallback());
         compare2(req, r);
     }
 
