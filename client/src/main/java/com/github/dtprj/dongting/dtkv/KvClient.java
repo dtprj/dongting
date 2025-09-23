@@ -20,7 +20,8 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
-import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetException;
@@ -37,6 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -45,20 +47,19 @@ import java.util.stream.Collectors;
  * @author huangli
  */
 public class KvClient extends AbstractLifeCircle {
+    private static final DtLog log = DtLogs.getLogger(KvClient.class);
     private final RaftClient raftClient;
     private final WatchManager watchManager;
-
-    public static final byte SEPARATOR = '.';
-    public static final int MAX_KEY_SIZE = 8 * 1024;
-    public static final int MAX_VALUE_SIZE = 1024 * 1024;
+    private final KvClientConfig config;
 
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
     public KvClient() {
-        this(new NioClientConfig());
+        this(new KvClientConfig(), new NioClientConfig());
     }
 
-    public KvClient(NioClientConfig nioConfig) {
+    public KvClient(KvClientConfig config, NioClientConfig nioConfig) {
+        this.config = config;
         this.raftClient = new RaftClient(nioConfig);
         this.watchManager = createClientWatchManager();
         // use bizExecutor in NioClient
@@ -69,22 +70,57 @@ public class KvClient extends AbstractLifeCircle {
         return new WatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
     }
 
-    private void sendAsyncAndGetRaftIndex(int groupId, int cmd, KvReq req, int anotherSuccessCode, FutureCallback<Long> c) {
+    private static boolean isSuccess(int cmd, int bizCode) {
+        switch (cmd) {
+            case Commands.DTKV_PUT:
+            case Commands.DTKV_PUT_TEMP_NODE:
+                return bizCode == KvCodes.SUCCESS || bizCode == KvCodes.SUCCESS_OVERWRITE;
+            case Commands.DTKV_GET:
+            case Commands.DTKV_REMOVE:
+                return bizCode == KvCodes.SUCCESS || bizCode == KvCodes.NOT_FOUND;
+            case Commands.DTKV_MKDIR:
+            case Commands.DTKV_MAKE_TEMP_DIR:
+                return bizCode == KvCodes.SUCCESS || bizCode == KvCodes.DIR_EXISTS;
+            case Commands.DTKV_LIST:
+            case Commands.DTKV_BATCH_PUT:
+            case Commands.DTKV_BATCH_GET:
+            case Commands.DTKV_BATCH_REMOVE:
+            case Commands.DTKV_UPDATE_TTL:
+                return bizCode == KvCodes.SUCCESS;
+            case Commands.DTKV_CAS:
+                return true;
+            default:
+                log.error("unknown cmd: {}", cmd);
+                return false;
+        }
+    }
+
+    protected <T> void sendAsync(int groupId, int cmd, KvReq req, FutureCallback<T> c,
+                                 Function<ReadPacket<KvResp>, T> mapper) {
         DtTime timeout = raftClient.createDefaultTimeout();
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(req);
-        wf.command = cmd;
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(cmd, req);
+
         raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
-            if (ex != null) {
-                FutureCallback.callFail(c, ex);
+            if (config.executeCallbackInIoThread) {
+                asyncCallback(cmd, c, mapper, result, ex);
             } else {
-                int bc = result.bizCode;
-                if (bc == KvCodes.SUCCESS || bc == anotherSuccessCode) {
-                    FutureCallback.callSuccess(c, result.getBody().raftIndex);
-                } else {
-                    FutureCallback.callFail(c, new KvException(bc));
-                }
+                raftClient.getNioClient().getBizExecutor().submit(() -> asyncCallback(cmd, c, mapper, result, ex));
             }
         });
+    }
+
+    private <T> void asyncCallback(int cmd, FutureCallback<T> c, Function<ReadPacket<KvResp>, T> mapper,
+                                   ReadPacket<KvResp> result, Throwable ex) {
+        if (ex != null) {
+            FutureCallback.callFail(c, ex);
+        } else {
+            int bc = result.bizCode;
+            if (isSuccess(cmd, bc)) {
+                FutureCallback.callSuccess(c, mapper.apply(result));
+            } else {
+                FutureCallback.callFail(c, new KvException(bc));
+            }
+        }
     }
 
     private <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
@@ -100,17 +136,16 @@ public class KvClient extends AbstractLifeCircle {
         }
     }
 
-    private long sendSyncAndGetRaftIndex(int groupId, int cmd, KvReq req, int anotherSuccessCode) {
+    protected ReadPacket<KvResp> sendSync(int groupId, int cmd, KvReq req) {
         CompletableFuture<ReadPacket<KvResp>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
 
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(req);
-        wf.command = cmd;
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(cmd, req);
         raftClient.sendRequest(groupId, wf, DECODER, timeout, RpcCallback.fromFuture(f));
 
         ReadPacket<KvResp> p = waitFuture(f, timeout);
-        if (p.bizCode == KvCodes.SUCCESS || p.bizCode == anotherSuccessCode) {
-            return p.getBody().raftIndex;
+        if (isSuccess(cmd, p.bizCode)) {
+            return p;
         }
         // fill stack trace in caller's thread
         throw new KvException(p.bizCode);
@@ -134,7 +169,7 @@ public class KvClient extends AbstractLifeCircle {
         if (bs.length > maxKeySize) {
             return KvCodes.KEY_TOO_LONG;
         }
-        if (bs[0] == SEPARATOR || bs[bs.length - 1] == SEPARATOR) {
+        if (bs[0] == KvClientConfig.SEPARATOR || bs[bs.length - 1] == KvClientConfig.SEPARATOR) {
             return KvCodes.INVALID_KEY;
         }
         if (fullCheck) {
@@ -143,7 +178,7 @@ public class KvClient extends AbstractLifeCircle {
                 if (bs[i] == ' ') {
                     return KvCodes.INVALID_KEY;
                 }
-                if (bs[i] == SEPARATOR) {
+                if (bs[i] == KvClientConfig.SEPARATOR) {
                     if (lastSep == i - 1) {
                         return KvCodes.INVALID_KEY;
                     }
@@ -155,7 +190,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     private void checkKey(byte[] key, boolean allowEmpty) {
-        int c = checkKey(key, MAX_KEY_SIZE, allowEmpty, true);
+        int c = checkKey(key, KvClientConfig.MAX_KEY_SIZE, allowEmpty, true);
         if (c != KvCodes.SUCCESS) {
             throw new IllegalArgumentException("invalid key: " + KvCodes.toStr(c));
         }
@@ -163,36 +198,34 @@ public class KvClient extends AbstractLifeCircle {
 
     /**
      * Synchronously put a key-value pair into the kv store.
+     *
      * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
-     * @param value not null or empty
-     * @return raft index of this write operation, it is useless in most cases.
-     * @throws KvException If K/V node already exists without a tll, throws KvException with code IS_TEMP_NODE;
-     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     * @param key     not null or empty, use '.' as path separator
+     * @param value   not null or empty
+     * @throws KvException  If K/V node already exists with a tll, throws KvException with code IS_TEMP_NODE;
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long put(int groupId, byte[] key, byte[] value) throws KvException, NetException {
+    public void put(int groupId, byte[] key, byte[] value) throws KvException, NetException {
         checkKey(key, false);
         notNullOrEmpty(value, "value");
         KvReq r = new KvReq(groupId, key, value);
-        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_PUT, r, KvCodes.SUCCESS_OVERWRITE);
+        sendSync(groupId, Commands.DTKV_PUT, r);
     }
 
     /**
      * Asynchronously put a key-value pair into the kv store.
-     * If K/V node already exists without a tll, the callback will complete with a KvException with code IS_TEMP_NODE.
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
-     * @param value not null or empty
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * If K/V node already exists with a tll, the callback will complete with a KvException with code IS_TEMP_NODE.
+     *
+     * @param groupId  the raft group id
+     * @param key      not null or empty, use '.' as path separator
+     * @param value    not null or empty
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
-    public void put(int groupId, byte[] key, byte[] value, FutureCallback<Long> callback) {
+    public void put(int groupId, byte[] key, byte[] value, FutureCallback<Void> callback) {
         checkKey(key, false);
         notNullOrEmpty(value, "value");
         KvReq r = new KvReq(groupId, key, value);
-        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_PUT, r, KvCodes.SUCCESS_OVERWRITE, callback);
+        sendAsync(groupId, Commands.DTKV_PUT, r, callback, v -> null);
     }
 
     /**
@@ -201,20 +234,19 @@ public class KvClient extends AbstractLifeCircle {
      * Only the client who created the temporary K/V node can update or remove it.
      *
      * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
-     * @param value not null or empty
-     * @return raft index of this write operation, it is useless in most cases.
-     * @throws KvException If K/V node already exists without a tll, throws KvException with code NOT_TEMP_NODE;
-     *                     If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
-     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     * @param key     not null or empty, use '.' as path separator
+     * @param value   not null or empty
+     * @throws KvException  If K/V node already exists without a tll, throws KvException with code NOT_TEMP_NODE;
+     *                      If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long putTemp(int groupId, byte[] key, byte[] value, long ttlMillis) throws KvException, NetException {
+    public void putTemp(int groupId, byte[] key, byte[] value, long ttlMillis) throws KvException, NetException {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         checkKey(key, false);
         notNullOrEmpty(value, "value");
 
         KvReq r = new KvReq(groupId, key, value, ttlMillis);
-        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_PUT_TEMP_NODE, r, KvCodes.SUCCESS_OVERWRITE);
+        sendSync(groupId, Commands.DTKV_PUT_TEMP_NODE, r);
     }
 
     /**
@@ -223,135 +255,95 @@ public class KvClient extends AbstractLifeCircle {
      * If K/V node already exists with a tll, it will be overwritten and ttl will be updated.
      * If K/V node already exists without a tll, the callback will complete with a KvException with code NOT_TEMP_NODE.
      * If try to update K/V node created by another client, the callback will complete with a KvException with code NOT_OWNER.
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
-     * @param value not null or empty
+     *
+     * @param groupId   the raft group id
+     * @param key       not null or empty, use '.' as path separator
+     * @param value     not null or empty
      * @param ttlMillis time to live in milliseconds, must be positive
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * @param callback  the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
-    public void putTemp(int groupId, byte[] key, byte[] value, long ttlMillis, FutureCallback<Long> callback) {
+    public void putTemp(int groupId, byte[] key, byte[] value, long ttlMillis, FutureCallback<Void> callback) {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         checkKey(key, false);
         notNullOrEmpty(value, "value");
 
         KvReq r = new KvReq(groupId, key, value, ttlMillis);
-        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_PUT_TEMP_NODE, r, KvCodes.SUCCESS_OVERWRITE, callback);
+        sendAsync(groupId, Commands.DTKV_PUT_TEMP_NODE, r, callback, v -> null);
     }
 
     /**
      * synchronously get operation from the kv store.
+     *
      * @param groupId the raft group id
-     * @param key use '.' as path separator, null or empty indicates the root node
+     * @param key     use '.' as path separator, null or empty indicates the root node
      * @return the KvNode contains value and meta information, return null if not found
+     * @throws KvException  any biz exception
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public KvNode get(int groupId, byte[] key) throws NetException {
+    public KvNode get(int groupId, byte[] key) throws KvException, NetException {
         checkKey(key, true);
         KvReq r = new KvReq(groupId, key, null);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.command = Commands.DTKV_GET;
-        CompletableFuture<ReadPacket<KvResp>> f = new CompletableFuture<>();
-
-        DtTime timeout = raftClient.createDefaultTimeout();
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, RpcCallback.fromFuture(f));
-        ReadPacket<KvResp> p = waitFuture(f, timeout);
-        int bc = p.bizCode;
-        if (bc == KvCodes.SUCCESS || bc == KvCodes.NOT_FOUND) {
-            KvResp resp = p.getBody();
-            return (resp == null || resp.results == null || resp.results.isEmpty()) ? null : resp.results.get(0).getNode();
-        } else {
-            throw new KvException(bc);
-        }
+        return mapToKvNode(sendSync(groupId, Commands.DTKV_GET, r));
     }
 
     /**
      * asynchronously get operation from the kv store.
-     * @param groupId the raft group id
-     * @param key use '.' as path separator, null or empty indicates the root node
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     *
+     * @param groupId  the raft group id
+     * @param key      use '.' as path separator, null or empty indicates the root node
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
     public void get(int groupId, byte[] key, FutureCallback<KvNode> callback) {
         checkKey(key, true);
-        KvReq r = new KvReq(groupId, key, null);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.command = Commands.DTKV_GET;
-
-        raftClient.sendRequest(groupId, wf, DECODER, raftClient.createDefaultTimeout(), (result, ex) -> {
-            if (ex != null) {
-                FutureCallback.callFail(callback, ex);
-            } else {
-                int bc = result.bizCode;
-                if (bc == KvCodes.SUCCESS || bc == KvCodes.NOT_FOUND) {
-                    KvResp resp = result.getBody();
-                    KvNode n = (resp == null || resp.results == null || resp.results.isEmpty()) ? null : resp.results.get(0).getNode();
-                    FutureCallback.callSuccess(callback, n);
-                } else {
-                    FutureCallback.callFail(callback, new KvException(bc));
-                }
-            }
-        });
+        KvReq req = new KvReq(groupId, key, null);
+        sendAsync(groupId, Commands.DTKV_GET, req, callback, KvClient::mapToKvNode);
     }
 
-    /**
-     * synchronously list operation from the kv store.
-     * @param groupId the raft group id
-     * @param key use '.' as path separator, null or empty indicates the root node
-     * @return the KvNode contains value and meta information, return null if the key is not found
-     */
-    public List<KvResult> list(int groupId, byte[] key) throws KvException, NetException {
-        checkKey(key, true);
-        CompletableFuture<ReadPacket<KvResp>> f = new CompletableFuture<>();
-        KvReq r = new KvReq(groupId, key, null);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.command = Commands.DTKV_LIST;
-
-        DtTime timeout = raftClient.createDefaultTimeout();
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, RpcCallback.fromFuture(f));
-
-        ReadPacket<KvResp> result = waitFuture(f, timeout);
-        int bc = result.bizCode;
-        if (bc == KvCodes.SUCCESS) {
-            KvResp resp = result.getBody();
-            return (resp == null || resp.results == null) ? Collections.emptyList() : resp.results;
+    private static KvNode mapToKvNode(ReadPacket<KvResp> p) {
+        KvResp resp = p.getBody();
+        if (resp == null || resp.results == null || resp.results.isEmpty()) {
+            return null;
         } else {
-            throw new KvException(bc);
+            return resp.results.get(0).getNode();
         }
     }
 
     /**
-     * asynchronously list operation from the kv store.
+     * synchronously list operation from the kv store.
+     *
      * @param groupId the raft group id
-     * @param key use '.' as path separator, null or empty indicates the root node
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * @param key     use '.' as path separator, null or empty indicates the root node
+     * @return the KvNode list contains value and meta information, return empty list if no child
+     * @throws KvException  if the key is not a directory, throws KvException with code PARENT_NOT_DIR.
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
+     */
+    public List<KvResult> list(int groupId, byte[] key) throws KvException, NetException {
+        checkKey(key, true);
+        KvReq r = new KvReq(groupId, key, null);
+        return mapToKvResultList(sendSync(groupId, Commands.DTKV_LIST, r));
+    }
+
+    /**
+     * asynchronously list operation from the kv store.
+     * if the key is not a directory, the callback will complete with a KvException with code PARENT_NOT_DIR.
+     *
+     * @param groupId  the raft group id
+     * @param key      use '.' as path separator, null or empty indicates the root node
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
     public void list(int groupId, byte[] key, FutureCallback<List<KvResult>> callback) {
         checkKey(key, true);
         KvReq r = new KvReq(groupId, key, null);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.command = Commands.DTKV_LIST;
+        sendAsync(groupId, Commands.DTKV_LIST, r, callback, KvClient::mapToKvResultList);
+    }
 
-        raftClient.sendRequest(groupId, wf, DECODER, raftClient.createDefaultTimeout(), (result, ex) -> {
-            if (ex != null) {
-                FutureCallback.callFail(callback, ex);
-            } else {
-                int bc = result.bizCode;
-                if (bc == KvCodes.SUCCESS) {
-                    KvResp resp = result.getBody();
-                    FutureCallback.callSuccess(callback, (resp == null || resp.results == null)
-                            ? Collections.emptyList() : resp.results);
-                } else {
-                    FutureCallback.callFail(callback, new KvException(bc));
-                }
-            }
-        });
+    private static List<KvResult> mapToKvResultList(ReadPacket<KvResp> p) {
+        KvResp resp = p.getBody();
+        if (resp == null || resp.results == null) {
+            return Collections.emptyList();
+        } else {
+            return resp.results;
+        }
     }
 
     /**
@@ -359,154 +351,143 @@ public class KvClient extends AbstractLifeCircle {
      * This method can be used to remove a K/V node which is temporary or permanent. However, a client can only remove
      * a temporary K/V node created by itself, otherwise it will throw a KvException with code NOT_OWNER.
      * If the key is a directory, it will only be removed if it is empty.
-     * If the K/V node is not exists, do nothing and return the new raft index.
+     * If the K/V node is not exists, do nothing.
+     *
      * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
-     * @return raft index of this write operation, it is useless in most cases.
-     * @throws KvException if the K/V node is not temporary, throws KvException with code NOT_TEMP_NODE;
-     *                     if the K/V node is temporary but created by another client, throws KvException with code NOT_OWNER.
-     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     * @param key     not null or empty, use '.' as path separator
+     * @throws KvException  if the K/V node is temporary but created by another client, throws KvException with code NOT_OWNER.
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long remove(int groupId, byte[] key) throws KvException, NetException {
+    public void remove(int groupId, byte[] key) throws KvException, NetException {
         checkKey(key, false);
         KvReq r = new KvReq(groupId, key, null);
-        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_REMOVE, r, KvCodes.NOT_FOUND);
+        sendSync(groupId, Commands.DTKV_REMOVE, r);
     }
 
     /**
      * asynchronously remove a key from the kv store.
      * This method can be used to remove a K/V node which is temporary or permanent. However, a client can only remove
      * a temporary K/V node created by itself, otherwise the callback will complete with a KvException with code NOT_OWNER.
-     * If the K/V node is not exists, do nothing and complete the callback with the new raft index.
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * If the K/V node is not exists, do nothing.
+     *
+     * @param groupId  the raft group id
+     * @param key      not null or empty, use '.' as path separator
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
-    public void remove(int groupId, byte[] key, FutureCallback<Long> callback) {
+    public void remove(int groupId, byte[] key, FutureCallback<Void> callback) {
         checkKey(key, false);
 
         KvReq r = new KvReq(groupId, key, null);
-        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_REMOVE, r, KvCodes.NOT_FOUND, callback);
+        sendAsync(groupId, Commands.DTKV_REMOVE, r, callback, v -> null);
     }
 
     /**
-     * synchronously create a directory. If the directory already exists, do nothing and return the new raft index.
+     * synchronously create a directory. If the directory already exists, do nothing.
+     *
      * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
-     * @return raft index of this write operation, it is useless in most cases.
-     * @throws KvException if the exists K/V node is temporary, throws KvException with code IS_TEMP_NODE;
-     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     * @param key     not null or empty, use '.' as path separator
+     * @throws KvException  if the exists K/V node is temporary, throws KvException with code IS_TEMP_NODE;
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long mkdir(int groupId, byte[] key) throws KvException, NetException {
+    public void mkdir(int groupId, byte[] key) throws KvException, NetException {
         checkKey(key, false);
 
         KvReq r = new KvReq(groupId, key, null);
-        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_MKDIR, r, KvCodes.DIR_EXISTS);
+        sendSync(groupId, Commands.DTKV_MKDIR, r);
     }
 
     /**
-     * asynchronously create a directory. If the directory already exists, do nothing and complete the callback with
-     * the new raft index.
-     * @param groupId the raft group id throws KvException, NetException {
-     * @param key not null or empty, use '.' as path separator
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * asynchronously create a directory. If the directory already exists, do nothing.
+     *
+     * @param groupId  the raft group id throws KvException, NetException {
+     * @param key      not null or empty, use '.' as path separator
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
-    public void mkdir(int groupId, byte[] key, FutureCallback<Long> callback) {
+    public void mkdir(int groupId, byte[] key, FutureCallback<Void> callback) {
         checkKey(key, false);
         KvReq r = new KvReq(groupId, key, null);
-        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_MKDIR, r, KvCodes.DIR_EXISTS, callback);
+        sendAsync(groupId, Commands.DTKV_MKDIR, r, callback, v -> null);
     }
 
     /**
      * Synchronously create a temporary directory with a ttl.
-     *
+     * <p>
      * Only the client who created the temporary directory can update ttl or remove it. Temporary directory can
      * contain normal nodes (anyone can write) or temporary nodes, all sub-nodes will be removed when the temporary
      * dir expired.
-     *
+     * <p>
      * If the directory already exists, and it's a temporary directory created by this client, update ttl and
      * return the new raft index.
      *
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
+     * @param groupId   the raft group id
+     * @param key       not null or empty, use '.' as path separator
      * @param ttlMillis time to live in milliseconds, must be positive
-     * @return raft index of this write operation, it is useless in most cases.
-     * @throws KvException If the exists K/V node is not temporary, throws KvException with code NOT_TEMP_NODE;
-     *                     If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
-     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     * @throws KvException  If the exists K/V node is not temporary, throws KvException with code NOT_TEMP_NODE;
+     *                      If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long makeTempDir(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
+    public void makeTempDir(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         checkKey(key, false);
         KvReq r = new KvReq(groupId, key, null, ttlMillis);
-        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_MAKE_TEMP_DIR, r, KvCodes.DIR_EXISTS);
+        sendSync(groupId, Commands.DTKV_MAKE_TEMP_DIR, r);
     }
 
     /**
      * Asynchronously create a temporary directory with a ttl.
-     *
+     * <p>
      * Only the client who created the temporary directory can update ttl or remove it. Temporary directory can
      * contain normal nodes (anyone can write) or temporary nodes, all sub-nodes will be removed when the temporary
      * dir expired.
-     *
+     * <p>
      * If the directory already exists, and it's a temporary directory created by this client, update ttl and
      * complete the callback with the new raft index.
      *
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
+     * @param groupId   the raft group id
+     * @param key       not null or empty, use '.' as path separator
      * @param ttlMillis time to live in milliseconds, must be positive
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * @param callback  the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
-    public void makeTempDir(int groupId, byte[] key, long ttlMillis, FutureCallback<Long> callback) {
+    public void makeTempDir(int groupId, byte[] key, long ttlMillis, FutureCallback<Void> callback) {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         checkKey(key, false);
         KvReq r = new KvReq(groupId, key, null, ttlMillis);
-        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_MAKE_TEMP_DIR, r, KvCodes.DIR_EXISTS, callback);
+        sendAsync(groupId, Commands.DTKV_MAKE_TEMP_DIR, r, callback, v -> null);
     }
 
     /**
      * synchronously batch put operation.
+     *
      * @param groupId the raft group id
-     * @param keys list of keys, key should not null or empty, use '.' as path separator
-     * @param values list of values, not null or empty
-     * @return KvResp contains raft index of this operation and a list of KvResult,
-     *         you may check bizCode of each KvResult
+     * @param keys    list of keys, key should not null or empty, use '.' as path separator
+     * @param values  list of values, not null or empty
+     * @return list of KvResult, you may check bizCode of each KvResult
+     * @throws KvException  any biz exception
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      * @see KvCodes
      */
-    public KvResp batchPut(int groupId, List<byte[]> keys, List<byte[]> values) throws NetException {
-        CompletableFuture<KvResp> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        batchPut(groupId, keys, values, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+    public List<KvResult> batchPut(int groupId, List<byte[]> keys, List<byte[]> values) throws KvException, NetException {
+        checkBatchPut(keys, values);
+        KvReq r = new KvReq(groupId, keys, values);
+        return mapToKvResultList(sendSync(groupId, Commands.DTKV_BATCH_PUT, r));
     }
 
     /**
-     * asynchronously batch put operation. The KvResp in callback contains raft index of this operation and
-     * a list of KvResult, you may check bizCode of each KvResult.
-     * @param groupId the raft group id
-     * @param keys list of keys, key should not null or empty, use '.' as path separator
-     * @param values list of values, not null or empty
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * asynchronously batch put operation.
+     *
+     * @param groupId  the raft group id
+     * @param keys     list of keys, key should not null or empty, use '.' as path separator
+     * @param values   list of values, not null or empty
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      * @see KvCodes
      */
-    public void batchPut(int groupId, List<byte[]> keys, List<byte[]> values, FutureCallback<KvResp> callback) {
-        batchPut(groupId, keys, values, raftClient.createDefaultTimeout(), callback);
+    public void batchPut(int groupId, List<byte[]> keys, List<byte[]> values, FutureCallback<List<KvResult>> callback) {
+        checkBatchPut(keys, values);
+        KvReq r = new KvReq(groupId, keys, values);
+        sendAsync(groupId, Commands.DTKV_BATCH_PUT, r, callback, KvClient::mapToKvResultList);
     }
 
-    private void batchPut(int groupId, List<byte[]> keys, List<byte[]> values,
-                          DtTime timeout, FutureCallback<KvResp> callback) {
+    private void checkBatchPut(List<byte[]> keys, List<byte[]> values) {
         Objects.requireNonNull(keys);
         Objects.requireNonNull(values);
         if (keys.isEmpty() || keys.size() != values.size()) {
@@ -518,57 +499,48 @@ public class KvClient extends AbstractLifeCircle {
         for (byte[] value : values) {
             notNullOrEmpty(value, "value");
         }
-        KvReq r = new KvReq(groupId, keys, values);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.command = Commands.DTKV_BATCH_PUT;
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, kvRespCallback(callback));
-    }
-
-    private static RpcCallback<KvResp> kvRespCallback(FutureCallback<KvResp> callback) {
-        return (result, ex) -> {
-            if (ex != null) {
-                FutureCallback.callFail(callback, ex);
-            } else {
-                int bc = result.bizCode;
-                if (bc == KvCodes.SUCCESS) {
-                    KvResp resp = result.getBody();
-                    FutureCallback.callSuccess(callback, resp);
-                } else {
-                    FutureCallback.callFail(callback, new KvException(bc));
-                }
-            }
-        };
     }
 
     /**
      * synchronously batch get operation.
+     *
      * @param groupId the raft group id
-     * @param keys list of keys, use '.' as path separator
+     * @param keys    list of keys, use '.' as path separator
      * @return list of KvNode contains values and meta information, if a key not found,
-     *         the corresponding KvNode will be null.
+     * the corresponding KvNode will be null.
+     * @throws KvException  any biz exception
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public List<KvNode> batchGet(int groupId, List<byte[]> keys) throws NetException {
-        CompletableFuture<List<KvNode>> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        batchGet(groupId, keys, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+    public List<KvNode> batchGet(int groupId, List<byte[]> keys) throws KvException, NetException {
+        checkBatchKeys(keys);
+        KvReq r = new KvReq(groupId, keys, null);
+        return mapToKvNodeList(sendSync(groupId, Commands.DTKV_BATCH_GET, r));
     }
 
     /**
      * asynchronously batch get operation. The callback gives a list of KvNode contains values and meta information,
      * if a key not found, the corresponding KvNode will be null.
-     * @param groupId the raft group id
-     * @param keys list of keys, use '.' as path separator
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     *
+     * @param groupId  the raft group id
+     * @param keys     list of keys, use '.' as path separator
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
     public void batchGet(int groupId, List<byte[]> keys, FutureCallback<List<KvNode>> callback) {
-        batchGet(groupId, keys, raftClient.createDefaultTimeout(), callback);
+        checkBatchKeys(keys);
+        KvReq r = new KvReq(groupId, keys, null);
+        sendAsync(groupId, Commands.DTKV_BATCH_GET, r, callback, KvClient::mapToKvNodeList);
     }
 
-    private void batchGet(int groupId, List<byte[]> keys, DtTime timeout, FutureCallback<List<KvNode>> callback) {
+    private static List<KvNode> mapToKvNodeList(ReadPacket<KvResp> p) {
+        KvResp kvResp = p.getBody();
+        if (kvResp == null || kvResp.results == null) {
+            return Collections.emptyList();
+        } else {
+            return kvResp.results.stream().map(KvResult::getNode).collect(Collectors.toList());
+        }
+    }
+
+    private void checkBatchKeys(List<byte[]> keys) {
         Objects.requireNonNull(keys);
         if (keys.isEmpty()) {
             throw new IllegalArgumentException("keys must not be empty");
@@ -576,159 +548,112 @@ public class KvClient extends AbstractLifeCircle {
         for (byte[] key : keys) {
             checkKey(key, true);
         }
-        KvReq r = new KvReq(groupId, keys, null);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.command = Commands.DTKV_BATCH_GET;
-
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
-            if (ex != null) {
-                FutureCallback.callFail(callback, ex);
-            } else {
-                int bc = result.bizCode;
-                if (bc == KvCodes.SUCCESS) {
-                    KvResp resp = result.getBody();
-                    if (resp == null || resp.results == null) {
-                        FutureCallback.callSuccess(callback, Collections.emptyList());
-                    } else {
-                        List<KvNode> nodes = resp.results.stream().map(KvResult::getNode).collect(Collectors.toList());
-                        FutureCallback.callSuccess(callback, nodes);
-                    }
-                } else {
-                    FutureCallback.callFail(callback, new KvException(bc));
-                }
-            }
-        });
     }
 
     /**
      * synchronously batch remove operation.
+     *
      * @param groupId the raft group id
-     * @param keys list of keys, key should not null or empty, use '.' as path separator
-     * @return KvResp contains raft index of this operation and a list of KvResult,
-     *         you may check bizCode of each KvResult
+     * @param keys    list of keys, key should not null or empty, use '.' as path separator
+     * @return list of KvResult, you may check bizCode of each KvResult
+     * @throws KvException  any biz exception
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      * @see KvCodes
      */
-    public KvResp batchRemove(int groupId, List<byte[]> keys) throws NetException {
-        CompletableFuture<KvResp> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        batchRemove(groupId, keys, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout);
+    public List<KvResult> batchRemove(int groupId, List<byte[]> keys) throws KvException, NetException {
+        checkBatchKeys(keys);
+        KvReq r = new KvReq(groupId, keys, null);
+        return mapToKvResultList(sendSync(groupId, Commands.DTKV_BATCH_REMOVE, r));
     }
 
     /**
-     * asynchronously batch remove operation. The KvResp in callback contains raft index of this operation
-     * and a list of KvResult, you may check bizCode of each KvResult.
-     * @param groupId the raft group id
-     * @param keys list of keys, key should not null or empty, use '.' as path separator
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * asynchronously batch remove operation.
+     *
+     * @param groupId  the raft group id
+     * @param keys     list of keys, key should not null or empty, use '.' as path separator
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      * @see KvCodes
      */
-    public void batchRemove(int groupId, List<byte[]> keys, FutureCallback<KvResp> callback) {
-        batchRemove(groupId, keys, raftClient.createDefaultTimeout(), callback);
-    }
-
-    private void batchRemove(int groupId, List<byte[]> keys, DtTime timeout, FutureCallback<KvResp> callback) {
-        Objects.requireNonNull(keys);
-        if (keys.isEmpty()) {
-            throw new IllegalArgumentException("keys must not be empty");
-        }
-        for (byte[] key : keys) {
-            checkKey(key, false);
-        }
+    public void batchRemove(int groupId, List<byte[]> keys, FutureCallback<List<KvResult>> callback) {
+        checkBatchKeys(keys);
         KvReq r = new KvReq(groupId, keys, null);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.command = Commands.DTKV_BATCH_REMOVE;
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, kvRespCallback(callback));
+        sendAsync(groupId, Commands.DTKV_BATCH_REMOVE, r, callback, KvClient::mapToKvResultList);
     }
 
     /**
      * Synchronously compare and set operation.
      * This operation can't be used to create a directory or operate on a temporary node.
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
+     *
+     * @param groupId     the raft group id
+     * @param key         not null or empty, use '.' as path separator
      * @param expectValue the expected value, null or empty indicates the key not exist
-     * @param newValue the new value, null or empty indicates delete the key
+     * @param newValue    the new value, null or empty indicates delete the key
      * @return true if the operation is successful
      */
     public boolean compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue) throws NetException {
-        CompletableFuture<Pair<Long, Integer>> f = new CompletableFuture<>();
-        DtTime timeout = raftClient.createDefaultTimeout();
-        compareAndSet(groupId, key, expectValue, newValue, timeout, FutureCallback.fromFuture(f));
-        return waitFuture(f, timeout).getRight() == KvCodes.SUCCESS;
-    }
-
-    /**
-     * Asynchronously compare and set operation.
-     * This operation can't be used to create a directory or operate on a temporary node.
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
-     * @param expectValue the expected value, null or empty indicates the key not exist
-     * @param newValue the new value, null or empty indicates delete the key
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
-     */
-    public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
-                              FutureCallback<Pair<Long, Integer>> callback) {
-        compareAndSet(groupId, key, expectValue, newValue, raftClient.createDefaultTimeout(), callback);
-    }
-
-    private void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
-                               DtTime timeout, FutureCallback<Pair<Long, Integer>> callback) {
         checkKey(key, false);
         if ((expectValue == null || expectValue.length == 0) && (newValue == null || newValue.length == 0)) {
             throw new IllegalArgumentException("expectValue and newValue can't both be null or empty");
         }
         KvReq r = new KvReq(groupId, key, newValue, expectValue);
-        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(r);
-        wf.command = Commands.DTKV_CAS;
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
-            if (ex != null) {
-                FutureCallback.callFail(callback, ex);
-            } else {
-                int bc = result.bizCode;
-                long raftIndex = result.getBody().raftIndex;
-                FutureCallback.callSuccess(callback, new Pair<>(raftIndex, bc));
-            }
-        });
+        ReadPacket<KvResp> p = sendSync(groupId, Commands.DTKV_CAS, r);
+        return isCasSuccess(p);
+    }
+
+    /**
+     * Asynchronously compare and set operation.
+     * This operation can't be used to create a directory or operate on a temporary node.
+     *
+     * @param groupId     the raft group id
+     * @param key         not null or empty, use '.' as path separator
+     * @param expectValue the expected value, null or empty indicates the key not exist
+     * @param newValue    the new value, null or empty indicates delete the key
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
+     */
+    public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
+                              FutureCallback<Boolean> callback) {
+        checkKey(key, false);
+        if ((expectValue == null || expectValue.length == 0) && (newValue == null || newValue.length == 0)) {
+            throw new IllegalArgumentException("expectValue and newValue can't both be null or empty");
+        }
+        KvReq r = new KvReq(groupId, key, newValue, expectValue);
+        sendAsync(groupId, Commands.DTKV_CAS, r, callback, KvClient::isCasSuccess);
+    }
+
+    private static boolean isCasSuccess(ReadPacket<KvResp> p) {
+        return p.bizCode == KvCodes.SUCCESS;
     }
 
     /**
      * Synchronously update the ttl of a temporary node.
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
+     *
+     * @param groupId   the raft group id
+     * @param key       not null or empty, use '.' as path separator
      * @param ttlMillis time to live in milliseconds, must be positive
-     * @return raft index of this write operation, it is useless in most cases.
      * @throws KvException If the key is not a temporary node, throws KvException with code NOT_TEMP_NODE;
      *                     If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
-     * @throws com.github.dtprj.dongting.net.NetException any other exception such as network error, timeout, interrupted, etc.
+     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    public long updateTtl(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
+    public void updateTtl(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
         checkKey(key, false);
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         KvReq r = new KvReq(groupId, key, null, ttlMillis);
-        return sendSyncAndGetRaftIndex(groupId, Commands.DTKV_UPDATE_TTL, r, KvCodes.SUCCESS);
+        sendSync(groupId, Commands.DTKV_UPDATE_TTL, r);
     }
 
     /**
      * Asynchronously update the ttl of a temporary node.
-     * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
+     *
+     * @param groupId   the raft group id
+     * @param key       not null or empty, use '.' as path separator
      * @param ttlMillis time to live in milliseconds, must be positive
-     * @param callback the callback to be called when the operation is finished. It is important to note that callbacks
-     *                 for asynchronous operations may be executed on NioClient worker thread (single thread).
-     *                 Therefore, you should never perform any blocking or CPU-intensive operations within
-     *                 these callbacks.
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
-    public void updateTtl(int groupId, byte[] key, long ttlMillis, FutureCallback<Long> callback) {
+    public void updateTtl(int groupId, byte[] key, long ttlMillis, FutureCallback<Void> callback) {
         checkKey(key, false);
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         KvReq r = new KvReq(groupId, key, null, ttlMillis);
-        sendAsyncAndGetRaftIndex(groupId, Commands.DTKV_UPDATE_TTL, r, KvCodes.SUCCESS, callback);
+        sendAsync(groupId, Commands.DTKV_UPDATE_TTL, r, callback, v -> null);
     }
 
     @Override

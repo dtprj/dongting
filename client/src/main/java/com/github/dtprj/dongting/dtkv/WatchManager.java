@@ -116,7 +116,7 @@ public class WatchManager {
         Objects.requireNonNull(keys);
         for (byte[] key : keys) {
             Objects.requireNonNull(key);
-            int c = KvClient.checkKey(key, KvClient.MAX_KEY_SIZE, false, true);
+            int c = KvClient.checkKey(key, KvClientConfig.MAX_KEY_SIZE, false, true);
             if (c != KvCodes.SUCCESS) {
                 throw new IllegalArgumentException(KvCodes.toStr(c));
             }

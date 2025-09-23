@@ -21,39 +21,42 @@ package com.github.dtprj.dongting.dtkv;
 public interface KvCodes {
 
     int SUCCESS = 0;
-    int NOT_FOUND = 1;
-    int SUCCESS_OVERWRITE = 2;
-    int DIR_EXISTS = 3;
-    int VALUE_EXISTS = 4;
-    int PARENT_NOT_DIR = 5;
-    int INVALID_KEY = 6;
-    int INVALID_VALUE = 7;
-    int PARENT_DIR_NOT_EXISTS = 8;
-    int HAS_CHILDREN = 9;
-    int KEY_TOO_LONG = 10;
-    int VALUE_TOO_LONG = 11;
-    int INSTALL_SNAPSHOT = 12;
-    int CAS_MISMATCH = 13;
-    int CLIENT_REQ_ERROR = 14;
-    int REMOVE_WATCH = 15;
-    int REMOVE_ALL_WATCH = 16;
-    int NOT_OWNER = 17;
-    int NOT_TEMP_NODE = 18;
-    int IS_TEMP_NODE = 19;
-    int NOT_EXPIRED = 20;
-    int INVALID_TTL = 21;
-    int TTL_INDEX_MISMATCH = 22;
-    int UNDER_TEMP_DIR = 23;
-    int PARENT_IS_LOCK = 24;
-    int NOT_LOCK_NODE = 25;
-    int LOCK_BY_SELF = 26;
-    int LOCK_BY_OTHER = 27;
+    int ERROR = 1;
+    int NOT_FOUND = 2;
+    int SUCCESS_OVERWRITE = 3;
+    int DIR_EXISTS = 4;
+    int VALUE_EXISTS = 5;
+    int PARENT_NOT_DIR = 6;
+    int INVALID_KEY = 7;
+    int INVALID_VALUE = 8;
+    int PARENT_DIR_NOT_EXISTS = 9;
+    int HAS_CHILDREN = 10;
+    int KEY_TOO_LONG = 11;
+    int VALUE_TOO_LONG = 12;
+    int INSTALL_SNAPSHOT = 13;
+    int CAS_MISMATCH = 14;
+    int CLIENT_REQ_ERROR = 15;
+    int REMOVE_WATCH = 16;
+    int REMOVE_ALL_WATCH = 17;
+    int NOT_OWNER = 18;
+    int NOT_TEMP_NODE = 19;
+    int IS_TEMP_NODE = 20;
+    int NOT_EXPIRED = 21;
+    int INVALID_TTL = 22;
+    int TTL_INDEX_MISMATCH = 23;
+    int UNDER_TEMP_DIR = 24;
+    int PARENT_IS_LOCK = 25;
+    int NOT_LOCK_NODE = 26;
+    int LOCK_BY_SELF = 27;
+    int LOCK_BY_OTHER = 28;
 
 
     static String toStr(int code) {
         switch (code) {
             case SUCCESS:
                 return "SUCCESS";
+            case ERROR:
+                return "ERROR";
             case NOT_FOUND:
                 return "NOT_FOUND";
             case SUCCESS_OVERWRITE:

@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.dtkv.KvClient;
+import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
@@ -82,7 +82,7 @@ public class KvServerUtil {
         byte[] lockKey = new byte[pb.length + 33];
         System.arraycopy(pb, 0, lockKey, 0, pb.length);
         int pos = pb.length;
-        lockKey[pos++] = KvClient.SEPARATOR;
+        lockKey[pos++] = KvClientConfig.SEPARATOR;
         for (int shiftBits = 60; shiftBits >= 0; shiftBits -= 4) {
             lockKey[pos++] = HEX[(int) ((uuid1 >>> shiftBits) & 0xF)];
         }
@@ -105,7 +105,7 @@ public class KvServerUtil {
         
         // Check if the separator is at the expected position (倒数33位)
         int separatorPos = keyBytes.length - 33;
-        if (keyBytes[separatorPos] != KvClient.SEPARATOR) {
+        if (keyBytes[separatorPos] != KvClientConfig.SEPARATOR) {
             return null;
         }
         

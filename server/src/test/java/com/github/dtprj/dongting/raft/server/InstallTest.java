@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -146,20 +145,17 @@ public class InstallTest extends ServerTestBase {
     static long putValues(int groupId, KvClient client, String keyPrefix, int count, int bodySize,
                           HashMap<String, byte[]> expectMap) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(count);
-        AtomicLong lastRaftIndex = new AtomicLong(0);
         Random r = new Random();
+        String lastKey = null;
         for (int keyIndex = 0; keyIndex < count; keyIndex++) {
-            String key = keyPrefix + keyIndex;
+            lastKey = keyPrefix + keyIndex;
             byte[] body = new byte[bodySize];
             r.nextBytes(body);
-            expectMap.put(key, body);
-            client.put(groupId, key.getBytes(), body, (raftIndex, ex) -> {
-                lastRaftIndex.set(raftIndex);
-                latch.countDown();
-            });
+            expectMap.put(lastKey, body);
+            client.put(groupId, lastKey.getBytes(), body, (raftIndex, ex) -> latch.countDown());
         }
         assertTrue(latch.await(5, TimeUnit.SECONDS));
-        return lastRaftIndex.get();
+        return client.get(groupId, lastKey.getBytes()).updateIndex;
     }
 
 

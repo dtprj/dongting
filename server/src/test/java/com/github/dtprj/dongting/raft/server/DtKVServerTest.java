@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvNode;
-import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.server.KvConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
@@ -135,11 +134,11 @@ public class DtKVServerTest extends ServerTestBase {
         assertNull(result);
 
         // Test batchPut
-        KvResp batchPutResults = client.batchPut(groupId, Arrays.asList("batchK1".getBytes(), "batchK2".getBytes()),
+        List<KvResult> batchPutResults = client.batchPut(groupId, Arrays.asList("batchK1".getBytes(), "batchK2".getBytes()),
                 Arrays.asList("v1".getBytes(), "v2".getBytes()));
-        assertEquals(2, batchPutResults.results.size());
-        assertEquals(KvCodes.SUCCESS, batchPutResults.results.get(0).getBizCode());
-        assertEquals(KvCodes.SUCCESS, batchPutResults.results.get(1).getBizCode());
+        assertEquals(2, batchPutResults.size());
+        assertEquals(KvCodes.SUCCESS, batchPutResults.get(0).getBizCode());
+        assertEquals(KvCodes.SUCCESS, batchPutResults.get(1).getBizCode());
 
         // Verify batchPut results
         List<KvNode> batchGetResults = client.batchGet(groupId, Arrays.asList(
@@ -149,11 +148,11 @@ public class DtKVServerTest extends ServerTestBase {
         assertEquals("v2", new String(batchGetResults.get(1).data));
 
         // Test batchRemove
-        KvResp batchRemoveResults = client.batchRemove(groupId, Arrays.asList(
+        List<KvResult> batchRemoveResults = client.batchRemove(groupId, Arrays.asList(
                 "batchK1".getBytes(), "batchK2".getBytes()));
-        assertEquals(2, batchRemoveResults.results.size());
-        assertEquals(KvCodes.SUCCESS, batchRemoveResults.results.get(0).getBizCode());
-        assertEquals(KvCodes.SUCCESS, batchRemoveResults.results.get(1).getBizCode());
+        assertEquals(2, batchRemoveResults.size());
+        assertEquals(KvCodes.SUCCESS, batchRemoveResults.get(0).getBizCode());
+        assertEquals(KvCodes.SUCCESS, batchRemoveResults.get(1).getBizCode());
 
         // Verify batchRemove results
         batchGetResults = client.batchGet(groupId, Arrays.asList(
@@ -171,7 +170,7 @@ public class DtKVServerTest extends ServerTestBase {
     private void testTtl(KvClient client) throws Exception {
         CountDownLatch latch = new CountDownLatch(5);
         AtomicReference<Throwable> exRef = new AtomicReference<>();
-        FutureCallback<Long> callback = (r, e) -> {
+        FutureCallback<Void> callback = (r, e) -> {
             if (e != null) {
                 exRef.compareAndSet(null, e);
             }

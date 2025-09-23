@@ -234,6 +234,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_TRY_LOCK: {
                     KvResult r = (KvResult) result;
                     resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
+                    resp.respCode = CmdCodes.SUCCESS;
                     resp.bizCode = r.getBizCode();
                     break;
                 }
@@ -241,13 +242,10 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_BATCH_REMOVE: {
                     //noinspection unchecked
                     Pair<Integer, List<KvResult>> p = (Pair<Integer, List<KvResult>>) result;
-                    if (p.getLeft() == KvCodes.SUCCESS) {
-                        List<KvResult> results = new ArrayList<>(p.getRight());
-                        resp = new EncodableBodyWritePacket(new KvResp(raftIndex, results));
-                        resp.respCode = CmdCodes.SUCCESS;
-                    } else {
-                        resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                    }
+                    List<KvResult> results = p.getLeft() == KvCodes.SUCCESS ?
+                            new ArrayList<>(p.getRight()) : Collections.emptyList();
+                    resp = new EncodableBodyWritePacket(new KvResp(raftIndex, results));
+                    resp.respCode = CmdCodes.SUCCESS;
                     resp.bizCode = p.getLeft();
                     break;
                 }
@@ -259,6 +257,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
 
                     // send response first
                     resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
+                    resp.respCode = CmdCodes.SUCCESS;
                     resp.bizCode = r.getBizCode();
                     reqInfo.reqContext.writeRespInBizThreads(resp);
 
@@ -285,17 +284,17 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     private void notifyNewLockOwner(KvNode newOwner, ReqInfo<KvReq> reqInfo) {
         // Convert KvNode to KvNodeEx to access ttlInfo
         KvNodeEx newOwnerEx = (KvNodeEx) newOwner;
-        
+
         // ttlInfo must not be null at this point
         if (newOwnerEx.ttlInfo != null) {
             // Get NioServer from RaftStatusImpl
             RaftStatusImpl raftStatus = ((RaftGroupImpl) reqInfo.raftGroup).groupComponents.raftStatus;
-            
+
             // Notify the new lock owner
             LockManager.notifyNewLockOwner(
-                raftStatus.serviceNioServer,
-                newOwnerEx.ttlInfo.key,
-                reqInfo.raftGroup.getGroupId()
+                    raftStatus.serviceNioServer,
+                    newOwnerEx.ttlInfo.key,
+                    reqInfo.raftGroup.getGroupId()
             );
         }
     }

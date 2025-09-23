@@ -267,26 +267,31 @@ public class WatchManagerTest implements KvListener {
         assertThrows(IllegalArgumentException.class, () -> manager.addWatch(groupId, "key1..key2".getBytes()));
     }
 
+    private long put(String key, String value) {
+        client.put(groupId, key.getBytes(), value.getBytes());
+        return client.get(groupId, key.getBytes()).updateIndex;
+    }
+
     @Test
     public void testAddRemoveWatch() {
         init(1000, true);
         String key1 = "testAddRemoveWatch_key1";
         String key2 = "testAddRemoveWatch_key2";
-        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
-        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        long idx1 = put(key1, "value1");
+        long idx2 = put(key2, "value2");
         manager.addWatch(groupId, key1.getBytes(), key2.getBytes());
         waitForEvents(new PushEvent(idx1, key1, "value1"), new PushEvent(idx2, key2, "value2"));
 
         // key1 is readd
         manager.addWatch(groupId, key1.getBytes());
-        idx1 = client.put(groupId, key1.getBytes(), "value1_2".getBytes());
-        idx2 = client.put(groupId, key2.getBytes(), "value2_2".getBytes());
+        idx1 = put(key1, "value1_2");
+        idx2 = put(key2, "value2_2");
         waitForEvents(new PushEvent(idx1, key1, "value1_2"));
         waitForEvents(new PushEvent(idx2, key2, "value2_2"));
 
         manager.removeWatch(groupId, key1.getBytes());
         client.put(groupId, key1.getBytes(), "value1_3".getBytes());
-        idx2 = client.put(groupId, key2.getBytes(), "value2_3".getBytes());
+        idx2 = put(key2, "value2_3");
         waitForEvents(new PushEvent(idx2, key2, "value2_3"));
 
         manager.removeWatch(groupId, key1.getBytes(), key2.getBytes());
@@ -320,8 +325,8 @@ public class WatchManagerTest implements KvListener {
         String key1 = "testUserPullEvents_key1";
         String key2 = "testUserPullEvents_key2";
         manager.removeListener();
-        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
-        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        long idx1 = put(key1, "value1");
+        long idx2 = put(key2, "value2");
         manager.addWatch(groupId, key1.getBytes(), key2.getBytes());
         waitForEventsByUserPull(new PushEvent(idx1, key1, "value1"), new PushEvent(idx2, key2, "value2"));
     }
@@ -348,8 +353,8 @@ public class WatchManagerTest implements KvListener {
         manager.addWatch(groupId, key2.getBytes());
         waitForEvents(new PushEvent(-1, key2, null));
 
-        long idx1 = client.put(groupId, key1.getBytes(), "value1".getBytes());
-        long idx2 = client.put(groupId, key2.getBytes(), "value2".getBytes());
+        long idx1 = put(key1, "value1");
+        long idx2 = put(key2, "value2");
         waitForEvents(new PushEvent(idx1, key1, "value1"));
         waitForEvents(new PushEvent(idx2, key2, "value2"));
     }

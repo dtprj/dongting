@@ -19,10 +19,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.dtkv.KvClient;
-import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
-import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.dtkv.*;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -47,8 +44,8 @@ class KvImpl {
     private static final int GC_ITEMS = 500;
 
     // only update int unit test
-    int maxKeySize = KvClient.MAX_KEY_SIZE;
-    int maxValueSize = KvClient.MAX_VALUE_SIZE;
+    int maxKeySize = KvClientConfig.MAX_KEY_SIZE;
+    int maxValueSize = KvClientConfig.MAX_VALUE_SIZE;
     int gcItems = GC_ITEMS;
 
     private final int groupId;
@@ -372,7 +369,7 @@ class KvImpl {
             return new KvResult(ck);
         }
         KvNodeHolder parent;
-        int lastIndexOfSep = key.lastIndexOf(KvClient.SEPARATOR);
+        int lastIndexOfSep = key.lastIndexOf(KvClientConfig.SEPARATOR);
         if (lastIndexOfSep > 0) {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
@@ -562,7 +559,7 @@ class KvImpl {
             KvNodeHolder parent;
             ByteArray key = new ByteArray(encodeStatus.keyBytes);
             ByteArray keyInDir;
-            int lastIndexOfSep = key.lastIndexOf(KvClient.SEPARATOR);
+            int lastIndexOfSep = key.lastIndexOf(KvClientConfig.SEPARATOR);
             if (lastIndexOfSep == -1) {
                 parent = root;
                 keyInDir = key;
@@ -696,7 +693,7 @@ class KvImpl {
             }
         }
         KvNodeHolder parent;
-        int lastIndexOfSep = key.lastIndexOf(KvClient.SEPARATOR);
+        int lastIndexOfSep = key.lastIndexOf(KvClientConfig.SEPARATOR);
         if (lastIndexOfSep > 0) {
             ByteArray dirKey = key.sub(0, lastIndexOfSep);
             parent = map.get(dirKey);
@@ -780,7 +777,7 @@ class KvImpl {
     }
 
     ByteArray parentKey(ByteArray key) {
-        int lastIndexOfSep = key.lastIndexOf(KvClient.SEPARATOR);
+        int lastIndexOfSep = key.lastIndexOf(KvClientConfig.SEPARATOR);
         if (lastIndexOfSep > 0) {
             return key.sub(0, lastIndexOfSep);
         } else {
