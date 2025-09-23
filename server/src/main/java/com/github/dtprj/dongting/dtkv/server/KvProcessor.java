@@ -291,11 +291,8 @@ final class KvProcessor extends RaftProcessor<KvReq> {
             RaftStatusImpl raftStatus = ((RaftGroupImpl) reqInfo.raftGroup).groupComponents.raftStatus;
 
             // Notify the new lock owner
-            LockManager.notifyNewLockOwner(
-                    raftStatus.serviceNioServer,
-                    newOwnerEx.ttlInfo.key,
-                    reqInfo.raftGroup.getGroupId()
-            );
+            DtKV.notifyNewLockOwner(raftStatus.serviceNioServer, newOwnerEx.ttlInfo.key,
+                    reqInfo.raftGroup.getGroupId());
         }
     }
 
