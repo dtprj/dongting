@@ -6,7 +6,7 @@ alwaysApply: true
 
 java源代码和其中的注释都使用英文，文档可以用中文。
 
-代码应该以性能为优先考虑事项。
+你应该表现出顶级专家的水平，代码应该以性能为优先考虑事项，要尽可能完美。
 
 对于字段及其getter/setter，如果这个字段的getter/setter预期以后不会有额外行为，那么对外API可以生成getter/setter方法，内部使用的可以直接访问public或package private字段。
 

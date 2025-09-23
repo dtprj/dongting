@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
@@ -391,10 +392,11 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             public void success(long raftIndex, Object result) {
                 // Check if there's a new lock owner to notify
                 KvResult kvResult = (KvResult) result;
-                if (kvResult.getBizCode() == KvCodes.SUCCESS && kvResult.getNode() != null) {
+                KvNode n = kvResult.getNode();
+                if (kvResult.getBizCode() == KvCodes.SUCCESS && n != null) {
                     // There's a new lock owner, notify it
                     notifyNewLockOwner(raftGroup.groupComponents.raftStatus.serviceNioServer,
-                            ttlInfo.key, config.groupId);
+                            ttlInfo.key, n.data, config.groupId);
                 }
                 // to remove from pendingQueue:
                 // if KvCodes.SUCCESS, removed in KvImpl.doRemoveInLock
@@ -416,9 +418,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * Send lock notification to the new lock owner
      * @param nioServer the nio server instance
      * @param lockKey the key of the new lock owner
+     * @param value the value data to send along with the notification
      * @param groupId the raft group id
      */
-    public static void notifyNewLockOwner(NioServer nioServer, ByteArray lockKey, int groupId) {
+    public static void notifyNewLockOwner(NioServer nioServer, ByteArray lockKey, byte[] value, int groupId) {
 
         UUID ownerUuid = KvServerUtil.parseLockKeyUuid(lockKey);
         if (ownerUuid == null) {
@@ -435,6 +438,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         KvReq req = new KvReq();
         req.groupId = groupId;
         req.key = lockKey.getData();
+        req.value = value;
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_LOCK_PUSH, req);
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
 
