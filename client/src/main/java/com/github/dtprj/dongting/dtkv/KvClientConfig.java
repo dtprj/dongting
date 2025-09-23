@@ -28,10 +28,10 @@ public class KvClientConfig {
     /**
      * This is an advanced option, usually you don't need to change it.
      * <p>
-     * If true, the callback of async operations will be executed in NioWorker IO thread, it's single thread,
+     * If false, the callback of async operations will be executed in NioWorker IO thread, it's single thread,
      * you should never perform any blocking or CPU-intensive operations within the callbacks.
-     * If false, the callback will be executed in NioClient's bizExecutor, which is configurable use bizThreads
+     * If true, the callback will be executed in NioClient's bizExecutor, which is configurable use bizThreads
      * fields in NioClientConfig when constructing KvClient.
      */
-    public boolean executeCallbackInIoThread = false;
+    public boolean useBizExecutor = true;
 }

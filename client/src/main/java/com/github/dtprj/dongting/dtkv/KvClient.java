@@ -101,10 +101,10 @@ public class KvClient extends AbstractLifeCircle {
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(cmd, req);
 
         raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
-            if (config.executeCallbackInIoThread) {
-                asyncCallback(cmd, c, mapper, result, ex);
-            } else {
+            if (config.useBizExecutor) {
                 raftClient.getNioClient().getBizExecutor().submit(() -> asyncCallback(cmd, c, mapper, result, ex));
+            } else {
+                asyncCallback(cmd, c, mapper, result, ex);
             }
         });
     }
