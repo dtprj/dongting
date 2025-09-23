@@ -16,15 +16,14 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.FutureCallback;
-import com.github.dtprj.dongting.dtkv.KvClient;
-import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
-import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.dtkv.*;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
+import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Arrays;
@@ -57,11 +56,18 @@ public class DtKVServerTest extends ServerTestBase {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testSingle(boolean useSepExecutor) throws Exception {
+    @CsvSource({
+            "true, true",
+            "true, false",
+            "false, true",
+            "false, false"
+    })
+    public void testSingle(boolean useSepExecutor, boolean clientUseBizExecutor) throws Exception {
         this.useSepExecutor = useSepExecutor;
         ServerInfo s1 = null;
-        KvClient client = new KvClient();
+        KvClientConfig kvClientConfig = new KvClientConfig();
+        kvClientConfig.useBizExecutor = clientUseBizExecutor;
+        KvClient client = new KvClient(kvClientConfig, new NioClientConfig());
 
         try {
             s1 = createServer(1, "1, 127.0.0.1:4001", "1", "");
