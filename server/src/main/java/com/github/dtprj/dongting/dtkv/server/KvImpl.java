@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Supplier;
 
@@ -842,14 +843,38 @@ class KvImpl {
         if (data == null || data.length < 8) {
             return 0L;
         }
-        return ((long)(data[0] & 0xFF) << 56) |
-               ((long)(data[1] & 0xFF) << 48) |
-               ((long)(data[2] & 0xFF) << 40) |
-               ((long)(data[3] & 0xFF) << 32) |
-               ((long)(data[4] & 0xFF) << 24) |
-               ((long)(data[5] & 0xFF) << 16) |
-               ((long)(data[6] & 0xFF) << 8)  |
-               ((long)(data[7] & 0xFF));
+        return ((long) (data[0] & 0xFF) << 56) |
+                ((long) (data[1] & 0xFF) << 48) |
+                ((long) (data[2] & 0xFF) << 40) |
+                ((long) (data[3] & 0xFF) << 32) |
+                ((long) (data[4] & 0xFF) << 24) |
+                ((long) (data[5] & 0xFF) << 16) |
+                ((long) (data[6] & 0xFF) << 8) |
+                ((long) (data[7] & 0xFF));
+    }
+
+
+    private static final long MAX_TTL_MILLIS = TimeUnit.DAYS.toMillis(100 * 365);
+
+    static String checkTtl(long ttl, byte[] data, boolean checkHoldTtl) {
+        if (ttl <= 0) {
+            return "ttl must be positive: " + ttl;
+        } else if (ttl > MAX_TTL_MILLIS) {
+            return "ttl too large: " + ttl;
+        } else if (checkHoldTtl) {
+            if (data == null || data.length < 8) {
+                return "no hold ttl";
+            }
+            long holdTtl = readHoldTtlMillis(data);
+            if (holdTtl <= 0) {
+                return "hold ttl must be positive: " + holdTtl;
+            } else if (holdTtl > MAX_TTL_MILLIS) {
+                return "hold ttl too large: " + holdTtl;
+            } else if (holdTtl < ttl) {
+                return "hold ttl " + holdTtl + " less than ttl " + ttl;
+            }
+        }
+        return null;
     }
 
     private KvResult expireInLock(long index, KvNodeHolder h) {
@@ -913,14 +938,8 @@ class KvImpl {
     }
 
     public KvResult lock(long index, ByteArray key, byte[] data) {
-        // data must contain at least 8 bytes (big-endian long for hold ttl)
-        if (data == null || data.length < 8) {
-            return new KvResult(KvCodes.INVALID_VALUE);
-        }
         long ttlMillis = opContext.ttlMillis;
-        if (ttlMillis <= 0) {
-            return new KvResult(KvCodes.CLIENT_REQ_ERROR);
-        }
+        checkTtl(ttlMillis, data, opContext.bizType == DtKV.BIZ_TYPE_LOCK);
         opContext.ttlMillis = 0; // the lock dir has no ttl
         long stamp = lock.writeLock();
         try {

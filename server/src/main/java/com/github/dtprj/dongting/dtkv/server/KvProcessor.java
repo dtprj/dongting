@@ -47,7 +47,6 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -148,18 +147,12 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         return null;
     }
 
-    private static final long MAX_TTL_MILLIS = TimeUnit.DAYS.toMillis(100 * 365);
-
     private void checkTtlAndSubmit(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
-        if (req.ttlMillis <= 0) {
+        String errorMsg = KvImpl.checkTtl(req.ttlMillis, req.value, bizType == DtKV.BIZ_TYPE_LOCK);
+        if(errorMsg!=null){
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             p.bizCode = KvCodes.INVALID_TTL;
-            p.msg = "ttl must be positive";
-            reqInfo.reqContext.writeRespInBizThreads(p);
-        } else if (req.ttlMillis > MAX_TTL_MILLIS) {
-            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.bizCode = KvCodes.INVALID_TTL;
-            p.msg = "ttl too large";
+            p.msg = errorMsg;
             reqInfo.reqContext.writeRespInBizThreads(p);
         } else {
             submitWriteTask(reqInfo, bizType, req);
