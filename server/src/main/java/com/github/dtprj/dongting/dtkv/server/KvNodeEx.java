@@ -97,7 +97,7 @@ final class KvNodeEx extends KvNode {
         }
     }
 
-    KvNodeHolder peekNext() {
+    KvNodeHolder peekNextOwner() {
         return lockOrderQueue.first();
     }
 

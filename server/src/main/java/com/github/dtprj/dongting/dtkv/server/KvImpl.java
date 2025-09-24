@@ -19,7 +19,11 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.dtkv.*;
+import com.github.dtprj.dongting.dtkv.KvClient;
+import com.github.dtprj.dongting.dtkv.KvClientConfig;
+import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -833,6 +837,21 @@ class KvImpl {
         }
     }
 
+    // helper to read first 8 bytes of data as big-endian long; returns 0 if data too short or null
+    private static long readHoldTtlMillis(byte[] data) {
+        if (data == null || data.length < 8) {
+            return 0L;
+        }
+        return ((long)(data[0] & 0xFF) << 56) |
+               ((long)(data[1] & 0xFF) << 48) |
+               ((long)(data[2] & 0xFF) << 40) |
+               ((long)(data[3] & 0xFF) << 32) |
+               ((long)(data[4] & 0xFF) << 24) |
+               ((long)(data[5] & 0xFF) << 16) |
+               ((long)(data[6] & 0xFF) << 8)  |
+               ((long)(data[7] & 0xFF));
+    }
+
     private KvResult expireInLock(long index, KvNodeHolder h) {
         if ((h.latest.flag & KvNode.FLAG_DIR_MASK) != 0) {
             // is dir
@@ -857,7 +876,7 @@ class KvImpl {
             // not dir
             boolean isLock = (h.latest.flag & KvNode.FLAG_LOCK_MASK) != 0;
             KvNodeHolder parent = h.parent;
-            boolean ownersLock = isLock && h == parent.latest.peekNext();
+            boolean ownersLock = isLock && h == parent.latest.peekNextOwner();
             doRemoveInLock(index, h);
             if (isLock) {
                 // KvNodeEx.children has no removed nodes
@@ -865,8 +884,7 @@ class KvImpl {
                     doRemoveInLock(index, parent);
                 } else {
                     if (ownersLock) {
-                        KvNodeHolder nextLockOwner = parent.latest.peekNext();
-                        return new KvResult(KvCodes.SUCCESS, nextLockOwner.latest, null);
+                        return updateNextOwnerIfExists(index, parent);
                     } else {
                         return KvResult.SUCCESS;
                     }
@@ -876,7 +894,29 @@ class KvImpl {
         return KvResult.SUCCESS;
     }
 
+    private KvResult updateNextOwnerIfExists(long index, KvNodeHolder parent) {
+        KvNodeHolder nextLockOwner = parent.latest.peekNextOwner();
+        if (nextLockOwner != null) {
+            // update owner hold timeout
+            KvNodeEx n = nextLockOwner.latest;
+            long newHoldTtlMillis = readHoldTtlMillis(n.data);
+            // NOTICE here re-use the opContext, so the old context is overwritten and should not be used later.
+            // re-init opContext so leaderCreateTimeMillis/localCreateNanos are set appropriately.
+            opContext.init(DtKV.BIZ_TYPE_EXPIRE, opContext.operator, newHoldTtlMillis,
+                    n.ttlInfo.leaderTtlStartMillis,
+                    n.ttlInfo.expireNanos - n.ttlInfo.ttlMillis * 1_000_000L);
+            ttlManager.updateTtl(index, nextLockOwner.key, n, opContext);
+            return new KvResult(KvCodes.SUCCESS, n, null);
+        } else {
+            return KvResult.SUCCESS;
+        }
+    }
+
     public KvResult lock(long index, ByteArray key, byte[] data) {
+        // data must contain at least 8 bytes (big-endian long for hold ttl)
+        if (data == null || data.length < 8) {
+            return new KvResult(KvCodes.INVALID_VALUE);
+        }
         long ttlMillis = opContext.ttlMillis;
         if (ttlMillis <= 0) {
             return new KvResult(KvCodes.CLIENT_REQ_ERROR);
@@ -893,7 +933,7 @@ class KvImpl {
             ByteArray fullKey = KvServerUtil.buildLockKey(parent.key,
                     opContext.operator.getMostSignificantBits(), opContext.operator.getLeastSignificantBits());
             KvNodeHolder sub = map.get(fullKey);
-            KvNodeHolder oldOwner = parent.latest.peekNext();
+            KvNodeHolder oldOwner = parent.latest.peekNextOwner();
             if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK && oldOwner != null && oldOwner != sub) {
                 // tryLock and has lock owner
                 return new KvResult(KvCodes.LOCK_BY_OTHER);
@@ -936,15 +976,14 @@ class KvImpl {
         if (sub == null) {
             return KvResult.NOT_FOUND;
         }
-        boolean holdLock = sub == parent.latest.peekNext();
+        boolean holdLock = sub == parent.latest.peekNextOwner();
         long stamp = lock.writeLock();
         try {
             doRemoveInLock(index, sub);
             if (parent.latest.childCount() == 0) {
                 doRemoveInLock(index, parent);
             } else if (holdLock) {
-                KvNodeHolder nextLockOwner = parent.latest.peekNext();
-                return new KvResult(KvCodes.SUCCESS, nextLockOwner.latest, null);
+                return updateNextOwnerIfExists(index, parent);
             } else {
                 // lock by others, remove the temp node, and return success to avoid client exception
                 return KvResult.SUCCESS;
