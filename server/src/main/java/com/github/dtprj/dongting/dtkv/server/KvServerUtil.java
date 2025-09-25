@@ -56,7 +56,6 @@ public class KvServerUtil {
         nioServer.register(Commands.DTKV_MAKE_TEMP_DIR, p);
         nioServer.register(Commands.DTKV_UPDATE_TTL, p);
 
-        nioServer.register(Commands.DTKV_LOCK, p);
         nioServer.register(Commands.DTKV_TRY_LOCK, p);
         nioServer.register(Commands.DTKV_UNLOCK, p);
     }

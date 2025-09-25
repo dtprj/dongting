@@ -21,28 +21,13 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
-import com.github.dtprj.dongting.dtkv.KvReq;
-import com.github.dtprj.dongting.dtkv.KvResp;
-import com.github.dtprj.dongting.dtkv.KvResult;
-import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
-import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
-import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.net.RetryableWritePacket;
-import com.github.dtprj.dongting.net.WorkerThread;
-import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.dtkv.*;
+import com.github.dtprj.dongting.net.*;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.RaftCallback;
-import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftProcessor;
-import com.github.dtprj.dongting.raft.server.RaftServer;
-import com.github.dtprj.dongting.raft.server.ReqInfo;
+import com.github.dtprj.dongting.raft.server.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -129,9 +114,6 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_UPDATE_TTL:
                     checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_UPDATE_TTL, req);
                     break;
-                case Commands.DTKV_LOCK:
-                    checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_LOCK, req);
-                    break;
                 case Commands.DTKV_TRY_LOCK:
                     checkTtlAndSubmit(reqInfo, DtKV.BIZ_TYPE_TRY_LOCK, req);
                     break;
@@ -148,7 +130,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     private void checkTtlAndSubmit(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
-        String errorMsg = KvImpl.checkTtl(req.ttlMillis, req.value, bizType == DtKV.BIZ_TYPE_LOCK);
+        String errorMsg = KvImpl.checkTtl(req.ttlMillis, req.value, bizType == DtKV.BIZ_TYPE_TRY_LOCK);
         if(errorMsg!=null){
             EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             p.bizCode = KvCodes.INVALID_TTL;
@@ -223,7 +205,6 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_PUT_TEMP_NODE:
                 case Commands.DTKV_MAKE_TEMP_DIR:
                 case Commands.DTKV_UPDATE_TTL:
-                case Commands.DTKV_LOCK:
                 case Commands.DTKV_TRY_LOCK: {
                     KvResult r = (KvResult) result;
                     resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));

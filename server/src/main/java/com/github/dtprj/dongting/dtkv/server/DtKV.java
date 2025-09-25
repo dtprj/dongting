@@ -19,18 +19,8 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.common.AbstractLifeCircle;
-import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.common.DtBugException;
-import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.FutureCallback;
-import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
-import com.github.dtprj.dongting.dtkv.KvReq;
-import com.github.dtprj.dongting.dtkv.KvResult;
-import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
+import com.github.dtprj.dongting.common.*;
+import com.github.dtprj.dongting.dtkv.*;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
@@ -40,11 +30,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftCallback;
-import com.github.dtprj.dongting.raft.server.RaftGroup;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.*;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -80,9 +66,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_MK_TEMP_DIR = 12;
     public static final int BIZ_TYPE_EXPIRE = 13; // no expire command in Commands class, since it's launched by raft leader
     public static final int BIZ_TYPE_UPDATE_TTL = 14;
-    public static final int BIZ_TYPE_LOCK = 15;
-    public static final int BIZ_TYPE_TRY_LOCK = 16;
-    public static final int BIZ_TYPE_UNLOCK = 17;
+    public static final int BIZ_TYPE_TRY_LOCK = 15;
+    public static final int BIZ_TYPE_UNLOCK = 16;
 
     private final Timestamp ts;
     final DtKVExecutor dtkvExecutor;
@@ -205,9 +190,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 return kv.expire(index, key, expectRaftIndex);
             case BIZ_TYPE_UPDATE_TTL:
                 return kv.updateTtl(index, key);
-            case BIZ_TYPE_LOCK:
             case BIZ_TYPE_TRY_LOCK:
-                return kv.lock(index, key, req.value);
+                return kv.tryLock(index, key, req.value);
             case BIZ_TYPE_UNLOCK:
                 return kv.unlock(index, key);
             default:

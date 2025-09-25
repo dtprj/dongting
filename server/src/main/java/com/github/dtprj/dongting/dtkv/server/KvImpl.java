@@ -19,22 +19,14 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.dtkv.KvClient;
-import com.github.dtprj.dongting.dtkv.KvClientConfig;
-import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
-import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.dtkv.*;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
@@ -135,7 +127,6 @@ class KvImpl {
                     return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
-            case DtKV.BIZ_TYPE_LOCK:
             case DtKV.BIZ_TYPE_TRY_LOCK:
                 if (h == null || h.latest.removed) {
                     return null;
@@ -171,7 +162,6 @@ class KvImpl {
         }
         switch (ctx.bizType) {
             case DtKV.BIZ_TYPE_TRY_LOCK:
-            case DtKV.BIZ_TYPE_LOCK:
                 while (parent != null) {
                     if (parent.latest.ttlInfo != null) {
                         return new KvResult(KvCodes.UNDER_TEMP_DIR);
@@ -412,8 +402,8 @@ class KvImpl {
         }
         lastPutNodeHolder = null;
         if (current == null || current.latest.removed) {
-            int flag = (data == null || data.length == 0 ? KvNode.FLAG_DIR_MASK : 0) | (opContext.bizType ==
-                    DtKV.BIZ_TYPE_LOCK || opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK ? KvNode.FLAG_LOCK_MASK : 0);
+            int flag = (data == null || data.length == 0 ? KvNode.FLAG_DIR_MASK : 0) |
+                    (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK ? KvNode.FLAG_LOCK_MASK : 0);
             KvNodeEx newKvNode = new KvNodeEx(index, opContext.leaderCreateTimeMillis, index,
                     opContext.leaderCreateTimeMillis, flag, data);
             if (current == null) {
@@ -456,8 +446,7 @@ class KvImpl {
                     // update value
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
-                    if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE || opContext.bizType == DtKV.BIZ_TYPE_LOCK ||
-                            opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
+                    if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE || opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
                         ttlManager.updateTtl(index, current.key, newKvNode, opContext);
                     }
                     addToUpdateQueue(index, current);
@@ -856,12 +845,14 @@ class KvImpl {
 
     private static final long MAX_TTL_MILLIS = TimeUnit.DAYS.toMillis(100 * 365);
 
-    static String checkTtl(long ttl, byte[] data, boolean checkHoldTtl) {
-        if (ttl <= 0) {
-            return "ttl must be positive: " + ttl;
-        } else if (ttl > MAX_TTL_MILLIS) {
+    static String checkTtl(long ttl, byte[] data, boolean lock) {
+        if (ttl > MAX_TTL_MILLIS) {
             return "ttl too large: " + ttl;
-        } else if (checkHoldTtl) {
+        }
+        if (lock) {
+            if (ttl < 0) {
+                return "ttl must be non-negative: " + ttl;
+            }
             if (data == null || data.length < 8) {
                 return "no hold ttl";
             }
@@ -873,7 +864,12 @@ class KvImpl {
             } else if (holdTtl < ttl) {
                 return "hold ttl " + holdTtl + " less than ttl " + ttl;
             }
+        } else {
+            if (ttl <= 0) {
+                return "ttl must be positive: " + ttl;
+            }
         }
+
         return null;
     }
 
@@ -937,9 +933,9 @@ class KvImpl {
         }
     }
 
-    public KvResult lock(long index, ByteArray key, byte[] data) {
+    public KvResult tryLock(long index, ByteArray key, byte[] data) {
         long ttlMillis = opContext.ttlMillis;
-        checkTtl(ttlMillis, data, opContext.bizType == DtKV.BIZ_TYPE_LOCK);
+        checkTtl(ttlMillis, data, true);
         opContext.ttlMillis = 0; // the lock dir has no ttl
         long stamp = lock.writeLock();
         try {
@@ -953,7 +949,7 @@ class KvImpl {
                     opContext.operator.getMostSignificantBits(), opContext.operator.getLeastSignificantBits());
             KvNodeHolder sub = map.get(fullKey);
             KvNodeHolder oldOwner = parent.latest.peekNextOwner();
-            if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK && oldOwner != null && oldOwner != sub) {
+            if (opContext.ttlMillis == 0 && oldOwner != null && oldOwner != sub) {
                 // tryLock and has lock owner
                 return new KvResult(KvCodes.LOCK_BY_OTHER);
             }
