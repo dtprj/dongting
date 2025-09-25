@@ -43,14 +43,17 @@ public interface DtKvLock extends AutoCloseable {
      * <p>
      * NOTICE: not forget check the return value, if false, means acquire lock failed.
      *
-     * @param waitLockTimeoutMillis max wait time to acquire the lock, should be positive and less or equal than leaseMillis
      * @param leaseMillis           The lease time of the lock, should be positive. If you don't know how to set it,
-     *                              60000 (60 seconds) may be a good default value.
+     *                              60000 (60 seconds) may be a good default value. The lease time starts when this
+     *                              method invoked, that is, measured from the client side, not the server side.
+     * @param waitLockTimeoutMillis max wait time to acquire the lock, none-negative, should be less or equal than
+     *                              leaseMillis. If 0, return false immediately if the server tells the lock is held
+     *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock.
      * @return whether acquire the lock successfully
      * @throws KvException  any biz exception
      * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
-    boolean tryLock(long waitLockTimeoutMillis, long leaseMillis) throws KvException, NetException;
+    boolean tryLock(long leaseMillis, long waitLockTimeoutMillis) throws KvException, NetException;
 
     /**
      * Asynchronously to acquire the lock, wait up to waitLockTimeoutMillis if the lock is held by others.
@@ -59,38 +62,15 @@ public interface DtKvLock extends AutoCloseable {
      * <p>
      * NOTICE: not forget check the return value in the callback, if false, means acquire lock failed.
      *
-     * @param waitLockTimeoutMillis max wait time to acquire the lock, should be positive and less or equal than leaseMillis
      * @param leaseMillis           The lease time of the lock, should be positive. If you don't know how to set it,
-     *                              60000 (60 seconds) may be a good default value.
+     *                              60000 (60 seconds) may be a good default value. The lease time starts when this
+     *                              method invoked, that is, measured from the client side, not the server side.
+     * @param waitLockTimeoutMillis max wait time to acquire the lock, none-negative, should be less or equal than
+     *                              leaseMillis. If 0, return false immediately if the server tells the lock is held
+     *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock.
      * @param callback              the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
-    void tryLock(long waitLockTimeoutMillis, long leaseMillis, FutureCallback<Boolean> callback);
-
-    /**
-     * Synchronously to acquire the lock, return false immediately if the lock is held by others.
-     *
-     * <p>
-     * NOTICE: not forget check the return value, if false, means acquire lock failed.
-     *
-     * @param leaseMillis The lease time of the lock, should be positive. If you don't know how to set it,
-     *                    60000 (60 seconds) may be a good default value.
-     * @return whether acquire the lock successfully
-     * @throws KvException  any biz exception
-     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
-     */
-    boolean tryLock(long leaseMillis) throws KvException, NetException;
-
-    /**
-     * Asynchronously to acquire the lock, return false immediately if the lock is held by others.
-     *
-     * <p>
-     * NOTICE: not forget check the return value in the callback, if false, means acquire lock failed.
-     *
-     * @param leaseMillis The lease time of the lock, should be positive. If you don't know how to set it,
-     *                    60000 (60 seconds) may be a good default value.
-     * @param callback    the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
-     */
-    void tryLock(long leaseMillis, FutureCallback<Boolean> callback);
+    void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback);
 
     /**
      * Synchronously to release the lock, if the client is not the owner of the lock, do nothing.
