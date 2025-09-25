@@ -22,13 +22,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
-import com.github.dtprj.dongting.net.NetException;
-import com.github.dtprj.dongting.net.NetTimeoutException;
-import com.github.dtprj.dongting.net.NioClientConfig;
-import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.net.RpcCallback;
+import com.github.dtprj.dongting.net.*;
 import com.github.dtprj.dongting.raft.RaftClient;
 
 import java.util.Collections;
@@ -50,6 +44,7 @@ public class KvClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(KvClient.class);
     private final RaftClient raftClient;
     private final WatchManager watchManager;
+    private final LockManager lockManager = new LockManager(this);
     private final KvClientConfig config;
 
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
@@ -63,7 +58,9 @@ public class KvClient extends AbstractLifeCircle {
         this.raftClient = new RaftClient(nioConfig);
         this.watchManager = createClientWatchManager();
         // use bizExecutor in NioClient
-        raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, new WatchProcessor(watchManager));
+        KvClientProcessor clientProcessor = new KvClientProcessor(watchManager, lockManager);
+        raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, clientProcessor);
+        raftClient.getNioClient().register(Commands.DTKV_LOCK_PUSH, clientProcessor);
     }
 
     protected WatchManager createClientWatchManager() {
@@ -654,6 +651,11 @@ public class KvClient extends AbstractLifeCircle {
         DtUtil.checkPositive(ttlMillis, "ttlMillis");
         KvReq r = new KvReq(groupId, key, null, ttlMillis);
         sendAsync(groupId, Commands.DTKV_UPDATE_TTL, r, callback, v -> null);
+    }
+
+    public DtKvLock createOrGetLock(int groupId, byte[] key) {
+        // TODO get from LockManager, if lock exists, return it
+        return null;
     }
 
     @Override
