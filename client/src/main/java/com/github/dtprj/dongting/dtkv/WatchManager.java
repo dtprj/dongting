@@ -473,8 +473,13 @@ public class WatchManager {
         lock.lock();
         try {
             GroupWatches watch = watches.get(req.groupId);
-            if (watch == null) {
-                log.warn("watch group not found, groupId={}, server={}", req.groupId, remote);
+            if (watch == null || raftClient.getGroup(req.groupId) == null) {
+                if (watch == null) {
+                    log.warn("watch group not found, groupId={}, server={}", req.groupId, remote);
+                } else {
+                    log.warn("group removed, groupId={}, server={}", req.groupId, remote);
+                    removeGroupWatches(watch);
+                }
                 EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
                 p.bizCode = KvCodes.REMOVE_ALL_WATCH;
                 return p;
