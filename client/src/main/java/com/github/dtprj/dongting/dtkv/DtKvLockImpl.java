@@ -389,27 +389,25 @@ class DtKvLockImpl implements DtKvLock {
 
     @Override
     public void unlock(FutureCallback<Void> callback) {
-        Op oldOp = currentOp;
         Throwable ex = unlock0(callback);
-        if (oldOp != null) {
-            oldOp.invokeCallback();
-        }
         if (ex != null) {
             FutureCallback.callFail(callback, ex);
         }
     }
 
     private Throwable unlock0(FutureCallback<Void> callback) {
+        Op oldOp;
         long stamp = opLock.writeLock();
         try {
             if (state == STATE_CLOSED) {
                 return new IllegalStateException("lock is closed");
             }
+            oldOp = currentOp;
 
             // mark current op as finished, so the unlock operation can be called safely after tryLock
-            if (currentOp != null) {
+            if (oldOp != null) {
                 // currentOp is set to null in markFinishInLock
-                currentOp.markFinishInLock(null, new NetException("canceled by unlock"));
+                oldOp.markFinishInLock(null, new NetException("canceled by unlock"));
             }
             cancelExpireTask();
 
@@ -430,6 +428,9 @@ class DtKvLockImpl implements DtKvLock {
             return e;
         } finally {
             opLock.unlock(stamp);
+        }
+        if (oldOp != null) {
+            oldOp.invokeCallback();
         }
         return null;
     }
@@ -547,7 +548,7 @@ class DtKvLockImpl implements DtKvLock {
 
     @Override
     public void close() {
-        Op oldOp = currentOp;
+        Op oldOp;
         synchronized (lockManager) {
             long stamp = opLock.writeLock();
             try {
@@ -555,6 +556,7 @@ class DtKvLockImpl implements DtKvLock {
                     return;
                 }
                 state = STATE_CLOSED;
+                oldOp = currentOp;
                 if (oldOp != null) {
                     oldOp.markFinishInLock(null, new NetException("canceled by close"));
                 }
@@ -579,25 +581,28 @@ class DtKvLockImpl implements DtKvLock {
             return;
         }
 
-        Op opBackup = currentOp;
+        Op oldOp = null;
         long stamp = opLock.writeLock();
         try {
             if (state == STATE_CLOSED) {
                 log.info("ignore lock push because lock is closed. key: {}", keyBytes);
                 return;
             }
-            if (currentOp == null) {
+            oldOp = currentOp;
+            if (oldOp == null) {
                 log.warn("ignore lock push because no current op. key: {}", keyBytes);
                 return;
             }
-            currentOp.processLockResultAndMarkFinish(bizCode);
+            oldOp.processLockResultAndMarkFinish(bizCode);
         } catch (Exception e) {
             BugLog.log(e);
         } finally {
             opLock.unlock(stamp);
         }
 
-        opBackup.invokeCallback();
+        if (oldOp != null) {
+            oldOp.invokeCallback();
+        }
 
     }
 }
