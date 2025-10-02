@@ -107,8 +107,6 @@ class DtKvLockImpl implements DtKvLock {
             this.waitLockTimeoutMillis = waitLockTimeoutMillis;
             this.callback = callback;
             this.opType = OP_TYPE_TRY_LOCK;
-            this.waitTimeoutTask = lockManager.executeService.schedule(currentOp,
-                    waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
         }
 
         Op(FutureCallback<Void> callback) {
@@ -317,8 +315,10 @@ class DtKvLockImpl implements DtKvLock {
                 return new IllegalStateException("operation in progress");
             }
 
-            currentOp = new Op(leaseMillis, waitLockTimeoutMillis, callback);
             state = STATE_UNKNOWN;
+            currentOp = new Op(leaseMillis, waitLockTimeoutMillis, callback);
+            currentOp.waitTimeoutTask = lockManager.executeService.schedule(currentOp,
+                    waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
 
             // Create request with leaseMillis in value and operationId
             byte[] value = new byte[16];
