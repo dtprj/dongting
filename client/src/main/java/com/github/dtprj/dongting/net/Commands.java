@@ -62,4 +62,5 @@ public interface Commands {
     int DTKV_TRY_LOCK = 83;
     int DTKV_UNLOCK = 84;
     int DTKV_LOCK_PUSH = 85;
+    int DTKV_UPDATE_LEASE = 86;
 }

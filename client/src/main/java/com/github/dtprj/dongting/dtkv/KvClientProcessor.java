@@ -17,7 +17,13 @@ package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.net.*;
+import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.ReqContext;
+import com.github.dtprj.dongting.net.ReqProcessor;
+import com.github.dtprj.dongting.net.WritePacket;
 
 /**
  * @author huangli
@@ -33,7 +39,7 @@ class KvClientProcessor extends ReqProcessor<Object> {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.DTKV_WATCH_NOTIFY_PUSH) {
             return context.toDecoderCallback(new WatchNotifyReq.Callback());
@@ -52,10 +58,12 @@ class KvClientProcessor extends ReqProcessor<Object> {
         if (packet.command == Commands.DTKV_WATCH_NOTIFY_PUSH) {
             WatchNotifyReq req = (WatchNotifyReq) body;
             return watchManager.processNotify(req, reqContext.getDtChannel().getRemoteAddr());
-        } else {
+        } else if (packet.command == Commands.DTKV_LOCK_PUSH) {
             KvReq req = (KvReq) body;
-            // TODO process lock push
-            return null;
+            lockManager.processLockPush(req.groupId, req, packet.bizCode);
+            return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+        } else {
+            return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
         }
     }
 }

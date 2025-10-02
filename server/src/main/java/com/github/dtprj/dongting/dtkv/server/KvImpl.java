@@ -19,14 +19,22 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.dtkv.*;
+import com.github.dtprj.dongting.dtkv.KvClient;
+import com.github.dtprj.dongting.dtkv.KvClientConfig;
+import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
@@ -997,16 +1005,15 @@ class KvImpl {
             doRemoveInLock(index, sub);
             if (parent.latest.childCount() == 0) {
                 doRemoveInLock(index, parent);
-            } else if (holdLock) {
+            }
+            if (holdLock) {
                 return updateNextOwnerIfExists(index, parent);
             } else {
-                // lock by others, remove the temp node, and return success to avoid client exception
-                return KvResult.SUCCESS;
+                return new KvResult(KvCodes.LOCK_BY_OTHER);
             }
         } finally {
             lock.unlockWrite(stamp);
             afterUpdate();
         }
-        return KvResult.SUCCESS;
     }
 }

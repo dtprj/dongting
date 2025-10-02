@@ -16,18 +16,91 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftClient;
+import com.github.dtprj.dongting.raft.RaftException;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
+import java.util.Objects;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * @author huangli
  */
 class LockManager {
-    private final ConcurrentHashMap<Integer, ConcurrentHashMap<ByteArray, DtKvLockImpl>> lockMap = new ConcurrentHashMap<>();
+    private static final DtLog log = DtLogs.getLogger(LockManager.class);
 
-    private final KvClient kvClient;
+    private final HashMap<Integer, HashMap<ByteArray, DtKvLockImpl>> lockMap = new HashMap<>();
+
+    final KvClient kvClient;
+    final RaftClient raftClient;
+    final ScheduledExecutorService executeService;
+
+    private int nextLockId = 1;
 
     LockManager(KvClient kvClient) {
         this.kvClient = kvClient;
+        this.raftClient = kvClient.getRaftClient();
+        this.executeService = raftClient.getNioClient().getBizExecutor() == null ?
+                DtUtil.SCHEDULED_SERVICE : raftClient.getNioClient().getBizExecutor();
+    }
+
+    DtKvLockImpl createOrGetLock(int groupId, byte[] key) {
+        Objects.requireNonNull(key);
+        int c = KvClient.checkKey(key, KvClientConfig.MAX_KEY_SIZE, false, true);
+        if (c != KvCodes.SUCCESS) {
+            throw new IllegalArgumentException(KvCodes.toStr(c));
+        }
+
+        if (raftClient.getGroup(groupId) == null) {
+            throw new RaftException("group not found: " + groupId);
+        }
+
+        ByteArray keyBytes = new ByteArray(key);
+        synchronized (this) {
+            HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(groupId);
+            if (m == null) {
+                m = new HashMap<>();
+                lockMap.put(groupId, m);
+            }
+            DtKvLockImpl dtKvLock = m.get(keyBytes);
+            if (dtKvLock == null) {
+                dtKvLock = new DtKvLockImpl(nextLockId++, this, groupId, key);
+                m.put(keyBytes, dtKvLock);
+            }
+            return dtKvLock;
+        }
+    }
+
+    void removeLock(int groupId, ByteArray key) {
+        synchronized (this) {
+            HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(groupId);
+            if (m != null) {
+                m.remove(key);
+                if (m.isEmpty()) {
+                    lockMap.remove(groupId);
+                }
+            }
+        }
+    }
+
+    void processLockPush(int groupId, KvReq req, int bizCode) {
+        DtKvLockImpl lock;
+        ByteArray key = new ByteArray(req.key);
+        synchronized (this) {
+            HashMap<ByteArray, DtKvLockImpl> groupLocks = lockMap.get(groupId);
+            if (groupLocks == null) {
+                log.info("no lock found for push: groupId={}, key={}", groupId, key);
+                return;
+            }
+            lock = groupLocks.get(key);
+            if (lock == null) {
+                log.info("no lock found for push: groupId={}, key={}", groupId, key);
+                return;
+            }
+        }
+        lock.processLockPush(bizCode, req.value);
     }
 }

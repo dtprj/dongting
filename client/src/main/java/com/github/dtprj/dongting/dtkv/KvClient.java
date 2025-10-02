@@ -22,7 +22,13 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.*;
+import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
+import com.github.dtprj.dongting.net.NetException;
+import com.github.dtprj.dongting.net.NetTimeoutException;
+import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
 
 import java.util.Collections;
@@ -42,7 +48,7 @@ import java.util.stream.Collectors;
  */
 public class KvClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(KvClient.class);
-    private final RaftClient raftClient;
+    final RaftClient raftClient;
     private final WatchManager watchManager;
     private final LockManager lockManager = new LockManager(this);
     private final KvClientConfig config;
@@ -654,8 +660,8 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     public DtKvLock createOrGetLock(int groupId, byte[] key) {
-        // TODO get from LockManager, if lock exists, return it
-        return null;
+        checkKey(key, false);
+        return lockManager.createOrGetLock(groupId, key);
     }
 
     @Override

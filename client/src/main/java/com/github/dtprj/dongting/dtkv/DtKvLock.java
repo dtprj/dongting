@@ -22,15 +22,9 @@ import com.github.dtprj.dongting.net.NetException;
  * Distributed lock for dtkv.
  *
  * <p>
- * The lock operations are idempotent, if the client has held the lock, tryLock will return true directly. But it's
- * not reentrant, if the client has held the lock, and call unlock, the lock will be released directly.
- *
- * <p>
  * Unlike local lock, the distributed lock has lease time, the lock's ownership will be lost after the lease time.
  * Use isHeldByCurrentClient() method to check whether the current client is the owner of the lock.
  * Use setLockExpireListener(Runnable listener) to set a listener which will be called when the lock lease expires.
- * Use setAutoRenewLeaseIfOwner(boolean autoRenew) to automatically renew the lock lease before it expires if the current
- * client is the owner of the lock, but this re-new operation may be failed due to network error.
  *
  * @author huangli
  */
@@ -50,10 +44,13 @@ public interface DtKvLock extends AutoCloseable {
      *                              leaseMillis. If 0, return false immediately if the server tells the lock is held
      *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock.
      * @return whether acquire the lock successfully
-     * @throws KvException  any biz exception
-     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
+     * @throws IllegalStateException if the lock is closed, or is already held by current client, or another
+     *                               tryLock/unlock/updateLease operation is in progress.
+     * @throws KvException           any biz exception
+     * @throws NetException          any other exception such as network error, timeout, interrupted, etc.
      */
-    boolean tryLock(long leaseMillis, long waitLockTimeoutMillis) throws KvException, NetException;
+    boolean tryLock(long leaseMillis, long waitLockTimeoutMillis)
+            throws IllegalStateException, KvException, NetException;
 
     /**
      * Asynchronously to acquire the lock, wait up to waitLockTimeoutMillis if the lock is held by others.
@@ -74,11 +71,13 @@ public interface DtKvLock extends AutoCloseable {
 
     /**
      * Synchronously to release the lock, if the client is not the owner of the lock, do nothing.
+     * If there is another tryLock/unlock/updateLease operation in progress, the old operation will fail.
      *
-     * @throws KvException  any biz exception
-     * @throws NetException any other exception such as network error, timeout, interrupted, etc.
+     * @throws IllegalStateException if the lock is closed
+     * @throws KvException           any biz exception
+     * @throws NetException          any other exception such as network error, timeout, interrupted, etc.
      */
-    void unlock() throws KvException, NetException;
+    void unlock() throws IllegalStateException, KvException, NetException;
 
     /**
      * Asynchronously to release the lock, if the client is not the owner of the lock, do nothing.
@@ -86,6 +85,27 @@ public interface DtKvLock extends AutoCloseable {
      * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
     void unlock(FutureCallback<Void> callback);
+
+    /**
+     * Synchronously to update the lease time of the lock.
+     *
+     * @param newLeaseMillis the new lease time, should be positive, the lease time starts when this
+     *                       method invoked, that is, measured from the client side, not the server side
+     * @throws IllegalStateException if the lock is closed, or is not held by current client,
+     *                               or another tryLock/unlock/updateLease operation is in progress,
+     *                               or the lease has expired.
+     * @throws KvException           any biz exception
+     * @throws NetException          any other exception such as network error, timeout, interrupted, etc.
+     */
+    void updateLease(long newLeaseMillis) throws IllegalStateException, KvException, NetException;
+
+    /**
+     * Asynchronously to update the lease time of the lock.
+     * @param newLeaseMillis the new lease time, should be positive, the lease time starts when this
+     *                       method invoked, that is, measured from the client side, not the server side
+     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
+     */
+    void updateLease(long newLeaseMillis, FutureCallback<Void> callback);
 
     /**
      * Detect whether the current client is the owner of the lock. This method returns immediately ant will not
@@ -104,6 +124,7 @@ public interface DtKvLock extends AutoCloseable {
     /**
      * Get the remaining lease time in milliseconds, return 0 if the lease has expired or the current client is not
      * the owner of the lock or the ownership status cannot be determined (e.g., due to a network error).
+     *
      * @return the remaining lease time in milliseconds
      */
     long getLeaseRestMillis();
@@ -111,22 +132,16 @@ public interface DtKvLock extends AutoCloseable {
     /**
      * Set the listener which will be called when the lock lease, the async callback will be called
      * in bizExecutor of NioClient.
+     *
      * @param listener the listener
      */
     void setLockExpireListener(Runnable listener);
 
     /**
-     * Auto re-new the lock lease before it expires if the current client is the owner of the lock.
-     * The task is scheduled in bizExecutor of NioClient.
-     * Notice that the re-new operation may be failed due to network error.
-     *
-     * @param autoRenew true if enable auto update, false to disable it. if not set, the default is false.
-     */
-    void setAutoRenewLeaseIfOwner(boolean autoRenew);
-
-    /**
      * Safely close the lock, try to release the lock if the current client is the owner of the lock or
      * the ownership status cannot be determined (e.g., due to a network error).
+     * After close, any method (except isHeldByCurrentClient and getLeaseRestMillis) invoked on this
+     * lock will throw IllegalStateException.
      *
      * <p>
      * This method will not throw any exception, so it's safe to call it in finally block.
