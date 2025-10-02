@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -33,6 +34,7 @@ class LockManager {
     private static final DtLog log = DtLogs.getLogger(LockManager.class);
 
     private final HashMap<Integer, HashMap<ByteArray, DtKvLockImpl>> lockMap = new HashMap<>();
+    final ReentrantLock lock = new ReentrantLock();
 
     final KvClient kvClient;
     final RaftClient raftClient;
@@ -59,7 +61,8 @@ class LockManager {
         }
 
         ByteArray keyBytes = new ByteArray(key);
-        synchronized (this) {
+        lock.lock();
+        try {
             HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(groupId);
             if (m == null) {
                 m = new HashMap<>();
@@ -71,11 +74,14 @@ class LockManager {
                 m.put(keyBytes, dtKvLock);
             }
             return dtKvLock;
+        } finally {
+            lock.unlock();
         }
     }
 
     void removeLock(int groupId, ByteArray key) {
-        synchronized (this) {
+        lock.lock();
+        try {
             HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(groupId);
             if (m != null) {
                 m.remove(key);
@@ -83,13 +89,16 @@ class LockManager {
                     lockMap.remove(groupId);
                 }
             }
+        } finally {
+            lock.unlock();
         }
     }
 
     void processLockPush(int groupId, KvReq req, int bizCode) {
         DtKvLockImpl lock;
         ByteArray key = new ByteArray(req.key);
-        synchronized (this) {
+        this.lock.lock();
+        try {
             HashMap<ByteArray, DtKvLockImpl> groupLocks = lockMap.get(groupId);
             if (groupLocks == null) {
                 log.info("no lock found for push: groupId={}, key={}", groupId, key);
@@ -100,6 +109,8 @@ class LockManager {
                 log.info("no lock found for push: groupId={}, key={}", groupId, key);
                 return;
             }
+        } finally {
+            this.lock.unlock();
         }
         lock.processLockPush(bizCode, req.value);
     }

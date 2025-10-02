@@ -34,7 +34,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.StampedLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * @author huangli
@@ -62,7 +62,7 @@ class DtKvLockImpl implements DtKvLock {
     private final LockManager lockManager;
     private final int groupId;
     private final ByteArray keyBytes;
-    private final StampedLock opLock = new StampedLock();
+    private final ReentrantReadWriteLock opLock = new ReentrantReadWriteLock();
 
     // Current lock state
     private int state = STATE_NOT_LOCKED;
@@ -146,7 +146,7 @@ class DtKvLockImpl implements DtKvLock {
         @Override
         public void run() {
             // try lock timeout task
-            long stamp = opLock.writeLock();
+            opLock.writeLock().lock();
             try {
                 if (finish) {
                     return;
@@ -156,7 +156,7 @@ class DtKvLockImpl implements DtKvLock {
             } catch (Exception e) {
                 BugLog.log(e);
             } finally {
-                opLock.unlock(stamp);
+                opLock.writeLock().unlock();
             }
 
             // call user callback outside lock
@@ -180,7 +180,7 @@ class DtKvLockImpl implements DtKvLock {
 
         @Override
         public void call(ReadPacket<Void> p, Throwable ex) {
-            long stamp = opLock.writeLock();
+            opLock.writeLock().lock();
             try {
                 if (finish) {
                     return;
@@ -242,7 +242,7 @@ class DtKvLockImpl implements DtKvLock {
                     markFinishInLock(null, e);
                 }
             } finally {
-                opLock.unlock(stamp);
+                opLock.writeLock().unlock();
             }
             // call user callback outside lock, only once
             invokeCallback();
@@ -302,7 +302,7 @@ class DtKvLockImpl implements DtKvLock {
     }
 
     private Throwable tryLock0(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback) {
-        long stamp = opLock.writeLock();
+        opLock.writeLock().lock();
         try {
             if (state == STATE_CLOSED) {
                 return new IllegalStateException("lock is closed");
@@ -342,12 +342,12 @@ class DtKvLockImpl implements DtKvLock {
             }
             return e;
         } finally {
-            opLock.unlock(stamp);
+            opLock.writeLock().unlock();
         }
     }
 
     private void execExpireTask(int expectEpoch) {
-        long stamp = opLock.writeLock();
+        opLock.writeLock().lock();
         Runnable listener = null;
         try {
             if (state != STATE_LOCKED) {
@@ -362,7 +362,7 @@ class DtKvLockImpl implements DtKvLock {
                 listener = expireListener;
             }
         } finally {
-            opLock.unlock(stamp);
+            opLock.writeLock().unlock();
         }
         if (listener != null) {
             try {
@@ -397,7 +397,7 @@ class DtKvLockImpl implements DtKvLock {
 
     private Throwable unlock0(FutureCallback<Void> callback) {
         Op oldOp;
-        long stamp = opLock.writeLock();
+        opLock.writeLock().lock();
         try {
             if (state == STATE_CLOSED) {
                 return new IllegalStateException("lock is closed");
@@ -427,7 +427,7 @@ class DtKvLockImpl implements DtKvLock {
             }
             return e;
         } finally {
-            opLock.unlock(stamp);
+            opLock.writeLock().unlock();
         }
         if (oldOp != null) {
             oldOp.invokeCallback();
@@ -466,7 +466,7 @@ class DtKvLockImpl implements DtKvLock {
     }
 
     private Throwable updateLease0(long newLeaseMillis, FutureCallback<Void> callback) {
-        long stamp = opLock.writeLock();
+        opLock.writeLock().lock();
         try {
             if (state == STATE_CLOSED) {
                 return new IllegalStateException("lock is closed");
@@ -500,7 +500,7 @@ class DtKvLockImpl implements DtKvLock {
             }
             return e;
         } finally {
-            opLock.unlock(stamp);
+            opLock.writeLock().unlock();
         }
     }
 
@@ -512,59 +512,52 @@ class DtKvLockImpl implements DtKvLock {
 
     @Override
     public long getLeaseRestMillis() {
-        long stamp = opLock.tryOptimisticRead();
+        long rest;
+        opLock.readLock().lock();
         try {
-            for (; ; stamp = opLock.readLock()) {
-                if (stamp == 0L)
-                    continue;
-                long rest;
-                if (state != STATE_LOCKED) {
+            if (state != STATE_LOCKED) {
+                rest = 0;
+            } else {
+                rest = leaseEndNanos - System.nanoTime();
+                if (rest < 0) {
                     rest = 0;
-                } else {
-                    rest = leaseEndNanos - System.nanoTime();
-                    if (rest < 0) {
-                        rest = 0;
-                    }
                 }
-                if (!opLock.validate(stamp))
-                    continue;
-                return TimeUnit.NANOSECONDS.toMillis(rest);
             }
         } finally {
-            if (StampedLock.isReadLockStamp(stamp))
-                opLock.unlockRead(stamp);
+            opLock.readLock().unlock();
         }
+        return TimeUnit.NANOSECONDS.toMillis(rest);
     }
 
     @Override
     public void setLockExpireListener(Runnable listener) {
-        long stamp = opLock.writeLock();
+        opLock.writeLock().lock();
         try {
             this.expireListener = listener;
         } finally {
-            opLock.unlockWrite(stamp);
+            opLock.writeLock().unlock();
         }
     }
 
     @Override
     public void close() {
         Op oldOp;
-        synchronized (lockManager) {
-            long stamp = opLock.writeLock();
-            try {
-                if (state == STATE_CLOSED) {
-                    return;
-                }
-                state = STATE_CLOSED;
-                oldOp = currentOp;
-                if (oldOp != null) {
-                    oldOp.markFinishInLock(null, new NetException("canceled by close"));
-                }
-                cancelExpireTask();
-                lockManager.removeLock(groupId, keyBytes);
-            } finally {
-                opLock.unlockWrite(stamp);
+        lockManager.lock.lock();
+        opLock.writeLock().lock();
+        try {
+            if (state == STATE_CLOSED) {
+                return;
             }
+            state = STATE_CLOSED;
+            oldOp = currentOp;
+            if (oldOp != null) {
+                oldOp.markFinishInLock(null, new NetException("canceled by close"));
+            }
+            cancelExpireTask();
+            lockManager.removeLock(groupId, keyBytes);
+        } finally {
+            opLock.writeLock().unlock();
+            lockManager.lock.unlock();
         }
         if (oldOp != null) {
             oldOp.invokeCallback();
@@ -582,7 +575,7 @@ class DtKvLockImpl implements DtKvLock {
         }
 
         Op oldOp = null;
-        long stamp = opLock.writeLock();
+        opLock.writeLock().lock();
         try {
             if (state == STATE_CLOSED) {
                 log.info("ignore lock push because lock is closed. key: {}", keyBytes);
@@ -597,7 +590,7 @@ class DtKvLockImpl implements DtKvLock {
         } catch (Exception e) {
             BugLog.log(e);
         } finally {
-            opLock.unlock(stamp);
+            opLock.writeLock().unlock();
         }
 
         if (oldOp != null) {
