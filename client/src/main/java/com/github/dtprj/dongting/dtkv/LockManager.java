@@ -33,7 +33,7 @@ class LockManager {
     private static final DtLog log = DtLogs.getLogger(LockManager.class);
 
     private final HashMap<Integer, HashMap<ByteArray, DtKvLockImpl>> lockMap = new HashMap<>();
-    final ReentrantLock lock = new ReentrantLock();
+    final ReentrantLock managerOpLock = new ReentrantLock();
 
     final KvClient kvClient;
     final RaftClient raftClient;
@@ -58,7 +58,7 @@ class LockManager {
         }
 
         ByteArray keyBytes = new ByteArray(key);
-        lock.lock();
+        managerOpLock.lock();
         try {
             HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(groupId);
             if (m == null) {
@@ -72,29 +72,34 @@ class LockManager {
             }
             return dtKvLock;
         } finally {
-            lock.unlock();
+            managerOpLock.unlock();
         }
     }
 
-    void removeLock(int groupId, ByteArray key) {
-        lock.lock();
+    void removeLock(DtKvLockImpl lock) {
+        managerOpLock.lock();
         try {
-            HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(groupId);
+            lock.closeImpl();
+            HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(lock.groupId);
             if (m != null) {
-                m.remove(key);
+                if (m.get(lock.keyBytes) != lock) {
+                    log.error("lock not same, groupId={}, key={}", lock.groupId, lock.keyBytes);
+                    return;
+                }
+                m.remove(lock.keyBytes);
                 if (m.isEmpty()) {
-                    lockMap.remove(groupId);
+                    lockMap.remove(lock.groupId);
                 }
             }
         } finally {
-            lock.unlock();
+            managerOpLock.unlock();
         }
     }
 
     void processLockPush(int groupId, KvReq req, int bizCode) {
         DtKvLockImpl lock;
         ByteArray key = new ByteArray(req.key);
-        this.lock.lock();
+        this.managerOpLock.lock();
         try {
             HashMap<ByteArray, DtKvLockImpl> groupLocks = lockMap.get(groupId);
             if (groupLocks == null) {
@@ -107,7 +112,7 @@ class LockManager {
                 return;
             }
         } finally {
-            this.lock.unlock();
+            this.managerOpLock.unlock();
         }
         lock.processLockPush(bizCode, req.value);
     }

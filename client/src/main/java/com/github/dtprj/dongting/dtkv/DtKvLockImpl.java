@@ -60,8 +60,8 @@ class DtKvLockImpl implements DtKvLock {
     private int opId;
 
     private final LockManager lockManager;
-    private final int groupId;
-    private final ByteArray keyBytes;
+    final int groupId;
+    final ByteArray keyBytes;
     private final ReentrantReadWriteLock opLock = new ReentrantReadWriteLock();
 
     // Current lock state
@@ -541,8 +541,11 @@ class DtKvLockImpl implements DtKvLock {
 
     @Override
     public void close() {
+        lockManager.removeLock(this);
+    }
+
+    void closeImpl() {
         Op oldOp;
-        lockManager.lock.lock();
         opLock.writeLock().lock();
         try {
             if (state == STATE_CLOSED) {
@@ -554,7 +557,6 @@ class DtKvLockImpl implements DtKvLock {
                 oldOp.markFinishInLock(null, new NetException("canceled by close"));
             }
             cancelExpireTask();
-            lockManager.removeLock(groupId, keyBytes);
 
             KvReq req = new KvReq(groupId, keyBytes.getData(), null);
             EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
@@ -563,7 +565,6 @@ class DtKvLockImpl implements DtKvLock {
                     lockManager.kvClient.raftClient.createDefaultTimeout(), null);
         } finally {
             opLock.writeLock().unlock();
-            lockManager.lock.unlock();
         }
         if (oldOp != null) {
             oldOp.invokeCallback();
