@@ -80,7 +80,7 @@ public class WatchManager {
         boolean fullSync;
         boolean needCheckServer;
 
-        boolean removed;
+        boolean removedFromMap;
         ScheduledFuture<?> scheduledFuture;
 
         public GroupWatches(int groupId) {
@@ -170,7 +170,7 @@ public class WatchManager {
         lock.lock();
         try {
             GroupWatches gw = watches.get(groupId);
-            if (gw == null || gw.removed) {
+            if (gw == null) {
                 return;
             }
             for (byte[] k : keys) {
@@ -194,7 +194,7 @@ public class WatchManager {
             if (stopped.get()) {
                 return;
             }
-            if (gw.busy || gw.removed) {
+            if (gw.busy || gw.removedFromMap) {
                 return;
             }
             gw.busy = true;
@@ -334,12 +334,15 @@ public class WatchManager {
 
     private void removeGroupWatches(GroupWatches gw) {
         log.info("group {} removed", gw.groupId);
-        watches.remove(gw.groupId);
+        GroupWatches gwInMap = watches.get(gw.groupId);
+        if (gwInMap == gw) {
+            watches.remove(gw.groupId);
+        }
         if (gw.scheduledFuture != null) {
             gw.scheduledFuture.cancel(false);
             gw.scheduledFuture = null;
         }
-        gw.removed = true;
+        gw.removedFromMap = true;
         gw.busy = false;
         gw.serversEpoch = 0;
     }
@@ -401,7 +404,7 @@ public class WatchManager {
             }
             lock.lock();
             try {
-                if (gw.removed) {
+                if (gw.removedFromMap) {
                     return;
                 }
                 GroupInfo currentGroupInfo = raftClient.getGroup(gw.groupId);
@@ -409,7 +412,7 @@ public class WatchManager {
                     removeGroupWatches(gw);
                     return;
                 }
-                if (queryStatusOk(gw.groupId, n, frame, ex)) {
+                if (isQueryStatusOk(gw.groupId, n, frame, ex)) {
                     if (currentGroupInfo.serversEpoch == gi.serversEpoch || nodeInNewGroupInfo(n, gi)) {
                         gw.server = n;
                         gw.serversEpoch = currentGroupInfo.serversEpoch;
@@ -440,7 +443,7 @@ public class WatchManager {
         raftClient.getNioClient().sendRequest(n.peer, p, d, raftClient.createDefaultTimeout(), rpcCallback);
     }
 
-    private boolean queryStatusOk(int groupId, RaftNode n, ReadPacket<KvStatusResp> frame, Throwable ex) {
+    private boolean isQueryStatusOk(int groupId, RaftNode n, ReadPacket<KvStatusResp> frame, Throwable ex) {
         if (ex != null) {
             log.warn("query status failed, nodeId={}, groupId={},remote={}, ex={}",
                     n.nodeId, groupId, n.peer.endPoint, ex.toString());
@@ -588,7 +591,7 @@ public class WatchManager {
 
     private WatchEvent takeEventInLock() {
         KeyWatch w = notifyQueueHead;
-        while (w != null && w.needRemove && w.gw.removed) {
+        while (w != null && w.needRemove && w.gw.removedFromMap) {
             w.event = null;
             w = w.next;
         }
@@ -634,16 +637,13 @@ public class WatchManager {
         lock.lock();
         try {
             for (GroupWatches gw : watches.values()) {
-                if (gw.removed) {
-                    continue;
-                }
                 // Mark all watches in this group for removal
                 for (KeyWatch w : gw.watches.values()) {
                     w.needRemove = true;
                 }
                 gw.needSync = true;
                 gw.fullSync = true; // Force full sync to ensure all watches are removed
-                
+
                 // Try to sync immediately to notify server
                 syncGroupInLock(gw);
             }
