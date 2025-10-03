@@ -659,7 +659,7 @@ public class KvClient extends AbstractLifeCircle {
         sendAsync(groupId, Commands.DTKV_UPDATE_TTL, r, callback, v -> null);
     }
 
-    public DtKvLock createOrGetLock(int groupId, byte[] key) {
+    public DistributedLock createOrGetLock(int groupId, byte[] key) {
         checkKey(key, false);
         return lockManager.createOrGetLock(groupId, key);
     }

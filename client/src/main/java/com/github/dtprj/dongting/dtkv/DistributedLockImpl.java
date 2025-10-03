@@ -39,8 +39,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * @author huangli
  */
-class DtKvLockImpl implements DtKvLock {
-    private static final DtLog log = DtLogs.getLogger(DtKvLockImpl.class);
+class DistributedLockImpl implements DistributedLock {
+    private static final DtLog log = DtLogs.getLogger(DistributedLockImpl.class);
 
     // Lock states
     private static final int STATE_NOT_LOCKED = 0;  // not holding lock
@@ -75,7 +75,7 @@ class DtKvLockImpl implements DtKvLock {
     private int expireTaskEpoch;
     private ScheduledFuture<?> expireTask;
 
-    DtKvLockImpl(int lockId, LockManager lockManager, int groupId, byte[] key) {
+    DistributedLockImpl(int lockId, LockManager lockManager, int groupId, byte[] key) {
         this.lockId = lockId;
         this.opId = (int) System.nanoTime();
         this.lockManager = lockManager;

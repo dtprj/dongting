@@ -32,7 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
 class LockManager {
     private static final DtLog log = DtLogs.getLogger(LockManager.class);
 
-    private final HashMap<Integer, HashMap<ByteArray, DtKvLockImpl>> lockMap = new HashMap<>();
+    private final HashMap<Integer, HashMap<ByteArray, DistributedLockImpl>> lockMap = new HashMap<>();
     final ReentrantLock managerOpLock = new ReentrantLock();
 
     final KvClient kvClient;
@@ -46,7 +46,7 @@ class LockManager {
         this.raftClient = kvClient.getRaftClient();
     }
 
-    DtKvLockImpl createOrGetLock(int groupId, byte[] key) {
+    DistributedLockImpl createOrGetLock(int groupId, byte[] key) {
         Objects.requireNonNull(key);
         int c = KvClient.checkKey(key, KvClientConfig.MAX_KEY_SIZE, false, true);
         if (c != KvCodes.SUCCESS) {
@@ -60,10 +60,10 @@ class LockManager {
         ByteArray keyBytes = new ByteArray(key);
         managerOpLock.lock();
         try {
-            HashMap<ByteArray, DtKvLockImpl> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
-            DtKvLockImpl dtKvLock = m.get(keyBytes);
+            HashMap<ByteArray, DistributedLockImpl> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
+            DistributedLockImpl dtKvLock = m.get(keyBytes);
             if (dtKvLock == null) {
-                dtKvLock = new DtKvLockImpl(nextLockId++, this, groupId, key);
+                dtKvLock = new DistributedLockImpl(nextLockId++, this, groupId, key);
                 m.put(keyBytes, dtKvLock);
             }
             return dtKvLock;
@@ -72,11 +72,11 @@ class LockManager {
         }
     }
 
-    void removeLock(DtKvLockImpl lock) {
+    void removeLock(DistributedLockImpl lock) {
         managerOpLock.lock();
         try {
             lock.closeImpl();
-            HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(lock.groupId);
+            HashMap<ByteArray, DistributedLockImpl> m = lockMap.get(lock.groupId);
             if (m != null) {
                 if (m.get(lock.keyBytes) != lock) {
                     log.error("lock not same, groupId={}, key={}", lock.groupId, lock.keyBytes);
@@ -95,8 +95,8 @@ class LockManager {
     void removeAllLock() {
         managerOpLock.lock();
         try {
-            for (HashMap<ByteArray, DtKvLockImpl> m : lockMap.values()) {
-                for (DtKvLockImpl lock : m.values()) {
+            for (HashMap<ByteArray, DistributedLockImpl> m : lockMap.values()) {
+                for (DistributedLockImpl lock : m.values()) {
                     lock.closeImpl();
                 }
             }
@@ -107,11 +107,11 @@ class LockManager {
     }
 
     void processLockPush(int groupId, KvReq req, int bizCode) {
-        DtKvLockImpl lock;
+        DistributedLockImpl lock;
         ByteArray key = new ByteArray(req.key);
         this.managerOpLock.lock();
         try {
-            HashMap<ByteArray, DtKvLockImpl> groupLocks = lockMap.get(groupId);
+            HashMap<ByteArray, DistributedLockImpl> groupLocks = lockMap.get(groupId);
             if (groupLocks == null) {
                 log.info("no lock found for push: groupId={}, key={}", groupId, key);
                 return;

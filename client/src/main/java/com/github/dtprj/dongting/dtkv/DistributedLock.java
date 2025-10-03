@@ -28,7 +28,7 @@ import com.github.dtprj.dongting.net.NetException;
  *
  * @author huangli
  */
-public interface DtKvLock {
+public interface DistributedLock {
 
     /**
      * Synchronously to acquire the lock, block caller thread and wait up to waitLockTimeoutMillis
