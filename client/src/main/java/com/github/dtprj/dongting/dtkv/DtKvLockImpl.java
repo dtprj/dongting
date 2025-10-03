@@ -545,7 +545,7 @@ class DtKvLockImpl implements DtKvLock {
     }
 
     void closeImpl() {
-        Op oldOp;
+        Op oldOp = null;
         opLock.writeLock().lock();
         try {
             if (state == STATE_CLOSED) {
@@ -563,6 +563,8 @@ class DtKvLockImpl implements DtKvLock {
             lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                     DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
                     lockManager.kvClient.raftClient.createDefaultTimeout(), null);
+        } catch (Exception e) {
+            log.error("lock close error", e);
         } finally {
             opLock.writeLock().unlock();
         }

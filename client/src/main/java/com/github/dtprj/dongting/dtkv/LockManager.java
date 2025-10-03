@@ -60,11 +60,7 @@ class LockManager {
         ByteArray keyBytes = new ByteArray(key);
         managerOpLock.lock();
         try {
-            HashMap<ByteArray, DtKvLockImpl> m = lockMap.get(groupId);
-            if (m == null) {
-                m = new HashMap<>();
-                lockMap.put(groupId, m);
-            }
+            HashMap<ByteArray, DtKvLockImpl> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
             DtKvLockImpl dtKvLock = m.get(keyBytes);
             if (dtKvLock == null) {
                 dtKvLock = new DtKvLockImpl(nextLockId++, this, groupId, key);
@@ -91,6 +87,20 @@ class LockManager {
                     lockMap.remove(lock.groupId);
                 }
             }
+        } finally {
+            managerOpLock.unlock();
+        }
+    }
+
+    void removeAllLock() {
+        managerOpLock.lock();
+        try {
+            for (HashMap<ByteArray, DtKvLockImpl> m : lockMap.values()) {
+                for (DtKvLockImpl lock : m.values()) {
+                    lock.closeImpl();
+                }
+            }
+            lockMap.clear();
         } finally {
             managerOpLock.unlock();
         }

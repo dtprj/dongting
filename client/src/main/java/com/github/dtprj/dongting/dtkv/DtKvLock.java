@@ -28,7 +28,7 @@ import com.github.dtprj.dongting.net.NetException;
  *
  * @author huangli
  */
-public interface DtKvLock extends AutoCloseable {
+public interface DtKvLock {
 
     /**
      * Synchronously to acquire the lock, block caller thread and wait up to waitLockTimeoutMillis
@@ -146,6 +146,5 @@ public interface DtKvLock extends AutoCloseable {
      * <p>
      * This method will not throw any exception, so it's safe to call it in finally block.
      */
-    @Override
     void close();
 }

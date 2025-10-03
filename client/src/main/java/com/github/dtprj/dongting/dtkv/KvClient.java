@@ -672,6 +672,7 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     protected void doStop(DtTime timeout, boolean force) {
+        lockManager.removeAllLock();
         raftClient.stop(timeout);
     }
 
