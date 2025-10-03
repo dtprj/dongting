@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftClient;
@@ -38,15 +37,13 @@ class LockManager {
 
     final KvClient kvClient;
     final RaftClient raftClient;
-    final ScheduledExecutorService executeService;
+    ScheduledExecutorService executeService;
 
     private int nextLockId = 1;
 
     LockManager(KvClient kvClient) {
         this.kvClient = kvClient;
         this.raftClient = kvClient.getRaftClient();
-        this.executeService = raftClient.getNioClient().getBizExecutor() == null ?
-                DtUtil.SCHEDULED_SERVICE : raftClient.getNioClient().getBizExecutor();
     }
 
     DtKvLockImpl createOrGetLock(int groupId, byte[] key) {

@@ -667,6 +667,8 @@ public class KvClient extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         raftClient.start();
+        lockManager.executeService = raftClient.getNioClient().getBizExecutor() == null ?
+                DtUtil.SCHEDULED_SERVICE : raftClient.getNioClient().getBizExecutor();
     }
 
     protected void doStop(DtTime timeout, boolean force) {
