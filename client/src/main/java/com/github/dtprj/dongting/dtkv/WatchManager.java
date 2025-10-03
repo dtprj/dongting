@@ -359,11 +359,11 @@ public class WatchManager {
         } else {
             list.sort(Comparator.comparingInt(o -> o.peer.connectRetryCount));
             RaftNode node = list.remove(0);
-            findServer(gi, gw, list, node);
+            checkServer(gi, gw, list, node);
         }
     }
 
-    private void findServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list, RaftNode node) {
+    private void checkServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list, RaftNode node) {
         if (node.peer.status == PeerStatus.connected) {
             sendQueryStatus(gi, gw, node, status -> {
                 if (status == STATUS_OK) {
@@ -384,7 +384,7 @@ public class WatchManager {
                     // try next
                     findServer(gi, gw, list);
                 } else {
-                    findServer(gi, gw, list, node);
+                    checkServer(gi, gw, list, node);
                 }
             });
         }
@@ -624,6 +624,32 @@ public class WatchManager {
         this.listener = null;
         this.userExecutor = null;
         lock.unlock();
+    }
+
+    /**
+     * Remove all watches for all groups and notify servers to stop pushing.
+     * This method should be called when client is closing to prevent further notifications.
+     */
+    public void removeAllWatch() {
+        lock.lock();
+        try {
+            for (GroupWatches gw : watches.values()) {
+                if (gw.removed) {
+                    continue;
+                }
+                // Mark all watches in this group for removal
+                for (KeyWatch w : gw.watches.values()) {
+                    w.needRemove = true;
+                }
+                gw.needSync = true;
+                gw.fullSync = true; // Force full sync to ensure all watches are removed
+                
+                // Try to sync immediately to notify server
+                syncGroupInLock(gw);
+            }
+        } finally {
+            lock.unlock();
+        }
     }
 
 }
