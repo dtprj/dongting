@@ -555,6 +555,12 @@ class DtKvLockImpl implements DtKvLock {
             }
             cancelExpireTask();
             lockManager.removeLock(groupId, keyBytes);
+
+            KvReq req = new KvReq(groupId, keyBytes.getData(), null);
+            EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
+            lockManager.kvClient.raftClient.sendRequest(groupId, packet,
+                    DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
+                    lockManager.kvClient.raftClient.createDefaultTimeout(), null);
         } finally {
             opLock.writeLock().unlock();
             lockManager.lock.unlock();

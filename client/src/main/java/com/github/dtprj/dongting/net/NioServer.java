@@ -36,6 +36,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -218,6 +219,7 @@ public class NioServer extends NioNet implements Runnable {
 
     public <T> void sendRequest(DtChannel dtc, WritePacket request, DecoderCallbackCreator<T> decoder,
                                 DtTime timeout, RpcCallback<T> callback) {
+        Objects.requireNonNull(decoder);
         push((DtChannelImpl) dtc, request, decoder, timeout, callback);
     }
 
