@@ -57,4 +57,13 @@ public class GroupInfo {
         this.lastLeaderFailTime = lastLeaderFailTime;
         this.serversEpoch = old.serversEpoch;
     }
+
+    public boolean contains(RaftNode node) {
+        for (int size = servers.size(), i = 0; i < size; i++) {
+            if (servers.get(i).nodeId == node.nodeId && servers.get(i).hostPort.equals(node.hostPort)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

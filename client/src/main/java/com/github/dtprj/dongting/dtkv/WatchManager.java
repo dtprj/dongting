@@ -74,10 +74,9 @@ public class WatchManager {
         final int groupId;
         final HashMap<ByteArray, KeyWatch> watches = new HashMap<>();
         RaftNode server;
-        long serversEpoch;
         boolean busy;
         boolean needSync;
-        boolean fullSync;
+        boolean syncAll;
         boolean needCheckServer;
 
         boolean removedFromMap;
@@ -192,6 +191,7 @@ public class WatchManager {
     private void syncGroupInLock(GroupWatches gw) {
         try {
             if (stopped.get()) {
+                gw.busy = false;
                 return;
             }
             if (gw.busy || gw.removedFromMap) {
@@ -204,9 +204,9 @@ public class WatchManager {
                 removeGroupWatches(gw);
                 return;
             }
-            if (gw.server == null || gw.server.peer.status != PeerStatus.connected) {
+            if (gw.server == null || gw.server.peer.status != PeerStatus.connected || !gi.contains(gw.server)) {
                 if (isGroupWatchesValid(gw)) {
-                    initFindServer(gw, gi);
+                    findServer(gi, gw, null);
                 } else {
                     // not send sync request
                     removeGroupWatches(gw);
@@ -224,11 +224,14 @@ public class WatchManager {
                             syncGroupInLock(gw);
                         }
                     } else {
-                        initFindServer(gw, gi);
+                        findServer(gi, gw, null);
                     }
                 });
             } else if (gw.needSync) {
                 syncGroupInLock0(gw);
+            } else {
+                // No operation needed, reset busy flag
+                gw.busy = false;
             }
         } catch (Throwable e) {
             log.error("sync watches failed, groupId={}", gw.groupId, e);
@@ -236,19 +239,10 @@ public class WatchManager {
         }
     }
 
-    private boolean isGroupWatchesValid(GroupWatches gw) {
-        for (KeyWatch kw : gw.watches.values()) {
-            if (!kw.needRemove) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void syncGroupInLock0(GroupWatches gw) {
         List<ByteArray> keys;
         long[] knownRaftIndexes;
-        if (gw.fullSync) {
+        if (gw.syncAll) {
             for (Iterator<KeyWatch> it = gw.watches.values().iterator(); it.hasNext(); ) {
                 KeyWatch w = it.next();
                 if (w.needRemove) {
@@ -286,16 +280,27 @@ public class WatchManager {
             }
         }
         gw.needSync = false;
-        gw.fullSync = false;
+        boolean syncAll = gw.syncAll;
+        gw.syncAll = false;
         if (gw.watches.isEmpty()) {
             removeGroupWatches(gw);
         }
-        sendSyncReq(gw, keys, knownRaftIndexes);
+        sendSyncReq(gw, syncAll, keys, knownRaftIndexes);
     }
 
-    private void sendSyncReq(GroupWatches gw, List<ByteArray> keys, long[] knownRaftIndexes) {
+    private boolean isGroupWatchesValid(GroupWatches gw) {
+        for (KeyWatch kw : gw.watches.values()) {
+            if (!kw.needRemove) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void sendSyncReq(GroupWatches gw, boolean syncAll, List<ByteArray> keys, long[] knownRaftIndexes) {
         RpcCallback<Void> c = (frame, ex) -> {
             if (stopped.get()) {
+                gw.busy = false;
                 return;
             }
             lock.lock();
@@ -309,19 +314,21 @@ public class WatchManager {
                     log.warn("sync watches failed, groupId={}, remote={}, ex={}",
                             gw.groupId, gw.server.peer.endPoint, ex.toString());
                     gw.needSync = true;
-                    gw.fullSync = true;
+                    gw.syncAll = true;
                     gw.server = null;
-                    gw.serversEpoch = 0;
+                }
+                gw.busy = false;
+                if (gw.needSync) {
                     syncGroupInLock(gw);
                 }
             } catch (Throwable e) {
                 log.error("", e);
-            } finally {
                 gw.busy = false;
+            } finally {
                 lock.unlock();
             }
         };
-        WatchReq req = new WatchReq(gw.groupId, gw.fullSync, keys, knownRaftIndexes);
+        WatchReq req = new WatchReq(gw.groupId, syncAll, keys, knownRaftIndexes);
         sendSyncReq(gw.server, req, c);
     }
 
@@ -344,52 +351,59 @@ public class WatchManager {
         }
         gw.removedFromMap = true;
         gw.busy = false;
-        gw.serversEpoch = 0;
-    }
-
-    private void initFindServer(GroupWatches gw, GroupInfo gi) {
-        gw.server = null;
-        gw.serversEpoch = gi.serversEpoch;
-        ArrayList<RaftNode> servers = new ArrayList<>(gi.servers);
-        findServer(gi, gw, servers);
     }
 
     private void findServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list) {
-        if (list.isEmpty()) {
-            log.error("no server found for group {}", gi.groupId);
+        try {
+            if (list == null) {
+                // init find server
+                gw.server = null;
+                list = new ArrayList<>(gi.servers);
+
+            }
+            if (list.isEmpty()) {
+                log.error("no server found for group {}", gi.groupId);
+                gw.busy = false;
+            } else {
+                list.sort(Comparator.comparingInt(o -> o.peer.connectRetryCount));
+                RaftNode node = list.remove(0);
+                checkServer(gi, gw, list, node);
+            }
+        } catch (Throwable e) {
+            log.error("unexpected error", e);
             gw.busy = false;
-            gw.serversEpoch = 0;
-        } else {
-            list.sort(Comparator.comparingInt(o -> o.peer.connectRetryCount));
-            RaftNode node = list.remove(0);
-            checkServer(gi, gw, list, node);
         }
     }
 
     private void checkServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list, RaftNode node) {
-        if (node.peer.status == PeerStatus.connected) {
-            sendQueryStatus(gi, gw, node, status -> {
-                if (status == STATUS_OK) {
-                    gw.busy = false;
-                    gw.needCheckServer = false;
-                    if (gw.needSync) {
-                        syncGroupInLock(gw);
+        try {
+            if (node.peer.status == PeerStatus.connected) {
+                sendQueryStatus(gi, gw, node, status -> {
+                    if (status == STATUS_OK) {
+                        gw.busy = false;
+                        gw.needCheckServer = false;
+                        if (gw.needSync) {
+                            syncGroupInLock(gw);
+                        }
+                    } else if (status == STATUS_TRY_NEXT) {
+                        findServer(gi, gw, list);
+                    } else if (status == STATUS_RESTART_FIND) {
+                        findServer(gi, gw, null);
                     }
-                } else if (status == STATUS_TRY_NEXT) {
-                    findServer(gi, gw, list);
-                } else if (status == STATUS_RESTART_FIND) {
-                    initFindServer(gw, gi);
-                }
-            });
-        } else {
-            raftClient.getNioClient().connect(node.peer).whenComplete((v, ex) -> {
-                if (ex != null) {
-                    // try next
-                    findServer(gi, gw, list);
-                } else {
-                    checkServer(gi, gw, list, node);
-                }
-            });
+                });
+            } else {
+                raftClient.getNioClient().connect(node.peer).whenComplete((v, ex) -> {
+                    if (ex != null) {
+                        // try next
+                        findServer(gi, gw, list);
+                    } else {
+                        checkServer(gi, gw, list, node);
+                    }
+                });
+            }
+        } catch (Throwable e) {
+            log.error("unexpected error", e);
+            gw.busy = false;
         }
     }
 
@@ -400,6 +414,7 @@ public class WatchManager {
     private void sendQueryStatus(GroupInfo gi, GroupWatches gw, RaftNode n, Consumer<Integer> callback) {
         RpcCallback<KvStatusResp> rpcCallback = (frame, ex) -> {
             if (stopped.get()) {
+                gw.busy = false;
                 return;
             }
             lock.lock();
@@ -413,15 +428,14 @@ public class WatchManager {
                     return;
                 }
                 if (isQueryStatusOk(gw.groupId, n, frame, ex)) {
-                    if (currentGroupInfo.serversEpoch == gi.serversEpoch || nodeInNewGroupInfo(n, gi)) {
+                    if (gi.contains(n)) {
                         gw.server = n;
-                        gw.serversEpoch = currentGroupInfo.serversEpoch;
                         callback.accept(STATUS_OK);
                     } else {
                         callback.accept(STATUS_RESTART_FIND);
                     }
                 } else {
-                    if (currentGroupInfo.serversEpoch == gi.serversEpoch) {
+                    if (gi.contains(n)) {
                         callback.accept(STATUS_TRY_NEXT);
                     } else {
                         callback.accept(STATUS_RESTART_FIND);
@@ -461,15 +475,6 @@ public class WatchManager {
             return false;
         }
         return true;
-    }
-
-    private boolean nodeInNewGroupInfo(RaftNode n, GroupInfo gi) {
-        for (RaftNode node : gi.servers) {
-            if (node.nodeId == n.nodeId && node.peer.endPoint.equals(n.peer.endPoint)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     protected WritePacket processNotify(WatchNotifyReq req, SocketAddress remote) {
@@ -642,7 +647,7 @@ public class WatchManager {
                     w.needRemove = true;
                 }
                 gw.needSync = true;
-                gw.fullSync = true; // Force full sync to ensure all watches are removed
+                gw.syncAll = true; // Force full sync to ensure all watches are removed
 
                 // Try to sync immediately to notify server
                 syncGroupInLock(gw);
