@@ -351,6 +351,30 @@ public class WatchManager {
         }
         gw.removedFromMap = true;
         gw.busy = false;
+        
+        // Clean up notification queue for this group
+        KeyWatch prev = null;
+        KeyWatch current = notifyQueueHead;
+        while (current != null) {
+            if (current.gw == gw) {
+                // Remove current from the queue
+                if (prev == null) {
+                    notifyQueueHead = current.next;
+                } else {
+                    prev.next = current.next;
+                }
+                if (current == notifyQueueTail) {
+                    notifyQueueTail = prev;
+                }
+                KeyWatch toRemove = current;
+                current = current.next;
+                toRemove.event = null;
+                toRemove.next = null; // Clean up reference
+            } else {
+                prev = current;
+                current = current.next;
+            }
+        }
     }
 
     private void findServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list) {
@@ -500,7 +524,7 @@ public class WatchManager {
             for (WatchNotify n : req.notifyList) {
                 ByteArray k = new ByteArray(n.key);
                 KeyWatch w = watch.watches.get(k);
-                if (w == null || w.needRemove) {
+                if (w == null || w.needRemove || w.gw.removedFromMap) {
                     results[i] = KvCodes.REMOVE_WATCH;
                 } else {
                     if (w.raftIndex < n.raftIndex) {
