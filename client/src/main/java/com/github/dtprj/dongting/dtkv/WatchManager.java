@@ -215,7 +215,7 @@ public class WatchManager {
             }
             if (gw.needCheckServer) {
                 // periodic query (ping), ensure server status and prevent server remove idle client
-                sendQueryStatus(gi, gw, gw.server, status -> {
+                sendQueryStatus(gw, gw.server, status -> {
                     if (status == STATUS_OK) {
                         // finished successfully
                         gw.busy = false;
@@ -351,7 +351,7 @@ public class WatchManager {
         }
         gw.removedFromMap = true;
         gw.busy = false;
-        
+
         // Clean up notification queue for this group
         KeyWatch prev = null;
         KeyWatch current = notifyQueueHead;
@@ -375,6 +375,9 @@ public class WatchManager {
                 current = current.next;
             }
         }
+
+        // Release key map for this group
+        gw.watches.clear();
     }
 
     private void findServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list) {
@@ -402,7 +405,7 @@ public class WatchManager {
     private void checkServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list, RaftNode node) {
         try {
             if (node.peer.status == PeerStatus.connected) {
-                sendQueryStatus(gi, gw, node, status -> {
+                sendQueryStatus(gw, node, status -> {
                     if (status == STATUS_OK) {
                         gw.busy = false;
                         gw.needCheckServer = false;
@@ -435,7 +438,7 @@ public class WatchManager {
     private static final int STATUS_TRY_NEXT = 1;
     private static final int STATUS_RESTART_FIND = 2;
 
-    private void sendQueryStatus(GroupInfo gi, GroupWatches gw, RaftNode n, Consumer<Integer> callback) {
+    private void sendQueryStatus(GroupWatches gw, RaftNode n, Consumer<Integer> callback) {
         RpcCallback<KvStatusResp> rpcCallback = (frame, ex) -> {
             if (stopped.get()) {
                 gw.busy = false;
@@ -452,14 +455,14 @@ public class WatchManager {
                     return;
                 }
                 if (isQueryStatusOk(gw.groupId, n, frame, ex)) {
-                    if (gi.contains(n)) {
+                    if (currentGroupInfo.contains(n)) {
                         gw.server = n;
                         callback.accept(STATUS_OK);
                     } else {
                         callback.accept(STATUS_RESTART_FIND);
                     }
                 } else {
-                    if (gi.contains(n)) {
+                    if (currentGroupInfo.contains(n)) {
                         callback.accept(STATUS_TRY_NEXT);
                     } else {
                         callback.accept(STATUS_RESTART_FIND);
@@ -620,7 +623,7 @@ public class WatchManager {
 
     private WatchEvent takeEventInLock() {
         KeyWatch w = notifyQueueHead;
-        while (w != null && w.needRemove && w.gw.removedFromMap) {
+        while (w != null && (w.needRemove || w.gw.removedFromMap)) {
             w.event = null;
             w = w.next;
         }
@@ -646,9 +649,14 @@ public class WatchManager {
         Objects.requireNonNull(listener);
         Objects.requireNonNull(userExecutor);
         lock.lock();
-        this.listener = listener;
-        this.userExecutor = userExecutor;
-        lock.unlock();
+        try {
+            this.listener = listener;
+            this.userExecutor = userExecutor;
+            // Try to dispatch pending events immediately
+            fireListenerEventInLock();
+        } finally {
+            lock.unlock();
+        }
     }
 
     public void removeListener() {
