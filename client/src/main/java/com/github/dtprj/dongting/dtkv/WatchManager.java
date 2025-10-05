@@ -686,7 +686,8 @@ public class WatchManager {
     public void removeAllWatch() {
         lock.lock();
         try {
-            for (GroupWatches gw : watches.values()) {
+            ArrayList<GroupWatches> list = new ArrayList<>(watches.values());
+            for (GroupWatches gw : list) {
                 // Mark all watches in this group for removal
                 for (KeyWatch w : gw.watches.values()) {
                     w.needRemove = true;
