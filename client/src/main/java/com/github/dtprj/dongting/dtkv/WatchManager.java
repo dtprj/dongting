@@ -150,14 +150,9 @@ public class WatchManager {
             for (byte[] k : keys) {
                 ByteArray key = new ByteArray(k);
                 KeyWatch w = gw.watches.get(key);
-                if (w == null) {
+                if (w == null || w.needRemove) {
                     w = new KeyWatch(key, gw);
                     gw.watches.put(key, w);
-                    gw.needSync = true;
-                } else if (w.needRemove) {
-                    // Reuse the existing watch node
-                    w.needRemove = false;
-                    w.needRegister = true;
                     gw.needSync = true;
                 }
             }
@@ -281,7 +276,6 @@ public class WatchManager {
                 keys.add(w.key);
                 knownRaftIndexes[i++] = w.needRemove ? -1 : w.raftIndex;
                 w.needRegister = false;
-                w.needRemove = false;
             }
         }
         gw.needSync = false;
@@ -510,7 +504,7 @@ public class WatchManager {
             return false;
         }
         QueryStatusResp s = resp.raftServerStatus;
-        if (s.leaderId <= 0 || s.lastApplyTimeToNowMillis > 15_0000 || s.applyLagMillis > 15_000) {
+        if (s.leaderId <= 0 || s.lastApplyTimeToNowMillis > 15_000 || s.applyLagMillis > 15_000) {
             log.info("node {} for group {} is not ready, leaderId={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
                     n.nodeId, groupId, s.leaderId, s.lastApplyTimeToNowMillis, s.applyLagMillis);
             return false;
@@ -638,7 +632,8 @@ public class WatchManager {
 
     private WatchEvent takeEventInLock() {
         KeyWatch w = notifyQueueHead;
-        while (w != null && (w.needRemove || w.gw.removedFromMap || w.event == null)) {
+        while (w != null && (w.event == null || w.gw.removedFromMap || w.needRemove
+                || w.gw.watches.get(w.key) != w)) {
             KeyWatch next = w.next;
             w.event = null;
             w.next = null;
