@@ -150,9 +150,14 @@ public class WatchManager {
             for (byte[] k : keys) {
                 ByteArray key = new ByteArray(k);
                 KeyWatch w = gw.watches.get(key);
-                if (w == null || w.needRemove) {
+                if (w == null) {
                     w = new KeyWatch(key, gw);
                     gw.watches.put(key, w);
+                    gw.needSync = true;
+                } else if (w.needRemove) {
+                    // Reuse the existing watch node
+                    w.needRemove = false;
+                    w.needRegister = true;
                     gw.needSync = true;
                 }
             }
