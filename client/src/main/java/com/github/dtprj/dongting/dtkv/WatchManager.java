@@ -601,6 +601,7 @@ public class WatchManager {
             return;
         }
         w.event = e;
+        w.next = null;
         if (notifyQueueHead == null) {
             notifyQueueHead = w;
         } else {
@@ -623,9 +624,11 @@ public class WatchManager {
 
     private WatchEvent takeEventInLock() {
         KeyWatch w = notifyQueueHead;
-        while (w != null && (w.needRemove || w.gw.removedFromMap)) {
+        while (w != null && (w.needRemove || w.gw.removedFromMap || w.event == null)) {
+            KeyWatch next = w.next;
             w.event = null;
-            w = w.next;
+            w.next = null;
+            w = next;
         }
         if (w == null) {
             notifyQueueHead = null;
@@ -635,6 +638,7 @@ public class WatchManager {
         WatchEvent e = w.event;
         w.event = null;
         notifyQueueHead = w.next;
+        w.next = null;
         if (notifyQueueHead == null) {
             notifyQueueTail = null;
         }
