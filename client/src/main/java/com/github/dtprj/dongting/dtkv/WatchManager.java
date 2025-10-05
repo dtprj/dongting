@@ -297,6 +297,7 @@ public class WatchManager {
     }
 
     private void sendSyncReq(GroupWatches gw, boolean syncAll, List<ByteArray> keys, long[] knownRaftIndexes) {
+        RaftNode server = gw.server;
         RpcCallback<Void> c = (frame, ex) -> {
             if (stopped.get()) {
                 gw.busy = false;
@@ -311,7 +312,7 @@ public class WatchManager {
                 }
                 if (ex != null) {
                     log.warn("sync watches failed, groupId={}, remote={}, ex={}",
-                            gw.groupId, gw.server.peer.endPoint, ex.toString());
+                            gw.groupId, server.peer.endPoint, ex.toString());
                     gw.needSync = true;
                     gw.syncAll = true;
                     gw.server = null;
@@ -328,7 +329,7 @@ public class WatchManager {
             }
         };
         WatchReq req = new WatchReq(gw.groupId, syncAll, keys, knownRaftIndexes);
-        sendSyncReq(gw.server, req, c);
+        sendSyncReq(server, req, c);
     }
 
     protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
