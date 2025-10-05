@@ -409,6 +409,10 @@ public class WatchManager {
 
     private void checkServer(GroupInfo gi, GroupWatches gw, List<RaftNode> list, RaftNode node) {
         try {
+            if (stopped.get() || gw.removedFromMap) {
+                gw.busy = false;
+                return;
+            }
             if (node.peer.status == PeerStatus.connected) {
                 sendQueryStatus(gw, node, status -> {
                     if (status == STATUS_OK) {
@@ -425,11 +429,16 @@ public class WatchManager {
                 });
             } else {
                 raftClient.getNioClient().connect(node.peer).whenComplete((v, ex) -> {
-                    if (ex != null) {
-                        // try next
-                        findServer(gi, gw, list);
-                    } else {
-                        checkServer(gi, gw, list, node);
+                    lock.lock();
+                    try {
+                        if (ex != null) {
+                            // try next
+                            findServer(gi, gw, list);
+                        } else {
+                            checkServer(gi, gw, list, node);
+                        }
+                    } finally {
+                        lock.unlock();
                     }
                 });
             }
