@@ -68,6 +68,7 @@ class DistributedLockImpl implements DistributedLock {
     // Current lock state
     private int state = STATE_NOT_LOCKED;
     private long leaseEndNanos;
+    private long newLeaseEndNanos;
 
     private Op currentOp;
 
@@ -78,7 +79,9 @@ class DistributedLockImpl implements DistributedLock {
 
     DistributedLockImpl(int lockId, LockManager lockManager, int groupId, byte[] key) {
         this.lockId = lockId;
-        this.opId = (int) System.nanoTime();
+        long now = System.nanoTime();
+        this.opId = (int) now;
+        this.newLeaseEndNanos = now;
         this.lockManager = lockManager;
         this.groupId = groupId;
         this.keyBytes = new ByteArray(key);
@@ -86,7 +89,6 @@ class DistributedLockImpl implements DistributedLock {
 
     private class Op implements Runnable, RpcCallback<Void> {
         final int taskOpId;
-        final long taskLeaseEndNanos;
         final long waitLockTimeoutMillis;
         private final FutureCallback<?> callback;
         private ScheduledFuture<?> waitTimeoutTask;
@@ -104,7 +106,7 @@ class DistributedLockImpl implements DistributedLock {
 
         Op(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback) {
             this.taskOpId = ++opId;
-            this.taskLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
+            newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
             this.waitLockTimeoutMillis = waitLockTimeoutMillis;
             this.callback = callback;
             this.opType = OP_TYPE_TRY_LOCK;
@@ -112,7 +114,6 @@ class DistributedLockImpl implements DistributedLock {
 
         Op(FutureCallback<Void> callback) {
             this.taskOpId = ++opId;
-            this.taskLeaseEndNanos = 0;
             this.waitLockTimeoutMillis = 0;
             this.callback = callback;
             this.opType = OP_TYPE_UNLOCK;
@@ -120,7 +121,7 @@ class DistributedLockImpl implements DistributedLock {
 
         Op(long leaseMillis, FutureCallback<Void> callback) {
             this.taskOpId = ++opId;
-            this.taskLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
+            newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
             this.waitLockTimeoutMillis = 0;
             this.callback = callback;
             this.opType = OP_TYPE_RENEW;
@@ -229,7 +230,7 @@ class DistributedLockImpl implements DistributedLock {
                     } else {
                         // update lease
                         if (p.bizCode == KvCodes.SUCCESS) {
-                            leaseEndNanos = taskLeaseEndNanos;
+                            leaseEndNanos = newLeaseEndNanos;
                             if (expireTask != null && !expireTask.isDone()) {
                                 expireTask.cancel(false);
                             }
@@ -260,7 +261,7 @@ class DistributedLockImpl implements DistributedLock {
                 return;
             }
             long now = System.nanoTime();
-            if (taskLeaseEndNanos - now <= 0) {
+            if (newLeaseEndNanos - now <= 0) {
                 markFinishInLock(null, new NetException("lease expired"));
                 return;
             }
@@ -268,7 +269,7 @@ class DistributedLockImpl implements DistributedLock {
                 log.debug("tryLock success, key: {}, code={}", keyBytes, KvCodes.toStr(bizCode));
             }
             state = STATE_LOCKED;
-            leaseEndNanos = taskLeaseEndNanos;
+            leaseEndNanos = newLeaseEndNanos;
 
             expireTaskEpoch++;
             expireTask = lockManager.executeService.schedule(() -> execExpireTask(expireTaskEpoch),
@@ -558,6 +559,7 @@ class DistributedLockImpl implements DistributedLock {
             if (state == STATE_CLOSED) {
                 return;
             }
+            int oldState = state;
             state = STATE_CLOSED;
             oldOp = currentOp;
             if (oldOp != null) {
@@ -565,11 +567,13 @@ class DistributedLockImpl implements DistributedLock {
             }
             cancelExpireTask();
 
-            KvReq req = new KvReq(groupId, keyBytes.getData(), null);
-            EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
-            lockManager.kvClient.raftClient.sendRequest(groupId, packet,
-                    DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                    lockManager.kvClient.raftClient.createDefaultTimeout(), null);
+            if ((oldState == STATE_LOCKED || oldState == STATE_UNKNOWN) && (newLeaseEndNanos - System.nanoTime() > 0)) {
+                KvReq req = new KvReq(groupId, keyBytes.getData(), null);
+                EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
+                lockManager.kvClient.raftClient.sendRequest(groupId, packet,
+                        DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
+                        lockManager.kvClient.raftClient.createDefaultTimeout(), null);
+            }
         } catch (Exception e) {
             log.error("lock close error", e);
         } finally {
