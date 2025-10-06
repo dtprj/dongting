@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.net.RpcCallback;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -276,19 +277,31 @@ class DistributedLockImpl implements DistributedLock {
         }
     }
 
-
     @Override
     public boolean tryLock(long leaseMillis, long waitLockTimeoutMillis) throws KvException, NetException {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         tryLock(leaseMillis, waitLockTimeoutMillis, FutureCallback.fromFuture(future));
 
+        return getFuture(future);
+    }
+
+    private <T> T getFuture(CompletableFuture<T> f) throws KvException, NetException {
         try {
-            return future.get();
+            return f.get();
         } catch (InterruptedException e) {
             DtUtil.restoreInterruptStatus();
             throw new NetException("interrupted", e);
-        } catch (Exception e) {
-            throw new NetException("tryLock error", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof KvException) {
+                cause.addSuppressed(new NetException());
+                throw (KvException) cause;
+            } else if (cause instanceof NetException) {
+                cause.addSuppressed(new NetException());
+                throw (NetException) cause;
+            } else {
+                throw new NetException(cause);
+            }
         }
     }
 
@@ -384,14 +397,7 @@ class DistributedLockImpl implements DistributedLock {
     public void unlock() throws KvException, NetException {
         CompletableFuture<Void> f = new CompletableFuture<>();
         unlock(FutureCallback.fromFuture(f));
-        try {
-            f.get();
-        } catch (InterruptedException e) {
-            DtUtil.restoreInterruptStatus();
-            throw new NetException("interrupted", e);
-        } catch (Exception e) {
-            throw new NetException("unlock error", e);
-        }
+        getFuture(f);
     }
 
     @Override
@@ -455,14 +461,7 @@ class DistributedLockImpl implements DistributedLock {
         DtUtil.checkPositive(newLeaseMillis, "newLeaseMillis");
         CompletableFuture<Void> f = new CompletableFuture<>();
         updateLease(newLeaseMillis, FutureCallback.fromFuture(f));
-        try {
-            f.get();
-        } catch (InterruptedException e) {
-            DtUtil.restoreInterruptStatus();
-            throw new NetException("interrupted", e);
-        } catch (Exception e) {
-            throw new NetException("updateLease error", e);
-        }
+        getFuture(f);
     }
 
     @Override
