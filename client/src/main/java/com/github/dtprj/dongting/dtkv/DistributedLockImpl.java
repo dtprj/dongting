@@ -203,8 +203,13 @@ class DistributedLockImpl implements DistributedLock {
                             if (log.isDebugEnabled()) {
                                 log.debug("tryLock get code {}, key: {}", KvCodes.toStr(bizCode), keyBytes);
                             }
-                            // wait push or timeout, return and don't fire callback now
-                            return;
+                            if (waitLockTimeoutMillis == 0) {
+                                // return immediately if waitLockTimeoutMillis is 0
+                                markFinishInLock(Boolean.FALSE, null);
+                            } else {
+                                // wait push or timeout, return and don't fire callback now
+                                return;
+                            }
                         } else {
                             // Lock failed with other error
                             markFinishInLock(null, new KvException(bizCode));
@@ -317,8 +322,10 @@ class DistributedLockImpl implements DistributedLock {
 
             state = STATE_UNKNOWN;
             currentOp = new Op(leaseMillis, waitLockTimeoutMillis, callback);
-            currentOp.waitTimeoutTask = lockManager.executeService.schedule(currentOp,
-                    waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
+            if (waitLockTimeoutMillis > 0) {
+                currentOp.waitTimeoutTask = lockManager.executeService.schedule(currentOp,
+                        waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
+            }
 
             // Create request with leaseMillis in value and operationId
             byte[] value = new byte[16];
@@ -445,6 +452,7 @@ class DistributedLockImpl implements DistributedLock {
 
     @Override
     public void updateLease(long newLeaseMillis) {
+        DtUtil.checkPositive(newLeaseMillis, "newLeaseMillis");
         CompletableFuture<Void> f = new CompletableFuture<>();
         updateLease(newLeaseMillis, FutureCallback.fromFuture(f));
         try {
@@ -577,17 +585,17 @@ class DistributedLockImpl implements DistributedLock {
         ByteBuffer buf = ByteBuffer.wrap(value);
         int pushLockId = buf.getInt();
         int pushOpId = buf.getInt();
-        if (pushOpId != opId || pushLockId != lockId) {
-            log.info("ignore lock push. key: {}, pushOpId: {}, opId: {}, pushLockId: {}, lockId: {}",
-                    keyBytes, pushOpId, opId, pushLockId, lockId);
-            return;
-        }
 
         Op oldOp = null;
         opLock.writeLock().lock();
         try {
             if (state == STATE_CLOSED) {
                 log.info("ignore lock push because lock is closed. key: {}", keyBytes);
+                return;
+            }
+            if (pushOpId != opId || pushLockId != lockId) {
+                log.info("ignore lock push. key: {}, pushOpId: {}, opId: {}, pushLockId: {}, lockId: {}",
+                        keyBytes, pushOpId, opId, pushLockId, lockId);
                 return;
             }
             oldOp = currentOp;
