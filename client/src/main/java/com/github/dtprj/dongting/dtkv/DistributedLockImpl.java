@@ -495,7 +495,7 @@ class DistributedLockImpl implements DistributedLock {
             currentOp = new Op(newLeaseMillis, callback);
 
             KvReq req = new KvReq(groupId, keyBytes.getData(), null, newLeaseMillis);
-            EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UPDATE_LEASE, req);
+            EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UPDATE_LOCK_LEASE, req);
 
             lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                     DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,

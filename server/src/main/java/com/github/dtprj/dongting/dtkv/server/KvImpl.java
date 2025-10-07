@@ -113,6 +113,7 @@ class KvImpl {
                 }
                 return null;
             case DtKV.BIZ_TYPE_UPDATE_TTL:
+            case DtKV.BIZ_TYPE_UPDATE_LOCK_LEASE:
                 if (h == null || h.latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
@@ -805,6 +806,16 @@ class KvImpl {
         // no need to lock, because readers not check ttl
         ttlManager.updateTtl(index, key, h.latest, opContext);
         return KvResult.SUCCESS;
+    }
+
+    public KvResult updateLockLease(long index, ByteArray key) {
+        int ck = checkKey(key, false, false);
+        if (ck != KvCodes.SUCCESS) {
+            return new KvResult(ck);
+        }
+        key = KvServerUtil.buildLockKey(key, opContext.operator.getMostSignificantBits(),
+                opContext.operator.getLeastSignificantBits());
+        return updateTtl(index, key);
     }
 
     public KvResult expire(long index, ByteArray key, long expectRaftIndex) {

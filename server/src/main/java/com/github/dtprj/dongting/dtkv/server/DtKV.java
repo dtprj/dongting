@@ -19,18 +19,36 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.common.*;
-import com.github.dtprj.dongting.dtkv.*;
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtBugException;
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.FutureCallback;
+import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.dtkv.KvReq;
+import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.*;
+import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.DtChannel;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
+import com.github.dtprj.dongting.net.NioServer;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.*;
+import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -68,6 +86,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_TYPE_UPDATE_TTL = 14;
     public static final int BIZ_TYPE_TRY_LOCK = 15;
     public static final int BIZ_TYPE_UNLOCK = 16;
+    public static final int BIZ_TYPE_UPDATE_LOCK_LEASE = 17;
 
     private final Timestamp ts;
     final DtKVExecutor dtkvExecutor;
@@ -190,6 +209,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 return kv.expire(index, key, expectRaftIndex);
             case BIZ_TYPE_UPDATE_TTL:
                 return kv.updateTtl(index, key);
+            case BIZ_TYPE_UPDATE_LOCK_LEASE:
+                return kv.updateLockLease(index, key);
             case BIZ_TYPE_TRY_LOCK:
                 return kv.tryLock(index, key, req.value);
             case BIZ_TYPE_UNLOCK:
@@ -400,10 +421,11 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     /**
      * Send lock notification to the new lock owner
+     *
      * @param nioServer the nio server instance
-     * @param lockKey the key of the new lock owner
-     * @param value the value data to send along with the notification
-     * @param groupId the raft group id
+     * @param lockKey   the key of the new lock owner
+     * @param value     the value data to send along with the notification
+     * @param groupId   the raft group id
      */
     public static void notifyNewLockOwner(NioServer nioServer, ByteArray lockKey, byte[] value, int groupId) {
 
