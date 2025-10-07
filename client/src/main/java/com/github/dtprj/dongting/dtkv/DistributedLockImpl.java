@@ -189,7 +189,9 @@ class DistributedLockImpl implements DistributedLock {
                 }
                 String opTypeStr = opType == OP_TYPE_TRY_LOCK ? "tryLock"
                         : opType == OP_TYPE_UNLOCK ? "unlock" : "renew";
-                if (ex != null) {
+                if (state == STATE_CLOSED) {
+                    markFinishInLock(null, new NetException("lock is closed"));
+                } else if (ex != null) {
                     // try lock rpc response
                     log.error("{} rpc error", opTypeStr, ex);
                     markFinishInLock(null, ex);
@@ -229,14 +231,14 @@ class DistributedLockImpl implements DistributedLock {
                         }
                     } else {
                         // update lease
-                        if (p.bizCode == KvCodes.SUCCESS) {
+                        long now = System.nanoTime();
+                        if (state != STATE_LOCKED || leaseEndNanos - now <= 0) {
+                            markFinishInLock(null, new NetException("not held by current client"));
+                        } else if (p.bizCode == KvCodes.SUCCESS) {
                             leaseEndNanos = newLeaseEndNanos;
-                            if (expireTask != null && !expireTask.isDone()) {
-                                expireTask.cancel(false);
-                            }
-                            expireTaskEpoch++;
+                            cancelExpireTask();
                             expireTask = lockManager.executeService.schedule(() -> execExpireTask(expireTaskEpoch),
-                                    leaseEndNanos - System.nanoTime(), TimeUnit.NANOSECONDS);
+                                    leaseEndNanos - now, TimeUnit.NANOSECONDS);
                             markFinishInLock(null, null);
                         } else {
                             markFinishInLock(null, new KvException(p.bizCode));
@@ -271,7 +273,7 @@ class DistributedLockImpl implements DistributedLock {
             state = STATE_LOCKED;
             leaseEndNanos = newLeaseEndNanos;
 
-            expireTaskEpoch++;
+            cancelExpireTask();
             expireTask = lockManager.executeService.schedule(() -> execExpireTask(expireTaskEpoch),
                     leaseEndNanos - now, TimeUnit.NANOSECONDS);
             markFinishInLock(Boolean.TRUE, null);
@@ -375,11 +377,10 @@ class DistributedLockImpl implements DistributedLock {
                 return;
             }
             if (expectEpoch == expireTaskEpoch) {
+                log.warn("lock expired without unlock or update lease, key: {}", keyBytes);
                 state = STATE_NOT_LOCKED;
                 leaseEndNanos = 0;
-                if (log.isDebugEnabled()) {
-                    log.debug("lock expired, key: {}", keyBytes);
-                }
+                expireTask = null;
                 listener = expireListener;
             }
         } finally {
@@ -435,7 +436,7 @@ class DistributedLockImpl implements DistributedLock {
                     DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
                     lockManager.kvClient.raftClient.createDefaultTimeout(), currentOp);
         } catch (Throwable e) {
-            log.error("tryLock error", e);
+            log.error("unlock error", e);
             if (currentOp != null) {
                 currentOp.markFinishInLock(null, e);
             }
@@ -492,7 +493,6 @@ class DistributedLockImpl implements DistributedLock {
             }
 
             currentOp = new Op(newLeaseMillis, callback);
-            state = STATE_UNKNOWN;
 
             KvReq req = new KvReq(groupId, keyBytes.getData(), null, newLeaseMillis);
             EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UPDATE_LEASE, req);
