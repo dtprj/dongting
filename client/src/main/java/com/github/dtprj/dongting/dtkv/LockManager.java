@@ -31,7 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 class LockManager {
     private static final DtLog log = DtLogs.getLogger(LockManager.class);
 
-    private final HashMap<Integer, HashMap<ByteArray, DistributedLockImpl>> lockMap = new HashMap<>();
+    private final HashMap<Integer, HashMap<ByteArray, LockHolder>> lockMap = new HashMap<>();
     final ReentrantLock managerOpLock = new ReentrantLock();
 
     final KvClient kvClient;
@@ -45,7 +45,17 @@ class LockManager {
         this.raftClient = kvClient.getRaftClient();
     }
 
-    DistributedLockImpl createOrGetLock(int groupId, byte[] key) {
+    private static class LockHolder {
+        final DistributedLockImpl lock;
+        final AutoRenewLock wrapper;
+
+        LockHolder(DistributedLockImpl lock, AutoRenewLock wrapper) {
+            this.lock = lock;
+            this.wrapper = wrapper;
+        }
+    }
+
+    DistributedLock createLock(int groupId, byte[] key) {
         if (raftClient.getGroup(groupId) == null) {
             throw new RaftException("group not found: " + groupId);
         }
@@ -53,13 +63,39 @@ class LockManager {
         ByteArray keyBytes = new ByteArray(key);
         managerOpLock.lock();
         try {
-            HashMap<ByteArray, DistributedLockImpl> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
-            DistributedLockImpl dtKvLock = m.get(keyBytes);
-            if (dtKvLock == null) {
-                dtKvLock = new DistributedLockImpl(nextLockId++, this, groupId, key);
-                m.put(keyBytes, dtKvLock);
+            HashMap<ByteArray, LockHolder> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
+            LockHolder h = m.get(keyBytes);
+            if (h == null) {
+                h = new LockHolder(new DistributedLockImpl(nextLockId++, this, groupId, keyBytes), null);
+                m.put(keyBytes, h);
+                return h.lock;
+            } else {
+                throw new IllegalStateException("lock exists for the key: " + keyBytes);
             }
-            return dtKvLock;
+        } finally {
+            managerOpLock.unlock();
+        }
+    }
+
+    AutoRenewLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis, AutoRenewLockListener listener) {
+        if (raftClient.getGroup(groupId) == null) {
+            throw new RaftException("group not found: " + groupId);
+        }
+
+        ByteArray keyBytes = new ByteArray(key);
+        managerOpLock.lock();
+        try {
+            HashMap<ByteArray, LockHolder> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
+            LockHolder h = m.get(keyBytes);
+            if (h == null) {
+                DistributedLockImpl lock = new DistributedLockImpl(nextLockId++, this, groupId, keyBytes);
+                AutoRenewLock wrapper = new AutoRenewLockImpl(groupId, keyBytes, leaseMillis, listener, lock, executeService);
+                h = new LockHolder(lock, wrapper);
+                m.put(keyBytes, h);
+                return wrapper;
+            } else {
+                throw new IllegalStateException("lock exists for the key: " + keyBytes);
+            }
         } finally {
             managerOpLock.unlock();
         }
@@ -69,16 +105,25 @@ class LockManager {
         managerOpLock.lock();
         try {
             lock.closeImpl();
-            HashMap<ByteArray, DistributedLockImpl> m = lockMap.get(lock.groupId);
-            if (m != null) {
-                if (m.get(lock.keyBytes) != lock) {
-                    log.error("lock not same, groupId={}, key={}", lock.groupId, lock.keyBytes);
-                    return;
-                }
-                m.remove(lock.keyBytes);
-                if (m.isEmpty()) {
-                    lockMap.remove(lock.groupId);
-                }
+            HashMap<ByteArray, LockHolder> m = lockMap.get(lock.groupId);
+            if (m == null) {
+                log.error("no lock map found, groupId={}, key={}", lock.groupId, lock.key);
+                return;
+            }
+            LockHolder h = m.get(lock.key);
+            if (h == null) {
+                log.error("no lock found, groupId={}, key={}", lock.groupId, lock.key);
+                return;
+            }
+
+            if (h.lock != lock) {
+                log.error("lock not same, groupId={}, key={}", lock.groupId, lock.key);
+                return;
+            }
+
+            m.remove(lock.key);
+            if (m.isEmpty()) {
+                lockMap.remove(lock.groupId);
             }
         } finally {
             managerOpLock.unlock();
@@ -88,9 +133,9 @@ class LockManager {
     void removeAllLock() {
         managerOpLock.lock();
         try {
-            for (HashMap<ByteArray, DistributedLockImpl> m : lockMap.values()) {
-                for (DistributedLockImpl lock : m.values()) {
-                    lock.closeImpl();
+            for (HashMap<ByteArray, LockHolder> m : lockMap.values()) {
+                for (LockHolder h : m.values()) {
+                    h.lock.closeImpl();
                 }
             }
             lockMap.clear();
@@ -100,23 +145,23 @@ class LockManager {
     }
 
     void processLockPush(int groupId, KvReq req, int bizCode) {
-        DistributedLockImpl lock;
+        LockHolder h;
         ByteArray key = new ByteArray(req.key);
         this.managerOpLock.lock();
         try {
-            HashMap<ByteArray, DistributedLockImpl> groupLocks = lockMap.get(groupId);
+            HashMap<ByteArray, LockHolder> groupLocks = lockMap.get(groupId);
             if (groupLocks == null) {
-                log.info("no lock found for push: groupId={}, key={}", groupId, key);
+                log.info("no h found for push: groupId={}, key={}", groupId, key);
                 return;
             }
-            lock = groupLocks.get(key);
-            if (lock == null) {
-                log.info("no lock found for push: groupId={}, key={}", groupId, key);
+            h = groupLocks.get(key);
+            if (h == null) {
+                log.info("no h found for push: groupId={}, key={}", groupId, key);
                 return;
             }
         } finally {
             this.managerOpLock.unlock();
         }
-        lock.processLockPush(bizCode, req.value);
+        h.lock.processLockPush(bizCode, req.value);
     }
 }

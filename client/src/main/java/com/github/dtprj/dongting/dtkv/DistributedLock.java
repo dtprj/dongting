@@ -139,14 +139,14 @@ public interface DistributedLock {
 
     /**
      * Safely close the lock, and remove it from KvClient.
-     * After close, call createOrGetLock() in KvClient will get a new created DistributedLock instance.
+     * After close, call createLock() in KvClient will get a new created instance.
      * After close, any method (except isHeldByCurrentClient and getLeaseRestMillis) invoked on this
      * instance will throw IllegalStateException.
      * This method try to asynchronously release the lock if the current client is the owner of the lock or
      * the ownership status cannot be determined (e.g., due to a network error).
      *
      * <p>
-     * This method will not throw any exception, and not block, so it's safe to call it in finally block.
+     * This method will not throw any exception, and do not block caller thread.
      */
     void close();
 }

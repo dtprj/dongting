@@ -611,7 +611,7 @@ public class KvClient extends AbstractLifeCircle {
      * @param key         not null or empty, use '.' as path separator
      * @param expectValue the expected value, null or empty indicates the key not exist
      * @param newValue    the new value, null or empty indicates delete the key
-     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
+     * @param callback    the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
     public void compareAndSet(int groupId, byte[] key, byte[] expectValue, byte[] newValue,
                               FutureCallback<Boolean> callback) {
@@ -633,8 +633,8 @@ public class KvClient extends AbstractLifeCircle {
      * @param groupId   the raft group id
      * @param key       not null or empty, use '.' as path separator
      * @param ttlMillis time to live in milliseconds, must be positive
-     * @throws KvException If the key is not a temporary node, throws KvException with code NOT_TEMP_NODE;
-     *                     If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
+     * @throws KvException  If the key is not a temporary node, throws KvException with code NOT_TEMP_NODE;
+     *                      If try to update K/V node created by another client, throws KvException with code NOT_OWNER.
      * @throws NetException any other exception such as network error, timeout, interrupted, etc.
      */
     public void updateTtl(int groupId, byte[] key, long ttlMillis) throws KvException, NetException {
@@ -650,7 +650,7 @@ public class KvClient extends AbstractLifeCircle {
      * @param groupId   the raft group id
      * @param key       not null or empty, use '.' as path separator
      * @param ttlMillis time to live in milliseconds, must be positive
-     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
+     * @param callback  the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
      */
     public void updateTtl(int groupId, byte[] key, long ttlMillis, FutureCallback<Void> callback) {
         checkKey(key, false);
@@ -660,21 +660,37 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     /**
-     * Create or get a distributed lock with the given key in the specified raft group,
-     * If a lock with the same key already exists, return the existing instance,
-     * Otherwise, create a new DistributedLock instance and return it.
-     *
-     * <p>
-     * Call close() method of the returned DistributedLock will remove it from the KvClient and next time
-     * createOrGetLock() will create a new instance.
+     * Create a distributed lock with the given key in the specified raft group.
+     * Call close() method of the returned object will remove it from the KvClient.
      *
      * @param groupId the raft group id
-     * @param key not null or empty, use '.' as path separator
+     * @param key     not null or empty, use '.' as path separator
      * @return the DistributedLock instance
+     * @throws IllegalStateException if an DistributedLock or AutoRenewLock instance exists with the same key
      */
-    public DistributedLock createOrGetLock(int groupId, byte[] key) {
+    public DistributedLock createLock(int groupId, byte[] key) throws IllegalStateException {
         checkKey(key, false);
-        return lockManager.createOrGetLock(groupId, key);
+        return lockManager.createLock(groupId, key);
+    }
+
+    /**
+     * Create an automatically renewing distributed lock with the given key in the specified raft group.
+     * The lock will be automatically renewed before it expires, until the lock is closed.
+     * Call close() method of the returned object will remove it from the KvClient.
+     *
+     * @param groupId     the raft group id
+     * @param key         not null or empty, use '.' as path separator
+     * @param leaseMillis lease time in milliseconds, must be positive. If you don't know how to set it,
+     *                    60000 (60 seconds) may be a good default value.
+     * @param listener    the listener to receive lock events, can not be null
+     * @return
+     * @throws IllegalStateException if an DistributedLock or AutoRenewLock instance exists with the same key
+     */
+    public AutoRenewLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis,
+                                             AutoRenewLockListener listener) throws IllegalStateException {
+        Objects.requireNonNull(listener);
+        checkKey(key, false);
+        return lockManager.createAutoRenewLock(groupId, key, leaseMillis, listener);
     }
 
     @Override
