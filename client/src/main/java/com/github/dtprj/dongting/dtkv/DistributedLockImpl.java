@@ -312,6 +312,9 @@ class DistributedLockImpl implements DistributedLock {
     public void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback) {
         DtUtil.checkPositive(leaseMillis, "leaseMillis");
         DtUtil.checkNotNegative(waitLockTimeoutMillis, "waitLockTimeoutMillis");
+        if (leaseMillis < 1000) {
+            log.warn("leaseMillis is too small: {}, key: {}", leaseMillis, keyBytes);
+        }
         if (waitLockTimeoutMillis > leaseMillis) {
             throw new IllegalArgumentException("waitLockTimeoutMillis must be less than or equal to leaseMillis");
         }
@@ -461,6 +464,9 @@ class DistributedLockImpl implements DistributedLock {
     @Override
     public void updateLease(long newLeaseMillis) {
         DtUtil.checkPositive(newLeaseMillis, "newLeaseMillis");
+        if (newLeaseMillis < 1000) {
+            log.warn("newLeaseMillis is too small: {}, key: {}", newLeaseMillis, keyBytes);
+        }
         CompletableFuture<Void> f = new CompletableFuture<>();
         updateLease(newLeaseMillis, FutureCallback.fromFuture(f));
         getFuture(f);

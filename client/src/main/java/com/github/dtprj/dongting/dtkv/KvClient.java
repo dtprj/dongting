@@ -659,6 +659,19 @@ public class KvClient extends AbstractLifeCircle {
         sendAsync(groupId, Commands.DTKV_UPDATE_TTL, r, callback, v -> null);
     }
 
+    /**
+     * Create or get a distributed lock with the given key in the specified raft group,
+     * If a lock with the same key already exists, return the existing instance,
+     * Otherwise, create a new DistributedLock instance and return it.
+     *
+     * <p>
+     * Call close() method of the returned DistributedLock will remove it from the KvClient and next time
+     * createOrGetLock() will create a new instance.
+     *
+     * @param groupId the raft group id
+     * @param key not null or empty, use '.' as path separator
+     * @return the DistributedLock instance
+     */
     public DistributedLock createOrGetLock(int groupId, byte[] key) {
         checkKey(key, false);
         return lockManager.createOrGetLock(groupId, key);

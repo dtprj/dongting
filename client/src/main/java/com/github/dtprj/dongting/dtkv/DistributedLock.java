@@ -138,13 +138,15 @@ public interface DistributedLock {
     void setLockExpireListener(Runnable listener);
 
     /**
-     * Safely close the lock, try to release the lock if the current client is the owner of the lock or
-     * the ownership status cannot be determined (e.g., due to a network error).
+     * Safely close the lock, and remove it from KvClient.
+     * After close, call createOrGetLock() in KvClient will get a new created DistributedLock instance.
      * After close, any method (except isHeldByCurrentClient and getLeaseRestMillis) invoked on this
-     * lock will throw IllegalStateException.
+     * instance will throw IllegalStateException.
+     * This method try to asynchronously release the lock if the current client is the owner of the lock or
+     * the ownership status cannot be determined (e.g., due to a network error).
      *
      * <p>
-     * This method will not throw any exception, so it's safe to call it in finally block.
+     * This method will not throw any exception, and not block, so it's safe to call it in finally block.
      */
     void close();
 }

@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 
 import java.util.HashMap;
-import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -47,12 +46,6 @@ class LockManager {
     }
 
     DistributedLockImpl createOrGetLock(int groupId, byte[] key) {
-        Objects.requireNonNull(key);
-        int c = KvClient.checkKey(key, KvClientConfig.MAX_KEY_SIZE, false, true);
-        if (c != KvCodes.SUCCESS) {
-            throw new IllegalArgumentException(KvCodes.toStr(c));
-        }
-
         if (raftClient.getGroup(groupId) == null) {
             throw new RaftException("group not found: " + groupId);
         }
