@@ -88,9 +88,9 @@ class DistributedLockImpl implements DistributedLock {
 
     private class Op implements Runnable, RpcCallback<Void> {
         final int taskOpId;
-        final long waitLockTimeoutMillis;
         private final FutureCallback<?> callback;
-        private ScheduledFuture<?> waitTimeoutTask;
+        final long tryLockTimeoutMillis;
+        private ScheduledFuture<?> tryLockTimeoutTask;
 
         final int opType;
         private static final int OP_TYPE_TRY_LOCK = 1;
@@ -103,17 +103,17 @@ class DistributedLockImpl implements DistributedLock {
         private Object opResult;
         private Throwable opEx;
 
-        Op(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback) {
+        Op(long leaseMillis, long tryLockTimeoutMillis, FutureCallback<Boolean> callback) {
             this.taskOpId = ++opId;
             newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
-            this.waitLockTimeoutMillis = waitLockTimeoutMillis;
+            this.tryLockTimeoutMillis = tryLockTimeoutMillis;
             this.callback = callback;
             this.opType = OP_TYPE_TRY_LOCK;
         }
 
         Op(FutureCallback<Void> callback) {
             this.taskOpId = ++opId;
-            this.waitLockTimeoutMillis = 0;
+            this.tryLockTimeoutMillis = 0;
             this.callback = callback;
             this.opType = OP_TYPE_UNLOCK;
         }
@@ -121,7 +121,7 @@ class DistributedLockImpl implements DistributedLock {
         Op(long leaseMillis, FutureCallback<Void> callback) {
             this.taskOpId = ++opId;
             newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
-            this.waitLockTimeoutMillis = 0;
+            this.tryLockTimeoutMillis = 0;
             this.callback = callback;
             this.opType = OP_TYPE_RENEW;
         }
@@ -135,10 +135,10 @@ class DistributedLockImpl implements DistributedLock {
             if (currentOp == this) {
                 currentOp = null;
             }
-            if (waitTimeoutTask != null && !waitTimeoutTask.isDone()) {
-                waitTimeoutTask.cancel(false);
+            if (tryLockTimeoutTask != null && !tryLockTimeoutTask.isDone()) {
+                tryLockTimeoutTask.cancel(false);
             }
-            waitTimeoutTask = null;
+            tryLockTimeoutTask = null;
 
             this.opResult = result;
             this.opEx = ex;
@@ -152,7 +152,7 @@ class DistributedLockImpl implements DistributedLock {
                 if (finish) {
                     return;
                 }
-                String s = "tryLock " + key + " timeout after " + waitLockTimeoutMillis + "ms";
+                String s = "tryLock " + key + " timeout after " + tryLockTimeoutMillis + "ms";
                 markFinishInLock(null, new NetTimeoutException(s));
             } catch (Exception e) {
                 BugLog.log(e);
@@ -206,7 +206,7 @@ class DistributedLockImpl implements DistributedLock {
                             if (log.isDebugEnabled()) {
                                 log.debug("tryLock get code {}, key: {}", KvCodes.toStr(bizCode), key);
                             }
-                            if (waitLockTimeoutMillis == 0) {
+                            if (tryLockTimeoutMillis == 0) {
                                 // return immediately if waitLockTimeoutMillis is 0
                                 markFinishInLock(Boolean.FALSE, null);
                             } else {
@@ -337,7 +337,7 @@ class DistributedLockImpl implements DistributedLock {
             state = STATE_UNKNOWN;
             currentOp = new Op(leaseMillis, waitLockTimeoutMillis, callback);
             if (waitLockTimeoutMillis > 0) {
-                currentOp.waitTimeoutTask = lockManager.executeService.schedule(currentOp,
+                currentOp.tryLockTimeoutTask = lockManager.executeService.schedule(currentOp,
                         waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
             }
 
