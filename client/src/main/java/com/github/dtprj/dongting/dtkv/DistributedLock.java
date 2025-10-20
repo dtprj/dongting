@@ -130,8 +130,8 @@ public interface DistributedLock {
     long getLeaseRestMillis();
 
     /**
-     * Set the listener which will be called when the lock lease, the async callback will be called
-     * in bizExecutor of NioClient.
+     * Set the listener which will be called when the lock lease, this listener is running in a lock,
+     * don't do blocking operations in the listener.
      *
      * @param listener the listener
      */

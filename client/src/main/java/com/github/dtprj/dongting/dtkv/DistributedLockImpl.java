@@ -60,7 +60,7 @@ class DistributedLockImpl implements DistributedLock {
      */
     private int opId;
 
-    private final LockManager lockManager;
+    final LockManager lockManager;
     final int groupId;
     final ByteArray key;
     private final ReentrantReadWriteLock opLock = new ReentrantReadWriteLock();
@@ -72,9 +72,8 @@ class DistributedLockImpl implements DistributedLock {
 
     private Op currentOp;
 
-    private volatile Runnable expireListener;
+    private Runnable expireListener;
 
-    private int expireTaskEpoch;
     private ScheduledFuture<?> expireTask;
 
     DistributedLockImpl(int lockId, LockManager lockManager, int groupId, ByteArray key) {
@@ -236,9 +235,7 @@ class DistributedLockImpl implements DistributedLock {
                             markFinishInLock(null, new NetException("not held by current client"));
                         } else if (p.bizCode == KvCodes.SUCCESS) {
                             leaseEndNanos = newLeaseEndNanos;
-                            cancelExpireTask();
-                            expireTask = lockManager.executeService.schedule(() -> execExpireTask(expireTaskEpoch),
-                                    leaseEndNanos - now, TimeUnit.NANOSECONDS);
+                            scheduleExpireTask(now);
                             markFinishInLock(null, null);
                         } else {
                             markFinishInLock(null, new KvException(p.bizCode));
@@ -273,9 +270,7 @@ class DistributedLockImpl implements DistributedLock {
             state = STATE_LOCKED;
             leaseEndNanos = newLeaseEndNanos;
 
-            cancelExpireTask();
-            expireTask = lockManager.executeService.schedule(() -> execExpireTask(expireTaskEpoch),
-                    leaseEndNanos - now, TimeUnit.NANOSECONDS);
+            scheduleExpireTask(now);
             markFinishInLock(Boolean.TRUE, null);
         }
     }
@@ -372,29 +367,34 @@ class DistributedLockImpl implements DistributedLock {
         }
     }
 
-    private void execExpireTask(int expectEpoch) {
+    private void scheduleExpireTask(long nowNanos) {
+        if (expireTask != null) {
+            BugLog.getLog().error("expireTask already exists, key: {}", key);
+            return;
+        }
+        expireTask = lockManager.executeService.schedule(DistributedLockImpl.this::execExpireTask,
+                leaseEndNanos - nowNanos, TimeUnit.NANOSECONDS);
+    }
+
+    private void execExpireTask() {
         opLock.writeLock().lock();
-        Runnable listener = null;
         try {
             if (state != STATE_LOCKED) {
                 return;
             }
-            if (expectEpoch == expireTaskEpoch) {
-                log.warn("lock expired without unlock or update lease, key: {}", key);
-                state = STATE_NOT_LOCKED;
-                leaseEndNanos = 0;
-                expireTask = null;
-                listener = expireListener;
+            log.warn("lock expired without unlock or update lease, key: {}", key);
+            state = STATE_NOT_LOCKED;
+            leaseEndNanos = 0;
+            expireTask = null;
+            if (expireListener != null) {
+                try {
+                    expireListener.run();
+                } catch (Throwable e) {
+                    log.warn("lock expire listener error", e);
+                }
             }
         } finally {
             opLock.writeLock().unlock();
-        }
-        if (listener != null) {
-            try {
-                listener.run();
-            } catch (Exception e) {
-                log.warn("lock expire listener error", e);
-            }
         }
     }
 
@@ -454,7 +454,6 @@ class DistributedLockImpl implements DistributedLock {
     }
 
     private void cancelExpireTask() {
-        expireTaskEpoch++;
         if (expireTask != null && !expireTask.isDone()) {
             expireTask.cancel(false);
         }
