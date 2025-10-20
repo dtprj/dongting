@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftClient;
+import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.AdminAddGroupReq;
@@ -46,11 +47,11 @@ import java.util.concurrent.CompletableFuture;
 public class AdminRaftClient extends RaftClient {
 
     public AdminRaftClient() {
-        this(new NioClientConfig());
+        this(new RaftClientConfig(), new NioClientConfig());
     }
 
-    public AdminRaftClient(NioClientConfig nioClientConfig) {
-        super(nioClientConfig);
+    public AdminRaftClient(RaftClientConfig raftClientConfig,NioClientConfig nioClientConfig) {
+        super(raftClientConfig, nioClientConfig);
     }
 
     public CompletableFuture<QueryStatusResp> queryRaftServerStatus(int nodeId, int groupId) {

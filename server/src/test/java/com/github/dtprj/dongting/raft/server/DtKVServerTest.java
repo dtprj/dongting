@@ -16,9 +16,14 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.FutureCallback;
-import com.github.dtprj.dongting.dtkv.*;
+import com.github.dtprj.dongting.dtkv.KvClient;
+import com.github.dtprj.dongting.dtkv.KvClientConfig;
+import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.WaitUtil;
@@ -33,7 +38,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.dtprj.dongting.test.Tick.tick;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
@@ -65,9 +73,9 @@ public class DtKVServerTest extends ServerTestBase {
     public void testSingle(boolean useSepExecutor, boolean clientUseBizExecutor) throws Exception {
         this.useSepExecutor = useSepExecutor;
         ServerInfo s1 = null;
-        KvClientConfig kvClientConfig = new KvClientConfig();
-        kvClientConfig.useBizExecutor = clientUseBizExecutor;
-        KvClient client = new KvClient(kvClientConfig, new NioClientConfig());
+        RaftClientConfig raftClientConfig = new RaftClientConfig();
+        raftClientConfig.useBizExecutor = clientUseBizExecutor;
+        KvClient client = new KvClient(new KvClientConfig(), raftClientConfig, new NioClientConfig());
 
         try {
             s1 = createServer(1, "1, 127.0.0.1:4001", "1", "");

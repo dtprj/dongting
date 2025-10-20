@@ -13,15 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.dtkv;
-
+package com.github.dtprj.dongting.raft;
 
 /**
  * @author huangli
  */
-public class KvClientConfig {
-
-    public static final byte SEPARATOR = '.';
-    public static final int MAX_KEY_SIZE = 8 * 1024;
-    public static final int MAX_VALUE_SIZE = 1024 * 1024;
+public class RaftClientConfig {
+    /**
+     * This is an advanced option, usually you don't need to change it.
+     * <p>
+     * If false, the callback of async operations will be executed in NioWorker IO thread, it's single thread,
+     * you should never perform any blocking or CPU-intensive operations within the callbacks.
+     * If true, the callback will be executed in NioClient's bizExecutor, which is configurable use bizThreads
+     * fields in NioClientConfig when constructing KvClient.
+     */
+    public boolean useBizExecutor = true;
 }

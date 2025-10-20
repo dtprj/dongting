@@ -51,6 +51,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
+    private final RaftClientConfig config;
     protected final NioClient nioClient;
     // key is nodeId
     private final ConcurrentHashMap<Integer, RaftNode> allNodes = new ConcurrentHashMap<>();
@@ -63,7 +64,12 @@ public class RaftClient extends AbstractLifeCircle {
 
     private long nextEpoch = 1;
 
-    public RaftClient(NioClientConfig nioClientConfig) {
+    public RaftClient() {
+        this(new RaftClientConfig(), new NioClientConfig());
+    }
+
+    public RaftClient(RaftClientConfig raftClientConfig, NioClientConfig nioClientConfig) {
+        this.config = raftClientConfig;
         this.nioClient = new NioClient(nioClientConfig);
     }
 
@@ -354,7 +360,17 @@ public class RaftClient extends AbstractLifeCircle {
                 nioClient.releasePermit(request);
             }
             if (c != null) {
-                c.call(result, ex);
+                if (config.useBizExecutor) {
+                    nioClient.getBizExecutor().submit(() -> {
+                        try {
+                            c.call(result, ex);
+                        } catch (Throwable e) {
+                            log.error("RpcCallback error", e);
+                        }
+                    });
+                } else {
+                    c.call(result, ex);
+                }
             }
         };
         nioClient.sendRequest(groupInfo.leader.peer, request, decoder, timeout, newCallback);

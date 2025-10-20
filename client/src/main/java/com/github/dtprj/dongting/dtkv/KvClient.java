@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
+import com.github.dtprj.dongting.raft.RaftClientConfig;
 
 import java.util.Collections;
 import java.util.List;
@@ -51,17 +52,17 @@ public class KvClient extends AbstractLifeCircle {
     final RaftClient raftClient;
     private final WatchManager watchManager;
     private final LockManager lockManager = new LockManager(this);
-    private final KvClientConfig config;
 
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
     public KvClient() {
-        this(new KvClientConfig(), new NioClientConfig());
+        this(new KvClientConfig(), new RaftClientConfig(), new NioClientConfig());
     }
 
-    public KvClient(KvClientConfig config, NioClientConfig nioConfig) {
-        this.config = config;
-        this.raftClient = new RaftClient(nioConfig);
+    public KvClient(@SuppressWarnings("unused") KvClientConfig config, RaftClientConfig raftClientConfig,
+                    NioClientConfig nioConfig) {
+        Objects.requireNonNull(config);
+        this.raftClient = new RaftClient(raftClientConfig, nioConfig);
         this.watchManager = createClientWatchManager();
         // use bizExecutor in NioClient
         KvClientProcessor clientProcessor = new KvClientProcessor(watchManager, lockManager);
@@ -103,13 +104,8 @@ public class KvClient extends AbstractLifeCircle {
         DtTime timeout = raftClient.createDefaultTimeout();
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(cmd, req);
 
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) -> {
-            if (config.useBizExecutor) {
-                raftClient.getNioClient().getBizExecutor().submit(() -> asyncCallback(cmd, c, mapper, result, ex));
-            } else {
-                asyncCallback(cmd, c, mapper, result, ex);
-            }
-        });
+        raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) ->
+                asyncCallback(cmd, c, mapper, result, ex));
     }
 
     private <T> void asyncCallback(int cmd, FutureCallback<T> c, Function<ReadPacket<KvResp>, T> mapper,
@@ -683,7 +679,7 @@ public class KvClient extends AbstractLifeCircle {
      * @param leaseMillis lease time in milliseconds, must be positive. If you don't know how to set it,
      *                    60000 (60 seconds) may be a good default value.
      * @param listener    the listener to receive lock events, can not be null
-     * @return
+     * @return the AutoRenewLock instance
      * @throws IllegalStateException if an DistributedLock or AutoRenewLock instance exists with the same key
      */
     public AutoRenewLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis,
