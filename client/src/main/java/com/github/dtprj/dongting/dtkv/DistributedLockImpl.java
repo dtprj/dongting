@@ -86,7 +86,7 @@ class DistributedLockImpl implements DistributedLock {
         this.key = key;
     }
 
-    private class Op implements Runnable, RpcCallback<Void> {
+    private class Op implements RpcCallback<Void> {
         final int taskOpId;
         private final FutureCallback<?> callback;
         final long tryLockTimeoutMillis;
@@ -144,8 +144,7 @@ class DistributedLockImpl implements DistributedLock {
             this.opEx = ex;
         }
 
-        @Override
-        public void run() {
+        public void makeTryLockTimeout() {
             // try lock timeout task
             opLock.writeLock().lock();
             try {
@@ -164,7 +163,7 @@ class DistributedLockImpl implements DistributedLock {
             invokeCallback();
         }
 
-        void invokeCallback() {
+        public void invokeCallback() {
             if (called) {
                 BugLog.log(new DtBugException("already called"));
                 return;
@@ -337,7 +336,7 @@ class DistributedLockImpl implements DistributedLock {
             state = STATE_UNKNOWN;
             currentOp = new Op(leaseMillis, waitLockTimeoutMillis, callback);
             if (waitLockTimeoutMillis > 0) {
-                currentOp.tryLockTimeoutTask = lockManager.executeService.schedule(currentOp,
+                currentOp.tryLockTimeoutTask = lockManager.executeService.schedule(currentOp::makeTryLockTimeout,
                         waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
             }
 
