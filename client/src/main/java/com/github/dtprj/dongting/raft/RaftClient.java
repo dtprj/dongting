@@ -360,7 +360,7 @@ public class RaftClient extends AbstractLifeCircle {
                 nioClient.releasePermit(request);
             }
             if (c != null) {
-                if (config.useBizExecutor) {
+                if (config.useBizExecutor && nioClient.getBizExecutor() != null) {
                     nioClient.getBizExecutor().submit(() -> {
                         try {
                             c.call(result, ex);
