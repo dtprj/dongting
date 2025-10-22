@@ -44,7 +44,7 @@ public class DtUtil {
     private static int cpuCountInvoke;
 
     public final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "DtRaftSchedule");
+        Thread t = new Thread(r, "DtSchedule");
         t.setDaemon(true);
         return t;
     });
