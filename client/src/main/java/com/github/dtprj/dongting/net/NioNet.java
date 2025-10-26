@@ -30,7 +30,13 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -146,6 +152,9 @@ public abstract class NioNet extends AbstractLifeCircle {
                     throw new IllegalStateException("current request is already acquired permit");
                 }
                 if (maxPending > 0 && pendingRequests + 1 > maxPending) {
+                    if (request.acquirePermitNoWait) {
+                        throw new NetException("too many pending requests");
+                    }
                     if (!pendingReqCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
                         throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
                                 + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
@@ -155,6 +164,9 @@ public abstract class NioNet extends AbstractLifeCircle {
                 }
                 int estimateSize = request.calcMaxPacketSize();
                 if (maxPendingBytes > 0 && pendingBytes + estimateSize > maxPendingBytes) {
+                    if (request.acquirePermitNoWait) {
+                        throw new NetException("too many pending bytes");
+                    }
                     if (!pendingBytesCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
                         throw new NetTimeoutException("too many pending bytes, client wait permit timeout in "
                                 + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");

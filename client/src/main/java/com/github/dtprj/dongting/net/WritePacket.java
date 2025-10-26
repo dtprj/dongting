@@ -41,7 +41,8 @@ public abstract class WritePacket extends Packet implements Encodable {
 
     private byte[] msgBytes;
 
-    volatile boolean acquirePermit;
+    public boolean acquirePermitNoWait;
+    boolean acquirePermit;
     int maxPacketSize;
 
     boolean use;
