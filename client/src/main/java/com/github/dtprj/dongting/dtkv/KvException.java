@@ -30,11 +30,6 @@ public class KvException extends RaftException {
         this.code = code;
     }
 
-    public KvException(int code, Throwable cause) {
-        super(KvCodes.toStr(code), cause);
-        this.code = code;
-    }
-
     public int getCode() {
         return code;
     }
