@@ -304,11 +304,9 @@ class DistributedLockImpl implements DistributedLock {
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof KvException) {
-                cause.addSuppressed(new NetException());
-                throw (KvException) cause;
-            } else if (cause instanceof NetException) {
-                cause.addSuppressed(new NetException());
-                throw (NetException) cause;
+                throw new KvException(((KvException) cause).getCode(), cause);
+            } else if (cause instanceof IllegalStateException) {
+                throw (IllegalStateException) cause;
             } else {
                 throw new NetException(cause);
             }
@@ -326,58 +324,58 @@ class DistributedLockImpl implements DistributedLock {
             throw new IllegalArgumentException("waitLockTimeoutMillis must be less than or equal to leaseMillis");
         }
 
-        Throwable ex = tryLock0(leaseMillis, waitLockTimeoutMillis, callback);
-        if (ex != null) {
-            FutureCallback.callFail(callback, ex);
+        Op op = new Op(leaseMillis, waitLockTimeoutMillis, callback);
+        boolean ok = false;
+        opLock.lock();
+        try {
+            tryLock0(leaseMillis, waitLockTimeoutMillis, op);
+            ok = true;
+        } catch (Throwable e) {
+            op.markFinishInLock(null, e);
+        } finally {
+            if (ok) {
+                currentOp = op;
+            }
+            opLock.unlock();
+        }
+        if (!ok) {
+            op.invokeCallback();
         }
     }
 
-    private Throwable tryLock0(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback) {
-        opLock.lock();
-        try {
-            if (state == STATE_CLOSED) {
-                return new IllegalStateException("lock is closed");
-            }
-            if (state == STATE_LOCKED) {
-                return new IllegalStateException("already locked by current client");
-            }
-            // Wait for previous operation to complete
-            if (currentOp != null) {
-                return new IllegalStateException("operation in progress");
-            }
-
-            state = STATE_UNKNOWN;
-            currentOp = new Op(leaseMillis, waitLockTimeoutMillis, callback);
-            if (waitLockTimeoutMillis > 0) {
-                currentOp.tryLockTimeoutTask = lockManager.executeService.schedule(currentOp::makeTryLockTimeout,
-                        waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
-            }
-
-            // Create request with leaseMillis in value and operationId
-            byte[] value = new byte[16];
-            ByteBuffer bb = ByteBuffer.wrap(value);
-            bb.putLong(leaseMillis); // big endian
-            bb.putInt(lockId);
-            bb.putInt(currentOp.taskOpId);
-
-            KvReq req = new KvReq(groupId, key.getData(), value, waitLockTimeoutMillis);
-            EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_TRY_LOCK, req);
-            packet.acquirePermitNoWait = true;
-
-            lockManager.kvClient.raftClient.sendRequest(groupId, packet,
-                    DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                    lockManager.kvClient.raftClient.createDefaultTimeout(), currentOp);
-            return null;
-        } catch (Throwable e) {
-            log.error("tryLock error", e);
-            if (currentOp != null) {
-                // new operation created, need to mark finish
-                currentOp.markFinishInLock(null, e);
-            }
-            return e;
-        } finally {
-            opLock.unlock();
+    private void tryLock0(long leaseMillis, long waitLockTimeoutMillis, Op op) {
+        if (state == STATE_CLOSED) {
+            throw new IllegalStateException("lock is closed");
         }
+        if (state == STATE_LOCKED) {
+            throw new IllegalStateException("already locked by current client");
+        }
+        // Wait for previous operation to complete
+        if (currentOp != null) {
+            throw new IllegalStateException("operation in progress");
+        }
+
+        state = STATE_UNKNOWN;
+
+        if (waitLockTimeoutMillis > 0) {
+            op.tryLockTimeoutTask = lockManager.executeService.schedule(op::makeTryLockTimeout,
+                    waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
+        }
+
+        // Create request with leaseMillis in value and operationId
+        byte[] value = new byte[16];
+        ByteBuffer bb = ByteBuffer.wrap(value);
+        bb.putLong(leaseMillis); // big endian
+        bb.putInt(lockId);
+        bb.putInt(op.taskOpId);
+
+        KvReq req = new KvReq(groupId, key.getData(), value, waitLockTimeoutMillis);
+        EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_TRY_LOCK, req);
+        packet.acquirePermitNoWait = true;
+
+        lockManager.kvClient.raftClient.sendRequest(groupId, packet,
+                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
+                lockManager.kvClient.raftClient.createDefaultTimeout(), op);
     }
 
     private void scheduleExpireTask(long delayNanos) {
@@ -420,52 +418,58 @@ class DistributedLockImpl implements DistributedLock {
 
     @Override
     public void unlock(FutureCallback<Void> callback) {
-        Throwable ex = unlock0(callback);
-        if (ex != null) {
-            FutureCallback.callFail(callback, ex);
-        }
-    }
-
-    private Throwable unlock0(FutureCallback<Void> callback) {
-        Op oldOp;
+        Op op = new Op(callback);
+        Op oldOp = null;
+        boolean ok = false;
         opLock.lock();
         try {
-            if (state == STATE_CLOSED) {
-                return new IllegalStateException("lock is closed");
-            }
-            oldOp = currentOp;
-
-            // mark current op as finished, so the unlock operation can be called safely after tryLock
-            if (oldOp != null) {
-                // currentOp is set to null in markFinishInLock
-                oldOp.markFinishInLock(null, new NetException("canceled by unlock"));
-            }
-            cancelExpireTask();
-
-            currentOp = new Op(callback);
-            state = STATE_UNKNOWN;
-            resetLeaseEndNanos();
-
-            KvReq req = new KvReq(groupId, key.getData(), null);
-            EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
-            packet.acquirePermitNoWait = true;
-
-            lockManager.kvClient.raftClient.sendRequest(groupId, packet,
-                    DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                    lockManager.kvClient.raftClient.createDefaultTimeout(), currentOp);
+            oldOp = unlock0(op);
+            ok = true;
         } catch (Throwable e) {
-            log.error("unlock error", e);
-            if (currentOp != null) {
-                currentOp.markFinishInLock(null, e);
-            }
-            return e;
+            op.markFinishInLock(null, e);
         } finally {
+            if (ok) {
+                currentOp = op;
+            }
             opLock.unlock();
         }
         if (oldOp != null) {
             oldOp.invokeCallback();
         }
-        return null;
+        if (!ok) {
+            op.invokeCallback();
+        }
+    }
+
+    private Op unlock0(Op op) {
+        Op oldOp;
+        if (state == STATE_CLOSED) {
+            throw new IllegalStateException("lock is closed");
+        }
+        oldOp = currentOp;
+
+        // mark current op as finished, so the unlock operation can be called safely after tryLock
+        if (oldOp != null) {
+            // currentOp is set to null in markFinishInLock
+            oldOp.markFinishInLock(null, new NetException("canceled by unlock"));
+        }
+        cancelExpireTask();
+
+        state = STATE_UNKNOWN;
+        resetLeaseEndNanos();
+
+        KvReq req = new KvReq(groupId, key.getData(), null);
+        EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
+        packet.acquirePermitNoWait = true;
+
+        lockManager.kvClient.raftClient.sendRequest(groupId, packet,
+                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
+                lockManager.kvClient.raftClient.createDefaultTimeout(), op);
+
+        if (oldOp != null) {
+            oldOp.invokeCallback();
+        }
+        return oldOp;
     }
 
     private void cancelExpireTask() {
@@ -477,10 +481,6 @@ class DistributedLockImpl implements DistributedLock {
 
     @Override
     public void updateLease(long newLeaseMillis) {
-        DtUtil.checkPositive(newLeaseMillis, "newLeaseMillis");
-        if (newLeaseMillis < 1000) {
-            log.warn("newLeaseMillis is too small: {}, key: {}", newLeaseMillis, key);
-        }
         CompletableFuture<Void> f = new CompletableFuture<>();
         updateLease(newLeaseMillis, FutureCallback.fromFuture(f));
         getFuture(f);
@@ -488,49 +488,52 @@ class DistributedLockImpl implements DistributedLock {
 
     @Override
     public void updateLease(long newLeaseMillis, FutureCallback<Void> callback) {
-        Throwable e = updateLease0(newLeaseMillis, callback);
-        if (e != null) {
-            FutureCallback.callFail(callback, e);
+        DtUtil.checkPositive(newLeaseMillis, "newLeaseMillis");
+        if (newLeaseMillis < 1000) {
+            log.warn("newLeaseMillis is too small: {}, key: {}", newLeaseMillis, key);
+        }
+        Op op = new Op(newLeaseMillis, callback);
+        boolean ok = false;
+        opLock.lock();
+        try {
+            updateLease0(newLeaseMillis, op);
+            ok = true;
+        } catch (Throwable e) {
+            op.markFinishInLock(null, e);
+        } finally {
+            if (ok) {
+                currentOp = op;
+            }
+            opLock.unlock();
+        }
+        if (!ok) {
+            op.invokeCallback();
         }
     }
 
-    private Throwable updateLease0(long newLeaseMillis, FutureCallback<Void> callback) {
-        opLock.lock();
-        try {
-            if (state == STATE_CLOSED) {
-                return new IllegalStateException("lock is closed");
-            }
-            if (state != STATE_LOCKED) {
-                return new IllegalStateException("not locked by current client");
-            }
-            if (currentOp != null) {
-                return new IllegalStateException("operation in progress");
-            }
-
-            long now = System.nanoTime();
-            if (leaseEndNanos - now <= 0) {
-                return new IllegalStateException("lease expired");
-            }
-
-            currentOp = new Op(newLeaseMillis, callback);
-
-            KvReq req = new KvReq(groupId, key.getData(), null, newLeaseMillis);
-            EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UPDATE_LOCK_LEASE, req);
-            packet.acquirePermitNoWait = true;
-
-            lockManager.kvClient.raftClient.sendRequest(groupId, packet,
-                    DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                    lockManager.kvClient.raftClient.createDefaultTimeout(), currentOp);
-            return null;
-        } catch (Throwable e) {
-            log.error("updateLease error", e);
-            if (currentOp != null) {
-                currentOp.markFinishInLock(null, e);
-            }
-            return e;
-        } finally {
-            opLock.unlock();
+    private void updateLease0(long newLeaseMillis, Op op) {
+        if (state == STATE_CLOSED) {
+            throw new IllegalStateException("lock is closed");
         }
+        if (state != STATE_LOCKED) {
+            throw new IllegalStateException("not locked by current client");
+        }
+        if (currentOp != null) {
+            throw new IllegalStateException("operation in progress");
+        }
+
+        long now = System.nanoTime();
+        if (leaseEndNanos - now <= 0) {
+            throw new IllegalStateException("lease expired");
+        }
+
+        KvReq req = new KvReq(groupId, key.getData(), null, newLeaseMillis);
+        EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UPDATE_LOCK_LEASE, req);
+        packet.acquirePermitNoWait = true;
+
+        lockManager.kvClient.raftClient.sendRequest(groupId, packet,
+                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
+                lockManager.kvClient.raftClient.createDefaultTimeout(), op);
     }
 
     @Override
