@@ -130,14 +130,6 @@ public interface DistributedLock {
     long getLeaseRestMillis();
 
     /**
-     * Set the listener which will be called when the lock lease, this listener is running in a lock,
-     * don't do blocking operations in the listener.
-     *
-     * @param listener the listener
-     */
-    void setLockExpireListener(Runnable listener);
-
-    /**
      * Safely close the lock, and remove it from KvClient.
      * After close, call createLock() in KvClient will get a new created instance.
      * After close, any method (except isHeldByCurrentClient and getLeaseRestMillis) invoked on this

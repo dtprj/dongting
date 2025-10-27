@@ -666,7 +666,23 @@ public class KvClient extends AbstractLifeCircle {
      */
     public DistributedLock createLock(int groupId, byte[] key) throws IllegalStateException {
         checkKey(key, false);
-        return lockManager.createLock(groupId, key);
+        return lockManager.createLock(groupId, key, null);
+    }
+
+    /**
+     * Create a distributed lock with the given key in the specified raft group.
+     * Call close() method of the returned object will remove it from the KvClient.
+     *
+     * @param groupId the raft group id
+     * @param key     not null or empty, use '.' as path separator
+     * @param expireListener the listener which will be called when the lock expires (unlock will not be called),
+     *                       this listener is running in a lock, don't do blocking operations in the listener.
+     * @return the DistributedLock instance
+     * @throws IllegalStateException if an DistributedLock or AutoRenewLock instance exists with the same key
+     */
+    public DistributedLock createLock(int groupId, byte[] key, Runnable expireListener) throws IllegalStateException {
+        checkKey(key, false);
+        return lockManager.createLock(groupId, key, expireListener);
     }
 
     /**

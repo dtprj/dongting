@@ -55,7 +55,7 @@ class LockManager {
         }
     }
 
-    DistributedLock createLock(int groupId, byte[] key) {
+    DistributedLock createLock(int groupId, byte[] key, Runnable expireListener) {
         if (raftClient.getGroup(groupId) == null) {
             throw new RaftException("group not found: " + groupId);
         }
@@ -66,7 +66,8 @@ class LockManager {
             HashMap<ByteArray, LockHolder> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
             LockHolder h = m.get(keyBytes);
             if (h == null) {
-                h = new LockHolder(new DistributedLockImpl(nextLockId++, this, groupId, keyBytes), null);
+                DistributedLockImpl l = new DistributedLockImpl(nextLockId++, this, groupId, keyBytes, expireListener);
+                h = new LockHolder(l, null);
                 m.put(keyBytes, h);
                 return h.lock;
             } else {
@@ -88,7 +89,8 @@ class LockManager {
             HashMap<ByteArray, LockHolder> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
             LockHolder h = m.get(keyBytes);
             if (h == null) {
-                DistributedLockImpl lock = new DistributedLockImpl(nextLockId++, this, groupId, keyBytes);
+                // TODO expireListener is null now
+                DistributedLockImpl lock = new DistributedLockImpl(nextLockId++, this, groupId, keyBytes, null);
                 AutoRenewLock wrapper = new AutoRenewLockImpl(groupId, keyBytes, leaseMillis, listener, lock, executeService);
                 h = new LockHolder(lock, wrapper);
                 m.put(keyBytes, h);

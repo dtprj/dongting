@@ -35,7 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -54,36 +54,42 @@ class DistributedLockImpl implements DistributedLock {
      */
     private final int lockId;
 
+    private final Runnable expireListener;
+    final LockManager lockManager;
+    final int groupId;
+    final ByteArray key;
+    private final ReentrantLock opLock = new ReentrantLock();
+
     /**
      * Each tryLock should increase the operationId by 1. When receive Commands.DTKV_LOCK_PUSH, check if
      * opId is the same as the one in push, if not, ignore the push.
      */
     private int opId;
-
-    final LockManager lockManager;
-    final int groupId;
-    final ByteArray key;
-    private final ReentrantReadWriteLock opLock = new ReentrantReadWriteLock();
+    private int leaseId;
 
     // Current lock state
     private int state = STATE_NOT_LOCKED;
-    private long leaseEndNanos;
+    private volatile long leaseEndNanos;
     private long newLeaseEndNanos;
 
     private Op currentOp;
 
-    private Runnable expireListener;
-
     private ScheduledFuture<?> expireTask;
 
-    DistributedLockImpl(int lockId, LockManager lockManager, int groupId, ByteArray key) {
+    DistributedLockImpl(int lockId, LockManager lockManager, int groupId, ByteArray key, Runnable expireListener) {
         this.lockId = lockId;
-        long now = System.nanoTime();
-        this.opId = (int) now;
-        this.newLeaseEndNanos = now;
         this.lockManager = lockManager;
         this.groupId = groupId;
         this.key = key;
+        this.expireListener = expireListener;
+
+        resetLeaseEndNanos();
+    }
+
+    private void resetLeaseEndNanos() {
+        long now = System.nanoTime();
+        this.leaseEndNanos = now - 10_000_000_000L;
+        this.newLeaseEndNanos = leaseEndNanos;
     }
 
     private class Op implements RpcCallback<Void> {
@@ -146,7 +152,7 @@ class DistributedLockImpl implements DistributedLock {
 
         public void makeTryLockTimeout() {
             // try lock timeout task
-            opLock.writeLock().lock();
+            opLock.lock();
             try {
                 if (finish) {
                     return;
@@ -156,7 +162,7 @@ class DistributedLockImpl implements DistributedLock {
             } catch (Exception e) {
                 BugLog.log(e);
             } finally {
-                opLock.writeLock().unlock();
+                opLock.unlock();
             }
 
             // call user callback outside lock
@@ -180,7 +186,7 @@ class DistributedLockImpl implements DistributedLock {
 
         @Override
         public void call(ReadPacket<Void> p, Throwable ex) {
-            opLock.writeLock().lock();
+            opLock.lock();
             try {
                 if (finish) {
                     return;
@@ -218,7 +224,7 @@ class DistributedLockImpl implements DistributedLock {
                         }
                     } else if (opType == OP_TYPE_UNLOCK) {
                         if (p.bizCode == KvCodes.SUCCESS) {
-                            leaseEndNanos = 0;
+                            resetLeaseEndNanos();
                             state = STATE_NOT_LOCKED;
                             if (log.isDebugEnabled()) {
                                 log.debug("unlock success, key: {}", key);
@@ -230,11 +236,13 @@ class DistributedLockImpl implements DistributedLock {
                     } else {
                         // update lease
                         long now = System.nanoTime();
-                        if (state != STATE_LOCKED || leaseEndNanos - now <= 0) {
+                        if (state != STATE_LOCKED || leaseEndNanos - now <= 0 || newLeaseEndNanos - now <= 0) {
                             markFinishInLock(null, new NetException("not held by current client"));
                         } else if (p.bizCode == KvCodes.SUCCESS) {
                             leaseEndNanos = newLeaseEndNanos;
-                            scheduleExpireTask(now);
+                            leaseId++;
+                            cancelExpireTask();
+                            scheduleExpireTask(leaseEndNanos - now);
                             markFinishInLock(null, null);
                         } else {
                             markFinishInLock(null, new KvException(p.bizCode));
@@ -247,7 +255,7 @@ class DistributedLockImpl implements DistributedLock {
                     markFinishInLock(null, e);
                 }
             } finally {
-                opLock.writeLock().unlock();
+                opLock.unlock();
             }
             // call user callback outside lock, only once
             invokeCallback();
@@ -267,9 +275,14 @@ class DistributedLockImpl implements DistributedLock {
                 log.debug("tryLock success, key: {}, code={}", key, KvCodes.toStr(bizCode));
             }
             state = STATE_LOCKED;
+            leaseId++;
             leaseEndNanos = newLeaseEndNanos;
 
-            scheduleExpireTask(now);
+            if (expireTask != null) {
+                BugLog.getLog().error("expireTask already exists, key: {}", key);
+                cancelExpireTask();
+            }
+            scheduleExpireTask(leaseEndNanos - now);
             markFinishInLock(Boolean.TRUE, null);
         }
     }
@@ -320,7 +333,7 @@ class DistributedLockImpl implements DistributedLock {
     }
 
     private Throwable tryLock0(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback) {
-        opLock.writeLock().lock();
+        opLock.lock();
         try {
             if (state == STATE_CLOSED) {
                 return new IllegalStateException("lock is closed");
@@ -349,6 +362,7 @@ class DistributedLockImpl implements DistributedLock {
 
             KvReq req = new KvReq(groupId, key.getData(), value, waitLockTimeoutMillis);
             EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_TRY_LOCK, req);
+            packet.acquirePermitNoWait = true;
 
             lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                     DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
@@ -362,28 +376,28 @@ class DistributedLockImpl implements DistributedLock {
             }
             return e;
         } finally {
-            opLock.writeLock().unlock();
+            opLock.unlock();
         }
     }
 
-    private void scheduleExpireTask(long nowNanos) {
-        if (expireTask != null) {
-            BugLog.getLog().error("expireTask already exists, key: {}", key);
-            return;
-        }
-        expireTask = lockManager.executeService.schedule(DistributedLockImpl.this::execExpireTask,
-                leaseEndNanos - nowNanos, TimeUnit.NANOSECONDS);
+    private void scheduleExpireTask(long delayNanos) {
+        int expectLeaseId = leaseId;
+        expireTask = lockManager.executeService.schedule(() -> execExpireTask(expectLeaseId),
+                delayNanos, TimeUnit.NANOSECONDS);
     }
 
-    private void execExpireTask() {
-        opLock.writeLock().lock();
+    private void execExpireTask(int expectLeaseId) {
+        opLock.lock();
         try {
             if (state != STATE_LOCKED) {
                 return;
             }
+            if (expectLeaseId != leaseId) {
+                return;
+            }
             log.warn("lock expired without unlock or update lease, key: {}", key);
             state = STATE_NOT_LOCKED;
-            leaseEndNanos = 0;
+            resetLeaseEndNanos();
             expireTask = null;
             if (expireListener != null) {
                 try {
@@ -393,7 +407,7 @@ class DistributedLockImpl implements DistributedLock {
                 }
             }
         } finally {
-            opLock.writeLock().unlock();
+            opLock.unlock();
         }
     }
 
@@ -414,7 +428,7 @@ class DistributedLockImpl implements DistributedLock {
 
     private Throwable unlock0(FutureCallback<Void> callback) {
         Op oldOp;
-        opLock.writeLock().lock();
+        opLock.lock();
         try {
             if (state == STATE_CLOSED) {
                 return new IllegalStateException("lock is closed");
@@ -430,9 +444,11 @@ class DistributedLockImpl implements DistributedLock {
 
             currentOp = new Op(callback);
             state = STATE_UNKNOWN;
+            resetLeaseEndNanos();
 
             KvReq req = new KvReq(groupId, key.getData(), null);
             EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
+            packet.acquirePermitNoWait = true;
 
             lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                     DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
@@ -444,7 +460,7 @@ class DistributedLockImpl implements DistributedLock {
             }
             return e;
         } finally {
-            opLock.writeLock().unlock();
+            opLock.unlock();
         }
         if (oldOp != null) {
             oldOp.invokeCallback();
@@ -479,7 +495,7 @@ class DistributedLockImpl implements DistributedLock {
     }
 
     private Throwable updateLease0(long newLeaseMillis, FutureCallback<Void> callback) {
-        opLock.writeLock().lock();
+        opLock.lock();
         try {
             if (state == STATE_CLOSED) {
                 return new IllegalStateException("lock is closed");
@@ -500,6 +516,7 @@ class DistributedLockImpl implements DistributedLock {
 
             KvReq req = new KvReq(groupId, key.getData(), null, newLeaseMillis);
             EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UPDATE_LOCK_LEASE, req);
+            packet.acquirePermitNoWait = true;
 
             lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                     DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
@@ -512,10 +529,9 @@ class DistributedLockImpl implements DistributedLock {
             }
             return e;
         } finally {
-            opLock.writeLock().unlock();
+            opLock.unlock();
         }
     }
-
 
     @Override
     public boolean isHeldByCurrentClient() {
@@ -524,31 +540,11 @@ class DistributedLockImpl implements DistributedLock {
 
     @Override
     public long getLeaseRestMillis() {
-        long rest;
-        opLock.readLock().lock();
-        try {
-            if (state != STATE_LOCKED) {
-                rest = 0;
-            } else {
-                rest = leaseEndNanos - System.nanoTime();
-                if (rest < 0) {
-                    rest = 0;
-                }
-            }
-        } finally {
-            opLock.readLock().unlock();
+        long rest = leaseEndNanos - System.nanoTime();
+        if (rest < 0) {
+            rest = 0;
         }
         return TimeUnit.NANOSECONDS.toMillis(rest);
-    }
-
-    @Override
-    public void setLockExpireListener(Runnable listener) {
-        opLock.writeLock().lock();
-        try {
-            this.expireListener = listener;
-        } finally {
-            opLock.writeLock().unlock();
-        }
     }
 
     @Override
@@ -558,13 +554,14 @@ class DistributedLockImpl implements DistributedLock {
 
     void closeImpl() {
         Op oldOp = null;
-        opLock.writeLock().lock();
+        opLock.lock();
         try {
             if (state == STATE_CLOSED) {
                 return;
             }
             int oldState = state;
             state = STATE_CLOSED;
+            resetLeaseEndNanos();
             oldOp = currentOp;
             if (oldOp != null) {
                 oldOp.markFinishInLock(null, new NetException("canceled by close"));
@@ -574,6 +571,7 @@ class DistributedLockImpl implements DistributedLock {
             if ((oldState == STATE_LOCKED || oldState == STATE_UNKNOWN) && (newLeaseEndNanos - System.nanoTime() > 0)) {
                 KvReq req = new KvReq(groupId, key.getData(), null);
                 EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
+                packet.acquirePermitNoWait = true;
                 lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                         DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
                         lockManager.kvClient.raftClient.createDefaultTimeout(), null);
@@ -581,7 +579,7 @@ class DistributedLockImpl implements DistributedLock {
         } catch (Exception e) {
             log.error("lock close error", e);
         } finally {
-            opLock.writeLock().unlock();
+            opLock.unlock();
         }
         if (oldOp != null) {
             oldOp.invokeCallback();
@@ -594,7 +592,7 @@ class DistributedLockImpl implements DistributedLock {
         int pushOpId = buf.getInt();
 
         Op oldOp = null;
-        opLock.writeLock().lock();
+        opLock.lock();
         try {
             if (state == STATE_CLOSED) {
                 log.info("ignore lock push because lock is closed. key: {}", key);
@@ -614,7 +612,7 @@ class DistributedLockImpl implements DistributedLock {
         } catch (Exception e) {
             BugLog.log(e);
         } finally {
-            opLock.writeLock().unlock();
+            opLock.unlock();
         }
 
         if (oldOp != null) {
