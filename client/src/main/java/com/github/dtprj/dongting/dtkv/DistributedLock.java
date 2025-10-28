@@ -65,7 +65,7 @@ public interface DistributedLock {
      * @param waitLockTimeoutMillis max wait time to acquire the lock, none-negative, should be less or equal than
      *                              leaseMillis. If 0, return false immediately if the server tells the lock is held
      *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock.
-     * @param callback              the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
+     * @param callback              the async callback, by default it will execute in bizExecutor of NioClient.
      */
     void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback);
 
@@ -82,7 +82,7 @@ public interface DistributedLock {
     /**
      * Asynchronously to release the lock, if the client is not the owner of the lock, do nothing.
      *
-     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
+     * @param callback the async callback, by default it will execute in bizExecutor of NioClient.
      */
     void unlock(FutureCallback<Void> callback);
 
@@ -103,7 +103,7 @@ public interface DistributedLock {
      * Asynchronously to update the lease time of the lock.
      * @param newLeaseMillis the new lease time, should be positive, the lease time starts when this
      *                       method invoked, that is, measured from the client side, not the server side
-     * @param callback the async callback will be called in bizExecutor (default) of NioClient or NioWorker thread.
+     * @param callback the async callback, by default it will execute in bizExecutor of NioClient.
      */
     void updateLease(long newLeaseMillis, FutureCallback<Void> callback);
 
