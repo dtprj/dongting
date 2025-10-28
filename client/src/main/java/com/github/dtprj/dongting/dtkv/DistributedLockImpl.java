@@ -61,7 +61,7 @@ class DistributedLockImpl implements DistributedLock {
     private final ReentrantLock opLock = new ReentrantLock();
 
     /**
-     * Each tryLock should increase the operationId by 1. When receive Commands.DTKV_LOCK_PUSH, check if
+     * Each rpc should increase the operationId by 1. When receive Commands.DTKV_LOCK_PUSH, check if
      * opId is the same as the one in push, if not, ignore the push.
      */
     private int opId;
@@ -93,7 +93,7 @@ class DistributedLockImpl implements DistributedLock {
     }
 
     private class Op implements RpcCallback<Void> {
-        final int taskOpId;
+        private int taskOpId;
         private final FutureCallback<?> callback;
         final long tryLockTimeoutMillis;
         private ScheduledFuture<?> tryLockTimeoutTask;
@@ -110,11 +110,9 @@ class DistributedLockImpl implements DistributedLock {
         private Throwable opEx;
 
         Op(int opType, long tryLockTimeoutMillis, FutureCallback<?> callback) {
-            this.taskOpId = ++opId;
             this.tryLockTimeoutMillis = tryLockTimeoutMillis;
             this.callback = callback;
             this.opType = opType;
-
         }
 
         private void markFinishInLock(Object result, Throwable ex) {
@@ -323,12 +321,10 @@ class DistributedLockImpl implements DistributedLock {
         try {
             tryLock0(leaseMillis, waitLockTimeoutMillis, op);
             ok = true;
+            currentOp = op;
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
         } finally {
-            if (ok) {
-                currentOp = op;
-            }
             opLock.unlock();
         }
         if (!ok) {
@@ -348,6 +344,7 @@ class DistributedLockImpl implements DistributedLock {
             throw new IllegalStateException("operation in progress");
         }
 
+        op.taskOpId = ++opId;
         state = STATE_UNKNOWN;
 
         if (waitLockTimeoutMillis > 0) {
@@ -414,23 +411,30 @@ class DistributedLockImpl implements DistributedLock {
     public void unlock(FutureCallback<Void> callback) {
         Op op = new Op(Op.OP_TYPE_UNLOCK, 0, callback);
         Op oldOp = null;
-        boolean ok = false;
+        boolean shouldInvokeCallback;
         opLock.lock();
         try {
-            oldOp = unlock0(op);
-            ok = true;
+            if (state == STATE_CLOSED) {
+                throw new IllegalStateException("lock is closed");
+            }
+            if (state == STATE_NOT_LOCKED) {
+                op.markFinishInLock(null, null);
+                shouldInvokeCallback = true;
+            } else {
+                oldOp = unlock0(op);
+                currentOp = op;
+                shouldInvokeCallback = false;
+            }
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
+            shouldInvokeCallback = true;
         } finally {
-            if (ok) {
-                currentOp = op;
-            }
             opLock.unlock();
         }
         if (oldOp != null) {
             oldOp.invokeCallback();
         }
-        if (!ok) {
+        if (shouldInvokeCallback) {
             op.invokeCallback();
         }
     }
@@ -438,9 +442,6 @@ class DistributedLockImpl implements DistributedLock {
     private Op unlock0(Op op) {
         Op oldOp;
         boolean makeOldOpFinish = false;
-        if (state == STATE_CLOSED) {
-            throw new IllegalStateException("lock is closed");
-        }
         oldOp = currentOp;
 
         // mark current op as finished, so the unlock operation can be called safely after tryLock
@@ -451,6 +452,7 @@ class DistributedLockImpl implements DistributedLock {
         }
         cancelExpireTask();
 
+        op.taskOpId = ++opId;
         state = STATE_UNKNOWN;
         resetLeaseEndNanos();
 
@@ -490,12 +492,10 @@ class DistributedLockImpl implements DistributedLock {
         try {
             updateLease0(newLeaseMillis, op);
             ok = true;
+            currentOp = op;
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
         } finally {
-            if (ok) {
-                currentOp = op;
-            }
             opLock.unlock();
         }
         if (!ok) {
@@ -518,6 +518,8 @@ class DistributedLockImpl implements DistributedLock {
         if (leaseEndNanos - now <= 0) {
             throw new IllegalStateException("lease expired");
         }
+
+        op.taskOpId = ++opId;
 
         KvReq req = new KvReq(groupId, key.getData(), null, newLeaseMillis);
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UPDATE_LOCK_LEASE, req);
@@ -558,7 +560,6 @@ class DistributedLockImpl implements DistributedLock {
             }
             int oldState = state;
             state = STATE_CLOSED;
-            resetLeaseEndNanos();
             oldOp = currentOp;
             if (oldOp != null && !oldOp.finish) {
                 oldOp.markFinishInLock(null, new NetException("canceled by close"));
@@ -574,6 +575,7 @@ class DistributedLockImpl implements DistributedLock {
                         DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
                         lockManager.kvClient.raftClient.createDefaultTimeout(), null);
             }
+            resetLeaseEndNanos();
         } catch (Exception e) {
             log.error("lock close error", e);
         } finally {

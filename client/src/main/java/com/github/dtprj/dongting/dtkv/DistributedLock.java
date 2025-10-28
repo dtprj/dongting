@@ -24,7 +24,7 @@ import com.github.dtprj.dongting.net.NetException;
  * <p>
  * Unlike local lock, the distributed lock has lease time, the lock's ownership will be lost after the lease time.
  * Use isHeldByCurrentClient() method to check whether the current client is the owner of the lock.
- * Use setLockExpireListener(Runnable listener) to set a listener which will be called when the lock lease expires.
+ * If specified expire listener when create the lock in KvClient, it will be called back when the lease expires
  *
  * @author huangli
  */
@@ -70,7 +70,7 @@ public interface DistributedLock {
     void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback);
 
     /**
-     * Synchronously to release the lock, if the client is not the owner of the lock, do nothing.
+     * Synchronously to release the lock, if the client is not the owner of the lock, do nothing and return.
      * If there is another tryLock/unlock/updateLease operation in progress, the old operation will fail.
      *
      * @throws IllegalStateException if the lock is closed
@@ -80,7 +80,7 @@ public interface DistributedLock {
     void unlock() throws IllegalStateException, KvException, NetException;
 
     /**
-     * Asynchronously to release the lock, if the client is not the owner of the lock, do nothing.
+     * Asynchronously to release the lock, if the client is not the owner of the lock, do nothing and invoke the callback.
      *
      * @param callback the async callback, by default it will execute in bizExecutor of NioClient.
      */
@@ -108,7 +108,7 @@ public interface DistributedLock {
     void updateLease(long newLeaseMillis, FutureCallback<Void> callback);
 
     /**
-     * Detect whether the current client is the owner of the lock. This method returns immediately ant will not
+     * Detect whether the current client is the owner of the lock. This method returns immediately and will not
      * throw any exception.
      *
      * <p>
