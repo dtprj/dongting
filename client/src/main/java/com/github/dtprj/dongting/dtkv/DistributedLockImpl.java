@@ -137,6 +137,7 @@ class DistributedLockImpl implements DistributedLock {
 
         public void makeTryLockTimeout() {
             // try lock timeout task
+            boolean markFinish = false;
             opLock.lock();
             try {
                 if (finish) {
@@ -144,14 +145,17 @@ class DistributedLockImpl implements DistributedLock {
                 }
                 String s = "tryLock " + key + " timeout after " + tryLockTimeoutMillis + "ms";
                 markFinishInLock(null, new NetTimeoutException(s));
+                markFinish = true;
             } catch (Exception e) {
                 BugLog.log(e);
             } finally {
                 opLock.unlock();
             }
 
-            // call user callback outside lock
-            invokeCallback();
+            if (markFinish) {
+                // call user callback outside lock
+                invokeCallback();
+            }
         }
 
         public void invokeCallback() {
@@ -238,7 +242,7 @@ class DistributedLockImpl implements DistributedLock {
                         }
                     }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.error("unexpected error", e);
                 if (!finish) {
                     markFinishInLock(null, e);
@@ -433,15 +437,17 @@ class DistributedLockImpl implements DistributedLock {
 
     private Op unlock0(Op op) {
         Op oldOp;
+        boolean makeOldOpFinish = false;
         if (state == STATE_CLOSED) {
             throw new IllegalStateException("lock is closed");
         }
         oldOp = currentOp;
 
         // mark current op as finished, so the unlock operation can be called safely after tryLock
-        if (oldOp != null) {
+        if (oldOp != null && !oldOp.finish) {
             // currentOp is set to null in markFinishInLock
             oldOp.markFinishInLock(null, new NetException("canceled by unlock"));
+            makeOldOpFinish = true;
         }
         cancelExpireTask();
 
@@ -455,7 +461,7 @@ class DistributedLockImpl implements DistributedLock {
         lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                 DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
                 lockManager.kvClient.raftClient.createDefaultTimeout(), op);
-        return oldOp;
+        return makeOldOpFinish ? oldOp : null;
     }
 
     private void cancelExpireTask() {
@@ -544,6 +550,7 @@ class DistributedLockImpl implements DistributedLock {
 
     void closeImpl() {
         Op oldOp = null;
+        boolean invokeOldOpCallback = false;
         opLock.lock();
         try {
             if (state == STATE_CLOSED) {
@@ -553,8 +560,9 @@ class DistributedLockImpl implements DistributedLock {
             state = STATE_CLOSED;
             resetLeaseEndNanos();
             oldOp = currentOp;
-            if (oldOp != null) {
+            if (oldOp != null && !oldOp.finish) {
                 oldOp.markFinishInLock(null, new NetException("canceled by close"));
+                invokeOldOpCallback = true;
             }
             cancelExpireTask();
 
@@ -571,7 +579,7 @@ class DistributedLockImpl implements DistributedLock {
         } finally {
             opLock.unlock();
         }
-        if (oldOp != null) {
+        if (invokeOldOpCallback) {
             oldOp.invokeCallback();
         }
     }
