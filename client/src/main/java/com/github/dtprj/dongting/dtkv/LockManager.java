@@ -78,7 +78,7 @@ class LockManager {
         }
     }
 
-    AutoRenewalLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis, AutoRenewLockListener listener) {
+    AutoRenewalLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis, AutoRenewalLockListener listener) {
         if (raftClient.getGroup(groupId) == null) {
             throw new RaftException("group not found: " + groupId);
         }
@@ -125,7 +125,7 @@ class LockManager {
             if (h.wrapper != null) {
                 h.wrapper.closeImpl();
             } else {
-                lock.closeImpl();
+                h.lock.closeImpl();
             }
 
             m.remove(lock.key);
@@ -142,7 +142,11 @@ class LockManager {
         try {
             for (HashMap<ByteArray, LockHolder> m : lockMap.values()) {
                 for (LockHolder h : m.values()) {
-                    h.lock.closeImpl();
+                    if (h.wrapper != null) {
+                        h.wrapper.closeImpl();
+                    } else {
+                        h.lock.closeImpl();
+                    }
                 }
             }
             lockMap.clear();

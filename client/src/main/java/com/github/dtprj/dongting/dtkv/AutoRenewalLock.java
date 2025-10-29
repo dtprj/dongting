@@ -28,12 +28,12 @@ package com.github.dtprj.dongting.dtkv;
  * Any exception occurred during the acquire or renew operation will be processed internally,
  * and the user just need to provide an AutoRenewLockListener to get notified when the lock is acquired or lost.
  *
- * @see AutoRenewLockListener
+ * @see AutoRenewalLockListener
  * @author huangli
  */
 public interface AutoRenewalLock {
     /**
-     * Detect whether the current client is the owner of the lock. This method returns immediately ant will not
+     * Detect whether the current client is the owner of the lock. This method returns immediately and will not
      * throw any exception.
      *
      * <p>

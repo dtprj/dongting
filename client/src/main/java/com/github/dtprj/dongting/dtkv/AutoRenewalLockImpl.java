@@ -35,7 +35,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private final int groupId;
     private final ByteArray key;
     private final long leaseMillis;
-    private final AutoRenewLockListener listener;
+    private final AutoRenewalLockListener listener;
     private final DistributedLockImpl lock;
     private final LockManager lockManager;
 
@@ -48,8 +48,11 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private int taskId;
     private ScheduledFuture<?> task;
 
-    AutoRenewalLockImpl(int groupId, ByteArray key, long leaseMillis, AutoRenewLockListener listener,
+    AutoRenewalLockImpl(int groupId, ByteArray key, long leaseMillis, AutoRenewalLockListener listener,
                         DistributedLockImpl lock, LockManager lockManager) {
+        if (leaseMillis <= 1) {
+            throw new IllegalArgumentException("leaseMillis too small: " + leaseMillis);
+        }
         DistributedLockImpl.checkLeaseMillis(leaseMillis);
         this.groupId = groupId;
         this.key = key;
@@ -160,12 +163,12 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         return delayMillis;
     }
 
-    private void scheduleTaskInLock(long delayMills) {
+    private void scheduleTaskInLock(long delayMillis) {
         // Cancel any existing task before scheduling new one
         taskId++;
         cancelTaskInLock();
         int expectTaskId = taskId;
-        task = lockManager.executeService.schedule(() -> runTask(expectTaskId), delayMills, TimeUnit.MILLISECONDS);
+        task = lockManager.executeService.schedule(() -> runTask(expectTaskId), delayMillis, TimeUnit.MILLISECONDS);
     }
 
     private void cancelTaskInLock() {
@@ -201,6 +204,13 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
             closed = true;
             cancelTaskInLock();
             lock.closeImpl();
+            if (locked) {
+                try {
+                    listener.onLost();
+                } catch (Throwable e) {
+                    log.error("Error in onLost listener", e);
+                }
+            }
         } finally {
             opLock.unlock();
         }

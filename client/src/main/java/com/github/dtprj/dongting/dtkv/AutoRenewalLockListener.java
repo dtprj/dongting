@@ -19,7 +19,7 @@ package com.github.dtprj.dongting.dtkv;
  *
  * @author huangli
  */
-public interface AutoRenewLockListener {
+public interface AutoRenewalLockListener {
 
     /**
      * Invoked when the lock is successfully acquired. This callback is running in a lock,
@@ -28,8 +28,8 @@ public interface AutoRenewLockListener {
     void onAcquired();
 
     /**
-     * Invoked when the lock is lost (expired or closed). This callback is running in a lock,
-     * don't do blocking operations in the callback.
+     * Invoked when the lock is lost (include expire or the AutoRenewalLock instance closed when it held the lock).
+     * This callback is running in a lock, don't do blocking operations in the callback.
      */
     void onLost();
 }
