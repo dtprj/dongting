@@ -47,9 +47,9 @@ class LockManager {
 
     private static class LockHolder {
         final DistributedLockImpl lock;
-        final AutoRenewLock wrapper;
+        final AutoRenewalLockImpl wrapper;
 
-        LockHolder(DistributedLockImpl lock, AutoRenewLock wrapper) {
+        LockHolder(DistributedLockImpl lock, AutoRenewalLockImpl wrapper) {
             this.lock = lock;
             this.wrapper = wrapper;
         }
@@ -78,7 +78,7 @@ class LockManager {
         }
     }
 
-    AutoRenewLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis, AutoRenewLockListener listener) {
+    AutoRenewalLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis, AutoRenewLockListener listener) {
         if (raftClient.getGroup(groupId) == null) {
             throw new RaftException("group not found: " + groupId);
         }
@@ -89,9 +89,9 @@ class LockManager {
             HashMap<ByteArray, LockHolder> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
             LockHolder h = m.get(keyBytes);
             if (h == null) {
-                // TODO expireListener is null now
+                // the expireListener is set in AutoRenewLockImpl constructor
                 DistributedLockImpl lock = new DistributedLockImpl(nextLockId++, this, groupId, keyBytes, null);
-                AutoRenewLock wrapper = new AutoRenewLockImpl(groupId, keyBytes, leaseMillis, listener, lock, executeService);
+                AutoRenewalLockImpl wrapper = new AutoRenewalLockImpl(groupId, keyBytes, leaseMillis, listener, lock, this);
                 h = new LockHolder(lock, wrapper);
                 m.put(keyBytes, h);
                 return wrapper;
@@ -106,7 +106,6 @@ class LockManager {
     void removeLock(DistributedLockImpl lock) {
         managerOpLock.lock();
         try {
-            lock.closeImpl();
             HashMap<ByteArray, LockHolder> m = lockMap.get(lock.groupId);
             if (m == null) {
                 log.error("no lock map found, groupId={}, key={}", lock.groupId, lock.key);
@@ -121,6 +120,12 @@ class LockManager {
             if (h.lock != lock) {
                 log.error("lock not same, groupId={}, key={}", lock.groupId, lock.key);
                 return;
+            }
+
+            if (h.wrapper != null) {
+                h.wrapper.closeImpl();
+            } else {
+                lock.closeImpl();
             }
 
             m.remove(lock.key);

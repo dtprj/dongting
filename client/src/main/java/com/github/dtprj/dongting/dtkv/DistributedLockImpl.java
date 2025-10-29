@@ -54,7 +54,7 @@ class DistributedLockImpl implements DistributedLock {
      */
     private final int lockId;
 
-    private final Runnable expireListener;
+    Runnable expireListener;
     final LockManager lockManager;
     final int groupId;
     final ByteArray key;
@@ -306,11 +306,8 @@ class DistributedLockImpl implements DistributedLock {
 
     @Override
     public void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback) {
-        DtUtil.checkPositive(leaseMillis, "leaseMillis");
         DtUtil.checkNotNegative(waitLockTimeoutMillis, "waitLockTimeoutMillis");
-        if (leaseMillis < 1000) {
-            log.warn("leaseMillis is too small: {}, key: {}", leaseMillis, key);
-        }
+        checkLeaseMillis(leaseMillis);
         if (waitLockTimeoutMillis > leaseMillis) {
             throw new IllegalArgumentException("waitLockTimeoutMillis must be less than or equal to leaseMillis");
         }
@@ -481,16 +478,13 @@ class DistributedLockImpl implements DistributedLock {
     }
 
     @Override
-    public void updateLease(long newLeaseMillis, FutureCallback<Void> callback) {
-        DtUtil.checkPositive(newLeaseMillis, "newLeaseMillis");
-        if (newLeaseMillis < 1000) {
-            log.warn("newLeaseMillis is too small: {}, key: {}", newLeaseMillis, key);
-        }
+    public void updateLease(long leaseMillis, FutureCallback<Void> callback) {
+        checkLeaseMillis(leaseMillis);
         Op op = new Op(Op.OP_TYPE_RENEW, 0, callback);
         boolean ok = false;
         opLock.lock();
         try {
-            updateLease0(newLeaseMillis, op);
+            updateLease0(leaseMillis, op);
             ok = true;
             currentOp = op;
         } catch (Throwable e) {
@@ -567,7 +561,10 @@ class DistributedLockImpl implements DistributedLock {
             }
             cancelExpireTask();
 
-            if ((oldState == STATE_LOCKED || oldState == STATE_UNKNOWN) && (newLeaseEndNanos - System.nanoTime() > 0)) {
+            boolean needSendUnlock = (oldState == STATE_LOCKED || oldState == STATE_UNKNOWN)
+                    && (newLeaseEndNanos - System.nanoTime() > 0);
+            resetLeaseEndNanos();
+            if (needSendUnlock) {
                 KvReq req = new KvReq(groupId, key.getData(), null);
                 EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
                 packet.acquirePermitNoWait = true;
@@ -575,7 +572,6 @@ class DistributedLockImpl implements DistributedLock {
                         DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
                         lockManager.kvClient.raftClient.createDefaultTimeout(), null);
             }
-            resetLeaseEndNanos();
         } catch (Exception e) {
             log.error("lock close error", e);
         } finally {
@@ -618,6 +614,12 @@ class DistributedLockImpl implements DistributedLock {
         if (oldOp != null) {
             oldOp.invokeCallback();
         }
+    }
 
+    static void checkLeaseMillis(long leaseMillis) {
+        DtUtil.checkPositive(leaseMillis, "leaseMillis");
+        if (leaseMillis < 1000) {
+            log.warn("leaseMillis is too small: {}", leaseMillis);
+        }
     }
 }

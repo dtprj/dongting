@@ -694,13 +694,15 @@ public class KvClient extends AbstractLifeCircle {
      * @param key         not null or empty, use '.' as path separator
      * @param leaseMillis lease time in milliseconds, must be positive. If you don't know how to set it,
      *                    60000 (60 seconds) may be a good default value.
-     * @param listener    the listener to receive lock events, can not be null
+     * @param listener    the listener to receive lock events, can not be null.
+     *                    this listener is running in a lock, don't do blocking operations in the listener.
      * @return the AutoRenewLock instance
      * @throws IllegalStateException if an DistributedLock or AutoRenewLock instance exists with the same key
      */
-    public AutoRenewLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis,
-                                             AutoRenewLockListener listener) throws IllegalStateException {
+    public AutoRenewalLock createAutoRenewLock(int groupId, byte[] key, long leaseMillis,
+                                               AutoRenewLockListener listener) throws IllegalStateException {
         Objects.requireNonNull(listener);
+        DtUtil.checkPositive(leaseMillis, "leaseMillis");
         checkKey(key, false);
         return lockManager.createAutoRenewLock(groupId, key, leaseMillis, listener);
     }

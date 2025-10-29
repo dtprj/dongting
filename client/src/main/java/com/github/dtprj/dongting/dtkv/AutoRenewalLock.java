@@ -16,9 +16,22 @@
 package com.github.dtprj.dongting.dtkv;
 
 /**
+ * The auto-renewal lock. If the current client is not holding the lock, the client will try to acquire it
+ * in background forever; If the lock is held by the current client, the client will try to renew the lease
+ * periodically in background.
+ *
+ * <p>
+ * This interface generally used to implement leader election among multiple clients, the client which holds
+ * the lock is the leader.
+ *
+ * <p>
+ * Any exception occurred during the acquire or renew operation will be processed internally,
+ * and the user just need to provide an AutoRenewLockListener to get notified when the lock is acquired or lost.
+ *
+ * @see AutoRenewLockListener
  * @author huangli
  */
-public interface AutoRenewLock {
+public interface AutoRenewalLock {
     /**
      * Detect whether the current client is the owner of the lock. This method returns immediately ant will not
      * throw any exception.
