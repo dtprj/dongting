@@ -19,9 +19,10 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.LinkedList;
+import java.util.Objects;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -41,12 +42,14 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
     private boolean locked;
     private boolean closed;
-    private final ReentrantLock opLock = new ReentrantLock();
+
+    private final LinkedList<Runnable> sequentialTasks = new LinkedList<>();
+    private boolean running;
 
     private int retryIndex = 0;
 
-    private int taskId;
-    private ScheduledFuture<?> task;
+    private int currentTaskId;
+    private ScheduledFuture<?> scheduleTask;
 
     AutoRenewalLockImpl(int groupId, ByteArray key, long leaseMillis, AutoRenewalLockListener listener,
                         DistributedLockImpl lock, LockManager lockManager) {
@@ -61,123 +64,146 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         this.lock = lock;
         this.lockManager = lockManager;
         lock.expireListener = this::onExpire;
-        scheduleTaskInLock(0);
+        scheduleTask(currentTaskId, 0);
+    }
+
+    private void sequentialRun(boolean addFirst, Runnable nextTask) {
+        Objects.requireNonNull(nextTask);
+        boolean firstLoop = true;
+        while (true) {
+            Runnable r;
+
+            synchronized (this) {
+                if (firstLoop) {
+                    if (running) {
+                        if (addFirst) {
+                            sequentialTasks.addFirst(nextTask);
+                        } else {
+                            sequentialTasks.addLast(nextTask);
+                        }
+                        return;
+                    } else {
+                        running = true;
+                        firstLoop = false;
+                        r = nextTask;
+                    }
+                } else {
+                    r = sequentialTasks.pollFirst();
+                }
+                if (r == null) {
+                    running = false;
+                    return;
+                }
+            } // end synchronized block
+
+            // run outside synchronized block
+            try {
+                r.run();
+            } catch (Throwable e) {
+                log.error("LinearQueue task error", e);
+            }
+        }
     }
 
     private void onExpire() {
-        opLock.lock();
-        try {
+        sequentialRun(true, () -> {
             if (closed) {
                 return;
             }
-            locked = false;
-            cancelTaskInLock();
+            currentTaskId++; // cancel existing task serials
+            cancelTask();
+            doRunTask(currentTaskId, true);
+        });
+    }
+
+    private void runTask(int taskId) {
+        sequentialRun(false, () -> {
+            if (taskId != currentTaskId) {
+                return;
+            }
+            scheduleTask = null;
+            doRunTask(taskId, true);
+        });
+    }
+
+    private void doRunTask(int taskId, boolean updateLeaseImmediately) {
+        long leaseRest = lock.getLeaseRestMillis();
+        if (leaseRest > 1) {
+            changeStateIfNeeded(true);
+            if (updateLeaseImmediately) {
+                try {
+                    lock.updateLease(leaseMillis, (v, ex) -> rpcCallback(taskId, false, ex));
+                } catch (Throwable e) {
+                    handleRpcFail(taskId, "updateLease", e);
+                }
+            } else {
+                scheduleTask(taskId, leaseRest / 2);
+            }
+        } else {
+            changeStateIfNeeded(false);
             try {
-                listener.onLost();
+                lock.tryLock(leaseMillis, leaseMillis, (result, ex) -> rpcCallback(taskId, true, ex));
             } catch (Throwable e) {
-                log.error("Error in onLost listener", e);
+                handleRpcFail(taskId, "tryLock", e);
             }
-            doRunTask();
-        } finally {
-            opLock.unlock();
         }
     }
 
-    private void runTask(int expiredTaskId) {
-        opLock.lock();
-        try {
-            if (closed) {
+    private void rpcCallback(int taskId, boolean tryLock, Throwable ex) {
+        sequentialRun(false, () -> {
+            if (taskId != currentTaskId) {
                 return;
             }
-            if (expiredTaskId != taskId) {
-                return;
-            }
-            doRunTask();
-        } finally {
-            opLock.unlock();
-        }
-    }
-
-    private void doRunTask() {
-        boolean tryLock = !locked;
-        try {
-            if (tryLock) {
-                lock.tryLock(leaseMillis, leaseMillis, (result, ex) -> rpcCallback(tryLock, result, ex));
-            } else {
-                lock.updateLease(leaseMillis, (result, ex) -> rpcCallback(tryLock, null, ex));
-            }
-        } catch (Throwable e) {
-            handleRpcFail(tryLock ? "tryLock" : "updateLease", e);
-        }
-    }
-
-    private void rpcCallback(boolean tryLock, Boolean result, Throwable ex) {
-        // DistributedLockImpl executes the callback without acquire DistributedLockImpl's opLock
-        opLock.lock();
-        try {
-            if (closed) {
-                return;
-            }
-
             if (ex != null) {
-                handleRpcFail(tryLock ? "tryLock" : "updateLease", ex);
+                handleRpcFail(taskId, tryLock ? "tryLock" : "updateLease", ex);
             } else {
-                retryIndex = 0; // Reset retry index on successful acquisition
-                if (tryLock) {
-                    if (result != null && result) {
-                        // Successfully acquired the lock
-                        locked = true;
-                        try {
-                            listener.onAcquired();
-                        } catch (Throwable e) {
-                            log.error("Error in onAcquired listener", e);
-                        }
-                        scheduleTaskInLock(leaseMillis / 2);
-                    } else {
-                        // Lock is held by others, retry immediately
-                        doRunTask();
-                    }
+                retryIndex = 0;
+                doRunTask(taskId, false);
+            }
+        });
+    }
+
+    private void changeStateIfNeeded(boolean newLocked) {
+        try {
+            if (locked != newLocked) {
+                locked = newLocked;
+                if (newLocked) {
+                    listener.onAcquired();
                 } else {
-                    scheduleTaskInLock(leaseMillis / 2);
+                    listener.onLost();
                 }
             }
-        } finally {
-            opLock.unlock();
+        } catch (Throwable e) {
+            log.error("error in lock callback", e);
         }
+
     }
 
-    private void handleRpcFail(String op, Throwable ex) {
+    private void handleRpcFail(int taskId, String op, Throwable ex) {
         log.warn("{} failed. key={}, groupId={}, retryIndex={}", op, key, groupId, retryIndex, ex);
-        long delayMillis = calcDelayMillis();
-        scheduleTaskInLock(delayMillis);
-    }
-
-    private long calcDelayMillis() {
         long delayMillis;
         if (retryIndex < RETRY_INTERVALS.length) {
             delayMillis = RETRY_INTERVALS[retryIndex];
-            retryIndex++;
         } else {
             delayMillis = RETRY_INTERVALS[RETRY_INTERVALS.length - 1];
         }
-        return delayMillis;
+        retryIndex++;
+        scheduleTask(taskId, delayMillis);
     }
 
-    private void scheduleTaskInLock(long delayMillis) {
-        // Cancel any existing task before scheduling new one
-        taskId++;
-        cancelTaskInLock();
-        int expectTaskId = taskId;
-        task = lockManager.executeService.schedule(() -> runTask(expectTaskId), delayMillis, TimeUnit.MILLISECONDS);
+    private void scheduleTask(int taskId, long delayMillis) {
+        cancelTask();
+        scheduleTask = lockManager.executeService.schedule(() -> runTask(taskId),
+                delayMillis, TimeUnit.MILLISECONDS);
     }
 
-    private void cancelTaskInLock() {
+    private void cancelTask() {
         // Already in write lock
-        ScheduledFuture<?> currentTask = task;
+        ScheduledFuture<?> currentTask = scheduleTask;
         if (currentTask != null && !currentTask.isDone()) {
             currentTask.cancel(false);
         }
-        task = null;
+        scheduleTask = null;
     }
 
     @Override
@@ -196,23 +222,15 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     public void closeImpl() {
-        opLock.lock();
-        try {
+        sequentialRun(true, () -> {
             if (closed) {
                 return;
             }
             closed = true;
-            cancelTaskInLock();
+            currentTaskId++;  // cancel existing task serials
+            cancelTask();
             lock.closeImpl();
-            if (locked) {
-                try {
-                    listener.onLost();
-                } catch (Throwable e) {
-                    log.error("Error in onLost listener", e);
-                }
-            }
-        } finally {
-            opLock.unlock();
-        }
+            changeStateIfNeeded(false);
+        });
     }
 }
