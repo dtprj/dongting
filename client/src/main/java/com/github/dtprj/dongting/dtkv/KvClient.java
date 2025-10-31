@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -673,8 +675,8 @@ public class KvClient extends AbstractLifeCircle {
      * Create a distributed lock with the given key in the specified raft group.
      * Call close() method of the returned object will remove it from the KvClient.
      *
-     * @param groupId the raft group id
-     * @param key     not null or empty, use '.' as path separator
+     * @param groupId        the raft group id
+     * @param key            not null or empty, use '.' as path separator
      * @param expireListener the listener which will be called when the lock expires (unlock will not be called),
      *                       this listener is running in a lock, don't do blocking operations in the listener.
      * @return the DistributedLock instance
@@ -700,18 +702,32 @@ public class KvClient extends AbstractLifeCircle {
      * @throws IllegalStateException if an DistributedLock or AutoRenewalLock instance exists with the same key
      */
     public AutoRenewalLock createAutoRenewalLock(int groupId, byte[] key, long leaseMillis,
-                                               AutoRenewalLockListener listener) throws IllegalStateException {
+                                                 AutoRenewalLockListener listener) throws IllegalStateException {
         Objects.requireNonNull(listener);
         DtUtil.checkPositive(leaseMillis, "leaseMillis");
         checkKey(key, false);
         return lockManager.createAutoRenewLock(groupId, key, leaseMillis, listener);
     }
 
+    private static ExecutorService fallbackExecutor;
+
     @Override
     protected void doStart() {
         raftClient.start();
-        lockManager.executeService = raftClient.getNioClient().getBizExecutor() == null ?
-                DtUtil.SCHEDULED_SERVICE : raftClient.getNioClient().getBizExecutor();
+        if (raftClient.getNioClient().getBizExecutor() != null) {
+            lockManager.executeService = raftClient.getNioClient().getBizExecutor();
+        } else {
+            synchronized (KvClient.class) {
+                if (fallbackExecutor == null) {
+                    fallbackExecutor = Executors.newSingleThreadExecutor(r -> {
+                        Thread t = new Thread(r, "DtKvClientFallbackExecutor");
+                        t.setDaemon(true);
+                        return t;
+                    });
+                }
+            }
+            lockManager.executeService = fallbackExecutor;
+        }
     }
 
     protected void doStop(DtTime timeout, boolean force) {

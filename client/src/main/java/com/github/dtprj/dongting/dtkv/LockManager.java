@@ -16,13 +16,16 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 
 import java.util.HashMap;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -36,7 +39,7 @@ class LockManager {
 
     final KvClient kvClient;
     final RaftClient raftClient;
-    ScheduledExecutorService executeService;
+    ExecutorService executeService;
 
     private int nextLockId = 1;
 
@@ -174,5 +177,11 @@ class LockManager {
             this.managerOpLock.unlock();
         }
         h.lock.processLockPush(bizCode, req.value);
+    }
+
+    public ScheduledFuture<?> schedule(Runnable task, long delay, TimeUnit unit) {
+        // run task in executeService, don't block DtUtil.SCHEDULED_SERVICE
+        Runnable r = () -> executeService.submit(task);
+        return DtUtil.SCHEDULED_SERVICE.schedule(r, delay, unit);
     }
 }

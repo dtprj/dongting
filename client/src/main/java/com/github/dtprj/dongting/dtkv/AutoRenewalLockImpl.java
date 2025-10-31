@@ -67,20 +67,26 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         scheduleTask(currentTaskId, 0);
     }
 
-    private void sequentialRun(boolean addFirst, Runnable nextTask) {
+    private void sequentialRun(boolean markClose, boolean markExpire, Runnable nextTask) {
         Objects.requireNonNull(nextTask);
         boolean firstLoop = true;
         while (true) {
             Runnable r;
-
             synchronized (this) {
                 if (firstLoop) {
-                    if (running) {
-                        if (addFirst) {
-                            sequentialTasks.addFirst(nextTask);
-                        } else {
-                            sequentialTasks.addLast(nextTask);
+                    if (markClose || markExpire) {
+                        if (closed) {
+                            return;
                         }
+                        if (markClose) {
+                            closed = true;
+                            sequentialTasks.clear();
+                        }
+                        // run the task in lockManager.executeService to avoid user callback block
+                        lockManager.executeService.submit(() -> sequentialRun(false, false, nextTask));
+                        return;
+                    } else if (running) {
+                        sequentialTasks.addLast(nextTask);
                         return;
                     } else {
                         running = true;
@@ -106,7 +112,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     private void onExpire() {
-        sequentialRun(true, () -> {
+        sequentialRun(false, true, () -> {
             if (closed) {
                 return;
             }
@@ -117,7 +123,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     private void runTask(int taskId) {
-        sequentialRun(false, () -> {
+        sequentialRun(false, false, () -> {
             if (taskId != currentTaskId) {
                 return;
             }
@@ -150,7 +156,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     private void rpcCallback(int taskId, boolean tryLock, Throwable ex) {
-        sequentialRun(false, () -> {
+        sequentialRun(false, false, () -> {
             if (taskId != currentTaskId) {
                 return;
             }
@@ -193,8 +199,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
     private void scheduleTask(int taskId, long delayMillis) {
         cancelTask();
-        scheduleTask = lockManager.executeService.schedule(() -> runTask(taskId),
-                delayMillis, TimeUnit.MILLISECONDS);
+        scheduleTask = lockManager.schedule(() -> runTask(taskId), delayMillis, TimeUnit.MILLISECONDS);
     }
 
     private void cancelTask() {
@@ -222,11 +227,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     public void closeImpl() {
-        sequentialRun(true, () -> {
-            if (closed) {
-                return;
-            }
-            closed = true;
+        sequentialRun(true, false, () -> {
             currentTaskId++;  // cancel existing task serials
             cancelTask();
             lock.closeImpl();

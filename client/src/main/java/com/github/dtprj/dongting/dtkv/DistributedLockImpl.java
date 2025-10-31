@@ -345,8 +345,7 @@ class DistributedLockImpl implements DistributedLock {
         state = STATE_UNKNOWN;
 
         if (waitLockTimeoutMillis > 0) {
-            op.tryLockTimeoutTask = lockManager.executeService.schedule(op::makeTryLockTimeout,
-                    waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
+            op.tryLockTimeoutTask = lockManager.schedule(op::makeTryLockTimeout, waitLockTimeoutMillis, TimeUnit.MILLISECONDS);
         }
 
         // Create request with leaseMillis in value and operationId
@@ -368,8 +367,7 @@ class DistributedLockImpl implements DistributedLock {
 
     private void scheduleExpireTask(long delayNanos) {
         int expectLeaseId = leaseId;
-        expireTask = lockManager.executeService.schedule(() -> execExpireTask(expectLeaseId),
-                delayNanos, TimeUnit.NANOSECONDS);
+        expireTask = lockManager.schedule(() -> execExpireTask(expectLeaseId), delayNanos, TimeUnit.NANOSECONDS);
     }
 
     private void execExpireTask(int expectLeaseId) {

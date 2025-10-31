@@ -33,8 +33,9 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
@@ -47,7 +48,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
     final NioStatus nioStatus;
-    ScheduledExecutorService bizExecutor;
+    ExecutorService bizExecutor;
     private final PerfCallback perfCallback;
 
     protected final ReentrantLock lock = new ReentrantLock();
@@ -236,7 +237,8 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     protected void createBizExecutor() {
         if (config.bizThreads > 0) {
-            bizExecutor = Executors.newScheduledThreadPool(config.bizThreads,
+            bizExecutor = new ThreadPoolExecutor(config.bizThreads, config.bizThreads,
+                    1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
                     new DtThreadFactory(config.name + "Biz", false));
         }
     }
@@ -298,7 +300,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
     }
 
-    public ScheduledExecutorService getBizExecutor() {
+    public ExecutorService getBizExecutor() {
         return bizExecutor;
     }
 }
