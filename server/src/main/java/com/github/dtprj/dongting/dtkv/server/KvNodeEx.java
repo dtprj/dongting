@@ -98,7 +98,7 @@ final class KvNodeEx extends KvNode {
     }
 
     KvNodeHolder peekNextOwner() {
-        return lockOrderQueue.first();
+        return lockOrderQueue.isEmpty() ? null : lockOrderQueue.first();
     }
 
     Collection<KvNodeHolder> childrenValues() {

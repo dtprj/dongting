@@ -942,7 +942,7 @@ class KvImpl {
             long newHoldTtlMillis = readHoldTtlMillis(n.data);
             // NOTICE here re-use the opContext, so the old context is overwritten and should not be used later.
             // re-init opContext so leaderCreateTimeMillis/localCreateNanos are set appropriately.
-            opContext.init(DtKV.BIZ_TYPE_EXPIRE, opContext.operator, newHoldTtlMillis,
+            opContext.init(DtKV.BIZ_TYPE_EXPIRE, n.ttlInfo.owner, newHoldTtlMillis,
                     n.ttlInfo.leaderTtlStartMillis,
                     n.ttlInfo.expireNanos - n.ttlInfo.ttlMillis * 1_000_000L);
             ttlManager.updateTtl(index, nextLockOwner.key, n, opContext);
@@ -954,7 +954,6 @@ class KvImpl {
 
     public KvResult tryLock(long index, ByteArray key, byte[] data) {
         long ttlMillis = opContext.ttlMillis;
-        checkTtl(ttlMillis, data, true);
         opContext.ttlMillis = 0; // the lock dir has no ttl
         long stamp = lock.writeLock();
         try {
