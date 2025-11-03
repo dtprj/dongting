@@ -581,9 +581,13 @@ class DistributedLockImpl implements DistributedLock {
     }
 
     void processLockPush(int bizCode, byte[] value) {
+        if (value.length < 16) {
+            log.warn("ignore lock push because value length is invalid: {}, key: {}", value.length, key);
+            return;
+        }
         ByteBuffer buf = ByteBuffer.wrap(value);
-        int pushLockId = buf.getInt();
-        int pushOpId = buf.getInt();
+        int pushLockId = buf.getInt(8);
+        int pushOpId = buf.getInt(12);
 
         Op oldOp = null;
         opLock.lock();

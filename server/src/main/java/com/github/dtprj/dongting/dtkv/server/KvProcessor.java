@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -39,6 +38,7 @@ import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -242,10 +242,8 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     break;
                 }
                 case Commands.DTKV_UNLOCK: {
-                    KvResult r = (KvResult) result;
-                    KvNode newOwner = r.getNode();
-                    // remove nodes info
-                    r = new KvResult(r.getBizCode());
+                    Object[] arr = (Object[]) result;
+                    KvResult r = (KvResult) arr[0];
 
                     // send response first
                     resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
@@ -254,9 +252,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     reqInfo.reqContext.writeRespInBizThreads(resp);
 
                     // notify the new lock owner if any
-                    if (newOwner != null) {
-                        notifyNewLockOwner(newOwner, reqInfo);
-                    }
+                    notifyNewLockOwner(reqInfo.raftGroup, arr);
 
                     return; // the response is sent, so here use return
                 }
@@ -273,18 +269,17 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         }
     }
 
-    private void notifyNewLockOwner(KvNode newOwner, ReqInfo<KvReq> reqInfo) {
-        // Convert KvNode to KvNodeEx to access ttlInfo
-        KvNodeEx newOwnerEx = (KvNodeEx) newOwner;
+    static void notifyNewLockOwner(RaftGroup g, Object[] results) {
+        KvResult r = (KvResult) results[0];
+        TtlInfo newOwnerTtlInfo = (TtlInfo) results[1];
+        byte[] newOwnerData = (byte[]) results[2];
 
-        // ttlInfo must not be null at this point
-        if (newOwnerEx.ttlInfo != null) {
+        if (r.getBizCode() == KvCodes.SUCCESS && newOwnerTtlInfo != null && newOwnerData != null) {
             // Get NioServer from RaftStatusImpl
-            RaftStatusImpl raftStatus = ((RaftGroupImpl) reqInfo.raftGroup).groupComponents.raftStatus;
-
+            RaftStatusImpl raftStatus = ((RaftGroupImpl) g).groupComponents.raftStatus;
             // Notify the new lock owner
-            DtKV.notifyNewLockOwner(raftStatus.serviceNioServer, newOwnerEx.ttlInfo.key,
-                    newOwner.data, reqInfo.raftGroup.getGroupId());
+            DtKV.notifyNewLockOwner(raftStatus.serviceNioServer, newOwnerTtlInfo.key,
+                    newOwnerData, g.getGroupId());
         }
     }
 

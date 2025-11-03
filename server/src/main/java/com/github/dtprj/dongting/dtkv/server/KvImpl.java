@@ -343,6 +343,8 @@ class KvImpl {
         long localCreateNanos;
         int bizType;
 
+        private KvNodeEx newOwner;
+
         OpContext() {
         }
 
@@ -352,6 +354,12 @@ class KvImpl {
             this.leaderCreateTimeMillis = leaderCreateTimeMillis;
             this.localCreateNanos = localCreateNanos;
             this.bizType = bizType;
+        }
+
+        KvNodeEx getAndRemoveNewOwner() {
+            KvNodeEx no = newOwner;
+            newOwner = null;
+            return no;
         }
     }
 
@@ -837,6 +845,7 @@ class KvImpl {
             }
             return new KvResult(KvCodes.TTL_INDEX_MISMATCH);
         }
+        opContext.newOwner = null;
         long t = lock.writeLock();
         try {
             return expireInLock(index, h);
@@ -922,19 +931,15 @@ class KvImpl {
                 // KvNodeEx.children has no removed nodes
                 if (parent.latest.childCount() == 0) {
                     doRemoveInLock(index, parent);
-                } else {
-                    if (ownersLock) {
-                        return updateNextOwnerIfExists(index, parent);
-                    } else {
-                        return KvResult.SUCCESS;
-                    }
+                } else if (ownersLock) {
+                    updateNextOwnerIfExists(index, parent);
                 }
             }
         }
         return KvResult.SUCCESS;
     }
 
-    private KvResult updateNextOwnerIfExists(long index, KvNodeHolder parent) {
+    private void updateNextOwnerIfExists(long index, KvNodeHolder parent) {
         KvNodeHolder nextLockOwner = parent.latest.peekNextOwner();
         if (nextLockOwner != null) {
             // update owner hold timeout
@@ -942,13 +947,12 @@ class KvImpl {
             long newHoldTtlMillis = readHoldTtlMillis(n.data);
             // NOTICE here re-use the opContext, so the old context is overwritten and should not be used later.
             // re-init opContext so leaderCreateTimeMillis/localCreateNanos are set appropriately.
-            opContext.init(DtKV.BIZ_TYPE_EXPIRE, n.ttlInfo.owner, newHoldTtlMillis,
-                    n.ttlInfo.leaderTtlStartMillis,
-                    n.ttlInfo.expireNanos - n.ttlInfo.ttlMillis * 1_000_000L);
+            TtlInfo nextOwnerTtlInfo = n.ttlInfo;
+            opContext.init(DtKV.BIZ_TYPE_EXPIRE, nextOwnerTtlInfo.owner, newHoldTtlMillis,
+                    nextOwnerTtlInfo.leaderTtlStartMillis,
+                    nextOwnerTtlInfo.expireNanos - nextOwnerTtlInfo.ttlMillis * 1_000_000L);
+            opContext.newOwner = n;
             ttlManager.updateTtl(index, nextLockOwner.key, n, opContext);
-            return new KvResult(KvCodes.SUCCESS, n, null);
-        } else {
-            return KvResult.SUCCESS;
         }
     }
 
@@ -1010,6 +1014,7 @@ class KvImpl {
             return KvResult.NOT_FOUND;
         }
         boolean holdLock = sub == parent.latest.peekNextOwner();
+        opContext.newOwner = null;
         long stamp = lock.writeLock();
         try {
             doRemoveInLock(index, sub);
@@ -1017,7 +1022,8 @@ class KvImpl {
                 doRemoveInLock(index, parent);
             }
             if (holdLock) {
-                return updateNextOwnerIfExists(index, parent);
+                updateNextOwnerIfExists(index, parent);
+                return KvResult.SUCCESS;
             } else {
                 return new KvResult(KvCodes.LOCK_BY_OTHER);
             }

@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
-import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
@@ -206,7 +205,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 return kv.compareAndSet(index, key, req.expectValue, req.value);
             case BIZ_TYPE_EXPIRE:
                 long expectRaftIndex = req.ttlMillis; // yes!
-                return kv.expire(index, key, expectRaftIndex);
+                return createResultWithNewOwnerInfo(kv, kv.expire(index, key, expectRaftIndex));
             case BIZ_TYPE_UPDATE_TTL:
                 return kv.updateTtl(index, key);
             case BIZ_TYPE_UPDATE_LOCK_LEASE:
@@ -214,9 +213,18 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_TRY_LOCK:
                 return kv.tryLock(index, key, req.value);
             case BIZ_TYPE_UNLOCK:
-                return kv.unlock(index, key);
+                return createResultWithNewOwnerInfo(kv, kv.unlock(index, key));
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
+        }
+    }
+
+    private Object[] createResultWithNewOwnerInfo(KvImpl kv, KvResult r) {
+        KvNodeEx n = kv.opContext.getAndRemoveNewOwner();
+        if (n != null && n.ttlInfo != null) {
+            return new Object[]{r, n.ttlInfo, n.data};
+        } else {
+            return new Object[]{r, null, null};
         }
     }
 
@@ -395,14 +403,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         RaftCallback callback = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {
-                // Check if there's a new lock owner to notify
-                KvResult kvResult = (KvResult) result;
-                KvNode n = kvResult.getNode();
-                if (kvResult.getBizCode() == KvCodes.SUCCESS && n != null) {
-                    // There's a new lock owner, notify it
-                    notifyNewLockOwner(raftGroup.groupComponents.raftStatus.serviceNioServer,
-                            ttlInfo.key, n.data, config.groupId);
-                }
+                // notify new lock owner if any
+                KvProcessor.notifyNewLockOwner(raftGroup, (Object[]) result);
+
                 // to remove from pendingQueue:
                 // if KvCodes.SUCCESS, removed in KvImpl.doRemoveInLock
                 // if KvCodes.NOT_FOUND, no need to remove, already removed
