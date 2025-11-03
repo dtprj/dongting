@@ -430,6 +430,9 @@ class KvImpl {
             } else {
                 updateHolderAndGc(current, newKvNode, current.latest);
             }
+            if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
+                opContext.ttlMillis = readHoldTtlMillis(data);
+            }
             ttlManager.initTtl(index, current.key, newKvNode, opContext);
             if (watchManager != null) {
                 watchManager.mountWatchToChild(current);
@@ -464,6 +467,9 @@ class KvImpl {
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
                     if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE || opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
+                        if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
+                            opContext.ttlMillis = readHoldTtlMillis(data);
+                        }
                         ttlManager.updateTtl(index, current.key, newKvNode, opContext);
                     }
                     addToUpdateQueue(index, current);
@@ -946,11 +952,9 @@ class KvImpl {
             KvNodeEx n = nextLockOwner.latest;
             long newHoldTtlMillis = readHoldTtlMillis(n.data);
             // NOTICE here re-use the opContext, so the old context is overwritten and should not be used later.
-            // re-init opContext so leaderCreateTimeMillis/localCreateNanos are set appropriately.
-            TtlInfo nextOwnerTtlInfo = n.ttlInfo;
-            opContext.init(DtKV.BIZ_TYPE_EXPIRE, nextOwnerTtlInfo.owner, newHoldTtlMillis,
-                    nextOwnerTtlInfo.leaderTtlStartMillis,
-                    nextOwnerTtlInfo.expireNanos - nextOwnerTtlInfo.ttlMillis * 1_000_000L);
+            // re-init opContext so owner/ttlMillis are set appropriately.
+            opContext.init(DtKV.BIZ_TYPE_EXPIRE, n.ttlInfo.owner, newHoldTtlMillis,
+                    opContext.leaderCreateTimeMillis, opContext.localCreateNanos);
             opContext.newOwner = n;
             ttlManager.updateTtl(index, nextLockOwner.key, n, opContext);
         }
