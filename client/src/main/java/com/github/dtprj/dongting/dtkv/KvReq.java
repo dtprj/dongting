@@ -15,7 +15,12 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
-import com.github.dtprj.dongting.codec.*;
+import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
+import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.raft.RaftRpcData;
 
 import java.nio.ByteBuffer;
@@ -43,6 +48,7 @@ public class KvReq extends RaftRpcData implements Encodable {
     public List<byte[]> values;
     public byte[] expectValue;
     public UUID ownerUuid;
+    // BIZ_TYPE_EXPIRE use it as expectRaftIndex, DTKV_LOCK_PUSH use it as serverSideWaitNanos
     public long ttlMillis;
 
     private int encodeSize;

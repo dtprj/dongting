@@ -176,7 +176,7 @@ class LockManager {
         } finally {
             this.managerOpLock.unlock();
         }
-        h.lock.processLockPush(bizCode, req.value);
+        h.lock.processLockPush(bizCode, req.value, req.ttlMillis);
     }
 
     public ScheduledFuture<?> schedule(Runnable task, long delay, TimeUnit unit) {

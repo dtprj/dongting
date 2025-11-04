@@ -16,28 +16,42 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
+import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvReq;
+import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NioServer;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
  */
 public class KvServerUtil {
 
+    private static final DtLog log = DtLogs.getLogger(KvServerUtil.class);
+
     /**
      * call after RaftServer init, before RaftServer start
      */
     public static void initKvServer(RaftServer server) {
         NioServer nioServer = server.getServiceNioServer();
-        
+
         KvProcessor p = new KvProcessor(server);
         nioServer.register(Commands.DTKV_GET, p);
         nioServer.register(Commands.DTKV_PUT, p);
@@ -93,6 +107,7 @@ public class KvServerUtil {
 
     /**
      * Parse UUID from lock key
+     *
      * @param lockKey the lock key created by buildLockKey
      * @return UUID or null if parsing failed
      */
@@ -101,17 +116,17 @@ public class KvServerUtil {
         if (keyBytes.length < 33) {
             return null;
         }
-        
+
         // Check if the separator is at the expected position (倒数33位)
         int separatorPos = keyBytes.length - 33;
         if (keyBytes[separatorPos] != KvClientConfig.SEPARATOR) {
             return null;
         }
-        
+
         long uuid1 = 0;
         long uuid2 = 0;
         int pos = separatorPos + 1;
-        
+
         // Parse first part of UUID (16 hex chars)
         for (int i = 0; i < 16; i++) {
             int hexValue = hexCharToValue(keyBytes[pos++]);
@@ -120,7 +135,7 @@ public class KvServerUtil {
             }
             uuid1 = (uuid1 << 4) | hexValue;
         }
-        
+
         // Parse second part of UUID (16 hex chars)
         for (int i = 0; i < 16; i++) {
             int hexValue = hexCharToValue(keyBytes[pos++]);
@@ -129,10 +144,10 @@ public class KvServerUtil {
             }
             uuid2 = (uuid2 << 4) | hexValue;
         }
-        
+
         return new UUID(uuid1, uuid2);
     }
-    
+
     private static int hexCharToValue(byte hexChar) {
         if (hexChar >= '0' && hexChar <= '9') {
             return hexChar - '0';
@@ -141,5 +156,53 @@ public class KvServerUtil {
             return hexChar - 'a' + 10;
         }
         return -1; // Invalid hex character
+    }
+
+    static void notifyNewLockOwner(RaftGroup g, Object[] results) {
+        KvResult r = (KvResult) results[0];
+        TtlInfo newOwnerTtlInfo = (TtlInfo) results[1];
+        byte[] newOwnerData = (byte[]) results[2];
+
+        if (r.getBizCode() != KvCodes.SUCCESS || newOwnerTtlInfo == null || newOwnerData == null) {
+            return;
+        }
+
+        // Get NioServer from RaftStatusImpl
+        RaftStatusImpl raftStatus = ((RaftGroupImpl) g).groupComponents.raftStatus;
+
+        ByteArray lockKey = newOwnerTtlInfo.key;
+        UUID ownerUuid = parseLockKeyUuid(lockKey);
+        if (ownerUuid == null) {
+            return;
+        }
+
+        DtChannel channel = raftStatus.serviceNioServer.getClients().get(ownerUuid);
+        if (channel == null) {
+            log.warn("the owner for key {} is not online, skip notification", lockKey);
+            // Client is not connected, skip notification
+            return;
+        }
+
+        long localCreateNanos = newOwnerTtlInfo.expireNanos - newOwnerTtlInfo.ttlMillis * 1_000_000L;
+        // the raft callback run in raft thread, so we use raftStatus.ts
+        raftStatus.ts.refresh(1);
+        // max serverSideWaitNanos error is 1ms (1_000_000L), so subtract it
+        long serverSideWaitNanos = Math.max(0, raftStatus.ts.nanoTime - localCreateNanos - 1_000_000L);
+
+        KvReq req = new KvReq();
+        req.groupId = g.getGroupId();
+        req.key = lockKey.getData();
+        req.value = newOwnerData;
+        req.ttlMillis = serverSideWaitNanos;
+        EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_LOCK_PUSH, req);
+        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
+
+        // Send one-way message, don't wait for response
+        raftStatus.serviceNioServer.sendOneWay(channel, packet, timeout, (result, ex) -> {
+            if (ex != null) {
+                log.warn("Failed to notify new lock owner: channel={}, error={}", channel.getChannel(),
+                        ex.getMessage());
+            }
+        });
     }
 }

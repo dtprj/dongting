@@ -326,6 +326,12 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             writeAppendResp(AppendProcessor.APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT, null);
             return Fiber.frameReturn();
         }
+
+        // Here, we refreshed the ts. Next, the time t set on RaftTask is greater than the time when the raft
+        // client constructs the request. Since there is a 1ms error in the ts refresh, the time when the raft
+        // client constructs the request happens before (t + 1ms).
+        raftStatus.ts.refresh(1);
+
         List<LogItem> logs = req.logs;
 
         updateLeaderCommit(req, raftStatus);

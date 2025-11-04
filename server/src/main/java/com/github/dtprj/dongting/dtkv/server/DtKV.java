@@ -32,10 +32,7 @@ import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.RpcCallback;
@@ -55,7 +52,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -63,7 +59,6 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class DtKV extends AbstractLifeCircle implements StateMachine {
-    private static final DtLog log = DtLogs.getLogger(DtKV.class);
 
     // since we not implements raft log-read, all read biz type of read operation are reserved and not used
     public static final int BIZ_TYPE_PUT = 0;
@@ -404,7 +399,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             @Override
             public void success(long raftIndex, Object result) {
                 // notify new lock owner if any
-                KvProcessor.notifyNewLockOwner(raftGroup, (Object[]) result);
+                KvServerUtil.notifyNewLockOwner(raftGroup, (Object[]) result);
 
                 // to remove from pendingQueue:
                 // if KvCodes.SUCCESS, removed in KvImpl.doRemoveInLock
@@ -422,41 +417,4 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(LogItem.TYPE_NORMAL, ri, callback);
     }
 
-    /**
-     * Send lock notification to the new lock owner
-     *
-     * @param nioServer the nio server instance
-     * @param lockKey   the key of the new lock owner
-     * @param value     the value data to send along with the notification
-     * @param groupId   the raft group id
-     */
-    public static void notifyNewLockOwner(NioServer nioServer, ByteArray lockKey, byte[] value, int groupId) {
-
-        UUID ownerUuid = KvServerUtil.parseLockKeyUuid(lockKey);
-        if (ownerUuid == null) {
-            return;
-        }
-
-        DtChannel channel = nioServer.getClients().get(ownerUuid);
-        if (channel == null) {
-            log.warn("the owner for key {} is not online, skip notification", lockKey);
-            // Client is not connected, skip notification
-            return;
-        }
-
-        KvReq req = new KvReq();
-        req.groupId = groupId;
-        req.key = lockKey.getData();
-        req.value = value;
-        EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_LOCK_PUSH, req);
-        DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-
-        // Send one-way message, don't wait for response
-        nioServer.sendOneWay(channel, packet, timeout, (result, ex) -> {
-            if (ex != null) {
-                log.warn("Failed to notify new lock owner: channel={}, error={}", channel.getChannel(),
-                        ex.getMessage());
-            }
-        });
-    }
 }

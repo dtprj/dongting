@@ -158,6 +158,11 @@ public class LinearTaskRunner {
         }
         long newIndex = lastIndex(raftStatus);
 
+        // Here, we refreshed the ts. Next, the time t set on RaftTask is greater than the time when the raft
+        // client constructs the request. Since there is a 1ms error in the ts refresh, the time when the raft
+        // client constructs the request happens before (t + 1ms).
+        ts.refresh(1);
+
         int prevTerm = raftStatus.lastLogTerm;
         int currentTerm = raftStatus.currentTerm;
         for (int len = inputs.size(), i = 0; i < len; i++) {

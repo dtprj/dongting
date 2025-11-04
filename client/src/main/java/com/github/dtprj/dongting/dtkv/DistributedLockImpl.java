@@ -193,7 +193,7 @@ class DistributedLockImpl implements DistributedLock {
                         markFinishInLock(null, new DtBugException("opId not match"));
                     } else if (opType == OP_TYPE_TRY_LOCK) {
                         if (bizCode == KvCodes.SUCCESS || bizCode == KvCodes.LOCK_BY_SELF) {
-                            processLockResultAndMarkFinish(bizCode);
+                            processLockResultAndMarkFinish(bizCode, 0);
                         } else if (bizCode == KvCodes.LOCK_BY_OTHER) {
                             if (log.isDebugEnabled()) {
                                 log.debug("tryLock get code {}, key: {}", KvCodes.toStr(bizCode), key);
@@ -252,11 +252,12 @@ class DistributedLockImpl implements DistributedLock {
             invokeCallback();
         }
 
-        private void processLockResultAndMarkFinish(int bizCode) {
+        private void processLockResultAndMarkFinish(int bizCode, long serverSideWaitNanos) {
             if (opType != OP_TYPE_TRY_LOCK) {
                 markFinishInLock(null, new DtBugException("not tryLock op"));
                 return;
             }
+            newLeaseEndNanos += serverSideWaitNanos;
             long now = System.nanoTime();
             if (newLeaseEndNanos - now <= 0) {
                 markFinishInLock(null, new NetException("lease expired"));
@@ -580,7 +581,7 @@ class DistributedLockImpl implements DistributedLock {
         }
     }
 
-    void processLockPush(int bizCode, byte[] value) {
+    void processLockPush(int bizCode, byte[] value, long serverSideWaitNanos) {
         if (value.length < 16) {
             log.warn("ignore lock push because value length is invalid: {}, key: {}", value.length, key);
             return;
@@ -606,7 +607,7 @@ class DistributedLockImpl implements DistributedLock {
                 log.warn("ignore lock push because no current op. key: {}", key);
                 return;
             }
-            oldOp.processLockResultAndMarkFinish(bizCode);
+            oldOp.processLockResultAndMarkFinish(bizCode, serverSideWaitNanos);
         } catch (Exception e) {
             BugLog.log(e);
         } finally {

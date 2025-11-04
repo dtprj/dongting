@@ -417,6 +417,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         private int listIndex;
 
         public ExecLoadResultFrame(List<LogItem> items) {
+            // Here, we refreshed the ts. Next, the time t set on RaftTask is greater than the time when the raft
+            // client constructs the request. Since there is a 1ms error in the ts refresh, the time when the raft
+            // client constructs the request happens before (t + 1ms).
+            raftStatus.ts.refresh(1);
             this.items = items;
         }
 
