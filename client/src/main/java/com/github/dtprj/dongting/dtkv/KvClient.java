@@ -547,7 +547,7 @@ public class KvClient extends AbstractLifeCircle {
             throw new IllegalArgumentException("keys must not be empty");
         }
         for (byte[] key : keys) {
-            checkKey(key, true);
+            checkKey(key, false);
         }
     }
 

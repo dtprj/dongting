@@ -286,7 +286,7 @@ class KvImpl {
             for (int i = 0; i < s; i++) {
                 byte[] bs = keys.get(i);
                 ByteArray key = bs == null ? null : new ByteArray(bs);
-                int ck = checkKey(key, true, false);
+                int ck = checkKey(key, false, false);
                 if (ck != KvCodes.SUCCESS) {
                     list.add(new KvResult(ck));
                 } else {
