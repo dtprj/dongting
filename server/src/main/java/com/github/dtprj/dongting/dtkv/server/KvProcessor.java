@@ -239,17 +239,16 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     break;
                 }
                 case Commands.DTKV_UNLOCK: {
-                    Object[] arr = (Object[]) result;
-                    KvResult r = (KvResult) arr[0];
+                    KvImpl.KvResultWithNewOwnerInfo ri = (KvImpl.KvResultWithNewOwnerInfo) result;
 
                     // send response first
-                    resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
+                    resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(ri.result)));
                     resp.respCode = CmdCodes.SUCCESS;
-                    resp.bizCode = r.getBizCode();
+                    resp.bizCode = ri.result.getBizCode();
                     reqInfo.reqContext.writeRespInBizThreads(resp);
 
                     // notify the new lock owner if any
-                    KvServerUtil.notifyNewLockOwner(reqInfo.raftGroup, arr);
+                    KvServerUtil.notifyNewLockOwner(reqInfo.raftGroup, ri);
 
                     return; // the response is sent, so here use return
                 }

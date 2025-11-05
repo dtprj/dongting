@@ -336,7 +336,7 @@ class KvImpl {
         }
     }
 
-    public static class OpContext {
+    static final class OpContext {
         UUID operator;
         long ttlMillis;
         long leaderCreateTimeMillis;
@@ -344,6 +344,7 @@ class KvImpl {
         int bizType;
 
         private KvNodeEx newOwner;
+        private long newOwnerServerSideWaitNanos;
 
         OpContext() {
         }
@@ -356,10 +357,32 @@ class KvImpl {
             this.bizType = bizType;
         }
 
-        KvNodeEx getAndRemoveNewOwner() {
-            KvNodeEx no = newOwner;
+        KvResultWithNewOwnerInfo getKvResultWithNewOwnerInfo(KvResult result) {
+            KvResultWithNewOwnerInfo r = new KvResultWithNewOwnerInfo(result, newOwner,
+                    newOwner == null ? null : newOwner.data, newOwnerServerSideWaitNanos);
             newOwner = null;
-            return no;
+            newOwnerServerSideWaitNanos = 0;
+            return r;
+        }
+
+        void resetNewOwnerInfo() {
+            newOwner = null;
+            newOwnerServerSideWaitNanos = 0;
+        }
+    }
+
+    static final class KvResultWithNewOwnerInfo {
+        final KvResult result;
+        final KvNodeEx newOwner;
+        final byte[] newOwnerData;
+        final long newOwnerServerSideWaitNanos;
+
+        KvResultWithNewOwnerInfo(KvResult result, KvNodeEx newOwner,byte[] newOwnerData,
+                                 long newOwnerServerSideWaitNanos) {
+            this.result = result;
+            this.newOwner = newOwner;
+            this.newOwnerServerSideWaitNanos = newOwnerServerSideWaitNanos;
+            this.newOwnerData = newOwnerData;
         }
     }
 
@@ -851,7 +874,7 @@ class KvImpl {
             }
             return new KvResult(KvCodes.TTL_INDEX_MISMATCH);
         }
-        opContext.newOwner = null;
+        opContext.resetNewOwnerInfo();
         long t = lock.writeLock();
         try {
             return expireInLock(index, h);
@@ -951,11 +974,19 @@ class KvImpl {
             // update owner hold timeout
             KvNodeEx n = nextLockOwner.latest;
             long newHoldTtlMillis = readHoldTtlMillis(n.data);
+
+
+            ts.refresh(1);
+            long localCreateNanos = n.ttlInfo.expireNanos - n.ttlInfo.ttlMillis * 1_000_000L;
+            // max serverSideWaitNanos error is 1ms (1_000_000L), so subtract it
+            long serverSideWaitNanos = Math.max(0, ts.nanoTime - localCreateNanos - 1_000_000L);
+
             // NOTICE here re-use the opContext, so the old context is overwritten and should not be used later.
             // re-init opContext so owner/ttlMillis are set appropriately.
             opContext.init(DtKV.BIZ_TYPE_EXPIRE, n.ttlInfo.owner, newHoldTtlMillis,
                     opContext.leaderCreateTimeMillis, opContext.localCreateNanos);
             opContext.newOwner = n;
+            opContext.newOwnerServerSideWaitNanos = serverSideWaitNanos;
             ttlManager.updateTtl(index, nextLockOwner.key, n, opContext);
         }
     }
@@ -1018,7 +1049,7 @@ class KvImpl {
             return KvResult.NOT_FOUND;
         }
         boolean holdLock = sub == parent.latest.peekNextOwner();
-        opContext.newOwner = null;
+        opContext.resetNewOwnerInfo();
         long stamp = lock.writeLock();
         try {
             doRemoveInLock(index, sub);

@@ -158,10 +158,10 @@ public class KvServerUtil {
         return -1; // Invalid hex character
     }
 
-    static void notifyNewLockOwner(RaftGroup g, Object[] results) {
-        KvResult r = (KvResult) results[0];
-        TtlInfo newOwnerTtlInfo = (TtlInfo) results[1];
-        byte[] newOwnerData = (byte[]) results[2];
+    static void notifyNewLockOwner(RaftGroup g, KvImpl.KvResultWithNewOwnerInfo ri) {
+        KvResult r = ri.result;
+        TtlInfo newOwnerTtlInfo = ri.newOwner.ttlInfo;
+        byte[] newOwnerData = ri.newOwnerData;
 
         if (r.getBizCode() != KvCodes.SUCCESS || newOwnerTtlInfo == null || newOwnerData == null) {
             return;
@@ -183,17 +183,11 @@ public class KvServerUtil {
             return;
         }
 
-        long localCreateNanos = newOwnerTtlInfo.expireNanos - newOwnerTtlInfo.ttlMillis * 1_000_000L;
-        // the raft callback run in raft thread, so we use raftStatus.ts
-        raftStatus.ts.refresh(1);
-        // max serverSideWaitNanos error is 1ms (1_000_000L), so subtract it
-        long serverSideWaitNanos = Math.max(0, raftStatus.ts.nanoTime - localCreateNanos - 1_000_000L);
-
         KvReq req = new KvReq();
         req.groupId = g.getGroupId();
         req.key = lockKey.getData();
         req.value = newOwnerData;
-        req.ttlMillis = serverSideWaitNanos;
+        req.ttlMillis = ri.newOwnerServerSideWaitNanos;
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_LOCK_PUSH, req);
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
 
