@@ -160,17 +160,15 @@ public class KvServerUtil {
 
     static void notifyNewLockOwner(RaftGroup g, KvImpl.KvResultWithNewOwnerInfo ri) {
         KvResult r = ri.result;
-        TtlInfo newOwnerTtlInfo = ri.newOwner.ttlInfo;
-        byte[] newOwnerData = ri.newOwnerData;
 
-        if (r.getBizCode() != KvCodes.SUCCESS || newOwnerTtlInfo == null || newOwnerData == null) {
+        if (r.getBizCode() != KvCodes.SUCCESS || ri.newOwner == null || ri.newOwnerData == null) {
             return;
         }
 
         // Get NioServer from RaftStatusImpl
         RaftStatusImpl raftStatus = ((RaftGroupImpl) g).groupComponents.raftStatus;
 
-        ByteArray lockKey = newOwnerTtlInfo.key;
+        ByteArray lockKey = ri.newOwner.ttlInfo.key;
         UUID ownerUuid = parseLockKeyUuid(lockKey);
         if (ownerUuid == null) {
             return;
@@ -186,7 +184,7 @@ public class KvServerUtil {
         KvReq req = new KvReq();
         req.groupId = g.getGroupId();
         req.key = lockKey.getData();
-        req.value = newOwnerData;
+        req.value = ri.newOwnerData;
         req.ttlMillis = ri.newOwnerServerSideWaitNanos;
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_LOCK_PUSH, req);
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
