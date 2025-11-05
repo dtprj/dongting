@@ -490,7 +490,7 @@ class KvImpl {
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
                     if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE || opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
-                        if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
+                        if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK && parent.latest.peekNextOwner() == current) {
                             opContext.ttlMillis = readHoldTtlMillis(data);
                         }
                         ttlManager.updateTtl(index, current.key, newKvNode, opContext);
