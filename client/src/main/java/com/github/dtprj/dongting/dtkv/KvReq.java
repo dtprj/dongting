@@ -151,7 +151,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                 }
                 // fall through
             case IDX_TTL_MILLIS:
-                if (keys != null && !EncodeUtil.encodeInt64(context, destBuffer, IDX_KEYS_SIZE, keys.size())) {
+                if (keys != null && !EncodeUtil.encodeInt32(context, destBuffer, IDX_KEYS_SIZE, keys.size())) {
                     return false;
                 }
                 // fall through
