@@ -362,10 +362,13 @@ class DistributedLockImpl implements DistributedLock {
         packet.acquirePermitNoWait = true;
 
         newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
-        long timeoutMillis = Math.min(lockManager.kvClient.raftClient.getConfig().rpcTimeoutMillis, waitLockTimeoutMillis);
+        long rpcTimeoutMillis = lockManager.kvClient.raftClient.getConfig().rpcTimeoutMillis;
+        if (waitLockTimeoutMillis > 0) {
+            rpcTimeoutMillis = Math.min(rpcTimeoutMillis, waitLockTimeoutMillis);
+        }
         lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                 DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                new DtTime(timeoutMillis, TimeUnit.MILLISECONDS), op);
+                new DtTime(rpcTimeoutMillis, TimeUnit.MILLISECONDS), op);
     }
 
     private void scheduleExpireTask(long delayNanos) {
