@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 
 import java.util.ArrayDeque;
@@ -377,7 +376,7 @@ class KvImpl {
         final byte[] newOwnerData;
         final long newOwnerServerSideWaitNanos;
 
-        KvResultWithNewOwnerInfo(KvResult result, KvNodeEx newOwner,byte[] newOwnerData,
+        KvResultWithNewOwnerInfo(KvResult result, KvNodeEx newOwner, byte[] newOwnerData,
                                  long newOwnerServerSideWaitNanos) {
             this.result = result;
             this.newOwner = newOwner;
@@ -453,8 +452,14 @@ class KvImpl {
             } else {
                 updateHolderAndGc(current, newKvNode, current.latest);
             }
-            if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
-                opContext.ttlMillis = readHoldTtlMillis(data);
+            KvResult r = KvResult.SUCCESS;
+            if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK && (flag & KvNode.FLAG_DIR_MASK) == 0) {
+                if (parent.latest.peekNextOwner() == current) {
+                    // get the lock
+                    opContext.ttlMillis = readHoldTtlMillis(data);
+                } else {
+                    r = new KvResult(KvCodes.LOCK_BY_OTHER);
+                }
             }
             ttlManager.initTtl(index, current.key, newKvNode, opContext);
             if (watchManager != null) {
@@ -463,7 +468,7 @@ class KvImpl {
             addToUpdateQueue(index, current);
             updateParent(index, opContext.leaderCreateTimeMillis, parent);
             lastPutNodeHolder = current;
-            return KvResult.SUCCESS;
+            return r;
         } else {
             // has existing node
             KvNodeEx oldNode = current.latest;
@@ -489,16 +494,23 @@ class KvImpl {
                     // update value
                     KvNodeEx newKvNode = new KvNodeEx(oldNode, index, opContext.leaderCreateTimeMillis, data);
                     updateHolderAndGc(current, newKvNode, oldNode);
+                    KvResult r = KvResult.SUCCESS_OVERWRITE;
                     if (opContext.bizType == DtKV.BIZ_TYPE_PUT_TEMP_NODE || opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
-                        if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK && parent.latest.peekNextOwner() == current) {
-                            opContext.ttlMillis = readHoldTtlMillis(data);
+                        if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK) {
+                            if (parent.latest.peekNextOwner() == current) {
+                                // get the lock (already hold before)
+                                opContext.ttlMillis = readHoldTtlMillis(data);
+                                r = new KvResult(KvCodes.LOCK_BY_SELF);
+                            } else {
+                                r = new KvResult(KvCodes.LOCK_BY_OTHER);
+                            }
                         }
                         ttlManager.updateTtl(index, current.key, newKvNode, opContext);
                     }
                     addToUpdateQueue(index, current);
                     updateParent(index, opContext.leaderCreateTimeMillis, parent);
                     lastPutNodeHolder = current;
-                    return KvResult.SUCCESS_OVERWRITE;
+                    return r;
                 }
             }
         }
@@ -1010,22 +1022,7 @@ class KvImpl {
                 // tryLock and has lock owner
                 return new KvResult(KvCodes.LOCK_BY_OTHER);
             }
-            r = doPutInLock(index, fullKey, data, sub, parent, parent.key.length);
-            if (r == KvResult.SUCCESS) {
-                if (oldOwner == null) {
-                    return r;
-                } else {
-                    return new KvResult(KvCodes.LOCK_BY_OTHER);
-                }
-            } else if (r == KvResult.SUCCESS_OVERWRITE) {
-                if (oldOwner == sub) {
-                    return new KvResult(KvCodes.LOCK_BY_SELF);
-                } else {
-                    return new KvResult(KvCodes.LOCK_BY_OTHER);
-                }
-            } else {
-                throw new RaftException("unexpected code in lock: " + r.getBizCode());
-            }
+            return doPutInLock(index, fullKey, data, sub, parent, parent.key.length);
         } finally {
             lock.unlockWrite(stamp);
             afterUpdate();
