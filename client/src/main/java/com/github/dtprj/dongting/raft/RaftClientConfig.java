@@ -28,4 +28,6 @@ public class RaftClientConfig {
      * fields in NioClientConfig when constructing KvClient.
      */
     public boolean useBizExecutor = true;
+
+    public long rpcTimeoutMillis = 5 * 1000L;
 }

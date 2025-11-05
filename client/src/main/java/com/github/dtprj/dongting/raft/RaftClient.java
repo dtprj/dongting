@@ -60,8 +60,6 @@ public class RaftClient extends AbstractLifeCircle {
 
     private final ReentrantLock lock = new ReentrantLock();
 
-    public long rpcTimeoutMillis = 5 * 1000L;
-
     private long nextEpoch = 1;
 
     public RaftClient() {
@@ -574,6 +572,10 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public DtTime createDefaultTimeout() {
-        return new DtTime(rpcTimeoutMillis, TimeUnit.MILLISECONDS);
+        return new DtTime(config.rpcTimeoutMillis, TimeUnit.MILLISECONDS);
+    }
+
+    public RaftClientConfig getConfig() {
+        return config;
     }
 }
