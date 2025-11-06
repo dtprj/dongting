@@ -691,6 +691,13 @@ class KvImpl {
     private KvResult doRemoveInLock(long index, KvNodeHolder h) {
         long logTime = opContext.leaderCreateTimeMillis;
         addToUpdateQueue(index, h);
+
+        // The children list only used in list and remove check, and always read the latest data.
+        // So we can remove it from children list safely even if there is a snapshot being reading.
+        h.parent.latest.removeChild(h.keyInDir);
+
+        ttlManager.remove(h.latest);
+
         if (maxOpenSnapshotIndex > 0) {
             KvNodeEx n = h.latest;
             KvNodeEx newKvNode = new KvNodeEx(n.createIndex, n.createTime, index, logTime);
@@ -701,11 +708,6 @@ class KvImpl {
             map.remove(h.key);
         }
 
-        // The children list only used in list and remove check, and always read the latest data.
-        // So we can remove it from children list safely even if there is a snapshot being reading.
-        h.parent.latest.removeChild(h.keyInDir);
-
-        ttlManager.remove(h.latest);
         if (watchManager != null) {
             watchManager.mountWatchToParent(h);
         }
