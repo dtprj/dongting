@@ -841,7 +841,7 @@ class KvImpl {
     public KvResult updateTtl(long index, ByteArray key) {
         long newTtlMillis = opContext.ttlMillis;
         if (newTtlMillis <= 0) {
-            return new KvResult(KvCodes.CLIENT_REQ_ERROR);
+            return new KvResult(KvCodes.INVALID_TTL);
         }
         int ck = checkKey(key, false, false);
         if (ck != KvCodes.SUCCESS) {
