@@ -573,7 +573,7 @@ abstract class ServerWatchManager {
         if (ci == null) {
             return 0;
         } else {
-            if (ts.nanoTime - ci.lastNotifyNanos > 1_000_000_000L) {
+            if (ci.needNotify != null && ci.needNotify.isEmpty() && ts.nanoTime - ci.lastNotifyNanos > 1_000_000_000L) {
                 ci.needNotify = null;
             }
             ci.lastActiveNanos = ts.nanoTime;
