@@ -86,6 +86,7 @@ abstract class ServerWatchManager {
         needNotifyChannels.clear();
         channelInfoMap.clear();
         retryQueue.clear();
+        needDispatch.clear();
         activeQueueHead = null;
         activeQueueTail = null;
     }
@@ -249,21 +250,24 @@ abstract class ServerWatchManager {
                 // push notify may update needNotifyChannels, and cause ConcurrentModificationException.
                 // so we use a temp list to hold the channels that need notify.
                 ArrayList<ChannelInfo> list = dispatchTempList;
-                while (it.hasNext()) {
-                    ChannelInfo ci = it.next();
-                    if (ci.failCount == 0) {
-                        if (++count > dispatchBatchSize) {
-                            result = false;
-                            break;
+                try {
+                    while (it.hasNext()) {
+                        ChannelInfo ci = it.next();
+                        if (ci.failCount == 0) {
+                            if (++count > dispatchBatchSize) {
+                                result = false;
+                                break;
+                            }
+                            list.add(ci);
                         }
-                        list.add(ci);
+                        it.remove();
                     }
-                    it.remove();
+                    for (int s = list.size(), i = 0; i < s; i++) {
+                        pushNotify(list.get(i));
+                    }
+                } finally {
+                    list.clear();
                 }
-                for (int s = list.size(), i = 0; i < s; i++) {
-                    pushNotify(list.get(i));
-                }
-                list.clear();
             }
 
             count = 0;
