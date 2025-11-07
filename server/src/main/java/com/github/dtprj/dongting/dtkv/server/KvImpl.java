@@ -112,7 +112,6 @@ class KvImpl {
                 }
                 return null;
             case DtKV.BIZ_TYPE_UPDATE_TTL:
-            case DtKV.BIZ_TYPE_UPDATE_LOCK_LEASE:
                 if (h == null || h.latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
@@ -144,6 +143,7 @@ class KvImpl {
                 }
                 return null;
             case DtKV.BIZ_TYPE_UNLOCK:
+            case DtKV.BIZ_TYPE_UPDATE_LOCK_LEASE:
                 if (h == null || h.latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
@@ -869,28 +869,23 @@ class KvImpl {
             return new KvResult(KvCodes.INVALID_TTL);
         }
 
+        KvNodeHolder ph = map.get(key);
+        KvResult r = checkExistNode(ph, opContext);
+        if (r != null) {
+            return r;
+        }
+
         ByteArray subKey = KvServerUtil.buildLockKey(key, opContext.operator.getMostSignificantBits(),
                 opContext.operator.getLeastSignificantBits());
 
         // check node sub node
-        KvNodeHolder h = map.get(subKey);
-        KvResult r = checkExistNode(h, opContext);
-        if (r != null) {
-            if (r.getBizCode() == KvCodes.NOT_FOUND) {
-                h = map.get(key);
-                if (h != null && !h.latest.removed && (h.latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
-                    // return more specific error code
-                    return new KvResult(KvCodes.NOT_LOCK_NODE);
-                } else {
-                    return r;
-                }
-            } else {
-                return r;
-            }
+        KvNodeHolder sh = map.get(subKey);
+        if (ph.latest.peekNextOwner() != sh) {
+            return new KvResult(KvCodes.LOCK_BY_OTHER);
         }
 
         // no need to lock, because readers not check ttl
-        ttlManager.updateTtl(index, subKey, h.latest, opContext);
+        ttlManager.updateTtl(index, subKey, sh.latest, opContext);
         return KvResult.SUCCESS;
     }
 
@@ -1070,7 +1065,7 @@ class KvImpl {
                 opContext.operator.getMostSignificantBits(), opContext.operator.getLeastSignificantBits());
         KvNodeHolder sub = map.get(fullKey);
         if (sub == null) {
-            return KvResult.NOT_FOUND;
+            return new KvResult(KvCodes.LOCK_BY_OTHER);
         }
         boolean holdLock = sub == parent.latest.peekNextOwner();
         opContext.resetNewOwnerInfo();

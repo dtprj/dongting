@@ -226,8 +226,8 @@ class KvLockTest {
         initOpContext(owner2, DtKV.BIZ_TYPE_UNLOCK, 0);
         KvResult r = kv.unlock(ver++, ba("lock1"));
         
-        // returns NOT_FOUND because owner2's lock sub node does not exist
-        assertEquals(KvCodes.NOT_FOUND, r.getBizCode());
+        // returns LOCK_BY_OTHER because owner2's lock sub node does not exist
+        assertEquals(KvCodes.LOCK_BY_OTHER, r.getBizCode());
 
         // verify owner1's lock still exists
         ByteArray lockKey1 = KvServerUtil.buildLockKey(ba("lock1"),
@@ -334,7 +334,7 @@ class KvLockTest {
         KvResult r = kv.updateLockLease(ver++, ba("lock1"));
         
         // updateLockLease builds lock key with owner2's UUID, which doesn't exist
-        assertEquals(KvCodes.NOT_FOUND, r.getBizCode());
+        assertEquals(KvCodes.LOCK_BY_OTHER, r.getBizCode());
     }
 
     @Test
