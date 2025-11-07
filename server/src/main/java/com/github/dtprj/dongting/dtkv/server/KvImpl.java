@@ -864,9 +864,34 @@ class KvImpl {
         if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
-        key = KvServerUtil.buildLockKey(key, opContext.operator.getMostSignificantBits(),
+        long newTtlMillis = opContext.ttlMillis;
+        if (newTtlMillis <= 0) {
+            return new KvResult(KvCodes.INVALID_TTL);
+        }
+
+        ByteArray subKey = KvServerUtil.buildLockKey(key, opContext.operator.getMostSignificantBits(),
                 opContext.operator.getLeastSignificantBits());
-        return updateTtl(index, key);
+
+        // check node sub node
+        KvNodeHolder h = map.get(subKey);
+        KvResult r = checkExistNode(h, opContext);
+        if (r != null) {
+            if (r.getBizCode() == KvCodes.NOT_FOUND) {
+                h = map.get(key);
+                if (h != null && !h.latest.removed && (h.latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
+                    // return more specific error code
+                    return new KvResult(KvCodes.NOT_LOCK_NODE);
+                } else {
+                    return r;
+                }
+            } else {
+                return r;
+            }
+        }
+
+        // no need to lock, because readers not check ttl
+        ttlManager.updateTtl(index, subKey, h.latest, opContext);
+        return KvResult.SUCCESS;
     }
 
     public KvResult expire(long index, ByteArray key, long expectRaftIndex) {

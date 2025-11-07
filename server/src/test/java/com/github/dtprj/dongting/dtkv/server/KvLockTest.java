@@ -376,6 +376,6 @@ class KvLockTest {
         KvResult r = kv.updateLockLease(ver++, ba("regular"));
         
         // should fail because regular node is not a lock
-        assertEquals(KvCodes.NOT_FOUND, r.getBizCode());
+        assertEquals(KvCodes.NOT_LOCK_NODE, r.getBizCode());
     }
 }
