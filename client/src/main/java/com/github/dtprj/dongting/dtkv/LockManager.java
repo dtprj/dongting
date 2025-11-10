@@ -94,7 +94,7 @@ class LockManager {
             if (h == null) {
                 // the expireListener is set in AutoRenewLockImpl constructor
                 DistributedLockImpl lock = new DistributedLockImpl(nextLockId++, this, groupId, keyBytes, null);
-                AutoRenewalLockImpl wrapper = new AutoRenewalLockImpl(groupId, keyBytes, leaseMillis, listener, lock, this);
+                AutoRenewalLockImpl wrapper = new AutoRenewalLockImpl(groupId, kvClient, keyBytes, leaseMillis, listener, lock);
                 h = new LockHolder(lock, wrapper);
                 m.put(keyBytes, h);
                 return wrapper;

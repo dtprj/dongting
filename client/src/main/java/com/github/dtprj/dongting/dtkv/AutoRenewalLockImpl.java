@@ -31,7 +31,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private static final DtLog log = DtLogs.getLogger(AutoRenewalLockImpl.class);
 
     // Retry intervals in milliseconds
-    private static final long[] RETRY_INTERVALS = {1000, 10_000, 30_000, 60_000};
+    private final long[] retryIntervals;
 
     private final int groupId;
     private final ByteArray key;
@@ -51,8 +51,8 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private int currentTaskId;
     private ScheduledFuture<?> scheduleTask;
 
-    AutoRenewalLockImpl(int groupId, ByteArray key, long leaseMillis, AutoRenewalLockListener listener,
-                        DistributedLockImpl lock, LockManager lockManager) {
+    AutoRenewalLockImpl(int groupId, KvClient client, ByteArray key, long leaseMillis, AutoRenewalLockListener listener,
+                        DistributedLockImpl lock)  {
         if (leaseMillis <= 1) {
             throw new IllegalArgumentException("leaseMillis too small: " + leaseMillis);
         }
@@ -62,7 +62,8 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         this.leaseMillis = leaseMillis;
         this.listener = listener;
         this.lock = lock;
-        this.lockManager = lockManager;
+        this.lockManager = client.lockManager;
+        this.retryIntervals = client.config.autoRenewalRetryMillis;
         lock.expireListener = this::onExpire;
         scheduleTask(currentTaskId, 0);
     }
@@ -188,10 +189,10 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private void handleRpcFail(int taskId, String op, Throwable ex) {
         log.warn("{} failed. key={}, groupId={}, retryIndex={}", op, key, groupId, retryIndex, ex);
         long delayMillis;
-        if (retryIndex < RETRY_INTERVALS.length) {
-            delayMillis = RETRY_INTERVALS[retryIndex];
+        if (retryIndex < retryIntervals.length) {
+            delayMillis = retryIntervals[retryIndex];
         } else {
-            delayMillis = RETRY_INTERVALS[RETRY_INTERVALS.length - 1];
+            delayMillis = retryIntervals[retryIntervals.length - 1];
         }
         retryIndex++;
         scheduleTask(taskId, delayMillis);

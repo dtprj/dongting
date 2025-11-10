@@ -13,19 +13,10 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.dtkv;
-
+package com.github.dtprj.dongting.dtkv.server;
 
 /**
  * @author huangli
  */
-public class KvClientConfig {
-
-    public static final byte SEPARATOR = '.';
-    public static final int MAX_KEY_SIZE = 8 * 1024;
-    public static final int MAX_VALUE_SIZE = 1024 * 1024;
-
-    public long watchHeartbeatMillis = 60_000;
-
-    public long[] autoRenewalRetryMillis = {1000, 10_000, 30_000, 60_000};
+public class AutoRenewalLockImplTest {
 }

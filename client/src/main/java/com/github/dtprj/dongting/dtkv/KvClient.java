@@ -51,9 +51,10 @@ import java.util.stream.Collectors;
  */
 public class KvClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(KvClient.class);
+    final KvClientConfig config;
     final RaftClient raftClient;
     private final WatchManager watchManager;
-    private final LockManager lockManager = new LockManager(this);
+    final LockManager lockManager = new LockManager(this);
 
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
@@ -61,8 +62,9 @@ public class KvClient extends AbstractLifeCircle {
         this(new KvClientConfig(), new RaftClientConfig(), new NioClientConfig());
     }
 
-    public KvClient(@SuppressWarnings("unused") KvClientConfig config, RaftClientConfig raftClientConfig,
+    public KvClient(KvClientConfig config, RaftClientConfig raftClientConfig,
                     NioClientConfig nioConfig) {
+        this.config = config;
         Objects.requireNonNull(config);
         this.raftClient = new RaftClient(raftClientConfig, nioConfig);
         this.watchManager = createClientWatchManager();
@@ -73,7 +75,8 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     protected WatchManager createClientWatchManager() {
-        return new WatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP, 60_000);
+        return new WatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
+                config.watchHeartbeatMillis);
     }
 
     private static boolean isSuccess(int cmd, int bizCode) {

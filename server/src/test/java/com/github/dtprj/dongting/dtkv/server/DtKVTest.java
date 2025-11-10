@@ -61,10 +61,10 @@ public class DtKVTest extends BaseFiberTest {
     @BeforeEach
     public void setUp() {
         ver = 1;
+        ts = fiberGroup.dispatcher.ts;
     }
 
     private DtKV createAndStart(boolean useSeparateExecutor) throws Exception {
-        ts = fiberGroup.dispatcher.ts;
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.raftStatus = new RaftStatusImpl(1, ts);
         groupConfig.fiberGroup = fiberGroup;
