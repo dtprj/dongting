@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.dtkv;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtBugException;
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.log.BugLog;
@@ -362,13 +361,9 @@ class DistributedLockImpl implements DistributedLock {
         packet.acquirePermitNoWait = true;
 
         newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
-        long rpcTimeoutMillis = lockManager.kvClient.raftClient.getConfig().rpcTimeoutMillis;
-        if (waitLockTimeoutMillis > 0) {
-            rpcTimeoutMillis = Math.min(rpcTimeoutMillis, waitLockTimeoutMillis);
-        }
         lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                 DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                new DtTime(rpcTimeoutMillis, TimeUnit.MILLISECONDS), op);
+                lockManager.kvClient.raftClient.createDefaultTimeout(), op);
     }
 
     private void scheduleExpireTask(long delayNanos) {
