@@ -54,7 +54,7 @@ public class KvClient extends AbstractLifeCircle {
     final KvClientConfig config;
     final RaftClient raftClient;
     private final WatchManager watchManager;
-    final LockManager lockManager = new LockManager(this);
+    final LockManager lockManager;
 
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
@@ -68,6 +68,7 @@ public class KvClient extends AbstractLifeCircle {
         Objects.requireNonNull(config);
         this.raftClient = new RaftClient(raftClientConfig, nioConfig);
         this.watchManager = createClientWatchManager();
+        this.lockManager = new LockManager(this);
         // use bizExecutor in NioClient
         KvClientProcessor clientProcessor = new KvClientProcessor(watchManager, lockManager);
         raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, clientProcessor);
