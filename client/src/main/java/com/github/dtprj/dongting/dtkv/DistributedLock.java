@@ -42,7 +42,8 @@ public interface DistributedLock {
      *                              method invoked, that is, measured from the client side, not the server side.
      * @param waitLockTimeoutMillis max wait time to acquire the lock, none-negative, should be less or equal than
      *                              leaseMillis. If 0, return false immediately if the server tells the lock is held
-     *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock.
+     *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock,
+     *                              return false if timeout.
      * @return whether acquire the lock successfully
      * @throws IllegalStateException if the lock is closed, or is already held by current client, or another
      *                               tryLock/unlock/updateLease operation is in progress.
@@ -64,7 +65,8 @@ public interface DistributedLock {
      *                              method invoked, that is, measured from the client side, not the server side.
      * @param waitLockTimeoutMillis max wait time to acquire the lock, none-negative, should be less or equal than
      *                              leaseMillis. If 0, return false immediately if the server tells the lock is held
-     *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock.
+     *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock,
+     *                              complete the callback with false if timeout.
      * @param callback              the async callback, by default it will execute in bizExecutor of NioClient.
      */
     void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback);
