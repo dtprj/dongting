@@ -220,6 +220,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 case Commands.DTKV_PUT_TEMP_NODE:
                 case Commands.DTKV_MAKE_TEMP_DIR:
                 case Commands.DTKV_UPDATE_TTL:
+                case Commands.DTKV_UPDATE_LOCK_LEASE:
                 case Commands.DTKV_TRY_LOCK: {
                     KvResult r = (KvResult) result;
                     resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
