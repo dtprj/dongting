@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetException;
-import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 
@@ -135,25 +134,23 @@ class DistributedLockImpl implements DistributedLock {
 
         public void makeTryLockTimeout() {
             // try lock timeout task
-            boolean markFinish = false;
             opLock.lock();
             try {
                 if (finish) {
                     return;
                 }
-                String s = "tryLock " + key + " timeout after " + tryLockTimeoutMillis + "ms";
-                markFinishInLock(null, new NetTimeoutException(s));
-                markFinish = true;
+                markFinishInLock(Boolean.FALSE, null);
             } catch (Exception e) {
                 BugLog.log(e);
+                return;
             } finally {
                 opLock.unlock();
             }
 
-            if (markFinish) {
-                // call user callback outside lock
-                invokeCallback();
-            }
+            log.info("tryLock timeout after {} ms, key: {}", tryLockTimeoutMillis, key);
+
+            // call user callback outside lock
+            invokeCallback();
         }
 
         public void invokeCallback() {
