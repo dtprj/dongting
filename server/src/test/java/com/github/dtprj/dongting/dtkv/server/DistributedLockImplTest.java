@@ -128,33 +128,49 @@ public class DistributedLockImplTest extends ServerClientLockTest {
     public void testLockReleaseAndAutomaticAcquire() throws Exception {
         DistributedLock lock1 = client1.createLock(groupId, "test-lock-5".getBytes());
         DistributedLock lock2 = client2.createLock(groupId, "test-lock-5".getBytes());
+        DistributedLock lock3 = client3.createLock(groupId, "test-lock-5".getBytes());
         try {
             // client1 acquires lock
             assertTrue(lock1.tryLock(60000, 0));
 
             // client2 waits asynchronously
-            CompletableFuture<Boolean> future = new CompletableFuture<>();
+            CompletableFuture<Boolean> f2 = new CompletableFuture<>();
             lock2.tryLock(60000, 1000, (result, ex) -> {
                 if (ex != null) {
-                    future.completeExceptionally(ex);
+                    f2.completeExceptionally(ex);
                 } else {
-                    future.complete(result);
+                    f2.complete(result);
                 }
             });
-            
+
             Thread.sleep(tick(20));
 
-            // client1 unlocks
+            CompletableFuture<Boolean> f3 = new CompletableFuture<>();
+            lock3.tryLock(60000, 1000, (result, ex) -> {
+                if (ex != null) {
+                    f3.completeExceptionally(ex);
+                } else {
+                    f3.complete(result);
+                }
+            });
+
+            // client1 unlocks, client2 should acquire the lock
             lock1.unlock();
-
-            // client2 should acquire the lock automatically
-            assertTrue(future.get(500, TimeUnit.MILLISECONDS));
-
-            assertTrue(lock2.isHeldByCurrentClient());
+            assertTrue(f2.get(500, TimeUnit.MILLISECONDS));
             assertFalse(lock1.isHeldByCurrentClient());
+            assertTrue(lock2.isHeldByCurrentClient());
+            assertFalse(lock3.isHeldByCurrentClient());
+
+            // client3 should acquire the lock
+            lock2.unlock();
+            assertTrue(f3.get(500, TimeUnit.MILLISECONDS));
+            assertFalse(lock1.isHeldByCurrentClient());
+            assertFalse(lock2.isHeldByCurrentClient());
+            assertTrue(lock3.isHeldByCurrentClient());
         } finally {
             lock1.close();
             lock2.close();
+            lock3.close();
         }
     }
 
@@ -206,15 +222,17 @@ public class DistributedLockImplTest extends ServerClientLockTest {
     // ========== P0: Lock instance lifecycle ==========
 
     @Test
-    public void testCloseLockInstance() throws Exception {
-        DistributedLock lock = client1.createLock(groupId, "test-lock-9".getBytes());
+    public void testCloseLockInstance() {
+        DistributedLock lock1 = client1.createLock(groupId, "test-lock1-9".getBytes());
 
         // acquire and close
-        assertTrue(lock.tryLock(60000, 0));
-        lock.close();
+        assertTrue(lock1.tryLock(60000, 0));
+        lock1.close();
 
         // operations after close should throw exception
-        assertThrows(IllegalStateException.class, () -> lock.tryLock(60000, 0));
+        assertThrows(IllegalStateException.class, () -> lock1.tryLock(60000, 0));
+        assertThrows(IllegalStateException.class, () -> lock1.updateLease(60000));
+        assertThrows(IllegalStateException.class, lock1::unlock);
     }
 
     @Test
@@ -224,6 +242,9 @@ public class DistributedLockImplTest extends ServerClientLockTest {
         // client1 acquires and closes
         assertTrue(lock1.tryLock(60000, 0));
         lock1.close();
+
+        // the close method release lock asynchronously, wait a moment
+        Thread.sleep(tick(20));
 
         // client2 should be able to acquire the same lock
         DistributedLock lock2 = client2.createLock(groupId, "test-lock-10".getBytes());
@@ -236,7 +257,7 @@ public class DistributedLockImplTest extends ServerClientLockTest {
     }
 
     @Test
-    public void testRecreateAfterClose() throws Exception {
+    public void testRecreateAfterClose() {
         DistributedLock lock1 = client1.createLock(groupId, "test-lock-11".getBytes());
         lock1.close();
 
@@ -253,7 +274,7 @@ public class DistributedLockImplTest extends ServerClientLockTest {
     // ========== P1: Lease management ==========
 
     @Test
-    public void testUpdateLeaseSuccess() throws Exception {
+    public void testUpdateLeaseSuccess() {
         DistributedLock lock = client1.createLock(groupId, "test-lock-12".getBytes());
         try {
             // acquire lock with 10s lease
@@ -316,7 +337,7 @@ public class DistributedLockImplTest extends ServerClientLockTest {
             Thread.sleep(tick(21));
 
             // verify expire listener was called
-            WaitUtil.waitUtil(() -> expireFlag.get());
+            WaitUtil.waitUtil(expireFlag::get);
             assertTrue(expireFlag.get(), "expire listener should be called");
             assertFalse(lock.isHeldByCurrentClient(), "should not hold lock after expiration");
         } finally {
@@ -427,7 +448,7 @@ public class DistributedLockImplTest extends ServerClientLockTest {
     // ========== P1: Concurrency control ==========
 
     @Test
-    public void testOperationSerialization() throws Exception {
+    public void testOperationSerialization() {
         DistributedLock lock1 = client1.createLock(groupId, "test-lock-20".getBytes());
         DistributedLock lock2 = client2.createLock(groupId, "test-lock-20".getBytes());
         try {
@@ -442,6 +463,10 @@ public class DistributedLockImplTest extends ServerClientLockTest {
             assertThrows(IllegalStateException.class,
                     () -> lock1.tryLock(2000, 1000),
                     "should throw when another operation is in progress");
+            assertThrows(IllegalStateException.class,
+                    () -> lock1.updateLease(2000),
+                    "should throw when another operation is in progress");
+            assertDoesNotThrow(() -> lock1.unlock());
         } finally {
             lock1.close();
             lock2.close();
@@ -449,7 +474,7 @@ public class DistributedLockImplTest extends ServerClientLockTest {
     }
 
     @Test
-    public void testUnlockCancelsCurrentOperation() throws Exception {
+    public void testUnlockCancelsCurrentOperation() {
         DistributedLock lock1 = client1.createLock(groupId, "test-lock-21".getBytes());
         DistributedLock lock2 = client2.createLock(groupId, "test-lock-21".getBytes());
         try {
@@ -504,6 +529,17 @@ public class DistributedLockImplTest extends ServerClientLockTest {
             // restart server
             server = new Server();
             server.startServers();
+        }
+    }
+
+    @Test
+    public void testClientLeaseTimeoutWhenServerGrant() {
+        DistributedLock lock = client1.createLock(groupId, "test-lock-23".getBytes());
+        try {
+            // acquire lock with very short lease
+            assertFalse(lock.tryLock(1, 0));
+        } finally {
+            lock.close();
         }
     }
 

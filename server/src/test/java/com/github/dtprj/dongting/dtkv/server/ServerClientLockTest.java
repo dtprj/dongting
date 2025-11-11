@@ -66,7 +66,7 @@ public class ServerClientLockTest {
         client3 = createClient();
     }
 
-    private static KvClient createClient() throws Exception {
+    private static KvClient createClient() {
         KvClientConfig c = new KvClientConfig();
         c.autoRenewalRetryMillis = new long[]{tick(25), tick(50)};
         KvClient client = new KvClient(c, new RaftClientConfig(), new NioClientConfig());
