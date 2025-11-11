@@ -165,12 +165,12 @@ class LockManager {
         try {
             HashMap<ByteArray, LockHolder> groupLocks = lockMap.get(groupId);
             if (groupLocks == null) {
-                log.info("no h found for push: groupId={}, key={}", groupId, key);
+                log.info("group lock map not found: groupId={}, key={}", groupId, key);
                 return;
             }
             h = groupLocks.get(key);
             if (h == null) {
-                log.info("no h found for push: groupId={}, key={}", groupId, key);
+                log.info("lock not found: groupId={}, key={}", groupId, key);
                 return;
             }
         } finally {

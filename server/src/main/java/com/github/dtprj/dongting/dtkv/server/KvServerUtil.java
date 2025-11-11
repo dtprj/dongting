@@ -184,7 +184,7 @@ public class KvServerUtil {
 
         KvReq req = new KvReq();
         req.groupId = g.getGroupId();
-        req.key = lockKey.getData();
+        req.key = KvImpl.parentKey(lockKey).getData();
         req.value = ri.newOwnerData;
         req.ttlMillis = ri.newOwnerServerSideWaitNanos;
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_LOCK_PUSH, req);

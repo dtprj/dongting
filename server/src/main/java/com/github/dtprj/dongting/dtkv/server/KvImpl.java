@@ -830,7 +830,7 @@ class KvImpl {
         updateMinMax();
     }
 
-    ByteArray parentKey(ByteArray key) {
+    static ByteArray parentKey(ByteArray key) {
         int lastIndexOfSep = key.lastIndexOf(KvClientConfig.SEPARATOR);
         if (lastIndexOfSep > 0) {
             return key.sub(0, lastIndexOfSep);
