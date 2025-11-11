@@ -18,5 +18,5 @@ package com.github.dtprj.dongting.dtkv.server;
 /**
  * @author huangli
  */
-public class AutoRenewalLockImplTest {
+class AutoRenewalLockImplTest extends ServerClientLockTest {
 }

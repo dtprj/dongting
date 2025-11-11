@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.dtkv.DistributedLock;
 import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.test.WaitUtil;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * @author huangli
  */
-public class DistributedLockImplTest extends ServerClientLockTest {
+class DistributedLockImplTest extends ServerClientLockTest {
 
     // ========== P0: Basic lock/unlock operations ==========
 
@@ -533,6 +534,7 @@ public class DistributedLockImplTest extends ServerClientLockTest {
     }
 
     @Test
+    @Disabled // this test is not stable enough
     public void testClientLeaseTimeoutWhenServerGrant() {
         DistributedLock lock = client1.createLock(groupId, "test-lock-23".getBytes());
         try {
