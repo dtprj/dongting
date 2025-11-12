@@ -110,7 +110,7 @@ public class DistributedLockImpl implements DistributedLock {
         private Object opResult;
         private Throwable opEx;
 
-        Op(int opType, long leaseMillis, long tryLockTimeoutMillis,FutureCallback<?> callback) {
+        Op(int opType, long leaseMillis, long tryLockTimeoutMillis, FutureCallback<?> callback) {
             this.tryLockTimeoutMillis = tryLockTimeoutMillis;
             this.leaseMillis = leaseMillis;
             this.callback = callback;
@@ -299,9 +299,9 @@ public class DistributedLockImpl implements DistributedLock {
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof KvException) {
-                throw new KvException(((KvException) cause).getCode(), cause);
+                throw new KvException(((KvException) cause).getCode(), e);
             } else if (cause instanceof IllegalStateException) {
-                throw (IllegalStateException) cause;
+                throw new IllegalStateException(e);
             } else {
                 throw new NetException(cause);
             }
