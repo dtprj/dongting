@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
+import com.github.dtprj.dongting.net.WritePacket;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
@@ -39,7 +40,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * @author huangli
  */
-class DistributedLockImpl implements DistributedLock {
+public class DistributedLockImpl implements DistributedLock {
     private static final DtLog log = DtLogs.getLogger(DistributedLockImpl.class);
 
     // Lock states
@@ -75,7 +76,7 @@ class DistributedLockImpl implements DistributedLock {
 
     private ScheduledFuture<?> expireTask;
 
-    DistributedLockImpl(int lockId, LockManager lockManager, int groupId, ByteArray key, Runnable expireListener) {
+    protected DistributedLockImpl(int lockId, LockManager lockManager, int groupId, ByteArray key, Runnable expireListener) {
         this.lockId = lockId;
         this.lockManager = lockManager;
         this.groupId = groupId;
@@ -363,9 +364,14 @@ class DistributedLockImpl implements DistributedLock {
         packet.acquirePermitNoWait = true;
 
         newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
+        sendRpc(packet, op);
+    }
+
+    // for unit test mock
+    protected void sendRpc(WritePacket packet, RpcCallback<Void> callback) {
         lockManager.kvClient.raftClient.sendRequest(groupId, packet,
                 DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                lockManager.kvClient.raftClient.createDefaultTimeout(), op);
+                lockManager.kvClient.raftClient.createDefaultTimeout(), callback);
     }
 
     private void scheduleExpireTask(long delayNanos) {
@@ -458,9 +464,7 @@ class DistributedLockImpl implements DistributedLock {
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
         packet.acquirePermitNoWait = true;
 
-        lockManager.kvClient.raftClient.sendRequest(groupId, packet,
-                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                lockManager.kvClient.raftClient.createDefaultTimeout(), op);
+        sendRpc(packet, op);
         return makeOldOpFinish ? oldOp : null;
     }
 
@@ -521,9 +525,7 @@ class DistributedLockImpl implements DistributedLock {
         packet.acquirePermitNoWait = true;
 
         newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(newLeaseMillis);
-        lockManager.kvClient.raftClient.sendRequest(groupId, packet,
-                DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                lockManager.kvClient.raftClient.createDefaultTimeout(), op);
+        sendRpc(packet, op);
     }
 
     @Override
@@ -569,9 +571,7 @@ class DistributedLockImpl implements DistributedLock {
                 KvReq req = new KvReq(groupId, key.getData(), null);
                 EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
                 packet.acquirePermitNoWait = true;
-                lockManager.kvClient.raftClient.sendRequest(groupId, packet,
-                        DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                        lockManager.kvClient.raftClient.createDefaultTimeout(), null);
+                sendRpc(packet, null);
             }
         } catch (Exception e) {
             log.error("lock close error", e);

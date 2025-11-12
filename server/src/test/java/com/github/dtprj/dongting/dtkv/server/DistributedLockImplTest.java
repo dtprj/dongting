@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.dtkv.DistributedLock;
 import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.test.WaitUtil;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +40,16 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author huangli
  */
 class DistributedLockImplTest extends ServerClientLockTest {
+
+    @BeforeAll
+    public static void setup() throws Exception {
+        setupServerClient();
+    }
+
+    @AfterAll
+    public static void teardown() {
+        stopServerClient();
+    }
 
     // ========== P0: Basic lock/unlock operations ==========
 

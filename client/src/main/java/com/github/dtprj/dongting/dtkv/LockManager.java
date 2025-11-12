@@ -31,7 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * @author huangli
  */
-class LockManager {
+public class LockManager {
     private static final DtLog log = DtLogs.getLogger(LockManager.class);
 
     private final HashMap<Integer, HashMap<ByteArray, LockHolder>> lockMap = new HashMap<>();
@@ -43,7 +43,7 @@ class LockManager {
 
     private int nextLockId = 1;
 
-    LockManager(KvClient kvClient) {
+    protected LockManager(KvClient kvClient) {
         this.kvClient = kvClient;
         this.raftClient = kvClient.getRaftClient();
     }
@@ -69,7 +69,7 @@ class LockManager {
             HashMap<ByteArray, LockHolder> m = lockMap.computeIfAbsent(groupId, k -> new HashMap<>());
             LockHolder h = m.get(keyBytes);
             if (h == null) {
-                DistributedLockImpl l = new DistributedLockImpl(nextLockId++, this, groupId, keyBytes, expireListener);
+                DistributedLockImpl l = createLockImpl(groupId, nextLockId++, keyBytes, expireListener);
                 h = new LockHolder(l, null);
                 m.put(keyBytes, h);
                 return h.lock;
@@ -93,7 +93,7 @@ class LockManager {
             LockHolder h = m.get(keyBytes);
             if (h == null) {
                 // the expireListener is set in AutoRenewLockImpl constructor
-                DistributedLockImpl lock = new DistributedLockImpl(nextLockId++, this, groupId, keyBytes, null);
+                DistributedLockImpl lock = createLockImpl(groupId, nextLockId++, keyBytes, null);
                 AutoRenewalLockImpl wrapper = new AutoRenewalLockImpl(groupId, kvClient, keyBytes, leaseMillis, listener, lock);
                 h = new LockHolder(lock, wrapper);
                 m.put(keyBytes, h);
@@ -104,6 +104,11 @@ class LockManager {
         } finally {
             managerOpLock.unlock();
         }
+    }
+
+    // for unit test
+    protected DistributedLockImpl createLockImpl(int groupId, int lockId, ByteArray key, Runnable expireListener) {
+        return new DistributedLockImpl(lockId, this, groupId, key, expireListener);
     }
 
     void removeLock(DistributedLockImpl lock) {
@@ -179,7 +184,7 @@ class LockManager {
         h.lock.processLockPush(bizCode, req.value, req.ttlMillis);
     }
 
-    public ScheduledFuture<?> schedule(Runnable task, long delay, TimeUnit unit) {
+    ScheduledFuture<?> schedule(Runnable task, long delay, TimeUnit unit) {
         // run task in executeService, don't block DtUtil.SCHEDULED_SERVICE
         Runnable r = () -> executeService.submit(task);
         return DtUtil.SCHEDULED_SERVICE.schedule(r, delay, unit);

@@ -52,7 +52,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private ScheduledFuture<?> scheduleTask;
 
     AutoRenewalLockImpl(int groupId, KvClient client, ByteArray key, long leaseMillis, AutoRenewalLockListener listener,
-                        DistributedLockImpl lock)  {
+                        DistributedLockImpl lock) {
         if (leaseMillis <= 1) {
             throw new IllegalArgumentException("leaseMillis too small: " + leaseMillis);
         }
@@ -187,13 +187,14 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     private void handleRpcFail(int taskId, String op, Throwable ex) {
-        log.warn("{} failed. key={}, groupId={}, retryIndex={}", op, key, groupId, retryIndex, ex);
         long delayMillis;
         if (retryIndex < retryIntervals.length) {
             delayMillis = retryIntervals[retryIndex];
         } else {
             delayMillis = retryIntervals[retryIntervals.length - 1];
         }
+        log.warn("{} failed, retry after {}ms. key={}, groupId={}, retryIndex={}",
+                op, delayMillis, key, groupId, retryIndex, ex);
         retryIndex++;
         scheduleTask(taskId, delayMillis);
     }

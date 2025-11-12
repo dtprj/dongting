@@ -68,7 +68,7 @@ public class KvClient extends AbstractLifeCircle {
         Objects.requireNonNull(config);
         this.raftClient = new RaftClient(raftClientConfig, nioConfig);
         this.watchManager = createClientWatchManager();
-        this.lockManager = new LockManager(this);
+        this.lockManager = createLockManager();
         // use bizExecutor in NioClient
         KvClientProcessor clientProcessor = new KvClientProcessor(watchManager, lockManager);
         raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, clientProcessor);
@@ -78,6 +78,10 @@ public class KvClient extends AbstractLifeCircle {
     protected WatchManager createClientWatchManager() {
         return new WatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
                 config.watchHeartbeatMillis);
+    }
+
+    protected LockManager createLockManager() {
+        return new LockManager(this);
     }
 
     private static boolean isSuccess(int cmd, int bizCode) {
