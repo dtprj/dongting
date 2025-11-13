@@ -23,11 +23,13 @@ public interface AutoRenewalLockListener {
 
     /**
      * Invoked when the lock is successfully acquired.
+     * Don't do blocking operations in the listener, because it may block the next operations of AutoRenewalLock.
      */
     void onAcquired();
 
     /**
      * Invoked when the lock is lost (include expire or the AutoRenewalLock instance closed when it held the lock).
+     * Don't do blocking operations in the listener, because it may block the next operations of AutoRenewalLock.
      */
     void onLost();
 }

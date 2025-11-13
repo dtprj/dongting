@@ -24,7 +24,7 @@ import com.github.dtprj.dongting.net.NetException;
  * <p>
  * Unlike local lock, the distributed lock has lease time, the lock's ownership will be lost after the lease time.
  * Use isHeldByCurrentClient() method to check whether the current client is the owner of the lock.
- * If specified expire listener when create the lock in KvClient, it will be called back when the lease expires
+ * If specified expire listener when create the lock in KvClient, it will be called when the lease expires.
  *
  * @author huangli
  */
@@ -67,7 +67,8 @@ public interface DistributedLock {
      *                              leaseMillis. If 0, return false immediately if the server tells the lock is held
      *                              by others. If positive, wait up to waitLockTimeoutMillis to acquire the lock,
      *                              complete the callback with false if timeout.
-     * @param callback              the async callback, by default it will execute in bizExecutor of NioClient.
+     * @param callback              the async callback, by default it will execute in bizExecutor of NioClient, but it
+     *                              may be executed in other thread (caller's thread e.g.) if error occurs.
      */
     void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback);
 
@@ -84,7 +85,8 @@ public interface DistributedLock {
     /**
      * Asynchronously to release the lock, if the client is not the owner of the lock, do nothing and invoke the callback.
      *
-     * @param callback the async callback, by default it will execute in bizExecutor of NioClient.
+     * @param callback the async callback, by default it will execute in bizExecutor of NioClient, but it
+     *                 may be executed in other thread (caller's thread e.g.) if error occurs.
      */
     void unlock(FutureCallback<Void> callback);
 
@@ -105,7 +107,8 @@ public interface DistributedLock {
      * Asynchronously to update the lease time of the lock.
      * @param newLeaseMillis the new lease time, should be positive, the lease time starts when this
      *                       method invoked, that is, measured from the client side, not the server side
-     * @param callback the async callback, by default it will execute in bizExecutor of NioClient.
+     * @param callback the async callback, by default it will execute in bizExecutor of NioClient, but it
+     *                 may be executed in other thread (caller's thread e.g.) if error occurs.
      */
     void updateLease(long newLeaseMillis, FutureCallback<Void> callback);
 
