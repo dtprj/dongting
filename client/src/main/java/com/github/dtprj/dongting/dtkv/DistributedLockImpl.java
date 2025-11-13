@@ -99,12 +99,13 @@ public class DistributedLockImpl implements DistributedLock {
         private final long leaseMillis;
         private ScheduledFuture<?> tryLockTimeoutTask;
 
-        final int opType;
+        private final int opType;
         private static final int OP_TYPE_TRY_LOCK = 1;
         private static final int OP_TYPE_UNLOCK = 2;
         private static final int OP_TYPE_RENEW = 3;
 
-        boolean finish;
+        private boolean initiated;
+        private boolean finish;
         private boolean called;
 
         private Object opResult;
@@ -248,8 +249,12 @@ public class DistributedLockImpl implements DistributedLock {
             } finally {
                 opLock.unlock();
             }
-            // call user callback outside lock, only once
-            invokeCallback();
+            // If not initiated, means the callback is called immediately in the tryLock/unlock/updateLease method,
+            // the caller already holds the lock and will call the callback after releasing the lock.
+            if (initiated) {
+                // call user callback outside lock, only once
+                invokeCallback();
+            }
         }
 
         private void processLockResultAndMarkFinish(int bizCode, long serverSideWaitNanos) {
@@ -261,7 +266,7 @@ public class DistributedLockImpl implements DistributedLock {
             long now = System.nanoTime();
             if (newLeaseEndNanos - now <= 0) {
                 log.warn("tryLock success in server side, but already expires locally." +
-                        " leaseMillis={}, serverSideWaitMillis={}, key={}",
+                                " leaseMillis={}, serverSideWaitMillis={}, key={}",
                         leaseMillis, serverSideWaitNanos / 1_000_000, key);
                 markFinishInLock(Boolean.FALSE, null);
                 return;
@@ -317,18 +322,18 @@ public class DistributedLockImpl implements DistributedLock {
         }
 
         Op op = new Op(Op.OP_TYPE_TRY_LOCK, leaseMillis, waitLockTimeoutMillis, callback);
-        boolean ok = false;
+        boolean needInvoke;
         opLock.lock();
         try {
             tryLock0(leaseMillis, waitLockTimeoutMillis, op);
-            ok = true;
-            currentOp = op;
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
         } finally {
+            op.initiated = true;
+            needInvoke = op.finish;
             opLock.unlock();
         }
-        if (!ok) {
+        if (needInvoke) {
             op.invokeCallback();
         }
     }
@@ -344,6 +349,7 @@ public class DistributedLockImpl implements DistributedLock {
         if (currentOp != null) {
             throw new IllegalStateException("operation in progress");
         }
+        currentOp = op;
 
         op.taskOpId = ++opId;
         state = STATE_UNKNOWN;
@@ -415,7 +421,7 @@ public class DistributedLockImpl implements DistributedLock {
     public void unlock(FutureCallback<Void> callback) {
         Op op = new Op(Op.OP_TYPE_UNLOCK, 0, 0, callback);
         Op oldOp = null;
-        boolean shouldInvokeCallback;
+        boolean shouldInvoke;
         opLock.lock();
         try {
             if (state == STATE_CLOSED) {
@@ -423,22 +429,20 @@ public class DistributedLockImpl implements DistributedLock {
             }
             if (state == STATE_NOT_LOCKED) {
                 op.markFinishInLock(null, null);
-                shouldInvokeCallback = true;
             } else {
                 oldOp = unlock0(op);
-                currentOp = op;
-                shouldInvokeCallback = false;
             }
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
-            shouldInvokeCallback = true;
         } finally {
+            op.initiated = true;
+            shouldInvoke = op.finish;
             opLock.unlock();
         }
         if (oldOp != null) {
             oldOp.invokeCallback();
         }
-        if (shouldInvokeCallback) {
+        if (shouldInvoke) {
             op.invokeCallback();
         }
     }
@@ -447,6 +451,7 @@ public class DistributedLockImpl implements DistributedLock {
         Op oldOp;
         boolean makeOldOpFinish = false;
         oldOp = currentOp;
+        currentOp = op;
 
         // mark current op as finished, so the unlock operation can be called safely after tryLock
         if (oldOp != null && !oldOp.finish) {
@@ -486,18 +491,18 @@ public class DistributedLockImpl implements DistributedLock {
     public void updateLease(long leaseMillis, FutureCallback<Void> callback) {
         checkLeaseMillis(leaseMillis);
         Op op = new Op(Op.OP_TYPE_RENEW, leaseMillis, 0, callback);
-        boolean ok = false;
+        boolean shouldInvoke;
         opLock.lock();
         try {
             updateLease0(leaseMillis, op);
-            ok = true;
-            currentOp = op;
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
         } finally {
+            op.initiated = true;
+            shouldInvoke = op.finish;
             opLock.unlock();
         }
-        if (!ok) {
+        if (shouldInvoke) {
             op.invokeCallback();
         }
     }
@@ -512,6 +517,7 @@ public class DistributedLockImpl implements DistributedLock {
         if (currentOp != null) {
             throw new IllegalStateException("operation in progress");
         }
+        currentOp = op;
 
         long now = System.nanoTime();
         if (leaseEndNanos - now <= 0) {
