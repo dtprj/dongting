@@ -118,6 +118,11 @@ public class DistributedLockImpl implements DistributedLock {
             this.opType = opType;
         }
 
+        private String opTypeStr() {
+            return opType == OP_TYPE_TRY_LOCK ? "tryLock"
+                    : opType == OP_TYPE_UNLOCK ? "unlock" : "renew";
+        }
+
         private void markFinishInLock(Object result, Throwable ex) {
             if (finish) {
                 BugLog.log(new DtBugException("already finished"));
@@ -179,13 +184,11 @@ public class DistributedLockImpl implements DistributedLock {
                 if (finish) {
                     return;
                 }
-                String opTypeStr = opType == OP_TYPE_TRY_LOCK ? "tryLock"
-                        : opType == OP_TYPE_UNLOCK ? "unlock" : "renew";
                 if (state == STATE_CLOSED) {
                     markFinishInLock(null, new NetException("lock is closed"));
                 } else if (ex != null) {
                     // try lock rpc response
-                    log.error("{} rpc error", opTypeStr, ex);
+                    log.error("{} rpc error", opTypeStr(), ex);
                     markFinishInLock(null, ex);
                 } else {
                     int bizCode = p.bizCode;
@@ -347,7 +350,7 @@ public class DistributedLockImpl implements DistributedLock {
         }
         // Wait for previous operation to complete
         if (currentOp != null) {
-            throw new IllegalStateException("operation in progress");
+            throw new IllegalStateException(currentOp.opTypeStr() + " operation in progress");
         }
         currentOp = op;
 
@@ -515,7 +518,7 @@ public class DistributedLockImpl implements DistributedLock {
             throw new IllegalStateException("not locked by current client");
         }
         if (currentOp != null) {
-            throw new IllegalStateException("operation in progress");
+            throw new IllegalStateException(currentOp.opTypeStr() + " operation in progress");
         }
         currentOp = op;
 
