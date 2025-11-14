@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.net.NetException;
 
 /**
- * Distributed lock for dtkv. The lock instance is thread safe.
+ * Distributed lock for dtkv.
  *
  * <p>
  * Unlike local lock, the distributed lock has lease time, the lock's ownership will be lost after the lease time.

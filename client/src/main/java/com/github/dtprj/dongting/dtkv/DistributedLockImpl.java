@@ -94,8 +94,7 @@ public class DistributedLockImpl implements DistributedLock {
 
     private class Op implements RpcCallback<Void> {
         private int taskOpId;
-        @SuppressWarnings("rawtypes")
-        private final FutureCallback callback;
+        private final FutureCallback<?> callback;
         private final long tryLockTimeoutMillis;
         private final long leaseMillis;
         private ScheduledFuture<?> tryLockTimeoutTask;
@@ -105,7 +104,12 @@ public class DistributedLockImpl implements DistributedLock {
         private static final int OP_TYPE_UNLOCK = 2;
         private static final int OP_TYPE_RENEW = 3;
 
+        private boolean initiated;
         private boolean finish;
+        private boolean called;
+
+        private Object opResult;
+        private Throwable opEx;
 
         Op(int opType, long leaseMillis, long tryLockTimeoutMillis, FutureCallback<?> callback) {
             this.tryLockTimeoutMillis = tryLockTimeoutMillis;
@@ -133,12 +137,8 @@ public class DistributedLockImpl implements DistributedLock {
             }
             tryLockTimeoutTask = null;
 
-            if (ex != null) {
-                FutureCallback.callFail(callback, ex);
-            } else {
-                // noinspection unchecked
-                FutureCallback.callSuccess(callback, result);
-            }
+            this.opResult = result;
+            this.opEx = ex;
         }
 
         public void makeTryLockTimeout() {
@@ -157,6 +157,24 @@ public class DistributedLockImpl implements DistributedLock {
             }
 
             log.info("tryLock timeout after {} ms, key: {}", tryLockTimeoutMillis, key);
+
+            // call user callback outside lock
+            invokeCallback();
+        }
+
+        public void invokeCallback() {
+            if (called) {
+                BugLog.log(new DtBugException("already called"));
+                return;
+            }
+            // call user callback outside lock, only once
+            if (opEx == null) {
+                //noinspection rawtypes,unchecked
+                FutureCallback.callSuccess((FutureCallback) callback, opResult);
+            } else {
+                FutureCallback.callFail(callback, opEx);
+            }
+            called = true;
         }
 
         @Override
@@ -189,7 +207,6 @@ public class DistributedLockImpl implements DistributedLock {
                                 markFinishInLock(Boolean.FALSE, null);
                             } else {
                                 // wait push or timeout, return and don't fire callback now
-                                // noinspection UnnecessaryReturnStatement
                                 return;
                             }
                         } else {
@@ -233,6 +250,12 @@ public class DistributedLockImpl implements DistributedLock {
                 }
             } finally {
                 opLock.unlock();
+            }
+            // If not initiated, means the callback is called immediately in the tryLock/unlock/updateLease method,
+            // the caller already holds the lock and will call the callback after releasing the lock.
+            if (initiated) {
+                // call user callback outside lock, only once
+                invokeCallback();
             }
         }
 
@@ -300,13 +323,19 @@ public class DistributedLockImpl implements DistributedLock {
         }
 
         Op op = new Op(Op.OP_TYPE_TRY_LOCK, leaseMillis, waitLockTimeoutMillis, callback);
+        boolean needInvoke;
         opLock.lock();
         try {
             tryLock0(leaseMillis, waitLockTimeoutMillis, op);
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
         } finally {
+            op.initiated = true;
+            needInvoke = op.finish;
             opLock.unlock();
+        }
+        if (needInvoke) {
+            op.invokeCallback();
         }
     }
 
@@ -392,6 +421,8 @@ public class DistributedLockImpl implements DistributedLock {
     @Override
     public void unlock(FutureCallback<Void> callback) {
         Op op = new Op(Op.OP_TYPE_UNLOCK, 0, 0, callback);
+        Op oldOp = null;
+        boolean shouldInvoke;
         opLock.lock();
         try {
             if (state == STATE_CLOSED) {
@@ -400,23 +431,34 @@ public class DistributedLockImpl implements DistributedLock {
             if (state == STATE_NOT_LOCKED) {
                 op.markFinishInLock(null, null);
             } else {
-                unlock0(op);
+                oldOp = unlock0(op);
             }
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
         } finally {
+            op.initiated = true;
+            shouldInvoke = op.finish;
             opLock.unlock();
+        }
+        if (oldOp != null) {
+            oldOp.invokeCallback();
+        }
+        if (shouldInvoke) {
+            op.invokeCallback();
         }
     }
 
-    private void unlock0(Op op) {
-        Op oldOp = currentOp;
+    private Op unlock0(Op op) {
+        Op oldOp;
+        boolean makeOldOpFinish = false;
+        oldOp = currentOp;
         currentOp = op;
 
         // mark current op as finished, so the unlock operation can be called safely after tryLock
         if (oldOp != null && !oldOp.finish) {
             // currentOp is set to null in markFinishInLock
             oldOp.markFinishInLock(null, new NetException("canceled by unlock"));
+            makeOldOpFinish = true;
         }
 
         op.taskOpId = ++opId;
@@ -430,6 +472,7 @@ public class DistributedLockImpl implements DistributedLock {
         packet.acquirePermitNoWait = true;
 
         sendRpc(packet, op);
+        return makeOldOpFinish ? oldOp : null;
     }
 
     private void cancelExpireTask() {
@@ -451,13 +494,19 @@ public class DistributedLockImpl implements DistributedLock {
     public void updateLease(long leaseMillis, FutureCallback<Void> callback) {
         checkLeaseMillis(leaseMillis);
         Op op = new Op(Op.OP_TYPE_RENEW, leaseMillis, 0, callback);
+        boolean shouldInvoke;
         opLock.lock();
         try {
             updateLease0(leaseMillis, op);
         } catch (Throwable e) {
             op.markFinishInLock(null, e);
         } finally {
+            op.initiated = true;
+            shouldInvoke = op.finish;
             opLock.unlock();
+        }
+        if (shouldInvoke) {
+            op.invokeCallback();
         }
     }
 
@@ -508,6 +557,8 @@ public class DistributedLockImpl implements DistributedLock {
     }
 
     void closeImpl() {
+        Op oldOp = null;
+        boolean invokeOldOpCallback = false;
         opLock.lock();
         try {
             if (state == STATE_CLOSED) {
@@ -515,9 +566,10 @@ public class DistributedLockImpl implements DistributedLock {
             }
             int oldState = state;
             state = STATE_CLOSED;
-            Op oldOp = currentOp;
+            oldOp = currentOp;
             if (oldOp != null && !oldOp.finish) {
                 oldOp.markFinishInLock(null, new NetException("canceled by close"));
+                invokeOldOpCallback = true;
             }
 
             boolean needSendUnlock = (oldState == STATE_LOCKED || oldState == STATE_UNKNOWN)
@@ -537,6 +589,9 @@ public class DistributedLockImpl implements DistributedLock {
         } finally {
             opLock.unlock();
         }
+        if (invokeOldOpCallback) {
+            oldOp.invokeCallback();
+        }
     }
 
     void processLockPush(int bizCode, byte[] value, long serverSideWaitNanos) {
@@ -548,6 +603,7 @@ public class DistributedLockImpl implements DistributedLock {
         int pushLockId = buf.getInt(8);
         int pushOpId = buf.getInt(12);
 
+        Op oldOp = null;
         opLock.lock();
         try {
             if (state == STATE_CLOSED) {
@@ -559,16 +615,20 @@ public class DistributedLockImpl implements DistributedLock {
                         key, pushOpId, opId, pushLockId, lockId);
                 return;
             }
-            Op op = currentOp;
-            if (op == null) {
+            oldOp = currentOp;
+            if (oldOp == null) {
                 log.warn("ignore lock push because no current op. key: {}", key);
                 return;
             }
-            op.processLockResultAndMarkFinish(bizCode, serverSideWaitNanos);
+            oldOp.processLockResultAndMarkFinish(bizCode, serverSideWaitNanos);
         } catch (Exception e) {
             BugLog.log(e);
         } finally {
             opLock.unlock();
+        }
+
+        if (oldOp != null) {
+            oldOp.invokeCallback();
         }
     }
 
