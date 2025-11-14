@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.net.WritePacket;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
@@ -93,6 +94,7 @@ public class DistributedLockImpl implements DistributedLock {
     }
 
     private void fireCallbackTaskInLock(Runnable task) {
+        Objects.requireNonNull(task);
         sequentialTasks.addLast(task);
         lockManager.submitTask(sequentialRunnable);
     }
@@ -428,7 +430,9 @@ public class DistributedLockImpl implements DistributedLock {
             state = STATE_NOT_LOCKED;
             resetLeaseEndNanos();
             log.warn("lock expired without unlock or update lease, key: {}", key);
-            fireCallbackTaskInLock(expireListener);
+            if (expireListener != null) {
+                fireCallbackTaskInLock(expireListener);
+            }
         } finally {
             opLock.unlock();
         }
