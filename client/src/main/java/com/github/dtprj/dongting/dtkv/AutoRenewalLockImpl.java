@@ -84,7 +84,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
                             sequentialTasks.clear();
                         }
                         // run the task in lockManager.executeService to avoid user callback block
-                        lockManager.executeService.submit(() -> sequentialRun(false, false, nextTask));
+                        lockManager.submitTask(() -> sequentialRun(false, false, nextTask));
                         return;
                     } else if (running) {
                         sequentialTasks.addLast(nextTask);
@@ -201,7 +201,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
     private void scheduleTask(int taskId, long delayMillis) {
         cancelTask();
-        scheduleTask = lockManager.schedule(() -> runTask(taskId), delayMillis, TimeUnit.MILLISECONDS);
+        scheduleTask = lockManager.scheduleTask(() -> runTask(taskId), delayMillis, TimeUnit.MILLISECONDS);
     }
 
     private void cancelTask() {

@@ -23,13 +23,15 @@ public interface AutoRenewalLockListener {
 
     /**
      * Invoked when the lock is successfully acquired.
-     * Don't do blocking operations in the listener, because it may block the next operations of AutoRenewalLock.
+     * It will execute in bizExecutor of NioClient by default. It's recommended to do non-blocking operations
+     * in the listener, because it may block the next callbacks.
      */
     void onAcquired();
 
     /**
      * Invoked when the lock is lost (include expire or the AutoRenewalLock instance closed when it held the lock).
-     * Don't do blocking operations in the listener, because it may block the next operations of AutoRenewalLock.
+     * It will execute in bizExecutor of NioClient by default. It's recommended to do non-blocking operations
+     * in the listener, because it may block the next callbacks.
      */
     void onLost();
 }

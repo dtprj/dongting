@@ -37,8 +37,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -685,8 +683,9 @@ public class KvClient extends AbstractLifeCircle {
      *
      * @param groupId        the raft group id
      * @param key            not null or empty, use '.' as path separator
-     * @param expireListener the listener which will be called when the lock expires (unlock will not be called),
-     *                       this listener is running in a lock, don't do blocking operations in the listener.
+     * @param expireListener The listener which will be called when the lock expires (unlock will not be called).
+     *                       It will execute in bizExecutor of NioClient by default. It's recommended to do
+     *                       non-blocking operations in the listener, because it may block the next callbacks.
      * @return the DistributedLock instance
      * @throws IllegalStateException if an DistributedLock or AutoRenewLock instance exists with the same key
      */
@@ -704,8 +703,9 @@ public class KvClient extends AbstractLifeCircle {
      * @param key         not null or empty, use '.' as path separator
      * @param leaseMillis lease time in milliseconds, must be positive. If you don't know how to set it,
      *                    60000 (60 seconds) may be a good default value.
-     * @param listener    The listener to receive lock events, can not be null. Don't do blocking operations
-     *                    in the listener, because it may block the next operations of AutoRenewalLock.
+     * @param listener    The listener to receive lock events, can not be null. It will execute in bizExecutor
+     *                    of NioClient by default. It's recommended to do non-blocking operations in the listener,
+     *                    because it may block the next callbacks.
      * @return the AutoRenewalLock instance
      * @throws IllegalStateException if an DistributedLock or AutoRenewalLock instance exists with the same key
      */
@@ -717,25 +717,10 @@ public class KvClient extends AbstractLifeCircle {
         return lockManager.createAutoRenewLock(groupId, key, leaseMillis, listener);
     }
 
-    private static ExecutorService fallbackExecutor;
-
     @Override
     protected void doStart() {
         raftClient.start();
-        if (raftClient.getNioClient().getBizExecutor() != null) {
-            lockManager.executeService = raftClient.getNioClient().getBizExecutor();
-        } else {
-            synchronized (KvClient.class) {
-                if (fallbackExecutor == null) {
-                    fallbackExecutor = Executors.newSingleThreadExecutor(r -> {
-                        Thread t = new Thread(r, "DtKvClientFallbackExecutor");
-                        t.setDaemon(true);
-                        return t;
-                    });
-                }
-            }
-            lockManager.executeService = fallbackExecutor;
-        }
+        lockManager.init(raftClient.getNioClient().getBizExecutor());
     }
 
     protected void doStop(DtTime timeout, boolean force) {

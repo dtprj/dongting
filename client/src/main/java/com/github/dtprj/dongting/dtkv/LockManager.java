@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.raft.RaftException;
 
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -39,13 +41,41 @@ public class LockManager {
 
     final KvClient kvClient;
     final RaftClient raftClient;
-    ExecutorService executeService;
+    private ExecutorService executeService;
+
+    private static volatile ExecutorService fallbackExecutor;
 
     private int nextLockId = 1;
 
     protected LockManager(KvClient kvClient) {
         this.kvClient = kvClient;
         this.raftClient = kvClient.getRaftClient();
+    }
+
+    private static ExecutorService getFallbackExecutor() {
+        ExecutorService es = fallbackExecutor;
+        if (es == null) {
+            synchronized (LockManager.class) {
+                es = fallbackExecutor;
+                if (es == null) {
+                    es = Executors.newSingleThreadExecutor(r -> {
+                        Thread t = new Thread(r, "DtKvClientFallbackExecutor");
+                        t.setDaemon(true);
+                        return t;
+                    });
+                    fallbackExecutor = es;
+                }
+            }
+        }
+        return es;
+    }
+
+    public void init(ExecutorService es) {
+        if (es != null) {
+            executeService = es;
+        } else {
+            executeService = getFallbackExecutor();
+        }
     }
 
     private static class LockHolder {
@@ -184,9 +214,18 @@ public class LockManager {
         h.lock.processLockPush(bizCode, req.value, req.ttlMillis);
     }
 
-    ScheduledFuture<?> schedule(Runnable task, long delay, TimeUnit unit) {
+    ScheduledFuture<?> scheduleTask(Runnable task, long delay, TimeUnit unit) {
         // run task in executeService, don't block DtUtil.SCHEDULED_SERVICE
-        Runnable r = () -> executeService.submit(task);
+        Runnable r = () -> submitTask(task);
         return DtUtil.SCHEDULED_SERVICE.schedule(r, delay, unit);
+    }
+
+    void submitTask(Runnable task) {
+        try {
+            executeService.submit(task);
+        } catch (RejectedExecutionException e) {
+            log.error("task submit rejected, run it in fallback executor", e);
+            getFallbackExecutor().submit(task);
+        }
     }
 }
