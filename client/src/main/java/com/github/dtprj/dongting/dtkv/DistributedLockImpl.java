@@ -65,7 +65,7 @@ public class DistributedLockImpl implements DistributedLock {
      * opId is the same as the one in push, if not, ignore the push.
      */
     private int opId;
-    private int leaseId;
+    private int expireTaskId;
 
     // Current lock state
     private int state = STATE_NOT_LOCKED;
@@ -235,7 +235,6 @@ public class DistributedLockImpl implements DistributedLock {
                             markFinishInLock(null, new NetException("not held by current client"));
                         } else if (p.bizCode == KvCodes.SUCCESS) {
                             leaseEndNanos = newLeaseEndNanos;
-                            leaseId++;
                             cancelExpireTask();
                             scheduleExpireTask(leaseEndNanos - now);
                             markFinishInLock(null, null);
@@ -278,7 +277,6 @@ public class DistributedLockImpl implements DistributedLock {
                 log.debug("tryLock success, key: {}, code={}", key, KvCodes.toStr(bizCode));
             }
             state = STATE_LOCKED;
-            leaseId++;
             leaseEndNanos = newLeaseEndNanos;
 
             if (expireTask != null) {
@@ -384,18 +382,18 @@ public class DistributedLockImpl implements DistributedLock {
     }
 
     private void scheduleExpireTask(long delayNanos) {
-        int expectLeaseId = leaseId;
+        int expectLeaseId = ++expireTaskId;
         expireTask = lockManager.schedule(() -> execExpireTask(expectLeaseId), delayNanos, TimeUnit.NANOSECONDS);
     }
 
-    private void execExpireTask(int expectLeaseId) {
+    private void execExpireTask(int expectExpireTaskId) {
         opLock.lock();
         try {
             expireTask = null;
-            if (state != STATE_LOCKED) {
+            if (state == STATE_CLOSED || state == STATE_NOT_LOCKED) {
                 return;
             }
-            if (expectLeaseId != leaseId) {
+            if (expectExpireTaskId != expireTaskId) {
                 return;
             }
             log.warn("lock expired without unlock or update lease, key: {}", key);
@@ -462,11 +460,12 @@ public class DistributedLockImpl implements DistributedLock {
             oldOp.markFinishInLock(null, new NetException("canceled by unlock"));
             makeOldOpFinish = true;
         }
-        cancelExpireTask();
 
         op.taskOpId = ++opId;
         state = STATE_UNKNOWN;
         resetLeaseEndNanos();
+
+        cancelExpireTask();
 
         KvReq req = new KvReq(groupId, key.getData(), null);
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
@@ -478,6 +477,7 @@ public class DistributedLockImpl implements DistributedLock {
 
     private void cancelExpireTask() {
         if (expireTask != null && !expireTask.isDone()) {
+            expireTaskId++;
             expireTask.cancel(false);
         }
         expireTask = null;
@@ -571,11 +571,13 @@ public class DistributedLockImpl implements DistributedLock {
                 oldOp.markFinishInLock(null, new NetException("canceled by close"));
                 invokeOldOpCallback = true;
             }
-            cancelExpireTask();
 
             boolean needSendUnlock = (oldState == STATE_LOCKED || oldState == STATE_UNKNOWN)
                     && (newLeaseEndNanos - System.nanoTime() > 0);
             resetLeaseEndNanos();
+
+            cancelExpireTask();
+
             if (needSendUnlock) {
                 KvReq req = new KvReq(groupId, key.getData(), null);
                 EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
