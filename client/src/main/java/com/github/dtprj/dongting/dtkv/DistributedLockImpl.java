@@ -433,6 +433,9 @@ public class DistributedLockImpl implements DistributedLock {
             if (expireListener != null) {
                 fireCallbackTaskInLock(expireListener);
             }
+            if (currentOp != null && !currentOp.finish) {
+                currentOp.markFinishInLock(null, new NetException("lock expired and op canceled"));
+            }
         } finally {
             opLock.unlock();
         }
@@ -467,13 +470,14 @@ public class DistributedLockImpl implements DistributedLock {
 
     private void unlock0(Op op) {
         Op oldOp = currentOp;
-        currentOp = op;
 
         // mark current op as finished, so the unlock operation can be called safely after tryLock
         if (oldOp != null && !oldOp.finish) {
             // currentOp is set to null in markFinishInLock
             oldOp.markFinishInLock(null, new NetException("canceled by unlock"));
         }
+
+        currentOp = op;
 
         op.taskOpId = ++opId;
         state = STATE_UNKNOWN;
