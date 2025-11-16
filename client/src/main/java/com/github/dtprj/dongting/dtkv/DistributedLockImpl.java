@@ -93,6 +93,15 @@ public class DistributedLockImpl implements DistributedLock {
         resetLeaseEndNanos();
     }
 
+    void fireCallbackTask(Runnable task) {
+        opLock.lock();
+        try {
+            fireCallbackTaskInLock(task);
+        } finally {
+            opLock.unlock();
+        }
+    }
+
     private void fireCallbackTaskInLock(Runnable task) {
         Objects.requireNonNull(task);
         sequentialTasks.addLast(task);
