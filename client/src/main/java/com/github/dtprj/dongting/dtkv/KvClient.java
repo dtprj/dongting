@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -720,7 +721,11 @@ public class KvClient extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         raftClient.start();
-        lockManager.init(raftClient.getNioClient().getBizExecutor());
+        lockManager.init(getLockExecutor());
+    }
+
+    protected ExecutorService getLockExecutor() {
+        return raftClient.getNioClient().getBizExecutor();
     }
 
     protected void doStop(DtTime timeout, boolean force) {
