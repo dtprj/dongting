@@ -16,6 +16,13 @@
 package com.github.dtprj.dongting.dtkv;
 
 /**
+ * The listener of AutoRenewalLock. AutoRenewalLock ensures:
+ * <ul>
+ *     <li>The onAcquired()/onLost() callback is always invoked in sequential manner.</li>
+ *     <li>The onAcquired() will not be invoked after onAcquired()</li>
+ *     <li>The onLost() will not be invoked after onLost()</li>
+ *     <li>If AutoRenewalLock closed when it holds the lock, the onLost() callback will be invoked.</li>
+ * </ul>
  *
  * @author huangli
  */
