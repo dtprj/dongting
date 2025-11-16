@@ -75,6 +75,9 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
     private void schedule(long delayMillis) {
         cancelTask();
+        if (closed) {
+            return;
+        }
         int taskId = ++currentTaskId;
         scheduleTask = lockManager.scheduleTask(() -> {
             if (taskId != currentTaskId) {
@@ -86,6 +89,9 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     private void doRunTask(boolean updateLeaseImmediately) {
+        if (closed) {
+            return;
+        }
         long leaseRest = lock.getLeaseRestMillis();
         int taskId = currentTaskId;
         if (leaseRest > 1) {
@@ -110,6 +116,9 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     private void rpcCallback(int taskId, boolean tryLock, Throwable ex) {
+        if (closed) {
+            return;
+        }
         if (taskId != currentTaskId) {
             return;
         }
@@ -126,8 +135,10 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
             if (locked != newLocked) {
                 locked = newLocked;
                 if (newLocked) {
+                    log.info("get lock: {}", lock.key);
                     listener.onAcquired();
                 } else {
+                    log.info("lost lock: {}", lock.key);
                     listener.onLost();
                 }
             }
