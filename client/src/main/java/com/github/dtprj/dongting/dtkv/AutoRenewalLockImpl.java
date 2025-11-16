@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -46,7 +46,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private int retryIndex = 0;
 
     private int currentTaskId;
-    private ScheduledFuture<?> scheduleTask;
+    private Future<?> scheduleTask;
 
     AutoRenewalLockImpl(int groupId, KvClient client, ByteArray key, long leaseMillis, AutoRenewalLockListener listener,
                         DistributedLockImpl lock) {
@@ -62,7 +62,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         this.lockManager = client.lockManager;
         this.retryIntervals = client.config.autoRenewalRetryMillis;
         lock.expireListener = this::onExpire;
-        scheduleTask(0);
+        schedule(0);
     }
 
     private void onExpire() {
@@ -73,7 +73,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         doRunTask(true);
     }
 
-    private void scheduleTask(long delayMillis) {
+    private void schedule(long delayMillis) {
         cancelTask();
         int taskId = ++currentTaskId;
         scheduleTask = lockManager.scheduleTask(() -> {
@@ -97,7 +97,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
                     handleRpcFail(taskId, "updateLease", e);
                 }
             } else {
-                scheduleTask(leaseRest / 2);
+                schedule(leaseRest / 2);
             }
         } else {
             changeStateIfNeeded(false);
@@ -150,11 +150,11 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         log.warn("{} failed, retry after {}ms. key={}, groupId={}, retryIndex={}",
                 op, delayMillis, key, groupId, retryIndex, ex);
         retryIndex++;
-        scheduleTask(delayMillis);
+        schedule(delayMillis);
     }
 
     private void cancelTask() {
-        ScheduledFuture<?> currentTask = scheduleTask;
+        Future<?> currentTask = scheduleTask;
         if (currentTask != null && !currentTask.isDone()) {
             currentTaskId++;
             currentTask.cancel(false);

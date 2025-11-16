@@ -35,7 +35,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -76,7 +76,7 @@ public class DistributedLockImpl implements DistributedLock {
 
     private Op currentOp;
 
-    private ScheduledFuture<?> expireTask;
+    private Future<?> expireTask;
 
     private final LinkedList<Runnable> sequentialTasks = new LinkedList<>();
     private boolean running;
@@ -151,7 +151,7 @@ public class DistributedLockImpl implements DistributedLock {
         private final FutureCallback<?> callback;
         private final long tryLockTimeoutMillis;
         private final long leaseMillis;
-        private ScheduledFuture<?> tryLockTimeoutTask;
+        private Future<?> tryLockTimeoutTask;
 
         private final int opType;
         private static final int OP_TYPE_TRY_LOCK = 1;

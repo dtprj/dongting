@@ -25,8 +25,8 @@ import com.github.dtprj.dongting.raft.RaftException;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -214,18 +214,22 @@ public class LockManager {
         h.lock.processLockPush(bizCode, req.value, req.ttlMillis);
     }
 
-    ScheduledFuture<?> scheduleTask(Runnable task, long delay, TimeUnit unit) {
-        // run task in executeService, don't block DtUtil.SCHEDULED_SERVICE
-        Runnable r = () -> submitTask(task);
-        return DtUtil.SCHEDULED_SERVICE.schedule(r, delay, unit);
+    Future<?> scheduleTask(Runnable task, long delay, TimeUnit unit) {
+        if (delay == 0) {
+            return submitTask(task);
+        } else {
+            // run task in executeService, don't block DtUtil.SCHEDULED_SERVICE
+            Runnable r = () -> submitTask(task);
+            return DtUtil.SCHEDULED_SERVICE.schedule(r, delay, unit);
+        }
     }
 
-    void submitTask(Runnable task) {
+    Future<?> submitTask(Runnable task) {
         try {
-            executeService.submit(task);
+            return executeService.submit(task);
         } catch (RejectedExecutionException e) {
             log.error("task submit rejected, run it in fallback executor", e);
-            getFallbackExecutor().submit(task);
+            return getFallbackExecutor().submit(task);
         }
     }
 }
