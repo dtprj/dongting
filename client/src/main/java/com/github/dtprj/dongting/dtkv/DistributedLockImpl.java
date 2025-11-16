@@ -239,7 +239,7 @@ public class DistributedLockImpl implements DistributedLock {
                     markFinishInLock(null, new NetException("lock is closed"));
                 } else if (ex != null) {
                     // try lock rpc response
-                    log.error("{} rpc error", opTypeStr(), ex);
+                    log.error("{} rpc error. {}", opTypeStr(), ex.toString());
                     markFinishInLock(null, ex);
                 } else {
                     int bizCode = p.bizCode;
