@@ -46,7 +46,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private boolean rpcInProgress;
 
     private volatile int closed;
-    private AtomicIntegerFieldUpdater<AutoRenewalLockImpl> closedUpdater = AtomicIntegerFieldUpdater
+    private static final AtomicIntegerFieldUpdater<AutoRenewalLockImpl> closedUpdater = AtomicIntegerFieldUpdater
             .newUpdater(AutoRenewalLockImpl.class, "closed");
 
     private AutoRenewTask currentTask;
@@ -214,10 +214,14 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
     public void closeImpl() {
         if (closedUpdater.compareAndSet(this, 0, 1)) {
+            // if we call KvClient.close(), it will close all locks and then close NioClient immediately,
+            // the unlock operation in DistributedLockImpl.closeImpl() may fail if we call it in the callback
+            // of fireCallbackTask, so we move it out of the callback.
+            lock.closeImpl(); // the method is thread safe
+
             // use fireCallbackTask to ensure sequential execution with other callbacks
             lock.fireCallbackTask(() -> {
                 cancelTask();
-                lock.closeImpl();
                 changeStateIfNeeded(false);
             });
         }

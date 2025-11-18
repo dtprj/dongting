@@ -236,7 +236,8 @@ public class DistributedLockImpl implements DistributedLock {
                     return;
                 }
                 if (state == STATE_CLOSED) {
-                    markFinishInLock(null, new NetException("lock is closed"));
+                    // we check finish flag first, so this should not happen
+                    markFinishInLock(null, new DtBugException("lock is closed"));
                 } else if (ex != null) {
                     // try lock rpc response
                     log.error("{} rpc error. {}", opTypeStr(), ex.toString());
