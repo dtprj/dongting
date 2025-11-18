@@ -68,7 +68,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     private class AutoRenewTask implements Runnable {
         private int retryIndex;
         private Future<?> scheduleFuture;
-        private boolean thisTaskGetLock;
+        private boolean thisTaskGetLock; // false -> true, and never change to false
 
         private static final int MIN_VALID_REST_LEASE = 1;
 
@@ -83,13 +83,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
             scheduleFuture = null;
             long leaseRest = lock.getLeaseRestMillis();
             if (leaseRest > MIN_VALID_REST_LEASE) {
-                if (!thisTaskGetLock) {
-                    thisTaskGetLock = true;
-                    changeStateIfNeeded(true);
-                    schedule(leaseMillis / 2);
-                } else {
-                    sendRpc(false);
-                }
+                sendRpc(false);
             } else {
                 if (thisTaskGetLock) {
                     // Do nothing, break execute chain of this task. Wait for expire event to start a new task.
@@ -139,7 +133,13 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
                 schedule(delayMillis);
             } else {
                 retryIndex = 0;
-                run();
+                if (lock.getLeaseRestMillis() > MIN_VALID_REST_LEASE) {
+                    thisTaskGetLock = true;
+                    changeStateIfNeeded(true);
+                    schedule(leaseMillis / 2);
+                } else {
+                    run();
+                }
             }
         }
 
@@ -188,7 +188,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
     private void cancelTask() {
         if (currentTask.scheduleFuture != null && !currentTask.scheduleFuture.isDone()) {
-            currentTask.scheduleFuture.cancel(true);
+            currentTask.scheduleFuture.cancel(false);
         }
         currentTask = null;
     }
