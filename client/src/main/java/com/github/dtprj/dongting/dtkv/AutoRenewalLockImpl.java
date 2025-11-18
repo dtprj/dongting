@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
  * @author huangli
@@ -42,8 +43,11 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     // DistributedLockImpl ensures sequential run of callbacks (include onExpire), and the invocation of
     // a callback is happened-before the next one, so no extra synchronization is needed except for closeImpl() method.
     private boolean locked;
-    private boolean closed;
     private boolean rpcInProgress;
+
+    private volatile int closed;
+    private AtomicIntegerFieldUpdater<AutoRenewalLockImpl> closedUpdater = AtomicIntegerFieldUpdater
+            .newUpdater(AutoRenewalLockImpl.class, "closed");
 
     private AutoRenewTask currentTask;
 
@@ -74,7 +78,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
         @Override
         public void run() {
-            if (closed) {
+            if (closed > 0) {
                 return;
             }
             if (currentTask != this) {
@@ -109,7 +113,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
         private void rpcCallback(boolean tryLock, Throwable ex) {
             rpcInProgress = false;
-            if (closed) {
+            if (closed > 0) {
                 return;
             }
             if (currentTask != this) {
@@ -166,7 +170,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     private void onExpire() {
-        if (closed) {
+        if (closed > 0) {
             return;
         }
         if (!locked) {
@@ -209,15 +213,13 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     public void closeImpl() {
-        // use fireCallbackTask to ensure sequential execution with other callbacks
-        lock.fireCallbackTask(() -> {
-            if (closed) {
-                return;
-            }
-            closed = true;
-            cancelTask();
-            lock.closeImpl();
-            changeStateIfNeeded(false);
-        });
+        if (closedUpdater.compareAndSet(this, 0, 1)) {
+            // use fireCallbackTask to ensure sequential execution with other callbacks
+            lock.fireCallbackTask(() -> {
+                cancelTask();
+                lock.closeImpl();
+                changeStateIfNeeded(false);
+            });
+        }
     }
 }
