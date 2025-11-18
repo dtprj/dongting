@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -42,11 +43,9 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     // a callback is happened-before the next one, so no extra synchronization is needed except for closeImpl() method.
     private boolean locked;
     private boolean closed;
+    private boolean rpcInProgress;
 
-    private int retryIndex = 0;
-
-    private int currentTaskId;
-    private Future<?> scheduleTask;
+    private AutoRenewTask currentTask;
 
     AutoRenewalLockImpl(int groupId, KvClient client, ByteArray key, long leaseMillis, AutoRenewalLockListener listener,
                         DistributedLockImpl lock) {
@@ -62,71 +61,90 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         this.lockManager = client.lockManager;
         this.retryIntervals = client.config.autoRenewalRetryMillis;
         lock.expireListener = this::onExpire;
-        schedule(0);
+        this.currentTask = new AutoRenewTask();
+        this.currentTask.scheduleFuture = lockManager.submitTask(currentTask);
     }
 
-    private void onExpire() {
-        if (closed) {
-            return;
-        }
-        cancelTask();
-        doRunTask(true);
-    }
+    private class AutoRenewTask implements Runnable {
+        private int retryIndex;
+        private Future<?> scheduleFuture;
+        private boolean thisTaskGetLock;
 
-    private void schedule(long delayMillis) {
-        cancelTask();
-        if (closed) {
-            return;
-        }
-        int taskId = ++currentTaskId;
-        scheduleTask = lockManager.scheduleTask(() -> {
-            if (taskId != currentTaskId) {
+        private static final int MIN_VALID_REST_LEASE = 1;
+
+        @Override
+        public void run() {
+            if (closed) {
                 return;
             }
-            scheduleTask = null;
-            doRunTask(true);
-        }, delayMillis, TimeUnit.MILLISECONDS);
-    }
-
-    private void doRunTask(boolean updateLeaseImmediately) {
-        if (closed) {
-            return;
-        }
-        long leaseRest = lock.getLeaseRestMillis();
-        int taskId = currentTaskId;
-        if (leaseRest > 1) {
-            changeStateIfNeeded(true);
-            if (updateLeaseImmediately) {
-                try {
-                    lock.updateLease(leaseMillis, (v, ex) -> rpcCallback(taskId, false, ex));
-                } catch (Throwable e) {
-                    handleRpcFail(taskId, "updateLease", e);
+            if (currentTask != this) {
+                return;
+            }
+            scheduleFuture = null;
+            long leaseRest = lock.getLeaseRestMillis();
+            if (leaseRest > MIN_VALID_REST_LEASE) {
+                if (!thisTaskGetLock) {
+                    thisTaskGetLock = true;
+                    changeStateIfNeeded(true);
+                    schedule(leaseMillis / 2);
+                } else {
+                    sendRpc(false);
                 }
             } else {
-                schedule(leaseRest / 2);
-            }
-        } else {
-            changeStateIfNeeded(false);
-            try {
-                lock.tryLock(leaseMillis, leaseMillis, (result, ex) -> rpcCallback(taskId, true, ex));
-            } catch (Throwable e) {
-                handleRpcFail(taskId, "tryLock", e);
+                if (thisTaskGetLock) {
+                    // Do nothing, break execute chain of this task. Wait for expire event to start a new task.
+                    log.warn("lock lease is near to expire. key={}, restLeaseMillis={}", key, leaseRest);
+                } else {
+                    sendRpc(true);
+                }
             }
         }
-    }
 
-    private void rpcCallback(int taskId, boolean tryLock, Throwable ex) {
-        if (closed) {
-            return;
+        private void sendRpc(boolean tryLock) {
+            try {
+                rpcInProgress = true;
+                if (tryLock) {
+                    lock.tryLock(leaseMillis, leaseMillis, (result, ex) -> rpcCallback(true, ex));
+                } else {
+                    lock.updateLease(leaseMillis, (v, ex) -> rpcCallback(false, ex));
+                }
+            } catch (Throwable e) {
+                rpcCallback(tryLock, e);
+            }
         }
-        if (taskId != currentTaskId) {
-            return;
+
+        private void rpcCallback(boolean tryLock, Throwable ex) {
+            rpcInProgress = false;
+            if (closed) {
+                return;
+            }
+            if (currentTask != this) {
+                if (currentTask != null) {
+                    // ignore rpc callback action of "this" task, and run the new task
+                    currentTask.run();
+                }
+                return;
+            }
+            String op = tryLock ? "tryLock" : "updateLease";
+            if (ex != null) {
+                long delayMillis;
+                if (retryIndex < retryIntervals.length) {
+                    delayMillis = retryIntervals[retryIndex];
+                } else {
+                    delayMillis = retryIntervals[retryIntervals.length - 1];
+                }
+                log.warn("{} failed, retry after {}ms. key={}, groupId={}, retryIndex={}",
+                        op, delayMillis, key, groupId, retryIndex, ex);
+                retryIndex++;
+                schedule(delayMillis);
+            } else {
+                retryIndex = 0;
+                run();
+            }
         }
-        if (ex != null) {
-            handleRpcFail(taskId, tryLock ? "tryLock" : "updateLease", ex);
-        } else {
-            retryIndex = 0;
-            doRunTask(false);
+
+        private void schedule(long delayMillis) {
+            scheduleFuture = lockManager.scheduleTask(this, delayMillis, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -145,32 +163,34 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         } catch (Throwable e) {
             log.error("error in lock callback", e);
         }
-
     }
 
-    private void handleRpcFail(int taskId, String op, Throwable ex) {
-        if (taskId != currentTaskId) {
+    private void onExpire() {
+        if (closed) {
             return;
         }
-        long delayMillis;
-        if (retryIndex < retryIntervals.length) {
-            delayMillis = retryIntervals[retryIndex];
-        } else {
-            delayMillis = retryIntervals[retryIntervals.length - 1];
+        if (!locked) {
+            BugLog.getLog().error("lock is not locked");
+            return;
         }
-        log.warn("{} failed, retry after {}ms. key={}, groupId={}, retryIndex={}",
-                op, delayMillis, key, groupId, retryIndex, ex);
-        retryIndex++;
-        schedule(delayMillis);
+        cancelTask();
+        changeStateIfNeeded(false);
+
+        currentTask = new AutoRenewTask();
+        //noinspection StatementWithEmptyBody
+        if (rpcInProgress) {
+            // If rpc is in progress, any rpc operation will be rejected in DistributedLockImpl,
+            // so we run new task in rpcCallback method in the old task.
+        } else {
+            currentTask.run();
+        }
     }
 
     private void cancelTask() {
-        Future<?> currentTask = scheduleTask;
-        if (currentTask != null && !currentTask.isDone()) {
-            currentTaskId++;
-            currentTask.cancel(false);
+        if (currentTask.scheduleFuture != null && !currentTask.scheduleFuture.isDone()) {
+            currentTask.scheduleFuture.cancel(true);
         }
-        scheduleTask = null;
+        currentTask = null;
     }
 
     @Override
