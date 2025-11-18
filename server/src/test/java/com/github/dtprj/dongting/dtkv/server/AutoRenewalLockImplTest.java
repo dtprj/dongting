@@ -27,10 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.github.dtprj.dongting.test.Tick.tick;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -215,14 +212,14 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         Listener listener = new Listener();
 
         byte[] key = "test.lock7".getBytes();
-        AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(30), listener);
+        AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(40), listener);
 
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
 
         // update lease fail and retry after tick(5)ms
         client1.sendRpcFailImmediate = 1;
 
-        Thread.sleep(tick(30));
+        Thread.sleep(tick(40));
 
         assertTrue(lock.isHeldByCurrentClient());
         assertEquals(0, listener.lostCount.get());

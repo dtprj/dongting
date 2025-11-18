@@ -22,19 +22,15 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.github.dtprj.dongting.test.Tick.tick;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -526,22 +522,19 @@ class DistributedLockImplTest extends ServerClientLockTest {
 
     // ========== P1: Exception scenarios ==========
 
-    @Test
-    public void testNetworkTimeout() throws Exception {
-        server.stopServers();
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testNetworkTimeout(boolean failImmediate) {
+        DistributedLock lock = client1.createLock(groupId, "test-lock-22".getBytes());
         try {
-            DistributedLock lock = client1.createLock(groupId, "test-lock-22".getBytes());
-            try {
-                assertThrows(NetException.class,
-                        () -> lock.tryLock(60000, 0),
-                        "should throw NetException when server is down");
-            } finally {
-                lock.close();
+            if (failImmediate) {
+                client1.sendRpcFailImmediate = 1;
+            } else {
+                client1.sendRpcFailWithCallback = 1;
             }
+            assertThrows(NetException.class, () -> lock.tryLock(60000, 1000));
         } finally {
-            // restart server
-            server = new Server();
-            server.startServers();
+            lock.close();
         }
     }
 
