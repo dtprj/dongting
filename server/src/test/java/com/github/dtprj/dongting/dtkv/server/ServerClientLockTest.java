@@ -17,12 +17,16 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.DistributedLockImpl;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
+import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.LockManager;
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftClientConfig;
@@ -72,11 +76,22 @@ public class ServerClientLockTest {
 
     protected static class Client extends KvClient {
 
-        protected int sendRpcFailImmediate = 0;
-        protected int sendRpcFailWithCallback = 0;
+        protected int mockCount = 0;
+        protected boolean mockFailSync;
+        protected boolean mockFailInCallback;
+        protected int mockRpcResult = KvCodes.SUCCESS;
+        protected long mockDelayMillis = 0;
 
         public Client(KvClientConfig kvClientConfig, RaftClientConfig raftClientConfig, NioClientConfig nioClientConfig) {
             super(kvClientConfig, raftClientConfig, nioClientConfig);
+        }
+
+        public void reset() {
+            mockCount = 0;
+            mockFailSync = false;
+            mockFailInCallback = false;
+            mockRpcResult = KvCodes.SUCCESS;
+            mockDelayMillis = 0;
         }
 
         @Override
@@ -87,16 +102,28 @@ public class ServerClientLockTest {
                     return new DistributedLockImpl(lockId, this, groupId, key, expireListener) {
                         @Override
                         protected void sendRpc(WritePacket packet, RpcCallback<Void> callback) {
-                            if (sendRpcFailImmediate > 0) {
-                                sendRpcFailImmediate--;
-                                throw new MockRuntimeException();
+                            if (mockCount > 0) {
+                                mockCount--;
+                                if (mockDelayMillis > 0) {
+                                    DtUtil.SCHEDULED_SERVICE.schedule(() -> {
+                                        if (mockFailInCallback) {
+                                            FutureCallback.callFail(callback, new MockRuntimeException());
+                                        } else {
+                                            ReadPacket<Void> r = new ReadPacket<>();
+                                            r.bizCode = mockRpcResult;
+                                            r.command = packet.command;
+                                            r.respCode = CmdCodes.SUCCESS;
+                                            FutureCallback.callSuccess(callback, r);
+                                        }
+                                    }, mockDelayMillis, TimeUnit.MILLISECONDS);
+                                } else if (mockFailSync) {
+                                    throw new MockRuntimeException();
+                                } else if (mockFailInCallback) {
+                                    FutureCallback.callFail(callback, new MockRuntimeException());
+                                }
+                            } else {
+                                super.sendRpc(packet, callback);
                             }
-                            if (sendRpcFailWithCallback > 0) {
-                                sendRpcFailWithCallback--;
-                                FutureCallback.callFail(callback, new MockRuntimeException());
-                                return;
-                            }
-                            super.sendRpc(packet, callback);
                         }
                     };
                 }

@@ -47,12 +47,9 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
 
     @BeforeEach
     public void beforeEach() {
-        client1.sendRpcFailImmediate = 0;
-        client1.sendRpcFailWithCallback = 0;
-        client2.sendRpcFailImmediate = 0;
-        client2.sendRpcFailWithCallback = 0;
-        client3.sendRpcFailImmediate = 0;
-        client3.sendRpcFailWithCallback = 0;
+        client1.reset();
+        client2.reset();
+        client3.reset();
     }
 
     static class Listener implements AutoRenewalLockListener {
@@ -128,7 +125,8 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
 
         // update lease will fail, and first retry fail, and second retry after tick(1000)ms
-        client1.sendRpcFailImmediate = 2;
+        client1.mockCount = 2;
+        client1.mockFailInCallback = true;
 
         WaitUtil.waitUtil(1, listener.lostCount::get);
         WaitUtil.waitUtil(2, listener.acquiredCount::get);
@@ -152,12 +150,14 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         // Only one should be holding the lock
         if (lock1.isHeldByCurrentClient()) {
             assertFalse(lock2.isHeldByCurrentClient());
-            client1.sendRpcFailImmediate = 100;
+            client1.mockCount = 100;
+            client1.mockFailSync = true;
             WaitUtil.waitUtil(1, listener1.lostCount::get);
             WaitUtil.waitUtil(1, listener2.acquiredCount::get);
         } else {
             assertFalse(lock1.isHeldByCurrentClient());
-            client2.sendRpcFailImmediate = 100;
+            client2.mockCount = 100;
+            client2.mockFailSync = true;
             WaitUtil.waitUtil(1, listener2.lostCount::get);
             WaitUtil.waitUtil(1, listener1.acquiredCount::get);
         }
@@ -217,12 +217,27 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
 
         // update lease fail and retry after tick(5)ms
-        client1.sendRpcFailImmediate = 1;
+        client1.mockCount = 1;
+        client1.mockFailSync = true;
 
         Thread.sleep(tick(40));
 
         assertTrue(lock.isHeldByCurrentClient());
         assertEquals(0, listener.lostCount.get());
+        lock.close();
+    }
+
+    @Test
+    void testExpireDuringRpcInProgress() {
+        Listener listener = new Listener();
+
+        byte[] key = "testExpireDuringRpcInProgress".getBytes();
+        AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(20), listener);
+        WaitUtil.waitUtil(1, listener.acquiredCount::get);
+        client1.mockCount = 1;
+        client1.mockDelayMillis = tick(20);
+        WaitUtil.waitUtil(1, listener.lostCount::get);
+        WaitUtil.waitUtil(2, listener.acquiredCount::get);
         lock.close();
     }
 

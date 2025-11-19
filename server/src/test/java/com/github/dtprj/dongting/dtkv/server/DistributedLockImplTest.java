@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -45,6 +46,13 @@ class DistributedLockImplTest extends ServerClientLockTest {
     @AfterAll
     public static void teardown() {
         stopServerClient();
+    }
+
+    @BeforeEach
+    public void beforeEach() {
+        client1.reset();
+        client2.reset();
+        client3.reset();
     }
 
     // ========== P0: Basic lock/unlock operations ==========
@@ -527,10 +535,11 @@ class DistributedLockImplTest extends ServerClientLockTest {
     public void testNetworkTimeout(boolean failImmediate) {
         DistributedLock lock = client1.createLock(groupId, "test-lock-22".getBytes());
         try {
+            client1.mockCount = 1;
             if (failImmediate) {
-                client1.sendRpcFailImmediate = 1;
+                client1.mockFailSync = true;
             } else {
-                client1.sendRpcFailWithCallback = 1;
+                client1.mockFailInCallback = true;
             }
             assertThrows(NetException.class, () -> lock.tryLock(60000, 1000));
         } finally {
