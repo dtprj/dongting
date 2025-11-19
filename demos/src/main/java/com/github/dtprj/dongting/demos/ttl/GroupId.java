@@ -21,5 +21,5 @@ package com.github.dtprj.dongting.demos.ttl;
 interface GroupId {
     // the group id is used to auto generate storage dir name in target dir (see DemoKvServer),
     // use different group id to ensure different demos will use different storage dir.
-    int GROUP_ID = 4;
+    int GROUP_ID = 5;
 }
