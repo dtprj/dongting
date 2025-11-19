@@ -8,8 +8,9 @@ and low-level RPC. Features are as follows:
 * (Under testing) Multi RAFT group support. Running multiple RAFT Groups within a same process. Dynamic addition, 
   removal, and updating of RAFT Groups, allowing your cluster to scale dynamically. 
   The state machine runs in the raft framework can be customized.
+* (Under testing) Tree-based distribute configuration server with linearizability named DtKV. Supports general
+  K/V operations, watch, ttl, and distributed lock.
 * (Under testing) Low-level RPC. Used by Donging itself.
-* (Under testing) Distribute configuration server with linearizability (DtKV).
 * (Planned) MQ (message queues) with linearizability. Use RAFT log as message queue log.
 
 ## 10X Throughput
@@ -112,15 +113,22 @@ The [watch](demos/src/main/java/com/github/dtprj/dongting/demos/watch) directory
 using a client to monitor changes to a specified key, while also demonstrating how to monitor 
 a directory, where the client receives notifications for any changes to its child nodes.
 
+The [ttl](demos/src/main/java/com/github/dtprj/dongting/demos/ttl) directory contains an example of using a client to 
+set a key with a TTL, after the TTL expires, the key will be deleted automatically.
+
+The [lock](demos/src/main/java/com/github/dtprj/dongting/demos/lock) directory contains examples of using distributed 
+locks. Distributed locks can be manually operated with tryLock/unlock, or can be fully automated with 
+tryLock/updateLease (which can be used for leader election in business code).
+
+
 ## Under development
 
 Unfortunately, the project is still under development. All current demos can run, 
 but the entire project requires further internal testing and is not production-ready.
-The latest version is v0.8.0-ALPHA, you can check out it by git tag.
+The latest version is v0.8.x-ALPHA, you can check out it by git tag.
 
 Additionally, the following features have not yet been implemented:
 
-* (DtKV) implement distribute lock.
 * (MQ) message queues.
 
 ## About me

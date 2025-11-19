@@ -2,12 +2,14 @@ In the current version (0.8.x), Dongting provides a general Raft framework and a
 called `DtKV`. `DtKV` supports a tree-structured K-V configuration, making it suitable as a distributed 
 configuration center. The current `DtKV` supports the following commands:
 
-* get and batchGet
-* put and batchPut
-* remove and batchRemove
+* get/batchGet
+* put/batchPut
+* remove/batchRemove
 * list
 * mkdir
 * compareAndSet
+* putTemp/makeTempDir (node with ttl)
+* createLock/createAutoRenewalLock
 
 DtKV uses `.` as a separator for keys. For example, you can access `key1` under the `dir1` directory
 using `"dir1.key1"`. To access the root directory, you can use null or an empty string.
