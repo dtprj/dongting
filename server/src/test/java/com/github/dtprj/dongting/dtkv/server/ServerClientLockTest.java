@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.dtkv.DistributedLockImpl;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
@@ -81,6 +82,7 @@ public class ServerClientLockTest {
         protected boolean mockFailInCallback;
         protected int mockRpcResult = KvCodes.SUCCESS;
         protected long mockDelayMillis = 0;
+        protected long autoRenewalMinValidLeaseMillis = 0;
 
         public Client(KvClientConfig kvClientConfig, RaftClientConfig raftClientConfig, NioClientConfig nioClientConfig) {
             super(kvClientConfig, raftClientConfig, nioClientConfig);
@@ -92,6 +94,7 @@ public class ServerClientLockTest {
             mockFailInCallback = false;
             mockRpcResult = KvCodes.SUCCESS;
             mockDelayMillis = 0;
+            autoRenewalMinValidLeaseMillis = 0;
         }
 
         @Override
@@ -126,6 +129,16 @@ public class ServerClientLockTest {
                             }
                         }
                     };
+                }
+
+                @Override
+                protected long getAutoRenewalMinValidLeaseMillis() {
+                    if (autoRenewalMinValidLeaseMillis == 0) {
+                        return super.getAutoRenewalMinValidLeaseMillis();
+                    } else {
+                        VersionFactory.getInstance().fullFence();
+                        return autoRenewalMinValidLeaseMillis;
+                    }
                 }
             };
         }

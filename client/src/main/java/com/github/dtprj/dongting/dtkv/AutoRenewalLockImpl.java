@@ -74,8 +74,6 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         private Future<?> scheduleFuture;
         private boolean thisTaskGetLock; // false -> true, and never change to false
 
-        private static final int MIN_VALID_REST_LEASE = 1;
-
         @Override
         public void run() {
             if (closed > 0) {
@@ -86,7 +84,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
             }
             scheduleFuture = null;
             long leaseRest = lock.getLeaseRestMillis();
-            if (leaseRest > MIN_VALID_REST_LEASE) {
+            if (leaseRest > lockManager.getAutoRenewalMinValidLeaseMillis()) {
                 sendRpc(false);
             } else {
                 if (thisTaskGetLock) {
@@ -137,7 +135,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
                 schedule(delayMillis);
             } else {
                 retryIndex = 0;
-                if (lock.getLeaseRestMillis() > MIN_VALID_REST_LEASE) {
+                if (lock.getLeaseRestMillis() > lockManager.getAutoRenewalMinValidLeaseMillis()) {
                     thisTaskGetLock = true;
                     changeStateIfNeeded(true);
                     schedule(leaseMillis / 2);

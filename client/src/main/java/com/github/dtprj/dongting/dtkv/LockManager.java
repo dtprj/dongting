@@ -141,6 +141,11 @@ public class LockManager {
         return new DistributedLockImpl(lockId, this, groupId, key, expireListener);
     }
 
+    // for unit test
+    protected long getAutoRenewalMinValidLeaseMillis() {
+        return 1;
+    }
+
     void removeLock(DistributedLockImpl lock) {
         managerOpLock.lock();
         try {

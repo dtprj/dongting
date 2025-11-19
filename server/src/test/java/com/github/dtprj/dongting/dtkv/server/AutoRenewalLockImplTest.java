@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.dtkv.AutoRenewalLock;
 import com.github.dtprj.dongting.dtkv.AutoRenewalLockListener;
 import com.github.dtprj.dongting.test.WaitUtil;
@@ -230,12 +231,30 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
     @Test
     void testExpireDuringRpcInProgress() {
         Listener listener = new Listener();
-
         byte[] key = "testExpireDuringRpcInProgress".getBytes();
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(20), listener);
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
         client1.mockCount = 1;
         client1.mockDelayMillis = tick(20);
+        WaitUtil.waitUtil(1, listener.lostCount::get);
+        WaitUtil.waitUtil(2, listener.acquiredCount::get);
+        lock.close();
+    }
+
+    @Test
+    void testRestLeaseTooSmall() {
+        Listener listener = new Listener(){
+            @Override
+            public void onLost() {
+                super.onLost();
+                client1.autoRenewalMinValidLeaseMillis = 1;
+            }
+        };
+        byte[] key = "testRestLeaseTooSmall".getBytes();
+        AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(20), listener);
+        WaitUtil.waitUtil(1, listener.acquiredCount::get);
+        client1.autoRenewalMinValidLeaseMillis = 10000;
+        VersionFactory.getInstance().fullFence();
         WaitUtil.waitUtil(1, listener.lostCount::get);
         WaitUtil.waitUtil(2, listener.acquiredCount::get);
         lock.close();
