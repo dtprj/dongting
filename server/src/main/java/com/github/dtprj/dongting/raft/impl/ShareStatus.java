@@ -20,9 +20,7 @@ package com.github.dtprj.dongting.raft.impl;
  */
 public class ShareStatus {
     public long lastApplied;
-    public long lastApplyNanos;
     public long leaseEndNanos;
-    public long applyLagNanos;
     public boolean groupReady;
     public RaftRole role;
     public RaftMember currentLeader;

@@ -140,7 +140,7 @@ public final class RaftUtil {
         raftStatus.leaderCommit = 0;
 
         raftStatus.commitHistory = new IndexedQueue<>(16);
-        raftStatus.setApplyLagNanos(TimeUnit.DAYS.toNanos(1));
+        raftStatus.applyLagNanos = TimeUnit.DAYS.toNanos(1);
 
         // wake up replicate fiber if it is waiting on this condition
         raftStatus.needRepCondition.signalAll();

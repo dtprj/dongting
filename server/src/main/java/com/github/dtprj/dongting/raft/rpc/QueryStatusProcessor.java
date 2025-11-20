@@ -63,9 +63,9 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         resp.term = raftStatus.currentTerm;
         resp.commitIndex = raftStatus.commitIndex;
         resp.lastApplied = raftStatus.getLastApplied();
-        resp.lastApplyTimeToNowMillis = (raftStatus.ts.nanoTime - raftStatus.getLastApplyNanos()) / 1_000_000L;
+        resp.lastApplyTimeToNowMillis = (raftStatus.ts.nanoTime - raftStatus.lastApplyNanos) / 1_000_000L;
         resp.lastLogIndex = raftStatus.lastLogIndex;
-        resp.applyLagMillis = raftStatus.getApplyLagNanos() / 1_000_000L;
+        resp.applyLagMillis = raftStatus.applyLagNanos / 1_000_000L;
         resp.members = raftStatus.nodeIdOfMembers;
         resp.observers = raftStatus.nodeIdOfObservers;
         resp.preparedMembers = raftStatus.nodeIdOfPreparedMembers;
