@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
+import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
@@ -30,6 +31,8 @@ import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
@@ -149,7 +152,9 @@ public class RaftBenchmark extends BenchBase {
 
         clients = new KvClient[threadCount];
         for (int i = 0; i < threadCount; i++) {
-            KvClient c = new KvClient();
+            RaftClientConfig rcc = new RaftClientConfig();
+            rcc.useBizExecutor = false;
+            KvClient c = new KvClient(new KvClientConfig(), rcc, new NioClientConfig());
             c.getRaftClient().getNioClient().getConfig().maxOutRequests = CLIENT_MAX_OUT_REQUESTS / threadCount;
             c.start();
             c.getRaftClient().clientAddNode(serverNodes);
