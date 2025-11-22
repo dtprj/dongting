@@ -31,7 +31,6 @@ public abstract class MpscLinkedQueue<E> {
     // 128 bytes padding to avoid false share
     long p00, p01, p02, p03, p04, p05, p06, p07, p08, p09, p0a, p0b, p0c, p0d, p0e, p0f;
 
-    protected boolean shutdown;
     protected volatile LinkedNode<E> tail;
 
     long p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p1a, p1b, p1c, p1d, p1e, p1f;
@@ -75,9 +74,9 @@ public abstract class MpscLinkedQueue<E> {
     }
 
     private boolean offer0(LinkedNode<E> newTail) {
-        LinkedNode<E> oldTail = getAndSetTail(newTail);
-        if (shutdown && newTail != SHUTDOWN_NODE) {
-            // don't keep reference of newProduceNode
+        // need getAndSetProducerNodePlain, but no such method
+        LinkedNode<E> oldTail = getAndSetTailAcquire(newTail);
+        if (oldTail == SHUTDOWN_NODE && newTail != SHUTDOWN_NODE) {
             //noinspection unchecked
             tail = SHUTDOWN_NODE;
 
@@ -88,13 +87,12 @@ public abstract class MpscLinkedQueue<E> {
         return true;
     }
 
-    protected abstract LinkedNode<E> getAndSetTail(LinkedNode<E> nextNode);
+    protected abstract LinkedNode<E> getAndSetTailAcquire(LinkedNode<E> nextNode);
 
     protected abstract LinkedNode<E> newNode(E value);
 
     @SuppressWarnings("unchecked")
     public void shutdownByConsumer() {
-        shutdown = true;
         offer0(SHUTDOWN_NODE);
     }
 }
