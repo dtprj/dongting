@@ -16,16 +16,27 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 /**
  * @author huangli
  */
-class ReqContextImpl extends PacketInfo implements ReqContext {
-    private final ReadPacket<?> req;
+class ReqContextImpl extends PacketInfo implements ReqContext, Runnable {
+    private static final DtLog log = DtLogs.getLogger(ReqContextImpl.class);
 
-    ReqContextImpl(DtChannelImpl dtc, ReadPacket<?> req, DtTime timeout) {
+    private final ReadPacket<?> req;
+    private final ReqProcessor<?> processor;
+    private final int reqPacketSize;
+    private final boolean reqFlowControl;
+
+    ReqContextImpl(DtChannelImpl dtc, ReadPacket<?> req, DtTime timeout, ReqProcessor<?> processor,
+                   int reqPacketSize, boolean reqFlowControl) {
         super(dtc, null, timeout);
         this.req = req;
+        this.processor = processor;
+        this.reqPacketSize = reqPacketSize;
+        this.reqFlowControl = reqFlowControl;
     }
 
     @Override
@@ -65,6 +76,39 @@ class ReqContextImpl extends PacketInfo implements ReqContext {
 
             worker.workerStatus.ioWorkerQueue.writeFromBizThread(this);
             worker.wakeup();
+        }
+    }
+
+    @Override
+    public void run() {
+        WritePacket resp = null;
+        @SuppressWarnings("rawtypes") ReadPacket req = this.req;
+        DtChannelImpl dtc = this.dtc;
+        try {
+            if (DtChannelImpl.timeout(req, this, null)) {
+                return;
+            }
+            //noinspection unchecked
+            resp = processor.process(req, this);
+        } catch (NetCodeException e) {
+            log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.command, e.getCode(), e.getMessage());
+            if (req.packetType == PacketType.TYPE_REQ) {
+                resp = new EmptyBodyRespPacket(e.getCode());
+                resp.msg = e.toString();
+            }
+        } catch (Throwable e) {
+            log.warn("ReqProcessor.process fail, command={}", req.command, e);
+            if (req.packetType == PacketType.TYPE_REQ) {
+                resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+                resp.msg = e.toString();
+            }
+        } finally {
+            if (reqFlowControl) {
+                dtc.releasePending(reqPacketSize);
+            }
+        }
+        if (resp != null) {
+            writeRespInBizThreads(resp);
         }
     }
 }

@@ -347,7 +347,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             flowControl = true;
         }
 
-        ReqContextImpl reqContext = new ReqContextImpl(this, req, new DtTime(roundTime, req.timeout, TimeUnit.NANOSECONDS));
+        ReqContextImpl reqContext = new ReqContextImpl(this, req,
+                new DtTime(roundTime, req.timeout, TimeUnit.NANOSECONDS), p, currentReadPacketSize, flowControl);
 
         Executor executor;
         if (p.useDefaultExecutor) {
@@ -385,8 +386,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             }
         } else {
             try {
-                executor.execute(new ProcessInBizThreadTask(
-                        req, p, currentReadPacketSize, this, flowControl, reqContext));
+                executor.execute(reqContext);
             } catch (RejectedExecutionException e) {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
                         nioConfig.maxInRequests);
@@ -502,57 +502,4 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return remoteUuid;
     }
 
-}
-
-@SuppressWarnings({"rawtypes", "unchecked"})
-class ProcessInBizThreadTask implements Runnable {
-    private static final DtLog log = DtLogs.getLogger(ProcessInBizThreadTask.class);
-    private final ReadPacket req;
-    private final ReqProcessor processor;
-    private final int packetSize;
-    private final DtChannelImpl dtc;
-    private final boolean flowControl;
-    private final ReqContext reqContext;
-
-    ProcessInBizThreadTask(ReadPacket req, ReqProcessor processor,
-                           int packetSize, DtChannelImpl dtc, boolean flowControl, ReqContext reqContext) {
-        this.req = req;
-        this.processor = processor;
-        this.packetSize = packetSize;
-        this.dtc = dtc;
-        this.flowControl = flowControl;
-        this.reqContext = reqContext;
-    }
-
-    @Override
-    public void run() {
-        WritePacket resp = null;
-        ReadPacket req = this.req;
-        DtChannelImpl dtc = this.dtc;
-        try {
-            if (DtChannelImpl.timeout(req, reqContext, null)) {
-                return;
-            }
-            resp = processor.process(req, reqContext);
-        } catch (NetCodeException e) {
-            log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.command, e.getCode(), e.getMessage());
-            if (req.packetType == PacketType.TYPE_REQ) {
-                resp = new EmptyBodyRespPacket(e.getCode());
-                resp.msg = e.toString();
-            }
-        } catch (Throwable e) {
-            log.warn("ReqProcessor.process fail, command={}", req.command, e);
-            if (req.packetType == PacketType.TYPE_REQ) {
-                resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.msg = e.toString();
-            }
-        } finally {
-            if (flowControl) {
-                dtc.releasePending(packetSize);
-            }
-        }
-        if (resp != null) {
-            reqContext.writeRespInBizThreads(resp);
-        }
-    }
 }
