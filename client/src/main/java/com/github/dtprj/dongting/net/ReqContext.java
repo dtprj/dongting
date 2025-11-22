@@ -20,50 +20,12 @@ import com.github.dtprj.dongting.common.DtTime;
 /**
  * @author huangli
  */
-public class ReqContext {
-    private final DtChannelImpl dtc;
-    private final ReadPacket<?> req;
-    private final DtTime timeout;
+public interface ReqContext {
 
-    ReqContext(DtChannelImpl dtc, ReadPacket<?> req, DtTime timeout) {
-        this.dtc = dtc;
-        this.req = req;
-        this.timeout = timeout;
-    }
+    DtTime getTimeout();
 
-    public DtTime getTimeout() {
-        return timeout;
-    }
-
-    public DtChannel getDtChannel() {
-        return dtc;
-    }
+    DtChannel getDtChannel();
 
     // invoke by other threads
-    public void writeRespInBizThreads(WritePacket resp) {
-        resp.seq = req.seq;
-        resp.command = req.command;
-        resp.packetType = PacketType.TYPE_RESP;
-
-        PacketInfo data = new PacketInfo(dtc, resp, timeout);
-        NioWorker worker = dtc.workerStatus.worker;
-        if (Thread.currentThread() == worker.thread) {
-            dtc.subQueue.enqueue(data);
-            worker.markWakeupInIoThread();
-        } else {
-            if (dtc.isClosed()) {
-                resp.clean();
-                // not restrict, but we will check again in io thread
-                return;
-            }
-            if (req.responseHasWrite) {
-                // this check is not thread safe
-                throw new IllegalStateException("the response has been written");
-            }
-            req.responseHasWrite = true;
-
-            worker.workerStatus.ioWorkerQueue.writeFromBizThread(data);
-            worker.wakeup();
-        }
-    }
+    void writeRespInBizThreads(WritePacket resp);
 }

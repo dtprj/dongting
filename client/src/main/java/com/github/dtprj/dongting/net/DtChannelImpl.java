@@ -347,7 +347,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             flowControl = true;
         }
 
-        ReqContext reqContext = new ReqContext(this, req, new DtTime(roundTime, req.timeout, TimeUnit.NANOSECONDS));
+        ReqContextImpl reqContext = new ReqContextImpl(this, req, new DtTime(roundTime, req.timeout, TimeUnit.NANOSECONDS));
 
         Executor executor;
         if (p.useDefaultExecutor) {
