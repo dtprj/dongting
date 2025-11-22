@@ -20,15 +20,12 @@ import com.github.dtprj.dongting.common.DtTime;
 /**
  * @author huangli
  */
-class ReqContextImpl implements ReqContext {
-    private final DtChannelImpl dtc;
+class ReqContextImpl extends PacketInfo implements ReqContext {
     private final ReadPacket<?> req;
-    private final DtTime timeout;
 
     ReqContextImpl(DtChannelImpl dtc, ReadPacket<?> req, DtTime timeout) {
-        this.dtc = dtc;
+        super(dtc, null, timeout);
         this.req = req;
-        this.timeout = timeout;
     }
 
     @Override
@@ -48,10 +45,11 @@ class ReqContextImpl implements ReqContext {
         resp.command = req.command;
         resp.packetType = PacketType.TYPE_RESP;
 
-        PacketInfo data = new PacketInfo(dtc, resp, timeout);
+        this.packet = resp;
+
         NioWorker worker = dtc.workerStatus.worker;
         if (Thread.currentThread() == worker.thread) {
-            dtc.subQueue.enqueue(data);
+            dtc.subQueue.enqueue(this);
             worker.markWakeupInIoThread();
         } else {
             if (dtc.isClosed()) {
@@ -65,7 +63,7 @@ class ReqContextImpl implements ReqContext {
             }
             req.responseHasWrite = true;
 
-            worker.workerStatus.ioWorkerQueue.writeFromBizThread(data);
+            worker.workerStatus.ioWorkerQueue.writeFromBizThread(this);
             worker.wakeup();
         }
     }

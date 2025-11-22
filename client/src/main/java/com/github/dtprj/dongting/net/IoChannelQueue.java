@@ -90,7 +90,7 @@ class IoChannelQueue {
 
         // the subQueueBytes is not accurate
         // can't invoke actualSize() here because seq and timeout field is not set yet
-        subQueueBytes += packetInfo.estimateSize;
+        subQueueBytes += packetInfo.packet.calcMaxPacketSize();
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
@@ -154,7 +154,7 @@ class IoChannelQueue {
                 if (encodeResult == ENCODE_NOT_FINISH) {
                     if (buf.position() == 0) {
                         workerStatus.addPacketsToWrite(-1);
-                        subQueueBytes = Math.max(0, subQueueBytes - pi.estimateSize);
+                        subQueueBytes = Math.max(0, subQueueBytes - pi.packet.calcMaxPacketSize());
                         encodeContext.reset();
                         Throwable ex = new NetException("encode fail when buffer is empty");
                         callFail(pi, true, ex);
@@ -184,7 +184,7 @@ class IoChannelQueue {
                             callFail(pi, false, new NetTimeoutException(msg));
                         }
 
-                        subQueueBytes = Math.max(0, subQueueBytes - pi.estimateSize);
+                        subQueueBytes = Math.max(0, subQueueBytes - pi.packet.calcMaxPacketSize());
 
                         pi.packet.clean();
                     } finally {

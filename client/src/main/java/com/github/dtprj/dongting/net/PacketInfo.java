@@ -23,10 +23,8 @@ import com.github.dtprj.dongting.common.DtTime;
 class PacketInfo {
     DtChannelImpl dtc;
 
-    final WritePacket packet;
+    WritePacket packet;
     final DtTime timeout;
-
-    final int estimateSize;
 
     long perfTimeOrAddOrder;
 
@@ -34,6 +32,5 @@ class PacketInfo {
         this.dtc = dtc;
         this.packet = packet;
         this.timeout = timeout;
-        this.estimateSize = packet.calcMaxPacketSize();
     }
 }
