@@ -70,10 +70,17 @@ class IoChannelQueue {
         this.registerForWrite = registerForWrite;
     }
 
+    private void callFail(PacketInfo pi, boolean callClean, Throwable ex) {
+        if (pi instanceof PacketInfoReq) {
+            PacketInfoReq req = (PacketInfoReq) pi;
+            req.callFail(callClean, ex);
+        }
+    }
+
     public void enqueue(PacketInfo packetInfo) {
         WritePacket wf = packetInfo.packet;
         if (wf.use) {
-            packetInfo.callFail(true, new NetException("WritePacket is used"));
+            callFail(packetInfo, true, new NetException("WritePacket is used"));
             return;
         }
         wf.use = true;
@@ -101,11 +108,11 @@ class IoChannelQueue {
 
         if (lastPacketInfo != null) {
             workerStatus.addPacketsToWrite(-1);
-            lastPacketInfo.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
+            callFail(lastPacketInfo, true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
         PacketInfo pi;
         while ((pi = subQueue.pollFirst()) != null) {
-            pi.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
+            callFail(pi, true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.addPacketsToWrite(-1);
         }
     }
@@ -150,7 +157,7 @@ class IoChannelQueue {
                         subQueueBytes = Math.max(0, subQueueBytes - pi.estimateSize);
                         encodeContext.reset();
                         Throwable ex = new NetException("encode fail when buffer is empty");
-                        pi.callFail(true, ex);
+                        callFail(pi, true, ex);
                         pi = null;
                         BugLog.log(ex);
                         continue;
@@ -161,18 +168,20 @@ class IoChannelQueue {
                         if (encodeResult == ENCODE_FINISH) {
                             WritePacket f = pi.packet;
                             if (f.packetType == PacketType.TYPE_REQ) {
-                                workerStatus.addPendingReq(pi);
+                                workerStatus.addPendingReq((PacketInfoReq) pi);
                             }
                             packetsInBuffer++;
                             if (f.packetType == PacketType.TYPE_ONE_WAY) {
                                 // TODO complete after write finished
-                                pi.callSuccess(null);
+                                if (pi instanceof PacketInfoReq) {
+                                    ((PacketInfoReq) pi).callSuccess(null);
+                                }
                             }
                         } else {
                             // cancel
                             workerStatus.addPacketsToWrite(-1);
                             String msg = "timeout before send: " + pi.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                            pi.callFail(false, new NetTimeoutException(msg));
+                            callFail(pi, false, new NetTimeoutException(msg));
                         }
 
                         subQueueBytes = Math.max(0, subQueueBytes - pi.estimateSize);

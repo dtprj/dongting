@@ -62,7 +62,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     // read status
     private ReadPacket packet;
     private boolean readBody;
-    private PacketInfo requestForResp;
+    private PacketInfoReq requestForResp;
     private ReqProcessor processorForRequest;
     private int currentReadPacketSize;
     private DecoderCallback currentDecoderCallback;
@@ -76,8 +76,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     long lastActiveTimeNanos;
 
-    PacketInfo pendingReqHead;
-    PacketInfo pendingReqTail;
+    PacketInfoReq pendingReqHead;
+    PacketInfoReq pendingReqTail;
 
     public DtChannelImpl(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig, Peer peer,
                          SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
@@ -261,7 +261,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private boolean initRelatedDataForPacket() {
         ReadPacket packet = this.packet;
         if (packet.packetType == PacketType.TYPE_RESP) {
-            PacketInfo requestForResp = this.requestForResp;
+            PacketInfoReq requestForResp = this.requestForResp;
             if (requestForResp == null) {
                 requestForResp = this.workerStatus.removePendingReq(channelIndexInWorker, packet.seq);
                 if (requestForResp == null) {
@@ -307,7 +307,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
     }
 
-    private void processIncomingResponse(ReadPacket resp, PacketInfo wo) {
+    private void processIncomingResponse(ReadPacket resp, PacketInfoReq wo) {
         WritePacket req = wo.packet;
         if (resp.command != req.command) {
             wo.callFail(false, new NetException("command not match"));

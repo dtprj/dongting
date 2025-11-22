@@ -590,7 +590,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         p.packetType = PacketType.TYPE_REQ;
         p.command = Commands.CMD_HANDSHAKE;
 
-        PacketInfo wd = new PacketInfo(dtc, p, ci.deadline, rpcCallback,
+        PacketInfoReq wd = new PacketInfoReq(dtc, p, ci.deadline, rpcCallback,
                 ctx -> ctx.toDecoderCallback(new HandshakeBody()));
         dtc.subQueue.enqueue(wd);
         // send pending request as quickly as possible, even before handshake finished

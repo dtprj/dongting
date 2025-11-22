@@ -41,7 +41,7 @@ public class Peer {
     boolean autoReconnect;
     long lastRetryNanos;
 
-    private LinkedList<PacketInfo> waitConnectList;
+    private LinkedList<PacketInfoReq> waitConnectList;
 
     Peer(HostPort endPoint, NioClient owner) {
         Objects.requireNonNull(endPoint);
@@ -51,19 +51,19 @@ public class Peer {
         this.status = PeerStatus.not_connect;
     }
 
-    void addToWaitConnectList(PacketInfo data) {
+    void addToWaitConnectList(PacketInfoReq data) {
         if (waitConnectList == null) {
             waitConnectList = new LinkedList<>();
         }
         waitConnectList.add(data);
     }
 
-    void cleanWaitingConnectList(Function<PacketInfo, NetException> exceptionSupplier) {
+    void cleanWaitingConnectList(Function<PacketInfoReq, NetException> exceptionSupplier) {
         if (waitConnectList == null) {
             return;
         }
-        for (Iterator<PacketInfo> it = waitConnectList.iterator(); it.hasNext(); ) {
-            PacketInfo wd = it.next();
+        for (Iterator<PacketInfoReq> it = waitConnectList.iterator(); it.hasNext(); ) {
+            PacketInfoReq wd = it.next();
             NetException ex = exceptionSupplier.apply(wd);
             if (ex != null) {
                 it.remove();
@@ -81,7 +81,7 @@ public class Peer {
         if (waitConnectList == null) {
             return;
         }
-        for (Iterator<PacketInfo> it = waitConnectList.iterator(); it.hasNext(); ) {
+        for (Iterator<PacketInfoReq> it = waitConnectList.iterator(); it.hasNext(); ) {
             PacketInfo wd = it.next();
             it.remove();
             wd.dtc = dtChannel;

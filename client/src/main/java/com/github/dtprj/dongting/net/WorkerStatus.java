@@ -42,14 +42,14 @@ class WorkerStatus {
     int packetsToWrite;
 
     private boolean iteratingPendingQueue;
-    private final LongObjMap<PacketInfo> pendingRequests = new LongObjMap<>();
+    private final LongObjMap<PacketInfoReq> pendingRequests = new LongObjMap<>();
 
-    private final ArrayList<PacketInfo> tempSortList = new ArrayList<>();
+    private final ArrayList<PacketInfoReq> tempSortList = new ArrayList<>();
 
     private final long nearTimeoutThresholdNanos;
     private long lastCleanTimeNanos;
-    private PacketInfo nearTimeoutQueueHead;
-    private PacketInfo nearTimeoutQueueTail;
+    private PacketInfoReq nearTimeoutQueueHead;
+    private PacketInfoReq nearTimeoutQueueTail;
 
     private long addOrder;
 
@@ -68,10 +68,10 @@ class WorkerStatus {
         this.packetsToWrite = Math.max(packetsToWrite + delta, 0);
     }
 
-    private void removeFromChannelQueue(PacketInfo pi) {
+    private void removeFromChannelQueue(PacketInfoReq pi) {
         DtChannelImpl dtc = pi.dtc;
-        PacketInfo prev = pi.prevInChannel;
-        PacketInfo next = pi.nextInChannel;
+        PacketInfoReq prev = pi.prevInChannel;
+        PacketInfoReq next = pi.nextInChannel;
 
         if (prev != null) {
             prev.nextInChannel = next;
@@ -90,7 +90,7 @@ class WorkerStatus {
     }
 
 
-    private void addToNearTimeoutQueueIfNeed(PacketInfo pi) {
+    private void addToNearTimeoutQueueIfNeed(PacketInfoReq pi) {
         if (pi.timeout.deadlineNanos - ts.nanoTime < nearTimeoutThresholdNanos) {
             // add to near timeout queue
             if (nearTimeoutQueueHead == null) {
@@ -103,9 +103,9 @@ class WorkerStatus {
         }
     }
 
-    private void removeFromNearTimeoutQueue(PacketInfo pi) {
-        PacketInfo prev = pi.nearTimeoutQueuePrev;
-        PacketInfo next = pi.nearTimeoutQueueNext;
+    private void removeFromNearTimeoutQueue(PacketInfoReq pi) {
+        PacketInfoReq prev = pi.nearTimeoutQueuePrev;
+        PacketInfoReq next = pi.nearTimeoutQueueNext;
         if (prev == null && next == null && nearTimeoutQueueHead != pi) {
             // not in near timeout queue
             return;
@@ -127,12 +127,12 @@ class WorkerStatus {
         pi.nearTimeoutQueuePrev = null;
     }
 
-    public void addPendingReq(PacketInfo pi) {
+    public void addPendingReq(PacketInfoReq pi) {
         pi.perfTimeOrAddOrder = addOrder;
         addOrder++;
         DtChannelImpl dtc = pi.dtc;
 
-        PacketInfo old = pendingRequests.put(BitUtil.toLong(dtc.channelIndexInWorker, pi.packet.seq), pi);
+        PacketInfoReq old = pendingRequests.put(BitUtil.toLong(dtc.channelIndexInWorker, pi.packet.seq), pi);
         if (old != null) {
             // seq overflow and reuse, or bug
             String errMsg = "dup seq: old=" + old.packet + ", new=" + pi.packet;
@@ -153,8 +153,8 @@ class WorkerStatus {
         dtc.pendingReqTail = pi;
     }
 
-    public PacketInfo removePendingReq(int channelIndex, int seq) {
-        PacketInfo o = pendingRequests.remove(BitUtil.toLong(channelIndex, seq));
+    public PacketInfoReq removePendingReq(int channelIndex, int seq) {
+        PacketInfoReq o = pendingRequests.remove(BitUtil.toLong(channelIndex, seq));
         if (o != null) {
             removeFromChannelQueue(o);
             removeFromNearTimeoutQueue(o);
@@ -171,7 +171,7 @@ class WorkerStatus {
             throw new IllegalStateException("iteratingPendingQueue");
         }
         iteratingPendingQueue = true;
-        ArrayList<PacketInfo> list = this.tempSortList;
+        ArrayList<PacketInfoReq> list = this.tempSortList;
         try {
             pendingRequests.forEach((key, pi) -> {
                 removeFromChannelQueue(pi);
@@ -184,7 +184,7 @@ class WorkerStatus {
             }
             list.sort(this::compare);
             NetException e = new NetException("NioWorker closed");
-            for (PacketInfo pi : list) {
+            for (PacketInfoReq pi : list) {
                 // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
                 // so callFail should be idempotent
                 pi.callFail(false, e);
@@ -209,7 +209,7 @@ class WorkerStatus {
         try {
             NetException e = null;
             while (dtc.pendingReqHead != null) {
-                PacketInfo pi = dtc.pendingReqHead;
+                PacketInfoReq pi = dtc.pendingReqHead;
                 pendingRequests.remove(BitUtil.toLong(dtc.channelIndexInWorker, pi.packet.seq));
                 removeFromChannelQueue(pi);
                 if (e == null) {
@@ -230,10 +230,10 @@ class WorkerStatus {
         }
         iteratingPendingQueue = true;
 
-        ArrayList<PacketInfo> list = this.tempSortList;
+        ArrayList<PacketInfoReq> list = this.tempSortList;
         try {
             Timestamp ts = this.ts;
-            LongObjMap<PacketInfo> pendingRequests = this.pendingRequests;
+            LongObjMap<PacketInfoReq> pendingRequests = this.pendingRequests;
             if (ts.nanoTime - lastCleanTimeNanos > nearTimeoutThresholdNanos) {
                 // this iterate is o(n), so not do it too frequently
                 pendingRequests.forEach((key, pi) -> {
@@ -243,7 +243,7 @@ class WorkerStatus {
             }
 
             while (nearTimeoutQueueHead != null) {
-                PacketInfo pi = nearTimeoutQueueHead;
+                PacketInfoReq pi = nearTimeoutQueueHead;
                 if (pi.timeout.isTimeout(ts)) {
                     pendingRequests.remove(BitUtil.toLong(pi.dtc.channelIndexInWorker, pi.packet.seq));
                     removeFromChannelQueue(pi);
@@ -258,7 +258,7 @@ class WorkerStatus {
             }
 
             list.sort(this::compare);
-            for (PacketInfo pi : list) {
+            for (PacketInfoReq pi : list) {
                 WritePacket p = pi.packet;
                 long timeout = pi.timeout.getTimeout(TimeUnit.MILLISECONDS);
                 if (log.isDebugEnabled()) {

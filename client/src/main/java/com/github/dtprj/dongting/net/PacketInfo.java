@@ -15,14 +15,12 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.FutureCallback;
 
 /**
  * @author huangli
  */
-final class PacketInfo {
+class PacketInfo {
     DtChannelImpl dtc;
 
     final WritePacket packet;
@@ -32,78 +30,10 @@ final class PacketInfo {
 
     long perfTimeOrAddOrder;
 
-    PacketInfo nextInChannel;
-    PacketInfo prevInChannel;
-
-    PacketInfo nearTimeoutQueueNext;
-    PacketInfo nearTimeoutQueuePrev;
-
-    // only for request or one way request
-    final Peer peer;
-    RpcCallback<?> callback;
-    final DecoderCallbackCreator<?> respDecoderCallback;
-
-    // for request or one way request (client side)
-    public <T> PacketInfo(Peer peer, WritePacket packet, DtTime timeout, RpcCallback<T> callback,
-                          DecoderCallbackCreator<T> respDecoderCallback) {
-        this.peer = peer;
-        this.packet = packet;
-        this.timeout = timeout;
-        this.callback = callback;
-        this.respDecoderCallback = respDecoderCallback;
-        this.estimateSize = packet.calcMaxPacketSize();
-    }
-
-    // for request or one way request (server push), client handshake
-    public <T> PacketInfo(DtChannelImpl dtc, WritePacket packet, DtTime timeout, RpcCallback<T> callback,
-                          DecoderCallbackCreator<T> respDecoderCallback) {
-        this.dtc = dtc;
-        this.peer = null;
-        this.packet = packet;
-        this.timeout = timeout;
-        this.callback = callback;
-        this.respDecoderCallback = respDecoderCallback;
-        this.estimateSize = packet.calcMaxPacketSize();
-    }
-
-    // for response
     public PacketInfo(DtChannelImpl dtc, WritePacket packet, DtTime timeout) {
         this.dtc = dtc;
-        this.peer = null;
         this.packet = packet;
         this.timeout = timeout;
-        this.callback = null;
-        this.respDecoderCallback = null;
         this.estimateSize = packet.calcMaxPacketSize();
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    void callSuccess(ReadPacket resp) {
-        if (callback == null) {
-            return;
-        }
-        try {
-            if (packet.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
-                FutureCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
-            } else {
-                FutureCallback.callSuccess(callback, resp);
-            }
-        } finally {
-            callback = null;
-        }
-    }
-
-    void callFail(boolean callClean, Throwable ex) {
-        if (callback == null) {
-            return;
-        }
-        try {
-            if (callClean) {
-                packet.clean();
-            }
-            FutureCallback.callFail(callback, ex);
-        } finally {
-            callback = null;
-        }
     }
 }

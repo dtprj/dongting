@@ -43,8 +43,8 @@ class IoWorkerQueue {
 
     public void writeFromBizThread(PacketInfo data) {
         data.perfTimeOrAddOrder = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_QUEUE);
-        if (!queue.offer(data)) {
-            data.callFail(true, new NetException("IoQueue closed"));
+        if (!queue.offer(data) && data instanceof PacketInfoReq) {
+            ((PacketInfoReq) data).callFail(true, new NetException("IoQueue closed"));
         }
     }
 
@@ -65,43 +65,45 @@ class IoWorkerQueue {
 
     private void processWriteData(PacketInfo wo) {
         perfCallback.fireTime(PerfConsts.RPC_D_WORKER_QUEUE, wo.perfTimeOrAddOrder);
-        WritePacket packet = wo.packet;
-        Peer peer = wo.peer;
+        DtChannelImpl dtc = wo.dtc;
+        if (dtc != null) {
+            if (dtc.isClosed()) {
+                if (wo instanceof PacketInfoReq) {
+                    ((PacketInfoReq) wo).callFail(true, new NetException("channel closed during dispatch"));
+                }
+            } else {
+                dtc.subQueue.enqueue(wo);
+            }
+            return;
+        }
+        @SuppressWarnings("DataFlowIssue") PacketInfoReq pir = (PacketInfoReq) wo;
+        Peer peer = pir.peer;
         if (peer != null) {
             if (peer.status == PeerStatus.connected) {
-                DtChannelImpl dtc = peer.dtChannel;
-                wo.dtc = dtc;
-                dtc.subQueue.enqueue(wo);
+                dtc = peer.dtChannel;
+                pir.dtc = dtc;
+                dtc.subQueue.enqueue(pir);
             } else if (peer.status == PeerStatus.removed) {
-                wo.callFail(true, new NetException("peer is removed"));
+                pir.callFail(true, new NetException("peer is removed"));
             } else {
-                peer.addToWaitConnectList(wo);
+                peer.addToWaitConnectList(pir);
                 if (peer.status == PeerStatus.not_connect) {
                     CompletableFuture<Void> f = new CompletableFuture<>();
                     worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS), false);
                 }
             }
         } else {
-            DtChannelImpl dtc = wo.dtc;
-            if (dtc == null) {
-                if (!worker.server && packet.packetType != PacketType.TYPE_RESP) {
-                    dtc = selectChannel();
-                    if (dtc == null) {
-                        wo.callFail(true, new NetException("no available channel"));
-                    } else {
-                        wo.dtc = dtc;
-                        dtc.subQueue.enqueue(wo);
-                    }
+            if (!worker.server && pir.packet.packetType != PacketType.TYPE_RESP) {
+                dtc = selectChannel();
+                if (dtc == null) {
+                    pir.callFail(true, new NetException("no available channel"));
                 } else {
-                    log.error("no peer set");
-                    wo.callFail(true, new NetException("no peer set"));
+                    pir.dtc = dtc;
+                    dtc.subQueue.enqueue(pir);
                 }
             } else {
-                if (dtc.isClosed()) {
-                    wo.callFail(true, new NetException("channel closed during dispatch"));
-                } else {
-                    dtc.subQueue.enqueue(wo);
-                }
+                log.error("no peer set");
+                pir.callFail(true, new NetException("no peer set"));
             }
         }
     }
