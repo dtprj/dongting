@@ -139,7 +139,7 @@ class WorkerStatus {
             BugLog.getLog().error(errMsg);
             removeFromChannelQueue(old);
             removeFromNearTimeoutQueue(old);
-            old.callFail(true, new NetException(errMsg));
+            old.callFail(false, new NetException(errMsg));
         }
         addToNearTimeoutQueueIfNeed(pi);
 
