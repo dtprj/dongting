@@ -65,7 +65,7 @@ public class MpscLinkedQueueTest {
                 long id = (long) threadId.getAndIncrement() << 32;
                 readyLatch.countDown();
                 startLatch.await();
-                for (int i = 1; i <= loop; i++) {
+                for (int i = 0; i <= loop; i++) {
                     q.offer(id | i);
                 }
             } catch (Throwable e) {
@@ -103,19 +103,23 @@ public class MpscLinkedQueueTest {
     private void consume(int producerThreads, int loop, MpscLinkedQueue<Long> q) {
         int[] status = new int[producerThreads];
         long total = (long) producerThreads * loop;
+        long nullCount = 0;
         while (total > 0) {
             Long v = q.relaxedPoll();
             if (v != null) {
                 total--;
                 int thread = (int) (v >>> 32);
                 int count = (int) v.longValue();
-                if (status[thread] <= count) {
-                    status[thread] = count;
+                if (status[thread] == count) {
+                    status[thread]++;
                 } else {
                     throw new AssertionError();
                 }
+            } else {
+                nullCount++;
             }
         }
+        System.out.println("null count:" + nullCount);
     }
 
 
