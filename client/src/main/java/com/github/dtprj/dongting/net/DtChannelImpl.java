@@ -358,11 +358,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
 
         if (executor == null) {
-            if (timeout(req, reqContext, roundTime)) {
-                return;
-            }
             WritePacket resp;
             try {
+                if (timeout(req, reqContext, roundTime)) {
+                    return;
+                }
                 resp = p.process(req, reqContext);
             } catch (NetCodeException e) {
                 log.warn("ReqProcessor.process fail, command={}, code={}, msg={}",
