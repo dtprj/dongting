@@ -26,7 +26,7 @@ public class RaftTask {
 
     public final int type;
     public final RaftInput input;
-    public final RaftCallback callback;
+    public RaftCallback callback;
     public long localCreateNanos;
     public LogItem item;
 
@@ -45,15 +45,23 @@ public class RaftTask {
 
     public void callSuccess(Object r) {
         if (!invokeCallback) {
-            RaftCallback.callSuccess(callback, item.getIndex(), r);
+            try {
+                RaftCallback.callSuccess(callback, item.getIndex(), r);
+            } finally {
+                callback = null;
+                invokeCallback = true;
+            }
         }
-        invokeCallback = true;
     }
 
     public void callFail(Throwable ex) {
         if (!invokeCallback) {
-            RaftCallback.callFail(callback, ex);
+            try {
+                RaftCallback.callFail(callback, ex);
+            } finally {
+                callback = null;
+                invokeCallback = true;
+            }
         }
-        invokeCallback = true;
     }
 }
