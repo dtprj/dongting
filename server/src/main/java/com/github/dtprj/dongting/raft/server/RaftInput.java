@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.common.RefCount;
 /**
  * @author huangli
  */
-public final class RaftInput {
+public class RaftInput {
     private final int bizType;
     private final DtTime deadline;
     private final boolean readOnly;

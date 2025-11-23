@@ -197,72 +197,81 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, Encodable body) {
-        RaftInput ri = new RaftInput(bizType, null, body, reqInfo.reqContext.getTimeout(), false);
-        reqInfo.raftGroup.submitLinearTask(ri, new RC(reqInfo));
+        RC ri = new RC(bizType, body, reqInfo);
+        reqInfo.raftGroup.submitLinearTask(ri, ri);
     }
 
-    private class RC implements RaftCallback {
+    private class RC extends RaftInput implements RaftCallback {
 
-        private final ReqInfo<KvReq> reqInfo;
+        private ReqInfo<KvReq> reqInfo;
 
-        private RC(ReqInfo<KvReq> reqInfo) {
+        private RC(int bizType, Encodable body, ReqInfo<KvReq> reqInfo) {
+            super(bizType, null, body, reqInfo.reqContext.getTimeout(), false);
             this.reqInfo = reqInfo;
         }
 
         @Override
         public void success(long raftIndex, Object result) {
-            WritePacket resp;
-            switch (reqInfo.reqFrame.command) {
-                case Commands.DTKV_PUT:
-                case Commands.DTKV_REMOVE:
-                case Commands.DTKV_MKDIR:
-                case Commands.DTKV_CAS:
-                case Commands.DTKV_PUT_TEMP_NODE:
-                case Commands.DTKV_MAKE_TEMP_DIR:
-                case Commands.DTKV_UPDATE_TTL:
-                case Commands.DTKV_UPDATE_LOCK_LEASE:
-                case Commands.DTKV_TRY_LOCK: {
-                    KvResult r = (KvResult) result;
-                    resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
-                    resp.respCode = CmdCodes.SUCCESS;
-                    resp.bizCode = r.getBizCode();
-                    break;
-                }
-                case Commands.DTKV_BATCH_PUT:
-                case Commands.DTKV_BATCH_REMOVE: {
-                    //noinspection unchecked
-                    Pair<Integer, List<KvResult>> p = (Pair<Integer, List<KvResult>>) result;
-                    List<KvResult> results = p.getLeft() == KvCodes.SUCCESS ?
-                            new ArrayList<>(p.getRight()) : Collections.emptyList();
-                    resp = new EncodableBodyWritePacket(new KvResp(raftIndex, results));
-                    resp.respCode = CmdCodes.SUCCESS;
-                    resp.bizCode = p.getLeft();
-                    break;
-                }
-                case Commands.DTKV_UNLOCK: {
-                    KvImpl.KvResultWithNewOwnerInfo ri = (KvImpl.KvResultWithNewOwnerInfo) result;
+            try {
+                WritePacket resp;
+                switch (reqInfo.reqFrame.command) {
+                    case Commands.DTKV_PUT:
+                    case Commands.DTKV_REMOVE:
+                    case Commands.DTKV_MKDIR:
+                    case Commands.DTKV_CAS:
+                    case Commands.DTKV_PUT_TEMP_NODE:
+                    case Commands.DTKV_MAKE_TEMP_DIR:
+                    case Commands.DTKV_UPDATE_TTL:
+                    case Commands.DTKV_UPDATE_LOCK_LEASE:
+                    case Commands.DTKV_TRY_LOCK: {
+                        KvResult r = (KvResult) result;
+                        resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(r)));
+                        resp.respCode = CmdCodes.SUCCESS;
+                        resp.bizCode = r.getBizCode();
+                        break;
+                    }
+                    case Commands.DTKV_BATCH_PUT:
+                    case Commands.DTKV_BATCH_REMOVE: {
+                        //noinspection unchecked
+                        Pair<Integer, List<KvResult>> p = (Pair<Integer, List<KvResult>>) result;
+                        List<KvResult> results = p.getLeft() == KvCodes.SUCCESS ?
+                                new ArrayList<>(p.getRight()) : Collections.emptyList();
+                        resp = new EncodableBodyWritePacket(new KvResp(raftIndex, results));
+                        resp.respCode = CmdCodes.SUCCESS;
+                        resp.bizCode = p.getLeft();
+                        break;
+                    }
+                    case Commands.DTKV_UNLOCK: {
+                        KvImpl.KvResultWithNewOwnerInfo ri = (KvImpl.KvResultWithNewOwnerInfo) result;
 
-                    // send response first
-                    resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(ri.result)));
-                    resp.respCode = CmdCodes.SUCCESS;
-                    resp.bizCode = ri.result.getBizCode();
-                    reqInfo.reqContext.writeRespInBizThreads(resp);
+                        // send response first
+                        resp = new EncodableBodyWritePacket(new KvResp(raftIndex, Collections.singletonList(ri.result)));
+                        resp.respCode = CmdCodes.SUCCESS;
+                        resp.bizCode = ri.result.getBizCode();
+                        reqInfo.reqContext.writeRespInBizThreads(resp);
 
-                    // notify the new lock owner if any
-                    KvServerUtil.notifyNewLockOwner(reqInfo.raftGroup, ri);
+                        // notify the new lock owner if any
+                        KvServerUtil.notifyNewLockOwner(reqInfo.raftGroup, ri);
 
-                    return; // the response is sent, so here use return
+                        return; // the response is sent, so here use return
+                    }
+                    default:
+                        resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+                        resp.msg = "unknown command: " + reqInfo.reqFrame.command;
                 }
-                default:
-                    resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                    resp.msg = "unknown command: " + reqInfo.reqFrame.command;
+                reqInfo.reqContext.writeRespInBizThreads(resp);
+            } finally {
+                reqInfo = null;
             }
-            reqInfo.reqContext.writeRespInBizThreads(resp);
         }
 
         @Override
         public void fail(Throwable ex) {
-            writeErrorResp(reqInfo, ex);
+            try {
+                writeErrorResp(reqInfo, ex);
+            } finally {
+                reqInfo = null;
+            }
         }
     }
 
