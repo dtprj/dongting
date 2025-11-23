@@ -13,32 +13,11 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
-
-import com.github.dtprj.dongting.common.DtCleanable;
+package com.github.dtprj.dongting.common;
 
 /**
  * @author huangli
  */
-public class ReadPacket<T> extends Packet {
-    T body;
-    boolean responseHasWrite;
-
-    public ReadPacket() {
-    }
-
-    public T getBody() {
-        return body;
-    }
-
-    public void setBody(T body) {
-        this.body = body;
-    }
-
-    @Override
-    protected void doClean() {
-        if (body != null && body instanceof DtCleanable) {
-            ((DtCleanable) body).clean();
-        }
-    }
+public interface DtCleanable {
+    void clean();
 }

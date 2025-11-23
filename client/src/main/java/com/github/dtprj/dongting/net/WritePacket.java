@@ -19,9 +19,7 @@ import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.log.BugLog;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.common.DtCleanable;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -29,8 +27,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public abstract class WritePacket extends Packet implements Encodable {
-    private static final DtLog log = DtLogs.getLogger(WritePacket.class);
+public abstract class WritePacket extends Packet implements Encodable, DtCleanable {
 
     static final int STATUS_INIT = 0;
     private static final int STATUS_HEADER_ENCODE_FINISHED = 1;
@@ -46,7 +43,6 @@ public abstract class WritePacket extends Packet implements Encodable {
     int maxPacketSize;
 
     boolean use;
-    private boolean cleaned;
 
     private static final int MAX_HEADER_SIZE = 4 // length
             + 1 + 1 // uint32 packet_type = 1;
@@ -165,20 +161,6 @@ public abstract class WritePacket extends Packet implements Encodable {
         }
         context.stage = step;
         return finish;
-    }
-
-    public final void clean() {
-        if (cleaned) {
-            BugLog.getLog().error("already cleaned {}", this);
-            return;
-        }
-        try {
-            doClean();
-        } catch (Throwable e) {
-            log.error("clean error", e);
-        } finally {
-            cleaned = true;
-        }
     }
 
     /**

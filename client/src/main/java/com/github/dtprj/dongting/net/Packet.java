@@ -15,10 +15,16 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.DtCleanable;
+import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 /**
  * @author huangli
  */
-public abstract class Packet {
+public abstract class Packet implements DtCleanable {
+    private static final DtLog log = DtLogs.getLogger(Packet.class);
     public static final int IDX_TYPE = 1;
     public static final int IDX_COMMAND = 2;
     public static final int IDX_SEQ = 3;
@@ -38,6 +44,8 @@ public abstract class Packet {
     public long timeout;
     public byte[] extra;
 
+    boolean cleaned;
+
     @Override
     public String toString() {
         return "Packet(type=" + packetType +
@@ -47,4 +55,21 @@ public abstract class Packet {
                 ",bizCode=" + bizCode +
                 ")";
     }
+
+    @Override
+    public final void clean() {
+        if (cleaned) {
+            BugLog.getLog().error("already cleaned {}", this);
+            return;
+        }
+        try {
+            doClean();
+        } catch (Throwable e) {
+            log.error("clean error", e);
+        } finally {
+            cleaned = true;
+        }
+    }
+
+    protected  abstract void doClean();
 }
