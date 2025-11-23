@@ -120,21 +120,8 @@ public abstract class NioNet extends AbstractLifeCircle {
             request.clean();
             return;
         }
-        if (acquirePermit) {
-            RpcCallback<T> old = callback;
-            callback = (result, ex) -> {
-                releasePermit(request);
-                if (old != null) {
-                    old.call(result, ex);
-                }
-            };
-        }
-        PacketInfo wd;
-        if (peer != null) {
-            wd = new PacketInfoReq(peer, request, timeout, callback, decoder);
-        } else {
-            wd = new PacketInfoReq(dtc, request, timeout, callback, decoder);
-        }
+        PacketInfo wd = new PacketInfoReq(acquirePermit ? this : null, peer, peer != null ? null : dtc,
+                request, timeout, callback, decoder);
         worker.writeReqInBizThreads(wd);
     }
 

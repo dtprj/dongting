@@ -30,55 +30,57 @@ final class PacketInfoReq extends PacketInfo {
     PacketInfoReq nearTimeoutQueueNext;
     PacketInfoReq nearTimeoutQueuePrev;
 
+    private final NioNet ownerUsedToReleasePermit;
     final Peer peer;
-    RpcCallback<?> callback;
+    final RpcCallback<?> callback;
     final DecoderCallbackCreator<?> respDecoderCallback;
+    private boolean finished;
 
-    // for request or one way request (client side)
-    public <T> PacketInfoReq(Peer peer, WritePacket packet, DtTime timeout, RpcCallback<T> callback,
-                             DecoderCallbackCreator<T> respDecoderCallback) {
-        super(null, packet, timeout);
-        this.peer = peer;
-        this.callback = callback;
-        this.respDecoderCallback = respDecoderCallback;
-    }
-
-    // for request or one way request (server push), client handshake
-    public <T> PacketInfoReq(DtChannelImpl dtc, WritePacket packet, DtTime timeout, RpcCallback<T> callback,
-                             DecoderCallbackCreator<T> respDecoderCallback) {
+    public <T> PacketInfoReq(NioNet ownerUsedToReleasePermit, Peer peer, DtChannelImpl dtc, WritePacket packet,
+                             DtTime timeout, RpcCallback<T> callback, DecoderCallbackCreator<T> respDecoderCallback) {
         super(dtc, packet, timeout);
-        this.peer = null;
+        if (peer != null && dtc != null) {
+            throw new IllegalArgumentException();
+        }
+        this.ownerUsedToReleasePermit = ownerUsedToReleasePermit;
+        this.peer = peer;
         this.callback = callback;
         this.respDecoderCallback = respDecoderCallback;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     void callSuccess(ReadPacket resp) {
-        if (callback == null) {
+        if (finished) {
             return;
         }
         try {
+            if (ownerUsedToReleasePermit != null) {
+                ownerUsedToReleasePermit.releasePermit(packet);
+            }
             if (packet.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
                 FutureCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
             } else {
                 FutureCallback.callSuccess(callback, resp);
             }
         } finally {
-            callback = null;
+            finished = true;
         }
     }
 
     void callFail(boolean callClean, Throwable ex) {
-        if (callback == null) {
+        if (finished) {
             return;
         }
         try {
+            if (ownerUsedToReleasePermit != null) {
+                ownerUsedToReleasePermit.releasePermit(packet);
+            }
             if (callClean) {
                 packet.clean();
             }
             FutureCallback.callFail(callback, ex);
         } finally {
-            callback = null;
+            finished = true;
         }
     }
 }
