@@ -86,8 +86,10 @@ class ReqContextImpl extends PacketInfo implements ReqContext, Runnable {
         DtChannelImpl dtc = this.dtc;
         try {
             if (DtChannelImpl.timeout(req, this, null)) {
+                req.clean();
                 return;
             }
+            // change res owner to biz code, not clean req by nio framework
             //noinspection unchecked
             resp = processor.process(req, this);
         } catch (NetCodeException e) {

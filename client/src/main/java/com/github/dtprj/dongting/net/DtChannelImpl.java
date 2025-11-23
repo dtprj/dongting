@@ -361,8 +361,10 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             WritePacket resp;
             try {
                 if (timeout(req, reqContext, roundTime)) {
+                    req.clean();
                     return;
                 }
+                // change res owner to biz code, not clean req by nio framework
                 resp = p.process(req, reqContext);
             } catch (NetCodeException e) {
                 log.warn("ReqProcessor.process fail, command={}, code={}, msg={}",
@@ -388,6 +390,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             try {
                 executor.execute(reqContext);
             } catch (RejectedExecutionException e) {
+                req.clean();
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
                         nioConfig.maxInRequests);
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
