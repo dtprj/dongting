@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -172,11 +173,11 @@ public class LinearTaskRunner {
                 perfCallback.fireTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, input.getPerfTime());
             }
 
-            if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
+            Throwable ex = checkTask(rt, raftStatus);
+            if (ex != null) {
                 RaftUtil.release(input);
-                rt.callFail(new RaftTimeoutException("timeout "
-                        + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
-                // not removed from list, filter in submitTasks()
+                rt.callFail(ex);
+                // not removed from list, filter in append()
                 continue;
             }
 
@@ -194,9 +195,33 @@ public class LinearTaskRunner {
             item.setBody(input.getBody(), input.isBodyReleasable());
 
             rt.init(item, ts.nanoTime);
+
+            // decrease in ApplyManager
+            raftStatus.pendingRequests++;
+            raftStatus.pendingBytes += input.getFlowControlSize();
         }
 
         return append(raftStatus, inputs);
+    }
+
+    private Throwable checkTask(RaftTask rt, RaftStatusImpl raftStatus) {
+        RaftInput input = rt.input;
+        if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
+            return new RaftTimeoutException("timeout " + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms");
+        }
+        if (rt.type == LogItem.TYPE_NORMAL || rt.type == LogItem.TYPE_LOG_READ) {
+            if (raftStatus.pendingRequests >= groupConfig.maxPendingRaftTasks) {
+                log.warn("reject task, pendingRequests={}, maxPendingRaftTasks={}",
+                        raftStatus.pendingRequests, groupConfig.maxPendingRaftTasks);
+                return new FlowControlException("max pending tasks reached: " + groupConfig.maxPendingRaftTasks);
+            }
+            if (raftStatus.pendingBytes >= groupConfig.maxPendingTaskBytes) {
+                log.warn("reject task, pendingBytes={}, maxPendingTaskBytes={}",
+                        raftStatus.pendingBytes, groupConfig.maxPendingTaskBytes);
+                return new FlowControlException("max pending bytes reached: " + groupConfig.maxPendingTaskBytes);
+            }
+        }
+        return null;
     }
 
     public FiberFrame<Void> append(RaftStatusImpl raftStatus, List<RaftTask> inputs) {

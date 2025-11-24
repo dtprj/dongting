@@ -42,7 +42,6 @@ public class GroupComponents {
     public ReplicateManager replicateManager;
 
     public NodeManager nodeManager;
-    public PendingStat serverStat;
 
     public RaftLog raftLog;
     public StateMachine stateMachine;

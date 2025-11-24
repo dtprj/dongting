@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -29,7 +28,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
@@ -51,8 +49,6 @@ public final class RaftGroupImpl extends RaftGroup {
 
     private final int groupId;
     private final RaftStatusImpl raftStatus;
-    private final RaftGroupConfigEx groupConfig;
-    private final PendingStat serverStat;
     private final StateMachine stateMachine;
 
     public RaftGroupImpl(GroupComponents groupComponents) {
@@ -60,8 +56,6 @@ public final class RaftGroupImpl extends RaftGroup {
         this.groupId = groupComponents.groupConfig.groupId;
 
         this.raftStatus = groupComponents.raftStatus;
-        this.groupConfig = groupComponents.groupConfig;
-        this.serverStat = groupComponents.serverStat;
         this.stateMachine = groupComponents.stateMachine;
         this.fiberGroup = groupComponents.fiberGroup;
     }
@@ -89,41 +83,8 @@ public final class RaftGroupImpl extends RaftGroup {
             RaftUtil.release(input);
             throw new RaftException("raft group thread is stop");
         }
-        int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
-        if (currentPendingWrites >= groupConfig.maxPendingRaftTasks) {
-            RaftUtil.release(input);
-            String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
-            log.warn(msg);
-            PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
-            throw new FlowControlException(msg);
-        }
-        long size = input.getFlowControlSize();
-        long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
-        if (currentPendingWriteBytes >= groupConfig.maxPendingTaskBytes) {
-            RaftUtil.release(input);
-            String msg = "too many pending write bytes,currentPendingWriteBytes="
-                    + currentPendingWriteBytes + ", currentRequestBytes=" + size;
-            log.warn(msg);
-            PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
-            throw new FlowControlException(msg);
-        }
-        RaftCallback wrapper = new RaftCallback() {
-            @Override
-            public void success(long raftIndex, Object result) {
-                PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
-                PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
-                RaftCallback.callSuccess(callback, raftIndex, result);
-            }
-
-            @Override
-            public void fail(Throwable ex) {
-                PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
-                PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
-                RaftCallback.callFail(callback, ex);
-            }
-        };
         int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
-        groupComponents.linearTaskRunner.submitRaftTaskInBizThread(type, input, wrapper);
+        groupComponents.linearTaskRunner.submitRaftTaskInBizThread(type, input, callback);
     }
 
     private long lastLeaseTimeoutLogNanoTime;

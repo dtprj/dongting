@@ -44,7 +44,6 @@ import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
-import com.github.dtprj.dongting.raft.impl.PendingStat;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -93,8 +92,6 @@ public class RaftServer extends AbstractLifeCircle {
     private final RaftServerConfig serverConfig;
 
     private final NodeManager nodeManager;
-
-    private final PendingStat serverStat = new PendingStat();
 
     // indicate each group has enough members (>= elect quorum) raft ping ok
     private final CompletableFuture<Void> allMemberReadyFuture = new CompletableFuture<>();
@@ -292,7 +289,6 @@ public class RaftServer extends AbstractLifeCircle {
         gc.commitManager = commitManager;
         gc.applyManager = applyManager;
         gc.nodeManager = nodeManager;
-        gc.serverStat = serverStat;
         gc.snapshotManager = raftFactory.createSnapshotManager(rgcEx, stateMachine, raftLog);
         gc.statusManager = statusManager;
         gc.linearTaskRunner = linearTaskRunner;
