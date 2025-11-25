@@ -310,8 +310,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             // assert read only
             rt.callFail(execEx);
         }
-        raftStatus.pendingRequests--;
-        raftStatus.pendingBytes -= rt.input.getFlowControlSize();
+        raftStatus.tailCache.removePending(rt);
         if (waitApply) {
             applyFinishCond.signal();
         }

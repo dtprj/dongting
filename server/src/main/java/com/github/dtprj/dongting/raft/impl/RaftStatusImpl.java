@@ -80,9 +80,6 @@ public final class RaftStatusImpl extends RaftStatus {
     private long leaseStartNanos; // shared
     long[] leaseComputeArray = new long[0];
 
-    public int pendingRequests;
-    public long pendingBytes;
-
     long lastElectTime;
 
     public int lastAppliedTerm;

@@ -33,8 +33,13 @@ public final class TailCache {
     private final RaftGroupConfig groupConfig;
     private final RaftStatusImpl raftStatus;
     private long firstIndex = -1;
+
     private int cacheCount;
     private long cacheBytes;
+
+    public int pendingCount;
+    public long pendingBytes;
+
     private final IndexedQueue<RaftTask> cache = new IndexedQueue<>(1024);
 
     public TailCache(RaftGroupConfig groupConfig, RaftStatusImpl raftStatus) {
@@ -65,10 +70,22 @@ public final class TailCache {
             }
         }
         cache.addLast(value);
+        long flowControlSize = value.input.getFlowControlSize();
         cacheCount++;
-        cacheBytes += value.input.getFlowControlSize();
+        cacheBytes += flowControlSize;
+
+        value.addPending = true;
+        pendingCount++;
+        pendingBytes += flowControlSize;
         if ((index & 0x0F) == 0) { // call cleanPending 1/16
             cleanOld();
+        }
+    }
+
+    public void removePending(RaftTask rt) {
+        if (rt.addPending) {
+            pendingCount--;
+            pendingBytes -= rt.input.getFlowControlSize();
         }
     }
 
@@ -98,6 +115,7 @@ public final class TailCache {
                 firstIndex = -1;
             }
             release(raftTask);
+            removePending(raftTask);
             if (ex == null) {
                 ex = new RaftException("raft log truncated");
             }

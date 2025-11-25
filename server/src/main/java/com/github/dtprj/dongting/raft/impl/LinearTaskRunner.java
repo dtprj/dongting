@@ -195,10 +195,6 @@ public class LinearTaskRunner {
             item.setBody(input.getBody(), input.isBodyReleasable());
 
             rt.init(item, ts.nanoTime);
-
-            // decrease in ApplyManager
-            raftStatus.pendingRequests++;
-            raftStatus.pendingBytes += input.getFlowControlSize();
         }
 
         return append(raftStatus, inputs);
@@ -210,14 +206,14 @@ public class LinearTaskRunner {
             return new RaftTimeoutException("timeout " + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
         if (rt.type == LogItem.TYPE_NORMAL || rt.type == LogItem.TYPE_LOG_READ) {
-            if (raftStatus.pendingRequests >= groupConfig.maxPendingTasks) {
+            if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {
                 log.warn("reject task, pendingRequests={}, maxPendingRaftTasks={}",
-                        raftStatus.pendingRequests, groupConfig.maxPendingTasks);
+                        raftStatus.tailCache.pendingCount, groupConfig.maxPendingTasks);
                 return new FlowControlException("max pending tasks reached: " + groupConfig.maxPendingTasks);
             }
-            if (raftStatus.pendingBytes >= groupConfig.maxPendingTaskBytes) {
+            if (raftStatus.tailCache.pendingBytes >= groupConfig.maxPendingTaskBytes) {
                 log.warn("reject task, pendingBytes={}, maxPendingTaskBytes={}",
-                        raftStatus.pendingBytes, groupConfig.maxPendingTaskBytes);
+                        raftStatus.tailCache.pendingBytes, groupConfig.maxPendingTaskBytes);
                 return new FlowControlException("max pending bytes reached: " + groupConfig.maxPendingTaskBytes);
             }
         }

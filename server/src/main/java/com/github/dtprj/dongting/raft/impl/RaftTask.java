@@ -32,6 +32,8 @@ public class RaftTask {
 
     private boolean invokeCallback;
 
+    boolean addPending;
+
     public RaftTask(int type, RaftInput input, RaftCallback callback) {
         this.type = type;
         this.input = input;
