@@ -181,11 +181,6 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;
-                    } finally {
-                        if (input.isReadOnly() && rt.item != null) {
-                            // release log read resource as soon as possible
-                            rt.item.release();
-                        }
                     }
                     if (execEx != null) {
                         afterExec(index, rt, null, execEx);
