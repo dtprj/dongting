@@ -210,10 +210,10 @@ public class LinearTaskRunner {
             return new RaftTimeoutException("timeout " + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
         if (rt.type == LogItem.TYPE_NORMAL || rt.type == LogItem.TYPE_LOG_READ) {
-            if (raftStatus.pendingRequests >= groupConfig.maxPendingRaftTasks) {
+            if (raftStatus.pendingRequests >= groupConfig.maxPendingTasks) {
                 log.warn("reject task, pendingRequests={}, maxPendingRaftTasks={}",
-                        raftStatus.pendingRequests, groupConfig.maxPendingRaftTasks);
-                return new FlowControlException("max pending tasks reached: " + groupConfig.maxPendingRaftTasks);
+                        raftStatus.pendingRequests, groupConfig.maxPendingTasks);
+                return new FlowControlException("max pending tasks reached: " + groupConfig.maxPendingTasks);
             }
             if (raftStatus.pendingBytes >= groupConfig.maxPendingTaskBytes) {
                 log.warn("reject task, pendingBytes={}, maxPendingTaskBytes={}",

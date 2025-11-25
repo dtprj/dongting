@@ -33,8 +33,8 @@ public final class TailCache {
     private final RaftGroupConfig groupConfig;
     private final RaftStatusImpl raftStatus;
     private long firstIndex = -1;
-    private int pending;
-    private long pendingBytes;
+    private int cacheCount;
+    private long cacheBytes;
     private final IndexedQueue<RaftTask> cache = new IndexedQueue<>(1024);
 
     public TailCache(RaftGroupConfig groupConfig, RaftStatusImpl raftStatus) {
@@ -65,8 +65,8 @@ public final class TailCache {
             }
         }
         cache.addLast(value);
-        pending++;
-        pendingBytes += value.input.getFlowControlSize();
+        cacheCount++;
+        cacheBytes += value.input.getFlowControlSize();
         if ((index & 0x0F) == 0) { // call cleanPending 1/16
             cleanOld();
         }
@@ -106,8 +106,8 @@ public final class TailCache {
     }
 
     private void release(RaftTask t) {
-        pending--;
-        pendingBytes = Math.max(pendingBytes - t.input.getFlowControlSize(), 0);
+        cacheCount--;
+        cacheBytes = Math.max(cacheBytes - t.input.getFlowControlSize(), 0);
         if (t.item != null) {
             t.item.release();
         }
@@ -157,7 +157,7 @@ public final class TailCache {
                 break;
             }
             RaftTask t = cache.get(0);
-            if (pending <= groupConfig.maxPendingRaftTasks && pendingBytes <= groupConfig.maxPendingTaskBytes) {
+            if (cacheCount <= groupConfig.maxCacheTasks && cacheBytes <= groupConfig.maxCacheTaskBytes) {
                 if (t.localCreateNanos - timeBound >= 0) {
                     // this item not timeout, so next items not timeout
                     break;
