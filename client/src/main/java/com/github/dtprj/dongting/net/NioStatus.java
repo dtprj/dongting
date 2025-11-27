@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.IntObjMap;
 
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 /**
  * @author huangli
@@ -25,9 +25,13 @@ import java.util.concurrent.locks.ReentrantLock;
 class NioStatus {
     private final IntObjMap<ReqProcessor<?>> processors = new IntObjMap<>();
 
-    final ReentrantLock pendingLock = new ReentrantLock();
-    int pendingRequests;
-    long pendingBytes;
+    long p00, p01, p02, p03, p04, p05, p06, p07, p08, p09, p0a, p0b, p0c, p0d, p0e, p0f;
+    // high 24 bits is pending request count, low 40 bits is pending bytes
+    private volatile long pending;
+    long p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p1a, p1b, p1c, p1d, p1e, p1f;
+
+    static final AtomicLongFieldUpdater<NioStatus> pendingUpdater =
+            AtomicLongFieldUpdater.newUpdater(NioStatus.class, "pending");
 
     NioStatus() {
     }
@@ -38,10 +42,6 @@ class NioStatus {
 
     public void registerProcessor(int cmd, ReqProcessor<?> processor) {
         processors.put(cmd, processor);
-    }
-
-    public IntObjMap<ReqProcessor<?>> getProcessors() {
-        return processors;
     }
 
 }

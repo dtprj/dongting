@@ -55,7 +55,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     private final Condition pendingReqCond = lock.newCondition();
     private final Condition pendingBytesCond = lock.newCondition();
     int pendingRequests;
-    int pendingBytes;
+    long pendingBytes;
 
     private final boolean server;
 
