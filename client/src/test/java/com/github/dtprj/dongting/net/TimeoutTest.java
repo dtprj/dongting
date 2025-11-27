@@ -125,8 +125,8 @@ public class TimeoutTest {
         }
         latch2.countDown();
         f1.get(5, TimeUnit.SECONDS);
-        assertEquals(0, client.pendingBytes);
-        assertEquals(0, client.pendingRequests);
+        assertEquals(0, client.nioStatus.outPendingBytes);
+        assertEquals(0, client.nioStatus.outPendingRequests);
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
     }
@@ -142,8 +142,8 @@ public class TimeoutTest {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("too many pending bytes"));
         }
-        assertEquals(0, client.pendingBytes);
-        assertEquals(0, client.pendingRequests);
+        assertEquals(0, client.nioStatus.outPendingBytes);
+        assertEquals(0, client.nioStatus.outPendingRequests);
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
     }
@@ -164,8 +164,8 @@ public class TimeoutTest {
             }
         }
         assertFalse(BugLog.BUG);
-        assertEquals(0, client.pendingBytes);
-        assertEquals(0, client.pendingRequests);
+        assertEquals(0, client.nioStatus.outPendingBytes);
+        assertEquals(0, client.nioStatus.outPendingRequests);
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
     }
@@ -195,8 +195,8 @@ public class TimeoutTest {
         // need more check server side status
         WaitUtil.waitUtil(() -> runCount.get() == oldCount + 1);
 
-        assertEquals(0, client.pendingBytes);
-        assertEquals(0, client.pendingRequests);
+        assertEquals(0, client.nioStatus.outPendingBytes);
+        assertEquals(0, client.nioStatus.outPendingRequests);
 
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
@@ -248,8 +248,8 @@ public class TimeoutTest {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("request is timeout: "), e.getCause().getMessage());
         }
-        assertEquals(0, client.pendingBytes);
-        assertEquals(0, client.pendingRequests);
+        assertEquals(0, client.nioStatus.outPendingBytes);
+        assertEquals(0, client.nioStatus.outPendingRequests);
 
         latch2.countDown();
 

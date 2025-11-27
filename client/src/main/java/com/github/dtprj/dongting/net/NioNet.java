@@ -54,8 +54,6 @@ public abstract class NioNet extends AbstractLifeCircle {
     protected final ReentrantLock lock = new ReentrantLock();
     private final Condition pendingReqCond = lock.newCondition();
     private final Condition pendingBytesCond = lock.newCondition();
-    int pendingRequests;
-    long pendingBytes;
 
     private final boolean server;
 
@@ -139,7 +137,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 if (request.acquirePermit) {
                     throw new IllegalStateException("current request is already acquired permit");
                 }
-                if (maxPending > 0 && pendingRequests + 1 > maxPending) {
+                if (maxPending > 0 && nioStatus.outPendingRequests + 1 > maxPending) {
                     if (request.acquirePermitNoWait) {
                         throw new NetException("too many pending requests");
                     }
@@ -151,7 +149,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                     continue;
                 }
                 int estimateSize = request.calcMaxPacketSize();
-                if (maxPendingBytes > 0 && pendingBytes + estimateSize > maxPendingBytes) {
+                if (maxPendingBytes > 0 && nioStatus.outPendingBytes + estimateSize > maxPendingBytes) {
                     if (request.acquirePermitNoWait) {
                         throw new NetException("too many pending bytes");
                     }
@@ -163,8 +161,8 @@ public abstract class NioNet extends AbstractLifeCircle {
                     continue;
                 }
                 request.acquirePermit = true;
-                pendingRequests++;
-                pendingBytes += estimateSize;
+                nioStatus.outPendingRequests++;
+                nioStatus.outPendingBytes += estimateSize;
             } finally {
                 lock.unlock();
                 perfCallback.fireTime(PerfConsts.RPC_D_ACQUIRE, t);
@@ -197,6 +195,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     }
 
     public void releasePermit(WritePacket request) {
+        NioStatus nioStatus = this.nioStatus;
         lock.lock();
         try {
             if (!request.acquirePermit) {
@@ -204,15 +203,15 @@ public abstract class NioNet extends AbstractLifeCircle {
                 return;
             }
             int estimateSize = request.calcMaxPacketSize();
-            pendingRequests--;
-            if (pendingRequests < 0) {
-                BugLog.getLog().error("pendingRequests is " + pendingRequests);
-                pendingRequests = 0;
+            nioStatus.outPendingRequests--;
+            if (nioStatus.outPendingRequests < 0) {
+                BugLog.getLog().error("pendingRequests is " + nioStatus.outPendingRequests);
+                nioStatus.outPendingRequests = 0;
             }
-            pendingBytes -= estimateSize;
-            if (pendingBytes < 0) {
-                BugLog.getLog().error("pendingBytes is " + pendingBytes);
-                pendingBytes = 0;
+            nioStatus.outPendingBytes -= estimateSize;
+            if (nioStatus.outPendingBytes < 0) {
+                BugLog.getLog().error("pendingBytes is " + nioStatus.outPendingBytes);
+                nioStatus.outPendingBytes = 0;
             }
             request.acquirePermit = false;
             pendingReqCond.signalAll();
