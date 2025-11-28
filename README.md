@@ -132,10 +132,9 @@ Additionally, the following features have not yet been implemented:
 * (MQ) message queues.
 
 ## About me
-if you can read Chinese, you can visit my project Weibo:
 
 https://weibo.com/dtprj
 
-and WeChat Public Account:
+The WeChat Official Account:
 
-![公众号](devlogs/imgs/qrcode_wechat.jpg)
+![公众号](docs/imgs/qrcode_wechat.jpg)
