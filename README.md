@@ -133,8 +133,6 @@ Additionally, the following features have not yet been implemented:
 
 ## About me
 
-https://x.com/dt_prj
-
 https://weibo.com/dtprj
 
 The WeChat Official Account:
