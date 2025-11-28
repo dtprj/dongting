@@ -161,7 +161,7 @@ class LogAppender {
                 if (li.getType() == LogItem.TYPE_LOG_READ) {
                     len = LogHeader.ITEM_HEADER_SIZE;
                 } else {
-                    len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(), li.getActualBodySize());
+                    len = LogHeader.computeTotalLen(li.getActualHeaderSize(), li.getActualBodySize());
                 }
                 if (len <= fileRestBytes) {
                     bytesToWrite += len;

@@ -167,7 +167,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             bs[i] = (byte) i;
         }
         item.setHeader(new ByteArray(bs));
-        int bodySize = totalSize - LogHeader.computeTotalLen(0, bizHeaderLen, 0);
+        int bodySize = totalSize - LogHeader.computeTotalLen(bizHeaderLen, 0);
         if (bodySize > 0) {
             // crc 4 bytes
             bodySize -= 4;
@@ -484,7 +484,6 @@ public class LogFileQueueTest extends BaseFiberTest {
         headerUpdater.accept(header);
         buf.position(offset);
         buf.putInt(header.totalLen);
-        buf.putInt(header.contextLen);
         buf.putInt(header.bizHeaderLen);
         buf.putInt(header.bodyLen);
         buf.put((byte) header.type);

@@ -52,8 +52,7 @@ public class LogHeaderTest {
         assertEquals(3000, header.index);
         assertEquals(Long.MAX_VALUE, header.timestamp);
 
-        assertEquals(header.totalLen, LogHeader.computeTotalLen(0, 200, 300));
-        assertEquals(0, header.contextLen);
+        assertEquals(header.totalLen, LogHeader.computeTotalLen(200, 300));
         assertEquals(200, header.bizHeaderLen);
         assertEquals(300, header.bodyLen);
         assertEquals(header.expectCrc, header.headerCrc);

@@ -25,8 +25,7 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 class LogHeader {
-    // total len 4 bytes
-    // context len 4 bytes
+    // total len(4 bytes), include this 4 bytes
     // biz header len 4 bytes
     // body len 4 bytes
     // type 1 byte
@@ -36,7 +35,7 @@ class LogHeader {
     // index 8 bytes
     // timestamp 8 bytes
     // header crc
-    static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 4 + 1 + 1 + 4 + 4 + 8 + 8 + 4;
+    static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 1 + 1 + 4 + 4 + 8 + 8 + 4;
 
     // negative value means end of file
     private static final int END_LEN_MAGIC = 0xF19A7BCB;
@@ -44,7 +43,6 @@ class LogHeader {
     private final CRC32C crc32c = new CRC32C();
 
     int totalLen;
-    int contextLen;
     int bizHeaderLen;
     int bodyLen;
     int type;
@@ -67,7 +65,6 @@ class LogHeader {
     public void read(ByteBuffer buf) {
         int start = buf.position();
         totalLen = buf.getInt();
-        contextLen = buf.getInt();
         bizHeaderLen = buf.getInt();
         bodyLen = buf.getInt();
         type = buf.get();
@@ -88,11 +85,8 @@ class LogHeader {
         return headerCrc == expectCrc;
     }
 
-    public static int computeTotalLen(int contextLen, int bizHeaderLen, int bodyLen) {
-        return ITEM_HEADER_SIZE
-                + (contextLen == 0 ? 0 : contextLen + 4)
-                + (bizHeaderLen == 0 ? 0 : bizHeaderLen + 4)
-                + (bodyLen == 0 ? 0 : bodyLen + 4);
+    public static int computeTotalLen(int bizHeaderLen, int bodyLen) {
+        return ITEM_HEADER_SIZE + (bizHeaderLen == 0 ? 0 : bizHeaderLen + 4) + (bodyLen == 0 ? 0 : bodyLen + 4);
     }
 
     public static int writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log) {
@@ -101,11 +95,10 @@ class LogHeader {
         if (read) {
             len = ITEM_HEADER_SIZE;
         } else {
-            len = computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
+            len = computeTotalLen(log.getActualHeaderSize(), log.getActualBodySize());
         }
         int startPos = buffer.position();
         buffer.putInt(len);
-        buffer.putInt(0);
         buffer.putInt(read ? 0 : log.getActualHeaderSize());
         buffer.putInt(read ? 0 : log.getActualBodySize());
         buffer.put((byte) log.getType());
@@ -125,7 +118,6 @@ class LogHeader {
         buffer.putInt(END_LEN_MAGIC);
         buffer.putInt(0);
         buffer.putInt(0);
-        buffer.putInt(0);
         buffer.put((byte) 0);
         buffer.put((byte) 0);
         buffer.putInt(0);
@@ -139,8 +131,8 @@ class LogHeader {
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean checkHeader(long filePos, long fileLen) {
-        int expectTotalLen = LogHeader.computeTotalLen(contextLen, bizHeaderLen, bodyLen);
-        return type >= 0 && totalLen > 0 && bizHeaderLen >= 0 && bodyLen >= 0 && contextLen >= 0
+        int expectTotalLen = LogHeader.computeTotalLen(bizHeaderLen, bodyLen);
+        return type >= 0 && totalLen > 0 && bizHeaderLen >= 0 && bodyLen >= 0
                 && expectTotalLen > 0
                 && totalLen == expectTotalLen
                 && filePos + expectTotalLen <= fileLen;
