@@ -342,4 +342,22 @@ public class NioClient extends NioNet implements ChannelListener {
         long v = serverHint * serverCount;
         return v < 0 ? Long.MAX_VALUE : v;
     }
+
+    @Override
+    protected void releasePermit(int bytes) {
+        if (config.maxOutRequests > 150 && config.maxOutBytes > 1_500_000) {
+            worker.doInIoThread(() -> {
+                WorkerStatus ws = worker.workerStatus;
+                ws.toReleaseCount++;
+                ws.toReleaseBytes += bytes;
+                if (ws.toReleaseCount >= 15 || ws.toReleaseBytes >= 150_000) {
+                    super.releasePermit(ws.toReleaseCount, ws.toReleaseBytes);
+                    ws.toReleaseCount = 0;
+                    ws.toReleaseBytes = 0;
+                }
+            }, null);
+        } else {
+            super.releasePermit(1, bytes);
+        }
+    }
 }

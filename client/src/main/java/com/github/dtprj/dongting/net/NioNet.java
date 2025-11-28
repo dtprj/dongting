@@ -194,26 +194,34 @@ public abstract class NioNet extends AbstractLifeCircle {
         VersionFactory.getInstance().acquireFence();
     }
 
-    public void releasePermit(WritePacket request) {
+    public final void releasePermit(WritePacket request) {
+        if (!request.acquirePermit) {
+            BugLog.getLog().error("current request is not acquired permit");
+            return;
+        }
+        int estimateSize = request.calcMaxPacketSize();
+        releasePermit(estimateSize);
+        request.acquirePermit = false;
+    }
+
+    protected void releasePermit(int bytes) {
+        releasePermit(1, bytes);
+    }
+
+    protected final void releasePermit(int count, long totalBytes) {
         NioStatus nioStatus = this.nioStatus;
         lock.lock();
         try {
-            if (!request.acquirePermit) {
-                BugLog.getLog().error("current request is not acquired permit");
-                return;
-            }
-            int estimateSize = request.calcMaxPacketSize();
-            nioStatus.outPendingRequests--;
+            nioStatus.outPendingRequests -= count;
             if (nioStatus.outPendingRequests < 0) {
                 BugLog.getLog().error("pendingRequests is " + nioStatus.outPendingRequests);
                 nioStatus.outPendingRequests = 0;
             }
-            nioStatus.outPendingBytes -= estimateSize;
+            nioStatus.outPendingBytes -= totalBytes;
             if (nioStatus.outPendingBytes < 0) {
                 BugLog.getLog().error("pendingBytes is " + nioStatus.outPendingBytes);
                 nioStatus.outPendingBytes = 0;
             }
-            request.acquirePermit = false;
             pendingReqCond.signalAll();
             pendingBytesCond.signalAll();
         } finally {

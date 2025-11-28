@@ -53,6 +53,9 @@ class WorkerStatus {
 
     private long addOrder;
 
+    int toReleaseCount;
+    long toReleaseBytes;
+
     public WorkerStatus(NioWorker worker, IoWorkerQueue ioWorkerQueue, ByteBufferPool directPool,
                         RefBufferFactory heapPool, Timestamp ts, long nearTimeoutThresholdMillis) {
         this.worker = worker;
