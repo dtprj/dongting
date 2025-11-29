@@ -28,7 +28,7 @@ import java.util.concurrent.ScheduledExecutorService;
 public class DtUtil {
     private static final DtLog log = DtLogs.getLogger(DtUtil.class);
 
-    private static final int JAVA_VER = majorVersion(System.getProperty("java.specification.version", "1.8"));
+    public static final int JAVA_VER = majorVersion(System.getProperty("java.specification.version", "1.8"));
 
     public static final int RPC_MAJOR_VER = 1;
     public static final int RPC_MINOR_VER = 0;
@@ -75,10 +75,6 @@ public class DtUtil {
                 }
             }
         }
-    }
-
-    public static int javaVersion() {
-        return JAVA_VER;
     }
 
     // Package-private for testing only

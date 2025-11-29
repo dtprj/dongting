@@ -51,7 +51,7 @@ class VfHolder {
 
     static {
         String className;
-        if (DtUtil.javaVersion() > 8) {
+        if (DtUtil.JAVA_VER > 8) {
             className = "com.github.dtprj.dongting.java11.Java11Factory";
         } else {
             className = "com.github.dtprj.dongting.java8.Java8Factory";
