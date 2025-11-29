@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.queue;
 
 import com.github.dtprj.dongting.common.VersionFactory;
-import com.github.dtprj.dongting.unsafe.DtUnsafe;
 
 import java.util.Objects;
 
@@ -43,7 +42,7 @@ public abstract class MpscLinkedQueue<E> {
         LinkedNode<E> node = newNode(null);
         head = node;
         tail = node;
-        DtUnsafe.releaseFence();
+        VersionFactory.getInstance().releaseFence();
     }
 
     public static <E> MpscLinkedQueue<E> newInstance() {
