@@ -46,8 +46,12 @@
                         <configuration>
                             <source>11</source>
                             <target>11</target>
-                            <release>11</release>
                             <!-- compile everything to ensure module-info contains right entries -->
+                            <compilerArgs>
+                                <!--can't use with release flag -->
+                                <arg>--add-exports</arg>
+                                <arg>java.base/jdk.internal.misc=dongting.client</arg>
+                            </compilerArgs>
                         </configuration>
                     </execution>
                     <execution>
