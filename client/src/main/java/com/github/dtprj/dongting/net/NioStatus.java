@@ -23,15 +23,20 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * @author huangli
  */
 class NioStatus {
-    private final IntObjMap<ReqProcessor<?>> processors = new IntObjMap<>();
 
+    @SuppressWarnings("unused")
     long p00, p01, p02, p03, p04, p05, p06, p07, p08, p09, p0a, p0b, p0c, p0d, p0e, p0f;
+
     // high 24 bits is pending request count, low 40 bits is pending bytes
     private volatile long inPending;
+
+    @SuppressWarnings("unused")
     long p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p1a, p1b, p1c, p1d, p1e, p1f;
 
     int outPendingRequests;
     long outPendingBytes;
+
+    private final IntObjMap<ReqProcessor<?>> processors = new IntObjMap<>();
 
     static final AtomicLongFieldUpdater<NioStatus> pendingUpdater =
             AtomicLongFieldUpdater.newUpdater(NioStatus.class, "inPending");
