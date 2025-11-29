@@ -322,14 +322,18 @@ public class RaftClient extends AbstractLifeCircle {
                     }
                 });
             }
-        } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                DtUtil.restoreInterruptStatus();
-            }
-            FutureCallback.callFail(callback, e);
-            if (getPermit) {
-                nioClient.releasePermit(request);
-            }
+        } catch (Throwable e) {
+            handleSendEx(request, callback, e, getPermit);
+        }
+    }
+
+    private <T> void handleSendEx(WritePacket request, RpcCallback<T> callback, Throwable e, boolean getPermit) {
+        if (e instanceof InterruptedException) {
+            DtUtil.restoreInterruptStatus();
+        }
+        FutureCallback.callFail(callback, e);
+        if (getPermit) {
+            nioClient.releasePermit(request);
         }
     }
 
@@ -344,7 +348,11 @@ public class RaftClient extends AbstractLifeCircle {
                         log.info("leader changed, update leader from node {} to {}, request will auto retry",
                                 groupInfo.leader.nodeId, newGroupInfo.leader.nodeId);
                         request.prepareRetry();
-                        send(newGroupInfo, request, decoder, timeout, c, 1, getPermit);
+                        try {
+                            send(newGroupInfo, request, decoder, timeout, c, 1, getPermit);
+                        } catch (Throwable retryEx) {
+                            handleSendEx(request, c, retryEx, getPermit);
+                        }
                         return;
                     }
                 }
