@@ -12,7 +12,19 @@
 - [RaftServer.java](file://server/src/main/java/com/github/dtprj/dongting/raft/server/RaftServer.java)
 - [Fiber.java](file://server/src/main/java/com/github/dtprj/dongting/fiber/Fiber.java)
 - [AdminConfigChangeProcessor.java](file://server/src/main/java/com/github/dtprj/dongting/raft/rpc/AdminConfigChangeProcessor.java)
+- [LinearTaskRunner.java](file://server/src/main/java/com/github/dtprj/dongting/raft/impl/LinearTaskRunner.java) - *流控逻辑已迁移至此*
+- [TailCache.java](file://server/src/main/java/com/github/dtprj/dongting/raft/impl/TailCache.java) - *计数器管理已更新*
+- [RaftGroupConfig.java](file://server/src/main/java/com/github/dtprj/dongting/raft/server/RaftGroupConfig.java) - *配置参数已调整*
+- [RaftInput.java](file://server/src/main/java/com/github/dtprj/dongting/raft/server/RaftInput.java) - *流控大小计算已更新*
 </cite>
+
+## 更新摘要
+**变更内容**
+- 移除了 `PendingStat` 类，其功能已整合至 `TailCache` 和 `LinearTaskRunner`
+- 流量控制逻辑已从 `RaftGroupImpl` 迁移至 `LinearTaskRunner` 类中
+- `TailCache` 类现在直接管理待处理任务的计数和字节大小
+- `RaftGroupConfig` 配置类中的流控参数名称已更新，移除了冗余前缀
+- 更新了相关代码示例和序列图以反映最新的实现细节
 
 ## 目录
 1. [简介](#简介)
@@ -115,7 +127,6 @@ class RaftGroupImpl {
 -int groupId
 -RaftStatusImpl raftStatus
 -RaftGroupConfigEx groupConfig
--PendingStat serverStat
 -StateMachine stateMachine
 +void submitLinearTask(RaftInput input, RaftCallback callback)
 +void leaseRead(Timestamp ts, DtTime deadline, FutureCallback callback)
@@ -173,8 +184,8 @@ participant AM as ApplyManager
 participant SM as StateMachine
 participant FM as FiberManager
 Client->>RG : submitLinearTask(input, callback)
-RG->>RG : 检查pending限制
-RG->>LTR : 提交任务到业务线程
+RG->>LTR : 提交任务到线性任务运行器
+LTR->>LTR : 执行流控检查
 LTR->>AM : 应用日志条目
 AM->>SM : 执行状态机应用
 SM-->>AM : 返回结果
@@ -185,6 +196,7 @@ RG-->>Client : 返回最终结果
 
 **图表来源**
 - [RaftGroupImpl.java](file://server/src/main/java/com/github/dtprj/dongting/raft/impl/RaftGroupImpl.java#L75-L120)
+- [LinearTaskRunner.java](file://server/src/main/java/com/github/dtprj/dongting/raft/impl/LinearTaskRunner.java#L131-L138)
 
 ### 关键实现特性
 
@@ -192,14 +204,14 @@ RG-->>Client : 返回最终结果
    ```java
    @Override
    public void submitLinearTask(RaftInput input, RaftCallback callback) {
-       // 流量控制检查
-       int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
-       if (currentPendingWrites >= groupConfig.maxPendingRaftTasks) {
-           throw new FlowControlException("too many pending writes");
+       Objects.requireNonNull(input);
+       if (fiberGroup.isShouldStop()) {
+           RaftUtil.release(input);
+           throw new RaftException("raft group thread is stop");
        }
-       
-       // 提交到线性任务运行器
-       groupComponents.linearTaskRunner.submitRaftTaskInBizThread(type, input, wrapper);
+       int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
+       // 任务提交已迁移至LinearTaskRunner，由其负责流控
+       groupComponents.linearTaskRunner.submitRaftTaskInBizThread(type, input, callback);
    }
    ```
 
@@ -634,22 +646,35 @@ private RaftGroupImpl createRaftGroup(RaftServerConfig serverConfig,
 
 ### 流量控制机制
 
+流控逻辑已从 `RaftGroupImpl` 迁移至 `LinearTaskRunner` 类中，由 `TailCache` 直接管理计数器。`RaftGroupConfig` 中的配置参数也已更新，移除了冗余的 `maxPendingRaftTasks` 前缀。
+
 ```java
-@Override
-public void submitLinearTask(RaftInput input, RaftCallback callback) {
-    // 检查pending请求数量限制
-    int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
-    if (currentPendingWrites >= groupConfig.maxPendingRaftTasks) {
-        throw new FlowControlException("too many pending writes");
+private Throwable checkTask(RaftTask rt, RaftStatusImpl raftStatus) {
+    RaftInput input = rt.input;
+    if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
+        return new RaftTimeoutException("timeout " + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms");
     }
-    
-    // 检查pending字节大小限制
-    long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
-    if (currentPendingWriteBytes >= groupConfig.maxPendingTaskBytes) {
-        throw new FlowControlException("too many pending write bytes");
+    if (rt.type == LogItem.TYPE_NORMAL || rt.type == LogItem.TYPE_LOG_READ) {
+        // 流控检查现在在LinearTaskRunner中执行
+        if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {
+            log.warn("reject task, pendingRequests={}, maxPendingTasks={}",
+                    raftStatus.tailCache.pendingCount, groupConfig.maxPendingTasks);
+            return new FlowControlException("max pending tasks reached: " + groupConfig.maxPendingTasks);
+        }
+        if (raftStatus.tailCache.pendingBytes >= groupConfig.maxPendingTaskBytes) {
+            log.warn("reject task, pendingBytes={}, maxPendingTaskBytes={}",
+                    raftStatus.tailCache.pendingBytes, groupConfig.maxPendingTaskBytes);
+            return new FlowControlException("max pending bytes reached: " + groupConfig.maxPendingTaskBytes);
+        }
     }
+    return null;
 }
 ```
+
+**章节来源**
+- [LinearTaskRunner.java](file://server/src/main/java/com/github/dtprj/dongting/raft/impl/LinearTaskRunner.java#L203-L220)
+- [TailCache.java](file://server/src/main/java/com/github/dtprj/dongting/raft/impl/TailCache.java#L40-L41)
+- [RaftGroupConfig.java](file://server/src/main/java/com/github/dtprj/dongting/raft/server/RaftGroupConfig.java#L38-L41)
 
 ### 缓存优化
 
