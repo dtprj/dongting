@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
-import jdk.internal.misc.Unsafe;
+import com.github.dtprj.dongting.unsafe11.NewUnsafe;
 
 import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
@@ -29,18 +29,6 @@ import java.nio.ByteBuffer;
  */
 @SuppressWarnings({"unused"})
 public class Java11Factory extends VersionFactory {
-
-    public static final Unsafe UNSAFE;
-
-    static {
-        Unsafe unsafe;
-        try {
-            unsafe = Unsafe.getUnsafe();
-        } catch (Throwable e) {
-            unsafe = null;
-        }
-        UNSAFE = unsafe;
-    }
 
     @Override
     public AbstractRefCountUpdater newRefCountUpdater(boolean plain) {
@@ -54,8 +42,8 @@ public class Java11Factory extends VersionFactory {
 
     @Override
     public void releaseDirectBuffer(ByteBuffer buffer) {
-        if (UNSAFE != null) {
-            UNSAFE.invokeCleaner(buffer);
+        if (NewUnsafe.available()) {
+            NewUnsafe.freeDirectBuffer(buffer);
         } else {
             DtUnsafe.freeDirectBuffer(buffer);
         }

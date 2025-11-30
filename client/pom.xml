@@ -32,6 +32,11 @@
             <version>0.8.4-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.github.dtprj.dongting</groupId>
+            <artifactId>dongting-client-java11</artifactId>
+            <version>0.8.4-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -46,11 +51,11 @@
                         <configuration>
                             <source>11</source>
                             <target>11</target>
+                            <release>11</release>
                             <!-- compile everything to ensure module-info contains right entries -->
                             <compilerArgs>
-                                <!--can't use with release flag -->
-                                <arg>--add-exports</arg>
-                                <arg>java.base/jdk.internal.misc=dongting.client</arg>
+                                <arg>--add-reads</arg>
+                                <arg>dongting.client=ALL-UNNAMED</arg>
                             </compilerArgs>
                         </configuration>
                     </execution>
@@ -102,4 +107,41 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>merge</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-java11-classes</id>
+                                <phase>process-classes</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>../client-java11/target/classes</directory>
+                                            <includes>
+                                                <include>**/*.class</include>
+                                            </includes>
+                                            <excludes>
+                                                <exclude>module-info.class</exclude>
+                                            </excludes>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

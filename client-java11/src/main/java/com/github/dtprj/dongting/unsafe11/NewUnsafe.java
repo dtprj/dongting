@@ -13,13 +13,33 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-module dongting.server {
-    requires transitive dongting.client;
+package com.github.dtprj.dongting.unsafe11;
 
-    exports com.github.dtprj.dongting.fiber;
-    exports com.github.dtprj.dongting.raft.server;
-    exports com.github.dtprj.dongting.raft.store;
-    exports com.github.dtprj.dongting.raft.sm;
-    exports com.github.dtprj.dongting.dtkv.server;
-    exports com.github.dtprj.dongting.raft.admin;
+import jdk.internal.misc.Unsafe;
+
+import java.nio.ByteBuffer;
+
+/**
+ * @author huangli
+ */
+public final class NewUnsafe {
+    public static final Unsafe UNSAFE;
+
+    static {
+        Unsafe unsafe;
+        try {
+            unsafe = Unsafe.getUnsafe();
+        } catch (Throwable e) {
+            unsafe = null;
+        }
+        UNSAFE = unsafe;
+    }
+
+    public static boolean available() {
+        return UNSAFE != null;
+    }
+
+    public static void freeDirectBuffer(ByteBuffer buffer) {
+        UNSAFE.invokeCleaner(buffer);
+    }
 }
