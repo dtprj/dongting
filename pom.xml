@@ -56,7 +56,6 @@
     <modules>
         <module>test-support</module>
         <module>client</module>
-        <module>java11</module>
         <module>server</module>
         <module>report</module>
         <module>benchmark</module>

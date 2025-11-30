@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.common.VersionFactory;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -25,7 +24,7 @@ import org.junit.jupiter.api.Test;
 public class Java11RefCountTest extends AbstractMultiThreadRefCountTest {
     @Override
     protected RefCount createInstance() {
-        return new RefCount(VersionFactory.getInstance().newRefCountUpdater(false)){
+        return new RefCount(new Java11Factory().newRefCountUpdater(false)){
         };
     }
 
