@@ -9,5 +9,6 @@ module dongting.client {
     exports com.github.dtprj.dongting.net;
     exports com.github.dtprj.dongting.codec;
     exports com.github.dtprj.dongting.raft;
-    exports com.github.dtprj.dongting.queue to dongting.server;
+    exports com.github.dtprj.dongting.queue to dongting.server, dongting.java11;
+    exports com.github.dtprj.dongting.unsafe to dongting.server, dongting.java11;
 }

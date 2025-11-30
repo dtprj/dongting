@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.java11;
 
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -31,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class MpscLinkedQueueTest {
 
     protected <E> MpscLinkedQueue<E> create() {
-        return MpscLinkedQueue.newInstance();
+        return VersionFactory.getInstance().newMpscLinkedQueue();
     }
 
     @Test
