@@ -34,7 +34,7 @@
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>dongting-client-java11</artifactId>
+            <artifactId>dongting-client-ex</artifactId>
             <version>0.8.4-SNAPSHOT</version>
         </dependency>
     </dependencies>
@@ -122,7 +122,7 @@
                         <artifactId>maven-resources-plugin</artifactId>
                         <executions>
                             <execution>
-                                <id>copy-java11-classes</id>
+                                <id>copy-ex-classes</id>
                                 <phase>process-classes</phase>
                                 <goals>
                                     <goal>copy-resources</goal>
@@ -131,13 +131,10 @@
                                     <outputDirectory>${project.build.outputDirectory}</outputDirectory>
                                     <resources>
                                         <resource>
-                                            <directory>../client-java11/target/classes</directory>
+                                            <directory>../client-ex/target/classes</directory>
                                             <includes>
                                                 <include>**/*.class</include>
                                             </includes>
-                                            <excludes>
-                                                <exclude>module-info.class</exclude>
-                                            </excludes>
                                         </resource>
                                     </resources>
                                 </configuration>

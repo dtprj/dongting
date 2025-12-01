@@ -23,7 +23,7 @@
         <groupId>com.github.dtprj.dongting</groupId>
         <version>0.8.4-SNAPSHOT</version>
     </parent>
-    <artifactId>dongting-client-java11</artifactId>
+    <artifactId>dongting-client-ex</artifactId>
     <properties>
         <maven.install.skip>true</maven.install.skip>
         <maven.deploy.skip>true</maven.deploy.skip>

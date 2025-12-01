@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
@@ -42,7 +43,7 @@ public class Java11Factory extends VersionFactory {
 
     @Override
     public void releaseDirectBuffer(ByteBuffer buffer) {
-        if (NewUnsafe.available()) {
+        if (DtUtil.JAVA_VER >= 17 && NewUnsafe.available()) {
             NewUnsafe.freeDirectBuffer(buffer);
         } else {
             DtUnsafe.freeDirectBuffer(buffer);

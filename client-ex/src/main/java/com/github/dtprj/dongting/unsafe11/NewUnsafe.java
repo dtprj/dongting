@@ -40,6 +40,7 @@ public final class NewUnsafe {
     }
 
     public static void freeDirectBuffer(ByteBuffer buffer) {
+        // this method is not available in java 11 jdk.internal.misc.Unsafe
         UNSAFE.invokeCleaner(buffer);
     }
 }

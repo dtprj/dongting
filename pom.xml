@@ -55,7 +55,7 @@
 
     <modules>
         <module>test-support</module>
-        <module>client-java11</module>
+        <module>client-ex</module>
         <module>client</module>
         <module>server</module>
         <module>report</module>
