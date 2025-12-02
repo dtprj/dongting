@@ -25,7 +25,13 @@ public class NioServerConfig extends NioConfig {
 
     public NioServerConfig() {
         this.ioThreads = calcIoThreads();
-        this.bizThreads = Math.max(8, Runtime.getRuntime().availableProcessors() * 4);
+        this.bizThreads = Runtime.getRuntime().availableProcessors() * 2;
+        if (bizThreads < 6) {
+            this.bizThreads = 6;
+        }
+        if (bizThreads > 16) {
+            this.bizThreads = 16;
+        }
         this.name = "DtNioServer";
 
         // back pressure config

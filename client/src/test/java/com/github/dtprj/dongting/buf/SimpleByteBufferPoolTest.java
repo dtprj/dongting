@@ -353,7 +353,7 @@ public class SimpleByteBufferPoolTest {
                 calcTotalSize(SimpleByteBufferPool.DEFAULT_BUF_SIZE, SimpleByteBufferPool.DEFAULT_MAX_COUNT),
                 calcTotalSize(SimpleByteBufferPool.DEFAULT_BUF_SIZE, SimpleByteBufferPool.DEFAULT_MIN_COUNT));
 
-        System.out.println("default SimpleByteBufferPool");
+        System.out.println("default two level global");
         System.out.printf("max:%,d\nmin:%,d\n\n",
                 calcTotalSize(DefaultPoolFactory.DEFAULT_GLOBAL_SIZE, DefaultPoolFactory.DEFAULT_GLOBAL_MAX_COUNT),
                 calcTotalSize(DefaultPoolFactory.DEFAULT_GLOBAL_SIZE, DefaultPoolFactory.DEFAULT_GLOBAL_MIN_COUNT));
