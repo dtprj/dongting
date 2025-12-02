@@ -59,6 +59,7 @@
         <module>client</module>
         <module>server</module>
         <module>ops</module>
+        <module>it-test</module>
         <module>report</module>
         <module>benchmark</module>
         <module>demos</module>

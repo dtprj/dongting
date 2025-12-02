@@ -28,7 +28,7 @@
     <dependencies>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>test-support</artifactId>
+            <artifactId>dongting-test-support</artifactId>
             <version>0.8.4-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>

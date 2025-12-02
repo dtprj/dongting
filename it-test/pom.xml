@@ -23,22 +23,26 @@
         <groupId>com.github.dtprj.dongting</groupId>
         <version>0.8.4-SNAPSHOT</version>
     </parent>
-    <artifactId>dongting-server</artifactId>
+    <artifactId>dongting-it-test</artifactId>
+    <properties>
+        <maven.install.skip>true</maven.install.skip>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <skipITs>true</skipITs>
+    </properties>
     <dependencies>
+        <dependency>
+            <groupId>com.github.dtprj.dongting</groupId>
+            <artifactId>dongting-ops</artifactId>
+            <version>0.8.4-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-test-support</artifactId>
             <version>0.8.4-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>dongting-client</artifactId>
-            <version>0.8.4-SNAPSHOT</version>
-        </dependency>
     </dependencies>
     <build>
-        <finalName>dongting-server-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -48,6 +52,22 @@
                     <target>11</target>
                     <release>11</release>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.4</version>
+                <configuration>
+                    <skipITs>${skipITs}</skipITs>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

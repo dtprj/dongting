@@ -23,7 +23,7 @@
         <groupId>com.github.dtprj.dongting</groupId>
         <version>0.8.4-SNAPSHOT</version>
     </parent>
-    <artifactId>test-support</artifactId>
+    <artifactId>dongting-test-support</artifactId>
     <properties>
         <maven.install.skip>true</maven.install.skip>
         <maven.deploy.skip>true</maven.deploy.skip>
