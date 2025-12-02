@@ -23,29 +23,53 @@
         <groupId>com.github.dtprj.dongting</groupId>
         <version>0.8.4-SNAPSHOT</version>
     </parent>
-    <artifactId>dongting-demos</artifactId>
+    <artifactId>dongting-dist</artifactId>
+    <packaging>pom</packaging>
 
-    <properties>
-        <maven.install.skip>true</maven.install.skip>
-        <maven.deploy.skip>true</maven.deploy.skip>
-    </properties>
     <dependencies>
+        <!-- declare dependencies to ensure build order -->
+        <dependency>
+            <groupId>com.github.dtprj.dongting</groupId>
+            <artifactId>dongting-client</artifactId>
+            <version>0.8.4-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.dtprj.dongting</groupId>
+            <artifactId>dongting-server</artifactId>
+            <version>0.8.4-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-ops</artifactId>
             <version>0.8.4-SNAPSHOT</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
+
     <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>17</source>
-                    <target>17</target>
-                    <release>17</release>
-                </configuration>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>src/assembly/assembly.xml</descriptor>
+                            </descriptors>
+                            <finalName>dongting-dist</finalName>
+                            <appendAssemblyId>false</appendAssemblyId>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

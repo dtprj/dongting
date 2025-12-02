@@ -58,9 +58,11 @@
         <module>client-ex</module>
         <module>client</module>
         <module>server</module>
+        <module>ops</module>
         <module>report</module>
         <module>benchmark</module>
         <module>demos</module>
+        <module>dist</module>
     </modules>
 
     <dependencyManagement>
