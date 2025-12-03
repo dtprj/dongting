@@ -43,21 +43,19 @@
         </fileSet>
     </fileSets>
 
-    <files>
-        <!-- copy client jar to lib -->
-        <file>
-            <source>${project.basedir}/../client/target/dongting-client-${project.version}.jar</source>
+    <dependencySets>
+        <dependencySet>
             <outputDirectory>lib</outputDirectory>
-        </file>
-        <!-- copy server jar to lib -->
-        <file>
-            <source>${project.basedir}/../server/target/dongting-server-${project.version}.jar</source>
-            <outputDirectory>lib</outputDirectory>
-        </file>
-        <!-- copy ops jar to lib -->
-        <file>
-            <source>${project.basedir}/../ops/target/dongting-ops-${project.version}.jar</source>
-            <outputDirectory>lib</outputDirectory>
-        </file>
-    </files>
+            <useProjectArtifact>false</useProjectArtifact>
+            <useTransitiveDependencies>true</useTransitiveDependencies>
+            <includes>
+                <include>org.slf4j:slf4j-api</include>
+                <include>ch.qos.logback:logback-classic</include>
+                <include>ch.qos.logback:logback-core</include>
+                <include>com.github.dtprj.dongting:dongting-client</include>
+                <include>com.github.dtprj.dongting:dongting-server</include>
+                <include>com.github.dtprj.dongting:dongting-ops</include>
+            </includes>
+        </dependencySet>
+    </dependencySets>
 </assembly>
