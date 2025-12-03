@@ -25,24 +25,18 @@
     <fileSets>
         <!-- create empty bin directory -->
         <fileSet>
-            <directory>${project.basedir}/src/assembly</directory>
+            <directory>${project.basedir}/src/bin</directory>
             <outputDirectory>bin</outputDirectory>
-            <excludes>
-                <exclude>**/*</exclude>
-            </excludes>
+        </fileSet>
+        <!-- copy conf files -->
+        <fileSet>
+            <directory>${project.basedir}/src/conf</directory>
+            <outputDirectory>conf</outputDirectory>
         </fileSet>
         <!-- create empty log directory -->
         <fileSet>
             <directory>${project.basedir}/src/assembly</directory>
             <outputDirectory>log</outputDirectory>
-            <excludes>
-                <exclude>**/*</exclude>
-            </excludes>
-        </fileSet>
-        <!-- create empty conf directory -->
-        <fileSet>
-            <directory>${project.basedir}/src/assembly</directory>
-            <outputDirectory>conf</outputDirectory>
             <excludes>
                 <exclude>**/*</exclude>
             </excludes>
