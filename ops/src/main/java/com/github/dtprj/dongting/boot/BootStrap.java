@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 
@@ -46,6 +47,8 @@ public class BootStrap {
 
     public static final int DEFAULT_REPLICATE_PORT = 9331;
     public static final int DEFAULT_SERVICE_PORT = 9332;
+
+    private static final String GROUP_PREFIX = "group.";
 
     public static void main(String[] args) {
         Properties configProps = null;
@@ -86,12 +89,9 @@ public class BootStrap {
             }
 
             groupConfigs = new ArrayList<>();
-            for (int groupId = 0; ; groupId++) {
-                String nodeIdOfMembers = serversProps.getProperty("group." + groupId + ".nodeIdOfMembers");
-                if (nodeIdOfMembers == null) {
-                    break;
-                }
-                String nodeIdOfObservers = serversProps.getProperty("group." + groupId + ".nodeIdOfObservers");
+            for (int groupId : parseGroupIds(serversProps)) {
+                String nodeIdOfMembers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
+                String nodeIdOfObservers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfObservers");
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
                 PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
                 groupConfigs.add(groupConfig);
@@ -108,7 +108,8 @@ public class BootStrap {
             }
 
         } catch (Throwable e) {
-            System.err.println("Failed to start server");
+            System.err.println("Failed to start server: " + e);
+            //noinspection CallToPrintStackTrace
             e.printStackTrace();
             System.exit(ERR_BOOTSTRAP_FAIL);
         }
@@ -139,7 +140,8 @@ public class BootStrap {
         try {
             raftServer.start();
         } catch (Throwable e) {
-            System.err.println("Failed to start server");
+            System.err.println("Failed to start server: " + e);
+            //noinspection CallToPrintStackTrace
             e.printStackTrace();
             System.exit(ERR_START_FAIL);
         }
@@ -151,13 +153,13 @@ public class BootStrap {
                 if (i + 1 < args.length) {
                     return args[i + 1];
                 } else {
-                    System.err.println("Error: -c option requires a config file path");
+                    System.err.println("Error: " + option + " option requires a config file path");
                     System.exit(ERR_COMMAND_LINE_ERROR);
                     return null;
                 }
             }
         }
-        System.err.println("Error: config file not specified. Use -c <config-file>");
+        System.err.println("Error: config file not specified. Use " + option + " <config-file>");
         System.exit(ERR_COMMAND_LINE_ERROR);
         return null;
     }
@@ -199,5 +201,34 @@ public class BootStrap {
         } catch (Exception e) {
             return "Error: dir" + dir + " check fail : " + e;
         }
+    }
+
+    private static int[] parseGroupIds(Properties props) {
+        HashSet<Integer> groupIds = new HashSet<>();
+        for (String key : props.stringPropertyNames()) {
+            if (key.startsWith(GROUP_PREFIX)) {
+                String rest = key.substring(GROUP_PREFIX.length());
+                int dotIndex = rest.indexOf('.');
+                if (dotIndex <= 0) {
+                    System.err.println("Invalid group config key: " + key);
+                    System.exit(ERR_BAD_CONFIG);
+                }
+                String idStr = rest.substring(0, dotIndex);
+                try {
+                    groupIds.add(Integer.parseInt(idStr));
+                } catch (NumberFormatException e) {
+                    System.err.println("Invalid group id in key: " + key + ", group id must be a number");
+                    System.exit(ERR_BAD_CONFIG);
+                }
+            }
+        }
+        for (int groupId : groupIds) {
+            String nodeIdOfMembers = props.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
+            if (nodeIdOfMembers == null || nodeIdOfMembers.isEmpty()) {
+                System.err.println("Missing nodeIdOfMembers for group " + groupId);
+                System.exit(ERR_BAD_CONFIG);
+            }
+        }
+        return groupIds.stream().sorted().mapToInt(Integer::intValue).toArray();
     }
 }
