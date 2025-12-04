@@ -35,7 +35,7 @@ import java.util.Properties;
 /**
  * @author huangli
  */
-public class BootStrap {
+public class Bootstrap {
 
     public static final int ERR_COMMAND_LINE_ERROR = 101;
     public static final int ERR_LOAD_CONFIG_FAIL = 102;
@@ -96,7 +96,7 @@ public class BootStrap {
                 PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
                 groupConfigs.add(groupConfig);
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
-                s = BootStrap.ensureDir(groupConfig.dataDir);
+                s = Bootstrap.ensureDir(groupConfig.dataDir);
                 if (s != null) {
                     System.err.println(s);
                     System.exit(ERR_BAD_DATA_DIR);
@@ -104,7 +104,7 @@ public class BootStrap {
             }
             if (groupConfigs.isEmpty()) {
                 System.err.println("No group configs found.");
-                System.exit(BootStrap.ERR_BAD_CONFIG);
+                System.exit(Bootstrap.ERR_BAD_CONFIG);
             }
 
         } catch (Throwable e) {
@@ -130,7 +130,7 @@ public class BootStrap {
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
                 PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
-                String s = BootStrap.ensureDir(groupConfig.dataDir);
+                String s = Bootstrap.ensureDir(groupConfig.dataDir);
                 if (s != null) {
                     throw new RaftException(s);
                 }
