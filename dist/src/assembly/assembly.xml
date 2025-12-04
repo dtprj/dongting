@@ -23,10 +23,11 @@
     <includeBaseDirectory>false</includeBaseDirectory>
 
     <fileSets>
-        <!-- create empty bin directory -->
+        <!-- copy bin scripts -->
         <fileSet>
             <directory>${project.basedir}/src/bin</directory>
             <outputDirectory>bin</outputDirectory>
+            <fileMode>0755</fileMode>
         </fileSet>
         <!-- copy conf files -->
         <fileSet>
