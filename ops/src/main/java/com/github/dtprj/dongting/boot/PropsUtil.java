@@ -18,11 +18,15 @@ package com.github.dtprj.dongting.boot;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author huangli
  */
 public class PropsUtil {
+
+    private static final Pattern VAR_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
 
     /**
      * Set public fields of a bean from properties.
@@ -56,6 +60,7 @@ public class PropsUtil {
                 continue;
             }
             try {
+                value = resolveVariables(value);
                 setField(bean, field, value);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to set field " + field.getName() + " with value '" + value + "'", e);
@@ -106,4 +111,41 @@ public class PropsUtil {
         }
         return result;
     }
+
+    /**
+     * Resolve variables in the format ${VAR_NAME:default_value} within the given string.
+     * It first looks for a system property named VAR_NAME, then an environment variable. If neither is found,
+     * it uses the default_value if provided; otherwise, it throws an IllegalArgumentException.
+     */
+    private static String resolveVariables(String value) {
+        if (!value.contains("${")) {
+            return value;
+        }
+
+        Matcher matcher = VAR_PATTERN.matcher(value);
+        StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            String expr = matcher.group(1);
+
+            String[] parts = expr.split(":", 2);
+            String varName = parts[0];
+            String defaultValue = parts.length > 1 ? parts[1] : null;
+
+            String resolved = System.getProperty(varName);
+            if (resolved == null) {
+                resolved = System.getenv(varName);
+            }
+            if (resolved == null) {
+                resolved = defaultValue;
+            }
+            if (resolved == null) {
+                throw new IllegalArgumentException("Cannot resolve variable: " + varName);
+            }
+
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(resolved));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
 }
