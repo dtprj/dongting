@@ -65,7 +65,7 @@ class JdkLog implements DtLog {
     @Override
     public void debug(String format, Object... args) {
         if (log.isLoggable(Level.FINE)) {
-            FormattingTuple ft = MessageFormatter.format(format, args);
+            FormattingTuple ft = MessageFormatter.arrayFormat(format, args);
             log(Level.FINE, ft);
         }
     }
@@ -104,7 +104,7 @@ class JdkLog implements DtLog {
     @Override
     public void info(String format, Object... args) {
         if (log.isLoggable(Level.INFO)) {
-            FormattingTuple ft = MessageFormatter.format(format, args);
+            FormattingTuple ft = MessageFormatter.arrayFormat(format, args);
             log(Level.INFO, ft);
         }
     }
@@ -143,7 +143,7 @@ class JdkLog implements DtLog {
     @Override
     public void warn(String format, Object... args) {
         if (log.isLoggable(Level.WARNING)) {
-            FormattingTuple ft = MessageFormatter.format(format, args);
+            FormattingTuple ft = MessageFormatter.arrayFormat(format, args);
             log(Level.WARNING, ft);
         }
     }
@@ -182,7 +182,7 @@ class JdkLog implements DtLog {
     @Override
     public void error(String format, Object... args) {
         if (log.isLoggable(Level.SEVERE)) {
-            FormattingTuple ft = MessageFormatter.format(format, args);
+            FormattingTuple ft = MessageFormatter.arrayFormat(format, args);
             log(Level.SEVERE, ft);
         }
     }
