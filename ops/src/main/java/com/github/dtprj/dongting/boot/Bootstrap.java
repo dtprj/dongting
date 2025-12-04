@@ -39,11 +39,10 @@ public class Bootstrap {
 
     public static final int ERR_COMMAND_LINE_ERROR = 101;
     public static final int ERR_LOAD_CONFIG_FAIL = 102;
-    public static final int ERR_BAD_LOG_DIR = 103;
-    public static final int ERR_BAD_DATA_DIR = 104;
-    public static final int ERR_BOOTSTRAP_FAIL = 105;
-    public static final int ERR_BAD_CONFIG = 106;
-    public static final int ERR_START_FAIL = 107;
+    public static final int ERR_BAD_DATA_DIR = 103;
+    public static final int ERR_BOOTSTRAP_FAIL = 104;
+    public static final int ERR_BAD_CONFIG = 105;
+    public static final int ERR_START_FAIL = 106;
 
     public static final int DEFAULT_REPLICATE_PORT = 9331;
     public static final int DEFAULT_SERVICE_PORT = 9332;
@@ -63,15 +62,6 @@ public class Bootstrap {
 
             Properties serversProps = loadProperties(serversConfigFile);
             System.out.println("Servers/groups config file loaded successfully: " + serversConfigFile);
-
-            String logDir = configProps.getProperty("LOG_DIR", "logs");
-            String s = ensureDir(logDir);
-            if (s != null) {
-                System.err.println(s);
-                System.exit(ERR_BAD_LOG_DIR);
-            }
-            System.setProperty("LOG_DIR", logDir);
-            System.out.println("use log dir: " + logDir);
 
             serverConfig = new RaftServerConfig();
             PropsUtil.setFieldsFromProps(serverConfig, configProps, "");
@@ -96,7 +86,7 @@ public class Bootstrap {
                 PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
                 groupConfigs.add(groupConfig);
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
-                s = Bootstrap.ensureDir(groupConfig.dataDir);
+                String s = Bootstrap.ensureDir(groupConfig.dataDir);
                 if (s != null) {
                     System.err.println(s);
                     System.exit(ERR_BAD_DATA_DIR);
