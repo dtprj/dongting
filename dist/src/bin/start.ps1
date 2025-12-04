@@ -35,6 +35,7 @@ if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {
 # Build arguments
 $Arguments = $JavaOpts + @(
     "-DLOG_DIR=$LOG_DIR",
+    "-DBASE_DIR=$BASE_DIR",
     "--module-path", $LIB_DIR,
     "--class-path", $CONF_DIR,
     "--add-exports", "java.base/jdk.internal.misc=dongting.client",
