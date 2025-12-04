@@ -21,6 +21,7 @@ BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 CONF_DIR="$BASE_DIR/conf"
 LIB_DIR="$BASE_DIR/lib"
+LOG_DIR="$BASE_DIR/logs"
 
 # JVM options
 JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g"
@@ -34,6 +35,7 @@ fi
 
 # Start the application using module path
 exec "$JAVA" $JAVA_OPTS \
+    -DLOG_DIR="$LOG_DIR" \
     --module-path "$LIB_DIR" \
     --class-path "$CONF_DIR" \
     --add-exports java.base/jdk.internal.misc=dongting.client \

@@ -16,10 +16,11 @@
 
 # Resolve the script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BaseDir = Split-Path -Parent $ScriptDir
+$BASE_DIR = Split-Path -Parent $ScriptDir
 
-$ConfDir = Join-Path $BaseDir "conf"
-$LibDir = Join-Path $BaseDir "lib"
+$CONF_DIR = Join-Path $BASE_DIR "conf"
+$LIB_DIR = Join-Path $BASE_DIR "lib"
+$LOG_DIR = Join-Path $BASE_DIR "logs"
 
 # JVM options
 $JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g")
@@ -33,12 +34,13 @@ if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {
 
 # Build arguments
 $Arguments = $JavaOpts + @(
-    "--module-path", $LibDir,
-    "--class-path", $ConfDir,
+    "-DLOG_DIR=$LOG_DIR",
+    "--module-path", $LIB_DIR,
+    "--class-path", $CONF_DIR,
     "--add-exports", "java.base/jdk.internal.misc=dongting.client",
     "-m", "dongting.ops/com.github.dtprj.dongting.boot.Bootstrap",
-    "-c", (Join-Path $ConfDir "config.properties"),
-    "-s", (Join-Path $ConfDir "servers.properties")
+    "-c", (Join-Path $CONF_DIR "config.properties"),
+    "-s", (Join-Path $CONF_DIR "servers.properties")
 ) + $args
 
 # Start the application

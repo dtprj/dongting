@@ -37,7 +37,7 @@
         <!-- create empty log directory -->
         <fileSet>
             <directory>${project.basedir}/src/assembly</directory>
-            <outputDirectory>log</outputDirectory>
+            <outputDirectory>logs</outputDirectory>
             <excludes>
                 <exclude>**/*</exclude>
             </excludes>

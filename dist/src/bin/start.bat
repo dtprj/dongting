@@ -23,6 +23,7 @@ set "BASE_DIR=%SCRIPT_DIR%.."
 
 set "CONF_DIR=%BASE_DIR%\conf"
 set "LIB_DIR=%BASE_DIR%\lib"
+set "LOG_DIR=%BASE_DIR%\logs"
 
 rem JVM options
 set "JAVA_OPTS=-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g"
@@ -36,6 +37,7 @@ if defined JAVA_HOME (
 
 rem Start the application using module path
 "%JAVA%" %JAVA_OPTS% ^
+    -DLOG_DIR="%LOG_DIR%" ^
     --module-path "%LIB_DIR%" ^
     --class-path "%CONF_DIR%" ^
     --add-exports java.base/jdk.internal.misc=dongting.client ^
