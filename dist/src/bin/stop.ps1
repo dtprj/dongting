@@ -31,16 +31,16 @@ if (-not $pidText) {
     exit 0
 }
 
-$pid = 0
-if (-not [int]::TryParse($pidText.Trim(), [ref]$pid) -or $pid -le 0) {
+$targetPid = 0
+if (-not [int]::TryParse($pidText.Trim(), [ref]$targetPid) -or $targetPid -le 0) {
     Write-Warning "Invalid PID in $PidFile, removing it."
     Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
     exit 0
 }
 
-$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+$proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
 if (-not $proc) {
-    Write-Output "No process with PID $pid, removing stale PID file $PidFile."
+    Write-Output "No process with PID $targetPid, removing stale PID file $PidFile."
     Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
     exit 0
 }
@@ -54,24 +54,24 @@ if ($env:DONGTING_FORCE_KILL -and $env:DONGTING_FORCE_KILL -ne "1") {
     $forceKill = $false
 }
 
-Write-Output "Stopping dongting (PID $pid)..."
+Write-Output "Stopping dongting (PID $targetPid)..."
 try {
-    Stop-Process -Id $pid -ErrorAction SilentlyContinue
+    Stop-Process -Id $targetPid -ErrorAction SilentlyContinue
 } catch {
-    Write-Error "Failed to send termination signal to PID $pid: $_"
+    Write-Error "Failed to send termination signal to PID $targetPid: $_"
     exit 1
 }
 
 $deadline = (Get-Date).AddSeconds($termWaitSeconds)
-while (Get-Process -Id $pid -ErrorAction SilentlyContinue) {
+while (Get-Process -Id $targetPid -ErrorAction SilentlyContinue) {
     if ((Get-Date) -ge $deadline) {
-        Write-Warning "Process $pid did not exit within $termWaitSeconds seconds."
+        Write-Warning "Process $targetPid did not exit within $termWaitSeconds seconds."
         if ($forceKill) {
-            Write-Warning "Forcing termination of PID $pid..."
+            Write-Warning "Forcing termination of PID $targetPid..."
             try {
-                Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+                Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue
             } catch {
-                Write-Error "Failed to force terminate PID $pid: $_"
+                Write-Error "Failed to force terminate PID $targetPid: $_"
                 exit 1
             }
         } else {
@@ -83,10 +83,10 @@ while (Get-Process -Id $pid -ErrorAction SilentlyContinue) {
     Start-Sleep -Seconds 1
 }
 
-if (Get-Process -Id $pid -ErrorAction SilentlyContinue) {
-    Write-Error "Process $pid still running after stop attempts."
+if (Get-Process -Id $targetPid -ErrorAction SilentlyContinue) {
+    Write-Error "Process $targetPid still running after stop attempts."
     exit 1
 }
 
 Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
-Write-Output "dongting stopped (PID $pid)."
+Write-Output "dongting stopped (PID $targetPid)."

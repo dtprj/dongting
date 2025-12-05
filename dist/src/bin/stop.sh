@@ -42,7 +42,7 @@ TERM_WAIT=${TERM_WAIT_SECONDS:-60}
 FORCE=${DONGTING_FORCE_KILL:-1}
 
 echo "Stopping dongting (PID $PID) with SIGTERM..."
-kill "$PID" 2>/dev/null || {
+kill -s TERM "$PID" 2>/dev/null || {
   echo "Failed to send SIGTERM to PID $PID" >&2
   exit 1
 }

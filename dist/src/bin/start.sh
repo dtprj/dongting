@@ -64,7 +64,7 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 # Start the application using module path in background and record PID
-"$JAVA" $JAVA_OPTS \
+nohup "$JAVA" $JAVA_OPTS \
     -DDATA_DIR="$DATA_DIR" \
     -DLOG_DIR="$LOG_DIR" \
     -Dlogback.configurationFile="$CONF_DIR/logback.xml" \
@@ -76,7 +76,7 @@ fi
     -m dongting.ops/com.github.dtprj.dongting.boot.Bootstrap \
     -c "$CONF_DIR/config.properties" \
     -s "$CONF_DIR/servers.properties" \
-    "$@" &
+    "$@" > "$BASE_DIR/logs/start.log" 2>&1 &
 NEW_PID=$!
 if [ -z "$NEW_PID" ] || [ "$NEW_PID" -le 0 ] 2>/dev/null; then
   echo "Failed to start dongting (no PID captured)" >&2
