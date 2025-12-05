@@ -24,7 +24,7 @@ set "SCRIPT_DIR=%~dp0"
 rem Normalize SCRIPT_DIR to remove trailing backslash if present
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-set "PS_SCRIPT=%SCRIPT_DIR%\start.ps1"
+set "PS_SCRIPT=%SCRIPT_DIR%\start-dongting.ps1"
 
 rem Detect available PowerShell executable (prefer pwsh, then powershell)
 set "POWERSHELL_EXE="

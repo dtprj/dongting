@@ -69,7 +69,7 @@ verify_process() {
       ;;
   esac
 
-  # check data dir marker as passed by start.sh
+  # check data dir marker as passed by start-dongting.sh
   case "$cmdline" in
     *"-DDATA_DIR=$EXPECT_DATA"*|*"-DDATA_DIR=$DATA_DIR"*) data_ok=1 ;;
     *) data_ok=0 ;;
