@@ -38,6 +38,10 @@ if (-not (Test-Path $DATA_DIR)) {
     New-Item -ItemType Directory -Path $DATA_DIR -Force | Out-Null
 }
 
+if (-not (Test-Path $LOG_DIR)) {
+    New-Item -ItemType Directory -Path $LOG_DIR -Force | Out-Null
+}
+
 # Check existing PID file
 if (Test-Path $PidFile) {
     $pidText = Get-Content -Path $PidFile -ErrorAction SilentlyContinue
@@ -73,9 +77,18 @@ $Arguments = $JavaOpts + @(
 ) + $args
 
 # Start the application and record PID
-$process = Start-Process -FilePath $Java -ArgumentList $Arguments -PassThru
+$process = Start-Process -FilePath $Java -ArgumentList $Arguments -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $LOG_DIR "start.log") -RedirectStandardError (Join-Path $LOG_DIR "start_error.log")
 if (-not $process -or $process.Id -le 0) {
     Write-Error "Failed to start dongting (no PID captured)"
+    exit 1
+}
+
+# Verify the process actually started and is running
+Start-Sleep -Milliseconds 1500
+$runningProc = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+if (-not $runningProc) {
+    Write-Error "Failed to start dongting: process $($process.Id) exited immediately after start"
+    Write-Error "Check $(Join-Path $LOG_DIR 'start.log') and $(Join-Path $LOG_DIR 'start_error.log') for details"
     exit 1
 }
 

@@ -21,7 +21,8 @@ DATA_DIR="$BASE_DIR/data"
 PID_FILE="$DATA_DIR/dongting.pid"
 
 # allow advanced users to skip cmdline verification (not recommended)
-VERIFY_CMDLINE=${DONGTING_SKIP_CMDLINE_CHECK:-1}
+# set DONGTING_SKIP_CMDLINE_CHECK=1 to skip verification
+SKIP_VERIFY=${DONGTING_SKIP_CMDLINE_CHECK:-0}
 
 # normalize base/data dir for comparison
 if command -v realpath >/dev/null 2>&1; then
@@ -47,8 +48,8 @@ get_cmdline() {
 verify_process() {
   local pid="$1"
 
-  if [ "$VERIFY_CMDLINE" != "1" ]; then
-    # skip verification when explicitly disabled
+  if [ "$SKIP_VERIFY" = "1" ]; then
+    # skip verification when explicitly requested
     return 0
   fi
 
@@ -68,15 +69,10 @@ verify_process() {
       ;;
   esac
 
-  # check data/base dir markers as passed by start.sh
+  # check data dir marker as passed by start.sh
   case "$cmdline" in
     *"-DDATA_DIR=$EXPECT_DATA"*|*"-DDATA_DIR=$DATA_DIR"*) data_ok=1 ;;
     *) data_ok=0 ;;
-  esac
-
-  case "$cmdline" in
-    *"-DLOG_DIR=$EXPECT_BASE"*|*"-DLOG_DIR=$BASE_DIR"*) base_ok=1 ;;
-    *) base_ok=0 ;;
   esac
 
   if [ "$data_ok" -ne 1 ]; then
@@ -87,7 +83,6 @@ verify_process() {
   return 0
 }
 
-# ...existing code using PID_FILE...
 if [ ! -f "$PID_FILE" ]; then
   echo "No PID file $PID_FILE, dongting may not be running."
   exit 0

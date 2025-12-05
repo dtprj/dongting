@@ -40,6 +40,10 @@ if not exist "%DATA_DIR%" (
     mkdir "%DATA_DIR%" 2>nul
 )
 
+if not exist "%LOG_DIR%" (
+    mkdir "%LOG_DIR%" 2>nul
+)
+
 rem Check existing PID file
 if exist "%PID_FILE%" (
     set "OLD_PID="
@@ -61,29 +65,46 @@ if exist "%PID_FILE%" (
     )
 )
 
-rem Start the application using module path in a new window and record PID via PowerShell
-start "dongting" /b "%JAVA%" %JAVA_OPTS% ^
-    -DDATA_DIR="%DATA_DIR%" ^
-    -DLOG_DIR="%LOG_DIR%" ^
-    -Dlogback.configurationFile="%CONF_DIR%\logback.xml" ^
-    --module-path "%LIB_DIR%" ^
-    --add-exports java.base/jdk.internal.misc=dongting.client ^
-    --add-modules org.slf4j,ch.qos.logback.classic ^
-    --add-reads dongting.client=org.slf4j ^
-    --add-reads dongting.client=ch.qos.logback.classic ^
-    -m dongting.ops/com.github.dtprj.dongting.boot.Bootstrap ^
-    -c "%CONF_DIR%\config.properties" ^
-    -s "%CONF_DIR%\servers.properties" ^
-    %*
+rem Start the application using PowerShell to properly capture PID and redirect output
+powershell -NoProfile -Command "^
+  param(^$java, ^$javaOpts, ^$dataDir, ^$logDir, ^$confDir, ^$libDir, ^$pidFile, ^$extraArgs)^; ^
+  ^$logFile = Join-Path ^$logDir 'start.log'^; ^
+  ^$errFile = Join-Path ^$logDir 'start_error.log'^; ^
+  ^$arguments = @(^
+    '-DDATA_DIR=' + ^$dataDir, ^
+    '-DLOG_DIR=' + ^$logDir, ^
+    '-Dlogback.configurationFile=' + (Join-Path ^$confDir 'logback.xml'), ^
+    '--module-path', ^$libDir, ^
+    '--add-exports', 'java.base/jdk.internal.misc=dongting.client', ^
+    '--add-modules', 'org.slf4j,ch.qos.logback.classic', ^
+    '--add-reads', 'dongting.client=org.slf4j', ^
+    '--add-reads', 'dongting.client=ch.qos.logback.classic', ^
+    '-m', 'dongting.ops/com.github.dtprj.dongting.boot.Bootstrap', ^
+    '-c', (Join-Path ^$confDir 'config.properties'), ^
+    '-s', (Join-Path ^$confDir 'servers.properties')^
+  )^; ^
+  if (^$javaOpts) { ^$arguments = ^$javaOpts.Split(' ') + ^$arguments }^; ^
+  if (^$extraArgs) { ^$arguments += ^$extraArgs.Split(' ') }^; ^
+  try { ^
+    ^$process = Start-Process -FilePath ^$java -ArgumentList ^$arguments -PassThru -NoNewWindow -RedirectStandardOutput ^$logFile -RedirectStandardError ^$errFile^; ^
+    if (-not ^$process -or ^$process.Id -le 0) {^
+        Write-Error 'Failed to start dongting (no PID captured)'^; exit 1 ^
+    }^; ^
+    Start-Sleep -Milliseconds 1500^; ^
+    ^$runningProc = Get-Process -Id ^$process.Id -ErrorAction SilentlyContinue^; ^
+    if (-not ^$runningProc) {^
+        Write-Error \"Failed to start dongting: process ^$(^$process.Id) exited immediately. Check ^$logFile and ^$errFile\"^; exit 1 ^
+    }^; ^
+    ^$process.Id ^| Out-File -FilePath ^$pidFile -Encoding ascii -Force^; ^
+    Write-Output \"dongting started with PID ^$(^$process.Id) (PID file: ^$pidFile)\"^; ^
+    exit 0 ^
+  } catch { ^
+    Write-Error \"Failed to start dongting: ^$_\"^; exit 1 ^
+  } ^
+" -- "%JAVA%" "%JAVA_OPTS%" "%DATA_DIR%" "%LOG_DIR%" "%CONF_DIR%" "%LIB_DIR%" "%PID_FILE%" "%*"
 
-rem Use PowerShell helper to find the just-started process and write its PID file
-powershell -NoProfile -Command "
-$baseDir = [IO.Path]::GetFullPath('%BASE_DIR%');
-$dataDir = Join-Path $baseDir 'data';
-$pidFile = Join-Path $dataDir 'dongting.pid';
-$procs = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*dongting.ops/com.github.dtprj.dongting.boot.Bootstrap*' -and $_.CommandLine -like '*-DDATA_DIR="%DATA_DIR%"*' };
-$proc = $procs | Sort-Object CreationDate -Descending | Select-Object -First 1;
-if ($proc -and $proc.ProcessId -gt 0) { $proc.ProcessId | Out-File -FilePath $pidFile -Encoding ascii -Force; Write-Output "dongting started with PID $($proc.ProcessId) (PID file: $pidFile)" } else { Write-Error 'Failed to capture dongting PID'; exit 1 }
-"
+if errorlevel 1 (
+    exit /b 1
+)
 
 endlocal

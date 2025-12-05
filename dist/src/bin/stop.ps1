@@ -20,24 +20,25 @@ $DATA_DIR = Join-Path $BASE_DIR "data"
 $PidFile = Join-Path $DATA_DIR "dongting.pid"
 
 # allow advanced users to skip cmdline verification (not recommended)
+# set DONGTING_SKIP_CMDLINE_CHECK=1 to skip verification
 $verifyCmdline = $true
-if ($env:DONGTING_SKIP_CMDLINE_CHECK -and $env:DONGTING_SKIP_CMDLINE_CHECK -ne "1") {
+if ($env:DONGTING_SKIP_CMDLINE_CHECK -eq "1") {
     $verifyCmdline = $false
 }
 
 function Get-DongtingProcessCommandLine {
     param(
-        [int]$Pid
+        [int]$TargetPid
     )
     try {
-        $procInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$Pid" -ErrorAction Stop
+        $procInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$TargetPid" -ErrorAction Stop
         return $procInfo.CommandLine
     } catch {
         try {
-            $procInfo = Get-WmiObject Win32_Process -Filter "ProcessId=$Pid" -ErrorAction Stop
+            $procInfo = Get-WmiObject Win32_Process -Filter "ProcessId=$TargetPid" -ErrorAction Stop
             return $procInfo.CommandLine
         } catch {
-            Write-Warning "Failed to read command line for PID $Pid: $_"
+            Write-Warning "Failed to read command line for PID $TargetPid: $_"
             return $null
         }
     }
@@ -45,7 +46,7 @@ function Get-DongtingProcessCommandLine {
 
 function Test-DongtingProcess {
     param(
-        [int]$Pid,
+        [int]$TargetPid,
         [string]$BaseDir,
         [string]$DataDir,
         [bool]$VerifyCmdline
@@ -58,24 +59,29 @@ function Test-DongtingProcess {
     $expectedBase = [System.IO.Path]::GetFullPath($BaseDir)
     $expectedData = [System.IO.Path]::GetFullPath($DataDir)
 
-    $cmd = Get-DongtingProcessCommandLine -Pid $Pid
+    $cmd = Get-DongtingProcessCommandLine -TargetPid $TargetPid
     if (-not $cmd) {
-        Write-Warning "Cannot read command line for PID $Pid; refusing to stop because ownership cannot be verified."
+        Write-Warning "Cannot read command line for PID $TargetPid; refusing to stop because ownership cannot be verified."
         return $false
     }
 
     $cmdLower = $cmd.ToLowerInvariant()
     $marker = "dongting.ops/com.github.dtprj.dongting.boot.bootstrap"
     if (-not $cmdLower.Contains($marker)) {
-        Write-Warning "PID $Pid command line does not look like a dongting server process: $cmd"
+        Write-Warning "PID $TargetPid command line does not look like a dongting server process: $cmd"
         return $false
     }
 
-    $dataToken1 = "-DDATA_DIR=$expectedData"
-    $dataToken2 = "-DDATA_DIR=$DataDir"
+    # check both with and without quotes to handle paths with spaces
+    $dataMatch = (
+        $cmd.Contains("-DDATA_DIR=$expectedData") -or
+        $cmd.Contains("-DDATA_DIR=`"$expectedData`"") -or
+        $cmd.Contains("-DDATA_DIR=$DataDir") -or
+        $cmd.Contains("-DDATA_DIR=`"$DataDir`"")
+    )
 
-    if (-not ($cmd.Contains($dataToken1) -or $cmd.Contains($dataToken2))) {
-        Write-Warning "PID $Pid command line does not contain expected DATA_DIR ($expectedData): $cmd"
+    if (-not $dataMatch) {
+        Write-Warning "PID $TargetPid command line does not contain expected DATA_DIR ($expectedData): $cmd"
         return $false
     }
 
@@ -108,7 +114,7 @@ if (-not $proc) {
     exit 0
 }
 
-if (-not (Test-DongtingProcess -Pid $targetPid -BaseDir $BASE_DIR -DataDir $DATA_DIR -VerifyCmdline:$verifyCmdline)) {
+if (-not (Test-DongtingProcess -TargetPid $targetPid -BaseDir $BASE_DIR -DataDir $DATA_DIR -VerifyCmdline:$verifyCmdline)) {
     Write-Error "Refusing to stop PID $targetPid because it does not match dongting under BASE_DIR=$BASE_DIR DATA_DIR=$DATA_DIR"
     exit 1
 }

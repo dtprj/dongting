@@ -63,6 +63,12 @@ if [ -f "$PID_FILE" ]; then
   fi
 fi
 
+# Ensure LOG_DIR exists
+mkdir -p "$LOG_DIR" || {
+  echo "Failed to create log dir: $LOG_DIR" >&2
+  exit 1
+}
+
 # Start the application using module path in background and record PID
 nohup "$JAVA" $JAVA_OPTS \
     -DDATA_DIR="$DATA_DIR" \
@@ -76,10 +82,25 @@ nohup "$JAVA" $JAVA_OPTS \
     -m dongting.ops/com.github.dtprj.dongting.boot.Bootstrap \
     -c "$CONF_DIR/config.properties" \
     -s "$CONF_DIR/servers.properties" \
-    "$@" > "$BASE_DIR/logs/start.log" 2>&1 &
+    "$@" > "$LOG_DIR/start.log" 2>&1 &
 NEW_PID=$!
 if [ -z "$NEW_PID" ] || [ "$NEW_PID" -le 0 ] 2>/dev/null; then
   echo "Failed to start dongting (no PID captured)" >&2
+  exit 1
+fi
+
+# Verify the process actually started and is running
+sleep 1
+if ! kill -0 "$NEW_PID" 2>/dev/null; then
+  echo "Failed to start dongting: process $NEW_PID exited immediately after start" >&2
+  echo "Check $LOG_DIR/start.log for details" >&2
+  exit 1
+fi
+
+# Verify it's the expected Java process
+if ! ps -p "$NEW_PID" -o args= 2>/dev/null | grep -q "dongting.ops/com.github.dtprj.dongting.boot.Bootstrap"; then
+  echo "Failed to start dongting: PID $NEW_PID is not a dongting process" >&2
+  kill "$NEW_PID" 2>/dev/null || true
   exit 1
 fi
 

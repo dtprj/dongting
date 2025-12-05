@@ -23,8 +23,9 @@ set "DATA_DIR=%BASE_DIR%\data"
 set "PID_FILE=%DATA_DIR%\dongting.pid"
 
 rem allow advanced users to skip cmdline verification (not recommended)
+rem set DONGTING_SKIP_CMDLINE_CHECK=1 to skip verification
 if "%DONGTING_SKIP_CMDLINE_CHECK%"=="" (
-    set "DONGTING_SKIP_CMDLINE_CHECK=1"
+    set "DONGTING_SKIP_CMDLINE_CHECK=0"
 )
 
 if not exist "%PID_FILE%" (
@@ -52,7 +53,7 @@ if errorlevel 1 (
 )
 
 rem verify command line belongs to dongting under current DATA_DIR
-if not "%DONGTING_SKIP_CMDLINE_CHECK%"=="1" goto :skip_verify
+if "%DONGTING_SKIP_CMDLINE_CHECK%"=="1" goto :skip_verify
 
 powershell -NoProfile -Command "^
   param(^$pid,^$dataDir)^; ^
@@ -75,7 +76,13 @@ powershell -NoProfile -Command "^
     Write-Error \"PID ^$pid command line does not look like a dongting server process: ^$cmd\"; exit 2 ^
   } ^
   ^$expectedData = [System.IO.Path]::GetFullPath(^$dataDir) ^
-  if (-not (^$cmd.Contains('-DDATA_DIR=' + ^$expectedData) -or ^$cmd.Contains('-DDATA_DIR=' + ^$dataDir))) { ^
+  ^$dataMatch = ( ^
+    ^$cmd.Contains('-DDATA_DIR=' + ^$expectedData) -or ^
+    ^$cmd.Contains('-DDATA_DIR="' + ^$expectedData + '"') -or ^
+    ^$cmd.Contains('-DDATA_DIR=' + ^$dataDir) -or ^
+    ^$cmd.Contains('-DDATA_DIR="' + ^$dataDir + '"') ^
+  ) ^
+  if (-not ^$dataMatch) { ^
     Write-Error \"PID ^$pid command line does not contain expected DATA_DIR (^$expectedData): ^$cmd\"; exit 2 ^
   } ^
 " -- %PID% "%DATA_DIR%"
@@ -89,7 +96,6 @@ if errorlevel 2 (
 
 if "%TERM_WAIT_SECONDS%"=="" set "TERM_WAIT_SECONDS=60"
 
-set "DONGTING_FORCE_KILL=%DONGTING_FORCE_KILL%"
 if "%DONGTING_FORCE_KILL%"=="" set "DONGTING_FORCE_KILL=1"
 
 echo Stopping dongting (PID %PID%)...
