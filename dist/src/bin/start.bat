@@ -24,6 +24,7 @@ set "BASE_DIR=%SCRIPT_DIR%.."
 set "CONF_DIR=%BASE_DIR%\conf"
 set "LIB_DIR=%BASE_DIR%\lib"
 set "LOG_DIR=%BASE_DIR%\logs"
+set "DATA_DIR=%BASE_DIR%\data"
 
 rem JVM options
 set "JAVA_OPTS=-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g"
@@ -37,7 +38,7 @@ if defined JAVA_HOME (
 
 rem Start the application using module path
 "%JAVA%" %JAVA_OPTS% ^
-    -DBASE_DIR="%BASE_DIR%" ^
+    -DDATA_DIR="%DATA_DIR%" ^
     -DLOG_DIR="%LOG_DIR%" ^
     -Dlogback.configurationFile="%CONF_DIR%\logback.xml" ^
     --module-path "%LIB_DIR%" ^

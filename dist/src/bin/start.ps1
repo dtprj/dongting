@@ -21,6 +21,7 @@ $BASE_DIR = Split-Path -Parent $ScriptDir
 $CONF_DIR = Join-Path $BASE_DIR "conf"
 $LIB_DIR = Join-Path $BASE_DIR "lib"
 $LOG_DIR = Join-Path $BASE_DIR "logs"
+$DATA_DIR = Join-Path $BASE_DIR "data"
 
 # JVM options
 $JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g")
@@ -34,7 +35,7 @@ if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {
 
 # Build arguments
 $Arguments = $JavaOpts + @(
-    "-DBASE_DIR=$BASE_DIR",
+    "-DDATA_DIR=$DATA_DIR",
     "-DLOG_DIR=$LOG_DIR",
     "-Dlogback.configurationFile=$CONF_DIR\logback.xml",
     "--module-path", $LIB_DIR,

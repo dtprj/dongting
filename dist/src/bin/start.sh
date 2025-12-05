@@ -22,6 +22,7 @@ BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONF_DIR="$BASE_DIR/conf"
 LIB_DIR="$BASE_DIR/lib"
 LOG_DIR="$BASE_DIR/logs"
+DATA_DIR="$BASE_DIR/data"
 
 # JVM options
 JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g"
@@ -35,7 +36,7 @@ fi
 
 # Start the application using module path
 exec "$JAVA" $JAVA_OPTS \
-    -DBASE_DIR="$BASE_DIR" \
+    -DDATA_DIR="$DATA_DIR" \
     -DLOG_DIR="$LOG_DIR" \
     -Dlogback.configurationFile="$CONF_DIR/logback.xml" \
     --module-path "$LIB_DIR" \
