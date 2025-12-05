@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.boot;
 
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
+import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
@@ -135,6 +136,7 @@ public class Bootstrap {
             }
         });
         try {
+            KvServerUtil.initKvServer(raftServer);
             raftServer.start();
         } catch (Throwable e) {
             System.err.println("Failed to start server: " + e);
