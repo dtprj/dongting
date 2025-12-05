@@ -22,6 +22,11 @@ set "BASE_DIR=%SCRIPT_DIR%.."
 set "DATA_DIR=%BASE_DIR%\data"
 set "PID_FILE=%DATA_DIR%\dongting.pid"
 
+rem allow advanced users to skip cmdline verification (not recommended)
+if "%DONGTING_SKIP_CMDLINE_CHECK%"=="" (
+    set "DONGTING_SKIP_CMDLINE_CHECK=1"
+)
+
 if not exist "%PID_FILE%" (
     echo No PID file %PID_FILE%, dongting may not be running.
     exit /b 0
@@ -38,12 +43,49 @@ if errorlevel 1 (
     exit /b 0
 )
 
+rem check process existence first
 tasklist /FI "PID eq %PID%" | find "%PID%" >nul 2>&1
 if errorlevel 1 (
     echo No process with PID %PID%, removing stale PID file %PID_FILE%.
     del /f /q "%PID_FILE%" >nul 2>&1
     exit /b 0
 )
+
+rem verify command line belongs to dongting under current DATA_DIR
+if not "%DONGTING_SKIP_CMDLINE_CHECK%"=="1" goto :skip_verify
+
+powershell -NoProfile -Command "^
+  param(^$pid,^$dataDir)^; ^
+  try { ^
+    ^$p = Get-CimInstance Win32_Process -Filter \"ProcessId=^$pid\" -ErrorAction Stop ^
+  } catch { ^
+    try { ^
+      ^$p = Get-WmiObject Win32_Process -Filter \"ProcessId=^$pid\" -ErrorAction Stop ^
+    } catch { ^
+      Write-Error \"Failed to read command line for PID ^$pid: ^$_\"; exit 2 ^
+    } ^
+  } ^
+  if (-not ^$p -or -not ^$p.CommandLine) { ^
+    Write-Error \"Cannot read command line for PID ^$pid; refusing to stop because ownership cannot be verified.\"; exit 2 ^
+  } ^
+  ^$cmd = ^$p.CommandLine ^
+  ^$cmdLower = ^$cmd.ToLowerInvariant() ^
+  ^$marker = 'dongting.ops/com.github.dtprj.dongting.boot.bootstrap' ^
+  if (-not ^$cmdLower.Contains(^$marker)) { ^
+    Write-Error \"PID ^$pid command line does not look like a dongting server process: ^$cmd\"; exit 2 ^
+  } ^
+  ^$expectedData = [System.IO.Path]::GetFullPath(^$dataDir) ^
+  if (-not (^$cmd.Contains('-DDATA_DIR=' + ^$expectedData) -or ^$cmd.Contains('-DDATA_DIR=' + ^$dataDir))) { ^
+    Write-Error \"PID ^$pid command line does not contain expected DATA_DIR (^$expectedData): ^$cmd\"; exit 2 ^
+  } ^
+" -- %PID% "%DATA_DIR%"
+
+if errorlevel 2 (
+    echo Refusing to stop PID %PID% because it does not match dongting under DATA_DIR=%DATA_DIR%.>&2
+    exit /b 1
+)
+
+:skip_verify
 
 if "%TERM_WAIT_SECONDS%"=="" set "TERM_WAIT_SECONDS=60"
 
@@ -91,4 +133,3 @@ echo dongting stopped (PID %PID%).
 
 endlocal
 exit /b 0
-
