@@ -66,6 +66,8 @@ public class Bootstrap {
             serverConfig = new RaftServerConfig();
             PropsUtil.setFieldsFromProps(serverConfig, configProps, "");
 
+            System.out.println("LOG_DIR=" + System.getProperty("LOG_DIR"));
+
             serverConfig.servers = serversProps.getProperty("servers");
             if (serverConfig.servers == null) {
                 System.err.println("servers property is required.");
@@ -78,6 +80,7 @@ public class Bootstrap {
                 serverConfig.servicePort = DEFAULT_SERVICE_PORT;
             }
 
+            boolean logDataDir = false;
             groupConfigs = new ArrayList<>();
             for (int groupId : parseGroupIds(serversProps)) {
                 String nodeIdOfMembers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
@@ -85,6 +88,10 @@ public class Bootstrap {
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
                 PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
                 groupConfigs.add(groupConfig);
+                if (!logDataDir) {
+                    System.out.println("DATA_DIR=" + groupConfig.dataDir);
+                    logDataDir = true;
+                }
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
                 String s = Bootstrap.ensureDir(groupConfig.dataDir);
                 if (s != null) {
