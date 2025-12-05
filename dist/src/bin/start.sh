@@ -23,6 +23,7 @@ CONF_DIR="$BASE_DIR/conf"
 LIB_DIR="$BASE_DIR/lib"
 LOG_DIR="$BASE_DIR/logs"
 DATA_DIR="$BASE_DIR/data"
+PID_FILE="$DATA_DIR/dongting.pid"
 
 # JVM options
 JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g"
@@ -34,8 +35,36 @@ else
     JAVA="java"
 fi
 
-# Start the application using module path
-exec "$JAVA" $JAVA_OPTS \
+mkdir -p "$DATA_DIR" || {
+  echo "Failed to create data dir: $DATA_DIR" >&2
+  exit 1
+}
+
+# Check existing PID file
+if [ -f "$PID_FILE" ]; then
+  OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
+  if [ -n "$OLD_PID" ] && [ "$OLD_PID" -gt 0 ] 2>/dev/null; then
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+      echo "dongting already running with PID $OLD_PID (PID file: $PID_FILE)" >&2
+      exit 1
+    else
+      echo "Removing stale PID file $PID_FILE (no process $OLD_PID)" >&2
+      rm -f "$PID_FILE" || {
+        echo "Failed to remove stale PID file $PID_FILE" >&2
+        exit 1
+      }
+    fi
+  else
+    echo "Invalid PID file $PID_FILE, removing" >&2
+    rm -f "$PID_FILE" || {
+      echo "Failed to remove invalid PID file $PID_FILE" >&2
+      exit 1
+    }
+  fi
+fi
+
+# Start the application using module path in background and record PID
+"$JAVA" $JAVA_OPTS \
     -DDATA_DIR="$DATA_DIR" \
     -DLOG_DIR="$LOG_DIR" \
     -Dlogback.configurationFile="$CONF_DIR/logback.xml" \
@@ -47,4 +76,17 @@ exec "$JAVA" $JAVA_OPTS \
     -m dongting.ops/com.github.dtprj.dongting.boot.Bootstrap \
     -c "$CONF_DIR/config.properties" \
     -s "$CONF_DIR/servers.properties" \
-    "$@"
+    "$@" &
+NEW_PID=$!
+if [ -z "$NEW_PID" ] || [ "$NEW_PID" -le 0 ] 2>/dev/null; then
+  echo "Failed to start dongting (no PID captured)" >&2
+  exit 1
+fi
+
+echo "$NEW_PID" >"$PID_FILE" || {
+  echo "Failed to write PID file $PID_FILE" >&2
+  kill "$NEW_PID" 2>/dev/null || true
+  exit 1
+}
+
+echo "dongting started with PID $NEW_PID (PID file: $PID_FILE)"
