@@ -20,26 +20,22 @@ setlocal ENABLEDELAYEDEXPANSION
 rem Thin wrapper: delegate to PowerShell start.ps1, keeping all logic in the ps1 script.
 rem On Windows we try pwsh first (PowerShell Core), then fall back to Windows PowerShell.
 
-rem Directory of this script (with trailing backslash)
 set "SCRIPT_DIR=%~dp0"
 
 rem Normalize SCRIPT_DIR to remove trailing backslash if present
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-rem Path to PowerShell script
 set "PS_SCRIPT=%SCRIPT_DIR%\start.ps1"
 
 rem Detect available PowerShell executable
 set "POWERSHELL_EXE="
 
 where pwsh >nul 2>&1
-if %ERRORLEVEL%==0 (
+if not errorlevel 1 (
     set "POWERSHELL_EXE=pwsh"
-)
-
-if "%POWERSHELL_EXE%"=="" (
+) else (
     where powershell >nul 2>&1
-    if %ERRORLEVEL%==0 (
+    if not errorlevel 1 (
         set "POWERSHELL_EXE=powershell"
     )
 )

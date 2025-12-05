@@ -31,13 +31,11 @@ rem Detect available PowerShell executable
 set "POWERSHELL_EXE="
 
 where pwsh >nul 2>&1
-if %ERRORLEVEL%==0 (
+if not errorlevel 1 (
     set "POWERSHELL_EXE=pwsh"
-)
-
-if "%POWERSHELL_EXE%"=="" (
+) else (
     where powershell >nul 2>&1
-    if %ERRORLEVEL%==0 (
+    if not errorlevel 1 (
         set "POWERSHELL_EXE=powershell"
     )
 )
