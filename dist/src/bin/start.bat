@@ -37,10 +37,10 @@ if defined JAVA_HOME (
 
 rem Start the application using module path
 "%JAVA%" %JAVA_OPTS% ^
-    -DLOG_DIR="%LOG_DIR%" ^
     -DBASE_DIR="%BASE_DIR%" ^
+    -DLOG_DIR="%LOG_DIR%" ^
+    -Dlogback.configurationFile="%CONF_DIR%\logback.xml" ^
     --module-path "%LIB_DIR%" ^
-    --class-path "%CONF_DIR%" ^
     --add-exports java.base/jdk.internal.misc=dongting.client ^
     -m dongting.ops/com.github.dtprj.dongting.boot.Bootstrap ^
     -c "%CONF_DIR%\config.properties" ^
