@@ -24,7 +24,7 @@ public class NetCodeException extends NetException {
     private final byte[] extra;
 
     public NetCodeException(int code, String msg, byte[] extra) {
-        super(msg);
+        super(msg == null ? "NetCodeException:" + code : msg);
         this.code = code;
         this.extra = extra;
     }

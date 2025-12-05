@@ -285,7 +285,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 if (processorForRequest == null) {
                     log.warn("command {} is not support", packet.command);
                     if (packet.packetType == PacketType.TYPE_REQ) {
-                        writeErrorInIoThread(packet, CmdCodes.COMMAND_NOT_SUPPORT, null);
+                        writeErrorInIoThread(packet, CmdCodes.COMMAND_NOT_SUPPORT,
+                                "command " + packet.command + " not support");
                     }
                     return false;
                 }
