@@ -38,7 +38,7 @@ function Get-DongtingProcessCommandLine {
             $procInfo = Get-WmiObject Win32_Process -Filter "ProcessId=$TargetPid" -ErrorAction Stop
             return $procInfo.CommandLine
         } catch {
-            Write-Warning "Failed to read command line for PID $TargetPid: $_"
+            Write-Warning "Failed to read command line for PID $($TargetPid): $_"
             return $null
         }
     }
@@ -132,7 +132,7 @@ Write-Output "Stopping dongting (PID $targetPid)..."
 try {
     Stop-Process -Id $targetPid -ErrorAction SilentlyContinue
 } catch {
-    Write-Error "Failed to send termination signal to PID $targetPid: $_"
+    Write-Error "Failed to send termination signal to PID $($targetPid): $_"
     exit 1
 }
 
@@ -145,7 +145,7 @@ while (Get-Process -Id $targetPid -ErrorAction SilentlyContinue) {
             try {
                 Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue
             } catch {
-                Write-Error "Failed to force terminate PID $targetPid: $_"
+                Write-Error "Failed to force terminate PID $($targetPid): $_"
                 exit 1
             }
         } else {
