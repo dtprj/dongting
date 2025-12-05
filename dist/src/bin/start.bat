@@ -21,30 +21,29 @@ rem Thin wrapper: delegate to PowerShell start.ps1, keeping all logic in the ps1
 rem On Windows we try pwsh first (PowerShell Core), then fall back to Windows PowerShell.
 
 set "SCRIPT_DIR=%~dp0"
-
 rem Normalize SCRIPT_DIR to remove trailing backslash if present
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
 set "PS_SCRIPT=%SCRIPT_DIR%\start.ps1"
 
-rem Detect available PowerShell executable
+rem Detect available PowerShell executable (prefer pwsh, then powershell)
 set "POWERSHELL_EXE="
 
 where pwsh >nul 2>&1
-if not errorlevel 1 (
-    set "POWERSHELL_EXE=pwsh"
-) else (
-    where powershell >nul 2>&1
-    if not errorlevel 1 (
-        set "POWERSHELL_EXE=powershell"
-    )
-)
+if not errorlevel 1 set "POWERSHELL_EXE=pwsh"
 
-if "%POWERSHELL_EXE%"=="" (
-    echo Failed to find PowerShell (pwsh or powershell) in PATH.>&2
-    endlocal & exit /b 1
-)
+if "%POWERSHELL_EXE%"=="" where powershell >nul 2>&1
+if "%POWERSHELL_EXE%"=="" if not errorlevel 1 set "POWERSHELL_EXE=powershell"
 
+if "%POWERSHELL_EXE%"=="" goto :no_ps
+
+goto :run_ps
+
+:no_ps
+echo Failed to find PowerShell (pwsh or powershell) in PATH.>&2
+endlocal & exit /b 1
+
+:run_ps
 "%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" %*
 set "EXIT_CODE=%ERRORLEVEL%"
 
