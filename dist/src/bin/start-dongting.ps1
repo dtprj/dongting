@@ -71,7 +71,7 @@ $Arguments = $JavaOpts + @(
     "--add-modules", "org.slf4j,ch.qos.logback.classic",
     "--add-reads", "dongting.client=org.slf4j",
     "--add-reads", "dongting.client=ch.qos.logback.classic",
-    "-m", "dongting.ops/com.github.dtprj.dongting.ops.boot.Bootstrap",
+    "-m", "dongting.ops/com.github.dtprj.dongting.ops.Bootstrap",
     "-c", (Join-Path $CONF_DIR "config.properties"),
     "-s", (Join-Path $CONF_DIR "servers.properties")
 ) + $args

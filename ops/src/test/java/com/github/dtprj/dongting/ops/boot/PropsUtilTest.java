@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.ops.boot;
 
+import com.github.dtprj.dongting.ops.PropsUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
