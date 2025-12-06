@@ -73,7 +73,7 @@ mkdir -p "$LOG_DIR" || {
 nohup "$JAVA" $JAVA_OPTS \
     -DDATA_DIR="$DATA_DIR" \
     -DLOG_DIR="$LOG_DIR" \
-    -Dlogback.configurationFile="$CONF_DIR/logback.xml" \
+    -Dlogback.configurationFile="$CONF_DIR/logback-server.xml" \
     --module-path "$LIB_DIR" \
     --add-exports java.base/jdk.internal.misc=dongting.client \
     --add-modules org.slf4j,ch.qos.logback.classic \
