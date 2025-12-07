@@ -45,6 +45,7 @@ import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
@@ -440,11 +441,12 @@ public class RaftServer extends AbstractLifeCircle {
             return;
         }
         try {
+            log.info("all group member check ready");
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             DtTime deadline = new DtTime(1000, TimeUnit.DAYS);
             raftGroups.forEach((groupId, g) -> {
                 ShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
-                if (!ss.groupReady) {
+                if (!ss.groupReady && ss.role != RaftRole.none) {
                     futures.add(g.groupComponents.applyManager
                             .addToWaitReadyQueue(deadline).thenApply(idx -> null));
                 }
@@ -454,6 +456,7 @@ public class RaftServer extends AbstractLifeCircle {
                 if (ex2 != null) {
                     allGroupReadyFuture.completeExceptionally(ex);
                 } else if (checkStartStatus(allGroupReadyFuture)) {
+                    log.info("all group ready");
                     try {
                         if (serviceNioServer != null) {
                             serviceNioServer.start();
