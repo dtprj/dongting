@@ -86,14 +86,14 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
 
     private void processResult(CompletableFuture<?> f, ReqContext reqContext) {
         f.whenComplete((o, ex) -> {
+            EmptyBodyRespPacket resp;
             if (ex == null) {
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                reqContext.writeRespInBizThreads(resp);
+                resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             } else {
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+                resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
                 resp.msg = ex.toString();
-                reqContext.writeRespInBizThreads(resp);
             }
+            reqContext.writeRespInBizThreads(resp);
         });
     }
 
