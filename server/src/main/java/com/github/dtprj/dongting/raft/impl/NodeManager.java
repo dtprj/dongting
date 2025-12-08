@@ -66,6 +66,7 @@ public class NodeManager extends AbstractLifeCircle {
     int currentReadyNodes;
 
     private final CompletableFuture<Void> nodePingReadyFuture = new CompletableFuture<>();
+    private boolean nodePingReady = false;
     private final int startReadyQuorum;
 
     int pingIntervalMillis = 2000;
@@ -226,9 +227,10 @@ public class NodeManager extends AbstractLifeCircle {
             currentReadyNodes--;
             nodeEx.status = new NodeStatus(false, oldStatus.getEpoch());
         }
-        if (currentReadyNodes >= startReadyQuorum && !nodePingReadyFuture.isDone()) {
+        if (!nodePingReady && currentReadyNodes >= startReadyQuorum && !nodePingReadyFuture.isDone()) {
             log.info("nodeManager is ready");
             nodePingReadyFuture.complete(null);
+            nodePingReady = true;
         }
     }
 
