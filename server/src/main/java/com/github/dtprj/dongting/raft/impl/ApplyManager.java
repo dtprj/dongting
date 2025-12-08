@@ -125,11 +125,11 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }, true).start();
         if (raftStatus.getLastApplied() >= raftStatus.commitIndex) {
             log.info("apply manager init complete");
-            raftStatus.initFuture.complete(null);
+            raftStatus.finishInitFuture(null);
             this.initFutureComplete = true;
         } else if (raftStatus.installSnapshot) {
             log.info("install snapshot, apply manager init complete");
-            raftStatus.initFuture.complete(null);
+            raftStatus.finishInitFuture(null);
             this.initFutureComplete = true;
         }
     }
@@ -302,7 +302,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         if (!initFutureComplete && index >= initCommitIndex) {
             log.info("apply manager init complete, initCommitIndex={}", initCommitIndex);
             initFutureComplete = true;
-            raftStatus.initFuture.complete(null);
+            raftStatus.finishInitFuture(null);
         }
         if (execEx == null) {
             rt.callSuccess(execResult);

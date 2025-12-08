@@ -118,7 +118,6 @@ public final class RaftStatusImpl extends RaftStatus {
         super(groupId);
         this.ts = ts;
         lastElectTime = ts.nanoTime - Duration.ofDays(1).toNanos();
-        initFuture.thenRun(() -> this.initialized = true);
     }
 
     public void copyShareStatus() {
@@ -138,6 +137,15 @@ public final class RaftStatusImpl extends RaftStatus {
             if (oldRole != role && roleChangeListener != null) {
                 roleChangeListener.accept(oldRole, role);
             }
+        }
+    }
+
+    public void finishInitFuture(Throwable ex) {
+        initialized = true;
+        if (ex != null) {
+            initFuture.completeExceptionally(ex);
+        } else {
+            initFuture.complete(null);
         }
     }
 
