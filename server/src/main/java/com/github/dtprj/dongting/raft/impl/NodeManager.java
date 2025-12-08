@@ -69,13 +69,14 @@ public class NodeManager extends AbstractLifeCircle {
     private boolean nodePingReady = false;
     private final int startReadyQuorum;
 
-    int pingIntervalMillis = 2000;
+    private final long pingIntervalMillis;
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client, int startReadyQuorum) {
         this.selfNodeId = config.nodeId;
         this.client = client;
         this.config = config;
         this.startReadyQuorum = startReadyQuorum;
+        this.pingIntervalMillis = config.pingInterval;
 
         this.allNodesEx = new IntObjMap<>(allRaftNodes.size() * 2, 0.75f);
         this.allRaftNodesOnlyForInit = allRaftNodes;

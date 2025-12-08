@@ -30,6 +30,8 @@ public class RaftServerConfig {
     public long connectTimeout = 2000;
     public long heartbeatInterval = 2000;
 
+    public long pingInterval = 2000;
+
     public boolean checkSelf = true;
 
     public int blockIoThreads = Math.max(Runtime.getRuntime().availableProcessors() * 2, 4);

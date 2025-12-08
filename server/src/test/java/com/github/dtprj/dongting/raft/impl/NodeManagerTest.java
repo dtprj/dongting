@@ -64,11 +64,11 @@ public class NodeManagerTest {
         NioClient client = new NioClient(new NioClientConfig());
         RaftServerConfig raftServerConfig = new RaftServerConfig();
         raftServerConfig.nodeId = nodeId;
+        raftServerConfig.pingInterval = 1;
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.port = 15200 + nodeId;
         NioServer server = new NioServer(nioServerConfig);
         NodeManager nodeManager = new NodeManager(raftServerConfig, nodes, client, nodes.size());
-        nodeManager.pingIntervalMillis = 1;
         server.register(Commands.NODE_PING, new NodePingProcessor(nodeId, nodeManager));
         server.start();
         client.start();

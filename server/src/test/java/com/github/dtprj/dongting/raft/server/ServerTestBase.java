@@ -102,6 +102,7 @@ public class ServerTestBase {
         serverConfig.servers = servers;
         serverConfig.nodeId = nodeId;
         serverConfig.replicatePort = replicatePort;
+        serverConfig.pingInterval = 1;
         if (openServicePort) {
             serverConfig.servicePort = 5000 + nodeId;
         }
@@ -124,7 +125,6 @@ public class ServerTestBase {
 
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         GroupComponents gc = g.groupComponents;
-        ImplAccessor.updateNodeManager(gc.nodeManager);
 
         if (initTerm > 0 || initVoteFor > 0 || initCommitIndex > 0 || initSnapshot) {
             File dir = new File(groupConfig.dataDir);

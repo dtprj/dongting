@@ -21,9 +21,6 @@ import static com.github.dtprj.dongting.test.Tick.tick;
  * @author huangli
  */
 public class ImplAccessor {
-    public static void updateNodeManager(NodeManager nodeManager) {
-        nodeManager.pingIntervalMillis = 1;
-    }
 
     public static void updateMemberManager(MemberManager memberManager) {
         memberManager.daemonSleepInterval = 1;
