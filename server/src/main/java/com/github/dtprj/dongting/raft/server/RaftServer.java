@@ -109,7 +109,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory,
-                      Consumer<RaftGroupImpl> groupCustomizer) {
+               Consumer<RaftGroupImpl> groupCustomizer) {
         Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
         Objects.requireNonNull(raftFactory);
@@ -587,7 +587,6 @@ public class RaftServer extends AbstractLifeCircle {
     /**
      * ADMIN API. This method is NOT idempotent.
      * <p>
-     * This method may block (before return future).
      * After get the CompletableFuture, user should wait on the future to ensure raft group is initialized.
      */
     public CompletableFuture<Void> addGroup(RaftGroupConfig groupConfig) {
@@ -608,23 +607,27 @@ public class RaftServer extends AbstractLifeCircle {
                 GroupComponents gc = g.groupComponents;
                 FiberGroup fg = gc.fiberGroup;
                 raftFactory.startDispatcher(fg.dispatcher);
-                fg.dispatcher.startGroup(fg).get(3, TimeUnit.SECONDS);
+                CompletableFuture<Void> startGroupFuture = fg.dispatcher.startGroup(fg);
 
                 raftGroups.put(groupConfig.groupId, g);
-                initRaftGroup(g);
-                RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
-                raftStatus.initFuture.whenComplete((v, ex) -> {
-                    if (ex != null) {
-                        f.completeExceptionally(ex);
+
+                startGroupFuture.whenComplete((v, startEx) -> {
+                    if (startEx != null) {
+                        f.completeExceptionally(startEx);
                     } else {
-                        f.complete(null);
-                        startMemberPing(g);
+                        initRaftGroup(g);
+                        RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
+                        raftStatus.initFuture.whenComplete((vv, initEx) -> {
+                            if (initEx != null) {
+                                f.completeExceptionally(initEx);
+                            } else {
+                                f.complete(null);
+                                startMemberPing(g);
+                            }
+                        });
                     }
                 });
-            } catch (InterruptedException e) {
-                DtUtil.restoreInterruptStatus();
-                f.completeExceptionally(e);
-            } catch (Exception e) {
+            } catch (RuntimeException | Error e) {
                 f.completeExceptionally(e);
             }
         };
