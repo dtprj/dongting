@@ -34,7 +34,7 @@ import java.util.function.BiConsumer;
  */
 public final class RaftStatusImpl extends RaftStatus {
 
-    private volatile ShareStatus shareStatus;
+    private volatile RaftShareStatus shareStatus;
 
     public boolean installSnapshot;
 
@@ -123,7 +123,7 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public void copyShareStatus() {
         if (shareStatusUpdated) {
-            ShareStatus ss = new ShareStatus();
+            RaftShareStatus ss = new RaftShareStatus();
             ss.role = role;
             ss.lastApplied = lastApplied;
             if (role == RaftRole.leader) {
@@ -207,7 +207,7 @@ public final class RaftStatusImpl extends RaftStatus {
         return role;
     }
 
-    public ShareStatus getShareStatus() {
+    public RaftShareStatus getShareStatus() {
         return shareStatus;
     }
 

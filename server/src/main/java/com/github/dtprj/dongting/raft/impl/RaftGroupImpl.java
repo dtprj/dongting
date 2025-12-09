@@ -95,7 +95,7 @@ public final class RaftGroupImpl extends RaftGroup {
             FutureCallback.callFail(callback, new RaftException("raft group thread is stop"));
             return;
         }
-        ShareStatus ss = raftStatus.getShareStatus();
+        RaftShareStatus ss = raftStatus.getShareStatus();
         if (ss.role != RaftRole.leader) {
             FutureCallback.callFail(callback, new NotLeaderException(
                     ss.currentLeader == null ? null : ss.currentLeader.node));

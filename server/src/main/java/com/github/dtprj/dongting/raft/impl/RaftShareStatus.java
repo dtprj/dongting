@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 /**
  * @author huangli
  */
-public class ShareStatus {
+public class RaftShareStatus {
     public long lastApplied;
     public long leaseEndNanos;
     public boolean groupReady;

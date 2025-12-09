@@ -46,10 +46,10 @@ import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
+import com.github.dtprj.dongting.raft.impl.RaftShareStatus;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
-import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AdminConfigChangeProcessor;
@@ -445,7 +445,7 @@ public class RaftServer extends AbstractLifeCircle {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             DtTime deadline = new DtTime(1000, TimeUnit.DAYS);
             raftGroups.forEach((groupId, g) -> {
-                ShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
+                RaftShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
                 if (!ss.groupReady && ss.role != RaftRole.none) {
                     futures.add(g.groupComponents.applyManager
                             .addToWaitReadyQueue(deadline).thenApply(idx -> null));
