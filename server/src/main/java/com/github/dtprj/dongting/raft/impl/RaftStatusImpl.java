@@ -40,6 +40,7 @@ public final class RaftStatusImpl extends RaftStatus {
 
     private RaftRole role; // shared
     private RaftMember currentLeader; // shared
+    private long lastApplied; // shared
 
     public BiConsumer<RaftRole, RaftRole> roleChangeListener;
 
@@ -224,5 +225,9 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public long getLeaseStartNanos() {
         return leaseStartNanos;
+    }
+
+    public long getLastApplied() {
+        return lastApplied;
     }
 }

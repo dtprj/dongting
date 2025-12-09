@@ -25,17 +25,11 @@ public abstract class RaftStatus {
 
     // in raft paper: volatile state on all servers
     public long commitIndex;
-    protected long lastApplied; // shared
 
     public final int groupId;
 
     protected RaftStatus(int groupId) {
         this.groupId = groupId;
-    }
-
-
-    public long getLastApplied() {
-        return lastApplied;
     }
 
 }
