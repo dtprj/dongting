@@ -131,12 +131,8 @@ public final class RaftStatusImpl extends RaftStatus {
             ss.currentLeader = currentLeader;
             ss.groupReady = groupReady;
 
-            RaftRole oldRole = shareStatus == null ? null : shareStatus.role;
             this.shareStatusUpdated = false;
             this.shareStatus = ss;
-            if (oldRole != role && roleChangeListener != null) {
-                roleChangeListener.accept(oldRole, role);
-            }
         }
     }
 
@@ -162,9 +158,13 @@ public final class RaftStatusImpl extends RaftStatus {
     }
 
     public void setRole(RaftRole role) {
-        if (role != this.role) {
+        RaftRole oldRole = this.role;
+        if (role != oldRole) {
             this.role = role;
             this.shareStatusUpdated = true;
+            if (roleChangeListener != null) {
+                roleChangeListener.accept(oldRole, role);
+            }
         }
     }
 
