@@ -21,8 +21,6 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.IdentityHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -35,6 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class FiberGroup {
     private static final DtLog log = DtLogs.getLogger(FiberGroup.class);
+    public final ShareStatusSource shareStatusSource;
     public final String name;
     public final Dispatcher dispatcher;
     public final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
@@ -46,34 +45,25 @@ public class FiberGroup {
     private final IdentityHashMap<Fiber, Fiber> normalFibers = new IdentityHashMap<>(128);
     private final IdentityHashMap<Fiber, Fiber> daemonFibers = new IdentityHashMap<>(128);
 
-    @SuppressWarnings("FieldMayBeFinal")
-    private volatile boolean shouldStop = false;
-    private final static VarHandle SHOULD_STOP;
-
     final FiberChannel<Runnable> sysChannel;
-
-    static {
-        try {
-            MethodHandles.Lookup l = MethodHandles.lookup();
-            SHOULD_STOP = l.findVarHandle(FiberGroup.class, "shouldStop", boolean.class);
-        } catch (Exception e) {
-            throw new Error(e);
-        }
-    }
 
     boolean finished;
     boolean ready;
 
+    private final GroupExecutor executor;
     Fiber currentFiber;
 
-    private final GroupExecutor executor;
-
-    public FiberGroup(String name, Dispatcher dispatcher) {
+    public FiberGroup(String name, Dispatcher dispatcher, ShareStatusSource sss) {
         this.name = name;
         this.dispatcher = dispatcher;
         this.sysChannel = new FiberChannel<>(this);
         this.executor = new GroupExecutor(this);
         this.shouldStopCondition = newCondition(name + "-shouldStop");
+        this.shareStatusSource = sss;
+    }
+
+    public FiberGroup(String name, Dispatcher dispatcher) {
+        this(name, dispatcher, new ShareStatusSource());
     }
 
     /**
@@ -106,11 +96,12 @@ public class FiberGroup {
             @Override
             public FrameCallResult execute(Void input) {
                 // if the dispatcher stopped, no ops
-                if ((boolean) SHOULD_STOP.get(FiberGroup.this)) {
+                if (shareStatusSource.shouldStop) {
                     return Fiber.frameReturn();
                 }
                 log.info("request shutdown group: {}", name);
-                SHOULD_STOP.setVolatile(FiberGroup.this, true);
+                shareStatusSource.shouldStop = true;
+                shareStatusSource.copy(true);
                 shouldStopCondition.signalAll();
                 return Fiber.frameReturn();
             }
@@ -221,7 +212,7 @@ public class FiberGroup {
     }
 
     void updateFinishStatus() {
-        boolean ss = (boolean) SHOULD_STOP.get(this);
+        boolean ss = shareStatusSource.shouldStop;
         if (ss && !finished) {
             if (!normalFibers.isEmpty()) {
                 return;
@@ -245,12 +236,8 @@ public class FiberGroup {
         }
     }
 
-    public boolean isShouldStop() {
-        return (boolean) SHOULD_STOP.getOpaque(this);
-    }
-
     boolean isShouldStopPlain() {
-        return (boolean) SHOULD_STOP.get(this);
+        return shareStatusSource.shouldStop;
     }
 
     public void fireLogGroupInfo(String msg) {

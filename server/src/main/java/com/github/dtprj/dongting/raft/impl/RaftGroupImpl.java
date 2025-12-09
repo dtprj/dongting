@@ -79,7 +79,7 @@ public final class RaftGroupImpl extends RaftGroup {
     @Override
     public void submitLinearTask(RaftInput input, RaftCallback callback) {
         Objects.requireNonNull(input);
-        if (fiberGroup.isShouldStop()) {
+        if (fiberGroup.shareStatusSource.getShareStatus(false).shouldStop) {
             RaftUtil.release(input);
             throw new RaftException("raft group thread is stop");
         }
@@ -91,7 +91,7 @@ public final class RaftGroupImpl extends RaftGroup {
 
     @Override
     public void leaseRead(Timestamp ts, DtTime deadline, FutureCallback<Long> callback) {
-        if (fiberGroup.isShouldStop()) {
+        if (fiberGroup.shareStatusSource.getShareStatus(true).shouldStop) {
             FutureCallback.callFail(callback, new RaftException("raft group thread is stop"));
             return;
         }
@@ -175,7 +175,7 @@ public final class RaftGroupImpl extends RaftGroup {
         if (!f.isDone() || f.isCompletedExceptionally()) {
             throw new RaftException("not initialized");
         }
-        if (raftStatus.fiberGroup.isShouldStop()) {
+        if (raftStatus.fiberGroup.shareStatusSource.getShareStatus(true).shouldStop) {
             throw new RaftException("raft group is not running");
         }
     }

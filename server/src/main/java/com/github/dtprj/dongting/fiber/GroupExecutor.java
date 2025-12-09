@@ -104,7 +104,7 @@ class GroupExecutor implements ScheduledExecutorService {
 
     @Override
     public boolean isShutdown() {
-        return group.isShouldStop();
+        return group.shareStatusSource.getShareStatus(false).shouldStop;
     }
 
     @Override

@@ -326,7 +326,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private boolean shouldStopApply() {
-        return raftStatus.installSnapshot || fiberGroup.isShouldStop();
+        return raftStatus.installSnapshot || fiberGroup.shareStatusSource.isShouldStop();
     }
 
     public Fiber getApplyFiber() {

@@ -64,7 +64,7 @@ public final class RaftUtil {
     }
 
     public static void checkStop(FiberGroup fiberGroup) {
-        if (fiberGroup.isShouldStop()) {
+        if (fiberGroup.shareStatusSource.isShouldStop()) {
             throw new RaftException("raft group stopped");
         }
     }

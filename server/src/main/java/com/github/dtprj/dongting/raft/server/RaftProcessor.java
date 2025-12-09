@@ -76,11 +76,11 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             wf.msg = "raft group not initialized: " + groupId;
             return wf;
         }
-        if (gc.fiberGroup.isShouldStop()) {
+        if (gc.fiberGroup.shareStatusSource.getShareStatus(true).shouldStop) {
             invokeCleanReq(reqInfo);
             return createStoppedResp(groupId);
         } else {
-            // release in sub class
+            // release in subclass
             return doProcess(reqInfo);
         }
     }

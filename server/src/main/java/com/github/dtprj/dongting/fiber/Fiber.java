@@ -105,7 +105,7 @@ public class Fiber extends WaitSource {
 
     public static FiberException fatal(Throwable ex) {
         DispatcherThread t = DispatcherThread.currentDispatcherThread();
-        if (t.currentGroup.isShouldStop()) {
+        if (t.currentGroup.shareStatusSource.getShareStatus(true).shouldStop) {
             return new FiberException("fatal ex", ex);
         } else {
             log.error("encountered fatal error, raft group will shutdown", ex);
