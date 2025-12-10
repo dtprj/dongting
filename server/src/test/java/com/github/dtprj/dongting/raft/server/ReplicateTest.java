@@ -75,7 +75,8 @@ public class ReplicateTest extends ServerTestBase {
 
             // wait for s3 to catch up
             RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(1);
-            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
+            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getLastApplied() >= raftIndex2,
+                    g3.groupComponents.raftStatus.fiberGroup.getExecutor());
 
             DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
             adminClient.start();

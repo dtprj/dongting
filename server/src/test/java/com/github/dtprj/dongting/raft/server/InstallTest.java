@@ -102,11 +102,13 @@ public class InstallTest extends ServerTestBase {
 
             // wait server 3 install snapshot and catch up
             RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(1);
-            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
+            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getLastApplied() >= raftIndex1,
+                    g3.groupComponents.raftStatus.fiberGroup.getExecutor());
 
             // put after install
             long raftIndex2 = putValues(groupId, client, "afterInstallKey", count, bodySize, expectMap);
-            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
+            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getLastApplied() >= raftIndex2,
+                    g3.groupComponents.raftStatus.fiberGroup.getExecutor());
 
             // transfer leader to server 3
             adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
@@ -210,7 +212,8 @@ public class InstallTest extends ServerTestBase {
 
             // wait server 3 catch up
             RaftGroupImpl g3 = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
-            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex1);
+            WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getLastApplied() >= raftIndex1,
+                    g3.groupComponents.raftStatus.fiberGroup.getExecutor());
 
             waitStop(s3);
 
@@ -226,7 +229,8 @@ public class InstallTest extends ServerTestBase {
 
             // wait server 3 install snapshot and catch up
             RaftGroupImpl g3New = (RaftGroupImpl) s3.raftServer.getRaftGroup(groupId);
-            WaitUtil.waitUtil(() -> g3New.groupComponents.raftStatus.getShareStatus().lastApplied >= raftIndex2);
+            WaitUtil.waitUtil(() -> g3New.groupComponents.raftStatus.getLastApplied() >= raftIndex2,
+                    g3New.groupComponents.raftStatus.fiberGroup.getExecutor());
 
             adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
             check(groupId, client, expectMap);

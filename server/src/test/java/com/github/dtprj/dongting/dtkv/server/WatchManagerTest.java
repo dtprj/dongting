@@ -31,7 +31,6 @@ import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
-import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
@@ -129,10 +128,8 @@ public class WatchManagerTest implements KvListener {
         }
 
         private void waitFirstItemApplied(ServerInfo si, long index) {
-            WaitUtil.waitUtil(() -> {
-                RaftGroupImpl g = (RaftGroupImpl) si.raftServer.getRaftGroup(groupId);
-                return g.groupComponents.raftStatus.getShareStatus().lastApplied >= index;
-            });
+            WaitUtil.waitUtil(() -> si.gc.raftStatus.getLastApplied()>= index,
+                    si.gc.raftStatus.fiberGroup.getExecutor());
         }
 
         public void stopServers() {

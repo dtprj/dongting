@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
@@ -26,7 +27,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
@@ -88,9 +88,9 @@ public class ConfigChangeTest extends ServerTestBase {
             adminClient.clientAddOrUpdateGroup(groupId, new int[]{2, 3, 4});
 
             // mark sure the new node has catch up
-            long finalPrepareIndex = prepareIndex;
+            long commitIndex = f.get();
             ServerInfo finalS4 = s4;
-            assertTrue(() -> finalS4.group.groupComponents.raftStatus.getShareStatus().lastApplied >= finalPrepareIndex);
+            WaitUtil.waitUtil(() -> finalS4.gc.raftStatus.getLastApplied() >= commitIndex, finalS4.gc.fiberGroup.getExecutor());
 
             // config change, remove the old members
             f = adminClient.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(4), Set.of(), timeout);
