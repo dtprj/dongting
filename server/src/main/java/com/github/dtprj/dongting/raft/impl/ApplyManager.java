@@ -72,7 +72,6 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     private final LinkedList<RaftTask> heartBeatQueue = new LinkedList<>();
 
     private long initCommitIndex;
-    private boolean initFutureComplete = false;
 
     private final PriorityQueue<Pair<DtTime, CompletableFuture<Long>>> waitReadyQueue;
 
@@ -125,12 +124,14 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }, true).start();
         if (raftStatus.getLastApplied() >= raftStatus.commitIndex) {
             log.info("apply manager init complete");
-            raftStatus.finishInitFuture(null);
-            this.initFutureComplete = true;
+            raftStatus.markInit(false);
+            raftStatus.copyShareStatus();
+            raftStatus.initFuture.complete(null);
         } else if (raftStatus.installSnapshot) {
             log.info("install snapshot, apply manager init complete");
-            raftStatus.finishInitFuture(null);
-            this.initFutureComplete = true;
+            raftStatus.markInit(false);
+            raftStatus.copyShareStatus();
+            raftStatus.initFuture.complete(null);
         }
     }
 
@@ -289,23 +290,24 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             }
         }
 
+        boolean fireInitFuture = false;
+        if (!raftStatus.initFinished && index >= initCommitIndex) {
+            log.info("apply manager init complete, initCommitIndex={}", initCommitIndex);
+            raftStatus.markInit(false);
+            fireInitFuture = true;
+        }
+
+        boolean processWaitGroupReadyQueue = false;
         if (!raftStatus.isGroupReady() && raftStatus.getRole() != RaftRole.none
                 && index >= raftStatus.groupReadyIndex) {
             raftStatus.setGroupReady(true);
-            // copy share status should happen before group ready notifications
-            raftStatus.copyShareStatus();
+            processWaitGroupReadyQueue = true;
             log.info("{} mark group ready: groupId={}, groupReadyIndex={}",
                     raftStatus.getRole(), raftStatus.groupId, raftStatus.groupReadyIndex);
-            processWaitGroupReadyQueue(false, false, index);
-        } else {
-            raftStatus.copyShareStatus();
         }
 
-        if (!initFutureComplete && index >= initCommitIndex) {
-            log.info("apply manager init complete, initCommitIndex={}", initCommitIndex);
-            initFutureComplete = true;
-            raftStatus.finishInitFuture(null);
-        }
+        // copy share status should happen before group ready notifications
+        raftStatus.copyShareStatus();
         if (execEx == null) {
             rt.callSuccess(execResult);
         } else {
@@ -313,6 +315,14 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             rt.callFail(execEx);
         }
         raftStatus.tailCache.removePending(rt);
+
+        if (fireInitFuture) {
+            raftStatus.initFuture.complete(null);
+        }
+        if (processWaitGroupReadyQueue) {
+            processWaitGroupReadyQueue(false, false, index);
+        }
+
         if (waitApply) {
             applyFinishCond.signal();
         }

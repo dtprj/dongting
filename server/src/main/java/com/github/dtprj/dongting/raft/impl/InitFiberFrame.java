@@ -54,14 +54,18 @@ public class InitFiberFrame extends FiberFrame<Void> {
     @Override
     protected FrameCallResult handle(Throwable ex) {
         log.error("raft group init failed, groupId={}", groupConfig.groupId, ex);
-        raftStatus.finishInitFuture(ex);
+        raftStatus.markInit(true);
+        raftStatus.copyShareStatus();
+        raftStatus.initFuture.completeExceptionally(ex);
         getFiberGroup().requestShutdown();
         return Fiber.frameReturn();
     }
 
     private boolean cancelInit() {
-        if (isGroupShouldStopPlain()) {
-            raftStatus.finishInitFuture(new RaftException("group should stop"));
+        if (isGroupShouldStopPlain() && !raftStatus.initFinished) {
+            raftStatus.markInit(true);
+            raftStatus.copyShareStatus();
+            raftStatus.initFuture.completeExceptionally(new RaftException("group should stop"));
             return true;
         }
         return false;

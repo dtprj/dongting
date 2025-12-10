@@ -67,8 +67,8 @@ public final class RaftGroupImpl extends RaftGroup {
 
     @Override
     public boolean isLeader() {
-        RaftMember leader = raftStatus.getShareStatus().currentLeader;
-        return leader != null && leader.node.self;
+        RaftShareStatus ss = raftStatus.getShareStatus();
+        return ss.role == RaftRole.leader && ss.leaseEndNanos - System.nanoTime() > 0;
     }
 
     @Override
@@ -91,11 +91,11 @@ public final class RaftGroupImpl extends RaftGroup {
 
     @Override
     public void leaseRead(Timestamp ts, DtTime deadline, FutureCallback<Long> callback) {
-        if (fiberGroup.shareStatusSource.getShareStatus(true).shouldStop) {
+        RaftShareStatus ss = raftStatus.getShareStatus();
+        if (ss.shouldStop) {
             FutureCallback.callFail(callback, new RaftException("raft group thread is stop"));
             return;
         }
-        RaftShareStatus ss = raftStatus.getShareStatus();
         if (ss.role != RaftRole.leader) {
             FutureCallback.callFail(callback, new NotLeaderException(
                     ss.currentLeader == null ? null : ss.currentLeader.node));

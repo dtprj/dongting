@@ -28,8 +28,8 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftShareStatus;
 import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
 
 import java.nio.charset.StandardCharsets;
@@ -69,14 +69,14 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             log.error(errorResp.msg);
             return errorResp;
         }
-        GroupComponents gc = g.groupComponents;
-        if (!gc.raftStatus.initialized) {
+        RaftShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
+        if (!ss.initFinished) {
             invokeCleanReq(reqInfo);
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
             wf.msg = "raft group not initialized: " + groupId;
             return wf;
         }
-        if (gc.fiberGroup.shareStatusSource.getShareStatus(true).shouldStop) {
+        if (ss.shouldStop) {
             invokeCleanReq(reqInfo);
             return createStoppedResp(groupId);
         } else {

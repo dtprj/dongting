@@ -114,7 +114,8 @@ public final class RaftStatusImpl extends RaftStatus {
     public FiberCondition transferLeaderCondition;
 
     public final CompletableFuture<Void> initFuture = new CompletableFuture<>();
-    public volatile boolean initialized;
+    boolean initFinished;
+    private boolean initFailed;
 
     public RaftStatusImpl(int groupId, Timestamp ts) {
         super(groupId);
@@ -134,6 +135,9 @@ public final class RaftStatusImpl extends RaftStatus {
         ss.currentLeader = currentLeader;
         ss.groupReady = groupReady;
 
+        ss.initFinished = initFinished;
+        ss.initFailed = initFailed;
+
         this.shareStatusUpdated = false;
 
         if (volatileMode) {
@@ -149,13 +153,10 @@ public final class RaftStatusImpl extends RaftStatus {
         }
     }
 
-    public void finishInitFuture(Throwable ex) {
-        initialized = true;
-        if (ex != null) {
-            initFuture.completeExceptionally(ex);
-        } else {
-            initFuture.complete(null);
-        }
+    public void markInit(boolean initFailed) {
+        this.initFinished = true;
+        this.initFailed = initFailed;
+        this.shareStatusUpdated = true;
     }
 
     public RaftNode getCurrentLeaderNode() {
