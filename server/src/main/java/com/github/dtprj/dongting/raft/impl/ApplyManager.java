@@ -118,7 +118,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 if (raftStatus.isGroupReady()) {
                     return applyMonitorCond.await(1000, this);
                 } else {
-                    processWaitGroupReadyQueue(false, null);
+                    processWaitGroupReadyQueue(true, false, 0);
                     return applyMonitorCond.await(100, this);
                 }
             }
@@ -151,7 +151,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         } catch (Throwable e) {
             log.error("state machine stop failed", e);
         }
-        processWaitGroupReadyQueue(true, null);
+        processWaitGroupReadyQueue(false, true, 0);
     }
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
@@ -203,8 +203,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
     }
 
-    // if processItemsNotTimeout==true and group should stop, use null as leaseReadIndex
-    private void processWaitGroupReadyQueue(boolean processItemsNotTimeout, Long leaseReadIndex) {
+    // if processAll and group should stop, use null as leaseReadIndex
+    private void processWaitGroupReadyQueue(boolean processTimeout, boolean processStop, long leaseReadIndex) {
         if (waitReadyQueue.isEmpty()) {
             return;
         }
@@ -213,20 +213,22 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             Pair<DtTime, CompletableFuture<Long>> p = it.next();
             DtTime deadline = p.getLeft();
             CompletableFuture<Long> f = p.getRight();
-            if (deadline.isTimeout(ts)) {
-                it.remove();
-                RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
-                        + deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
-                completeWaitReadyFuture(f, null, e);
-            } else if (processItemsNotTimeout) {
-                it.remove();
-                if (leaseReadIndex != null) {
-                    completeWaitReadyFuture(f, leaseReadIndex, null);
+            if (processTimeout) {
+                if (deadline.isTimeout(ts)) {
+                    it.remove();
+                    RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
+                            + deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
+                    completeWaitReadyFuture(f, null, e);
                 } else {
-                    completeWaitReadyFuture(f, null, new RaftException("group should stop"));
+                    break;
                 }
             } else {
-                break;
+                it.remove();
+                if (processStop) {
+                    completeWaitReadyFuture(f, null, new RaftException("group should stop"));
+                } else {
+                    completeWaitReadyFuture(f, leaseReadIndex, null);
+                }
             }
         }
     }
@@ -294,7 +296,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             raftStatus.copyShareStatus();
             log.info("{} mark group ready: groupId={}, groupReadyIndex={}",
                     raftStatus.getRole(), raftStatus.groupId, raftStatus.groupReadyIndex);
-            processWaitGroupReadyQueue(true, index);
+            processWaitGroupReadyQueue(false, false, index);
         } else {
             raftStatus.copyShareStatus();
         }
