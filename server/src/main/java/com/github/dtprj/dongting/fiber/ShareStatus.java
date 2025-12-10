@@ -19,10 +19,5 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 public class ShareStatus {
-    public final boolean shouldStop;
-
-    protected ShareStatus(boolean shouldStop) {
-        this.shouldStop = shouldStop;
-    }
-
+    public boolean shouldStop;
 }

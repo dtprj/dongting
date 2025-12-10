@@ -15,16 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.fiber.ShareStatusSource;
+
 /**
  * @author huangli
  */
-public abstract class RaftStatus {
-    // in raft paper: persistent state on all servers
-    public int currentTerm;
-    public int votedFor;
-
-    // in raft paper: volatile state on all servers
-    public long commitIndex;
+public abstract class RaftStatus extends ShareStatusSource {
 
     public final int groupId;
 

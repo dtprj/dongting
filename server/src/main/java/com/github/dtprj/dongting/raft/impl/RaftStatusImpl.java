@@ -34,22 +34,12 @@ import java.util.function.BiConsumer;
  */
 public final class RaftStatusImpl extends RaftStatus {
 
-    private volatile RaftShareStatus shareStatus;
-
-    public boolean installSnapshot;
-
-    private RaftRole role; // shared
-    private RaftMember currentLeader; // shared
-    private long lastApplied; // shared
-
-    public BiConsumer<RaftRole, RaftRole> roleChangeListener;
-
     public NioServer serviceNioServer;
-
     public final Timestamp ts;
-
     public int electQuorum;
     public int rwQuorum;
+
+    public BiConsumer<RaftRole, RaftRole> roleChangeListener;
 
     public RaftMember self;
     public List<RaftMember> members;
@@ -65,8 +55,19 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public List<RaftMember> replicateList;
 
-    public FiberCondition needRepCondition;
     public TailCache tailCache;
+    public FiberCondition needRepCondition;
+
+    public boolean installSnapshot;
+
+    public int currentTerm; // raft paper persistent state of all servers
+    public int votedFor; // raft paper persistent state of all servers
+
+    public long commitIndex; // raft paper volatile state on all servers
+    private long lastApplied; // shared, raft paper volatile state on all servers
+
+    private RaftRole role; // shared
+    private RaftMember currentLeader; // shared
 
     // for leader, groupReadyIndex is the firstIndex of currentTerm.
     // for follower, groupReadyIndex is the first log item index of a valid AppendEntries request.
@@ -121,19 +122,30 @@ public final class RaftStatusImpl extends RaftStatus {
         lastElectTime = ts.nanoTime - Duration.ofDays(1).toNanos();
     }
 
+    @Override
+    public void copy(boolean volatileMode) {
+        RaftShareStatus ss = new RaftShareStatus();
+        ss.shouldStop = shouldStop;
+        ss.role = role;
+        ss.lastApplied = lastApplied;
+        if (role == RaftRole.leader) {
+            ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - leaseDelta;
+        }
+        ss.currentLeader = currentLeader;
+        ss.groupReady = groupReady;
+
+        this.shareStatusUpdated = false;
+
+        if (volatileMode) {
+            shareStatus = ss;
+        } else {
+            SHARE_STATUS.setRelease(this, ss);
+        }
+    }
+
     public void copyShareStatus() {
         if (shareStatusUpdated) {
-            RaftShareStatus ss = new RaftShareStatus();
-            ss.role = role;
-            ss.lastApplied = lastApplied;
-            if (role == RaftRole.leader) {
-                ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - leaseDelta;
-            }
-            ss.currentLeader = currentLeader;
-            ss.groupReady = groupReady;
-
-            this.shareStatusUpdated = false;
-            this.shareStatus = ss;
+            copy(true);
         }
     }
 
@@ -201,14 +213,14 @@ public final class RaftStatusImpl extends RaftStatus {
         }
     }
 
+    public RaftShareStatus getShareStatus() {
+        return (RaftShareStatus) shareStatus;
+    }
+
     //------------------------- simple getters and setters--------------------------------
 
     public RaftRole getRole() {
         return role;
-    }
-
-    public RaftShareStatus getShareStatus() {
-        return shareStatus;
     }
 
     public RaftMember getCurrentLeader() {

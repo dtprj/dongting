@@ -43,7 +43,8 @@ public class ShareStatusSource {
     }
 
     protected void copy(boolean volatileMode) {
-        ShareStatus ss = new ShareStatus(shouldStop);
+        ShareStatus ss = new ShareStatus();
+        ss.shouldStop = this.shouldStop;
         if (volatileMode) {
             shareStatus = ss;
         } else {

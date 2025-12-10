@@ -15,13 +15,17 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.fiber.ShareStatus;
+
 /**
  * @author huangli
  */
-public class RaftShareStatus {
+public final class RaftShareStatus extends ShareStatus {
+    public boolean groupReady;
+
     public long lastApplied;
     public long leaseEndNanos;
-    public boolean groupReady;
     public RaftRole role;
     public RaftMember currentLeader;
+
 }
