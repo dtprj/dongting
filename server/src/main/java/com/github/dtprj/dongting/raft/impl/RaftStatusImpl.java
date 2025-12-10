@@ -64,7 +64,7 @@ public final class RaftStatusImpl extends RaftStatus {
     public int votedFor; // raft paper persistent state of all servers
 
     public long commitIndex; // raft paper volatile state on all servers
-    private long lastApplied; // shared, raft paper volatile state on all servers
+    private long lastApplied; // raft paper volatile state on all servers
 
     private RaftRole role; // shared
     private RaftMember currentLeader; // shared
@@ -127,7 +127,7 @@ public final class RaftStatusImpl extends RaftStatus {
         RaftShareStatus ss = new RaftShareStatus();
         ss.shouldStop = shouldStop;
         ss.role = role;
-        ss.lastApplied = lastApplied;
+        // ss.lastApplied = lastApplied;
         if (role == RaftRole.leader) {
             ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - leaseDelta;
         }
@@ -166,7 +166,7 @@ public final class RaftStatusImpl extends RaftStatus {
         if (lastApplied != this.lastApplied) {
             this.lastApplied = lastApplied;
             this.lastApplyNanos = ts.nanoTime;
-            this.shareStatusUpdated = true;
+            // this.shareStatusUpdated = true;
         }
     }
 

@@ -39,7 +39,11 @@ public abstract class RaftGroup {
      * Generally, the callback should be called immediately in current thread,
      * however, if group not ready it may be called in raft thread after some time.
      *
-     * <p>NOTE: Lease read is also linearizable.
+     * <p>NOTE1: Lease read is also linearizable.</p>
+     *
+     * <p>NOTE2: The DtKV does not use the read index (always read the latest snapshot),
+     * so current implementation always returns 0 as the read index to improve performance.</p>
+     *
      *
      * <li>If current node is not leader, or lease timeout(indicates something wrong),
      * callback will fail with a NotLeaderException. </li>

@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.fiber.ShareStatus;
 public final class RaftShareStatus extends ShareStatus {
     public boolean groupReady;
 
-    public long lastApplied;
+    // public long lastApplied;
     public long leaseEndNanos;
     public RaftRole role;
     public RaftMember currentLeader;

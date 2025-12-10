@@ -108,12 +108,12 @@ public final class RaftGroupImpl extends RaftGroup {
             if (ss.leaseEndNanos - t < 0) {
                 long x = (t - ss.leaseEndNanos) / 1_000_000;
                 if (lastLeaseTimeoutLogNanoTime == 0 || t - lastLeaseTimeoutLogNanoTime > 1_000_000_000L) {
-                    log.error("lease expired for {} ms. lastApplied={}", x, ss.lastApplied);
+                    log.error("lease expired for {} ms", x);
                     lastLeaseTimeoutLogNanoTime = t;
                 }
                 FutureCallback.callFail(callback, new NotLeaderException(null, "lease expired for " + x + "ms"));
             } else {
-                FutureCallback.callSuccess(callback, ss.lastApplied);
+                FutureCallback.callSuccess(callback, 0L);
             }
         } else {
             // wait group ready
@@ -122,7 +122,7 @@ public final class RaftGroupImpl extends RaftGroup {
                 if (ex != null) {
                     FutureCallback.callFail(callback, ex);
                 } else {
-                    FutureCallback.callSuccess(callback, idx);
+                    FutureCallback.callSuccess(callback, 0L);
                 }
             });
         }
