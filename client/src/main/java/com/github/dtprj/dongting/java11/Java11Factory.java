@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.java11;
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
 import com.github.dtprj.dongting.unsafe11.NewUnsafe;
@@ -42,6 +43,11 @@ public class Java11Factory extends VersionFactory {
     }
 
     @Override
+    public <E> LinkedNode<E> newNode(E value) {
+        return new Java11LinkedNode<>(value);
+    }
+
+    @Override
     public void releaseDirectBuffer(ByteBuffer buffer) {
         if (DtUtil.JAVA_VER >= 17 && NewUnsafe.available()) {
             NewUnsafe.freeDirectBuffer(buffer);
@@ -63,5 +69,10 @@ public class Java11Factory extends VersionFactory {
     @Override
     public void fullFence() {
         VarHandle.fullFence();
+    }
+
+    @Override
+    public void onSpinWait() {
+        Thread.onSpinWait();
     }
 }

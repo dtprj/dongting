@@ -37,13 +37,8 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     }
 
     @Override
-    protected LinkedNode<E> newNode(E value) {
-        return new Java11LinkedNode<>(value);
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
-    protected LinkedNode<E> getAndSetTail(LinkedNode<E> nextNode) {
-        return (LinkedNode<E>) TAIL.getAndSet(this, nextNode);
+    protected LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode) {
+        return (LinkedNode<E>) TAIL.getAndSetRelease(this, nextNode);
     }
 }

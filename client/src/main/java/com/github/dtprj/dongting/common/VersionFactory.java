@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.common;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 import java.nio.ByteBuffer;
@@ -34,6 +35,8 @@ public abstract class VersionFactory {
 
     public abstract <E> MpscLinkedQueue<E> newMpscLinkedQueue();
 
+    public abstract <E> LinkedNode<E> newNode(E value);
+
     public abstract void releaseDirectBuffer(ByteBuffer buffer);
 
     public abstract void releaseFence();
@@ -41,6 +44,8 @@ public abstract class VersionFactory {
     public abstract void acquireFence();
 
     public abstract void fullFence();
+
+    public abstract void onSpinWait();
 
 }
 

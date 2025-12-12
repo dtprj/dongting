@@ -23,6 +23,10 @@ public abstract class LinkedNode<E> {
 
     protected volatile LinkedNode<E> next;
 
+    volatile int shutdownStatus;
+    static final int SHUTDOWN_STATUS_BEFORE = 1;
+    static final int SHUTDOWN_STATUS_AFTER = 2;
+
     public LinkedNode(E value) {
         this.value = value;
     }

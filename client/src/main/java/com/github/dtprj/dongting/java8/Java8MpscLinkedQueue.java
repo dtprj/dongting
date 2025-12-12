@@ -33,15 +33,9 @@ public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
         PRODUCER_NODE = AtomicReferenceFieldUpdater.newUpdater(MpscLinkedQueue.class, LinkedNode.class, "tail");
     }
 
-
-    @Override
-    protected LinkedNode<E> newNode(E value) {
-        return new Java8LinkedNode<>(value);
-    }
-
     @Override
     @SuppressWarnings("unchecked")
-    protected LinkedNode<E> getAndSetTail(LinkedNode<E> nextNode) {
+    protected LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode) {
         return (LinkedNode<E>) PRODUCER_NODE.getAndSet(this, nextNode);
     }
 }

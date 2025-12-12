@@ -76,7 +76,7 @@ class IoWorkerQueue {
             }
             return;
         }
-        @SuppressWarnings("DataFlowIssue") PacketInfoReq pir = (PacketInfoReq) wo;
+        PacketInfoReq pir = (PacketInfoReq) wo;
         Peer peer = pir.peer;
         if (peer != null) {
             if (peer.status == PeerStatus.connected) {
@@ -130,6 +130,6 @@ class IoWorkerQueue {
     }
 
     public void close() {
-        queue.shutdownByConsumer();
+        queue.shutdown();
     }
 }

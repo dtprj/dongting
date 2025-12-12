@@ -45,7 +45,7 @@ public class MpscLinkedQueueTest {
         assertEquals("2", q.relaxedPoll());
         assertEquals("3", q.relaxedPoll());
         assertNull(q.relaxedPoll());
-        q.shutdownByConsumer();
+        q.shutdown();
         assertFalse(q.offer("4"));
     }
 

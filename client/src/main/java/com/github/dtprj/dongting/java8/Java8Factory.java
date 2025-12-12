@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
 
@@ -68,6 +69,11 @@ public class Java8Factory extends VersionFactory {
     }
 
     @Override
+    public <E> LinkedNode<E> newNode(E value) {
+        return new Java8LinkedNode<>(value);
+    }
+
+    @Override
     public void releaseDirectBuffer(ByteBuffer buffer) {
         if (!buffer.isDirect()) {
             throw new DtException("not direct buffer");
@@ -95,5 +101,9 @@ public class Java8Factory extends VersionFactory {
     @Override
     public void fullFence() {
         DtUnsafe.fullFence();
+    }
+
+    @Override
+    public void onSpinWait() {
     }
 }
