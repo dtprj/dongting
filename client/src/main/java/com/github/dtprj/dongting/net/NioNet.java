@@ -59,7 +59,7 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     public NioNet(NioConfig config) {
         this.config = config;
-        this.nioStatus = new NioStatus();
+        this.nioStatus = VersionFactory.getInstance().newNioStatus();
         this.perfCallback = config.perfCallback;
         this.server = config instanceof NioServerConfig;
         if (config.maxPacketSize < config.maxBodySize + 128 * 1024) {

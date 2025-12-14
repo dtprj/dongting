@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.java11;
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.net.NioStatus;
 import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
@@ -74,5 +75,10 @@ public class Java11Factory extends VersionFactory {
     @Override
     public void onSpinWait() {
         Thread.onSpinWait();
+    }
+
+    @Override
+    public NioStatus newNioStatus() {
+        return new Java11NioStatus();
     }
 }

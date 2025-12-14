@@ -7,6 +7,7 @@ import com.github.dtprj.dongting.codec.CodecTestUtil;
 import com.github.dtprj.dongting.codec.DtPacket;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.java8.Java8NioStatus;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
@@ -108,7 +109,7 @@ public class PacketPbTest {
         WorkerStatus workerStatus = new WorkerStatus(null, null ,
                 null, CodecTestUtil.createContext().getHeapPool(), new Timestamp(), 1000);
 
-        DtChannelImpl dtc = new DtChannelImpl(new NioStatus(), workerStatus,
+        DtChannelImpl dtc = new DtChannelImpl(new Java8NioStatus(), workerStatus,
                 new NioClientConfig(), null, SocketChannel.open(), 0) {
 
             @Override

@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.NioStatus;
 import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
@@ -105,5 +106,10 @@ public class Java8Factory extends VersionFactory {
 
     @Override
     public void onSpinWait() {
+    }
+
+    @Override
+    public NioStatus newNioStatus() {
+        return new Java8NioStatus();
     }
 }

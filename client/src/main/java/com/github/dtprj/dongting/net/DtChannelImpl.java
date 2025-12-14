@@ -300,7 +300,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     void releasePending(int bytes) {
         long delta = (bytes & 0x000000FF_FFFFFFFFL) + (1L << 40);
-        NioStatus.pendingUpdater.addAndGet(nioStatus, -delta);
+        nioStatus.getAndAddRelease(-delta);
     }
 
     private void processIncomingResponse(ReadPacket resp, PacketInfoReq wo) {
@@ -328,19 +328,19 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             flowControl = false;
         } else {
             long delta = (currentReadPacketSize & 0x000000FF_FFFFFFFFL) + (1L << 40);
-            long pending = NioStatus.pendingUpdater.addAndGet(nioStatus, delta);
+            long pending = nioStatus.getAndAddRelease(delta);
             int count = (int) ((pending & 0xFFFFFF00_00000000L) >>> 40);
             long bytes = pending & 0x000000FF_FFFFFFFFL;
-            if (maxReq > 0 && count > maxReq) {
-                NioStatus.pendingUpdater.addAndGet(nioStatus, -delta);
+            if (maxReq > 0 && count >= maxReq) {
+                nioStatus.getAndAddRelease(-delta);
                 log.debug("pendingRequests>maxInRequests({}), write response code FLOW_CONTROL to client",
                         nioConfig.maxInRequests);
                 writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
                         "max incoming request: " + nioConfig.maxInRequests);
                 return;
             }
-            if (maxBytes > 0 && bytes > maxBytes) {
-                NioStatus.pendingUpdater.addAndGet(nioStatus, -delta);
+            if (maxBytes > 0 && (bytes + currentReadPacketSize) > maxBytes) {
+                nioStatus.getAndAddRelease(-delta);
                 log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
                         bytes, nioConfig.maxInBytes);
                 writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,

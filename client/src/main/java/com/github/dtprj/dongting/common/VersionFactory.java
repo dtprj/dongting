@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.common;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.NioStatus;
 import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
@@ -47,6 +48,7 @@ public abstract class VersionFactory {
 
     public abstract void onSpinWait();
 
+    public abstract NioStatus newNioStatus();
 }
 
 class VfHolder {
