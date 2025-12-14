@@ -35,6 +35,7 @@ class IoWorkerQueue {
     private final NioWorker worker;
     private final PerfCallback perfCallback;
     private int invokeIndex;
+    private boolean closed;
 
     public IoWorkerQueue(NioWorker worker, NioConfig config) {
         this.worker = worker;
@@ -53,8 +54,16 @@ class IoWorkerQueue {
     }
 
     public void dispatchActions() {
-        Object data;
-        while ((data = queue.relaxedPoll()) != null) {
+        while (true) {
+            Object data;
+            if (closed) {
+                data = queue.poll();
+            } else {
+                data = queue.relaxedPoll();
+            }
+            if (data == null) {
+                break;
+            }
             if (data instanceof PacketInfo) {
                 processWriteData((PacketInfo) data);
             } else {
@@ -130,6 +139,7 @@ class IoWorkerQueue {
     }
 
     public void close() {
+        closed = true;
         queue.shutdown();
     }
 }
