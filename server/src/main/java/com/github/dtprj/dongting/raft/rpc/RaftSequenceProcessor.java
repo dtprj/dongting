@@ -108,13 +108,19 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
         }
     }
 
+    private void onDispatcherFail(Object obj) {
+        @SuppressWarnings("unchecked")
+        ReqInfo<T> reqInfo = (ReqInfo<T>) obj;
+        invokeCleanReq(reqInfo);
+        log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());
+    }
+
     @Override
     protected final WritePacket doProcess(ReqInfo<T> reqInfo) {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
         FiberChannel<Object> c = rix.raftGroup.groupComponents.processorChannels.get(typeId);
-        if (!c.fireOffer(reqInfo, true)) {
-            invokeCleanReq(reqInfo);
-            log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());
+        if (!c.fireOffer(reqInfo, this::onDispatcherFail)) {
+            onDispatcherFail(reqInfo);
         }
         return null;
     }

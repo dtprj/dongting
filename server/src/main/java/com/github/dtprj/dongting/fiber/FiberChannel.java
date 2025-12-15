@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * This queue is unbound and only block consumer.
@@ -44,17 +45,26 @@ public class FiberChannel<T> {
     }
 
     public boolean fireOffer(T data) {
-        return fireOffer(data, false);
+        return fireOffer(data, null);
     }
 
-    public boolean fireOffer(T data, boolean failIfGroupShouldStop) {
+    public boolean fireOffer(T data, Consumer<T> dispatchFailCallback) {
         FiberQueueTask t = new FiberQueueTask(groupOfConsumer) {
             @Override
             protected void run() {
                 offer0(data);
             }
+
+            @Override
+            protected void onDispatchFail() {
+                if (dispatchFailCallback != null) {
+                    dispatchFailCallback.accept(data);
+                }
+            }
         };
-        t.failIfGroupShouldStop = failIfGroupShouldStop;
+        if (dispatchFailCallback != null) {
+            t.failIfGroupShouldStop = true;
+        }
         return dispatcherOfConsumer.doInDispatcherThread(t);
     }
 

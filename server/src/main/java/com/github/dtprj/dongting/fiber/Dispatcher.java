@@ -630,8 +630,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 if (g.finished) {
                     log.warn("task is not accepted because its group is finished: {}", r);
                     return false;
-                } else if (r.failIfGroupShouldStop && g.isShouldStopPlain()) {
-                    log.warn("task is not accepted because its group is shouldStop: {}", r);
+                } else if (!r.dispatchCheck()) {
                     return false;
                 }
             }

@@ -83,19 +83,24 @@ class FiberQueue {
     public FiberQueueTask poll(long timeout, TimeUnit timeUnit) throws InterruptedException {
         lock.lock();
         try {
-            if (head == TAIL) {
-                if (!notEmpty.await(timeout, timeUnit)) {
-                    return null;
+            while (true) {
+                if (head == TAIL) {
+                    if (!notEmpty.await(timeout, timeUnit)) {
+                        return null;
+                    }
                 }
+                FiberQueueTask result = head;
+                if (result.next == TAIL) {
+                    head = tail = TAIL;
+                } else {
+                    head = result.next;
+                }
+                result.next = null;
+                if (!result.dispatchCheck()) {
+                    continue;
+                }
+                return result;
             }
-            FiberQueueTask result = head;
-            if (result.next == TAIL) {
-                head = tail = TAIL;
-            } else {
-                head = result.next;
-            }
-            result.next = null;
-            return result;
         } finally {
             lock.unlock();
         }
@@ -106,10 +111,12 @@ class FiberQueue {
         try {
             FiberQueueTask task = head;
             while (task != TAIL) {
-                list.add(task);
                 FiberQueueTask tmp = task;
                 task = task.next;
                 tmp.next = null;
+                if (tmp.dispatchCheck()) {
+                    list.add(tmp);
+                }
             }
             head = tail = TAIL;
         } finally {
