@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -27,11 +29,14 @@ import java.util.function.Consumer;
  * @author huangli
  */
 public class FiberChannel<T> {
+    private static final DtLog log = DtLogs.getLogger(FiberChannel.class);
     private final FiberGroup groupOfConsumer;
     private final Dispatcher dispatcherOfConsumer;
     final IndexedQueue<T> queue;
     private final FiberCondition notEmptyCondition;
     private FiberCondition[] notEmptyAndShouldStop;
+
+    private boolean shutdown;
 
     FiberChannel(FiberGroup groupOfConsumer) {
         this(groupOfConsumer, 64);
@@ -52,19 +57,20 @@ public class FiberChannel<T> {
         FiberQueueTask t = new FiberQueueTask(groupOfConsumer) {
             @Override
             protected void run() {
-                offer0(data);
-            }
-
-            @Override
-            protected void onDispatchFail() {
-                if (dispatchFailCallback != null) {
-                    dispatchFailCallback.accept(data);
+                if (shutdown) {
+                    try {
+                        log.warn("task is not accepted because its group is shouldStop: {}", data);
+                        if (dispatchFailCallback != null) {
+                            dispatchFailCallback.accept(data);
+                        }
+                    } catch (Throwable e) {
+                        log.warn("", this);
+                    }
+                } else {
+                    offer0(data);
                 }
             }
         };
-        if (dispatchFailCallback != null) {
-            t.failIfGroupShouldStop = true;
-        }
         return dispatcherOfConsumer.doInDispatcherThread(t);
     }
 
@@ -182,5 +188,9 @@ public class FiberChannel<T> {
             c.add(data);
         }
         return Fiber.resume(null, resumePoint);
+    }
+
+    public void markShutdown() {
+        shutdown = true;
     }
 }

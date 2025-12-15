@@ -75,6 +75,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
 
         private FrameCallResult resume(ReqInfoEx<T> o) {
             if (isGroupShouldStopPlain()) {
+                channel.markShutdown();
                 if (o != null) {
                     invokeCleanReq(o);
                     o.reqContext.writeRespInBizThreads(createStoppedResp(o.raftGroup.getGroupId()));
@@ -112,6 +113,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
         @SuppressWarnings("unchecked")
         ReqInfo<T> reqInfo = (ReqInfo<T>) obj;
         invokeCleanReq(reqInfo);
+        reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
         log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());
     }
 

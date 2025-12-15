@@ -60,9 +60,6 @@ class FiberQueue {
                 if (g.finished) {
                     log.warn("task is not accepted because its group is finished: {}", task);
                     return false;
-                } else if (task.failIfGroupShouldStop && g.isShouldStopPlain()) {
-                    log.warn("task is not accepted because its group is shouldStop: {}", task);
-                    return false;
                 }
             }
             if (head == TAIL) {
@@ -83,24 +80,19 @@ class FiberQueue {
     public FiberQueueTask poll(long timeout, TimeUnit timeUnit) throws InterruptedException {
         lock.lock();
         try {
-            while (true) {
-                if (head == TAIL) {
-                    if (!notEmpty.await(timeout, timeUnit)) {
-                        return null;
-                    }
+            if (head == TAIL) {
+                if (!notEmpty.await(timeout, timeUnit)) {
+                    return null;
                 }
-                FiberQueueTask result = head;
-                if (result.next == TAIL) {
-                    head = tail = TAIL;
-                } else {
-                    head = result.next;
-                }
-                result.next = null;
-                if (!result.dispatchCheck()) {
-                    continue;
-                }
-                return result;
             }
+            FiberQueueTask result = head;
+            if (result.next == TAIL) {
+                head = tail = TAIL;
+            } else {
+                head = result.next;
+            }
+            result.next = null;
+            return result;
         } finally {
             lock.unlock();
         }
@@ -114,9 +106,7 @@ class FiberQueue {
                 FiberQueueTask tmp = task;
                 task = task.next;
                 tmp.next = null;
-                if (tmp.dispatchCheck()) {
-                    list.add(tmp);
-                }
+                list.add(tmp);
             }
             head = tail = TAIL;
         } finally {

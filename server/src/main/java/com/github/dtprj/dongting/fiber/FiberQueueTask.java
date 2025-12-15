@@ -15,16 +15,10 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
-
 /**
  * @author huangli
  */
 abstract class FiberQueueTask {
-    private static final DtLog log = DtLogs.getLogger(FiberQueueTask.class);
-
-    boolean failIfGroupShouldStop;
 
     final FiberGroup ownerGroup;
 
@@ -36,19 +30,4 @@ abstract class FiberQueueTask {
 
     protected abstract void run();
 
-    protected void onDispatchFail(){
-    }
-
-    boolean dispatchCheck() {
-        if (failIfGroupShouldStop && ownerGroup.isShouldStopPlain()) {
-            try {
-                log.warn("task is not accepted because its group is shouldStop: {}", this);
-                onDispatchFail();
-            } catch (Throwable e) {
-                log.error("", e);
-            }
-            return false;
-        }
-        return true;
-    }
 }

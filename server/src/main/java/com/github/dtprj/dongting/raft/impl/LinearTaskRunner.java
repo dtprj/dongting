@@ -103,6 +103,7 @@ public class LinearTaskRunner {
                     RaftUtil.release(rt.input);
                     rt.callFail(new RaftException("raft group is stopping"));
                 }
+                taskChannel.markShutdown();
                 // fiber exit
                 return Fiber.frameReturn();
             }
