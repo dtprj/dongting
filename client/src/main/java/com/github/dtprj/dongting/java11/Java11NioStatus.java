@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.net.NioStatus;
+import com.github.dtprj.dongting.unsafe11.NioStatusRef;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -24,12 +25,14 @@ import java.lang.invoke.VarHandle;
  * @author huangli
  */
 public class Java11NioStatus extends NioStatus {
+
+    private static final NioStatusRef ref = new NioStatusRef();
     private static final VarHandle IN_PENDING;
 
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
-            IN_PENDING = l.findVarHandle(NioStatus.class, "inPending", long.class);
+            IN_PENDING = l.findVarHandle(NioStatusRef.class, "inPending", long.class);
         } catch (Exception e) {
             throw new Error(e);
         }
@@ -37,6 +40,6 @@ public class Java11NioStatus extends NioStatus {
 
     @Override
     protected long getAndAddRelease(long delta) {
-        return (long) IN_PENDING.getAndAddRelease(this, delta);
+        return (long) IN_PENDING.getAndAddRelease(ref, delta);
     }
 }

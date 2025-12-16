@@ -25,7 +25,7 @@ $DATA_DIR = Join-Path $BASE_DIR "data"
 $PidFile = Join-Path $DATA_DIR "dongting.pid"
 
 # JVM options
-$JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g")
+$JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-XX:-RestrictContended")
 
 # Check if JAVA_HOME is set
 if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {
@@ -68,6 +68,7 @@ $Arguments = $JavaOpts + @(
     "-Dlogback.configurationFile=$CONF_DIR\logback-server.xml",
     "--module-path", $LIB_DIR,
     "--add-exports", "java.base/jdk.internal.misc=dongting.client",
+    "--add-exports", "java.base/jdk.internal.vm.annotation=dongting.client",
     "--add-modules", "org.slf4j,ch.qos.logback.classic",
     "--add-reads", "dongting.client=org.slf4j",
     "--add-reads", "dongting.client=ch.qos.logback.classic",

@@ -26,7 +26,7 @@ DATA_DIR="$BASE_DIR/data"
 PID_FILE="$DATA_DIR/dongting.pid"
 
 # JVM options
-JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g"
+JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g -XX:-RestrictContended"
 
 # Check if JAVA_HOME is set
 if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
@@ -76,6 +76,7 @@ nohup "$JAVA" $JAVA_OPTS \
     -Dlogback.configurationFile="$CONF_DIR/logback-server.xml" \
     --module-path "$LIB_DIR" \
     --add-exports java.base/jdk.internal.misc=dongting.client \
+    --add-exports java.base/jdk.internal.vm.annotation=dongting.client \
     --add-modules org.slf4j,ch.qos.logback.classic \
     --add-reads dongting.client=org.slf4j \
     --add-reads dongting.client=ch.qos.logback.classic \

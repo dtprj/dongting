@@ -13,31 +13,21 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.unsafe11;
 
-import com.github.dtprj.dongting.common.IntObjMap;
+import jdk.internal.vm.annotation.Contended;
 
 /**
  * @author huangli
  */
-public abstract class NioStatus {
+@Contended
+public class MpscLinkedQueueProducerRef {
+    // in IDE
+    // -XX:-RestrictContended --add-exports java.base/jdk.internal.vm.annotation=ALL-UNNAMED
 
-    int outPendingRequests;
-    long outPendingBytes;
+    // in deployment
+    // -XX:-RestrictContended --add-exports java.base/jdk.internal.vm.annotation=dongting.client
 
-    private final IntObjMap<ReqProcessor<?>> processors = new IntObjMap<>();
-
-    protected NioStatus() {
-    }
-
-    ReqProcessor<?> getProcessor(int cmd) {
-        return processors.get(cmd);
-    }
-
-    void registerProcessor(int cmd, ReqProcessor<?> processor) {
-        processors.put(cmd, processor);
-    }
-
-    protected abstract long getAndAddRelease(long delta);
-
+    public volatile boolean shutdown;
+    public volatile Object tail;
 }

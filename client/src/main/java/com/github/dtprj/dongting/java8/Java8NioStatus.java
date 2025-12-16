@@ -23,9 +23,11 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * @author huangli
  */
 public class Java8NioStatus extends NioStatus {
+    // high 24 bits is pending request count, low 40 bits is pending bytes
+    protected volatile long inPending;
 
-    private static final AtomicLongFieldUpdater<NioStatus> IN_PENDING =
-            AtomicLongFieldUpdater.newUpdater(NioStatus.class, "inPending");
+    private static final AtomicLongFieldUpdater<Java8NioStatus> IN_PENDING =
+            AtomicLongFieldUpdater.newUpdater(Java8NioStatus.class, "inPending");
 
     @Override
     protected long getAndAddRelease(long delta) {

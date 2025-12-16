@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+import com.github.dtprj.dongting.unsafe11.MpscLinkedQueueProducerRef;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -25,12 +26,14 @@ import java.lang.invoke.VarHandle;
  * @author huangli
  */
 public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
+
+    private MpscLinkedQueueProducerRef producerRef;
     private static final VarHandle TAIL;
 
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
-            TAIL = l.findVarHandle(MpscLinkedQueue.class, "tail", LinkedNode.class);
+            TAIL = l.findVarHandle(MpscLinkedQueueProducerRef.class, "tail", Object.class);
         } catch (Exception e) {
             throw new Error(e);
         }
@@ -39,6 +42,24 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     @Override
     @SuppressWarnings("unchecked")
     protected LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode) {
-        return (LinkedNode<E>) TAIL.getAndSetRelease(this, nextNode);
+        return (LinkedNode<E>) TAIL.getAndSetRelease(producerRef, nextNode);
     }
+
+    @Override
+    protected void initTailVolatile(LinkedNode<E> node) {
+        producerRef = new MpscLinkedQueueProducerRef();
+        producerRef.tail = node;
+    }
+
+    @Override
+    protected boolean isShutdownVolatile() {
+        return producerRef.shutdown;
+    }
+
+    @Override
+    protected void markShutdownVolatile() {
+        producerRef.shutdown = true;
+    }
+
+
 }
