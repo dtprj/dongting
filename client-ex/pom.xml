@@ -32,6 +32,8 @@
         <finalName>dongting-client-java11-${project.version}</finalName>
         <plugins>
             <plugin>
+                <!-- this module does not have the module-info, because the class need copy to client module,
+                 and no client-ex module exists at runtime -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>

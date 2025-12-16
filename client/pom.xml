@@ -54,6 +54,7 @@
                             <release>11</release>
                             <!-- compile everything to ensure module-info contains right entries -->
                             <compilerArgs>
+                                <!-- compile time reads client-ex (no module-info) -->
                                 <arg>--add-reads</arg>
                                 <arg>dongting.client=ALL-UNNAMED</arg>
                             </compilerArgs>
