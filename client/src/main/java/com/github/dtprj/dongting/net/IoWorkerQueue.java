@@ -35,7 +35,6 @@ class IoWorkerQueue {
     private final NioWorker worker;
     private final PerfCallback perfCallback;
     private int invokeIndex;
-    private boolean closed;
 
     public IoWorkerQueue(NioWorker worker, NioConfig config) {
         this.worker = worker;
@@ -46,7 +45,7 @@ class IoWorkerQueue {
         data.perfTimeOrAddOrder = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_QUEUE);
         if (!queue.offer(data)) {
             data.packet.clean();
-            if(data instanceof PacketInfoReq) {
+            if (data instanceof PacketInfoReq) {
                 ((PacketInfoReq) data).callFail(new NetException("IoQueue closed"));
             }
         }
@@ -57,22 +56,18 @@ class IoWorkerQueue {
     }
 
     public void dispatchActions() {
-        while (true) {
-            Object data;
-            if (closed) {
-                data = queue.poll();
-            } else {
-                data = queue.relaxedPoll();
-            }
-            if (data == null) {
-                break;
-            }
+        Object data;
+        while ((data = queue.relaxedPoll()) != null) {
             if (data instanceof PacketInfo) {
                 processWriteData((PacketInfo) data);
             } else {
                 ((Runnable) data).run();
             }
         }
+    }
+
+    public boolean dispatchFinished() {
+        return queue.isConsumeFinished();
     }
 
     private void processWriteData(PacketInfo wo) {
@@ -146,7 +141,6 @@ class IoWorkerQueue {
     }
 
     public void close() {
-        closed = true;
         queue.shutdown();
     }
 }

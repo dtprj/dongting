@@ -145,7 +145,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         try {
             ioWorkerQueue.close();
-            ioWorkerQueue.dispatchActions();
+            while (!ioWorkerQueue.dispatchFinished()) {
+                ioWorkerQueue.dispatchActions();
+            }
             selector.close();
 
             workerStatus.cleanAllPendingReq();

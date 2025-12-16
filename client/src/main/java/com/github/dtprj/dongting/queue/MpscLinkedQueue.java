@@ -64,27 +64,6 @@ public abstract class MpscLinkedQueue<E> {
         return value;
     }
 
-    public E poll() {
-        LinkedNode<E> next = head.getNextAcquire();
-        if (next == null) {
-            if (head != SHUTDOWN_NODE && head != tail) { // tail is volatile read
-                for (int i = 0; ; i++) {
-                    next = head.getNextAcquire();
-                    if (next != null) {
-                        break;
-                    }
-                    spin(i);
-                }
-            } else {
-                return null;
-            }
-        }
-        E value = next.getValue();
-        next.setValue(null); // just mark
-        head = next;
-        return value;
-    }
-
     public boolean offer(E value) {
         Objects.requireNonNull(value);
         // set plain
@@ -175,8 +154,8 @@ public abstract class MpscLinkedQueue<E> {
         }
     }
 
-    public boolean isShutdown() {
-        return shutdown;
+    public boolean isConsumeFinished() {
+        return head == SHUTDOWN_NODE;
     }
 }
 
