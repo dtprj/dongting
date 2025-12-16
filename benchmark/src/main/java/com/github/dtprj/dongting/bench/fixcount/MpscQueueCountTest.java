@@ -14,7 +14,7 @@ public class MpscQueueCountTest extends MpscCountBenchBase {
     private final MpscLinkedQueue<Object> queue = MpscLinkedQueue.newInstance();
 
     public static void main(String[] args) throws Exception {
-        new MpscQueueCountTest(1, 500_000, 10000).start();
+        new MpscQueueCountTest(1, 5_000_000, 10000).start();
     }
 
     public MpscQueueCountTest(int threadCount, long testTime, long warmupTime) {

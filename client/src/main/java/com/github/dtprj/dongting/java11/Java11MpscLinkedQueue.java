@@ -29,11 +29,13 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
 
     private MpscLinkedQueueProducerRef producerRef;
     private static final VarHandle TAIL;
+    private static final VarHandle NEXT;
 
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
             TAIL = l.findVarHandle(MpscLinkedQueueProducerRef.class, "tail", Object.class);
+            NEXT = l.findVarHandle(LinkedNode.class, "next", LinkedNode.class);
         } catch (Exception e) {
             throw new Error(e);
         }
@@ -61,5 +63,14 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
         producerRef.shutdown = true;
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    protected LinkedNode<E> getNextAcquire(LinkedNode<E> node) {
+        return (LinkedNode<E>) NEXT.getAcquire(node);
+    }
 
+    @Override
+    protected void setNextRelease(LinkedNode<E> node, LinkedNode<E> nextNode) {
+        NEXT.setRelease(node, nextNode);
+    }
 }

@@ -31,8 +31,12 @@ public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     @SuppressWarnings("rawtypes")
     private static final AtomicReferenceFieldUpdater<Java8MpscLinkedQueue, LinkedNode> PRODUCER_NODE;
 
+    @SuppressWarnings("rawtypes")
+    private static final AtomicReferenceFieldUpdater<LinkedNode, LinkedNode> NEXT;
+
     static {
         PRODUCER_NODE = AtomicReferenceFieldUpdater.newUpdater(Java8MpscLinkedQueue.class, LinkedNode.class, "tail");
+        NEXT = AtomicReferenceFieldUpdater.newUpdater(LinkedNode.class, LinkedNode.class, "next");
     }
 
     @Override
@@ -54,5 +58,18 @@ public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     @Override
     protected void markShutdownVolatile() {
         shutdown = true;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected LinkedNode<E> getNextAcquire(LinkedNode<E> node) {
+        // volatile read
+        return (LinkedNode<E>) NEXT.get(node);
+    }
+
+    @Override
+    protected void setNextRelease(LinkedNode<E> node, LinkedNode<E> nextNode) {
+        // release write
+        NEXT.lazySet(node, nextNode);
     }
 }

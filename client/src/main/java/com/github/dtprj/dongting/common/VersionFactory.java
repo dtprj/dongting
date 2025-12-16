@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.common;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioStatus;
-import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 import java.nio.ByteBuffer;
@@ -35,8 +34,6 @@ public abstract class VersionFactory {
     public abstract AbstractRefCountUpdater newRefCountUpdater(boolean plain);
 
     public abstract <E> MpscLinkedQueue<E> newMpscLinkedQueue();
-
-    public abstract <E> LinkedNode<E> newNode(E value);
 
     public abstract void releaseDirectBuffer(ByteBuffer buffer);
 

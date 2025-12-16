@@ -14,7 +14,7 @@ public class ConcurrentLinkedQueueCountTest extends MpscCountBenchBase {
     private final ConcurrentLinkedQueue<Object> queue = new ConcurrentLinkedQueue<>();
 
     public static void main(String[] args) throws Exception {
-        new ConcurrentLinkedQueueCountTest(1, 500_000, 10000).start();
+        new ConcurrentLinkedQueueCountTest(1, 5_000_000, 10000).start();
     }
 
     public ConcurrentLinkedQueueCountTest(int threadCount, long testTime, long warmupTime) {
