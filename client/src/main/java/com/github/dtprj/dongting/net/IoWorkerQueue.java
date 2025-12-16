@@ -44,8 +44,11 @@ class IoWorkerQueue {
 
     public void writeFromBizThread(PacketInfo data) {
         data.perfTimeOrAddOrder = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_QUEUE);
-        if (!queue.offer(data) && data instanceof PacketInfoReq) {
-            ((PacketInfoReq) data).callFail(true, new NetException("IoQueue closed"));
+        if (!queue.offer(data)) {
+            data.packet.clean();
+            if(data instanceof PacketInfoReq) {
+                ((PacketInfoReq) data).callFail(new NetException("IoQueue closed"));
+            }
         }
     }
 
@@ -77,8 +80,9 @@ class IoWorkerQueue {
         DtChannelImpl dtc = wo.dtc;
         if (dtc != null) {
             if (dtc.isClosed()) {
+                wo.packet.clean();
                 if (wo instanceof PacketInfoReq) {
-                    ((PacketInfoReq) wo).callFail(true, new NetException("channel closed during dispatch"));
+                    ((PacketInfoReq) wo).callFail(new NetException("channel closed during dispatch"));
                 }
             } else {
                 dtc.subQueue.enqueue(wo);
@@ -93,7 +97,8 @@ class IoWorkerQueue {
                 pir.dtc = dtc;
                 dtc.subQueue.enqueue(pir);
             } else if (peer.status == PeerStatus.removed) {
-                pir.callFail(true, new NetException("peer is removed"));
+                pir.packet.clean();
+                pir.callFail(new NetException("peer is removed"));
             } else {
                 peer.addToWaitConnectList(pir);
                 if (peer.status == PeerStatus.not_connect) {
@@ -105,14 +110,16 @@ class IoWorkerQueue {
             if (!worker.server && pir.packet.packetType != PacketType.TYPE_RESP) {
                 dtc = selectChannel();
                 if (dtc == null) {
-                    pir.callFail(true, new NetException("no available channel"));
+                    pir.packet.clean();
+                    pir.callFail(new NetException("no available channel"));
                 } else {
                     pir.dtc = dtc;
                     dtc.subQueue.enqueue(pir);
                 }
             } else {
                 log.error("no peer set");
-                pir.callFail(true, new NetException("no peer set"));
+                pir.packet.clean();
+                pir.callFail(new NetException("no peer set"));
             }
         }
     }

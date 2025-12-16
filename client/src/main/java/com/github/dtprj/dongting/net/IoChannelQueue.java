@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -71,16 +72,19 @@ class IoChannelQueue {
     }
 
     private void callFail(PacketInfo pi, boolean callClean, Throwable ex) {
+        if (callClean) {
+            pi.packet.clean();
+        }
         if (pi instanceof PacketInfoReq) {
             PacketInfoReq req = (PacketInfoReq) pi;
-            req.callFail(callClean, ex);
+            req.callFail(ex);
         }
     }
 
     public void enqueue(PacketInfo packetInfo) {
         WritePacket wf = packetInfo.packet;
         if (wf.use) {
-            callFail(packetInfo, true, new NetException("WritePacket is used"));
+            callFail(packetInfo, false, new DtBugException("WritePacket is used"));
             return;
         }
         wf.use = true;
@@ -157,7 +161,7 @@ class IoChannelQueue {
                         subQueueBytes = Math.max(0, subQueueBytes - pi.packet.calcMaxPacketSize());
                         encodeContext.reset();
                         Throwable ex = new NetException("encode fail when buffer is empty");
-                        callFail(pi, true, ex);
+                        callFail(pi, false, ex);
                         pi = null;
                         BugLog.log(ex);
                         continue;

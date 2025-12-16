@@ -67,7 +67,8 @@ public class Peer {
             NetException ex = exceptionSupplier.apply(wd);
             if (ex != null) {
                 it.remove();
-                wd.callFail(true, ex);
+                wd.packet.clean();
+                wd.callFail(ex);
             } else {
                 break;
             }

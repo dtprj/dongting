@@ -142,7 +142,7 @@ class WorkerStatus {
             BugLog.getLog().error(errMsg);
             removeFromChannelQueue(old);
             removeFromNearTimeoutQueue(old);
-            old.callFail(false, new NetException(errMsg));
+            old.callFail(new NetException(errMsg));
         }
         addToNearTimeoutQueueIfNeed(pi);
 
@@ -190,7 +190,7 @@ class WorkerStatus {
             for (PacketInfoReq pi : list) {
                 // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
                 // so callFail should be idempotent
-                pi.callFail(false, e);
+                pi.callFail(e);
             }
         } finally {
             iteratingPendingQueue = false;
@@ -220,7 +220,7 @@ class WorkerStatus {
                 }
                 // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
                 // so callFail should be idempotent
-                pi.callFail(false, e);
+                pi.callFail(e);
             }
         } finally {
             iteratingPendingQueue = false;
@@ -272,7 +272,7 @@ class WorkerStatus {
                         + ", remote=" + pi.dtc.getRemoteAddr();
                 // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
                 // so callFail should be idempotent
-                pi.callFail(false, new NetTimeoutException(msg));
+                pi.callFail(new NetTimeoutException(msg));
             }
         } finally {
             iteratingPendingQueue = false;

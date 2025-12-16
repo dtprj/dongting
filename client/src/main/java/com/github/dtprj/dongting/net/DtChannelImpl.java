@@ -241,7 +241,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         } catch (RuntimeException | Error e) {
             if (packet.packetType == PacketType.TYPE_RESP) {
                 if (requestForResp != null) {
-                    requestForResp.callFail(false, e);
+                    requestForResp.callFail(e);
                 }
             }
             throw e;
@@ -306,7 +306,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private void processIncomingResponse(ReadPacket resp, PacketInfoReq wo) {
         WritePacket req = wo.packet;
         if (resp.command != req.command) {
-            wo.callFail(false, new NetException("command not match"));
+            wo.callFail(new NetException("command not match"));
             return;
         }
         wo.callSuccess(resp);

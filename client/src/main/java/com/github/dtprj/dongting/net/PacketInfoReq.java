@@ -67,16 +67,13 @@ final class PacketInfoReq extends PacketInfo {
         }
     }
 
-    void callFail(boolean callClean, Throwable ex) {
+    void callFail(Throwable ex) {
         if (finished) {
             return;
         }
         try {
             if (ownerUsedToReleasePermit != null) {
                 ownerUsedToReleasePermit.releasePermit(packet);
-            }
-            if (callClean) {
-                packet.clean();
             }
             FutureCallback.callFail(callback, ex);
         } finally {
