@@ -27,11 +27,14 @@ import java.lang.invoke.VarHandle;
  */
 public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     private static final VarHandle TAIL;
+    private static final VarHandle NEXT;
+
 
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
             TAIL = l.findVarHandle(LinkedQueueProducerRef.class, "tail", LinkedNode.class);
+            NEXT = l.findVarHandle(LinkedNode.class, "next", LinkedNode.class);
         } catch (Exception e) {
             throw new Error(e);
         }
@@ -42,4 +45,16 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     protected LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode) {
         return (LinkedNode<E>) TAIL.getAndSetRelease(this, nextNode);
     }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected LinkedNode<E> getNextAcquire(LinkedNode<E> node) {
+        return (LinkedNode<E>) NEXT.getAcquire(node);
+    }
+
+    @Override
+    protected void setNextRelease(LinkedNode<E> node, LinkedNode<E> nextNode) {
+        NEXT.setRelease(node, nextNode);
+    }
+
 }

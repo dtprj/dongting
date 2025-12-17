@@ -27,13 +27,12 @@ import java.util.concurrent.locks.LockSupport;
 public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding2<E> {
     private static final VersionFactory VERSION_FACTORY = VersionFactory.getInstance();
     @SuppressWarnings("rawtypes")
-    private static final LinkedNode SHUTDOWN_NODE = VERSION_FACTORY.newNode(null);
+    private static final LinkedNode SHUTDOWN_NODE = new LinkedNode<>(null);
 
     protected MpscLinkedQueue() {
-        LinkedNode<E> node = VERSION_FACTORY.newNode(null);
+        LinkedNode<E> node = new LinkedNode<>(null);
         head = node;
         tail = node;
-        VERSION_FACTORY.releaseFence();
     }
 
     public static <E> MpscLinkedQueue<E> newInstance() {
@@ -42,7 +41,7 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding2<E> {
 
     public E relaxedPoll() {
         // no need to check SHUTDOWN_NODE
-        LinkedNode<E> next = head.getNextAcquire();
+        LinkedNode<E> next = getNextAcquire(head);
         if (next == null) {
             return null;
         }
@@ -55,7 +54,7 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding2<E> {
     public boolean offer(E value) {
         Objects.requireNonNull(value);
         // set plain
-        LinkedNode<E> newTail = VERSION_FACTORY.newNode(value);
+        LinkedNode<E> newTail = new LinkedNode<>(value);
         return offer0(newTail);
     }
 
@@ -103,7 +102,7 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding2<E> {
             }
         }
         // so consumer can read value
-        oldTail.setNextRelease(newTail);
+        setNextRelease(oldTail, newTail);
         return true;
     }
 
@@ -145,6 +144,10 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding2<E> {
     public boolean isConsumeFinished() {
         return head == SHUTDOWN_NODE;
     }
+
+    protected abstract LinkedNode<E> getNextAcquire(LinkedNode<E> node);
+
+    protected abstract void setNextRelease(LinkedNode<E> node, LinkedNode<E> nextNode);
 }
 
 

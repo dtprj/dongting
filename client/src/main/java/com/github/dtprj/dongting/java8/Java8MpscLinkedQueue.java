@@ -29,14 +29,28 @@ public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
 
     @SuppressWarnings("rawtypes")
     private static final AtomicReferenceFieldUpdater<LinkedQueueProducerRef, LinkedNode> PRODUCER_NODE;
+    @SuppressWarnings("rawtypes")
+    private static final AtomicReferenceFieldUpdater<LinkedNode, LinkedNode> NEXT;
 
     static {
         PRODUCER_NODE = AtomicReferenceFieldUpdater.newUpdater(LinkedQueueProducerRef.class, LinkedNode.class, "tail");
+        NEXT = AtomicReferenceFieldUpdater.newUpdater(LinkedNode.class, LinkedNode.class, "next");
     }
 
     @Override
     @SuppressWarnings("unchecked")
     protected LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode) {
         return (LinkedNode<E>) PRODUCER_NODE.getAndSet(this, nextNode);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected LinkedNode<E> getNextAcquire(LinkedNode<E> node) {
+        return (LinkedNode<E>) NEXT.get(node);
+    }
+
+    @Override
+    protected void setNextRelease(LinkedNode<E> node, LinkedNode<E> nextNode) {
+        NEXT.lazySet(node, nextNode);
     }
 }

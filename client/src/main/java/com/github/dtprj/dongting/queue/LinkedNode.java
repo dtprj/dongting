@@ -18,10 +18,10 @@ package com.github.dtprj.dongting.queue;
 /**
  * @author huangli
  */
-public abstract class LinkedNode<E> {
+public class LinkedNode<E> {
     private E value;
 
-    protected volatile LinkedNode<E> next;
+    public volatile LinkedNode<E> next;
 
     volatile int shutdownStatus;
     static final int SHUTDOWN_STATUS_BEFORE = 1;
@@ -38,9 +38,4 @@ public abstract class LinkedNode<E> {
     public void setValue(E value) {
         this.value = value;
     }
-
-
-    protected abstract LinkedNode<E> getNextAcquire();
-
-    protected abstract void setNextRelease(LinkedNode<E> nextNode);
 }
