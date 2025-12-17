@@ -24,10 +24,11 @@ import java.util.concurrent.locks.LockSupport;
  * @author huangli
  */
 @SuppressWarnings({"unused"})
-public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding2<E> {
+public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding1<E> {
     private static final VersionFactory VERSION_FACTORY = VersionFactory.getInstance();
     @SuppressWarnings("rawtypes")
     private static final LinkedNode SHUTDOWN_NODE = new LinkedNode<>(null);
+    protected LinkedNode<E> head;
 
     protected MpscLinkedQueue() {
         LinkedNode<E> node = new LinkedNode<>(null);
