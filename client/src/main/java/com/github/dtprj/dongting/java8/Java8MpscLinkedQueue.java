@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.java8;
 
 import com.github.dtprj.dongting.queue.LinkedNode;
+import com.github.dtprj.dongting.queue.LinkedQueueProducerRef;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -27,10 +28,10 @@ public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
 
 
     @SuppressWarnings("rawtypes")
-    private static final AtomicReferenceFieldUpdater<MpscLinkedQueue, LinkedNode> PRODUCER_NODE;
+    private static final AtomicReferenceFieldUpdater<LinkedQueueProducerRef, LinkedNode> PRODUCER_NODE;
 
     static {
-        PRODUCER_NODE = AtomicReferenceFieldUpdater.newUpdater(MpscLinkedQueue.class, LinkedNode.class, "tail");
+        PRODUCER_NODE = AtomicReferenceFieldUpdater.newUpdater(LinkedQueueProducerRef.class, LinkedNode.class, "tail");
     }
 
     @Override
