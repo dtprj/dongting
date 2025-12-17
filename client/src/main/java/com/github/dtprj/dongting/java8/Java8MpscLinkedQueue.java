@@ -25,34 +25,17 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  */
 public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
 
-    private volatile boolean shutdown;
-    private volatile LinkedNode<E> tail;
 
     @SuppressWarnings("rawtypes")
-    private static final AtomicReferenceFieldUpdater<Java8MpscLinkedQueue, LinkedNode> PRODUCER_NODE;
+    private static final AtomicReferenceFieldUpdater<MpscLinkedQueue, LinkedNode> PRODUCER_NODE;
 
     static {
-        PRODUCER_NODE = AtomicReferenceFieldUpdater.newUpdater(Java8MpscLinkedQueue.class, LinkedNode.class, "tail");
+        PRODUCER_NODE = AtomicReferenceFieldUpdater.newUpdater(MpscLinkedQueue.class, LinkedNode.class, "tail");
     }
 
     @Override
     @SuppressWarnings("unchecked")
     protected LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode) {
         return (LinkedNode<E>) PRODUCER_NODE.getAndSet(this, nextNode);
-    }
-
-    @Override
-    protected void initTailVolatile(LinkedNode<E> node) {
-        tail = node;
-    }
-
-    @Override
-    protected boolean isShutdownVolatile() {
-        return shutdown;
-    }
-
-    @Override
-    protected void markShutdownVolatile() {
-        shutdown = true;
     }
 }

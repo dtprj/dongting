@@ -29,12 +29,23 @@ public abstract class MpscLinkedQueue<E> {
     @SuppressWarnings("rawtypes")
     private static final LinkedNode SHUTDOWN_NODE = VERSION_FACTORY.newNode(null);
 
-    private LinkedNode<E> head;
+    // 128 bytes padding to avoid false share
+    long p00, p01, p02, p03, p04, p05, p06, p07, p08, p09, p0a, p0b, p0c, p0d, p0e, p0f;
+
+    private volatile boolean shutdown;
+    protected volatile LinkedNode<E> tail;
+
+    long p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p1a, p1b, p1c, p1d, p1e, p1f;
+
+    protected LinkedNode<E> head;
+
+    long p20, p21, p22, p23, p24, p25, p26, p27, p28, p29, p2a, p2b, p2c, p2d, p2e, p2f;
 
     protected MpscLinkedQueue() {
         LinkedNode<E> node = VERSION_FACTORY.newNode(null);
         head = node;
-        initTailVolatile(node);
+        tail = node;
+        VERSION_FACTORY.releaseFence();
     }
 
     public static <E> MpscLinkedQueue<E> newInstance() {
@@ -63,7 +74,7 @@ public abstract class MpscLinkedQueue<E> {
     private boolean offer0(LinkedNode<E> newTail) {
         // need getAndSetProducerNodePlain, but no such method
         LinkedNode<E> oldTail = getAndSetTailRelease(newTail);
-        if (isShutdownVolatile()) {
+        if (shutdown) { // volatile read
             if (newTail == SHUTDOWN_NODE) {
                 // forward propagation (init)
                 oldTail.shutdownStatus = LinkedNode.SHUTDOWN_STATUS_BEFORE;
@@ -121,8 +132,8 @@ public abstract class MpscLinkedQueue<E> {
     public void shutdown() {
         boolean doShutdown = false;
         synchronized (this) {
-            if (!isShutdownVolatile()) {
-                markShutdownVolatile();
+            if (!shutdown) {
+                shutdown = true;
                 doShutdown = true;
             }
         }
@@ -146,12 +157,6 @@ public abstract class MpscLinkedQueue<E> {
     public boolean isConsumeFinished() {
         return head == SHUTDOWN_NODE;
     }
-
-    protected abstract void initTailVolatile(LinkedNode<E> node);
-
-    protected abstract boolean isShutdownVolatile();
-
-    protected abstract void markShutdownVolatile();
 }
 
 
