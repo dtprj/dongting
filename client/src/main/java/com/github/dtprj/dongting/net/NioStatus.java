@@ -41,6 +41,6 @@ public abstract class NioStatus {
         processors.put(cmd, processor);
     }
 
-    protected abstract long getAndAddRelease(long delta);
+    protected abstract long getAndAddInPendingRelease(long delta);
 
 }

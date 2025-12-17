@@ -36,7 +36,7 @@ public class Java11NioStatus extends NioStatus {
     }
 
     @Override
-    protected long getAndAddRelease(long delta) {
+    protected long getAndAddInPendingRelease(long delta) {
         return (long) IN_PENDING.getAndAddRelease(this, delta);
     }
 }

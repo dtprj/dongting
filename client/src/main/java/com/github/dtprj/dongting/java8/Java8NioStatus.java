@@ -28,7 +28,7 @@ public class Java8NioStatus extends NioStatus {
             AtomicLongFieldUpdater.newUpdater(NioStatus.class, "inPending");
 
     @Override
-    protected long getAndAddRelease(long delta) {
+    protected long getAndAddInPendingRelease(long delta) {
         return IN_PENDING.getAndAdd(this, delta);
     }
 }
