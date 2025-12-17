@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.net.NioStatus;
+import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
 import com.github.dtprj.dongting.unsafe11.NewUnsafe;
@@ -40,6 +41,11 @@ public class Java11Factory extends VersionFactory {
     @Override
     public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
         return new Java11MpscLinkedQueue<>();
+    }
+
+    @Override
+    public <E> LinkedNode<E> newNode(E value) {
+        return new Java11LinkedNode<>(value);
     }
 
     @Override

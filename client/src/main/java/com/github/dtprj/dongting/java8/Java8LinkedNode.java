@@ -16,43 +16,35 @@
 package com.github.dtprj.dongting.java8;
 
 import com.github.dtprj.dongting.queue.LinkedNode;
-import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 /**
  * @author huangli
  */
-public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
-
-    private volatile boolean shutdown;
-    private volatile LinkedNode<E> tail;
+public class Java8LinkedNode<E> extends LinkedNode<E> {
 
     @SuppressWarnings("rawtypes")
-    private static final AtomicReferenceFieldUpdater<Java8MpscLinkedQueue, LinkedNode> PRODUCER_NODE;
+    private static final AtomicReferenceFieldUpdater<LinkedNode, LinkedNode> NEXT;
 
     static {
-        PRODUCER_NODE = AtomicReferenceFieldUpdater.newUpdater(Java8MpscLinkedQueue.class, LinkedNode.class, "tail");
+        NEXT = AtomicReferenceFieldUpdater.newUpdater(LinkedNode.class, LinkedNode.class, "next");
+    }
+
+    public Java8LinkedNode(E value) {
+        super(value);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode) {
-        return (LinkedNode<E>) PRODUCER_NODE.getAndSet(this, nextNode);
+    protected LinkedNode<E> getNextAcquire() {
+        // volatile read
+        return (LinkedNode<E>) NEXT.get(this);
     }
 
     @Override
-    protected void initTailVolatile(LinkedNode<E> node) {
-        tail = node;
-    }
-
-    @Override
-    protected boolean isShutdownVolatile() {
-        return shutdown;
-    }
-
-    @Override
-    protected void markShutdownVolatile() {
-        shutdown = true;
+    protected void setNextRelease(LinkedNode<E> nextNode) {
+        // release write
+        NEXT.lazySet(this, nextNode);
     }
 }

@@ -27,12 +27,12 @@ import java.util.concurrent.locks.LockSupport;
 public abstract class MpscLinkedQueue<E> {
     private static final VersionFactory VERSION_FACTORY = VersionFactory.getInstance();
     @SuppressWarnings("rawtypes")
-    private static final LinkedNode SHUTDOWN_NODE = new LinkedNode<>(null);
+    private static final LinkedNode SHUTDOWN_NODE = VERSION_FACTORY.newNode(null);
 
     private LinkedNode<E> head;
 
     protected MpscLinkedQueue() {
-        LinkedNode<E> node = new LinkedNode<>(null);
+        LinkedNode<E> node = VERSION_FACTORY.newNode(null);
         head = node;
         initTailVolatile(node);
     }
@@ -43,7 +43,7 @@ public abstract class MpscLinkedQueue<E> {
 
     public E relaxedPoll() {
         // no need to check SHUTDOWN_NODE
-        LinkedNode<E> next = getNextAcquire(head);
+        LinkedNode<E> next = head.getNextAcquire();
         if (next == null) {
             return null;
         }
@@ -56,7 +56,7 @@ public abstract class MpscLinkedQueue<E> {
     public boolean offer(E value) {
         Objects.requireNonNull(value);
         // set plain
-        LinkedNode<E> newTail = new LinkedNode<>(value);
+        LinkedNode<E> newTail = VERSION_FACTORY.newNode(value);
         return offer0(newTail);
     }
 
@@ -104,7 +104,7 @@ public abstract class MpscLinkedQueue<E> {
             }
         }
         // so consumer can read value
-        setNextRelease(oldTail, newTail);
+        oldTail.setNextRelease(newTail);
         return true;
     }
 
@@ -152,10 +152,6 @@ public abstract class MpscLinkedQueue<E> {
     protected abstract boolean isShutdownVolatile();
 
     protected abstract void markShutdownVolatile();
-
-    protected abstract LinkedNode<E> getNextAcquire(LinkedNode<E> node);
-
-    protected abstract void setNextRelease(LinkedNode<E> node, LinkedNode<E> nextNode);
 }
 
 

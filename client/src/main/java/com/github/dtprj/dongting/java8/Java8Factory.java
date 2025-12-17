@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioStatus;
+import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
 
@@ -66,6 +67,11 @@ public class Java8Factory extends VersionFactory {
     @Override
     public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
         return new Java8MpscLinkedQueue<>();
+    }
+
+    @Override
+    public <E> LinkedNode<E> newNode(E value) {
+        return new Java8LinkedNode<>(value);
     }
 
     @Override
