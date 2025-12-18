@@ -100,13 +100,7 @@ public class FiberGroup {
                     return Fiber.frameReturn();
                 }
                 log.info("request shutdown group: {}", name);
-                ReentrantLock lock = dispatcher.shareQueue.lock;
-                lock.lock();
-                try {
-                    shareStatusSource.shouldStop = true;
-                } finally {
-                    lock.unlock();
-                }
+                shareStatusSource.shouldStop = true;
                 shareStatusSource.copy(true);
                 shouldStopCondition.signalAll();
                 return Fiber.frameReturn();
