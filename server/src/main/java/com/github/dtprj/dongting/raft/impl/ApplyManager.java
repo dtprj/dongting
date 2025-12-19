@@ -291,7 +291,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
 
         boolean fireInitFuture = false;
-        if (!raftStatus.initFinished && index >= initCommitIndex) {
+        if (!raftStatus.isInitFinished() && index >= initCommitIndex) {
             log.info("apply manager init complete, initCommitIndex={}", initCommitIndex);
             raftStatus.markInit(false);
             fireInitFuture = true;

@@ -114,7 +114,7 @@ public final class RaftStatusImpl extends RaftStatus {
     public FiberCondition transferLeaderCondition;
 
     public final CompletableFuture<Void> initFuture = new CompletableFuture<>();
-    boolean initFinished;
+    private boolean initFinished;
     private boolean initFailed;
 
     public RaftStatusImpl(int groupId, Timestamp ts) {
@@ -242,5 +242,13 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public long getLastApplied() {
         return lastApplied;
+    }
+
+    public boolean isInitFailed() {
+        return initFailed;
+    }
+
+    public boolean isInitFinished() {
+        return initFinished;
     }
 }

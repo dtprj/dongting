@@ -62,7 +62,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     private boolean cancelInit() {
-        if (isGroupShouldStopPlain() && !raftStatus.initFinished) {
+        if (isGroupShouldStopPlain() && !raftStatus.isInitFinished()) {
             raftStatus.markInit(true);
             raftStatus.copyShareStatus();
             raftStatus.initFuture.completeExceptionally(new RaftException("group should stop"));

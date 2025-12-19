@@ -28,35 +28,38 @@ import java.util.HashSet;
  * @author huangli
  */
 public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodable {
-//    uint32 group_id = 1;
-//    uint32 node_id = 2;
-//    uint32 term = 3;
-//    uint32 leader_id = 4;
-//    fixed64 commit_index = 5;
-//    fixed64 last_applied = 6;
-//    fixed64 last_apply_to_now_millis = 7;
-//    fixed64 last_log_index = 8;
-//    fixed64 apply_lag_millis = 9;
-//    repeated fixed32 members = 10[packed = false];
-//    repeated fixed32 observers = 11[packed = false];
-//    repeated fixed32 prepared_members = 12[packed = false];
-//    repeated fixed32 prepared_observers = 13[packed = false];
+//    int32 group_id = 1;
+//    int32 node_id = 2;
+//    int32 flag = 3;
+//    int32 term = 4;
+//    int32 leader_id = 5;
+//    fixed64 commit_index = 6;
+//    fixed64 last_applied = 7;
+//    fixed64 last_apply_time_to_now_millis = 8;
+//    fixed64 last_log_index = 9;
+//    fixed64 apply_lag_millis = 10;
+//    repeated fixed32 members = 11[packed = false];
+//    repeated fixed32 observers = 12[packed = false];
+//    repeated fixed32 prepared_members = 13[packed = false];
+//    repeated fixed32 prepared_observers = 14[packed = false];
 
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_NODE_ID = 2;
-    private static final int IDX_TERM = 3;
-    private static final int IDX_LEADER_ID = 4;
-    private static final int IDX_COMMIT_INDEX = 5;
-    private static final int IDX_LAST_APPLIED = 6;
-    private static final int IDX_LAST_APPLY_TIME_TO_NOW_MILLIS = 7;
-    private static final int IDX_LAST_LOG_INDEX = 8;
-    private static final int IDX_APPLY_LAG_MILLIS = 9;
-    private static final int IDX_MEMBERS = 10;
-    private static final int IDX_OBSERVERS = 11;
-    private static final int IDX_PREPARED_MEMBERS = 12;
-    private static final int IDX_PREPARED_OBSERVERS = 13;
+    private static final int IDX_FLAG = 3;
+    private static final int IDX_TERM = 4;
+    private static final int IDX_LEADER_ID = 5;
+    private static final int IDX_COMMIT_INDEX = 6;
+    private static final int IDX_LAST_APPLIED = 7;
+    private static final int IDX_LAST_APPLY_TIME_TO_NOW_MILLIS = 8;
+    private static final int IDX_LAST_LOG_INDEX = 9;
+    private static final int IDX_APPLY_LAG_MILLIS = 10;
+    private static final int IDX_MEMBERS = 11;
+    private static final int IDX_OBSERVERS = 12;
+    private static final int IDX_PREPARED_MEMBERS = 13;
+    private static final int IDX_PREPARED_OBSERVERS = 14;
 
     public int nodeId;
+    private int flag;
     public int leaderId;
     public long commitIndex;
     public long lastApplied;
@@ -69,7 +72,36 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
 
     private int size;
 
+    private static final int FLAG_MASK_INIT_FINISHED = 1;
+    private static final int FLAG_MASK_INIT_FAILED = 1 << 1;
+    private static final int FLAG_MASK_GROUP_READY = 1 << 2;
+
     public QueryStatusResp() {
+    }
+
+    public void setFlag(boolean initFinished, boolean initFailed, boolean groupReady) {
+        flag = 0;
+        if (initFinished) {
+            flag |= FLAG_MASK_INIT_FINISHED;
+        }
+        if (initFailed) {
+            flag |= FLAG_MASK_INIT_FAILED;
+        }
+        if (groupReady) {
+            flag |= FLAG_MASK_GROUP_READY;
+        }
+    }
+
+    public boolean isInitFinished() {
+        return (flag & FLAG_MASK_INIT_FINISHED) != 0;
+    }
+
+    public boolean isInitFailed() {
+        return (flag & FLAG_MASK_INIT_FAILED) != 0;
+    }
+
+    public boolean isGroupReady() {
+        return (flag & FLAG_MASK_GROUP_READY) != 0;
     }
 
     @Override
@@ -77,6 +109,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         if(size == 0) {
             size = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId) +
                     PbUtil.sizeOfInt32Field(IDX_NODE_ID, nodeId) +
+                    PbUtil.sizeOfInt32Field(IDX_FLAG, flag) +
                     PbUtil.sizeOfInt32Field(IDX_TERM, term) +
                     PbUtil.sizeOfInt32Field(IDX_LEADER_ID, leaderId) +
                     PbUtil.sizeOfFix64Field(IDX_COMMIT_INDEX, commitIndex) +
@@ -96,6 +129,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
     public void encode(ByteBuffer buf) {
         PbUtil.writeInt32Field(buf, IDX_GROUP_ID, groupId);
         PbUtil.writeInt32Field(buf, IDX_NODE_ID, nodeId);
+        PbUtil.writeInt32Field(buf, IDX_FLAG, flag);
         PbUtil.writeInt32Field(buf, IDX_TERM, term);
         PbUtil.writeInt32Field(buf, IDX_LEADER_ID, leaderId);
         PbUtil.writeFix64Field(buf, IDX_COMMIT_INDEX, commitIndex);
@@ -120,6 +154,9 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
                     break;
                 case IDX_NODE_ID:
                     resp.nodeId = (int) value;
+                    break;
+                case IDX_FLAG:
+                    resp.flag = (int) value;
                     break;
                 case IDX_TERM:
                     resp.term = (int) value;

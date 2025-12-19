@@ -114,17 +114,18 @@ message QueryStatusReq {
 message QueryStatusResp {
   int32 group_id = 1;
   int32 node_id = 2;
-  int32 term = 3;
-  int32 leader_id = 4;
-  fixed64 commit_index = 5;
-  fixed64 last_applied = 6;
-  fixed64 last_apply_time_to_now_millis = 7;
-  fixed64 last_log_index = 8;
-  fixed64 apply_lag_millis = 9;
-  repeated fixed32 members = 10[packed = false];
-  repeated fixed32 observers = 11[packed = false];
-  repeated fixed32 prepared_members = 12[packed = false];
-  repeated fixed32 prepared_observers = 13[packed = false];
+  int32 flag = 3;
+  int32 term = 4;
+  int32 leader_id = 5;
+  fixed64 commit_index = 6;
+  fixed64 last_applied = 7;
+  fixed64 last_apply_time_to_now_millis = 8;
+  fixed64 last_log_index = 9;
+  fixed64 apply_lag_millis = 10;
+  repeated fixed32 members = 11[packed = false];
+  repeated fixed32 observers = 12[packed = false];
+  repeated fixed32 prepared_members = 13[packed = false];
+  repeated fixed32 prepared_observers = 14[packed = false];
 }
 
 // only use for admin commands, raft server use log replicate to perform config change

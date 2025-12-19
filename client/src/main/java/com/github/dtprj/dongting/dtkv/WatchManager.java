@@ -505,9 +505,9 @@ public class WatchManager {
             return false;
         }
         QueryStatusResp s = resp.raftServerStatus;
-        if (s.leaderId <= 0 || s.lastApplyTimeToNowMillis > 15_000 || s.applyLagMillis > 15_000) {
-            log.info("node {} for group {} is not ready, leaderId={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
-                    n.nodeId, groupId, s.leaderId, s.lastApplyTimeToNowMillis, s.applyLagMillis);
+        if (!s.isGroupReady() || s.leaderId <= 0 || s.lastApplyTimeToNowMillis > 15_000 || s.applyLagMillis > 15_000) {
+            log.info("status of node {} for group {} is not ok, groupReady={}, leaderId={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
+                    n.nodeId, groupId, s.isGroupReady(), s.leaderId, s.lastApplyTimeToNowMillis, s.applyLagMillis);
             return false;
         }
         return true;
