@@ -133,12 +133,16 @@ public class CommitManager {
             return false;
         }
         commit(recentMatchIndex);
+        updateCommitHistory(recentMatchIndex);
         return true;
     }
 
     private void commit(long newCommitIndex) {
         raftStatus.commitIndex = newCommitIndex;
         applyManager.wakeupApply();
+    }
+
+    public void updateCommitHistory(long newCommitIndex) {
         IndexedQueue<long[]> q = raftStatus.commitHistory;
         long[] a = q.getLast();
         if (a == null || (newCommitIndex > a[0] && raftStatus.ts.nanoTime - a[1] > 1_000_000_000L && q.size() <= 64)) {

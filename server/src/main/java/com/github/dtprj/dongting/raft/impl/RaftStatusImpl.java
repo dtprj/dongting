@@ -95,7 +95,7 @@ public final class RaftStatusImpl extends RaftStatus {
     public long lastApplying;
 
     public IndexedQueue<long[]> commitHistory = new IndexedQueue<>(16);
-    public long applyLagNanos;
+    public long applyLagNanos; // sampled update
     public long lastApplyNanos;
 
     // update after install snapshot by leader, so current node has no raft logs before the index

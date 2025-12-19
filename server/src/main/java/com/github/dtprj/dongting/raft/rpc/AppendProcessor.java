@@ -342,6 +342,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
                 registerRespWriter(raftStatus, index);
             }
         }
+        gc.commitManager.updateCommitHistory(req.leaderCommit);
         needRelease = false;
         FiberFrame<Void> f = gc.linearTaskRunner.append(raftStatus, list);
         // success response write in CommitManager fiber
