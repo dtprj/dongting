@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
@@ -47,8 +48,10 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
 
     protected abstract FiberFrame<Void> processInFiberGroup(ReqInfoEx<T> reqInfo);
 
-    public final int getTypeId() {
-        return typeId;
+    public FiberChannel<Object> registerChannel(FiberGroup fg, GroupComponents gc) {
+        FiberChannel<Object> channel = fg.newChannel();
+        gc.processorChannels.put(typeId, channel);
+        return channel;
     }
 
     public void startProcessFiber(FiberChannel<ReqInfoEx<T>> channel) {

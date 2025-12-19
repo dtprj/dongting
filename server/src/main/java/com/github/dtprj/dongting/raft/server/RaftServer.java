@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -300,11 +299,6 @@ public class RaftServer extends AbstractLifeCircle {
         memberManager.postInit();
         voteManager.postInit();
         linearTaskRunner.postInit();
-
-        for (RaftSequenceProcessor<?> processor : raftSequenceProcessors) {
-            FiberChannel<Object> channel = fiberGroup.newChannel();
-            gc.processorChannels.put(processor.getTypeId(), channel);
-        }
 
         RaftGroupImpl g = new RaftGroupImpl(gc);
         if (groupCustomizer != null) {
