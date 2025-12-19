@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
@@ -69,7 +70,8 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
         ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         RaftShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
-        if (!ss.initFinished) {
+        if (!ss.initFinished && packet.command != Commands.RAFT_QUERY_STATUS) {
+            // raft query status can be processed when not initialized
             packet.clean();
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
             wf.msg = "raft group not initialized: " + groupId;
