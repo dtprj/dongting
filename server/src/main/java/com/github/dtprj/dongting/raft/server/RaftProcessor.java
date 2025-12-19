@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FlowControlException;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -61,23 +60,23 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
         int groupId = getGroupId(packet);
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
-        ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         if (g == null) {
-            invokeCleanReq(reqInfo);
+            packet.clean();
             EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_FOUND);
             errorResp.msg = "raft group not found: " + groupId;
             log.error(errorResp.msg);
             return errorResp;
         }
+        ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         RaftShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
         if (!ss.initFinished) {
-            invokeCleanReq(reqInfo);
+            packet.clean();
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
             wf.msg = "raft group not initialized: " + groupId;
             return wf;
         }
         if (ss.shouldStop) {
-            invokeCleanReq(reqInfo);
+            packet.clean();
             return createStoppedResp(groupId);
         } else {
             // release in subclass
@@ -85,24 +84,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
     }
 
-    // may be invoked in different threads
-    protected final void invokeCleanReq(ReqInfo<T> reqInfo) {
-        try {
-            if (!reqInfo.invokeCleanUp) {
-                reqInfo.invokeCleanUp = true;
-                cleanReq(reqInfo);
-            } else {
-                BugLog.log(new Exception("invokeCleanUp already invoked"));
-            }
-        } catch (Throwable e) {
-            log.error("clean up error", e);
-        }
-    }
-
     protected abstract WritePacket doProcess(ReqInfo<T> reqInfo);
-
-    protected void cleanReq(ReqInfo<T> reqInfo) {
-    }
 
     protected void writeErrorResp(ReqInfo<?> reqInfo, Throwable ex) {
         Throwable root = DtUtil.rootCause(ex);

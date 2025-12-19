@@ -43,7 +43,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
-import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
@@ -85,23 +84,6 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         } else {
             ReadPacket<InstallSnapshotReq> f = (ReadPacket<InstallSnapshotReq>) frame;
             return f.getBody().groupId;
-        }
-    }
-
-    @Override
-    protected void cleanReq(ReqInfo<Object> reqInfo) {
-        // if no error occurs, this method will not be called.
-        // AppendProcessor do not call invokeCleanUp()
-        ReadPacket<Object> f = reqInfo.reqFrame;
-        if (f.getBody() == null) {
-            return;
-        }
-        if (f.command == Commands.RAFT_APPEND_ENTRIES) {
-            AppendReq req = (AppendReq) f.getBody();
-            RaftUtil.release(req.logs);
-        } else {
-            InstallSnapshotReq req = (InstallSnapshotReq) f.getBody();
-            req.release();
         }
     }
 
@@ -156,11 +138,21 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
     protected final AppendProcessor processor;
     protected final ReqInfoEx<C> reqInfo;
 
+    protected boolean needRelease = true;
+
     public AbstractAppendFrame(String appendType, AppendProcessor processor, ReqInfoEx<C> reqInfo) {
         this.appendType = appendType;
         this.gc = reqInfo.raftGroup.groupComponents;
         this.processor = processor;
         this.reqInfo = reqInfo;
+    }
+
+    @Override
+    protected FrameCallResult doFinally() {
+        if (needRelease) {
+            reqInfo.reqFrame.clean();
+        }
+        return Fiber.frameReturn();
     }
 
     protected abstract int getLeaderId();
@@ -256,8 +248,6 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
     private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
-    private boolean needRelease = true;
-
     public AppendFiberFrame(ReqInfoEx<AppendReq> reqInfo, AppendProcessor processor) {
         super("append", processor, reqInfo);
     }
@@ -270,15 +260,6 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
         log.error("append error", ex);
         writeAppendResp(AppendProcessor.APPEND_SERVER_ERROR, ex.toString());
-        return Fiber.frameReturn();
-    }
-
-    @Override
-    protected FrameCallResult doFinally() {
-        AppendReq req = reqInfo.reqFrame.getBody();
-        if (needRelease) {
-            RaftUtil.release(req.logs);
-        }
         return Fiber.frameReturn();
     }
 
@@ -515,13 +496,13 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
         FiberFrame<Void> f = mm.applyConfigFrame("install snapshot config change",
                 req.members, req.observers, req.preparedMembers, req.preparedObservers);
-        return Fiber.call(f, v -> releaseAndWriteResp(null));
+        return Fiber.call(f, v -> writeResp(null));
     }
 
     private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
         if (!raftStatus.installSnapshot) {
             log.error("not in install snapshot state, groupId={}", groupId);
-            return releaseAndWriteResp(new RaftException("not in install snapshot state"));
+            return writeResp(new RaftException("not in install snapshot state"));
         }
         boolean done = req.done;
         ByteBuffer buf = req.data == null ? null : req.data.getBuffer();
@@ -532,7 +513,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         if (done) {
             return f.await(v -> finishInstall(req, raftStatus));
         } else {
-            f.registerCallback((v, ex) -> releaseAndWriteResp(ex));
+            f.registerCallback((v, ex) -> writeResp(ex));
             return Fiber.frameReturn();
         }
     }
@@ -574,12 +555,10 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         // The save is async and FiberFuture returned by saveSnapshot() is not used.
         gc.snapshotManager.saveSnapshot();
 
-        return releaseAndWriteResp(null);
+        return writeResp(null);
     }
 
-    private FrameCallResult releaseAndWriteResp(Throwable ex) {
-        InstallSnapshotReq req = reqInfo.reqFrame.getBody();
-        req.release();
+    private FrameCallResult writeResp(Throwable ex) {
         if (ex == null) {
             return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
         } else {

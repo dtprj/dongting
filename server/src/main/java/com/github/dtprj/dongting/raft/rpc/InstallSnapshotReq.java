@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.common.DtCleanable;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftConfigRpcData;
 
@@ -45,7 +46,7 @@ import java.util.HashSet;
 //  fixed64 last_config_change_index = 13;
 
 //  bytes data = 15;
-public class InstallSnapshotReq extends RaftConfigRpcData {
+public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable {
     // public int groupId;
     // public int term;
     public int leaderId;
@@ -63,7 +64,8 @@ public class InstallSnapshotReq extends RaftConfigRpcData {
 
     public RefBuffer data;
 
-    public void release() {
+    @Override
+    public void clean() {
         if (data != null) {
             data.release();
             data = null;
@@ -160,6 +162,14 @@ public class InstallSnapshotReq extends RaftConfigRpcData {
         }
 
         @Override
+        protected boolean end(boolean success) {
+            if (!success) {
+                result.clean();
+            }
+            return success;
+        }
+
+        @Override
         public InstallSnapshotReq getResult() {
             return result;
         }
@@ -237,7 +247,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData {
 
         @Override
         protected void doClean() {
-            req.release();
+            req.clean();
         }
     }
 }

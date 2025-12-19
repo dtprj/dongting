@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.common.DtCleanable;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftRpcData;
@@ -40,7 +41,7 @@ import java.util.function.Function;
 //int32 logs_size = 7;
 //repeated LogItem entries = 8[packed=false];
 //}
-public class AppendReq extends RaftRpcData {
+public class AppendReq extends RaftRpcData implements DtCleanable {
     private static final DtLog log = DtLogs.getLogger(AppendReq.class);
 
     public static final int IDX_GROUP_ID = 1;
@@ -59,6 +60,14 @@ public class AppendReq extends RaftRpcData {
     public int prevLogTerm;
     public long leaderCommit;
     public ArrayList<LogItem> logs;
+
+    @Override
+    public void clean() {
+        if (logs != null) {
+            RaftUtil.release(logs);
+            logs = null;
+        }
+    }
 
     // re-used
     public static class Callback extends PbCallback<AppendReq> {
@@ -80,7 +89,7 @@ public class AppendReq extends RaftRpcData {
         @Override
         protected boolean end(boolean success) {
             if (!success) {
-                RaftUtil.release(result.logs);
+                result.clean();
             }
             result = null;
             logItemCallback.codecFactory = null;

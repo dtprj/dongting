@@ -80,7 +80,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             if (isGroupShouldStopPlain()) {
                 channel.markShutdown();
                 if (o != null) {
-                    invokeCleanReq(o);
+                    o.reqFrame.clean();
                     o.reqContext.writeRespInBizThreads(createStoppedResp(o.raftGroup.getGroupId()));
                     // should continue loop to take all pending tasks and release them
                     return Fiber.resume(null, this);
@@ -115,7 +115,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
     private void onDispatcherFail(Object obj) {
         @SuppressWarnings("unchecked")
         ReqInfo<T> reqInfo = (ReqInfo<T>) obj;
-        invokeCleanReq(reqInfo);
+        reqInfo.reqFrame.clean();
         reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
         log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());
     }
