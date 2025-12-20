@@ -315,6 +315,7 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.raftStatus = raftStatus;
         rgcEx.fiberGroup = fiberGroup;
         rgcEx.blockIoExecutor = raftFactory.createBlockIoExecutor(serverConfig, rgcEx);
+        rgcEx.raftServer = this;
         return rgcEx;
     }
 

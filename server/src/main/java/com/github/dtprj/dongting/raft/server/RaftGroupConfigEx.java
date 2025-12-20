@@ -29,6 +29,7 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     public RaftStatus raftStatus;
     public ExecutorService blockIoExecutor;
     public FiberGroup fiberGroup;
+    public RaftServer raftServer;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         super(groupId, nodeIdOfMembers, nodeIdOfObservers);

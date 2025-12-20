@@ -337,7 +337,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
             @Override
             protected boolean shouldStop() {
-                return DtKV.this.status > AbstractLifeCircle.STATUS_RUNNING;
+                return config.raftServer.getStatus() > AbstractLifeCircle.STATUS_RUNNING ||
+                        DtKV.this.status > AbstractLifeCircle.STATUS_RUNNING;
             }
 
             @Override
