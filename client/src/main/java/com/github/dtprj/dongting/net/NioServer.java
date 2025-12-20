@@ -60,7 +60,17 @@ public class NioServer extends NioNet implements Runnable {
     public NioServer(NioServerConfig config) {
         super(config);
         this.config = config;
-        if (config.port <= 0) {
+        if (config.ports != null) {
+            for (int i : config.ports) {
+                if (i <= 0 || i > 65535) {
+                    throw new IllegalArgumentException("invalid port in ports array");
+                }
+            }
+        }
+        if (config.port < 0 || config.port > 65535) {
+            throw new IllegalArgumentException("invalid port: " + config.port);
+        }
+        if (config.port == 0 && (config.ports == null || config.ports.length == 0)) {
             throw new IllegalArgumentException("no port");
         }
         acceptThread = new Thread(this);
@@ -79,7 +89,13 @@ public class NioServer extends NioNet implements Runnable {
             ssc = ServerSocketChannel.open();
             ssc.configureBlocking(false);
             ssc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-            ssc.bind(new InetSocketAddress(config.port), config.backlog);
+            if (config.ports != null && config.ports.length > 0) {
+                for (int i : config.ports) {
+                    ssc.bind(new InetSocketAddress(i), config.backlog);
+                }
+            } else {
+                ssc.bind(new InetSocketAddress(config.port), config.backlog);
+            }
             selector = SelectorProvider.provider().openSelector();
             ssc.register(selector, SelectionKey.OP_ACCEPT);
 

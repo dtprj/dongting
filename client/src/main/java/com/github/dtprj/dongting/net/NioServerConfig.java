@@ -20,6 +20,7 @@ package com.github.dtprj.dongting.net;
  */
 public class NioServerConfig extends NioConfig {
     public int port;
+    public int[] ports;
     public int ioThreads;
     public int backlog = 4096;
 
