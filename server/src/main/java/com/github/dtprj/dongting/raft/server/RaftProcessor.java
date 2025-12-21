@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.log.DtLog;
@@ -32,6 +33,7 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftShareStatus;
 import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
 
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -41,9 +43,13 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
     private static final DtLog log = DtLogs.getLogger(RaftProcessor.class);
 
     protected final RaftServer raftServer;
+    private final boolean enableServicePort;
+    private final boolean enableReplicatePort;
 
-    public RaftProcessor(RaftServer raftServer) {
+    public RaftProcessor(RaftServer raftServer, boolean enableServicePort, boolean enableReplicatePort) {
         this.raftServer = raftServer;
+        this.enableServicePort = enableServicePort;
+        this.enableReplicatePort = enableReplicatePort;
     }
 
     protected abstract int getGroupId(ReadPacket<T> frame);
@@ -58,6 +64,28 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             errorResp.msg = "request has no body";
             log.warn("request has no body: cmd={}, channel={}", packet.command, reqContext.getDtChannel());
             return errorResp;
+        }
+        boolean servicePort = ((InetSocketAddress) reqContext.getDtChannel().getLocalAddr()).getPort()
+                == raftServer.getServerConfig().servicePort;
+        if ((!enableServicePort && servicePort) || (!enableReplicatePort && !servicePort)) {
+            packet.clean();
+            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.COMMAND_NOT_SUPPORT);
+            errorResp.msg = "command not supported on this port";
+            return errorResp;
+        }
+        if (servicePort) {
+            if (!raftServer.isGroupReady()) {
+                packet.clean();
+                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.NOT_INIT);
+                wf.msg = "raft server not ready";
+                return wf;
+            }
+            if (raftServer.getStatus() > AbstractLifeCircle.STATUS_RUNNING) {
+                packet.clean();
+                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.STOPPING);
+                wf.msg = "raft server shutdown";
+                return wf;
+            }
         }
         int groupId = getGroupId(packet);
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
@@ -77,13 +105,13 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             wf.msg = "raft group not initialized: " + groupId;
             return wf;
         }
+
         if (ss.shouldStop) {
             packet.clean();
             return createStoppedResp(groupId);
-        } else {
-            // release in subclass
-            return doProcess(reqInfo);
         }
+        // release in subclass
+        return doProcess(reqInfo);
     }
 
     protected abstract WritePacket doProcess(ReqInfo<T> reqInfo);

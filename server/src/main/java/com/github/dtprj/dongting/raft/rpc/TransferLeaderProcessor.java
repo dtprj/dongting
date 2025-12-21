@@ -38,7 +38,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
     private static final DtLog log = DtLogs.getLogger(TransferLeaderProcessor.class);
 
     public TransferLeaderProcessor(RaftServer raftServer) {
-        super(raftServer);
+        super(raftServer, false, true);
     }
 
     @Override

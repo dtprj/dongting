@@ -68,7 +68,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     private final Function<Integer, RaftCodecFactory> decoderFactory;
 
     public AppendProcessor(RaftServer raftServer) {
-        super(raftServer);
+        super(raftServer, false, true);
         this.decoderFactory = groupId -> {
             RaftGroup g = raftServer.getRaftGroup(groupId);
             return g == null ? null : g.getStateMachine();

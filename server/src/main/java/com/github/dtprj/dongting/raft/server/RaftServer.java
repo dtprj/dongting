@@ -85,7 +85,8 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final NioServer replicateNioServer;
     private final NioClient replicateNioClient;
-    private final NioServer serviceNioServer;
+
+    private volatile boolean groupReady;
 
     private final ConcurrentHashMap<Integer, RaftGroupImpl> raftGroups = new ConcurrentHashMap<>();
 
@@ -146,7 +147,11 @@ public class RaftServer extends AbstractLifeCircle {
                 RaftUtil.getElectQuorum(allRaftServers.size()));
 
         NioServerConfig repServerConfig = new NioServerConfig();
-        repServerConfig.port = serverConfig.replicatePort;
+        if (serverConfig.servicePort > 0) {
+            repServerConfig.ports = new int[]{serverConfig.replicatePort, serverConfig.servicePort};
+        } else {
+            repServerConfig.port = serverConfig.replicatePort;
+        }
         repServerConfig.name = "RaftRepServer" + serverConfig.nodeId;
         repServerConfig.bizThreads = 0;
         // use multi io threads
@@ -174,19 +179,6 @@ public class RaftServer extends AbstractLifeCircle {
         replicateNioServer.register(Commands.RAFT_ADMIN_ADD_NODE, adminGroupAndNodeProcessor);
         replicateNioServer.register(Commands.RAFT_ADMIN_REMOVE_NODE, adminGroupAndNodeProcessor);
 
-        if (serverConfig.servicePort > 0) {
-            NioServerConfig serviceServerConfig = new NioServerConfig();
-            serviceServerConfig.port = serverConfig.servicePort;
-            serviceServerConfig.name = "RaftServiceServer" + serverConfig.nodeId;
-            serviceServerConfig.bizThreads = 0;
-            // use multi io threads
-            serviceServerConfig.decodeContextFactory = DecodeContextEx::new;
-            customServiceNioServer(serviceServerConfig);
-            serviceNioServer = new NioServer(serviceServerConfig);
-            addRaftGroupProcessor(serviceNioServer, Commands.RAFT_QUERY_STATUS, queryStatusProcessor);
-        } else {
-            serviceNioServer = null;
-        }
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
 
         allMemberReadyFuture.whenComplete(this::afterAllMemberReady);
@@ -211,9 +203,6 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     protected void customReplicateNioServer(@SuppressWarnings("unused") NioServerConfig c) {
-    }
-
-    protected void customServiceNioServer(@SuppressWarnings("unused") NioServerConfig c) {
     }
 
     private void createRaftGroups(RaftServerConfig serverConfig,
@@ -258,7 +247,7 @@ public class RaftServer extends AbstractLifeCircle {
         Dispatcher dispatcher = raftFactory.createDispatcher(serverConfig, rgc);
         FiberGroup fiberGroup = new FiberGroup("group-" + rgc.groupId, dispatcher);
         RaftStatusImpl raftStatus = new RaftStatusImpl(rgc.groupId, fiberGroup.dispatcher.ts);
-        raftStatus.serviceNioServer = serviceNioServer;
+        raftStatus.serviceNioServer = replicateNioServer;
         raftStatus.tailCache = new TailCache(rgc, raftStatus);
         raftStatus.nodeIdOfMembers = nodeIdOfMembers;
         raftStatus.nodeIdOfObservers = nodeIdOfObservers;
@@ -451,15 +440,9 @@ public class RaftServer extends AbstractLifeCircle {
                 if (ex2 != null) {
                     allGroupReadyFuture.completeExceptionally(ex);
                 } else if (checkStartStatus(allGroupReadyFuture)) {
+                    groupReady = true;
                     log.info("all group ready");
-                    try {
-                        if (serviceNioServer != null) {
-                            serviceNioServer.start();
-                        }
-                        allGroupReadyFuture.complete(null);
-                    } catch (Exception serviceNioServerStartEx) {
-                        allGroupReadyFuture.completeExceptionally(serviceNioServerStartEx);
-                    }
+                    allGroupReadyFuture.complete(null);
                 }
             });
         } catch (Exception e) {
@@ -488,9 +471,6 @@ public class RaftServer extends AbstractLifeCircle {
     @Override
     protected void doStop(DtTime timeout, boolean force) {
         try {
-            if (serviceNioServer != null) {
-                serviceNioServer.stop(timeout, true);
-            }
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout,
                     g.groupComponents.groupConfig.saveSnapshotWhenClose)));
@@ -651,11 +631,15 @@ public class RaftServer extends AbstractLifeCircle {
         return raftGroups.get(groupId);
     }
 
-    public NioServer getServiceNioServer() {
-        return serviceNioServer;
-    }
-
     public RaftServerConfig getServerConfig() {
         return serverConfig;
+    }
+
+    public NioServer getReplicateNioServer() {
+        return replicateNioServer;
+    }
+
+    public boolean isGroupReady() {
+        return groupReady;
     }
 }

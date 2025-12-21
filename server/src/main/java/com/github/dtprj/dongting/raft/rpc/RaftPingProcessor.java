@@ -31,7 +31,7 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 public class RaftPingProcessor extends RaftSequenceProcessor<RaftPing> {
 
     public RaftPingProcessor(RaftServer raftServer) {
-        super(raftServer);
+        super(raftServer, false, true);
     }
 
     @Override

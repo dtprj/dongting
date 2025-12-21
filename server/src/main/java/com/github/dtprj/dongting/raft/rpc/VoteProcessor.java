@@ -40,7 +40,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
 
     public VoteProcessor(RaftServer raftServer) {
-        super(raftServer);
+        super(raftServer, false, true);
     }
 
     @Override

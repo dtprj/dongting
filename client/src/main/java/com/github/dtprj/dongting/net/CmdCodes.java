@@ -23,10 +23,11 @@ public interface CmdCodes {
     int CLIENT_ERROR = 1;
     int SYS_ERROR = 2;
     int COMMAND_NOT_SUPPORT = 3;
-    int STOPPING = 4;
-    int FLOW_CONTROL = 5;
-    int NOT_RAFT_LEADER = 6;
-    int RAFT_GROUP_NOT_FOUND = 7;
-    int RAFT_GROUP_STOPPED = 8;
-    int RAFT_GROUP_NOT_INIT = 9;
+    int NOT_INIT = 4;
+    int STOPPING = 5;
+    int FLOW_CONTROL = 6;
+    int NOT_RAFT_LEADER = 7;
+    int RAFT_GROUP_NOT_FOUND = 8;
+    int RAFT_GROUP_STOPPED = 9;
+    int RAFT_GROUP_NOT_INIT = 10;
 }

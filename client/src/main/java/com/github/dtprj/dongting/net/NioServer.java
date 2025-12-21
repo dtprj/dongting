@@ -50,7 +50,7 @@ public class NioServer extends NioNet implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
 
     private final NioServerConfig config;
-    private ServerSocketChannel ssc;
+    private ServerSocketChannel[] serverSocketChannels;
     private Selector selector;
     private volatile boolean stop;
     private final Thread acceptThread;
@@ -83,23 +83,29 @@ public class NioServer extends NioNet implements Runnable {
         register(Commands.CMD_HANDSHAKE, new HandshakeProcessor(config), null);
     }
 
+    private ServerSocketChannel newSsc(int port) throws IOException {
+        ServerSocketChannel ssc = ServerSocketChannel.open();
+        ssc.configureBlocking(false);
+        ssc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+        ssc.bind(new InetSocketAddress(port), config.backlog);
+        ssc.register(selector, SelectionKey.OP_ACCEPT);
+        log.info("{} listen at port {}", config.name, port);
+        return ssc;
+    }
+
     @Override
     public void doStart() {
         try {
-            ssc = ServerSocketChannel.open();
-            ssc.configureBlocking(false);
-            ssc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+            selector = SelectorProvider.provider().openSelector();
             if (config.ports != null && config.ports.length > 0) {
-                for (int i : config.ports) {
-                    ssc.bind(new InetSocketAddress(i), config.backlog);
+                serverSocketChannels = new ServerSocketChannel[config.ports.length];
+                for (int i = 0; i < config.ports.length; i++) {
+                    serverSocketChannels[i] = newSsc(config.ports[i]);
                 }
             } else {
-                ssc.bind(new InetSocketAddress(config.port), config.backlog);
+                serverSocketChannels = new ServerSocketChannel[1];
+                serverSocketChannels[0] = newSsc(config.port);
             }
-            selector = SelectorProvider.provider().openSelector();
-            ssc.register(selector, SelectionKey.OP_ACCEPT);
-
-            log.info("{} listen at port {}", config.name, config.port);
 
             createBizExecutor();
             for (NioWorker worker : workers) {
@@ -117,7 +123,9 @@ public class NioServer extends NioNet implements Runnable {
         }
         try {
             selector.close();
-            ssc.close();
+            for (ServerSocketChannel c : serverSocketChannels) {
+                c.close();
+            }
             log.info("accept thread finished: {}", config.name);
         } catch (Exception e) {
             log.error("close error. name={}, port={}", config.name, config.port, e);
@@ -139,7 +147,8 @@ public class NioServer extends NioNet implements Runnable {
                     continue;
                 }
                 if (key.isAcceptable()) {
-                    SocketChannel sc = ssc.accept();
+                    ServerSocketChannel c = (ServerSocketChannel) key.channel();
+                    SocketChannel sc = c.accept();
                     log.debug("accept new socket: {}", sc);
                     workers[sc.hashCode() % workers.length].newChannelAccept(sc);
                 }
@@ -215,14 +224,22 @@ public class NioServer extends NioNet implements Runnable {
         if (acceptThread.isAlive()) {
             stopAcceptThread();
         } else {
-            if (ssc != null && ssc.isOpen()) {
+            if (selector != null) {
                 try {
-                    if (selector != null) {
-                        selector.close();
-                    }
-                    ssc.close();
+                    selector.close();
                 } catch (IOException e) {
                     log.error("", e);
+                }
+            }
+            if (serverSocketChannels != null) {
+                for (ServerSocketChannel c : serverSocketChannels) {
+                    if (c.isOpen()) {
+                        try {
+                            c.close();
+                        } catch (IOException e) {
+                            log.error("", e);
+                        }
+                    }
                 }
             }
         }

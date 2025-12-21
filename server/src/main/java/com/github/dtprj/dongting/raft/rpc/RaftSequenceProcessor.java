@@ -42,8 +42,8 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
 
     private final int typeId = PROCESSOR_TYPE_ID.incrementAndGet();
 
-    public RaftSequenceProcessor(RaftServer raftServer) {
-        super(raftServer);
+    public RaftSequenceProcessor(RaftServer raftServer, boolean enableServicePort, boolean enableReplicatePort) {
+        super(raftServer, enableServicePort, enableReplicatePort);
     }
 
     protected abstract FiberFrame<Void> processInFiberGroup(ReqInfoEx<T> reqInfo);

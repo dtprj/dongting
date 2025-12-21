@@ -39,7 +39,7 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
     private static final DtLog log = DtLogs.getLogger(AdminConfigChangeProcessor.class);
 
     public AdminConfigChangeProcessor(RaftServer raftServer) {
-        super(raftServer);
+        super(raftServer, false, true);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

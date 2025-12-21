@@ -31,7 +31,8 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
 
     public QueryStatusProcessor(RaftServer raftServer) {
-        super(raftServer);
+        // query status enabled on replicate port and service port
+        super(raftServer, true, true);
     }
 
     @Override

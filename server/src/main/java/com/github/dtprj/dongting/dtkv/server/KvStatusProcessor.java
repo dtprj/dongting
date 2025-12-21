@@ -35,7 +35,7 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 class KvStatusProcessor extends RaftProcessor<Integer> {
 
     public KvStatusProcessor(RaftServer raftServer) {
-        super(raftServer);
+        super(raftServer, true, false);
     }
 
     @Override

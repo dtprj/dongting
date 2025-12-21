@@ -35,7 +35,7 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
 
     public WatchProcessor(RaftServer raftServer) {
-        super(raftServer);
+        super(raftServer, true, false);
     }
 
     @Override

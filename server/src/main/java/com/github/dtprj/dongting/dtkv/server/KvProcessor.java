@@ -50,7 +50,7 @@ import java.util.List;
  */
 final class KvProcessor extends RaftProcessor<KvReq> {
     public KvProcessor(RaftServer raftServer) {
-        super(raftServer);
+        super(raftServer, true, false);
     }
 
     @Override

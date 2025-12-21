@@ -50,7 +50,7 @@ public class KvServerUtil {
      * call after RaftServer init, before RaftServer start
      */
     public static void initKvServer(RaftServer server) {
-        NioServer nioServer = server.getServiceNioServer();
+        NioServer nioServer = server.getReplicateNioServer();
 
         KvProcessor p = new KvProcessor(server);
         nioServer.register(Commands.DTKV_GET, p);
