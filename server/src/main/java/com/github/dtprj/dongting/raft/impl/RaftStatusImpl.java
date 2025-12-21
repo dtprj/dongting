@@ -34,7 +34,7 @@ import java.util.function.BiConsumer;
  */
 public final class RaftStatusImpl extends RaftStatus {
 
-    public NioServer serviceNioServer;
+    public NioServer nioServer;
     public final Timestamp ts;
     public int electQuorum;
     public int rwQuorum;

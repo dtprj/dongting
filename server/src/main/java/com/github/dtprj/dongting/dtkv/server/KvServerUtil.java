@@ -50,7 +50,7 @@ public class KvServerUtil {
      * call after RaftServer init, before RaftServer start
      */
     public static void initKvServer(RaftServer server) {
-        NioServer nioServer = server.getReplicateNioServer();
+        NioServer nioServer = server.getNioServer();
 
         KvProcessor p = new KvProcessor(server);
         nioServer.register(Commands.DTKV_GET, p);
@@ -175,7 +175,7 @@ public class KvServerUtil {
             return;
         }
 
-        DtChannel channel = raftStatus.serviceNioServer.getClients().get(ownerUuid);
+        DtChannel channel = raftStatus.nioServer.getClients().get(ownerUuid);
         if (channel == null) {
             log.warn("the owner for key {} is not online, skip notification", lockKey);
             // Client is not connected, skip notification
@@ -191,7 +191,7 @@ public class KvServerUtil {
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
 
         // Send one-way message, don't wait for response
-        raftStatus.serviceNioServer.sendOneWay(channel, packet, timeout, (result, ex) -> {
+        raftStatus.nioServer.sendOneWay(channel, packet, timeout, (result, ex) -> {
             if (ex != null) {
                 log.warn("Failed to notify new lock owner: channel={}, error={}", channel.getChannel(),
                         ex.getMessage());
