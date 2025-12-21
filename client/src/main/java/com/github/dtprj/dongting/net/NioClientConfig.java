@@ -27,7 +27,13 @@ public class NioClientConfig extends NioConfig {
 
     public NioClientConfig() {
         this.name = "DtNioClient";
-        this.bizThreads = Math.max(4, Runtime.getRuntime().availableProcessors() * 2);
+        this.bizThreads = Runtime.getRuntime().availableProcessors() * 2;
+        if (bizThreads < 4) {
+            bizThreads = 4;
+        }
+        if (bizThreads > 8) {
+            bizThreads = 8;
+        }
 
         this.maxOutRequests = 2000;
         this.maxOutBytes = 32 * 1024 * 1024;
