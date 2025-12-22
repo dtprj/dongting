@@ -17,13 +17,9 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
-import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 
@@ -32,29 +28,15 @@ import com.github.dtprj.dongting.raft.impl.NodeManager;
  */
 public class NodePingProcessor extends ReqProcessor<NodePing> {
 
-    private final int selfNodeId;
     private final NodeManager nodeManager;
 
-    public NodePingProcessor(int selfNodeId, NodeManager nodeManager) {
-        this.selfNodeId = selfNodeId;
+    public NodePingProcessor(NodeManager nodeManager) {
         this.nodeManager = nodeManager;
     }
 
     @Override
     public WritePacket process(ReadPacket<NodePing> packet, ReqContext reqContext) {
-        DtUtil.SCHEDULED_SERVICE.execute(() -> {
-            NodePing reqPing = packet.getBody();
-            WritePacket p;
-            if (!nodeManager.containsNode(reqPing.localNodeId)) {
-                p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                p.msg = "node not found: " + reqPing.localNodeId;
-            } else {
-                NodePing respPing = new NodePing(selfNodeId, reqPing.localNodeId, nodeManager.getUuid());
-                p = new SimpleWritePacket(respPing);
-                p.respCode = CmdCodes.SUCCESS;
-            }
-            reqContext.writeRespInBizThreads(p);
-        });
+        nodeManager.processNodePing(packet, reqContext);
         return null;
     }
 

@@ -45,7 +45,6 @@ public final class RaftGroupImpl extends RaftGroup {
 
     public final GroupComponents groupComponents;
     public final FiberGroup fiberGroup;
-    public CompletableFuture<Void> shutdownFuture;
 
     private final int groupId;
     private final RaftStatusImpl raftStatus;

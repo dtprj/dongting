@@ -19,16 +19,19 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
-import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.NioClient;
+import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.NodePing;
@@ -42,26 +45,27 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
  */
 public class NodeManager extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NodeManager.class);
+    private final ReentrantLock lock = new ReentrantLock();
     private final UUID uuid = UUID.randomUUID();
     private final int selfNodeId;
     private final NioClient client;
     private final RaftServerConfig config;
+    private final NioServer nioServer;
+    Executor executor;
 
     // update by RaftServer init thread and schedule thread
     final IntObjMap<RaftNodeEx> allNodesEx;
 
     private List<RaftNode> allRaftNodesOnlyForInit;
-
-    private ScheduledFuture<?> scheduledFuture;
 
     int currentReadyNodes;
 
@@ -71,7 +75,8 @@ public class NodeManager extends AbstractLifeCircle {
 
     private final long pingIntervalMillis;
 
-    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client, int startReadyQuorum) {
+    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes,
+                       NioClient client, int startReadyQuorum, NioServer nioServer) {
         this.selfNodeId = config.nodeId;
         this.client = client;
         this.config = config;
@@ -80,6 +85,7 @@ public class NodeManager extends AbstractLifeCircle {
 
         this.allNodesEx = new IntObjMap<>(allRaftNodes.size() * 2, 0.75f);
         this.allRaftNodesOnlyForInit = allRaftNodes;
+        this.nioServer = nioServer;
 
         if (allRaftNodes.stream().noneMatch(n -> n.nodeId == selfNodeId)) {
             throw new IllegalArgumentException("self node id not exist in servers: " + selfNodeId);
@@ -94,18 +100,32 @@ public class NodeManager extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        this.scheduledFuture = DtUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(
-                this::tryNodePingAll, 0, pingIntervalMillis, TimeUnit.MILLISECONDS);
+        submitPingAllTask();
+    }
+
+    private void submitPingAllTask() {
+        executor.execute(this::runPingAllTask);
+    }
+
+    private void runPingAllTask() {
+        try {
+            if (status == STATUS_RUNNING) {
+                tryNodePingAll();
+            }
+        } finally {
+            if (status == STATUS_RUNNING) {
+                DtUtil.SCHEDULED_SERVICE.schedule(this::submitPingAllTask, pingIntervalMillis, TimeUnit.MILLISECONDS);
+            }
+        }
     }
 
     @Override
     protected void doStop(DtTime timeout, boolean force) {
-        if (scheduledFuture != null) {
-            scheduledFuture.cancel(false);
-        }
     }
 
+    // the init method do not need lock, it happens-before doStart and all other methods
     public void initNodes(ConcurrentHashMap<Integer, RaftGroupImpl> raftGroups) {
+        this.executor = nioServer.getBizExecutor();
         ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
         for (RaftNode n : allRaftNodesOnlyForInit) {
             futures.add(addToNioClient(n));
@@ -119,18 +139,7 @@ public class NodeManager extends AbstractLifeCircle {
                 doCheckSelf(nodeEx);
             }
         }
-
-        raftGroups.forEach((groupId, g) -> {
-            RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
-            for (int nodeId : raftStatus.nodeIdOfMembers) {
-                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-                nodeEx.useCount = nodeEx.useCount + 1;
-            }
-            for (int nodeId : raftStatus.nodeIdOfObservers) {
-                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-                nodeEx.useCount = nodeEx.useCount + 1;
-            }
-        });
+        raftGroups.forEach((groupId, g) -> processUseCountForGroupInLock(g, true));
     }
 
     private void doCheckSelf(RaftNodeEx nodeEx) {
@@ -148,16 +157,21 @@ public class NodeManager extends AbstractLifeCircle {
 
     private void tryNodePingAll() {
         if (status < STATUS_PREPARE_STOP) {
-            allNodesEx.forEach((nodeId, nodeEx) -> {
-                if (!nodeEx.self && !nodeEx.pinging) {
-                    try {
-                        nodePing(nodeEx);
-                    } catch (Throwable e) {
-                        log.error("node ping error", e);
-                        nodeEx.pinging = false;
+            lock.lock();
+            try {
+                allNodesEx.forEach((nodeId, nodeEx) -> {
+                    if (!nodeEx.self && !nodeEx.pinging) {
+                        try {
+                            nodePing(nodeEx);
+                        } catch (Throwable e) {
+                            log.error("node ping error", e);
+                            nodeEx.pinging = false;
+                        }
                     }
-                }
-            });
+                });
+            } finally {
+                lock.unlock();
+            }
         }
     }
 
@@ -173,7 +187,7 @@ public class NodeManager extends AbstractLifeCircle {
         CompletableFuture<Void> f2 = f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
         // we should set connecting status in schedule thread
         return f2.whenCompleteAsync((v, ex) ->
-                processResultInScheduleThread(nodeEx, ex), DtUtil.SCHEDULED_SERVICE);
+                processResultInLock(nodeEx, ex), executor);
     }
 
     // run in io thread
@@ -201,18 +215,23 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    private void processResultInScheduleThread(RaftNodeEx nodeEx, Throwable ex) {
-        nodeEx.pinging = false;
-        if (ex != null) {
-            log.error("node ping fail, localId={}, remoteId={}, endPoint={}, err={}",
-                    selfNodeId, nodeEx.nodeId, nodeEx.peer.endPoint, ex.toString());
-            updateNodeStatus(nodeEx, false);
-        } else {
-            if (log.isDebugEnabled()) {
-                log.debug("node ping success, remoteId={}, endPoint={}",
-                        nodeEx.nodeId, nodeEx.peer.endPoint);
+    private void processResultInLock(RaftNodeEx nodeEx, Throwable ex) {
+        lock.lock();
+        try {
+            nodeEx.pinging = false;
+            if (ex != null) {
+                log.error("node ping fail, localId={}, remoteId={}, endPoint={}, err={}",
+                        selfNodeId, nodeEx.nodeId, nodeEx.peer.endPoint, ex.toString());
+                updateNodeStatus(nodeEx, false);
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug("node ping success, remoteId={}, endPoint={}",
+                            nodeEx.nodeId, nodeEx.peer.endPoint);
+                }
+                updateNodeStatus(nodeEx, true);
             }
-            updateNodeStatus(nodeEx, true);
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -235,12 +254,14 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    public FiberFuture<Void> checkLeaderPrepare(Set<Integer> memberIds, Set<Integer> observerIds) {
-        return runInScheduleThread("checkLeaderPrepare", () -> {
+    public void checkLeaderPrepare(Set<Integer> memberIds, Set<Integer> observerIds) {
+        lock.lock();
+        try {
             checkNodeIdSet(memberIds);
             checkNodeIdSet(observerIds);
-            return null;
-        });
+        } finally {
+            lock.unlock();
+        }
     }
 
     private List<RaftNodeEx> checkNodeIdSet(Set<Integer> nodeIds) {
@@ -256,23 +277,12 @@ public class NodeManager extends AbstractLifeCircle {
         return memberNodes;
     }
 
-    private <T> FiberFuture<T> runInScheduleThread(String futureName, Supplier<T> supplier) {
-        FiberFuture<T> f = FiberGroup.currentGroup().newFuture(futureName);
-        DtUtil.SCHEDULED_SERVICE.execute(() -> {
-            try {
-                f.fireComplete(supplier.get());
-            } catch (Throwable e) {
-                f.fireCompleteExceptionally(e);
-            }
-        });
-        return f;
-    }
-
-    public FiberFuture<List<List<RaftNodeEx>>> doApplyConfig(Set<Integer> oldMemberIds, Set<Integer> oldObserverIds,
-                                                             Set<Integer> oldPreparedMemberIds, Set<Integer> oldPreparedObserverIds,
-                                                             Set<Integer> newMemberIds, Set<Integer> newObserverIds,
-                                                             Set<Integer> newPreparedMemberIds, Set<Integer> newPreparedObserverIds) {
-        return runInScheduleThread("appleConfigInSchedule", () -> {
+    public List<List<RaftNodeEx>> doApplyConfig(Set<Integer> oldMemberIds, Set<Integer> oldObserverIds,
+                                                Set<Integer> oldPreparedMemberIds, Set<Integer> oldPreparedObserverIds,
+                                                Set<Integer> newMemberIds, Set<Integer> newObserverIds,
+                                                Set<Integer> newPreparedMemberIds, Set<Integer> newPreparedObserverIds) {
+        lock.lock();
+        try {
             checkNodeIdSet(oldMemberIds);
             checkNodeIdSet(oldObserverIds);
             checkNodeIdSet(oldPreparedMemberIds);
@@ -283,20 +293,34 @@ public class NodeManager extends AbstractLifeCircle {
             List<RaftNodeEx> newPreparedMembers = checkNodeIdSet(newPreparedMemberIds);
             List<RaftNodeEx> newPreparedObservers = checkNodeIdSet(newPreparedObserverIds);
 
-            processUseCount(newMemberIds, 1);
-            processUseCount(newObserverIds, 1);
-            processUseCount(newPreparedMemberIds, 1);
-            processUseCount(newPreparedObserverIds, 1);
+            processUseCountInLock(newMemberIds, 1);
+            processUseCountInLock(newObserverIds, 1);
+            processUseCountInLock(newPreparedMemberIds, 1);
+            processUseCountInLock(newPreparedObserverIds, 1);
 
-            processUseCount(oldMemberIds, -1);
-            processUseCount(oldObserverIds, -1);
-            processUseCount(oldPreparedMemberIds, -1);
-            processUseCount(oldPreparedObserverIds, -1);
+            processUseCountInLock(oldMemberIds, -1);
+            processUseCountInLock(oldObserverIds, -1);
+            processUseCountInLock(oldPreparedMemberIds, -1);
+            processUseCountInLock(oldPreparedObserverIds, -1);
             return List.of(newMembers, newObservers, newPreparedMembers, newPreparedObservers);
-        });
+        } finally {
+            lock.unlock();
+        }
     }
 
-    private void processUseCount(Collection<Integer> nodeIds, int delta) {
+    public void processUseCountForGroupInLock(RaftGroupImpl g, boolean add) {
+        RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
+        int delta = add ? 1 : -1;
+        processUseCountInLock(raftStatus.nodeIdOfMembers, delta);
+        processUseCountInLock(raftStatus.nodeIdOfObservers, delta);
+        processUseCountInLock(raftStatus.nodeIdOfPreparedMembers, delta);
+        processUseCountInLock(raftStatus.nodeIdOfPreparedObservers, delta);
+    }
+
+    private void processUseCountInLock(Collection<Integer> nodeIds, int delta) {
+        if (nodeIds == null) {
+            return;
+        }
         for (int nodeId : nodeIds) {
             RaftNodeEx nodeEx = allNodesEx.get(nodeId);
             nodeEx.useCount = nodeEx.useCount + delta;
@@ -306,6 +330,7 @@ public class NodeManager extends AbstractLifeCircle {
     public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
         CompletableFuture<RaftNodeEx> f = new CompletableFuture<>();
         addToNioClient(node).whenCompleteAsync((nodeEx, ex) -> {
+            lock.lock();
             try {
                 RaftNodeEx existNode = allNodesEx.get(nodeEx.nodeId);
                 if (existNode != null) {
@@ -323,8 +348,10 @@ public class NodeManager extends AbstractLifeCircle {
             } catch (Exception unexpected) {
                 log.error("", unexpected);
                 f.completeExceptionally(unexpected);
+            } finally {
+                lock.unlock();
             }
-        }, DtUtil.SCHEDULED_SERVICE);
+        }, executor);
         return f;
     }
 
@@ -334,7 +361,8 @@ public class NodeManager extends AbstractLifeCircle {
             f.completeExceptionally(new RaftException("can not remove self"));
             return f;
         }
-        DtUtil.SCHEDULED_SERVICE.execute(() -> {
+        lock.lock();
+        try {
             try {
                 RaftNodeEx existNode = allNodesEx.get(nodeId);
                 if (existNode == null) {
@@ -351,7 +379,9 @@ public class NodeManager extends AbstractLifeCircle {
                 log.error("", unexpected);
                 f.completeExceptionally(unexpected);
             }
-        });
+        } finally {
+            lock.unlock();
+        }
         return f;
     }
 
@@ -363,8 +393,8 @@ public class NodeManager extends AbstractLifeCircle {
         return uuid;
     }
 
-    // should access in schedule thread, create new set since this method invoke occasionally
-    public Set<Integer> getAllNodeIds() {
+    // create new set since this method invoke occasionally
+    public Set<Integer> getAllNodeIdsInLock() {
         HashSet<Integer> ids = new HashSet<>();
         allNodesEx.forEach((nodeId, nodeEx) -> {
             ids.add(nodeId);
@@ -372,8 +402,26 @@ public class NodeManager extends AbstractLifeCircle {
         return ids;
     }
 
-    // should access in schedule thread
-    public boolean containsNode(int nodeId) {
-        return allNodesEx.get(nodeId) != null;
+    public void processNodePing(ReadPacket<NodePing> packet, ReqContext reqContext) {
+        lock.lock();
+        try {
+            NodePing reqPing = packet.getBody();
+            WritePacket p;
+            if (allNodesEx.get(reqPing.localNodeId) == null) {
+                p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+                p.msg = "node not found: " + reqPing.localNodeId;
+            } else {
+                NodePing respPing = new NodePing(selfNodeId, reqPing.localNodeId, uuid);
+                p = new SimpleWritePacket(respPing);
+                p.respCode = CmdCodes.SUCCESS;
+            }
+            reqContext.writeRespInBizThreads(p);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public ReentrantLock getLock() {
+        return lock;
     }
 }

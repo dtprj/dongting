@@ -143,9 +143,6 @@ public class RaftServer extends AbstractLifeCircle {
         customReplicateNioClient(repClientConfig);
         nioClient = new NioClient(repClientConfig);
 
-        nodeManager = new NodeManager(serverConfig, allRaftServers, nioClient,
-                RaftUtil.getElectQuorum(allRaftServers.size()));
-
         NioServerConfig repServerConfig = new NioServerConfig();
         if (serverConfig.servicePort > 0) {
             repServerConfig.ports = new int[]{serverConfig.replicatePort, serverConfig.servicePort};
@@ -158,7 +155,10 @@ public class RaftServer extends AbstractLifeCircle {
         customReplicateNioServer(repServerConfig);
         nioServer = new NioServer(repServerConfig);
 
-        nioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.nodeId, nodeManager));
+        nodeManager = new NodeManager(serverConfig, allRaftServers, nioClient,
+                RaftUtil.getElectQuorum(allRaftServers.size()), nioServer);
+
+        nioServer.register(Commands.NODE_PING, new NodePingProcessor(nodeManager));
         addRaftGroupProcessor(nioServer, Commands.RAFT_PING, new RaftPingProcessor(this));
         AppendProcessor appendProcessor = new AppendProcessor(this);
         addRaftGroupProcessor(nioServer, Commands.RAFT_APPEND_ENTRIES, appendProcessor);
@@ -474,7 +474,6 @@ public class RaftServer extends AbstractLifeCircle {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout,
                     g.groupComponents.groupConfig.saveSnapshotWhenClose)));
-            nodeManager.stop(timeout, true);
 
             try {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
@@ -482,6 +481,7 @@ public class RaftServer extends AbstractLifeCircle {
             } catch (Exception e) {
                 throw new RaftException(e);
             } finally {
+                nodeManager.stop(timeout, true);
                 if (nioServer != null) {
                     nioServer.stop(timeout);
                 }
@@ -496,19 +496,18 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private CompletableFuture<Void> stopGroup(RaftGroupImpl g, DtTime timeout, boolean saveSnapshot) {
-        if (g.shutdownFuture != null) {
-            return g.shutdownFuture;
-        }
         FiberGroup fiberGroup = g.fiberGroup;
         GroupComponents gc = g.groupComponents;
         fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                fiberGroup.requestShutdown();
-                return fiberGroup.shouldStopCondition.await(this::afterShouldShutdown);
-            }
+                if (isGroupShouldStopPlain()) {
+                    return Fiber.frameReturn();
+                }
 
-            private FrameCallResult afterShouldShutdown(Void v) {
+                // fireFiber run in current thread, so shouldStop set immediately here
+                fiberGroup.requestShutdown();
+
                 FiberFuture<Long> f;
                 if (saveSnapshot) {
                     f = gc.snapshotManager.saveSnapshot();
@@ -538,9 +537,7 @@ public class RaftServer extends AbstractLifeCircle {
         // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
         raftFactory.stopDispatcher(fiberGroup.dispatcher, timeout);
 
-        CompletableFuture<Void> f = g.fiberGroup.shutdownFuture.thenRun(() -> raftGroups.remove(g.getGroupId()));
-        g.shutdownFuture = f;
-        return f;
+        return fiberGroup.shutdownFuture;
     }
 
     /**
@@ -566,47 +563,52 @@ public class RaftServer extends AbstractLifeCircle {
      */
     public CompletableFuture<Void> addGroup(RaftGroupConfig groupConfig) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        Runnable r = () -> {
-            try {
-                if (status != STATUS_RUNNING) {
-                    f.completeExceptionally(new RaftException("raft server is not running"));
-                    return;
-                }
-                if (raftGroups.get(groupConfig.groupId) != null) {
-                    f.completeExceptionally(new RaftException("group already exist: " + groupConfig.groupId));
-                    return;
-                }
-                RaftGroupImpl g = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
-                g.groupComponents.memberManager.init();
-
-                GroupComponents gc = g.groupComponents;
-                FiberGroup fg = gc.fiberGroup;
-                raftFactory.startDispatcher(fg.dispatcher);
-                CompletableFuture<Void> startGroupFuture = fg.dispatcher.startGroup(fg);
-
-                raftGroups.put(groupConfig.groupId, g);
-
-                startGroupFuture.whenComplete((v, startEx) -> {
-                    if (startEx != null) {
-                        f.completeExceptionally(startEx);
-                    } else {
-                        initRaftGroup(g);
-                        RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
-                        raftStatus.initFuture.whenComplete((vv, initEx) -> {
-                            if (initEx != null) {
-                                f.completeExceptionally(initEx);
-                            } else {
-                                f.complete(null);
-                                startMemberPing(g);
-                            }
-                        });
-                    }
-                });
-            } catch (RuntimeException | Error e) {
-                f.completeExceptionally(e);
+        try {
+            if (status != STATUS_RUNNING) {
+                f.completeExceptionally(new RaftException("raft server is not running"));
+                return f;
             }
-        };
-        DtUtil.SCHEDULED_SERVICE.execute(r);
+            if (raftGroups.get(groupConfig.groupId) != null) {
+                f.completeExceptionally(new RaftException("group already exist: " + groupConfig.groupId));
+                return f;
+            }
+            RaftGroupImpl g;
+            nodeManager.getLock().lock();
+            try {
+                g = createRaftGroup(serverConfig, nodeManager.getAllNodeIdsInLock(), groupConfig);
+                nodeManager.processUseCountForGroupInLock(g, true);
+            } finally {
+                nodeManager.getLock().unlock();
+            }
+            raftGroups.put(groupConfig.groupId, g);
+
+            g.groupComponents.memberManager.init();
+
+            GroupComponents gc = g.groupComponents;
+            FiberGroup fg = gc.fiberGroup;
+            raftFactory.startDispatcher(fg.dispatcher);
+            CompletableFuture<Void> startGroupFuture = fg.dispatcher.startGroup(fg);
+
+
+            startGroupFuture.whenComplete((v, startEx) -> {
+                if (startEx != null) {
+                    f.completeExceptionally(startEx);
+                } else {
+                    initRaftGroup(g);
+                    RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
+                    raftStatus.initFuture.whenComplete((vv, initEx) -> {
+                        if (initEx != null) {
+                            f.completeExceptionally(initEx);
+                        } else {
+                            f.complete(null);
+                            startMemberPing(g);
+                        }
+                    });
+                }
+            });
+        } catch (RuntimeException | Error e) {
+            f.completeExceptionally(e);
+        }
         return f;
     }
 
@@ -622,7 +624,16 @@ public class RaftServer extends AbstractLifeCircle {
             if (status != STATUS_RUNNING) {
                 return CompletableFuture.failedFuture(new RaftException("raft server is not running"));
             } else {
-                return stopGroup(g, shutdownTimeout, saveSnapshot);
+                return stopGroup(g, shutdownTimeout, saveSnapshot).thenRun(() -> {
+                    if (raftGroups.remove(groupId) != null) {
+                        nodeManager.getLock().lock();
+                        try {
+                            nodeManager.processUseCountForGroupInLock(g, false);
+                        } finally {
+                            nodeManager.getLock().unlock();
+                        }
+                    }
+                });
             }
         }
     }

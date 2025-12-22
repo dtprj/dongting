@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
@@ -68,8 +67,8 @@ public class NodeManagerTest {
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.port = 15200 + nodeId;
         NioServer server = new NioServer(nioServerConfig);
-        NodeManager nodeManager = new NodeManager(raftServerConfig, nodes, client, nodes.size());
-        server.register(Commands.NODE_PING, new NodePingProcessor(nodeId, nodeManager));
+        NodeManager nodeManager = new NodeManager(raftServerConfig, nodes, client, nodes.size(), server);
+        server.register(Commands.NODE_PING, new NodePingProcessor(nodeManager));
         server.start();
         client.start();
 
@@ -116,11 +115,11 @@ public class NodeManagerTest {
                         n3.nodeManager.getNodePingReadyFuture())
                 .get(5, TimeUnit.SECONDS);
         closeManager(n1);
-        waitUtil(() -> n2.nodeManager.currentReadyNodes == 2, DtUtil.SCHEDULED_SERVICE);
+        waitReady(n2, 2);
         n1 = createManager(1, "1,2", "3");
         n1.nodeManager.start();
         n1.nodeManager.getNodePingReadyFuture().get(2, TimeUnit.SECONDS);
-        waitUtil(() -> n2.nodeManager.currentReadyNodes == 3, DtUtil.SCHEDULED_SERVICE);
+        waitReady(n2, 3);
 
         // test add and remove node
         CompletableFuture<Void> f = n1.nodeManager.removeNode(1);
@@ -138,15 +137,26 @@ public class NodeManagerTest {
 
         n2.nodeManager.addNode(new RaftNode(4, new HostPort("127.0.0.1", 15204))).get();
         n3.nodeManager.addNode(new RaftNode(4, new HostPort("127.0.0.1", 15204))).get();
-        waitUtil(() -> n2.nodeManager.currentReadyNodes == 4, DtUtil.SCHEDULED_SERVICE);
-        waitUtil(() -> n3.nodeManager.currentReadyNodes == 4, DtUtil.SCHEDULED_SERVICE);
+        waitReady(n2, 4);
+        waitReady(n3, 4);
 
-        NodeInfo finalN1 = n1;
-        waitUtil(() -> finalN1.nodeManager.currentReadyNodes == 3, DtUtil.SCHEDULED_SERVICE);
-        waitUtil(() -> n2.nodeManager.currentReadyNodes == 4, DtUtil.SCHEDULED_SERVICE);
-        waitUtil(() -> n3.nodeManager.currentReadyNodes == 4, DtUtil.SCHEDULED_SERVICE);
-        waitUtil(() -> n4.nodeManager.currentReadyNodes == 3, DtUtil.SCHEDULED_SERVICE);
+        waitReady(n1, 3);
+        waitReady(n2, 4);
+        waitReady(n3, 4);
+        waitReady(n4, 3);
 
         closeManager(n1, n2, n3, n4);
+    }
+
+    private void waitReady(NodeInfo ni, int expectReady) {
+        NodeManager nm = ni.nodeManager;
+        waitUtil(() -> {
+            nm.getLock().lock();
+            try {
+                return nm.currentReadyNodes == expectReady;
+            } finally {
+                nm.getLock().unlock();
+            }
+        });
     }
 }

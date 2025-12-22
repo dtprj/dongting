@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
@@ -92,7 +93,7 @@ public abstract class DefaultRaftFactory implements RaftFactory {
 
     @Override
     public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine, RaftLog raftLog) {
-        Consumer<Long> logDeleter = lastIncludeIndex-> raftLog.markTruncateByIndex(
+        Consumer<Long> logDeleter = lastIncludeIndex -> raftLog.markTruncateByIndex(
                 lastIncludeIndex, groupConfig.autoDeleteLogDelaySeconds * 1000L);
         return new DefaultSnapshotManager(groupConfig, stateMachine, logDeleter);
     }
@@ -110,7 +111,9 @@ public abstract class DefaultRaftFactory implements RaftFactory {
 
     @Override
     public void stopDispatcher(Dispatcher dispatcher, DtTime timeout) {
-        dispatcher.stop(timeout);
+        if (dispatcher.getStatus() <= AbstractLifeCircle.STATUS_RUNNING) {
+            dispatcher.stop(timeout);
+        }
     }
 
     @Override

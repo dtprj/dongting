@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -353,11 +352,7 @@ public class MemberManager {
                     f.completeExceptionally(new RaftException("old members or observers not match"));
                     return Fiber.frameReturn();
                 }
-                FiberFuture<Void> f = nodeManager.checkLeaderPrepare(newMemberNodes, newObserverNodes);
-                return f.await(this::afterCheck);
-            }
-
-            private FrameCallResult afterCheck(Void unused) {
+                nodeManager.checkLeaderPrepare(newMemberNodes, newObserverNodes);
                 leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE,
                         getInputData(newMemberNodes, newObserverNodes), f);
                 return Fiber.frameReturn();
@@ -729,14 +724,10 @@ public class MemberManager {
                     msg, groupId, raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
                     raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
                     members, observers, preparedMembers, preparedObservers);
-            return nodeManager.doApplyConfig(
+            List<List<RaftNodeEx>> result = nodeManager.doApplyConfig(
                             raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
                             raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
-                            members, observers, preparedMembers, preparedObservers)
-                    .await(result -> postConfigChange(msg, result));
-        }
-
-        private FrameCallResult postConfigChange(String msg, List<List<RaftNodeEx>> result) {
+                            members, observers, preparedMembers, preparedObservers);
             List<RaftNodeEx> newMemberNodes = result.get(0);
             List<RaftNodeEx> newObserverNodes = result.get(1);
             List<RaftNodeEx> newPreparedMemberNodes = result.get(2);
