@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -43,8 +42,6 @@ public class LockManager {
     final RaftClient raftClient;
     private ExecutorService executeService;
 
-    private static volatile ExecutorService fallbackExecutor;
-
     private int nextLockId = 1;
 
     protected LockManager(KvClient kvClient) {
@@ -52,30 +49,8 @@ public class LockManager {
         this.raftClient = kvClient.getRaftClient();
     }
 
-    private static ExecutorService getFallbackExecutor() {
-        ExecutorService es = fallbackExecutor;
-        if (es == null) {
-            synchronized (LockManager.class) {
-                es = fallbackExecutor;
-                if (es == null) {
-                    es = Executors.newSingleThreadExecutor(r -> {
-                        Thread t = new Thread(r, "DtKvClientFallbackExecutor");
-                        t.setDaemon(true);
-                        return t;
-                    });
-                    fallbackExecutor = es;
-                }
-            }
-        }
-        return es;
-    }
-
-    public void init(ExecutorService es) {
-        if (es != null) {
-            executeService = es;
-        } else {
-            executeService = getFallbackExecutor();
-        }
+    public void setExecuteService(ExecutorService es) {
+        executeService = es;
     }
 
     private static class LockHolder {
@@ -234,7 +209,7 @@ public class LockManager {
             return executeService.submit(task);
         } catch (RejectedExecutionException e) {
             log.error("task submit rejected, run it in fallback executor", e);
-            return getFallbackExecutor().submit(task);
+            return KvClient.getFallbackExecutor().submit(task);
         }
     }
 }

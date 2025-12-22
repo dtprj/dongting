@@ -25,7 +25,7 @@ public class KvClientConfig {
     public static final int MAX_KEY_SIZE = 8 * 1024;
     public static final int MAX_VALUE_SIZE = 1024 * 1024;
 
-    public long watchHeartbeatMillis = 60_000;
+    public long watchHeartbeatMillis = 60_000; // // should less than KvServerConfig.watchTimeoutMillis
 
     public long[] autoRenewalRetryMillis = {1000, 10_000, 30_000, 60_000};
 }

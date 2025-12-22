@@ -44,6 +44,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -65,6 +66,8 @@ public class WatchManager {
 
     private KeyWatch notifyQueueHead;
     private KeyWatch notifyQueueTail;
+
+    private ExecutorService innerExecutorService;
 
     private Executor userExecutor;
     private KvListener listener;
@@ -134,18 +137,7 @@ public class WatchManager {
             if (gw == null) {
                 gw = new GroupWatches(groupId);
                 watches.put(groupId, gw);
-                GroupWatches finalGw = gw;
-                Runnable checkTask = () -> {
-                    lock.lock();
-                    try {
-                        finalGw.needCheckServer = true;
-                        syncGroupInLock(finalGw);
-                    } finally {
-                        lock.unlock();
-                    }
-                };
-                gw.scheduledFuture = DtUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(checkTask,
-                        heartbeatIntervalMillis, heartbeatIntervalMillis, TimeUnit.MILLISECONDS);
+                submitCheckTask(gw);
             }
             for (byte[] k : keys) {
                 ByteArray key = new ByteArray(k);
@@ -162,6 +154,23 @@ public class WatchManager {
         } finally {
             lock.unlock();
         }
+    }
+
+    private void submitCheckTask(GroupWatches gw) {
+        innerExecutorService.submit(() -> {
+            lock.lock();
+            try {
+                if (gw.removedFromMap) {
+                    return;
+                }
+                gw.needCheckServer = true;
+                syncGroupInLock(gw);
+            } finally {
+                lock.unlock();
+                gw.scheduledFuture = DtUtil.SCHEDULED_SERVICE.schedule(() -> submitCheckTask(gw),
+                        heartbeatIntervalMillis, TimeUnit.MILLISECONDS);
+            }
+        });
     }
 
     public void removeWatch(int groupId, byte[]... keys) {
@@ -344,10 +353,6 @@ public class WatchManager {
         GroupWatches gwInMap = watches.get(gw.groupId);
         if (gwInMap == gw) {
             watches.remove(gw.groupId);
-        }
-        if (gw.scheduledFuture != null) {
-            gw.scheduledFuture.cancel(false);
-            gw.scheduledFuture = null;
         }
         gw.removedFromMap = true;
         gw.busy = false;
@@ -653,6 +658,10 @@ public class WatchManager {
             notifyQueueTail = null;
         }
         return e;
+    }
+
+    public void setInnerExecutorService(ExecutorService es) {
+        this.innerExecutorService = es;
     }
 
     /**

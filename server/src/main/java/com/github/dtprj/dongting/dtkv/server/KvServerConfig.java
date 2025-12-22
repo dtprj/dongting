@@ -25,4 +25,5 @@ public class KvServerConfig {
     public int watchDispatchIntervalMillis = 500;
     public int watchMaxReqBytes = 80 * 1024; // may exceed
     public int watchMaxBatchSize = 100;
+    public long watchTimeoutMillis = 120_000; // should greater than KvClientConfig.watchHeartbeatMillis
 }

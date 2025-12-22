@@ -361,7 +361,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             return true;
         }
         boolean b = watchManager.dispatch();
-        watchManager.cleanTimeoutChannel(120_000_000_000L); // 120 seconds
+        watchManager.cleanTimeoutChannel(kvConfig.watchTimeoutMillis * 1_000_000L);
         return b;
     }
 

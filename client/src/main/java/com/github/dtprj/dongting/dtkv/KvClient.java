@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -54,6 +55,8 @@ public class KvClient extends AbstractLifeCircle {
     final RaftClient raftClient;
     private final WatchManager watchManager;
     final LockManager lockManager;
+
+    private static volatile ExecutorService fallbackExecutor;
 
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
@@ -72,6 +75,24 @@ public class KvClient extends AbstractLifeCircle {
         KvClientProcessor clientProcessor = new KvClientProcessor(watchManager, lockManager);
         raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, clientProcessor);
         raftClient.getNioClient().register(Commands.DTKV_LOCK_PUSH, clientProcessor);
+    }
+
+    static ExecutorService getFallbackExecutor() {
+        ExecutorService es = fallbackExecutor;
+        if (es == null) {
+            synchronized (LockManager.class) {
+                es = fallbackExecutor;
+                if (es == null) {
+                    es = Executors.newSingleThreadExecutor(r -> {
+                        Thread t = new Thread(r, "DtKvClientFallbackExecutor");
+                        t.setDaemon(true);
+                        return t;
+                    });
+                    fallbackExecutor = es;
+                }
+            }
+        }
+        return es;
     }
 
     protected WatchManager createClientWatchManager() {
@@ -721,10 +742,15 @@ public class KvClient extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         raftClient.start();
-        lockManager.init(getLockExecutor());
+        ExecutorService es = getExecutor();
+        if (es == null) {
+            es = getFallbackExecutor();
+        }
+        lockManager.setExecuteService(es);
+        watchManager.setInnerExecutorService(es);
     }
 
-    protected ExecutorService getLockExecutor() {
+    protected ExecutorService getExecutor() {
         return raftClient.getNioClient().getBizExecutor();
     }
 
