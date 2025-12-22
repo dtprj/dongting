@@ -53,26 +53,26 @@ public class KvServerUtil {
         NioServer nioServer = server.getNioServer();
 
         KvProcessor p = new KvProcessor(server);
-        nioServer.register(Commands.DTKV_GET, p);
-        nioServer.register(Commands.DTKV_PUT, p);
-        nioServer.register(Commands.DTKV_REMOVE, p);
-        nioServer.register(Commands.DTKV_MKDIR, p);
-        nioServer.register(Commands.DTKV_LIST, p);
-        nioServer.register(Commands.DTKV_BATCH_GET, p);
-        nioServer.register(Commands.DTKV_BATCH_PUT, p);
-        nioServer.register(Commands.DTKV_BATCH_REMOVE, p);
-        nioServer.register(Commands.DTKV_CAS, p);
-        nioServer.register(Commands.DTKV_UPDATE_LOCK_LEASE, p);
+        nioServer.register(Commands.DTKV_GET, p, null);
+        nioServer.register(Commands.DTKV_PUT, p, null);
+        nioServer.register(Commands.DTKV_REMOVE, p, null);
+        nioServer.register(Commands.DTKV_MKDIR, p, null);
+        nioServer.register(Commands.DTKV_LIST, p, null);
+        nioServer.register(Commands.DTKV_BATCH_GET, p, null);
+        nioServer.register(Commands.DTKV_BATCH_PUT, p, null);
+        nioServer.register(Commands.DTKV_BATCH_REMOVE, p, null);
+        nioServer.register(Commands.DTKV_CAS, p, null);
+        nioServer.register(Commands.DTKV_UPDATE_LOCK_LEASE, p, null);
 
-        nioServer.register(Commands.DTKV_SYNC_WATCH, new WatchProcessor(server));
-        nioServer.register(Commands.DTKV_QUERY_STATUS, new KvStatusProcessor(server));
+        nioServer.register(Commands.DTKV_SYNC_WATCH, new WatchProcessor(server), null);
+        nioServer.register(Commands.DTKV_QUERY_STATUS, new KvStatusProcessor(server), null);
 
-        nioServer.register(Commands.DTKV_PUT_TEMP_NODE, p);
-        nioServer.register(Commands.DTKV_MAKE_TEMP_DIR, p);
-        nioServer.register(Commands.DTKV_UPDATE_TTL, p);
+        nioServer.register(Commands.DTKV_PUT_TEMP_NODE, p, null);
+        nioServer.register(Commands.DTKV_MAKE_TEMP_DIR, p, null);
+        nioServer.register(Commands.DTKV_UPDATE_TTL, p, null);
 
-        nioServer.register(Commands.DTKV_TRY_LOCK, p);
-        nioServer.register(Commands.DTKV_UNLOCK, p);
+        nioServer.register(Commands.DTKV_TRY_LOCK, p, null);
+        nioServer.register(Commands.DTKV_UNLOCK, p, null);
     }
 
     static DtKV getStateMachine(ReqInfo<?> reqInfo) {

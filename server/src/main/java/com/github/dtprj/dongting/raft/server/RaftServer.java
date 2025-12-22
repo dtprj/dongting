@@ -153,8 +153,7 @@ public class RaftServer extends AbstractLifeCircle {
             repServerConfig.port = serverConfig.replicatePort;
         }
         repServerConfig.name = "RaftRepServer" + serverConfig.nodeId;
-        repServerConfig.bizThreads = 0;
-        // use multi io threads
+        repServerConfig.bizThreads = 1;
         setupNioConfig(repServerConfig);
         customReplicateNioServer(repServerConfig);
         nioServer = new NioServer(repServerConfig);
@@ -185,7 +184,8 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void addRaftGroupProcessor(NioServer nioServer, int command, RaftSequenceProcessor<?> processor) {
-        nioServer.register(command, processor);
+        // use io executor
+        nioServer.register(command, processor, null);
         raftSequenceProcessors.add(processor);
     }
 
