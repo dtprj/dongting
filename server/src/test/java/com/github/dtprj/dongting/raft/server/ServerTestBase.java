@@ -102,7 +102,7 @@ public class ServerTestBase {
         serverConfig.servers = servers;
         serverConfig.nodeId = nodeId;
         serverConfig.replicatePort = replicatePort;
-        serverConfig.pingInterval = 1;
+        serverConfig.pingInterval = tick(1);
         if (openServicePort) {
             serverConfig.servicePort = 5000 + nodeId;
         }
