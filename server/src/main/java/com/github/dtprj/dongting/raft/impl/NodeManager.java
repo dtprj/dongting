@@ -109,11 +109,13 @@ public class NodeManager extends AbstractLifeCircle {
 
     private void runPingAllTask() {
         try {
-            if (status == STATUS_RUNNING) {
+            if (status <= STATUS_RUNNING) {
                 tryNodePingAll();
             }
+        } catch (Throwable e) {
+            log.error("unexpected error", e);
         } finally {
-            if (status == STATUS_RUNNING) {
+            if (status <= STATUS_RUNNING) {
                 DtUtil.SCHEDULED_SERVICE.schedule(this::submitPingAllTask, pingIntervalMillis, TimeUnit.MILLISECONDS);
             }
         }
@@ -155,7 +157,7 @@ public class NodeManager extends AbstractLifeCircle {
         } catch (Exception e) {
             throw new RaftException(e);
         } finally {
-            if (selfNodeEx!= null && selfNodeEx.peer.status == PeerStatus.connected) {
+            if (selfNodeEx != null && selfNodeEx.peer.status == PeerStatus.connected) {
                 client.disconnect(selfNodeEx.peer);
             }
         }
@@ -169,22 +171,20 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     private void tryNodePingAll() {
-        if (status < STATUS_PREPARE_STOP) {
-            lock.lock();
-            try {
-                allNodesEx.forEach((nodeId, nodeEx) -> {
-                    if (!nodeEx.self && !nodeEx.pinging) {
-                        try {
-                            nodePing(nodeEx);
-                        } catch (Throwable e) {
-                            log.error("node ping error", e);
-                            nodeEx.pinging = false;
-                        }
+        lock.lock();
+        try {
+            allNodesEx.forEach((nodeId, nodeEx) -> {
+                if (!nodeEx.self && !nodeEx.pinging) {
+                    try {
+                        nodePing(nodeEx);
+                    } catch (Throwable e) {
+                        log.error("node ping error", e);
+                        nodeEx.pinging = false;
                     }
-                });
-            } finally {
-                lock.unlock();
-            }
+                }
+            });
+        } finally {
+            lock.unlock();
         }
     }
 
