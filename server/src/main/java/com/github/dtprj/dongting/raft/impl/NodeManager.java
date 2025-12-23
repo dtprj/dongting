@@ -123,35 +123,48 @@ public class NodeManager extends AbstractLifeCircle {
     protected void doStop(DtTime timeout, boolean force) {
     }
 
-    // the init method do not need lock, it happens-before doStart and all other methods
     public void initNodes(ConcurrentHashMap<Integer, RaftGroupImpl> raftGroups) {
-        this.executor = nioServer.getBizExecutor();
-        ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
-        for (RaftNode n : allRaftNodesOnlyForInit) {
-            futures.add(addToNioClient(n));
-        }
-        allRaftNodesOnlyForInit = null;
-
-        for (CompletableFuture<RaftNodeEx> f : futures) {
-            RaftNodeEx nodeEx = f.join();
-            allNodesEx.put(nodeEx.nodeId, nodeEx);
-            if (nodeEx.self && config.checkSelf) {
-                doCheckSelf(nodeEx);
-            }
-        }
-        raftGroups.forEach((groupId, g) -> processUseCountForGroupInLock(g, true));
-    }
-
-    private void doCheckSelf(RaftNodeEx nodeEx) {
+        CompletableFuture<Void> selfCheckFuture = null;
+        RaftNodeEx selfNodeEx = null;
+        lock.lock();
         try {
-            CompletableFuture<Void> f = nodePing(nodeEx);
-            f.get(config.connectTimeout + config.rpcTimeout, TimeUnit.MILLISECONDS);
+            this.executor = nioServer.getBizExecutor();
+            ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
+            for (RaftNode n : allRaftNodesOnlyForInit) {
+                futures.add(addToNioClient(n));
+            }
+            allRaftNodesOnlyForInit = null;
+
+            for (CompletableFuture<RaftNodeEx> f : futures) {
+                RaftNodeEx nodeEx = f.join();
+                allNodesEx.put(nodeEx.nodeId, nodeEx);
+                if (nodeEx.self && config.checkSelf) {
+                    selfNodeEx = nodeEx;
+                    selfCheckFuture = nodePing(nodeEx);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+
+        // check self
+        try {
+            if (selfCheckFuture != null) {
+                selfCheckFuture.get(config.connectTimeout + config.rpcTimeout, TimeUnit.MILLISECONDS);
+            }
         } catch (Exception e) {
             throw new RaftException(e);
         } finally {
-            if (nodeEx.peer.status == PeerStatus.connected) {
-                client.disconnect(nodeEx.peer);
+            if (selfNodeEx!= null && selfNodeEx.peer.status == PeerStatus.connected) {
+                client.disconnect(selfNodeEx.peer);
             }
+        }
+
+        lock.lock();
+        try {
+            raftGroups.forEach((groupId, g) -> processUseCountForGroupInLock(g, true));
+        } finally {
+            lock.unlock();
         }
     }
 
