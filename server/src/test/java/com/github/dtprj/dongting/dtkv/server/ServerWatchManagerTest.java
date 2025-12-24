@@ -895,5 +895,10 @@ public class ServerWatchManagerTest {
         public UUID getRemoteUuid(){
             return null;
         }
+
+        @Override
+        public int getLocalPort() {
+            return 0;
+        }
     }
 }

@@ -49,6 +49,11 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
 
     @Override
     public WritePacket process(ReadPacket<Object> packet, ReqContext reqContext) throws Exception {
+        boolean servicePort = RaftPingProcessor.requestServicePort(reqContext, server.getServerConfig());
+        if (!RaftPingProcessor.checkPort(servicePort, false, true)) {
+            packet.clean();
+            return RaftPingProcessor.createWrongPortRest(packet, reqContext);
+        }
         int cmd = packet.command;
         if (cmd == Commands.RAFT_ADMIN_ADD_GROUP) {
             AdminAddGroupReq req = (AdminAddGroupReq) packet.getBody();

@@ -51,6 +51,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     final Peer peer; // null in server side
     private final SocketAddress remoteAddr;
     private final SocketAddress localAddr;
+    private final int localPort;
 
     final int channelIndexInWorker;
     final long createTimeNanos;
@@ -96,6 +97,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
         this.remoteAddr = channel.getRemoteAddress();
         this.localAddr = channel.getLocalAddress();
+        this.localPort = ((java.net.InetSocketAddress) localAddr).getPort();
 
         this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, workerStatus.heapPool);
         this.lastActiveTimeNanos = workerStatus.ts.nanoTime;
@@ -497,4 +499,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return remoteUuid;
     }
 
+    @Override
+    public int getLocalPort() {
+        return localPort;
+    }
 }

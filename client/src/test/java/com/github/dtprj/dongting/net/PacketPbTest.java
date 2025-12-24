@@ -12,6 +12,7 @@ import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
@@ -106,33 +107,40 @@ public class PacketPbTest {
         buf.put(encodeBytes);
         buf.flip();
 
-        WorkerStatus workerStatus = new WorkerStatus(null, null ,
+        WorkerStatus workerStatus = new WorkerStatus(null, null,
                 null, CodecTestUtil.createContext().getHeapPool(), new Timestamp(), 1000);
 
-        DtChannelImpl dtc = new DtChannelImpl(new Java8NioStatus(), workerStatus,
-                new NioClientConfig(), null, SocketChannel.open(), 0) {
+        SocketChannel sc = SocketChannel.open();
+        sc.bind(new InetSocketAddress(19344));
+        DtChannelImpl dtc;
+        try {
+            dtc = new DtChannelImpl(new Java8NioStatus(), workerStatus,
+                    new NioClientConfig(), null, sc, 0) {
 
-            @Override
-            public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-                if (index == Packet.IDX_BODY) {
-                    byte[] readBytes = new byte[fieldLen];
-                    buf.get(readBytes);
-                    assertArrayEquals(bs, readBytes);
-                    return true;
-                } else {
-                    return super.readBytes(index, buf, fieldLen, currentPos);
+                @Override
+                public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+                    if (index == Packet.IDX_BODY) {
+                        byte[] readBytes = new byte[fieldLen];
+                        buf.get(readBytes);
+                        assertArrayEquals(bs, readBytes);
+                        return true;
+                    } else {
+                        return super.readBytes(index, buf, fieldLen, currentPos);
+                    }
                 }
-            }
 
-            @Override
-            protected void writeErrorInIoThread(Packet req, int code, String msg) {
-            }
+                @Override
+                protected void writeErrorInIoThread(Packet req, int code, String msg) {
+                }
 
-            @Override
-            protected boolean end(boolean success) {
-                return success;
-            }
-        };
+                @Override
+                protected boolean end(boolean success) {
+                    return success;
+                }
+            };
+        } finally {
+            sc.close();
+        }
         dtc.getParser().parse(buf);
         assertEquals(packetType, dtc.getPacket().packetType);
         assertEquals(command, dtc.getPacket().command);

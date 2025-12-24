@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftShareStatus;
 import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
 
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -54,6 +53,26 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
 
     protected abstract int getGroupId(ReadPacket<T> frame);
 
+    public static boolean requestServicePort(ReqContext reqContext, RaftServerConfig config) {
+        return reqContext.getDtChannel().getLocalPort() == config.servicePort;
+    }
+
+    public static boolean checkPort(boolean requestServicePort, boolean enableServicePort, boolean enableReplicatePort) {
+        if (requestServicePort) {
+            return enableServicePort;
+        } else {
+            return enableReplicatePort;
+        }
+    }
+
+    public static WritePacket createWrongPortRest(ReadPacket<?> packet, ReqContext reqContext) {
+        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.COMMAND_NOT_SUPPORT);
+        errorResp.msg = "command not supported on this port";
+        log.info("command not supported on this port: cmd={}, channel={}",
+                packet.command, reqContext.getDtChannel());
+        return errorResp;
+    }
+
     /**
      * run in io thread.
      */
@@ -65,13 +84,10 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             log.warn("request has no body: cmd={}, channel={}", packet.command, reqContext.getDtChannel());
             return errorResp;
         }
-        boolean servicePort = ((InetSocketAddress) reqContext.getDtChannel().getLocalAddr()).getPort()
-                == raftServer.getServerConfig().servicePort;
-        if ((!enableServicePort && servicePort) || (!enableReplicatePort && !servicePort)) {
+        boolean servicePort = requestServicePort(reqContext, raftServer.getServerConfig());
+        if (!checkPort(servicePort, enableServicePort, enableReplicatePort)) {
             packet.clean();
-            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.COMMAND_NOT_SUPPORT);
-            errorResp.msg = "command not supported on this port";
-            return errorResp;
+            return createWrongPortRest(packet, reqContext);
         }
         if (servicePort) {
             if (!raftServer.isGroupReady()) {

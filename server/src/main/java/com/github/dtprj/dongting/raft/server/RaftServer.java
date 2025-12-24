@@ -158,7 +158,7 @@ public class RaftServer extends AbstractLifeCircle {
         nodeManager = new NodeManager(serverConfig, allRaftServers, nioClient,
                 RaftUtil.getElectQuorum(allRaftServers.size()), nioServer);
 
-        nioServer.register(Commands.NODE_PING, new NodePingProcessor(nodeManager));
+        nioServer.register(Commands.NODE_PING, new NodePingProcessor(nodeManager, serverConfig));
         addRaftGroupProcessor(nioServer, Commands.RAFT_PING, new RaftPingProcessor(this));
         AppendProcessor appendProcessor = new AppendProcessor(this);
         addRaftGroupProcessor(nioServer, Commands.RAFT_APPEND_ENTRIES, appendProcessor);

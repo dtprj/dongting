@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 /**
  * @author huangli
@@ -29,13 +30,20 @@ import com.github.dtprj.dongting.raft.impl.NodeManager;
 public class NodePingProcessor extends ReqProcessor<NodePing> {
 
     private final NodeManager nodeManager;
+    private final RaftServerConfig raftServerConfig;
 
-    public NodePingProcessor(NodeManager nodeManager) {
+    public NodePingProcessor(NodeManager nodeManager, RaftServerConfig raftServerConfig) {
         this.nodeManager = nodeManager;
+        this.raftServerConfig = raftServerConfig;
     }
 
     @Override
     public WritePacket process(ReadPacket<NodePing> packet, ReqContext reqContext) {
+        boolean servicePort = RaftPingProcessor.requestServicePort(reqContext, raftServerConfig);
+        if (!RaftPingProcessor.checkPort(servicePort, false, true)) {
+            packet.clean();
+            return RaftPingProcessor.createWrongPortRest(packet, reqContext);
+        }
         nodeManager.processNodePing(packet, reqContext);
         return null;
     }

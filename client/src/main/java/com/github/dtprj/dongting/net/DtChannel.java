@@ -29,6 +29,8 @@ public interface DtChannel {
 
     SocketAddress getLocalAddr();
 
+    int getLocalPort();
+
     /**
      * server side will return null.
      */
