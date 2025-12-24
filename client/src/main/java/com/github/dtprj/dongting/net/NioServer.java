@@ -50,7 +50,7 @@ public class NioServer extends NioNet implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
 
     private final NioServerConfig config;
-    private ServerSocketChannel[] serverSocketChannels;
+    private final ServerSocketChannel[] serverSocketChannels;
     private Selector selector;
     private volatile boolean stop;
     private final Thread acceptThread;
@@ -72,6 +72,11 @@ public class NioServer extends NioNet implements Runnable {
         }
         if (config.port == 0 && (config.ports == null || config.ports.length == 0)) {
             throw new IllegalArgumentException("no port");
+        }
+        if (config.ports != null && config.ports.length > 0) {
+            serverSocketChannels = new ServerSocketChannel[config.ports.length];
+        } else {
+            serverSocketChannels = new ServerSocketChannel[1];
         }
         acceptThread = new Thread(this);
         acceptThread.setName(config.name + "IoAccept");
@@ -98,12 +103,10 @@ public class NioServer extends NioNet implements Runnable {
         try {
             selector = SelectorProvider.provider().openSelector();
             if (config.ports != null && config.ports.length > 0) {
-                serverSocketChannels = new ServerSocketChannel[config.ports.length];
                 for (int i = 0; i < config.ports.length; i++) {
                     serverSocketChannels[i] = newSsc(config.ports[i]);
                 }
             } else {
-                serverSocketChannels = new ServerSocketChannel[1];
                 serverSocketChannels[0] = newSsc(config.port);
             }
 
@@ -124,7 +127,9 @@ public class NioServer extends NioNet implements Runnable {
         try {
             selector.close();
             for (ServerSocketChannel c : serverSocketChannels) {
-                c.close();
+                if (c != null) {
+                    c.close();
+                }
             }
             log.info("accept thread finished: {}", config.name);
         } catch (Exception e) {
@@ -231,14 +236,12 @@ public class NioServer extends NioNet implements Runnable {
                     log.error("", e);
                 }
             }
-            if (serverSocketChannels != null) {
-                for (ServerSocketChannel c : serverSocketChannels) {
-                    if (c.isOpen()) {
-                        try {
-                            c.close();
-                        } catch (IOException e) {
-                            log.error("", e);
-                        }
+            for (ServerSocketChannel c : serverSocketChannels) {
+                if (c != null && c.isOpen()) {
+                    try {
+                        c.close();
+                    } catch (IOException e) {
+                        log.error("", e);
                     }
                 }
             }
