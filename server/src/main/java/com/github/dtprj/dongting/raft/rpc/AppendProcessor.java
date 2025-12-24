@@ -463,15 +463,16 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         RaftStatusImpl raftStatus = gc.raftStatus;
         InstallSnapshotReq req = reqInfo.reqFrame.getBody();
         if (!req.members.isEmpty()) {
-            return startInstall(raftStatus);
+            return startInstall(raftStatus, req);
         } else {
             return doInstall(raftStatus, req);
         }
     }
 
-    private FrameCallResult startInstall(RaftStatusImpl raftStatus) {
+    private FrameCallResult startInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
         if (!markInstall) {
-            log.info("start install snapshot, groupId={}", groupId);
+            log.info("start install snapshot, groupId={}, lastIncludedIndex={}, lastIncludedTerm={}",
+                    groupId, req.lastIncludedIndex, req.lastIncludedTerm);
             raftStatus.installSnapshot = true;
             gc.applyManager.wakeupApply(); // wakeup apply fiber to exit
             gc.statusManager.persistAsync(true);
@@ -490,6 +491,8 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult applyConfigChange(Void unused) {
+        gc.raftStatus.tailCache.cleanAll();
+
         MemberManager mm = reqInfo.raftGroup.groupComponents.memberManager;
         InstallSnapshotReq req = reqInfo.reqFrame.getBody();
 
