@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
@@ -27,6 +28,7 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.server.RaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -41,10 +43,12 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
 
     private final RaftServer server;
     private final RaftFactory factory;
+    private final NodeManager nodeManager;
 
-    public AdminGroupAndNodeProcessor(RaftServer server, RaftFactory factory) {
+    public AdminGroupAndNodeProcessor(RaftServer server, NodeManager nodeManager, RaftFactory factory) {
         this.server = server;
         this.factory = factory;
+        this.nodeManager = nodeManager;
     }
 
     @Override
@@ -55,20 +59,25 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
             return RaftPingProcessor.createWrongPortRest(packet, reqContext);
         }
         int cmd = packet.command;
-        if (cmd == Commands.RAFT_ADMIN_ADD_GROUP) {
-            AdminAddGroupReq req = (AdminAddGroupReq) packet.getBody();
-            addGroup(req, reqContext);
-        } else if (cmd == Commands.RAFT_ADMIN_REMOVE_GROUP) {
-            Integer groupId = (Integer) packet.getBody();
-            removeGroup(groupId, reqContext);
-        } else if (cmd == Commands.RAFT_ADMIN_ADD_NODE) {
-            AdminAddNodeReq req = (AdminAddNodeReq) packet.getBody();
-            addNode(req, reqContext);
-        } else if (cmd == Commands.RAFT_ADMIN_REMOVE_NODE) {
-            Integer nodeId = (Integer) packet.getBody();
-            removeNode(nodeId, reqContext);
-        } else {
-            throw new RaftException("bad cmd:" + cmd);
+        switch (cmd) {
+            case Commands.RAFT_ADMIN_ADD_GROUP:
+                addGroup((AdminAddGroupReq) packet.getBody(), reqContext);
+                break;
+            case Commands.RAFT_ADMIN_REMOVE_GROUP:
+                removeGroup((Integer) packet.getBody(), reqContext);
+                break;
+            case Commands.RAFT_ADMIN_ADD_NODE:
+                addNode((AdminAddNodeReq) packet.getBody(), reqContext);
+                break;
+            case Commands.RAFT_ADMIN_REMOVE_NODE:
+                removeNode((Integer) packet.getBody(), reqContext);
+                break;
+            case Commands.RAFT_ADMIN_LIST_NODES:
+                return listNodes();
+            case Commands.RAFT_ADMIN_LIST_GROUPS:
+                return listGroups();
+            default:
+                throw new RaftException("bad cmd:" + cmd);
         }
         return null;
     }
@@ -76,16 +85,19 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
 
     @Override
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
-        if (command == Commands.RAFT_ADMIN_ADD_GROUP) {
-            return context.toDecoderCallback(new AdminAddGroupReq());
-        } else if (command == Commands.RAFT_ADMIN_REMOVE_GROUP) {
-            return context.toDecoderCallback(context.cachedPbIntCallback());
-        } else if (command == Commands.RAFT_ADMIN_ADD_NODE) {
-            return context.toDecoderCallback(new AdminAddNodeReq());
-        } else if (command == Commands.RAFT_ADMIN_REMOVE_NODE) {
-            return context.toDecoderCallback(context.cachedPbIntCallback());
-        } else {
-            throw new RaftException("bad command:" + command);
+        switch (command) {
+            case Commands.RAFT_ADMIN_ADD_GROUP:
+                return context.toDecoderCallback(new AdminAddGroupReq());
+            case Commands.RAFT_ADMIN_ADD_NODE:
+                return context.toDecoderCallback(new AdminAddNodeReq());
+            case Commands.RAFT_ADMIN_REMOVE_GROUP:
+            case Commands.RAFT_ADMIN_REMOVE_NODE:
+                return context.toDecoderCallback(context.cachedPbIntCallback());
+            case Commands.RAFT_ADMIN_LIST_NODES:
+            case Commands.RAFT_ADMIN_LIST_GROUPS:
+                return DecoderCallback.VOID_DECODE_CALLBACK;
+            default:
+                throw new RaftException("bad command:" + command);
         }
     }
 
@@ -122,5 +134,17 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
     private void removeNode(Integer nodeId, ReqContext reqContext) {
         CompletableFuture<Void> f = server.removeNode(nodeId);
         processResult(f, reqContext);
+    }
+
+    private WritePacket listNodes() {
+        AdminListNodesResp resp = new AdminListNodesResp();
+        resp.nodes = nodeManager.getAllNodes();
+        return new EncodableBodyWritePacket(resp);
+    }
+
+    private WritePacket listGroups() {
+        AdminListGroupsResp resp = new AdminListGroupsResp();
+        resp.groupIds = server.getAllGroupIds();
+        return new EncodableBodyWritePacket(resp);
     }
 }

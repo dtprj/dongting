@@ -62,7 +62,6 @@ public class NodeManager extends AbstractLifeCircle {
     private final NioServer nioServer;
     Executor executor;
 
-    // update by RaftServer init thread and schedule thread
     final IntObjMap<RaftNodeEx> allNodesEx;
 
     private List<RaftNode> allRaftNodesOnlyForInit;
@@ -413,6 +412,19 @@ public class NodeManager extends AbstractLifeCircle {
             ids.add(nodeId);
         });
         return ids;
+    }
+
+    public List<RaftNode> getAllNodes() {
+        lock.lock();
+        try {
+            List<RaftNode> nodes = new ArrayList<>(allNodesEx.size());
+            allNodesEx.forEach((nodeId, nodeEx) -> {
+                nodes.add(nodeEx);
+            });
+            return nodes;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public void processNodePing(ReadPacket<NodePing> packet, ReqContext reqContext) {

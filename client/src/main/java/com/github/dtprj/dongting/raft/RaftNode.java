@@ -15,10 +15,17 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
+import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.Peer;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +34,12 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
-public class RaftNode {
+public class RaftNode implements Encodable {
+
+    private static final int IDX_NODE_ID = 1;
+    private static final int IDX_HOST = 2;
+    private static final int IDX_PORT = 3;
+
     public final int nodeId;
     public final HostPort hostPort;
     public final Peer peer;
@@ -93,4 +105,71 @@ public class RaftNode {
         }
         return sb.toString();
     }
+
+
+    @Override
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        switch (context.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_NODE_ID, nodeId)) {
+                    return false;
+                }
+                // fall through
+            case IDX_NODE_ID:
+                if (!EncodeUtil.encodeUTF8(context, destBuffer, IDX_HOST, hostPort.getHost())) {
+                    return false;
+                }
+                // fall through
+            case IDX_HOST:
+                return EncodeUtil.encodeInt32(context, destBuffer, IDX_PORT, hostPort.getPort());
+            default:
+                throw new CodecException(context);
+        }
+    }
+
+    @Override
+    public int actualSize() {
+        return PbUtil.sizeOfInt32Field(IDX_NODE_ID, nodeId)
+                + PbUtil.sizeOfUTF8(IDX_HOST, hostPort.getHost())
+                + PbUtil.sizeOfInt32Field(IDX_PORT, hostPort.getPort());
+    }
+
+    public static class Callback extends PbCallback<RaftNode> {
+
+        private int nodeId;
+        private String host;
+        private int port;
+
+        @Override
+        public boolean readVarNumber(int index, long value) {
+            if (index == IDX_NODE_ID) {
+                nodeId = (int) value;
+            } else if (index == IDX_PORT) {
+                port = (int) value;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+            if (index == IDX_NODE_ID) {
+                host = parseUTF8(buf, fieldLen, currentPos);
+            }
+            return true;
+        }
+
+        @Override
+        protected RaftNode getResult() {
+            return new RaftNode(nodeId, new HostPort(host, port));
+        }
+
+        @Override
+        protected boolean end(boolean success) {
+            this.nodeId = 0;
+            this.host = null;
+            this.port = 0;
+            return success;
+        }
+    }
+
 }

@@ -186,3 +186,28 @@ message AdminRemoveNodeReq {
 }
 
 // return EmptyBodyRespFrame
+
+message RaftNode {
+  int32 node_id = 1;
+  string host = 2;
+  int32 port = 3;
+}
+
+message AdminListNodesReq {
+  // empty
+}
+
+message AdminListNodesResp {
+  int32 size = 1;
+  repeated RaftNode nodes = 2[packed=false];
+}
+
+message AdminListGroupsReq {
+  // empty
+}
+
+message AdminListGroupsResp {
+  int32 size = 1;
+  repeated int32 group_id = 2[packed=false];
+}
+

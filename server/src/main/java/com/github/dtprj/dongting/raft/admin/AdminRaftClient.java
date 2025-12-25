@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.PbLongCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EmptyBodyReqPacket;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
@@ -34,10 +35,14 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.AdminAddGroupReq;
 import com.github.dtprj.dongting.raft.rpc.AdminAddNodeReq;
 import com.github.dtprj.dongting.raft.rpc.AdminCommitOrAbortReq;
+import com.github.dtprj.dongting.raft.rpc.AdminListGroupsResp;
+import com.github.dtprj.dongting.raft.rpc.AdminListNodesResp;
 import com.github.dtprj.dongting.raft.rpc.AdminPrepareConfigChangeReq;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -50,7 +55,7 @@ public class AdminRaftClient extends RaftClient {
         this(new RaftClientConfig(), new NioClientConfig());
     }
 
-    public AdminRaftClient(RaftClientConfig raftClientConfig,NioClientConfig nioClientConfig) {
+    public AdminRaftClient(RaftClientConfig raftClientConfig, NioClientConfig nioClientConfig) {
         super(raftClientConfig, nioClientConfig);
     }
 
@@ -131,13 +136,16 @@ public class AdminRaftClient extends RaftClient {
     }
 
     private CompletableFuture<Void> sendByNodeId(int nodeId, DtTime timeout, WritePacket p) {
+        return sendByNodeId(nodeId, timeout, p, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR);
+    }
+
+    private <T> CompletableFuture<T> sendByNodeId(int nodeId, DtTime timeout, WritePacket p, DecoderCallbackCreator<T> dc) {
         RaftNode n = getNode(nodeId);
         if (n == null) {
             return DtUtil.failedFuture(new RaftException("node not found: " + nodeId));
         }
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        nioClient.sendRequest(n.peer, p, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR,
-                timeout, RpcCallback.fromUnwrapFuture(f));
+        CompletableFuture<T> f = new CompletableFuture<>();
+        nioClient.sendRequest(n.peer, p, dc, timeout, RpcCallback.fromUnwrapFuture(f));
         return f;
     }
 
@@ -167,5 +175,20 @@ public class AdminRaftClient extends RaftClient {
     public CompletableFuture<Void> serverRemoveNode(int nodeIdToInvoke, int nodeIdToRemove) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_NODE, nodeIdToRemove);
         return sendByNodeId(nodeIdToInvoke, createDefaultTimeout(), p);
+    }
+
+    public CompletableFuture<List<RaftNode>> serverListAllNodes(int nodeId) {
+        EmptyBodyReqPacket p = new EmptyBodyReqPacket(Commands.RAFT_ADMIN_LIST_NODES);
+        return sendByNodeId(nodeId, createDefaultTimeout(), p, ctx -> ctx.toDecoderCallback(new AdminListNodesResp()))
+                .thenApply(resp -> resp.nodes);
+    }
+
+    public CompletableFuture<int[]> serverListGroups(int groupId) {
+        EmptyBodyReqPacket p = new EmptyBodyReqPacket(Commands.RAFT_ADMIN_LIST_GROUPS);
+        return sendByNodeId(groupId, createDefaultTimeout(), p, ctx -> ctx.toDecoderCallback(new AdminListGroupsResp()))
+                .thenApply(resp -> {
+                    Arrays.sort(resp.groupIds);
+                    return resp.groupIds;
+                });
     }
 }

@@ -172,7 +172,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioServer.register(Commands.RAFT_ADMIN_PREPARE_CHANGE, adminConfigChangeProcessor);
         nioServer.register(Commands.RAFT_ADMIN_COMMIT_CHANGE, adminConfigChangeProcessor);
         nioServer.register(Commands.RAFT_ADMIN_ABORT_CHANGE, adminConfigChangeProcessor);
-        AdminGroupAndNodeProcessor adminGroupAndNodeProcessor = new AdminGroupAndNodeProcessor(this, raftFactory);
+        AdminGroupAndNodeProcessor adminGroupAndNodeProcessor = new AdminGroupAndNodeProcessor(this, nodeManager, raftFactory);
         nioServer.register(Commands.RAFT_ADMIN_ADD_GROUP, adminGroupAndNodeProcessor);
         nioServer.register(Commands.RAFT_ADMIN_REMOVE_GROUP, adminGroupAndNodeProcessor);
         nioServer.register(Commands.RAFT_ADMIN_ADD_NODE, adminGroupAndNodeProcessor);
@@ -652,5 +652,9 @@ public class RaftServer extends AbstractLifeCircle {
 
     public boolean isGroupReady() {
         return groupReady;
+    }
+
+    public int[] getAllGroupIds() {
+        return raftGroups.keySet().stream().mapToInt(Integer::intValue).toArray();
     }
 }
