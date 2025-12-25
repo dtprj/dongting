@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -492,6 +493,83 @@ class EncodeUtilTest {
             PbUtil.writeTag(buf2, PbUtil.TYPE_FIX64, index);
             buf2.putLong(Long.reverseBytes(value));
         }
+        buf2.flip();
+        assertEquals(buf2, buf);
+    }
+
+    @Test
+    public void testEncodeAscii() {
+        init(2);
+        assertTrue(EncodeUtil.encodeAscii(c, buf, 1, ""));
+        assertEquals(2, buf.position());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        checkUTF8(1, "");
+
+        init(0);
+        assertTrue(EncodeUtil.encodeAscii(c, buf, 1, null));
+        assertEquals(0, buf.position());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+
+        String data = "helloWorld123";
+        int size = PbUtil.sizeOfAscii(1, data);
+        init(size);
+        assertTrue(EncodeUtil.encodeAscii(c, buf, 1, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        checkUTF8(1, data);
+
+        init(size);
+        encodeUseSmallBuf(b -> EncodeUtil.encodeAscii(c, b, 2, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(2, c.stage);
+        assertEquals(0, c.pending);
+        checkUTF8(2, data);
+    }
+
+    @Test
+    public void testEncodeUTF8() {
+        init(2);
+        assertTrue(EncodeUtil.encodeUTF8(c, buf, 1, ""));
+        assertEquals(2, buf.position());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        checkUTF8(1, "");
+
+        init(0);
+        assertTrue(EncodeUtil.encodeUTF8(c, buf, 1, null));
+        assertEquals(0, buf.position());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        assertNull(c.status);
+
+        String data = "hello中文测试World";
+        int size = PbUtil.sizeOfUTF8(1, data);
+        init(size);
+        assertTrue(EncodeUtil.encodeUTF8(c, buf, 1, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(1, c.stage);
+        assertEquals(0, c.pending);
+        assertNull(c.status);
+        checkUTF8(1, data);
+
+        init(size);
+        encodeUseSmallBuf(b -> EncodeUtil.encodeUTF8(c, b, 2, data));
+        assertFalse(buf.hasRemaining());
+        assertEquals(2, c.stage);
+        assertEquals(0, c.pending);
+        assertNull(c.status);
+        checkUTF8(2, data);
+    }
+
+    private void checkUTF8(int index, String data) {
+        buf.flip();
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        ByteBuffer buf2 = ByteBuffer.allocate(buf.remaining());
+        PbUtil.writeLenFieldPrefix(buf2, index, bytes.length);
+        buf2.put(bytes);
         buf2.flip();
         assertEquals(buf2, buf);
     }

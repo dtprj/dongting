@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.codec;
 import com.github.dtprj.dongting.common.ByteArray;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -466,6 +467,61 @@ public class EncodeUtil {
         c.stage = pbIndex;
         c.pending = 0;
         return true;
+    }
+
+    public static boolean encodeAscii(EncodeContext c, ByteBuffer dest, int pbIndex, String value) {
+        if (value == null) {
+            c.stage = pbIndex;
+            return true;
+        }
+        int size = value.length();
+        if (c.pending == 0) {
+            if (!writeObjPrefix(dest, pbIndex, size)) {
+                return false;
+            }
+            if (size == 0) {
+                c.stage = pbIndex;
+                return true;
+            }
+            c.pending = 1;
+        }
+        int arrOffset = c.pending - 1;
+        if (arrOffset < 0 || arrOffset >= size) {
+            throw new CodecException(c);
+        }
+        int r = dest.remaining();
+        int needWrite = size - arrOffset;
+        for (int i = 0; i < Math.min(r, needWrite); i++) {
+            dest.put((byte) value.charAt(arrOffset + i));
+        }
+        if (r >= needWrite) {
+            c.pending = 0;
+            c.stage = pbIndex;
+            return true;
+        } else {
+            c.pending += r;
+            return false;
+        }
+    }
+
+    public static boolean encodeUTF8(EncodeContext c, ByteBuffer dest, int pbIndex, String value) {
+        if (value == null) {
+            c.stage = pbIndex;
+            return true;
+        }
+        byte[] bytes;
+        if (c.status == null) {
+            bytes = value.getBytes(StandardCharsets.UTF_8);
+            c.status = bytes;
+        } else {
+            bytes = (byte[]) c.status;
+        }
+        boolean r = encode(c, dest, pbIndex, bytes, MODE_ENCODE_EMPTY_NOT_ENCODE_NULL);
+        if (r) {
+            c.stage = pbIndex;
+            c.status = null;
+        }
+        return r;
     }
 
 }
