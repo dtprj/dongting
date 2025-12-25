@@ -62,21 +62,21 @@ public class ByteBufferWritePacket extends RetryableWritePacket {
             return true;
         }
         if (src.isDirect()) {
-            ByteBuffer srcCopy = (ByteBuffer) context.getStatus();
+            ByteBuffer srcCopy = (ByteBuffer) context.status;
             srcCopy = copyFromDirectBuffer(src, dest, srcCopy);
             if (srcCopy.remaining() == 0) {
                 return true;
             } else {
-                context.setStatus(srcCopy);
+                context.status = srcCopy;
                 return false;
             }
         } else {
-            Integer readBytes = (Integer) context.getStatus();
+            Integer readBytes = (Integer) context.status;
             readBytes = copyFromHeapBuffer(src, dest, readBytes == null ? 0 : readBytes);
             if(readBytes >= src.remaining()) {
                 return true;
             } else {
-                context.setStatus(readBytes);
+                context.status = readBytes;
                 return false;
             }
         }

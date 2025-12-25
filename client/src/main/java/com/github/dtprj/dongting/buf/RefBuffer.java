@@ -152,16 +152,16 @@ public final class RefBuffer extends RefCount implements Encodable {
             return true;
         }
         if (src.isDirect()) {
-            ByteBuffer srcCopy = (ByteBuffer) context.getStatus();
+            ByteBuffer srcCopy = (ByteBuffer) context.status;
             srcCopy = ByteBufferWritePacket.copyFromDirectBuffer(src, destBuffer, srcCopy);
             if (srcCopy.remaining() == 0) {
                 return true;
             } else {
-                context.setStatus(srcCopy);
+                context.status = srcCopy;
                 return false;
             }
         } else {
-            Integer s = (Integer) context.getStatus();
+            Integer s = (Integer) context.status;
             int readBytes = 0;
             if (s != null) {
                 readBytes = s;
@@ -170,7 +170,7 @@ public final class RefBuffer extends RefCount implements Encodable {
             if (readBytes >= src.remaining()) {
                 return true;
             } else {
-                context.setStatus(readBytes);
+                context.status = readBytes;
                 return false;
             }
         }

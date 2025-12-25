@@ -62,12 +62,4 @@ public class EncodeContext {
         return heapPool;
     }
 
-    public Object getStatus() {
-        return status;
-    }
-
-    public void setStatus(Object status) {
-        this.status = status;
-    }
-
 }
