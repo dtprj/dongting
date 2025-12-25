@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
@@ -178,6 +179,13 @@ public final class PbUtil {
         }
     }
 
+    public static void writeUTF8Field(ByteBuffer buf, int index, String value) {
+        if (value == null) {
+            return;
+        }
+        writeBytesField(buf, index, value.getBytes(StandardCharsets.UTF_8));
+    }
+
     public static void writeLenFieldPrefix(ByteBuffer buf, int index, int len) {
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
         writeUnsignedInt32(buf, len);
@@ -229,6 +237,13 @@ public final class PbUtil {
             return 0;
         }
         return sizeOfTag(index) + sizeOfUnsignedInt32(len) + len;
+    }
+
+    public static int sizeOfUTF8(int index, String str) {
+        if (str == null) {
+            return 0;
+        }
+        return sizeOfBytesField(index, str.getBytes(StandardCharsets.UTF_8));
     }
 
     public static int sizeOfTag(int index) {

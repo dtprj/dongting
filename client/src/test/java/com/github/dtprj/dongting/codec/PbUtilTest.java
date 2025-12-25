@@ -458,6 +458,17 @@ public class PbUtilTest {
     }
 
     @Test
+    public void testUTF8() {
+        assertEquals(0, sizeOfUTF8(1, null));
+        assertEquals(0, sizeOfUTF8(1, ""));
+
+        String utf8Str = "中文abc";
+        ByteBuffer buf = ByteBuffer.allocate(sizeOfUTF8(536870911, utf8Str));
+        writeUTF8Field(buf, 536870911, utf8Str);
+        assertEquals(0, buf.remaining());
+    }
+
+    @Test
     public void testWriteUnsignedInt32() {
         testWriteUnsignedInt32(0);
         testWriteUnsignedInt32(1);
