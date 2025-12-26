@@ -134,8 +134,7 @@ public class PacketPbTest {
                 }
 
                 @Override
-                protected boolean end(boolean success) {
-                    return success;
+                protected void end(boolean success) {
                 }
             };
         } finally {

@@ -43,12 +43,11 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
     }
 
     @Override
-    public boolean end(boolean success) {
+    public void end(boolean success) {
         if (temp != null) {
             context.getHeapPool().getPool().release(temp);
             temp = null;
         }
-        return success;
     }
 
     protected abstract boolean decode(ByteBuffer buffer);

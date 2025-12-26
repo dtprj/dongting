@@ -38,8 +38,7 @@ public final class PbStrCallback extends PbCallback<String> {
     }
 
     @Override
-    protected boolean end(boolean success) {
+    protected void end(boolean success) {
         s = null;
-        return success;
     }
 }

@@ -45,13 +45,12 @@ public class PbParserExTest {
         }
 
         @Override
-        protected boolean end(boolean success) {
+        protected void end(boolean success) {
             if (success) {
                 endSuccessCount++;
             } else {
                 endFailCount++;
             }
-            return success;
         }
 
         @Override

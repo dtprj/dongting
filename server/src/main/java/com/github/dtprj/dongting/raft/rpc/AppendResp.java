@@ -67,9 +67,8 @@ public class AppendResp extends RaftRpcData implements SimpleEncodable {
         }
 
         @Override
-        protected boolean end(boolean success) {
+        protected void end(boolean success) {
             result = null;
-            return success;
         }
 
         @Override

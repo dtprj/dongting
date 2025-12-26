@@ -86,12 +86,11 @@ public class WatchNotify implements Encodable {
         private byte[] value;
 
         @Override
-        protected boolean end(boolean success) {
+        protected void end(boolean success) {
             raftIndex = 0;
             state = 0;
             key = null;
             value = null;
-            return success;
         }
 
         @Override

@@ -162,11 +162,10 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         }
 
         @Override
-        protected boolean end(boolean success) {
+        protected void end(boolean success) {
             if (!success) {
                 result.clean();
             }
-            return success;
         }
 
         @Override

@@ -126,9 +126,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    protected boolean end(boolean success) {
+    protected void end(boolean success) {
         if (!success) {
-            return false;
+            return;
         }
 
         if (!handshake && peer == null) { // peer is null is server side
@@ -140,7 +140,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (requestForResp == null && processorForRequest == null) {
             // empty body
             if (!readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, true)) {
-                return false;
+                return;
             }
         }
         currentDecoderCallback = null;
@@ -152,7 +152,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             processIncomingRequest(packet, processorForRequest, workerStatus.ts);
         }
         this.lastActiveTimeNanos = workerStatus.ts.nanoTime;
-        return true;
     }
 
     @Override

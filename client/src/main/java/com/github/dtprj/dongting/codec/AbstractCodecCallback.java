@@ -40,8 +40,7 @@ public abstract class AbstractCodecCallback<T> {
     protected void begin(int len) {
     }
 
-    protected boolean end(boolean success) {
-        return success;
+    protected void end(boolean success) {
     }
 
     protected final StrEncoder parseStrEncoder(ByteBuffer buf, int fieldLen, int currentPos) {

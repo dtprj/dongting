@@ -188,9 +188,8 @@ public class ByteArray implements Encodable, Comparable<ByteArray> {
         }
 
         @Override
-        protected boolean end(boolean success) {
+        protected void end(boolean success) {
             this.r = null;
-            return success;
         }
     }
 }

@@ -55,12 +55,11 @@ public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
     }
 
     @Override
-    public boolean end(boolean success) {
+    public void end(boolean success) {
         if (!success && r != null) {
             r.release();
         }
         r = null;
-        return success;
     }
 
     @Override

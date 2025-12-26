@@ -160,7 +160,7 @@ public class PbParser {
             try {
                 if (success) {
                     Object o = callback.getResult();
-                    success = callback.end(true);
+                    callback.end(true);
                     return o;
                 } else {
                     callback.end(false);

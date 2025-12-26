@@ -37,8 +37,7 @@ public class StrDecoderCallback extends DecoderCallback<String> {
     }
 
     @Override
-    protected boolean end(boolean success) {
+    protected void end(boolean success) {
         this.s = null;
-        return success;
     }
 }

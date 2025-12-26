@@ -40,8 +40,7 @@ class IoFullPackByteBufferDecoderCallback extends CopyDecoderCallback<ByteBuffer
     }
 
     @Override
-    public boolean end(boolean success) {
+    public void end(boolean success) {
         r = null;
-        return super.end(success);
     }
 }

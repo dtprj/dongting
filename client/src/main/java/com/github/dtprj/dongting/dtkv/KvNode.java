@@ -122,13 +122,12 @@ public class KvNode implements Encodable {
         private byte[] data;
 
         @Override
-        protected boolean end(boolean success) {
+        protected void end(boolean success) {
             createIndex = 0;
             createTime = 0;
             updateIndex = 0;
             updateTime = 0;
             data = null;
-            return success;
         }
 
         @Override

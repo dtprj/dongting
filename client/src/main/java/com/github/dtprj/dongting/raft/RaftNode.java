@@ -164,11 +164,10 @@ public class RaftNode implements Encodable {
         }
 
         @Override
-        protected boolean end(boolean success) {
+        protected void end(boolean success) {
             this.nodeId = 0;
             this.host = null;
             this.port = 0;
-            return success;
         }
     }
 

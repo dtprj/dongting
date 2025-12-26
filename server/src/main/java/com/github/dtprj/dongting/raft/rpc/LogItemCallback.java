@@ -39,12 +39,11 @@ class LogItemCallback extends PbCallback<Object> {
     }
 
     @Override
-    protected boolean end(boolean success) {
+    protected void end(boolean success) {
         if (!success) {
             item.release();
         }
         item = null;
-        return success;
     }
 
     @Override

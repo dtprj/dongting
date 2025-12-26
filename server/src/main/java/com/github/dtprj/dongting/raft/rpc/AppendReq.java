@@ -87,13 +87,12 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
 
         @Override
-        protected boolean end(boolean success) {
+        protected void end(boolean success) {
             if (!success) {
                 result.clean();
             }
             result = null;
             logItemCallback.codecFactory = null;
-            return success;
         }
 
         @Override
