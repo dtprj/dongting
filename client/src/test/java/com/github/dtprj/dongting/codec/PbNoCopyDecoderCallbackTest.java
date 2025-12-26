@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import org.junit.jupiter.api.Assertions;
+import com.github.dtprj.dongting.common.MutableInt;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -26,7 +28,7 @@ import java.nio.ByteBuffer;
 public class PbNoCopyDecoderCallbackTest {
 
     @Test
-    public void test() {
+    public void testSimple() {
         DecodeContext c = CodecTestUtil.createContext();
         Decoder decoder = new Decoder();
         decoder.prepareNext(c, c.toDecoderCallback(c.cachedPbIntCallback()));
@@ -36,7 +38,7 @@ public class PbNoCopyDecoderCallbackTest {
         buf.flip();
 
         Object r = decoder.decode(buf, buf.remaining(), 0);
-        Assertions.assertEquals(2000, r);
+        assertEquals(2000, r);
 
         buf.clear();
         PbUtil.writeFix32Field(buf, 1, 0);
@@ -44,6 +46,48 @@ public class PbNoCopyDecoderCallbackTest {
 
         decoder.prepareNext(c, c.toDecoderCallback(c.cachedPbIntCallback()));
         r = decoder.decode(buf, buf.remaining(), 0);
-        Assertions.assertEquals(0, r);
+        assertEquals(0, r);
+    }
+
+    @Test
+    public void testCancel() {
+        DecodeContext c = CodecTestUtil.createContext();
+        Decoder decoder = new Decoder();
+        MutableInt count = new MutableInt(0);
+        PbCallback<Object> callback = new PbCallback<>() {
+
+            @Override
+            public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+                count.increment();
+                return false;
+            }
+
+            @Override
+            protected Object getResult() {
+                return null;
+            }
+        };
+        decoder.prepareNext(c, c.toDecoderCallback(callback));
+        ByteBuffer buf = ByteBuffer.allocate(30);
+        PbUtil.writeAsciiField(buf, 1, "12313213213123");
+        buf.flip();
+        int limit = buf.limit();
+        assertNull(decoder.decode(buf, limit, 0));
+        assertEquals(1, count.getValue());
+        assertTrue(decoder.isFinished());
+
+        count.setValue(0);
+        decoder.prepareNext(c, c.toDecoderCallback(callback));
+        buf.position(0);
+        buf.limit(5);
+        assertNull(decoder.decode(buf, limit, 0));
+        assertEquals(1, count.getValue());
+        assertFalse(decoder.isFinished());
+        assertTrue(decoder.shouldSkip());
+        buf.position(5);
+        buf.limit(limit);
+        assertNull(decoder.decode(buf, limit, 5));
+        assertEquals(1, count.getValue());
+        assertTrue(decoder.isFinished());
     }
 }
