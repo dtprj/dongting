@@ -251,10 +251,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             if (end) {
                 // so if the body is not last field, exception throws
                 readBody = true;
-                if (context.createOrGetNestedDecoder().shouldSkip()) {
-                    log.warn("skip parse, command={}", packet.command);
-                }
             }
+        }
+        if (context.createOrGetNestedDecoder().shouldSkip()) {
+            log.warn("skip parse, command={}", packet.command);
+            return false;
         }
         return true;
     }

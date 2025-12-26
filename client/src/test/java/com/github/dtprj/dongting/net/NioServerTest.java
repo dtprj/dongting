@@ -318,6 +318,20 @@ public class NioServerTest {
     }
 
     private static int invoke(int seq, int command, int bodySize, DataInputStream in, DataOutputStream out) throws Exception {
+        byte[] bs = sendReqOnly(seq, command, bodySize, out);
+
+        int len = in.readInt();
+        byte[] resp = new byte[len];
+        in.readFully(resp);
+        DtPacket.Packet packet = DtPacket.Packet.parseFrom(resp);
+        assertEquals(PacketType.TYPE_RESP, packet.getPacketType());
+        if (packet.getRespCode() == CmdCodes.SUCCESS) {
+            assertArrayEquals(bs, packet.getBody().toByteArray());
+        }
+        return packet.getRespCode();
+    }
+
+    private static byte[] sendReqOnly(int seq, int command, int bodySize, DataOutputStream out) throws Exception {
         byte[] bs = new byte[bodySize];
         ThreadLocalRandom.current().nextBytes(bs);
         DtPacket.Packet packet = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
@@ -330,16 +344,7 @@ public class NioServerTest {
         out.writeInt(packetBytes.length);
         out.write(packetBytes);
         out.flush();
-
-        int len = in.readInt();
-        byte[] resp = new byte[len];
-        in.readFully(resp);
-        packet = DtPacket.Packet.parseFrom(resp);
-        assertEquals(PacketType.TYPE_RESP, packet.getPacketType());
-        if (packet.getRespCode() == CmdCodes.SUCCESS) {
-            assertArrayEquals(bs, packet.getBody().toByteArray());
-        }
-        return packet.getRespCode();
+        return bs;
     }
 
     @Test
@@ -482,9 +487,58 @@ public class NioServerTest {
             handshake(in, out);
             assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING1, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING2, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(3, CMD_BIZ_PING2, 5000, in, out));
 
-            assertThrows(EOFException.class, () -> invoke(3, 10001, 5000, in, out));
+            assertThrows(EOFException.class, () -> invoke(4, 10001, 5000, in, out));
+
+        } finally {
+            DtUtil.close(s);
+        }
+    }
+
+    @Test
+    public void cancelDecodeTest() throws Exception {
+        setupServer(null);
+        server.register(10001, new ReqProcessor() {
+            @Override
+            public WritePacket process(ReadPacket packet, ReqContext reqContext) {
+                return null;
+            }
+
+            @Override
+            public DecoderCallback<Object> createDecoderCallback(int command, DecodeContext context) {
+                return new CopyDecoderCallback<>() {
+                    @Override
+                    public boolean decode(ByteBuffer buffer) {
+                        return false;
+                    }
+
+                    @Override
+                    protected Object getResult() {
+                        return null;
+                    }
+                };
+            }
+        });
+
+        server.start();
+        Socket s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setTcpNoDelay(true);
+            s.setSoTimeout(1000);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
+
+            assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING1, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(3, CMD_BIZ_PING2, 5000, in, out));
+
+            sendReqOnly(4, 10001, 5000, out);
+
+            assertEquals(CmdCodes.SUCCESS, invoke(5, CMD_IO_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING1, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(7, CMD_BIZ_PING2, 5000, in, out));
 
         } finally {
             DtUtil.close(s);
