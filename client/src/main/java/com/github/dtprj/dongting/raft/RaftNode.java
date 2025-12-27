@@ -34,7 +34,7 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
-public class RaftNode implements Encodable {
+public class RaftNode implements Encodable, Comparable<RaftNode> {
 
     private static final int IDX_NODE_ID = 1;
     private static final int IDX_HOST = 2;
@@ -106,6 +106,10 @@ public class RaftNode implements Encodable {
         return sb.toString();
     }
 
+    @Override
+    public int compareTo(RaftNode o) {
+        return Integer.compare(this.nodeId, o.nodeId);
+    }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {

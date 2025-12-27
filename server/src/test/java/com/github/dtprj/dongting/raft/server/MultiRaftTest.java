@@ -18,10 +18,12 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -71,6 +73,16 @@ public class MultiRaftTest extends ServerTestBase {
             KvNode n2 = client.get(groupId2, "key".getBytes());
             assertEquals("value1", new String(n1.data));
             assertEquals("value2", new String(n2.data));
+
+            List<RaftNode> nodes = adminClient.serverListNodes(1).get(2, TimeUnit.SECONDS);
+            assertEquals(2, nodes.size());
+            assertEquals(1, nodes.get(0).nodeId);
+            assertEquals(2, nodes.get(1).nodeId);
+
+            int[] groupIds = adminClient.serverListGroups(1).get(2, TimeUnit.SECONDS);
+            assertEquals(2, groupIds.length);
+            assertEquals(groupId, groupIds[0]);
+            assertEquals(groupId2, groupIds[1]);
 
             f1 = adminClient.serverRemoveGroup(1, groupId2, timeout);
             f2 = adminClient.serverRemoveGroup(2, groupId2, timeout);

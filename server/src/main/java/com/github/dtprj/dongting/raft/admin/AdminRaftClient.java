@@ -41,6 +41,7 @@ import com.github.dtprj.dongting.raft.rpc.AdminPrepareConfigChangeReq;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -177,10 +178,13 @@ public class AdminRaftClient extends RaftClient {
         return sendByNodeId(nodeIdToInvoke, createDefaultTimeout(), p);
     }
 
-    public CompletableFuture<List<RaftNode>> serverListAllNodes(int nodeId) {
+    public CompletableFuture<List<RaftNode>> serverListNodes(int nodeId) {
         EmptyBodyReqPacket p = new EmptyBodyReqPacket(Commands.RAFT_ADMIN_LIST_NODES);
         return sendByNodeId(nodeId, createDefaultTimeout(), p, ctx -> ctx.toDecoderCallback(new AdminListNodesResp()))
-                .thenApply(resp -> resp.nodes);
+                .thenApply(resp -> {
+                    Collections.sort(resp.nodes);
+                    return resp.nodes;
+                });
     }
 
     public CompletableFuture<int[]> serverListGroups(int groupId) {

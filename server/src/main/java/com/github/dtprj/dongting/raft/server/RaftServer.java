@@ -177,6 +177,8 @@ public class RaftServer extends AbstractLifeCircle {
         nioServer.register(Commands.RAFT_ADMIN_REMOVE_GROUP, adminGroupAndNodeProcessor);
         nioServer.register(Commands.RAFT_ADMIN_ADD_NODE, adminGroupAndNodeProcessor);
         nioServer.register(Commands.RAFT_ADMIN_REMOVE_NODE, adminGroupAndNodeProcessor);
+        nioServer.register(Commands.RAFT_ADMIN_LIST_NODES, adminGroupAndNodeProcessor);
+        nioServer.register(Commands.RAFT_ADMIN_LIST_GROUPS, adminGroupAndNodeProcessor);
 
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
 
