@@ -60,6 +60,11 @@ public class AdminRaftClient extends RaftClient {
         super(raftClientConfig, nioClientConfig);
     }
 
+    /**
+     * Query the status of a raft group on a specific node.
+     * The result in public fields of QueryStatusResp, and it's super classes,
+     * the flag field in QueryStatusResp accessed by isXxx() methods.
+     */
     public CompletableFuture<QueryStatusResp> queryRaftServerStatus(int nodeId, int groupId) {
         return super.queryRaftServerStatus(nodeId, groupId);
     }
@@ -96,15 +101,20 @@ public class AdminRaftClient extends RaftClient {
         });
     }
 
-    public CompletableFuture<Long> prepareConfigChange(int groupId, Set<Integer> members, Set<Integer> observers,
-                                                       Set<Integer> prepareMembers, Set<Integer> prepareObservers,
+    /**
+     * Prepare config change, use the returned prepareIndex to commit the change.
+     * If old members and old observers not match current config, the operation will fail.
+     * Notice this method is idempotent.
+     */
+    public CompletableFuture<Long> prepareConfigChange(int groupId, Set<Integer> oldMembers, Set<Integer> oldObservers,
+                                                       Set<Integer> newMembers, Set<Integer> newObservers,
                                                        DtTime timeout) {
         AdminPrepareConfigChangeReq req = new AdminPrepareConfigChangeReq();
         req.groupId = groupId;
-        req.members = new HashSet<>(members);
-        req.observers = new HashSet<>(observers);
-        req.preparedMembers = new HashSet<>(prepareMembers);
-        req.preparedObservers = new HashSet<>(prepareObservers);
+        req.members = new HashSet<>(oldMembers);
+        req.observers = new HashSet<>(oldObservers);
+        req.preparedMembers = new HashSet<>(newMembers);
+        req.preparedObservers = new HashSet<>(newObservers);
         SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_PREPARE_CHANGE, req);
 
         DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;
@@ -113,6 +123,10 @@ public class AdminRaftClient extends RaftClient {
         return r;
     }
 
+    /**
+     * Commit the config change prepared before, use the prepareIndex returned by prepareConfigChange.
+     * Notice this method is idempotent.
+     */
     public CompletableFuture<Long> commitChange(int groupId, long prepareIndex, DtTime timeout) {
         AdminCommitOrAbortReq req = new AdminCommitOrAbortReq();
         req.groupId = groupId;
@@ -125,6 +139,10 @@ public class AdminRaftClient extends RaftClient {
         return r;
     }
 
+    /**
+     * Abort the config change prepared before, if it exists, otherwise do nothing.
+     * Notice this method is idempotent.
+     */
     public CompletableFuture<Long> abortChange(int groupId, DtTime timeout) {
         AdminCommitOrAbortReq req = new AdminCommitOrAbortReq();
         req.groupId = groupId;
@@ -150,6 +168,9 @@ public class AdminRaftClient extends RaftClient {
         return f;
     }
 
+    /**
+     * Add and start a new raft group on the specified node, the future completes after the group initialized.
+     */
     public CompletableFuture<Void> serverAddGroup(int nodeId, int groupId, String members, String observers, DtTime timeout) {
         AdminAddGroupReq req = new AdminAddGroupReq();
         req.groupId = groupId;
@@ -159,11 +180,17 @@ public class AdminRaftClient extends RaftClient {
         return sendByNodeId(nodeId, timeout, p);
     }
 
+    /**
+     * Remove and stop a raft group on the specified node, the future completes after the group stopped.
+     */
     public CompletableFuture<Void> serverRemoveGroup(int nodeId, int groupId, DtTime timeout) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_GROUP, groupId);
         return sendByNodeId(nodeId, timeout, p);
     }
 
+    /**
+     * Add node definition on the specified node.
+     */
     public CompletableFuture<Void> serverAddNode(int nodeIdToInvoke, int nodeIdToAdd, String host, int port) {
         AdminAddNodeReq req = new AdminAddNodeReq();
         req.nodeId = nodeIdToAdd;
@@ -173,11 +200,18 @@ public class AdminRaftClient extends RaftClient {
         return sendByNodeId(nodeIdToInvoke, createDefaultTimeout(), p);
     }
 
+    /**
+     * Remove node definition on the specified node, if the nodeIdToRemove is used in any raft group,
+     * the operation will fail.
+     */
     public CompletableFuture<Void> serverRemoveNode(int nodeIdToInvoke, int nodeIdToRemove) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_NODE, nodeIdToRemove);
         return sendByNodeId(nodeIdToInvoke, createDefaultTimeout(), p);
     }
 
+    /**
+     * List all node definitions on the specified node.
+     */
     public CompletableFuture<List<RaftNode>> serverListNodes(int nodeId) {
         EmptyBodyReqPacket p = new EmptyBodyReqPacket(Commands.RAFT_ADMIN_LIST_NODES);
         return sendByNodeId(nodeId, createDefaultTimeout(), p, ctx -> ctx.toDecoderCallback(new AdminListNodesResp()))
@@ -187,6 +221,9 @@ public class AdminRaftClient extends RaftClient {
                 });
     }
 
+    /**
+     * List all raft group ids on the specified node.
+     */
     public CompletableFuture<int[]> serverListGroups(int groupId) {
         EmptyBodyReqPacket p = new EmptyBodyReqPacket(Commands.RAFT_ADMIN_LIST_GROUPS);
         return sendByNodeId(groupId, createDefaultTimeout(), p, ctx -> ctx.toDecoderCallback(new AdminListGroupsResp()))
