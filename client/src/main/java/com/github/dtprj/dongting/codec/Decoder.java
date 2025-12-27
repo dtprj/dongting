@@ -37,20 +37,13 @@ public class Decoder {
         }
     }
 
-    private Object callEndAndReset(boolean success) {
+    private void callEndAndReset(boolean success) {
         if (endCalled) {
-            return null;
+            return;
         }
         endCalled = true;
         try {
-            if (success) {
-                Object o = callback.getResult();
-                callback.end(true);
-                return o;
-            } else {
-                callback.end(false);
-                return null;
-            }
+            callback.end(success);
         } finally {
             context.status = null;
             callback.context = null;
