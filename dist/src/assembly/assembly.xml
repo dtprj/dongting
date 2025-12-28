@@ -42,6 +42,11 @@
                 <exclude>**/*</exclude>
             </excludes>
         </fileSet>
+        <!-- copy docs directory -->
+        <fileSet>
+            <directory>${project.basedir}/../docs</directory>
+            <outputDirectory>docs</outputDirectory>
+        </fileSet>
     </fileSets>
 
     <dependencySets>
