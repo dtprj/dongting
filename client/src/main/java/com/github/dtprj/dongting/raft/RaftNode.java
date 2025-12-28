@@ -156,7 +156,7 @@ public class RaftNode implements Encodable, Comparable<RaftNode> {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == IDX_NODE_ID) {
+            if (index == IDX_HOST) {
                 host = parseUTF8(buf, fieldLen, currentPos);
             }
             return true;
