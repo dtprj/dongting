@@ -56,6 +56,16 @@ public class DtAdmin {
             } finally {
                 client.stop(new DtTime(5, TimeUnit.SECONDS));
             }
+        } catch (IllegalArgumentException e) {
+            // parameter error - show subcommand usage if subcommand is known
+            System.err.println("Error: " + e.getMessage());
+            System.err.println();
+            if (subCommand != null) {
+                printSubcommandUsage(subCommand);
+            } else {
+                printGeneralUsage();
+            }
+            System.exit(ERR_COMMAND_LINE_ERROR);
         } catch (Throwable e) {
             System.err.println("Error: " + e.getMessage());
             //noinspection CallToPrintStackTrace
@@ -66,8 +76,8 @@ public class DtAdmin {
 
     private static void parseArgs(String[] args) {
         if (args.length == 0) {
-            printUsage();
-            System.exit(ERR_COMMAND_LINE_ERROR);
+            printGeneralUsage();
+            System.exit(0);
         }
 
         // parse -s option
@@ -88,7 +98,7 @@ public class DtAdmin {
             serversFile = System.getenv("defaultDtServerProperties");
             if (serversFile == null || serversFile.trim().isEmpty()) {
                 System.err.println("Error: -s option is required or set defaultDtServerProperties environment variable");
-                printUsage();
+                printGeneralUsage();
                 System.exit(ERR_COMMAND_LINE_ERROR);
             }
         }
@@ -116,11 +126,15 @@ public class DtAdmin {
                 for (int j = i + 1; j < args.length; j++) {
                     if (args[j].startsWith("--")) {
                         String key = args[j].substring(2);
-                        if (j + 1 < args.length && !args[j + 1].startsWith("--")) {
+                        // check for --help or -h
+                        if ("help".equals(key) || "h".equals(key)) {
+                            params.put("help", "true");
+                        } else if (j + 1 < args.length && !args[j + 1].startsWith("--")) {
                             params.put(key, args[j + 1]);
                             j++;
                         } else {
                             System.err.println("Error: option " + args[j] + " requires a value");
+                            printSubcommandUsage(subCommand);
                             System.exit(ERR_COMMAND_LINE_ERROR);
                         }
                     }
@@ -130,9 +144,8 @@ public class DtAdmin {
         }
 
         if (subCommand == null) {
-            System.err.println("Error: subcommand is required");
-            printUsage();
-            System.exit(ERR_COMMAND_LINE_ERROR);
+            printGeneralUsage();
+            System.exit(0);
         }
     }
 
@@ -195,6 +208,12 @@ public class DtAdmin {
     }
 
     private static void executeCommand(AdminRaftClient client) throws Exception {
+        // check if user requested help for this subcommand
+        if ("true".equals(params.get("help"))) {
+            printSubcommandUsage(subCommand);
+            System.exit(0);
+        }
+
         switch (subCommand) {
             case "transfer-leader":
                 executeTransferLeader(client);
@@ -231,7 +250,7 @@ public class DtAdmin {
                 break;
             default:
                 System.err.println("Error: Unknown subcommand: " + subCommand);
-                printUsage();
+                printGeneralUsage();
                 System.exit(ERR_COMMAND_LINE_ERROR);
         }
     }
@@ -473,73 +492,234 @@ public class DtAdmin {
         return ERR_COMMAND_EXEC_FAIL;
     }
 
-    private static void printUsage() {
+    private static void printGeneralUsage() {
         System.out.println("Usage: dongting-admin.sh -s <servers.properties> <subcommand> [options]");
+        System.out.println("       dongting-admin.sh <subcommand> --help");
         System.out.println();
         System.out.println("Global Options:");
-        System.out.println("  -s <file>          Path to servers.properties file (optional, dongting-admin script use conf/server.properties by default)");
+        System.out.println("  -s <file>          Path to servers.properties file (optional, use conf/server.properties by default)");
         System.out.println();
         System.out.println("Subcommands:");
-        System.out.println();
         System.out.println("  list-nodes         List all node definitions on specified node");
-        System.out.println("    --node-id <id>          Target node ID (required)");
-        System.out.println();
         System.out.println("  list-groups        List all raft group IDs on specified node");
-        System.out.println("    --node-id <id>          Target node ID (required)");
-        System.out.println();
         System.out.println("  query-status       Query raft server status for specified group");
-        System.out.println("    --node-id <id>          Target node ID (required)");
-        System.out.println("    --group-id <id>         Raft group ID (required)");
-        System.out.println("    --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
-        System.out.println();
         System.out.println("  transfer-leader    Transfer raft group leader");
-        System.out.println("    --group-id <id>         Raft group ID (required)");
-        System.out.println("    --old-leader <id>       Current leader node ID (required)");
-        System.out.println("    --new-leader <id>       New leader node ID (required)");
-        System.out.println("    --timeout <seconds>     Timeout in seconds (default: 30)");
-        System.out.println();
         System.out.println("  prepare-config-change    Prepare configuration change");
-        System.out.println("    --group-id <id>           Raft group ID (required)");
-        System.out.println("    --old-members <ids>       Current member node IDs, comma-separated (required)");
-        System.out.println("    --old-observers <ids>     Current observer node IDs, comma-separated (optional)");
-        System.out.println("    --new-members <ids>       New member node IDs, comma-separated (required)");
-        System.out.println("    --new-observers <ids>     New observer node IDs, comma-separated (optional)");
-        System.out.println("    --timeout <seconds>       Timeout in seconds (default: from createDefaultTimeout())");
-        System.out.println();
         System.out.println("  commit-change      Commit prepared configuration change");
-        System.out.println("    --group-id <id>         Raft group ID (required)");
-        System.out.println("    --prepare-index <idx>   Prepare index from prepare-config-change (required)");
-        System.out.println("    --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
-        System.out.println();
         System.out.println("  abort-change       Abort prepared configuration change");
-        System.out.println("    --group-id <id>         Raft group ID (required)");
-        System.out.println("    --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
-        System.out.println();
         System.out.println("  add-group          Add and start a raft group on specified node");
-        System.out.println("    --node-id <id>          Target node ID (required)");
-        System.out.println("    --group-id <id>         Raft group ID (required)");
-        System.out.println("    --members <ids>         Member node IDs, comma-separated (required)");
-        System.out.println("    --observers <ids>       Observer node IDs, comma-separated (optional)");
-        System.out.println("    --timeout <seconds>     Timeout in seconds (default: 30)");
-        System.out.println();
         System.out.println("  remove-group       Remove and stop a raft group on specified node");
-        System.out.println("    --node-id <id>          Target node ID (required)");
-        System.out.println("    --group-id <id>         Raft group ID (required)");
-        System.out.println("    --timeout <seconds>     Timeout in seconds (default: 30)");
-        System.out.println();
         System.out.println("  add-node           Add node definition on specified node");
-        System.out.println("    --node-id <id>          Node ID to invoke (required)");
-        System.out.println("    --add-node-id <id>      Node ID to add (required)");
-        System.out.println("    --host <host>           Host address (required)");
-        System.out.println("    --port <port>           Port number (required)");
-        System.out.println();
         System.out.println("  remove-node        Remove node definition on specified node");
-        System.out.println("    --node-id <id>          Node ID to invoke (required)");
-        System.out.println("    --remove-node-id <id>   Node ID to remove (required)");
         System.out.println();
-        System.out.println("Examples:");
-        System.out.println("  dongting-admin.sh -s conf/servers.properties transfer-leader --group-id 0 --old-leader 1 --new-leader 2");
-        System.out.println("  dongting-admin.sh -s conf/servers.properties query-status --node-id 1 --group-id 0");
-        System.out.println("  dongting-admin.sh -s conf/servers.properties list-groups --node-id 1");
+        System.out.println("Use \"dongting-admin.sh <subcommand> --help\" for more information about a subcommand.");
+    }
+
+    private static void printSubcommandUsage(String cmd) {
+        switch (cmd) {
+            case "list-nodes":
+                System.out.println("Usage: dongting-admin.sh list-nodes [options]");
+                System.out.println();
+                System.out.println("List all node definitions on specified node.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --node-id <id>          Target node ID");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh -s conf/servers.properties list-nodes --node-id 1");
+                System.out.println("  dongting-admin.sh list-nodes --node-id 1");
+                break;
+            case "list-groups":
+                System.out.println("Usage: dongting-admin.sh list-groups [options]");
+                System.out.println();
+                System.out.println("List all raft group IDs on specified node.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --node-id <id>          Target node ID");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh -s conf/servers.properties list-groups --node-id 1");
+                System.out.println("  dongting-admin.sh list-groups --node-id 1");
+                break;
+            case "query-status":
+                System.out.println("Usage: dongting-admin.sh query-status [options]");
+                System.out.println();
+                System.out.println("Query raft server status for specified group.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --node-id <id>          Target node ID");
+                System.out.println("  --group-id <id>         Raft group ID");
+                System.out.println();
+                System.out.println("Optional Options:");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh -s conf/servers.properties query-status --node-id 1 --group-id 0");
+                System.out.println("  dongting-admin.sh query-status --node-id 1 --group-id 0 --timeout 60");
+                break;
+            case "transfer-leader":
+                System.out.println("Usage: dongting-admin.sh transfer-leader [options]");
+                System.out.println();
+                System.out.println("Transfer raft group leader from current leader to a new leader node.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --group-id <id>         Raft group ID");
+                System.out.println("  --old-leader <id>       Current leader node ID");
+                System.out.println("  --new-leader <id>       New leader node ID");
+                System.out.println();
+                System.out.println("Optional Options:");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: 30)");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh -s conf/servers.properties transfer-leader --group-id 0 --old-leader 1 --new-leader 2");
+                System.out.println("  dongting-admin.sh transfer-leader --group-id 0 --old-leader 1 --new-leader 2 --timeout 60");
+                break;
+            case "prepare-config-change":
+                System.out.println("Usage: dongting-admin.sh prepare-config-change [options]");
+                System.out.println();
+                System.out.println("Prepare configuration change for a raft group.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --group-id <id>         Raft group ID");
+                System.out.println("  --old-members <ids>     Current member node IDs, comma-separated");
+                System.out.println("  --new-members <ids>     New member node IDs, comma-separated");
+                System.out.println();
+                System.out.println("Optional Options:");
+                System.out.println("  --old-observers <ids>   Current observer node IDs, comma-separated");
+                System.out.println("  --new-observers <ids>   New observer node IDs, comma-separated");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh prepare-config-change --group-id 0 --old-members 1,2,3 --new-members 2,3,4");
+                System.out.println("  dongting-admin.sh prepare-config-change --group-id 0 --old-members 1,2,3 --old-observers 4 --new-members 2,3,4 --new-observers 5");
+                break;
+            case "commit-change":
+                System.out.println("Usage: dongting-admin.sh commit-change [options]");
+                System.out.println();
+                System.out.println("Commit prepared configuration change.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --group-id <id>         Raft group ID");
+                System.out.println("  --prepare-index <idx>   Prepare index from prepare-config-change");
+                System.out.println();
+                System.out.println("Optional Options:");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh commit-change --group-id 0 --prepare-index 12345");
+                System.out.println("  dongting-admin.sh commit-change --group-id 0 --prepare-index 12345 --timeout 60");
+                break;
+            case "abort-change":
+                System.out.println("Usage: dongting-admin.sh abort-change [options]");
+                System.out.println();
+                System.out.println("Abort prepared configuration change.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --group-id <id>         Raft group ID");
+                System.out.println();
+                System.out.println("Optional Options:");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh abort-change --group-id 0");
+                System.out.println("  dongting-admin.sh abort-change --group-id 0 --timeout 60");
+                break;
+            case "add-group":
+                System.out.println("Usage: dongting-admin.sh add-group [options]");
+                System.out.println();
+                System.out.println("Add and start a raft group on specified node. This operation should be invoked on all nodes that will host the group.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --node-id <id>          Target node ID");
+                System.out.println("  --group-id <id>         Raft group ID");
+                System.out.println("  --members <ids>         Member node IDs, comma-separated");
+                System.out.println();
+                System.out.println("Optional Options:");
+                System.out.println("  --observers <ids>       Observer node IDs, comma-separated");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: 30)");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh add-group --node-id 1 --group-id 0 --members 1,2,3");
+                System.out.println("  dongting-admin.sh add-group --node-id 1 --group-id 0 --members 1,2,3 --observers 4,5");
+                break;
+            case "remove-group":
+                System.out.println("Usage: dongting-admin.sh remove-group [options]");
+                System.out.println();
+                System.out.println("Remove and stop a raft group on specified node. This operation should be invoked on all nodes that host the group.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --node-id <id>          Target node ID");
+                System.out.println("  --group-id <id>         Raft group ID");
+                System.out.println();
+                System.out.println("Optional Options:");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: 30)");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh remove-group --node-id 1 --group-id 0");
+                System.out.println("  dongting-admin.sh remove-group --node-id 1 --group-id 0 --timeout 60");
+                break;
+            case "add-node":
+                System.out.println("Usage: dongting-admin.sh add-node [options]");
+                System.out.println();
+                System.out.println("Add node definition on specified node. Generally this operation should be invoked on all nodes.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --node-id <id>          Node ID to invoke");
+                System.out.println("  --add-node-id <id>      Node ID to add");
+                System.out.println("  --host <host>           Host address");
+                System.out.println("  --port <port>           Port number");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh add-node --node-id 1 --add-node-id 4 --host 192.168.1.4 --port 3001");
+                break;
+            case "remove-node":
+                System.out.println("Usage: dongting-admin.sh remove-node [options]");
+                System.out.println();
+                System.out.println("Remove node definition on specified node. Generally this operation should be invoked on all nodes.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --node-id <id>          Node ID to invoke");
+                System.out.println("  --remove-node-id <id>   Node ID to remove");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh remove-node --node-id 1 --remove-node-id 4");
+                break;
+            default:
+                System.err.println("Error: Unknown subcommand: " + cmd);
+                printGeneralUsage();
+        }
     }
 }
