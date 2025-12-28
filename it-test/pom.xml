@@ -32,7 +32,7 @@
     <dependencies>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>dongting-ops</artifactId>
+            <artifactId>dongting-dist</artifactId>
             <version>0.8.4-SNAPSHOT</version>
         </dependency>
         <dependency>

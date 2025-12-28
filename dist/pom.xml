@@ -23,7 +23,7 @@
         <groupId>com.github.dtprj.dongting</groupId>
         <version>0.8.4-SNAPSHOT</version>
     </parent>
-    <artifactId>dongting-ops</artifactId>
+    <artifactId>dongting-dist</artifactId>
     <dependencies>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>

@@ -14,6 +14,6 @@
  * under the License.
  */
 
-module dongting.ops {
+module dongting.dist {
     requires transitive dongting.server;
 }

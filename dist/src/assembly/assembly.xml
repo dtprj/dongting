@@ -55,7 +55,7 @@
                 <include>ch.qos.logback:logback-core</include>
                 <include>com.github.dtprj.dongting:dongting-client</include>
                 <include>com.github.dtprj.dongting:dongting-server</include>
-                <include>com.github.dtprj.dongting:dongting-ops</include>
+                <include>com.github.dtprj.dongting:dongting-dist</include>
             </includes>
         </dependencySet>
     </dependencySets>

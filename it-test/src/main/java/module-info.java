@@ -15,5 +15,5 @@
  */
 
 module dongting.it.test {
-    requires dongting.ops;
+    requires dongting.dist;
 }
