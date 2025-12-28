@@ -84,20 +84,33 @@ public class DtAdmin {
         }
 
         if (serversFile == null) {
-            System.err.println("Error: -s option is required");
-            printUsage();
-            System.exit(ERR_COMMAND_LINE_ERROR);
+            // try to get from environment variable
+            serversFile = System.getenv("defaultDtServerProperties");
+            if (serversFile == null || serversFile.trim().isEmpty()) {
+                System.err.println("Error: -s option is required or set defaultDtServerProperties environment variable");
+                printUsage();
+                System.exit(ERR_COMMAND_LINE_ERROR);
+            }
         }
 
         // find subcommand
-        boolean foundS = false;
+        // check if -s was provided in command line
+        boolean hasS = false;
+        for (String arg : args) {
+            if ("-s".equals(arg)) {
+                hasS = true;
+                break;
+            }
+        }
+
+        boolean passedS = !hasS; // if no -s in args, we can start looking for subcommand immediately
         for (int i = 0; i < args.length; i++) {
             if ("-s".equals(args[i])) {
-                foundS = true;
                 i++; // skip file path
+                passedS = true;
                 continue;
             }
-            if (foundS && !args[i].startsWith("--")) {
+            if (passedS && !args[i].startsWith("--") && !args[i].startsWith("-")) {
                 subCommand = args[i];
                 // parse remaining options
                 for (int j = i + 1; j < args.length; j++) {
@@ -464,7 +477,7 @@ public class DtAdmin {
         System.out.println("Usage: dongting-admin.sh -s <servers.properties> <subcommand> [options]");
         System.out.println();
         System.out.println("Global Options:");
-        System.out.println("  -s <file>          Path to servers.properties file (required)");
+        System.out.println("  -s <file>          Path to servers.properties file (optional, dongting-admin script use conf/server.properties by default)");
         System.out.println();
         System.out.println("Subcommands:");
         System.out.println();
