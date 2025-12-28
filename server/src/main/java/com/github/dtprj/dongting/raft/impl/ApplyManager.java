@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -280,15 +281,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         raftStatus.setLastApplied(index);
         raftStatus.lastAppliedTerm = rt.item.getTerm();
 
-        long[] a = raftStatus.commitHistory.getFirst();
-        if (a != null && index >= a[0]) {
-            if (index == a[0]) {
-                raftStatus.applyLagNanos = ts.nanoTime - a[1];
-            }
-            if (raftStatus.commitHistory.size() > 1) {
-                raftStatus.commitHistory.removeFirst();
-            }
-        }
+        updateApplyLagNanos(index, raftStatus);
 
         boolean fireInitFuture = false;
         if (!raftStatus.isInitFinished() && index >= initCommitIndex) {
@@ -327,6 +320,20 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             applyFinishCond.signal();
         }
         tryApplyHeartBeat(index);
+    }
+
+    private void updateApplyLagNanos(long index, RaftStatusImpl raftStatus) {
+        IndexedQueue<long[]> his = raftStatus.commitHistory;
+        long[] a = his.getFirst();
+        if (a != null && index >= a[0]) {
+            if (index == a[0]) {
+                raftStatus.applyLagNanos = ts.nanoTime - a[1];
+            }
+            while (index >= a[0] && his.size() > 1) {
+                his.removeFirst();
+                a = his.getFirst();
+            }
+        }
     }
 
     private void tryApplyHeartBeat(long appliedIndex) {
