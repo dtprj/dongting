@@ -63,7 +63,6 @@
         <module>report</module>
         <module>benchmark</module>
         <module>demos</module>
-        <module>dist</module>
     </modules>
 
     <dependencyManagement>

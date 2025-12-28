@@ -47,7 +47,7 @@
     <dependencySets>
         <dependencySet>
             <outputDirectory>lib</outputDirectory>
-            <useProjectArtifact>false</useProjectArtifact>
+            <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveDependencies>true</useTransitiveDependencies>
             <includes>
                 <include>org.slf4j:slf4j-api</include>
