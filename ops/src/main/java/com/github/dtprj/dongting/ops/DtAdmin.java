@@ -56,7 +56,7 @@ public class DtAdmin {
             } finally {
                 client.stop(new DtTime(5, TimeUnit.SECONDS));
             }
-        } catch (IllegalArgumentException e) {
+        } catch (UsageEx e) {
             // parameter error - show subcommand usage if subcommand is known
             System.err.println("Error: " + e.getMessage());
             System.err.println();
@@ -393,7 +393,7 @@ public class DtAdmin {
     private static String getRequiredParam(String name) {
         String value = params.get(name);
         if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException("Missing required parameter --" + name);
+            throw new UsageEx("Missing required parameter --" + name);
         }
         return value;
     }
@@ -408,7 +408,7 @@ public class DtAdmin {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid integer value for --" + name + ": " + value);
+            throw new UsageEx("Invalid integer value for --" + name + ": " + value);
         }
     }
 
@@ -417,7 +417,7 @@ public class DtAdmin {
         try {
             return Long.parseLong(value);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid long value for --" + name + ": " + value);
+            throw new UsageEx("Invalid long value for --" + name + ": " + value);
         }
     }
 
@@ -441,7 +441,7 @@ public class DtAdmin {
             try {
                 seconds = Integer.parseInt(value);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid timeout value: " + value);
+                throw new UsageEx("Invalid timeout value: " + value);
             }
         }
         return new DtTime(seconds, TimeUnit.SECONDS);
@@ -454,7 +454,7 @@ public class DtAdmin {
                 int seconds = Integer.parseInt(value);
                 return new DtTime(seconds, TimeUnit.SECONDS);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid timeout value: " + value);
+                throw new UsageEx("Invalid timeout value: " + value);
             }
         }
         return client.createDefaultTimeout();
@@ -479,9 +479,6 @@ public class DtAdmin {
     }
 
     private static int getExitCode(Throwable e) {
-        if (e instanceof IllegalArgumentException) {
-            return ERR_COMMAND_LINE_ERROR;
-        }
         String msg = e.getMessage();
         if (msg != null && msg.contains("load config file")) {
             return ERR_LOAD_CONFIG_FAIL;
