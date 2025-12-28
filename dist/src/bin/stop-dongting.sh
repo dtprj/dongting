@@ -60,9 +60,9 @@ verify_process() {
     return 1
   fi
 
-  # require dongting ops main marker and matching base/data dir
+  # require dongting dist main marker and matching base/data dir
   case "$cmdline" in
-    *"dongting.ops/com.github.dtprj.dongting.ops.Bootstrap"*) ;;
+    *"dongting.dist/com.github.dtprj.dongting.dist.Bootstrap"*) ;;
     *)
       echo "PID $pid command line does not look like a dongting server process: $cmdline" >&2
       return 1

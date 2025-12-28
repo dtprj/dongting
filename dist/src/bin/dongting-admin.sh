@@ -51,6 +51,6 @@ export defaultDtServerProperties="$CONF_DIR/servers.properties"
     --add-modules org.slf4j,ch.qos.logback.classic \
     --add-reads dongting.client=org.slf4j \
     --add-reads dongting.client=ch.qos.logback.classic \
-    -m dongting.ops/com.github.dtprj.dongting.ops.DtAdmin \
+    -m dongting.dist/com.github.dtprj.dongting.dist.DtAdmin \
     "$@"
 

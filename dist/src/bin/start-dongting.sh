@@ -79,7 +79,7 @@ nohup "$JAVA" $JAVA_OPTS \
     --add-modules org.slf4j,ch.qos.logback.classic \
     --add-reads dongting.client=org.slf4j \
     --add-reads dongting.client=ch.qos.logback.classic \
-    -m dongting.ops/com.github.dtprj.dongting.ops.Bootstrap \
+    -m dongting.dist/com.github.dtprj.dongting.dist.Bootstrap \
     -c "$CONF_DIR/config.properties" \
     -s "$CONF_DIR/servers.properties" \
     "$@" > "$LOG_DIR/start.log" 2>&1 &
@@ -98,7 +98,7 @@ if ! kill -0 "$NEW_PID" 2>/dev/null; then
 fi
 
 # Verify it's the expected Java process
-if ! ps -p "$NEW_PID" -o args= 2>/dev/null | grep -q "dongting.ops/com.github.dtprj.dongting.ops.Bootstrap"; then
+if ! ps -p "$NEW_PID" -o args= 2>/dev/null | grep -q "dongting.dist/com.github.dtprj.dongting.dist.Bootstrap"; then
   echo "Failed to start dongting: PID $NEW_PID is not a dongting process" >&2
   kill "$NEW_PID" 2>/dev/null || true
   exit 1
