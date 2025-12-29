@@ -66,6 +66,7 @@
                             </descriptors>
                             <finalName>dongting-dist</finalName>
                             <appendAssemblyId>false</appendAssemblyId>
+                            <outputDirectory>${project.basedir}/../target</outputDirectory>
                         </configuration>
                     </execution>
                 </executions>
