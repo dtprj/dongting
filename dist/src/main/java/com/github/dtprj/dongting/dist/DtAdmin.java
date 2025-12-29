@@ -330,7 +330,7 @@ public class DtAdmin {
         int groupId = getRequiredIntParam("group-id");
         String members = getRequiredParam("members");
         String observers = getOptionalParam("observers", "");
-        DtTime timeout = getTimeoutParam(30);
+        DtTime timeout = getTimeoutParamOrDefault(client);
 
         System.out.println("Executing server-add-group with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverAddGroup(nodeId, groupId, members, observers, timeout).get();
@@ -340,7 +340,7 @@ public class DtAdmin {
     private static void executeServerRemoveGroup(AdminRaftClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int groupId = getRequiredIntParam("group-id");
-        DtTime timeout = getTimeoutParam(30);
+        DtTime timeout = getTimeoutParamOrDefault(client);
 
         System.out.println("Executing server-remove-group with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverRemoveGroup(nodeId, groupId, timeout).get();
@@ -554,7 +554,7 @@ public class DtAdmin {
                 System.out.println("  --group-id <id>         Raft group ID");
                 System.out.println();
                 System.out.println("Optional Options:");
-                System.out.println("  --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
+                System.out.println("  --timeout <seconds>     Timeout in seconds");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
@@ -596,7 +596,7 @@ public class DtAdmin {
                 System.out.println("Optional Options:");
                 System.out.println("  --old-observers <ids>   Current observer node IDs, comma-separated");
                 System.out.println("  --new-observers <ids>   New observer node IDs, comma-separated");
-                System.out.println("  --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
+                System.out.println("  --timeout <seconds>     Timeout in seconds");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
@@ -615,7 +615,7 @@ public class DtAdmin {
                 System.out.println("  --prepare-index <idx>   Prepare index from prepare-config-change");
                 System.out.println();
                 System.out.println("Optional Options:");
-                System.out.println("  --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
+                System.out.println("  --timeout <seconds>     Timeout in seconds");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
@@ -633,7 +633,7 @@ public class DtAdmin {
                 System.out.println("  --group-id <id>         Raft group ID");
                 System.out.println();
                 System.out.println("Optional Options:");
-                System.out.println("  --timeout <seconds>     Timeout in seconds (default: from createDefaultTimeout())");
+                System.out.println("  --timeout <seconds>     Timeout in seconds");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
@@ -654,7 +654,7 @@ public class DtAdmin {
                 System.out.println();
                 System.out.println("Optional Options:");
                 System.out.println("  --observers <ids>       Observer node IDs, comma-separated");
-                System.out.println("  --timeout <seconds>     Timeout in seconds (default: 30)");
+                System.out.println("  --timeout <seconds>     Timeout in seconds");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
@@ -673,7 +673,7 @@ public class DtAdmin {
                 System.out.println("  --group-id <id>         Raft group ID");
                 System.out.println();
                 System.out.println("Optional Options:");
-                System.out.println("  --timeout <seconds>     Timeout in seconds (default: 30)");
+                System.out.println("  --timeout <seconds>     Timeout in seconds");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
