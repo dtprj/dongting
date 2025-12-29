@@ -33,6 +33,8 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
+import com.github.dtprj.dongting.raft.NoSuchGroupException;
+import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
@@ -474,8 +476,10 @@ public class RaftServer extends AbstractLifeCircle {
     protected void doStop(DtTime timeout, boolean force) {
         try {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-            raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout,
-                    g.groupComponents.groupConfig.saveSnapshotWhenClose)));
+            raftGroups.forEach((groupId, g) -> {
+                stopGroup(g, timeout, g.groupComponents.groupConfig.saveSnapshotWhenClose);
+                futures.add(g.fiberGroup.shutdownFuture);
+            });
 
             try {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
@@ -497,7 +501,7 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private CompletableFuture<Void> stopGroup(RaftGroupImpl g, DtTime timeout, boolean saveSnapshot) {
+    private void stopGroup(RaftGroupImpl g, DtTime timeout, boolean saveSnapshot) {
         FiberGroup fiberGroup = g.fiberGroup;
         GroupComponents gc = g.groupComponents;
         fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
@@ -539,7 +543,6 @@ public class RaftServer extends AbstractLifeCircle {
         // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
         raftFactory.stopDispatcher(fiberGroup.dispatcher, timeout);
 
-        return fiberGroup.shutdownFuture;
     }
 
     /**
@@ -561,7 +564,10 @@ public class RaftServer extends AbstractLifeCircle {
     /**
      * ADMIN API. This method is NOT idempotent.
      * <p>
-     * After get the CompletableFuture, user should wait on the future to ensure raft group is initialized.
+     * The return future complete when the group is added, but the group may not be ready,
+     * you should check the group status to make sure it's ready.
+     *
+     * @see #queryRaftGroupStatus(int)
      */
     public CompletableFuture<Void> addGroup(RaftGroupConfig groupConfig) {
         CompletableFuture<Void> f = new CompletableFuture<>();
@@ -598,11 +604,12 @@ public class RaftServer extends AbstractLifeCircle {
                 } else {
                     initRaftGroup(g);
                     RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
+                    f.complete(null);
                     raftStatus.initFuture.whenComplete((vv, initEx) -> {
                         if (initEx != null) {
-                            f.completeExceptionally(initEx);
+                            log.error("add group init fail", initEx);
                         } else {
-                            f.complete(null);
+                            log.info("add group init success. groupId={}", groupConfig.groupId);
                             startMemberPing(g);
                         }
                     });
@@ -616,6 +623,10 @@ public class RaftServer extends AbstractLifeCircle {
 
     /**
      * ADMIN API. This method is idempotent.
+     * The return future complete when the group is removed, but the group may not be stopped,
+     * you should check the group status to make sure it's stopped.
+     *
+     * @see #queryRaftGroupStatus(int)
      */
     public CompletableFuture<Void> removeGroup(int groupId, boolean saveSnapshot, DtTime shutdownTimeout) {
         RaftGroupImpl g = raftGroups.get(groupId);
@@ -626,8 +637,21 @@ public class RaftServer extends AbstractLifeCircle {
             if (status != STATUS_RUNNING) {
                 return CompletableFuture.failedFuture(new RaftException("raft server is not running"));
             } else {
-                return stopGroup(g, shutdownTimeout, saveSnapshot).thenRun(() -> {
-                    if (raftGroups.remove(groupId) != null) {
+                if (g.groupComponents.raftStatus.getShareStatus().shouldStop) {
+                    log.warn("group {} is stopping", groupId);
+                    return CompletableFuture.completedFuture(null);
+                }
+                stopGroup(g, shutdownTimeout, saveSnapshot);
+                g.fiberGroup.shutdownFuture.thenRun(() -> {
+                    boolean[] removed = new boolean[1];
+                    raftGroups.compute(groupId, (k, oldGroupInMap) -> {
+                        if (oldGroupInMap == g) {
+                            removed[0] = true;
+                            return null;
+                        }
+                        return oldGroupInMap;
+                    });
+                    if (removed[0]) {
                         nodeManager.getLock().lock();
                         try {
                             nodeManager.processUseCountForGroupInLock(g, false);
@@ -636,6 +660,7 @@ public class RaftServer extends AbstractLifeCircle {
                         }
                     }
                 });
+                return CompletableFuture.completedFuture(null);
             }
         }
     }
@@ -659,4 +684,26 @@ public class RaftServer extends AbstractLifeCircle {
     public int[] getAllGroupIds() {
         return raftGroups.keySet().stream().mapToInt(Integer::intValue).toArray();
     }
+
+    public CompletableFuture<QueryStatusResp> queryRaftGroupStatus(int groupId) {
+        RaftGroupImpl g = raftGroups.get(groupId);
+        if (g == null) {
+            return CompletableFuture.failedFuture(new NoSuchGroupException(groupId));
+        } else {
+            CompletableFuture<QueryStatusResp> f = new CompletableFuture<>();
+            if (!g.fiberGroup.fireFiber("queryStatus", new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    QueryStatusResp r = QueryStatusProcessor.buildQueryStatusResp(
+                            serverConfig.nodeId, g.groupComponents.raftStatus);
+                    f.complete(r);
+                    return Fiber.frameReturn();
+                }
+            })) {
+                f.completeExceptionally(new NoSuchGroupException(groupId));
+            }
+            return f;
+        }
+    }
+
 }
