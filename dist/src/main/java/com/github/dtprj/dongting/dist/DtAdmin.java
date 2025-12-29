@@ -42,11 +42,15 @@ public class DtAdmin {
 
     private static final String GROUP_PREFIX = "group.";
 
-    private static String serversFile;
-    private static String subCommand;
-    private static final Map<String, String> params = new HashMap<>();
+    private String serversFile;
+    private String subCommand;
+    private final Map<String, String> params = new HashMap<>();
 
     public static void main(String[] args) {
+        new DtAdmin().run(args);
+    }
+
+    private void run(String[] args) {
         try {
             parseArgs(args);
             Properties props = loadProperties(serversFile);
@@ -74,7 +78,7 @@ public class DtAdmin {
         }
     }
 
-    private static void parseArgs(String[] args) {
+    private void parseArgs(String[] args) {
         if (args.length == 0) {
             printGeneralUsage();
             System.exit(0);
@@ -149,7 +153,7 @@ public class DtAdmin {
         }
     }
 
-    private static Properties loadProperties(String file) {
+    private Properties loadProperties(String file) {
         try (FileInputStream fis = new FileInputStream(file)) {
             Properties props = new Properties();
             props.load(fis);
@@ -159,7 +163,7 @@ public class DtAdmin {
         }
     }
 
-    private static AdminRaftClient initClient(Properties props) {
+    private AdminRaftClient initClient(Properties props) {
         try {
             String servers = props.getProperty("servers");
             if (servers == null || servers.trim().isEmpty()) {
@@ -207,7 +211,7 @@ public class DtAdmin {
         }
     }
 
-    private static void executeCommand(AdminRaftClient client) throws Exception {
+    private void executeCommand(AdminRaftClient client) throws Exception {
         // check if user requested help for this subcommand
         if ("true".equals(params.get("help"))) {
             printSubcommandUsage(subCommand);
@@ -255,7 +259,7 @@ public class DtAdmin {
         }
     }
 
-    private static void executeTransferLeader(AdminRaftClient client) throws Exception {
+    private void executeTransferLeader(AdminRaftClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         int oldLeader = getRequiredIntParam("old-leader");
         int newLeader = getRequiredIntParam("new-leader");
@@ -266,7 +270,7 @@ public class DtAdmin {
         System.out.println("Transfer leader completed successfully");
     }
 
-    private static void executePrepareConfigChange(AdminRaftClient client) throws Exception {
+    private void executePrepareConfigChange(AdminRaftClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         Set<Integer> oldMembers = getRequiredIntSetParam("old-members");
         Set<Integer> oldObservers = getOptionalIntSetParam("old-observers");
@@ -280,7 +284,7 @@ public class DtAdmin {
         System.out.println("Prepare index: " + prepareIndex);
     }
 
-    private static void executeCommitChange(AdminRaftClient client) throws Exception {
+    private void executeCommitChange(AdminRaftClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         long prepareIndex = getRequiredLongParam("prepare-index");
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -290,7 +294,7 @@ public class DtAdmin {
         System.out.println("Commit index: " + commitIndex);
     }
 
-    private static void executeAbortChange(AdminRaftClient client) throws Exception {
+    private void executeAbortChange(AdminRaftClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         DtTime timeout = getTimeoutParamOrDefault(client);
 
@@ -299,7 +303,7 @@ public class DtAdmin {
         System.out.println("Abort index: " + index);
     }
 
-    private static void executeQueryStatus(AdminRaftClient client) throws Exception {
+    private void executeQueryStatus(AdminRaftClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int groupId = getRequiredIntParam("group-id");
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -325,7 +329,7 @@ public class DtAdmin {
         }
     }
 
-    private static void executeServerAddGroup(AdminRaftClient client) throws Exception {
+    private void executeServerAddGroup(AdminRaftClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int groupId = getRequiredIntParam("group-id");
         String members = getRequiredParam("members");
@@ -337,7 +341,7 @@ public class DtAdmin {
         System.out.println("Add group completed successfully");
     }
 
-    private static void executeServerRemoveGroup(AdminRaftClient client) throws Exception {
+    private void executeServerRemoveGroup(AdminRaftClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int groupId = getRequiredIntParam("group-id");
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -347,7 +351,7 @@ public class DtAdmin {
         System.out.println("Remove group completed successfully");
     }
 
-    private static void executeServerAddNode(AdminRaftClient client) throws Exception {
+    private void executeServerAddNode(AdminRaftClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int addNodeId = getRequiredIntParam("add-node-id");
         String host = getRequiredParam("host");
@@ -359,7 +363,7 @@ public class DtAdmin {
         System.out.println("Add node completed successfully");
     }
 
-    private static void executeServerRemoveNode(AdminRaftClient client) throws Exception {
+    private void executeServerRemoveNode(AdminRaftClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int removeNodeId = getRequiredIntParam("remove-node-id");
 
@@ -369,7 +373,7 @@ public class DtAdmin {
         System.out.println("Remove node completed successfully");
     }
 
-    private static void executeServerListNodes(AdminRaftClient client) throws Exception {
+    private void executeServerListNodes(AdminRaftClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
 
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -381,7 +385,7 @@ public class DtAdmin {
         }
     }
 
-    private static void executeServerListGroups(AdminRaftClient client) throws Exception {
+    private void executeServerListGroups(AdminRaftClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
 
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -390,7 +394,7 @@ public class DtAdmin {
         System.out.println("Group IDs: " + Arrays.toString(groupIds));
     }
 
-    private static String getRequiredParam(String name) {
+    private String getRequiredParam(String name) {
         String value = params.get(name);
         if (value == null || value.trim().isEmpty()) {
             throw new UsageEx("Missing required parameter --" + name);
@@ -398,12 +402,12 @@ public class DtAdmin {
         return value;
     }
 
-    private static String getOptionalParam(String name, String defaultValue) {
+    private String getOptionalParam(String name, String defaultValue) {
         String value = params.get(name);
         return value != null && !value.trim().isEmpty() ? value : defaultValue;
     }
 
-    private static int getRequiredIntParam(String name) {
+    private int getRequiredIntParam(String name) {
         String value = getRequiredParam(name);
         try {
             return Integer.parseInt(value);
@@ -412,7 +416,7 @@ public class DtAdmin {
         }
     }
 
-    private static long getRequiredLongParam(String name) {
+    private long getRequiredLongParam(String name) {
         String value = getRequiredParam(name);
         try {
             return Long.parseLong(value);
@@ -421,12 +425,12 @@ public class DtAdmin {
         }
     }
 
-    private static Set<Integer> getRequiredIntSetParam(String name) {
+    private Set<Integer> getRequiredIntSetParam(String name) {
         String value = getRequiredParam(name);
         return parseIntSet(value);
     }
 
-    private static Set<Integer> getOptionalIntSetParam(String name) {
+    private Set<Integer> getOptionalIntSetParam(String name) {
         String value = params.get(name);
         if (value == null || value.trim().isEmpty()) {
             return new HashSet<>();
@@ -434,7 +438,7 @@ public class DtAdmin {
         return parseIntSet(value);
     }
 
-    private static DtTime getTimeoutParam(int defaultSeconds) {
+    private DtTime getTimeoutParam(int defaultSeconds) {
         String value = params.get("timeout");
         int seconds = defaultSeconds;
         if (value != null && !value.trim().isEmpty()) {
@@ -447,7 +451,7 @@ public class DtAdmin {
         return new DtTime(seconds, TimeUnit.SECONDS);
     }
 
-    private static DtTime getTimeoutParamOrDefault(AdminRaftClient client) {
+    private DtTime getTimeoutParamOrDefault(AdminRaftClient client) {
         String value = params.get("timeout");
         if (value != null && !value.trim().isEmpty()) {
             try {
