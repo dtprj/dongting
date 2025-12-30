@@ -51,6 +51,10 @@ public class Bootstrap {
     private static final String GROUP_PREFIX = "group.";
 
     public static void main(String[] args) {
+        new Bootstrap().run(args);
+    }
+
+    public void run(String[] args) {
         Properties configProps = null;
         RaftServerConfig serverConfig = null;
         List<RaftGroupConfig> groupConfigs = null;
@@ -94,7 +98,7 @@ public class Bootstrap {
                     logDataDir = true;
                 }
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
-                String s = Bootstrap.ensureDir(groupConfig.dataDir);
+                String s = ensureDir(groupConfig.dataDir);
                 if (s != null) {
                     System.err.println(s);
                     System.exit(ERR_BAD_DATA_DIR);
@@ -115,7 +119,8 @@ public class Bootstrap {
         start(serverConfig, groupConfigs, configProps);
     }
 
-    private static void start(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfigs, Properties configProps) {
+
+    private void start(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfigs, Properties configProps) {
         RaftServer raftServer = new RaftServer(serverConfig, groupConfigs, new DefaultRaftFactory() {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
@@ -128,7 +133,7 @@ public class Bootstrap {
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
                 PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
-                String s = Bootstrap.ensureDir(groupConfig.dataDir);
+                String s = ensureDir(groupConfig.dataDir);
                 if (s != null) {
                     throw new RaftException(s);
                 }
@@ -146,7 +151,7 @@ public class Bootstrap {
         }
     }
 
-    private static String parseConfigFileFromCommandArgs(String[] args, String option) {
+    private String parseConfigFileFromCommandArgs(String[] args, String option) {
         for (int i = 0; i < args.length; i++) {
             if (option.equals(args[i])) {
                 if (i + 1 < args.length) {
@@ -163,7 +168,7 @@ public class Bootstrap {
         return null;
     }
 
-    private static Properties loadProperties(String configFile) {
+    private Properties loadProperties(String configFile) {
         Properties props = new Properties();
         try (FileInputStream fis = new FileInputStream(configFile)) {
             props.load(fis);
@@ -175,7 +180,7 @@ public class Bootstrap {
         }
     }
 
-    static String ensureDir(String dir) {
+    private String ensureDir(String dir) {
         try {
             File dirFile = new File(dir);
             if (!dirFile.exists()) {
@@ -202,7 +207,7 @@ public class Bootstrap {
         }
     }
 
-    private static int[] parseGroupIds(Properties props) {
+    private int[] parseGroupIds(Properties props) {
         HashSet<Integer> groupIds = new HashSet<>();
         for (String key : props.stringPropertyNames()) {
             if (key.startsWith(GROUP_PREFIX)) {
