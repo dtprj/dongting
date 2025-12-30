@@ -37,7 +37,6 @@ import java.util.Properties;
  * @author huangli
  */
 public class Bootstrap {
-
     public static final int ERR_COMMAND_LINE_ERROR = 101;
     public static final int ERR_LOAD_CONFIG_FAIL = 102;
     public static final int ERR_BAD_DATA_DIR = 103;
@@ -50,8 +49,18 @@ public class Bootstrap {
 
     private static final String GROUP_PREFIX = "group.";
 
+    private int exitCode;
+
     public static void main(String[] args) {
-        new Bootstrap().run(args);
+        Bootstrap bootstrap = new Bootstrap();
+        bootstrap.run(args);
+        System.exit(bootstrap.exitCode);
+    }
+
+    private void updateExitCode(int code) {
+        if (exitCode == 0) {
+            exitCode = code;
+        }
     }
 
     public void run(String[] args) {
@@ -76,7 +85,8 @@ public class Bootstrap {
             serverConfig.servers = serversProps.getProperty("servers");
             if (serverConfig.servers == null) {
                 System.err.println("servers property is required.");
-                System.exit(ERR_BAD_CONFIG);
+                updateExitCode(ERR_BAD_CONFIG);
+                return;
             }
             if (serverConfig.replicatePort == 0) {
                 serverConfig.replicatePort = DEFAULT_REPLICATE_PORT;
@@ -101,19 +111,22 @@ public class Bootstrap {
                 String s = ensureDir(groupConfig.dataDir);
                 if (s != null) {
                     System.err.println(s);
-                    System.exit(ERR_BAD_DATA_DIR);
+                    updateExitCode(ERR_BAD_DATA_DIR);
+                    return;
                 }
             }
             if (groupConfigs.isEmpty()) {
                 System.err.println("No group configs found.");
-                System.exit(Bootstrap.ERR_BAD_CONFIG);
+                updateExitCode(ERR_BAD_CONFIG);
+                return;
             }
 
         } catch (Throwable e) {
             System.err.println("Failed to start server: " + e);
             //noinspection CallToPrintStackTrace
             e.printStackTrace();
-            System.exit(ERR_BOOTSTRAP_FAIL);
+            updateExitCode(ERR_BOOTSTRAP_FAIL);
+            return;
         }
 
         start(serverConfig, groupConfigs, configProps);
@@ -147,7 +160,7 @@ public class Bootstrap {
             System.err.println("Failed to start server: " + e);
             //noinspection CallToPrintStackTrace
             e.printStackTrace();
-            System.exit(ERR_START_FAIL);
+            updateExitCode(ERR_START_FAIL);
         }
     }
 
@@ -157,15 +170,13 @@ public class Bootstrap {
                 if (i + 1 < args.length) {
                     return args[i + 1];
                 } else {
-                    System.err.println("Error: " + option + " option requires a config file path");
-                    System.exit(ERR_COMMAND_LINE_ERROR);
-                    return null;
+                    updateExitCode(ERR_COMMAND_LINE_ERROR);
+                    throw new IllegalArgumentException(option + " option requires a config file path");
                 }
             }
         }
-        System.err.println("Error: config file not specified. Use " + option + " <config-file>");
-        System.exit(ERR_COMMAND_LINE_ERROR);
-        return null;
+        updateExitCode(ERR_COMMAND_LINE_ERROR);
+        throw new IllegalArgumentException("config file not specified. Use " + option + " <config-file>");
     }
 
     private Properties loadProperties(String configFile) {
@@ -174,9 +185,8 @@ public class Bootstrap {
             props.load(fis);
             return props;
         } catch (Exception e) {
-            System.err.println("Error: failed to load config file " + configFile + ": " + e);
-            System.exit(ERR_LOAD_CONFIG_FAIL);
-            return null;
+            updateExitCode(ERR_LOAD_CONFIG_FAIL);
+            throw new RuntimeException("Failed to load config file " + configFile, e);
         }
     }
 
@@ -214,23 +224,24 @@ public class Bootstrap {
                 String rest = key.substring(GROUP_PREFIX.length());
                 int dotIndex = rest.indexOf('.');
                 if (dotIndex <= 0) {
-                    System.err.println("Invalid group config key: " + key);
-                    System.exit(ERR_BAD_CONFIG);
+                    updateExitCode(ERR_BAD_CONFIG);
+                    throw new IllegalArgumentException("Invalid group config key: " + key);
                 }
                 String idStr = rest.substring(0, dotIndex);
                 try {
                     groupIds.add(Integer.parseInt(idStr));
                 } catch (NumberFormatException e) {
-                    System.err.println("Invalid group id in key: " + key + ", group id must be a number");
-                    System.exit(ERR_BAD_CONFIG);
+                    updateExitCode(ERR_BAD_CONFIG);
+                    throw new IllegalArgumentException("Invalid group id in key: " + key
+                            + ", group id must be a number", e);
                 }
             }
         }
         for (int groupId : groupIds) {
             String nodeIdOfMembers = props.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
             if (nodeIdOfMembers == null || nodeIdOfMembers.isEmpty()) {
-                System.err.println("Missing nodeIdOfMembers for group " + groupId);
-                System.exit(ERR_BAD_CONFIG);
+                updateExitCode(ERR_BAD_CONFIG);
+                throw new IllegalArgumentException("Missing nodeIdOfMembers for group " + groupId);
             }
         }
         return groupIds.stream().sorted().mapToInt(Integer::intValue).toArray();
