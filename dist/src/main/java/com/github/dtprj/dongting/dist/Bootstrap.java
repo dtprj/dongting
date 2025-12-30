@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dist;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
@@ -32,6 +33,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author huangli
@@ -51,10 +56,21 @@ public class Bootstrap {
 
     private int exitCode;
 
+    private Properties configProps;
+    private RaftServerConfig serverConfig;
+    private List<RaftGroupConfig> groupConfigs;
+
+    private volatile ExecutorService ioExecutor;
+    private volatile RaftServer raftServer;
+
     public static void main(String[] args) {
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.run(args);
-        System.exit(bootstrap.exitCode);
+        if (bootstrap.exitCode != 0) {
+            System.exit(bootstrap.exitCode);
+        }
+        Runtime.getRuntime().addShutdownHook(new Thread(() ->
+                bootstrap.shutdown(new DtTime(60, TimeUnit.SECONDS))));
     }
 
     private void updateExitCode(int code) {
@@ -64,9 +80,6 @@ public class Bootstrap {
     }
 
     public void run(String[] args) {
-        Properties configProps = null;
-        RaftServerConfig serverConfig = null;
-        List<RaftGroupConfig> groupConfigs = null;
         try {
             String configFile = parseConfigFileFromCommandArgs(args, "-c");
             String serversConfigFile = parseConfigFileFromCommandArgs(args, "-s");
@@ -129,12 +142,27 @@ public class Bootstrap {
             return;
         }
 
-        start(serverConfig, groupConfigs, configProps);
+        startRaftServer();
     }
 
+    private void startRaftServer() {
+        try {
+            AtomicInteger count = new AtomicInteger();
+            ioExecutor = Executors.newFixedThreadPool(serverConfig.blockIoThreads,
+                    r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
+            raftServer = new RaftServer(serverConfig, groupConfigs, createRaftFactory());
+            KvServerUtil.initKvServer(raftServer);
+            raftServer.start();
+        } catch (Throwable e) {
+            System.err.println("Failed to start server: " + e);
+            //noinspection CallToPrintStackTrace
+            e.printStackTrace();
+            updateExitCode(ERR_START_FAIL);
+        }
+    }
 
-    private void start(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfigs, Properties configProps) {
-        RaftServer raftServer = new RaftServer(serverConfig, groupConfigs, new DefaultRaftFactory() {
+    private DefaultRaftFactory createRaftFactory() {
+        return new DefaultRaftFactory() {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 return new DtKV(groupConfig, new KvServerConfig());
@@ -152,16 +180,17 @@ public class Bootstrap {
                 }
                 return groupConfig;
             }
-        });
-        try {
-            KvServerUtil.initKvServer(raftServer);
-            raftServer.start();
-        } catch (Throwable e) {
-            System.err.println("Failed to start server: " + e);
-            //noinspection CallToPrintStackTrace
-            e.printStackTrace();
-            updateExitCode(ERR_START_FAIL);
-        }
+
+            @Override
+            public ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig) {
+                return ioExecutor;
+            }
+
+            @Override
+            public void shutdownBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig,
+                                                ExecutorService executor) {
+            }
+        };
     }
 
     private String parseConfigFileFromCommandArgs(String[] args, String option) {
@@ -245,5 +274,16 @@ public class Bootstrap {
             }
         }
         return groupIds.stream().sorted().mapToInt(Integer::intValue).toArray();
+    }
+
+    public void shutdown(DtTime timeout) {
+        if (raftServer != null) {
+            raftServer.stop(timeout);
+            raftServer = null;
+        }
+        if (ioExecutor != null) {
+            ioExecutor.shutdown();
+            ioExecutor = null;
+        }
     }
 }
