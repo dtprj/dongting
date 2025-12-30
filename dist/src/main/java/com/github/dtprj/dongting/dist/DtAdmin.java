@@ -39,21 +39,30 @@ public class DtAdmin {
     private static final int ERR_LOAD_CONFIG_FAIL = 102;
     private static final int ERR_CLIENT_INIT_FAIL = 103;
     private static final int ERR_COMMAND_EXEC_FAIL = 104;
+    private static final int ERR_COMMAND_SYS_ERROR = 105;
 
     private static final String GROUP_PREFIX = "group.";
 
     private String serversFile;
     private String subCommand;
     private final Map<String, String> params = new HashMap<>();
+    private int exitCode;
 
     public static void main(String[] args) {
-        new DtAdmin().run(args);
+        DtAdmin d = new DtAdmin();
+        d.run(args);
+        System.exit(d.exitCode);
     }
 
     private void run(String[] args) {
         try {
             parseArgs(args);
             Properties props = loadProperties(serversFile);
+            // check if user requested help for this subcommand
+            if ("true".equals(params.get("help"))) {
+                printSubcommandUsage(subCommand);
+                return;
+            }
             AdminRaftClient client = initClient(props);
             try {
                 executeCommand(client);
@@ -69,19 +78,25 @@ public class DtAdmin {
             } else {
                 printGeneralUsage();
             }
-            System.exit(ERR_COMMAND_LINE_ERROR);
+            updateExitCode(ERR_COMMAND_LINE_ERROR);
         } catch (Throwable e) {
             System.err.println("Error: " + e.getMessage());
             //noinspection CallToPrintStackTrace
             e.printStackTrace();
-            System.exit(getExitCode(e));
+            updateExitCode(ERR_COMMAND_SYS_ERROR);
+        }
+    }
+
+    private void updateExitCode(int code) {
+        if (exitCode == 0) {
+            exitCode = code;
         }
     }
 
     private void parseArgs(String[] args) {
         if (args.length == 0) {
             printGeneralUsage();
-            System.exit(0);
+            throw new UsageEx("No arguments provided");
         }
 
         // parse -s option
@@ -91,8 +106,7 @@ public class DtAdmin {
                     serversFile = args[i + 1];
                     break;
                 } else {
-                    System.err.println("Error: -s option requires a file path");
-                    System.exit(ERR_COMMAND_LINE_ERROR);
+                    throw new UsageEx("-s option requires a file path");
                 }
             }
         }
@@ -101,9 +115,7 @@ public class DtAdmin {
             // try to get from environment variable
             serversFile = System.getenv("defaultDtServerProperties");
             if (serversFile == null || serversFile.trim().isEmpty()) {
-                System.err.println("Error: -s option is required or set defaultDtServerProperties environment variable");
-                printGeneralUsage();
-                System.exit(ERR_COMMAND_LINE_ERROR);
+                throw new UsageEx("-s option is required or set defaultDtServerProperties environment variable");
             }
         }
 
@@ -137,9 +149,7 @@ public class DtAdmin {
                             params.put(key, args[j + 1]);
                             j++;
                         } else {
-                            System.err.println("Error: option " + args[j] + " requires a value");
-                            printSubcommandUsage(subCommand);
-                            System.exit(ERR_COMMAND_LINE_ERROR);
+                            throw new UsageEx("option " + args[j] + " requires a value");
                         }
                     }
                 }
@@ -148,8 +158,7 @@ public class DtAdmin {
         }
 
         if (subCommand == null) {
-            printGeneralUsage();
-            System.exit(0);
+            throw new UsageEx("no sub command provided");
         }
     }
 
@@ -159,6 +168,7 @@ public class DtAdmin {
             props.load(fis);
             return props;
         } catch (Exception e) {
+            updateExitCode(ERR_LOAD_CONFIG_FAIL);
             throw new RuntimeException("Failed to load config file " + file, e);
         }
     }
@@ -207,55 +217,53 @@ public class DtAdmin {
 
             return client;
         } catch (Exception e) {
+            updateExitCode(ERR_CLIENT_INIT_FAIL);
             throw new RuntimeException("Failed to initialize AdminRaftClient", e);
         }
     }
 
     private void executeCommand(AdminRaftClient client) throws Exception {
-        // check if user requested help for this subcommand
-        if ("true".equals(params.get("help"))) {
-            printSubcommandUsage(subCommand);
-            System.exit(0);
-        }
-
-        switch (subCommand) {
-            case "transfer-leader":
-                executeTransferLeader(client);
-                break;
-            case "prepare-config-change":
-                executePrepareConfigChange(client);
-                break;
-            case "commit-change":
-                executeCommitChange(client);
-                break;
-            case "abort-change":
-                executeAbortChange(client);
-                break;
-            case "query-status":
-                executeQueryStatus(client);
-                break;
-            case "add-group":
-                executeServerAddGroup(client);
-                break;
-            case "remove-group":
-                executeServerRemoveGroup(client);
-                break;
-            case "add-node":
-                executeServerAddNode(client);
-                break;
-            case "remove-node":
-                executeServerRemoveNode(client);
-                break;
-            case "list-nodes":
-                executeServerListNodes(client);
-                break;
-            case "list-groups":
-                executeServerListGroups(client);
-                break;
-            default:
-                System.err.println("Error: Unknown subcommand: " + subCommand);
-                printGeneralUsage();
-                System.exit(ERR_COMMAND_LINE_ERROR);
+        try {
+            switch (subCommand) {
+                case "transfer-leader":
+                    executeTransferLeader(client);
+                    break;
+                case "prepare-config-change":
+                    executePrepareConfigChange(client);
+                    break;
+                case "commit-change":
+                    executeCommitChange(client);
+                    break;
+                case "abort-change":
+                    executeAbortChange(client);
+                    break;
+                case "query-status":
+                    executeQueryStatus(client);
+                    break;
+                case "add-group":
+                    executeServerAddGroup(client);
+                    break;
+                case "remove-group":
+                    executeServerRemoveGroup(client);
+                    break;
+                case "add-node":
+                    executeServerAddNode(client);
+                    break;
+                case "remove-node":
+                    executeServerRemoveNode(client);
+                    break;
+                case "list-nodes":
+                    executeServerListNodes(client);
+                    break;
+                case "list-groups":
+                    executeServerListGroups(client);
+                    break;
+                default:
+                    throw new UsageEx("Unknown subcommand: " + subCommand);
+            }
+        } catch (Exception e) {
+            updateExitCode(ERR_COMMAND_EXEC_FAIL);
+            throw e;
         }
     }
 
@@ -480,17 +488,6 @@ public class DtAdmin {
             result.add(Integer.parseInt(part.trim()));
         }
         return result;
-    }
-
-    private static int getExitCode(Throwable e) {
-        String msg = e.getMessage();
-        if (msg != null && msg.contains("load config file")) {
-            return ERR_LOAD_CONFIG_FAIL;
-        }
-        if (msg != null && msg.contains("initialize AdminRaftClient")) {
-            return ERR_CLIENT_INIT_FAIL;
-        }
-        return ERR_COMMAND_EXEC_FAIL;
     }
 
     private static void printGeneralUsage() {
