@@ -32,6 +32,8 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -40,6 +42,7 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
 
     private final RaftServer server;
     private final File serversFile;
+    private final ReentrantLock lock = new ReentrantLock();
 
     public SyncConfigProcessor(RaftServer server, File serversFile) {
         this.server = server;
@@ -69,8 +72,19 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
         } finally {
             nm.getLock().unlock();
         }
-        syncConfig(allNodes, groupsInfos);
-        return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+        boolean locked = lock.tryLock(5, TimeUnit.SECONDS);
+        if (locked) {
+            try {
+                syncConfig(allNodes, groupsInfos);
+                return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            } finally {
+                lock.unlock();
+            }
+        } else {
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+            p.msg = "sync lock timeout";
+            return p;
+        }
     }
 
     private void syncConfig(List<RaftNode> nodes, List<MembersInfo> groupInfos) throws IOException {
