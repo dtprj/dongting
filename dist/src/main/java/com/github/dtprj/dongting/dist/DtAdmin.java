@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.dist;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftNode;
-import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 
 import java.io.FileInputStream;
 import java.util.Arrays;
@@ -63,7 +62,7 @@ public class DtAdmin {
                 printSubcommandUsage(subCommand);
                 return;
             }
-            AdminRaftClient client = initClient(props);
+            DistClient client = initClient(props);
             try {
                 executeCommand(client);
             } finally {
@@ -173,14 +172,14 @@ public class DtAdmin {
         }
     }
 
-    private AdminRaftClient initClient(Properties props) {
+    private DistClient initClient(Properties props) {
         try {
             String servers = props.getProperty("servers");
             if (servers == null || servers.trim().isEmpty()) {
                 throw new RuntimeException("servers property is required");
             }
 
-            AdminRaftClient client = new AdminRaftClient();
+            DistClient client = new DistClient();
             client.start();
             client.clientAddNode(servers);
 
@@ -218,11 +217,11 @@ public class DtAdmin {
             return client;
         } catch (Exception e) {
             updateExitCode(ERR_CLIENT_INIT_FAIL);
-            throw new RuntimeException("Failed to initialize AdminRaftClient", e);
+            throw new RuntimeException("Failed to initialize DistClient", e);
         }
     }
 
-    private void executeCommand(AdminRaftClient client) throws Exception {
+    private void executeCommand(DistClient client) throws Exception {
         try {
             switch (subCommand) {
                 case "transfer-leader":
@@ -267,7 +266,7 @@ public class DtAdmin {
         }
     }
 
-    private void executeTransferLeader(AdminRaftClient client) throws Exception {
+    private void executeTransferLeader(DistClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         int oldLeader = getRequiredIntParam("old-leader");
         int newLeader = getRequiredIntParam("new-leader");
@@ -278,7 +277,7 @@ public class DtAdmin {
         System.out.println("Transfer leader completed successfully");
     }
 
-    private void executePrepareConfigChange(AdminRaftClient client) throws Exception {
+    private void executePrepareConfigChange(DistClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         Set<Integer> oldMembers = getRequiredIntSetParam("old-members");
         Set<Integer> oldObservers = getOptionalIntSetParam("old-observers");
@@ -292,7 +291,7 @@ public class DtAdmin {
         System.out.println("Prepare index: " + prepareIndex);
     }
 
-    private void executeCommitChange(AdminRaftClient client) throws Exception {
+    private void executeCommitChange(DistClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         long prepareIndex = getRequiredLongParam("prepare-index");
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -302,7 +301,7 @@ public class DtAdmin {
         System.out.println("Commit index: " + commitIndex);
     }
 
-    private void executeAbortChange(AdminRaftClient client) throws Exception {
+    private void executeAbortChange(DistClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         DtTime timeout = getTimeoutParamOrDefault(client);
 
@@ -311,7 +310,7 @@ public class DtAdmin {
         System.out.println("Abort index: " + index);
     }
 
-    private void executeQueryStatus(AdminRaftClient client) throws Exception {
+    private void executeQueryStatus(DistClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int groupId = getRequiredIntParam("group-id");
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -337,7 +336,7 @@ public class DtAdmin {
         }
     }
 
-    private void executeServerAddGroup(AdminRaftClient client) throws Exception {
+    private void executeServerAddGroup(DistClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int groupId = getRequiredIntParam("group-id");
         String members = getRequiredParam("members");
@@ -349,7 +348,7 @@ public class DtAdmin {
         System.out.println("Add group completed successfully");
     }
 
-    private void executeServerRemoveGroup(AdminRaftClient client) throws Exception {
+    private void executeServerRemoveGroup(DistClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int groupId = getRequiredIntParam("group-id");
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -359,7 +358,7 @@ public class DtAdmin {
         System.out.println("Remove group completed successfully");
     }
 
-    private void executeServerAddNode(AdminRaftClient client) throws Exception {
+    private void executeServerAddNode(DistClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int addNodeId = getRequiredIntParam("add-node-id");
         String host = getRequiredParam("host");
@@ -371,7 +370,7 @@ public class DtAdmin {
         System.out.println("Add node completed successfully");
     }
 
-    private void executeServerRemoveNode(AdminRaftClient client) throws Exception {
+    private void executeServerRemoveNode(DistClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
         int removeNodeId = getRequiredIntParam("remove-node-id");
 
@@ -381,7 +380,7 @@ public class DtAdmin {
         System.out.println("Remove node completed successfully");
     }
 
-    private void executeServerListNodes(AdminRaftClient client) throws Exception {
+    private void executeServerListNodes(DistClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
 
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -393,7 +392,7 @@ public class DtAdmin {
         }
     }
 
-    private void executeServerListGroups(AdminRaftClient client) throws Exception {
+    private void executeServerListGroups(DistClient client) throws Exception {
         int nodeId = getRequiredIntParam("node-id");
 
         DtTime timeout = getTimeoutParamOrDefault(client);
@@ -459,7 +458,7 @@ public class DtAdmin {
         return new DtTime(seconds, TimeUnit.SECONDS);
     }
 
-    private DtTime getTimeoutParamOrDefault(AdminRaftClient client) {
+    private DtTime getTimeoutParamOrDefault(DistClient client) {
         String value = params.get("timeout");
         if (value != null && !value.trim().isEmpty()) {
             try {

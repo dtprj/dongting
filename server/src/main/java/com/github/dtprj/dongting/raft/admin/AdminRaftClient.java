@@ -154,7 +154,7 @@ public class AdminRaftClient extends RaftClient {
         return r;
     }
 
-    private CompletableFuture<Void> sendByNodeId(int nodeId, DtTime timeout, WritePacket p) {
+    protected CompletableFuture<Void> sendByNodeId(int nodeId, DtTime timeout, WritePacket p) {
         return sendByNodeId(nodeId, timeout, p, DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR);
     }
 
