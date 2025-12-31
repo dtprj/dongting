@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
@@ -59,6 +60,7 @@ public class Bootstrap {
     private Properties configProps;
     private RaftServerConfig serverConfig;
     private List<RaftGroupConfig> groupConfigs;
+    private File serversFile;
 
     private volatile ExecutorService ioExecutor;
     private volatile RaftServer raftServer;
@@ -84,13 +86,15 @@ public class Bootstrap {
             String configFile = parseConfigFileFromCommandArgs(args, "-c");
             String serversConfigFile = parseConfigFileFromCommandArgs(args, "-s");
 
-            configProps = loadProperties(configFile);
+            this.configProps = loadProperties(configFile);
             System.out.println("Config file loaded successfully: " + configFile);
 
             Properties serversProps = loadProperties(serversConfigFile);
             System.out.println("Servers/groups config file loaded successfully: " + serversConfigFile);
 
-            serverConfig = new RaftServerConfig();
+            this.serversFile = new File(serversConfigFile);
+
+            this.serverConfig = new RaftServerConfig();
             PropsUtil.setFieldsFromProps(serverConfig, configProps, "");
 
             System.out.println("LOG_DIR=" + System.getProperty("LOG_DIR"));
@@ -109,7 +113,7 @@ public class Bootstrap {
             }
 
             boolean logDataDir = false;
-            groupConfigs = new ArrayList<>();
+            this.groupConfigs = new ArrayList<>();
             for (int groupId : parseGroupIds(serversProps)) {
                 String nodeIdOfMembers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
                 String nodeIdOfObservers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfObservers");
@@ -152,6 +156,8 @@ public class Bootstrap {
                     r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
             raftServer = new RaftServer(serverConfig, groupConfigs, createRaftFactory());
             KvServerUtil.initKvServer(raftServer);
+            SyncConfigProcessor p = new SyncConfigProcessor(raftServer, serversFile);
+            raftServer.getNioServer().register(Commands.RAFT_ADMIN_SYNC_CONFIG, p, ioExecutor);
             raftServer.start();
         } catch (Throwable e) {
             System.err.println("Failed to start server: " + e);

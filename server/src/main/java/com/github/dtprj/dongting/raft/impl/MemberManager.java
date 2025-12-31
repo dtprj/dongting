@@ -165,6 +165,9 @@ public class MemberManager {
 
         raftStatus.electQuorum = RaftUtil.getElectQuorum(raftStatus.members.size());
         raftStatus.rwQuorum = RaftUtil.getRwQuorum(raftStatus.members.size());
+
+        raftStatus.membersInfo = new MembersInfo(raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
+                raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers);
     }
 
     public Fiber createRaftPingFiber() {

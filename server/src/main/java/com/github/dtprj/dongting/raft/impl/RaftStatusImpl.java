@@ -53,6 +53,8 @@ public final class RaftStatusImpl extends RaftStatus {
     public Set<Integer> nodeIdOfPreparedObservers;
     public long lastConfigChangeIndex;
 
+    public volatile MembersInfo membersInfo;
+
     public List<RaftMember> replicateList;
 
     public TailCache tailCache;

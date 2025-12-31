@@ -677,12 +677,20 @@ public class RaftServer extends AbstractLifeCircle {
         return nioServer;
     }
 
+    public NodeManager getNodeManager() {
+        return nodeManager;
+    }
+
     public boolean isGroupReady() {
         return groupReady;
     }
 
     public int[] getAllGroupIds() {
         return raftGroups.keySet().stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    public ConcurrentHashMap<Integer, RaftGroupImpl> getRaftGroups() {
+        return raftGroups;
     }
 
     public CompletableFuture<QueryStatusResp> queryRaftGroupStatus(int groupId) {

@@ -46,6 +46,7 @@ public interface Commands {
     int RAFT_ADMIN_REMOVE_GROUP = 53;
     int RAFT_ADMIN_LIST_NODES = 54;
     int RAFT_ADMIN_LIST_GROUPS = 55;
+    int RAFT_ADMIN_SYNC_CONFIG = 56;
 
     // 70 ~ 99 for dt kv
     int DTKV_REMOVE = 70;
