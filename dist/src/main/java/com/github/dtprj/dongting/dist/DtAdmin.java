@@ -227,7 +227,7 @@ public class DtAdmin {
                 case "transfer-leader":
                     executeTransferLeader(client);
                     break;
-                case "prepare-config-change":
+                case "prepare-change":
                     executePrepareConfigChange(client);
                     break;
                 case "commit-change":
@@ -288,7 +288,7 @@ public class DtAdmin {
         Set<Integer> newObservers = getOptionalIntSetParam("new-observers");
         DtTime timeout = getTimeoutParamOrDefault(client);
 
-        System.out.println("Executing prepare-config-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
+        System.out.println("Executing prepare-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         long prepareIndex = client.prepareChange(groupId, oldMembers, oldObservers,
                 newMembers, newObservers, timeout).get();
         System.out.println("Prepare index: " + prepareIndex);
@@ -512,7 +512,7 @@ public class DtAdmin {
         System.out.println("  list-groups        List all raft group IDs on specified node");
         System.out.println("  query-status       Query raft server status for specified group");
         System.out.println("  transfer-leader    Transfer raft group leader");
-        System.out.println("  prepare-config-change    Prepare configuration change");
+        System.out.println("  prepare-change     Prepare configuration change for a raft group");
         System.out.println("  commit-change      Commit prepared configuration change");
         System.out.println("  abort-change       Abort prepared configuration change");
         System.out.println("  add-group          Add and start a raft group on specified node");
@@ -591,8 +591,8 @@ public class DtAdmin {
                 System.out.println("Examples:");
                 System.out.println("  dongting-admin.sh transfer-leader --group-id 0 --old-leader 1 --new-leader 2 --timeout 60");
                 break;
-            case "prepare-config-change":
-                System.out.println("Usage: dongting-admin.sh prepare-config-change [options]");
+            case "prepare-change":
+                System.out.println("Usage: dongting-admin.sh prepare-change [options]");
                 System.out.println();
                 System.out.println("Prepare configuration change for a raft group.");
                 System.out.println();
@@ -610,8 +610,8 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh prepare-config-change --group-id 0 --old-members 1,2,3 --new-members 2,3,4");
-                System.out.println("  dongting-admin.sh prepare-config-change --group-id 0 --old-members 1,2,3 --old-observers 4 --new-members 2,3,4 --new-observers 5");
+                System.out.println("  dongting-admin.sh prepare-change --group-id 0 --old-members 1,2,3 --new-members 2,3,4");
+                System.out.println("  dongting-admin.sh prepare-change --group-id 0 --old-members 1,2,3 --old-observers 4 --new-members 2,3,4 --new-observers 5");
                 break;
             case "commit-change":
                 System.out.println("Usage: dongting-admin.sh commit-change [options]");
@@ -620,7 +620,7 @@ public class DtAdmin {
                 System.out.println();
                 System.out.println("Required Options:");
                 System.out.println("  --group-id <id>         Raft group ID");
-                System.out.println("  --prepare-index <idx>   Prepare index from prepare-config-change");
+                System.out.println("  --prepare-index <idx>   Prepare index from prepare-change");
                 System.out.println();
                 System.out.println("Optional Options:");
                 System.out.println("  --timeout <seconds>     Timeout in seconds");
