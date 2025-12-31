@@ -289,7 +289,7 @@ public class DtAdmin {
         DtTime timeout = getTimeoutParamOrDefault(client);
 
         System.out.println("Executing prepare-config-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
-        long prepareIndex = client.prepareConfigChange(groupId, oldMembers, oldObservers,
+        long prepareIndex = client.prepareChange(groupId, oldMembers, oldObservers,
                 newMembers, newObservers, timeout).get();
         System.out.println("Prepare index: " + prepareIndex);
     }

@@ -56,7 +56,7 @@ public class ConfigChangeTest extends ServerTestBase {
             adminClient.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
 
             // prepare config change, remove one member
-            CompletableFuture<Long> f = adminClient.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2), Set.of(), timeout);
+            CompletableFuture<Long> f = adminClient.prepareChange(groupId, Set.of(2, 3), Set.of(), Set.of(2), Set.of(), timeout);
             f.get(5, TimeUnit.SECONDS);
 
             // abort config change
@@ -70,7 +70,7 @@ public class ConfigChangeTest extends ServerTestBase {
             f2.get(5, TimeUnit.SECONDS);
 
             // prepare config change, add one member
-            f = adminClient.prepareConfigChange(groupId, Set.of(2, 3), Set.of(), Set.of(2, 3, 4), Set.of(), timeout);
+            f = adminClient.prepareChange(groupId, Set.of(2, 3), Set.of(), Set.of(2, 3, 4), Set.of(), timeout);
             long prepareIndex = f.get(5, TimeUnit.SECONDS);
             // commit config change
             f = adminClient.commitChange(groupId, prepareIndex, timeout);
@@ -93,7 +93,7 @@ public class ConfigChangeTest extends ServerTestBase {
             WaitUtil.waitUtil(() -> finalS4.gc.raftStatus.getLastApplied() >= commitIndex, finalS4.gc.fiberGroup.getExecutor());
 
             // config change, remove the old members
-            f = adminClient.prepareConfigChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(4), Set.of(), timeout);
+            f = adminClient.prepareChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(4), Set.of(), timeout);
             prepareIndex = f.get(5, TimeUnit.SECONDS);
 
             // before commit, transfer leader to new node

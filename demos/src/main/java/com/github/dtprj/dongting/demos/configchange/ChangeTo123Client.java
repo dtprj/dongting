@@ -58,7 +58,7 @@ public class ChangeTo123Client implements GroupId {
         // Therefore, the best practice is to make two changes. First, add it to the raft group as observers,
         // and then promote it to members through another change.
         // For simplicity here, the new node are directly added as member to the raft group.
-        CompletableFuture<Long> prepareFuture = adminClient.prepareConfigChange(GROUP_ID, Set.of(2, 3, 4), Set.of(),
+        CompletableFuture<Long> prepareFuture = adminClient.prepareChange(GROUP_ID, Set.of(2, 3, 4), Set.of(),
                 Set.of(1, 2, 3), Set.of(), timeout);
         long prepareIndex = prepareFuture.get();
         System.out.println("prepare config change success");

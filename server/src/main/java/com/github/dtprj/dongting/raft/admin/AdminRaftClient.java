@@ -106,9 +106,9 @@ public class AdminRaftClient extends RaftClient {
      * If old members and old observers not match current config, the operation will fail.
      * Notice this method is idempotent.
      */
-    public CompletableFuture<Long> prepareConfigChange(int groupId, Set<Integer> oldMembers, Set<Integer> oldObservers,
-                                                       Set<Integer> newMembers, Set<Integer> newObservers,
-                                                       DtTime timeout) {
+    public CompletableFuture<Long> prepareChange(int groupId, Set<Integer> oldMembers, Set<Integer> oldObservers,
+                                                 Set<Integer> newMembers, Set<Integer> newObservers,
+                                                 DtTime timeout) {
         AdminPrepareConfigChangeReq req = new AdminPrepareConfigChangeReq();
         req.groupId = groupId;
         req.members = new HashSet<>(oldMembers);
