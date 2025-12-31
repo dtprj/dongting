@@ -257,6 +257,9 @@ public class DtAdmin {
                 case "list-groups":
                     executeServerListGroups(client);
                     break;
+                case "sync-config":
+                    executeSyncConfig(client);
+                    break;
                 default:
                     throw new UsageEx("Unknown subcommand: " + subCommand);
             }
@@ -401,6 +404,14 @@ public class DtAdmin {
         System.out.println("Group IDs: " + Arrays.toString(groupIds));
     }
 
+    private void executeSyncConfig(DistClient client) throws Exception {
+        int nodeId = getRequiredIntParam("node-id");
+
+        System.out.println("Executing sync-config...");
+        client.serverSyncConfig(nodeId).get();
+        System.out.println("Sync config completed successfully");
+    }
+
     private String getRequiredParam(String name) {
         String value = params.get(name);
         if (value == null || value.trim().isEmpty()) {
@@ -508,6 +519,7 @@ public class DtAdmin {
         System.out.println("  remove-group       Remove and stop a raft group on specified node");
         System.out.println("  add-node           Add node definition on specified node");
         System.out.println("  remove-node        Remove node definition on specified node");
+        System.out.println("  sync-config        Sync configuration to servers.properties file");
         System.out.println();
         System.out.println("Use \"dongting-admin.sh <subcommand> --help\" for more information about a subcommand.");
     }
@@ -526,7 +538,6 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh -s conf/servers.properties list-nodes --node-id 1");
                 System.out.println("  dongting-admin.sh list-nodes --node-id 1");
                 break;
             case "list-groups":
@@ -541,7 +552,6 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh -s conf/servers.properties list-groups --node-id 1");
                 System.out.println("  dongting-admin.sh list-groups --node-id 1");
                 break;
             case "query-status":
@@ -560,7 +570,6 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh -s conf/servers.properties query-status --node-id 1 --group-id 0");
                 System.out.println("  dongting-admin.sh query-status --node-id 1 --group-id 0 --timeout 60");
                 break;
             case "transfer-leader":
@@ -580,7 +589,6 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh -s conf/servers.properties transfer-leader --group-id 0 --old-leader 1 --new-leader 2");
                 System.out.println("  dongting-admin.sh transfer-leader --group-id 0 --old-leader 1 --new-leader 2 --timeout 60");
                 break;
             case "prepare-config-change":
@@ -622,7 +630,6 @@ public class DtAdmin {
                 System.out.println();
                 System.out.println("Examples:");
                 System.out.println("  dongting-admin.sh commit-change --group-id 0 --prepare-index 12345");
-                System.out.println("  dongting-admin.sh commit-change --group-id 0 --prepare-index 12345 --timeout 60");
                 break;
             case "abort-change":
                 System.out.println("Usage: dongting-admin.sh abort-change [options]");
@@ -640,7 +647,6 @@ public class DtAdmin {
                 System.out.println();
                 System.out.println("Examples:");
                 System.out.println("  dongting-admin.sh abort-change --group-id 0");
-                System.out.println("  dongting-admin.sh abort-change --group-id 0 --timeout 60");
                 break;
             case "add-group":
                 System.out.println("Usage: dongting-admin.sh add-group [options]");
@@ -680,7 +686,6 @@ public class DtAdmin {
                 System.out.println();
                 System.out.println("Examples:");
                 System.out.println("  dongting-admin.sh remove-group --node-id 1 --group-id 0");
-                System.out.println("  dongting-admin.sh remove-group --node-id 1 --group-id 0 --timeout 60");
                 break;
             case "add-node":
                 System.out.println("Usage: dongting-admin.sh add-node [options]");
@@ -713,6 +718,21 @@ public class DtAdmin {
                 System.out.println();
                 System.out.println("Examples:");
                 System.out.println("  dongting-admin.sh remove-node --node-id 1 --remove-node-id 4");
+                break;
+            case "sync-config":
+                System.out.println("Usage: dongting-admin.sh sync-config [options]");
+                System.out.println();
+                System.out.println("Manually sync configuration to servers.properties file on specified node.");
+                System.out.println("This makes group members change, group add/remove, node add/remove effective after node restart.");
+                System.out.println();
+                System.out.println("Required Options:");
+                System.out.println("  --node-id <id>          Target node ID");
+                System.out.println();
+                System.out.println("Global Options:");
+                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println();
+                System.out.println("Examples:");
+                System.out.println("  dongting-admin.sh sync-config --node-id 1");
                 break;
             default:
                 System.err.println("Error: Unknown subcommand: " + cmd);
