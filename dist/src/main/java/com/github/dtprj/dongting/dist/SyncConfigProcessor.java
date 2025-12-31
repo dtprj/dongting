@@ -84,7 +84,7 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
                     allNodes = nm.getAllNodes();
                     groupsInfos = server.getRaftGroups().values().stream()
                             .map(rg -> new Pair<>(rg.getGroupId(), rg.groupComponents.raftStatus.membersInfo))
-                            .toList();
+                            .collect(Collectors.toList());
                 } finally {
                     nm.getLock().unlock();
                 }
