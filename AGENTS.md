@@ -4,8 +4,8 @@
 - JUnit 5.13
 
 ## Build
-- Build: mvn package -DskipTests -Pmerge
-- Test: mvn test -Dtick=5
+- Build: mvn clean package -DskipTests -Pmerge
+- Test: mvn clean test -Dtick=5
 
 ## logs
 - logger: com.github.dtprj.dongting.log.DtLog

@@ -28,3 +28,12 @@ alwaysApply: true
 
 8. BugLog这个类的作用类似于java assert关键字，但assert会抛出Error，然后整个进程有很大的可能就完蛋了，
    而BugLog可以在不造成灾难的情况下记录更多信息。通过在日志中grep BugLog就能查找预期外的错误。
+
+9. test目录下的dt_packet.proto/dt_kv.proto/dt_raft_server.proto文件描述了dongting的protobuf对象，它们生成的java文件只在测试中用
+   （可以通过mvn clean compile test-compile来生成），main中的代码对于protobuf是自己编码和解码的（因为项目是零依赖）。 
+   尽管如此，test目录中的protobuf文件描述的message和main代码中的定义是一致的。
+
+10. client模块依赖java8，但有部分java11代码会在java11运行环境下激活，也有module-info，mvn构建时client模块会按不同的配置多次编译，
+   详见client/pom.xmlclient-ex模块只在开发是存在（也是因为build相关的原因），package的时候client-ex模块会复制到client模块的包中
+  （mvn需要指定-Pmerge参数）。server模块需要java11以上。client.jar和server.jar就包含完整的功能。dist模块（java11+）只是包装了启动
+   脚本和配置文件。
