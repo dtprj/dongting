@@ -72,6 +72,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         resp.observers = raftStatus.nodeIdOfObservers;
         resp.preparedMembers = raftStatus.nodeIdOfPreparedMembers;
         resp.preparedObservers = raftStatus.nodeIdOfPreparedObservers;
+        resp.lastConfigChangeIndex = raftStatus.lastConfigChangeIndex;
         return resp;
     }
 }

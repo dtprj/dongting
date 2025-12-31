@@ -337,6 +337,7 @@ public class DtAdmin {
             System.out.println("  Prepared Members: " + resp.preparedMembers);
             System.out.println("  Prepared Observers: " + resp.preparedObservers);
         }
+        System.out.println("  Last Config Change Index: " + resp.lastConfigChangeIndex);
     }
 
     private void executeServerAddGroup(DistClient client) throws Exception {
