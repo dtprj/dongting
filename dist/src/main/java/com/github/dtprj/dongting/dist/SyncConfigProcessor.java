@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dist;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
@@ -31,6 +32,8 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -61,17 +64,19 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
             return RaftProcessor.createWrongPortRest(packet, reqContext);
         }
         List<RaftNode> allNodes;
-        List<MembersInfo> groupsInfos;
+        List<Pair<Integer, MembersInfo>> groupsInfos;
         NodeManager nm = server.getNodeManager();
         nm.getLock().lock();
         try {
             allNodes = nm.getAllNodes();
             groupsInfos = server.getRaftGroups().values().stream()
-                    .map(rg -> rg.groupComponents.raftStatus.membersInfo)
+                    .map(rg -> new Pair<>(rg.getGroupId(), rg.groupComponents.raftStatus.membersInfo))
                     .toList();
         } finally {
             nm.getLock().unlock();
         }
+        Collections.sort(allNodes);
+        Collections.sort(groupsInfos, Comparator.comparingInt(Pair::getLeft));
         boolean locked = lock.tryLock(5, TimeUnit.SECONDS);
         if (locked) {
             try {
@@ -87,7 +92,7 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
         }
     }
 
-    private void syncConfig(List<RaftNode> nodes, List<MembersInfo> groupInfos) throws IOException {
+    private void syncConfig(List<RaftNode> nodes, List<Pair<Integer, MembersInfo>> groupInfos) throws IOException {
         // TODO
     }
 }
