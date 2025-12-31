@@ -349,6 +349,7 @@ public class DtAdmin {
         System.out.println("Executing server-add-group with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverAddGroup(nodeId, groupId, members, observers, timeout).get();
         System.out.println("Add group completed successfully");
+        autoSyncConfig(client, nodeId);
     }
 
     private void executeServerRemoveGroup(DistClient client) throws Exception {
@@ -359,6 +360,7 @@ public class DtAdmin {
         System.out.println("Executing server-remove-group with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverRemoveGroup(nodeId, groupId, timeout).get();
         System.out.println("Remove group completed successfully");
+        autoSyncConfig(client, nodeId);
     }
 
     private void executeServerAddNode(DistClient client) throws Exception {
@@ -371,6 +373,7 @@ public class DtAdmin {
         System.out.println("Executing server-add-node with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverAddNode(nodeId, addNodeId, host, port).get();
         System.out.println("Add node completed successfully");
+        autoSyncConfig(client, nodeId);
     }
 
     private void executeServerRemoveNode(DistClient client) throws Exception {
@@ -381,6 +384,7 @@ public class DtAdmin {
         System.out.println("Executing server-remove-node with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverRemoveNode(nodeId, removeNodeId).get();
         System.out.println("Remove node completed successfully");
+        autoSyncConfig(client, nodeId);
     }
 
     private void executeServerListNodes(DistClient client) throws Exception {
@@ -410,6 +414,12 @@ public class DtAdmin {
         System.out.println("Executing sync-config...");
         client.serverSyncConfig(nodeId).get();
         System.out.println("Sync config completed successfully");
+    }
+
+    private void autoSyncConfig(DistClient client, int nodeId) throws Exception {
+        System.out.println("Auto executing sync-config on node " + nodeId + "...");
+        client.serverSyncConfig(nodeId).get();
+        System.out.println("Auto sync-config completed successfully");
     }
 
     private String getRequiredParam(String name) {
