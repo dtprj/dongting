@@ -31,12 +31,22 @@ import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 /**
  * @author huangli
@@ -63,23 +73,23 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
         if (!RaftProcessor.checkPort(servicePort, false, true)) {
             return RaftProcessor.createWrongPortRest(packet, reqContext);
         }
-        List<RaftNode> allNodes;
-        List<Pair<Integer, MembersInfo>> groupsInfos;
-        NodeManager nm = server.getNodeManager();
-        nm.getLock().lock();
-        try {
-            allNodes = nm.getAllNodes();
-            groupsInfos = server.getRaftGroups().values().stream()
-                    .map(rg -> new Pair<>(rg.getGroupId(), rg.groupComponents.raftStatus.membersInfo))
-                    .toList();
-        } finally {
-            nm.getLock().unlock();
-        }
-        Collections.sort(allNodes);
-        Collections.sort(groupsInfos, Comparator.comparingInt(Pair::getLeft));
         boolean locked = lock.tryLock(5, TimeUnit.SECONDS);
         if (locked) {
             try {
+                List<RaftNode> allNodes;
+                List<Pair<Integer, MembersInfo>> groupsInfos;
+                NodeManager nm = server.getNodeManager();
+                nm.getLock().lock();
+                try {
+                    allNodes = nm.getAllNodes();
+                    groupsInfos = server.getRaftGroups().values().stream()
+                            .map(rg -> new Pair<>(rg.getGroupId(), rg.groupComponents.raftStatus.membersInfo))
+                            .toList();
+                } finally {
+                    nm.getLock().unlock();
+                }
+                Collections.sort(allNodes);
+                groupsInfos.sort(Comparator.comparingInt(Pair::getLeft));
                 syncConfig(allNodes, groupsInfos);
                 return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             } finally {
@@ -93,6 +103,68 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
     }
 
     private void syncConfig(List<RaftNode> nodes, List<Pair<Integer, MembersInfo>> groupInfos) throws IOException {
-        // TODO
+        // generate config content
+        StringBuilder sb = new StringBuilder();
+        sb.append("servers = ").append(RaftNode.formatServers(nodes)).append("\n");
+        sb.append("\n");
+        for (Pair<Integer, MembersInfo> pair : groupInfos) {
+            int groupId = pair.getLeft();
+            MembersInfo info = pair.getRight();
+            sb.append("group.").append(groupId).append(".nodeIdOfMembers = ");
+            sb.append(formatNodeIds(info.nodeIdOfMembers));
+            sb.append("\n");
+            sb.append("group.").append(groupId).append(".nodeIdOfObservers = ");
+            sb.append(formatNodeIds(info.nodeIdOfObservers));
+            sb.append("\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        // write to temp file and fsync
+        File tempFile = new File(serversFile.getParentFile(), serversFile.getName() + ".tmp");
+        try (FileOutputStream fos = new FileOutputStream(tempFile);
+             FileChannel channel = fos.getChannel()) {
+            fos.write(content);
+            channel.force(true);
+        }
+
+        // backup original file
+        backupFile();
+
+        // atomic move to replace original file
+        Files.move(tempFile.toPath(), serversFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private String formatNodeIds(Set<Integer> nodeIds) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return "";
+        }
+        return nodeIds.stream()
+                .sorted()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+    }
+
+    private void backupFile() throws IOException {
+        File parent = serversFile.getParentFile();
+        String baseName = serversFile.getName();
+
+        // find existing backup files
+        File[] backups = parent.listFiles((dir, name) -> name.startsWith(baseName + ".bak."));
+
+        if (backups != null && backups.length > 0) {
+            // sort by last modified time (newest first)
+            Arrays.sort(backups, Comparator.comparingLong(File::lastModified).reversed());
+            // delete backups exceeding limit (keep 9, the new one will make it 10)
+            for (int i = 9; i < backups.length; i++) {
+                //noinspection ResultOfMethodCallIgnored
+                backups[i].delete();
+            }
+        }
+
+        // create new backup with timestamp
+        String backupName = baseName + ".bak." + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        File backupFile = new File(parent, backupName);
+        Files.copy(serversFile.toPath(), backupFile.toPath());
     }
 }
