@@ -78,6 +78,9 @@ public class RaftNode implements Encodable, Comparable<RaftNode> {
         try {
             List<RaftNode> list = new ArrayList<>();
             for (String server : servers) {
+                if (server.trim().isEmpty()) {
+                    continue;
+                }
                 String[] arr = server.split(",");
                 if (arr.length != 2) {
                     throw new IllegalArgumentException("not 'id,host:port' format:" + server);
