@@ -24,8 +24,8 @@ $LOG_DIR = Join-Path $BASE_DIR "logs"
 $DATA_DIR = Join-Path $BASE_DIR "data"
 $PidFile = Join-Path $DATA_DIR "dongting.pid"
 
-# JVM options
-$JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g")
+# JVM options, since the heap size is only 4g, zgc is not needed.
+$JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=5", "-XX:G1HeapRegionSize=2m", "-XX:+ParallelRefProcEnabled", "-XX:InitiatingHeapOccupancyPercent=30")
 
 # Check if JAVA_HOME is set
 if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {

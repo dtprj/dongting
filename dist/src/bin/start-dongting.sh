@@ -25,8 +25,8 @@ LOG_DIR="$BASE_DIR/logs"
 DATA_DIR="$BASE_DIR/data"
 PID_FILE="$DATA_DIR/dongting.pid"
 
-# JVM options
-JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g"
+# JVM options, since the heap size is only 4g, zgc is not needed.
+JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g -XX:+UseG1GC -XX:MaxGCPauseMillis=5 -XX:G1HeapRegionSize=2m -XX:+ParallelRefProcEnabled -XX:InitiatingHeapOccupancyPercent=30"
 
 # Check if JAVA_HOME is set
 if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
