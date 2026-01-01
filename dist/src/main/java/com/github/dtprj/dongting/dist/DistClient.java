@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dist;
 
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyReqPacket;
+import com.github.dtprj.dongting.raft.GroupInfo;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 
 import java.util.concurrent.CompletableFuture;
@@ -25,10 +26,19 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 public class DistClient extends AdminRaftClient {
+
+    /**
+     * Get the leader info for specified group.
+     * @param groupId the group id
+     * @return future of GroupInfo which contains leader info
+     */
+    public CompletableFuture<GroupInfo> getLeaderInfo(int groupId) {
+        return updateLeaderInfo(groupId, true);
+    }
+
     /**
      * Synchronize group members change, group add/remove, node add/remove to servers.properties file,
      * so make the change effective after node restart.
-     *
      * The server side processor only register in Bootstrap class, RaftServer class not register it.
      * @param nodeId the node to invoke
      */

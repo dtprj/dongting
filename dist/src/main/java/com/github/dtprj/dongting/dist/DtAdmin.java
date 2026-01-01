@@ -16,10 +16,12 @@
 package com.github.dtprj.dongting.dist;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.raft.GroupInfo;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.io.FileInputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -299,9 +301,62 @@ public class DtAdmin {
         long prepareIndex = getRequiredLongParam("prepare-index");
         DtTime timeout = getTimeoutParamOrDefault(client);
 
+        // Step 1: Get leader and query status to validate prepareIndex
+        System.out.println("Getting leader info for group " + groupId + "...");
+        GroupInfo groupInfo = client.getLeaderInfo(groupId).get();
+        if (groupInfo.leader == null) {
+            throw new RuntimeException("No leader found for group " + groupId);
+        }
+        int leaderId = groupInfo.leader.nodeId;
+        System.out.println("Leader is node " + leaderId + ", querying status...");
+
+        QueryStatusResp statusResp = client.queryRaftServerStatus(leaderId, groupId).get();
+
+        // Step 2: Validate lastConfigChangeIndex
+        if (statusResp.lastConfigChangeIndex != prepareIndex) {
+            throw new RuntimeException("Prepare index mismatch: expected " + prepareIndex
+                    + ", but server has lastConfigChangeIndex=" + statusResp.lastConfigChangeIndex);
+        }
+        System.out.println("Prepare index validated: " + prepareIndex);
+
+        // Step 3: Execute commit
         System.out.println("Executing commit-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         long commitIndex = client.commitChange(groupId, prepareIndex, timeout).get();
         System.out.println("Commit index: " + commitIndex);
+
+        // Step 4: Collect all node IDs from members/observers/preparedMembers/preparedObservers
+        Set<Integer> allNodeIds = new HashSet<>();
+        allNodeIds.addAll(statusResp.members);
+        allNodeIds.addAll(statusResp.observers);
+        allNodeIds.addAll(statusResp.preparedMembers);
+        allNodeIds.addAll(statusResp.preparedObservers);
+
+        // Step 5: Sync config on all nodes (sorted by nodeId)
+        List<Integer> sortedNodeIds = new ArrayList<>(allNodeIds);
+        sortedNodeIds.sort(Integer::compareTo);
+        System.out.println("Syncing config on all affected nodes: " + sortedNodeIds);
+        List<Integer> failedNodes = new ArrayList<>();
+        for (int nodeId : sortedNodeIds) {
+            try {
+                System.out.println("Syncing config on node " + nodeId + "...");
+                client.serverSyncConfig(nodeId).get();
+                System.out.println("Sync config on node " + nodeId + " completed");
+            } catch (Exception e) {
+                System.err.println("Failed to sync config on node " + nodeId + ": " + e.getMessage());
+                failedNodes.add(nodeId);
+            }
+        }
+
+        // Step 6: Output summary
+        if (failedNodes.isEmpty()) {
+            System.out.println("All nodes synced successfully");
+        } else {
+            System.out.println("WARNING: Failed to sync config on nodes: " + failedNodes);
+            System.out.println("Please manually run sync-config on these nodes:");
+            for (int nodeId : failedNodes) {
+                System.out.println("  dongting-admin.sh sync-config --node-id " + nodeId);
+            }
+        }
     }
 
     private void executeAbortChange(DistClient client) throws Exception {
