@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.raft.GroupInfo;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftNode;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,6 +46,7 @@ public class DtAdmin {
     private static final String GROUP_PREFIX = "group.";
 
     private String serversFile;
+    private long serversFileLastModified;
     private String subCommand;
     private final Map<String, String> params = new HashMap<>();
     private int exitCode;
@@ -59,6 +61,7 @@ public class DtAdmin {
         try {
             parseArgs(args);
             Properties props = loadProperties(serversFile);
+            this.serversFileLastModified = new File(serversFile).lastModified();
             // check if user requested help for this subcommand
             if ("true".equals(params.get("help"))) {
                 printSubcommandUsage(subCommand);
@@ -357,6 +360,7 @@ public class DtAdmin {
                 System.out.println("  dongting-admin.sh sync-config --node-id " + nodeId);
             }
         }
+        checkLocalConfigFileUpdated();
     }
 
     private void executeAbortChange(DistClient client) throws Exception {
@@ -406,6 +410,7 @@ public class DtAdmin {
         client.serverAddGroup(nodeId, groupId, members, observers, timeout).get();
         System.out.println("Add group completed successfully");
         autoSyncConfig(client, nodeId);
+        checkLocalConfigFileUpdated();
     }
 
     private void executeServerRemoveGroup(DistClient client) throws Exception {
@@ -417,6 +422,7 @@ public class DtAdmin {
         client.serverRemoveGroup(nodeId, groupId, timeout).get();
         System.out.println("Remove group completed successfully");
         autoSyncConfig(client, nodeId);
+        checkLocalConfigFileUpdated();
     }
 
     private void executeServerAddNode(DistClient client) throws Exception {
@@ -430,6 +436,7 @@ public class DtAdmin {
         client.serverAddNode(nodeId, addNodeId, host, port).get();
         System.out.println("Add node completed successfully");
         autoSyncConfig(client, nodeId);
+        checkLocalConfigFileUpdated();
     }
 
     private void executeServerRemoveNode(DistClient client) throws Exception {
@@ -441,6 +448,7 @@ public class DtAdmin {
         client.serverRemoveNode(nodeId, removeNodeId).get();
         System.out.println("Remove node completed successfully");
         autoSyncConfig(client, nodeId);
+        checkLocalConfigFileUpdated();
     }
 
     private void executeServerListNodes(DistClient client) throws Exception {
@@ -476,6 +484,16 @@ public class DtAdmin {
         System.out.println("Auto executing sync-config on node " + nodeId + "...");
         client.serverSyncConfig(nodeId).get();
         System.out.println("Auto sync-config completed successfully");
+    }
+
+    private void checkLocalConfigFileUpdated() {
+        long currentLastModified = new File(serversFile).lastModified();
+        if (currentLastModified == serversFileLastModified) {
+            System.out.println();
+            System.out.println("NOTE: The local config file was not updated: " + serversFile);
+            System.out.println("If this file is not on any server node, you need to manually edit it");
+            System.out.println("to reflect the configuration changes (sync-config only works for server-side files).");
+        }
     }
 
     private String getRequiredParam(String name) {
