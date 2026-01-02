@@ -26,7 +26,8 @@ import java.util.function.Consumer;
 public class TwoLevelPool extends ByteBufferPool {
     private final SimpleByteBufferPool smallPool;
     private final SimpleByteBufferPool largePool;
-    private final int threshold;
+    private final int largePoolMin;
+    private final int smallPoolMax;
     private final boolean releaseInOtherThread;
     private final Consumer<ByteBuffer> releaseCallback;
     private final Thread owner;
@@ -40,10 +41,34 @@ public class TwoLevelPool extends ByteBufferPool {
         super(direct);
         this.smallPool = smallPool;
         this.largePool = largePool;
-        this.threshold = smallPool.bufSizes[smallPool.bufSizes.length - 1];
         this.releaseInOtherThread = releaseInOtherThread;
         this.releaseCallback = releaseCallback;
         this.owner = owner;
+
+        this.smallPoolMax = smallPool.bufSizes[smallPool.bufSizes.length - 1];
+        if (smallPoolMax < largePool.bufSizes[0]) {
+            this.largePoolMin = smallPoolMax + 1;
+        } else {
+            this.largePoolMin = (largePool.bufSizes[0] >> 1) + 1;
+            for (int s : largePool.bufSizes) {
+                if (s > smallPoolMax) {
+                    break;
+                }
+                boolean found = false;
+                for (int smallSize : smallPool.bufSizes) {
+                    if (s == smallSize) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    throw new IllegalArgumentException();
+                }
+            }
+        }
+        if (largePoolMin <= largePool.threshold) {
+            throw new IllegalArgumentException();
+        }
     }
 
     @Override
@@ -52,24 +77,41 @@ public class TwoLevelPool extends ByteBufferPool {
         if (owner != null && owner != Thread.currentThread()) {
             throw new DtException("borrow in other thread");
         }
-        if (requestSize <= threshold) {
+        if (requestSize > smallPoolMax) {
+            return largePool.borrow(requestSize);
+        } else if (requestSize < largePoolMin) {
             return smallPool.borrow(requestSize);
         } else {
-            return largePool.borrow(requestSize);
+            ByteBuffer b = smallPool.borrow0(requestSize, false);
+            if (b == null) {
+                return largePool.borrow(requestSize);
+            }
+            return b;
         }
     }
 
     @Override
     public void release(ByteBuffer buf) {
         int c = buf.capacity();
-        if (c <= threshold) {
+        if (c > smallPoolMax) {
+            largePool.release(buf);
+        } else {
             if (releaseInOtherThread && owner != Thread.currentThread()) {
                 releaseCallback.accept(buf);
             } else {
-                smallPool.release(buf);
+                mixedRelease(buf);
             }
+        }
+    }
+
+    public void mixedRelease(ByteBuffer buf) {
+        int c = buf.capacity();
+        if (c < largePoolMin) {
+            smallPool.release(buf);
         } else {
-            largePool.release(buf);
+            if (!smallPool.release0(buf)) {
+                largePool.release(buf);
+            }
         }
     }
 
@@ -89,7 +131,7 @@ public class TwoLevelPool extends ByteBufferPool {
     }
 
     public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, Consumer<ByteBuffer> releaseCallback) {
-        return new TwoLevelPool(direct, smallPool, largePool,true, releaseCallback, owner);
+        return new TwoLevelPool(direct, smallPool, largePool, true, releaseCallback, owner);
     }
 
     public ByteBufferPool getSmallPool() {

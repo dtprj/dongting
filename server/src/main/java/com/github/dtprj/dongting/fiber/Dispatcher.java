@@ -98,12 +98,15 @@ public class Dispatcher extends AbstractLifeCircle {
         TwoLevelPool heapPool = (TwoLevelPool) poolFactory.createPool(ts, false);
         TwoLevelPool releaseSafePool = heapPool.toReleaseInOtherThreadInstance(thread, byteBuffer -> {
             if (byteBuffer != null) {
-                shareQueue.offer(new FiberQueueTask(null) {
+                boolean b = shareQueue.offer(new FiberQueueTask(null) {
                     @Override
                     protected void run() {
-                        heapPool.getSmallPool().release(byteBuffer);
+                        heapPool.mixedRelease(byteBuffer);
                     }
                 });
+                if (!b) {
+                    log.warn("schedule ReleaseBufferTask fail");
+                }
             }
         });
         return new RefBufferFactory(releaseSafePool, 800);
