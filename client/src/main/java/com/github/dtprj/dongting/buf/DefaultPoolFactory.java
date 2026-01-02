@@ -73,7 +73,7 @@ public class DefaultPoolFactory implements PoolFactory {
         c.setTimeoutMillis(20000);
         c.setShareSize(calcTotalSize(c.getBufSizes(), c.getMaxCount()) / 2);
         SimpleByteBufferPool p1 = new SimpleByteBufferPool(c);
-        return new TwoLevelPool(direct, p1, direct ? GLOBAL_DIRECT_POOL : GLOBAL_HEAP_POOL, 16 * 1024);
+        return new TwoLevelPool(direct, p1, direct ? GLOBAL_DIRECT_POOL : GLOBAL_HEAP_POOL);
     }
 
     @Override

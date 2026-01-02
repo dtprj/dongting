@@ -56,7 +56,7 @@ public class TwoLevelPoolTest {
 
     @Test
     public void test() {
-        TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
+        TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         ByteBuffer b1 = p.borrow(31);
         ByteBuffer b2 = p.borrow(32);
         ByteBuffer b3 = p.borrow(33);
@@ -70,7 +70,7 @@ public class TwoLevelPoolTest {
 
     @Test
     public void testBorrowInOtherThread() {
-        TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
+        TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         //noinspection InstantiatingAThreadWithDefaultRunMethod
         TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(new Thread(), buf -> {
         });
@@ -79,7 +79,7 @@ public class TwoLevelPoolTest {
 
     @Test
     public void testReleaseInOtherThread1() {
-        TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
+        TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         AtomicInteger releaseCount = new AtomicInteger(0);
         TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> releaseCount.incrementAndGet());
         ByteBuffer b1 = p2.borrow(1);
@@ -90,7 +90,7 @@ public class TwoLevelPoolTest {
 
     @Test
     public void testReleaseInOtherThread2() throws Exception {
-        TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
+        TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         AtomicInteger releaseCount = new AtomicInteger(0);
         TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> releaseCount.incrementAndGet());
         ByteBuffer b1 = p2.borrow(1);
@@ -102,7 +102,7 @@ public class TwoLevelPoolTest {
 
     @Test
     public void testReleaseInOtherThread3() throws Exception {
-        TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
+        TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         AtomicInteger releaseCount = new AtomicInteger(0);
         TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> releaseCount.incrementAndGet());
         ByteBuffer b1 = p2.borrow(128);

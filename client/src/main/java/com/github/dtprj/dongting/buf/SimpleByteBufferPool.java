@@ -35,7 +35,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     public static final int DEFAULT_THRESHOLD = 128;
 
     private final int threshold;
-    private final int[] bufSizes;
+    final int[] bufSizes;
     private final long timeoutNanos;
     private final boolean threadSafe;
 

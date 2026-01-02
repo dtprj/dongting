@@ -24,24 +24,23 @@ import java.util.function.Consumer;
  * @author huangli
  */
 public class TwoLevelPool extends ByteBufferPool {
-    private final ByteBufferPool smallPool;
-    private final ByteBufferPool largePool;
+    private final SimpleByteBufferPool smallPool;
+    private final SimpleByteBufferPool largePool;
     private final int threshold;
     private final boolean releaseInOtherThread;
     private final Consumer<ByteBuffer> releaseCallback;
     private final Thread owner;
 
-    public TwoLevelPool(boolean direct, ByteBufferPool smallPool, ByteBufferPool largePool, int threshold) {
-        this(direct, smallPool, largePool, threshold, false, null, null);
+    public TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool) {
+        this(direct, smallPool, largePool, false, null, null);
     }
 
-    private TwoLevelPool(boolean direct, ByteBufferPool smallPool, ByteBufferPool largePool,
-                         int threshold, boolean releaseInOtherThread,
-                         Consumer<ByteBuffer> releaseCallback, Thread owner) {
+    private TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool,
+                         boolean releaseInOtherThread, Consumer<ByteBuffer> releaseCallback, Thread owner) {
         super(direct);
         this.smallPool = smallPool;
         this.largePool = largePool;
-        this.threshold = threshold;
+        this.threshold = smallPool.bufSizes[smallPool.bufSizes.length - 1];
         this.releaseInOtherThread = releaseInOtherThread;
         this.releaseCallback = releaseCallback;
         this.owner = owner;
@@ -90,8 +89,7 @@ public class TwoLevelPool extends ByteBufferPool {
     }
 
     public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, Consumer<ByteBuffer> releaseCallback) {
-        return new TwoLevelPool(direct, smallPool, largePool,
-                threshold, true, releaseCallback, owner);
+        return new TwoLevelPool(direct, smallPool, largePool,true, releaseCallback, owner);
     }
 
     public ByteBufferPool getSmallPool() {
