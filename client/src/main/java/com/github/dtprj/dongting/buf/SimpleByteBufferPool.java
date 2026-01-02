@@ -130,6 +130,10 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     @Override
     public ByteBuffer borrow(int requestSize) {
+        return borrow0(requestSize, true);
+    }
+
+    ByteBuffer borrow0(int requestSize, boolean allocateIfNotInPool) {
         if (requestSize <= threshold) {
             if (threadSafe) {
                 synchronized (this) {
@@ -138,7 +142,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             } else {
                 statBorrowTooSmallCount++;
             }
-            return allocate(requestSize);
+            return allocateIfNotInPool ? allocate(requestSize) : null;
         }
         int[] bufSizes = this.bufSizes;
         int poolCount = bufSizes.length;
@@ -158,7 +162,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             } else {
                 statBorrowTooLargeCount++;
             }
-            return allocate(requestSize);
+            return allocateIfNotInPool ? allocate(requestSize) : null;
         }
 
         ByteBuffer result;
@@ -173,32 +177,34 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             return result;
         } else {
             int size = bufSizes[poolIndex];
-            return allocate(size);
+            return allocateIfNotInPool ? allocate(size) : null;
         }
     }
 
     @Override
     public void release(ByteBuffer buf) {
+        boolean released;
         if (threadSafe) {
             synchronized (this) {
                 ts.refresh(1);
-                release0(buf);
+                released = release0(buf);
             }
         } else {
-            release0(buf);
+            released = release0(buf);
+        }
+        if (!released && direct) {
+            // buffer too small or too large, release it without pool
+            VF.releaseDirectBuffer(buf);
         }
     }
 
-    private void release0(ByteBuffer buf) {
+    boolean release0(ByteBuffer buf) {
         if (buf.isDirect() != direct) {
             throw new DtException("the buffer not belong to this pool, direct=" + buf.isDirect());
         }
         int capacity = buf.capacity();
         if (capacity <= threshold) {
-            if (direct) {
-                VF.releaseDirectBuffer(buf);
-            }
-            return;
+            return false;
         }
         int[] bufSizes = this.bufSizes;
         int poolCount = bufSizes.length;
@@ -212,13 +218,9 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             if (buf.capacity() < bufSizes[bufSizes.length - 1]) {
                 throw new DtException("the buffer not belong to this pool, capacity=" + buf.capacity());
             }
-            // buffer too large, release it without pool
-            if (direct) {
-                VF.releaseDirectBuffer(buf);
-            }
-            return;
+            return false;
         }
-        pools[poolIndex].release(buf, ts.nanoTime);
+        return pools[poolIndex].release(buf, ts.nanoTime);
     }
 
     @Override

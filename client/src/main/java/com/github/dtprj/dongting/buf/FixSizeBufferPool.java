@@ -68,7 +68,7 @@ class FixSizeBufferPool {
         return buf;
     }
 
-    public void release(ByteBuffer buf, long nanos) {
+    public boolean release(ByteBuffer buf, long nanos) {
         statReleaseCount++;
         IndexedQueue<ByteBuffer> bufferStack = this.bufferStack;
         // ByteBuffer.getLong may check limit, so we clear buffer first
@@ -86,10 +86,7 @@ class FixSizeBufferPool {
             long newUsedShareSize = p.currentUsedShareSize + bufferSize;
             if (newUsedShareSize > shareSize) {
                 // too many buffer in pool
-                if (direct) {
-                    SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
-                }
-                return;
+                return false;
             } else {
                 p.currentUsedShareSize = newUsedShareSize;
             }
@@ -102,6 +99,7 @@ class FixSizeBufferPool {
         buf.putLong(RETURN_TIME_INDEX, nanos);
 
         bufferStack.addLast(buf);
+        return true;
     }
 
     public void clean(long expireNanos) {
