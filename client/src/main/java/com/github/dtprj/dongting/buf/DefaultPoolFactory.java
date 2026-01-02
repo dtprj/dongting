@@ -58,7 +58,7 @@ public class DefaultPoolFactory implements PoolFactory {
         c.setBufSizes(DEFAULT_GLOBAL_SIZE);
         c.setMinCount(DEFAULT_GLOBAL_MIN_COUNT);
         c.setMaxCount(DEFAULT_GLOBAL_MAX_COUNT);
-        c.setTimeoutMillis(30000);
+        c.setTimeoutMillis(60000);
         c.setShareSize(calcTotalSize(c.getBufSizes(), c.getMaxCount()) / 2);
         return new SimpleByteBufferPool(c);
     }
@@ -66,11 +66,11 @@ public class DefaultPoolFactory implements PoolFactory {
     @Override
     public ByteBufferPool createPool(Timestamp ts, boolean direct) {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(
-                ts, direct, 64, false);
+                ts, direct, direct ? 0 : 64, false);
         c.setBufSizes(DEFAULT_SMALL_SIZE);
         c.setMinCount(DEFAULT_SMALL_MIN_COUNT);
         c.setMaxCount(DEFAULT_SMALL_MAX_COUNT);
-        c.setTimeoutMillis(10000);
+        c.setTimeoutMillis(20000);
         c.setShareSize(calcTotalSize(c.getBufSizes(), c.getMaxCount()) / 2);
         SimpleByteBufferPool p1 = new SimpleByteBufferPool(c);
         return new TwoLevelPool(direct, p1, direct ? GLOBAL_DIRECT_POOL : GLOBAL_HEAP_POOL, 16 * 1024);
