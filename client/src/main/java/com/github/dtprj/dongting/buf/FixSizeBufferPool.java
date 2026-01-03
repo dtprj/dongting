@@ -64,8 +64,16 @@ class FixSizeBufferPool {
             }
             buf.putInt(MAGIC_INDEX, 0);
             statBorrowHitCount++;
+            updateCurrentUsedShareSizeAfterRemove();
         }
         return buf;
+    }
+
+    private void updateCurrentUsedShareSizeAfterRemove() {
+        int size = bufferStack.size();
+        if (size >= maxCount) {
+            p.currentUsedShareSize -= bufferSize;
+        }
     }
 
     public boolean release(ByteBuffer buf, long nanos) {
@@ -111,6 +119,7 @@ class FixSizeBufferPool {
                 break;
             } else {
                 stack.removeFirst();
+                updateCurrentUsedShareSizeAfterRemove();
                 if (direct) {
                     SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
                 }
@@ -119,14 +128,14 @@ class FixSizeBufferPool {
     }
 
     public void cleanAll() {
-        if (!direct) {
-            return;
-        }
         IndexedQueue<ByteBuffer> stack = this.bufferStack;
         int size = stack.size();
         for (int i = 0; i < size; i++) {
             ByteBuffer buf = stack.removeFirst();
-            SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
+            updateCurrentUsedShareSizeAfterRemove();
+            if (direct) {
+                SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
+            }
         }
     }
 }
