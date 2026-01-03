@@ -71,31 +71,31 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
-        super(config.isDirect());
-        Objects.requireNonNull(config.getBufSizes());
-        Objects.requireNonNull(config.getMinCount());
-        Objects.requireNonNull(config.getMaxCount());
-        this.threadSafe = config.isThreadSafe();
+        super(config.direct);
+        Objects.requireNonNull(config.bufSizes);
+        Objects.requireNonNull(config.minCount);
+        Objects.requireNonNull(config.maxCount);
+        this.threadSafe = config.threadSafe;
         if (threadSafe) {
             // Thread safe pool should use a dedicated Timestamp
             this.ts = new Timestamp();
         } else {
-            this.ts = config.getTs();
+            this.ts = config.ts;
         }
-        this.threshold = config.getThreshold();
-        this.bufSizes = config.getBufSizes();
-        this.timeoutNanos = config.getTimeoutMillis() * 1000 * 1000;
+        this.threshold = config.threshold;
+        this.bufSizes = config.bufSizes;
+        this.timeoutNanos = config.timeoutMillis * 1000 * 1000;
 
         int[] bufSizes = this.bufSizes;
-        int[] minCount = config.getMinCount();
-        int[] maxCount = config.getMaxCount();
+        int[] minCount = config.minCount;
+        int[] maxCount = config.maxCount;
 
         int bufferTypeCount = bufSizes.length;
         if (bufferTypeCount != minCount.length || bufferTypeCount != maxCount.length) {
             throw new IllegalArgumentException();
         }
-        if (config.getTimeoutMillis() <= 0) {
-            throw new IllegalArgumentException("timeout<=0. timeout=" + config.getTimeoutMillis());
+        if (config.timeoutMillis <= 0) {
+            throw new IllegalArgumentException("timeout<=0. timeout=" + config.timeoutMillis);
         }
         for (int i : bufSizes) {
             if (i <= 0) {
@@ -118,7 +118,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
         this.pools = new FixSizeBufferPool[bufferTypeCount];
         for (int i = 0; i < bufferTypeCount; i++) {
-            this.pools[i] = new FixSizeBufferPool(this, direct, config.getShareSize(),
+            this.pools[i] = new FixSizeBufferPool(this, direct, config.shareSize,
                     minCount[i], maxCount[i], bufSizes[i]);
         }
     }

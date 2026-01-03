@@ -54,24 +54,17 @@ public class DefaultPoolFactory implements PoolFactory {
     private static SimpleByteBufferPool createGlobalPool(boolean direct) {
         // Thread safe pool should use a dedicated timestamp
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(
-                null, direct, 0, true);
-        c.setBufSizes(DEFAULT_GLOBAL_SIZE);
-        c.setMinCount(DEFAULT_GLOBAL_MIN_COUNT);
-        c.setMaxCount(DEFAULT_GLOBAL_MAX_COUNT);
-        c.setTimeoutMillis(60000);
-        c.setShareSize(calcTotalSize(c.getBufSizes(), c.getMaxCount()) / 2);
+                null, direct, 0, true, DEFAULT_GLOBAL_SIZE, DEFAULT_GLOBAL_MIN_COUNT,
+                DEFAULT_GLOBAL_MAX_COUNT, 60000,
+                calcTotalSize(DEFAULT_GLOBAL_SIZE, DEFAULT_GLOBAL_MAX_COUNT) / 2);
         return new SimpleByteBufferPool(c);
     }
 
     @Override
     public ByteBufferPool createPool(Timestamp ts, boolean direct) {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(
-                ts, direct, direct ? 0 : 64, false);
-        c.setBufSizes(DEFAULT_SMALL_SIZE);
-        c.setMinCount(DEFAULT_SMALL_MIN_COUNT);
-        c.setMaxCount(DEFAULT_SMALL_MAX_COUNT);
-        c.setTimeoutMillis(20000);
-        c.setShareSize(calcTotalSize(c.getBufSizes(), c.getMaxCount()) / 2);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(ts, direct, direct ? 0 : 64, false,
+                DEFAULT_SMALL_SIZE, DEFAULT_SMALL_MIN_COUNT, DEFAULT_SMALL_MAX_COUNT, 20000,
+                calcTotalSize(DEFAULT_SMALL_SIZE, DEFAULT_SMALL_MAX_COUNT) / 2);
         SimpleByteBufferPool p1 = new SimpleByteBufferPool(c);
         return new TwoLevelPool(direct, p1, direct ? GLOBAL_DIRECT_POOL : GLOBAL_HEAP_POOL);
     }
