@@ -84,7 +84,7 @@ public class StatusFile implements AutoCloseable {
 
             @Override
             public FrameCallResult execute(Void input) throws Exception {
-                buf = getFiberGroup().dispatcher.thread.heapPool.getPool().allocate(FILE_LENGTH);
+                buf = getFiberGroup().dispatcher.thread.heapPool.getPool().borrow(FILE_LENGTH);
                 boolean needLoad = file.exists() && file.length() != 0;
                 HashSet<OpenOption> options = new HashSet<>();
                 options.add(StandardOpenOption.CREATE);
@@ -178,9 +178,11 @@ public class StatusFile implements AutoCloseable {
     }
 
     public FiberFuture<Void> update(boolean sync) {
+        boolean registerReleaseCallback = false;
+        ByteBuffer buf = null;
+        ByteBufferPool directPool = fiberGroup.dispatcher.thread.directPool;
         try {
-            ByteBufferPool directPool = fiberGroup.dispatcher.thread.directPool;
-            ByteBuffer buf = directPool.borrow(FILE_LENGTH);
+            buf = directPool.borrow(FILE_LENGTH);
             writeToBuffer(properties, buf, crc32c);
 
             // retry in status manager
@@ -191,9 +193,14 @@ public class StatusFile implements AutoCloseable {
             } else {
                 f = task.write(buf, 0);
             }
-            f.registerCallback((v, ex) -> directPool.release(buf));
+            registerReleaseCallback = true;
+            ByteBuffer finalBuf = buf;
+            f.registerCallback((v, ex) -> directPool.release(finalBuf));
             return f;
         } catch (Throwable e) {
+            if (!registerReleaseCallback) {
+                directPool.release(buf);
+            }
             RaftException raftException = new RaftException("update status file failed. file=" + file.getPath(), e);
             return FiberFuture.failedFuture(fiberGroup, raftException);
         }
