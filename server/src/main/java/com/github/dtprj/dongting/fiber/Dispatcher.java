@@ -109,7 +109,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
             }
         });
-        return new RefBufferFactory(releaseSafePool, 800);
+        return new RefBufferFactory(releaseSafePool, 512);
     }
 
     public CompletableFuture<Void> startGroup(FiberGroup fiberGroup) {

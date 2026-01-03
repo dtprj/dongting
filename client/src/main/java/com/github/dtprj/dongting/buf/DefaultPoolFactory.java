@@ -29,8 +29,8 @@ public class DefaultPoolFactory implements PoolFactory {
 
     public static final int[] DEFAULT_GLOBAL_SIZE = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024,
             1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
-    // 2,621,440 bytes
-    public static final int[] DEFAULT_GLOBAL_MIN_COUNT = new int[]{16, 8, 4, 2, 1, 0, 0, 0};
+    // 18,874,368 bytes
+    public static final int[] DEFAULT_GLOBAL_MIN_COUNT = new int[]{32, 32, 24, 16, 2, 1, 1, 1};
     // 104,857,600 bytes
     public static final int[] DEFAULT_GLOBAL_MAX_COUNT = new int[]{128, 128, 64, 64, 32, 16, 8, 4};
 
