@@ -76,7 +76,7 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             private FrameCallResult afterInit(Void unused) {
                 initData();
-                statusManager.persistAsync(true);
+                statusManager.persistAsync();
                 return statusManager.waitUpdateFinish(this::justReturn);
             }
             @Override
@@ -108,7 +108,7 @@ public class StatusManagerTest extends BaseFiberTest {
                     raftStatus.votedFor = 200 + i;
                     raftStatus.currentTerm = 300 + i;
                     statusManager.getProperties().put("k1", "v1" + i);
-                    statusManager.persistAsync(false);
+                    statusManager.persistAsync();
                 }
                 return statusManager.waitUpdateFinish(this::justReturn);
             }
@@ -131,10 +131,10 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             private FrameCallResult afterInit(Void unused) {
                 initData();
-                statusManager.persistAsync(false);
+                statusManager.persistAsync();
 
                 raftStatus.commitIndex = 100000;
-                statusManager.persistAsync(true);
+                statusManager.persistAsync();
                 return statusManager.waitUpdateFinish(this::justReturn);
             }
             @Override

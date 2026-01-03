@@ -127,15 +127,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private int lastBufferSize;
 
         @Override
-        protected FrameCallResult doFinally() {
-            if (currentStatusFile != null) {
-                currentStatusFile.close();
-                currentStatusFile = null;
-            }
-            return Fiber.frameReturn();
-        }
-
-        @Override
         public FrameCallResult execute(Void input) throws Exception {
             File dataDir = FileUtil.ensureDir(groupConfig.dataDir);
             snapshotDir = FileUtil.ensureDir(dataDir, SNAPSHOT_DIR);
@@ -208,7 +199,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
                         preparedObservers, lastConfigChangeIndex);
             }
 
-            currentStatusFile.close();
             currentStatusFile = null;
 
             return loadIdxInfo(it);
@@ -353,7 +343,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (newDataFile != null && newDataFile.getChannel() != null) {
                 DtUtil.close(newDataFile.getChannel());
             }
-            DtUtil.close(statusFile);
             if (readSnapshot != null) {
                 readSnapshot.close();
             }
@@ -484,7 +473,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             statusFile.getProperties().put("saveStartTime", sdf.format(new Date(startTime)));
             statusFile.getProperties().put("saveEndTime", sdf.format(new Date()));
 
-            return statusFile.update(true).await(this::finish2);
+            return statusFile.update().await(this::finish2);
         }
 
         private FrameCallResult finish2(Void unused) {

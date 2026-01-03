@@ -40,7 +40,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * @author huangli
  */
-@SuppressWarnings("resource")
 public class StatusFileTest extends BaseFiberTest {
 
     private static RaftGroupConfigEx createGroupConfig() {
@@ -61,18 +60,12 @@ public class StatusFileTest extends BaseFiberTest {
 
             private FrameCallResult afterInit(Void unused) {
                 statusFile.getProperties().putAll(data);
-                return statusFile.update(true).await(this::afterWrite);
+                return statusFile.update().await(this::afterWrite);
             }
 
             private FrameCallResult afterWrite(Void unused) {
                 jdkFuture.complete(null);
                 return Fiber.frameReturn();
-            }
-
-            @Override
-            protected FrameCallResult doFinally() {
-                statusFile.close();
-                return super.doFinally();
             }
         });
         jdkFuture.get(1, TimeUnit.SECONDS);
@@ -100,18 +93,12 @@ public class StatusFileTest extends BaseFiberTest {
                     assertEquals("100", statusFile.getProperties().get("1"));
                     assertEquals("200", statusFile.getProperties().get("2"));
                     statusFile.getProperties().put("3", "300");
-                    return statusFile.update(true).await(this::afterWrite);
+                    return statusFile.update().await(this::afterWrite);
                 }
 
                 private FrameCallResult afterWrite(Void unused) {
                     jdkFuture.complete(null);
                     return Fiber.frameReturn();
-                }
-
-                @Override
-                protected FrameCallResult doFinally() {
-                    statusFile.close();
-                    return super.doFinally();
                 }
             });
             jdkFuture.get(1, TimeUnit.SECONDS);
@@ -131,12 +118,6 @@ public class StatusFileTest extends BaseFiberTest {
                     assertEquals("300", statusFile.getProperties().get("3"));
                     jdkFuture.complete(null);
                     return Fiber.frameReturn();
-                }
-
-                @Override
-                protected FrameCallResult doFinally() {
-                    statusFile.close();
-                    return super.doFinally();
                 }
             });
             jdkFuture.get(1, TimeUnit.SECONDS);
@@ -181,12 +162,6 @@ public class StatusFileTest extends BaseFiberTest {
                 jdkFuture.complete(ex);
                 return Fiber.frameReturn();
             }
-
-            @Override
-            protected FrameCallResult doFinally() {
-                statusFile.close();
-                return super.doFinally();
-            }
         });
         assertEquals(ChecksumException.class, DtUtil.rootCause(jdkFuture.get(1, TimeUnit.SECONDS)).getClass());
     }
@@ -211,12 +186,6 @@ public class StatusFileTest extends BaseFiberTest {
             protected FrameCallResult handle(Throwable ex) {
                 jdkFuture.complete(ex);
                 return Fiber.frameReturn();
-            }
-
-            @Override
-            protected FrameCallResult doFinally() {
-                statusFile.close();
-                return super.doFinally();
             }
         });
         assertEquals(RaftException.class, jdkFuture.get(1, TimeUnit.SECONDS).getClass());

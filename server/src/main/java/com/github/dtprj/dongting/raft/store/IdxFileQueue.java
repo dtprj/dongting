@@ -170,7 +170,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.lastForceLogIndex);
         if (idx > persistedIndexInStatusFile) {
             statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(idx));
-            statusManager.persistAsync(true);
+            statusManager.persistAsync();
         }
         persistedIndex = writeTask.getLastRaftIndex();
     }

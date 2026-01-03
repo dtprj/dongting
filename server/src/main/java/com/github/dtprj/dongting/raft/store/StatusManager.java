@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -53,7 +52,6 @@ public class StatusManager {
 
     private boolean closed;
 
-    private long lastNeedForceVersion;
     private long requestUpdateVersion;
     private long finishedUpdateVersion;
 
@@ -106,7 +104,6 @@ public class StatusManager {
 
     private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
-        private boolean force;
 
         @Override
         public FrameCallResult execute(Void input) {
@@ -128,8 +125,7 @@ public class StatusManager {
                 public FrameCallResult execute(Void input) {
                     copyWriteData();
                     version = requestUpdateVersion;
-                    force = lastNeedForceVersion > finishedUpdateVersion;
-                    FiberFuture<Void> f = statusFile.update(force);
+                    FiberFuture<Void> f = statusFile.update();
                     return f.await(this::justReturn);
                 }
             };
@@ -153,12 +149,6 @@ public class StatusManager {
             throw Fiber.fatal(ex);
         }
 
-        @Override
-        protected FrameCallResult doFinally() {
-            DtUtil.close(statusFile);
-            return Fiber.frameReturn();
-        }
-
         private void copyWriteData() {
             Map<String, String> destMap = statusFile.getProperties();
 
@@ -170,11 +160,8 @@ public class StatusManager {
         }
     }
 
-    public void persistAsync(boolean force) {
+    public void persistAsync() {
         requestUpdateVersion++;
-        if (force) {
-            lastNeedForceVersion = requestUpdateVersion;
-        }
         needUpdateCondition.signal();
     }
 

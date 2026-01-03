@@ -131,7 +131,7 @@ public class ServerTestBase {
             //noinspection ResultOfMethodCallIgnored
             dir.mkdirs();
             File file = new File(dir, groupConfig.statusFile);
-            ByteBuffer buf = ByteBuffer.allocate(StatusFile.FILE_LENGTH);
+            ByteBuffer buf = ByteBuffer.allocate(StatusFile.MAX_FILE_LEN);
             Map<String, String> props = new HashMap<>();
             props.put(StatusManager.CURRENT_TERM, String.valueOf(initTerm));
             props.put(StatusManager.VOTED_FOR, String.valueOf(initVoteFor));
@@ -139,7 +139,7 @@ public class ServerTestBase {
             props.put(StatusManager.INSTALL_SNAPSHOT, String.valueOf(initSnapshot));
             StatusFile.writeToBuffer(props, buf, new CRC32C());
             RandomAccessFile raf = new RandomAccessFile(file, "rw");
-            raf.write(buf.array());
+            raf.write(buf.array(), 0, buf.limit());
             raf.close();
         }
 

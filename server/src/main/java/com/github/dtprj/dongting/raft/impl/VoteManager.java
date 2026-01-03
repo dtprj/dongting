@@ -376,7 +376,7 @@ public class VoteManager {
             }
             if (remoteTerm > raftStatus.currentTerm) {
                 RaftUtil.incrTerm(remoteTerm, raftStatus, -1, "remote term in vote resp greater than local");
-                statusManager.persistAsync(true);
+                statusManager.persistAsync();
                 // no rest action, so not call statusManager.waitSync
                 return Fiber.frameReturn();
             }
@@ -460,7 +460,7 @@ public class VoteManager {
             raftStatus.copyShareStatus();
             log.info("set currentTerm to {}, groupId={}", raftStatus.currentTerm, groupId);
 
-            statusManager.persistAsync(true);
+            statusManager.persistAsync();
             int voteIdBeforePersist = currentVoteId;
             return statusManager.waitUpdateFinish(v -> afterStartVotePersist(voter, voteIdBeforePersist));
         }

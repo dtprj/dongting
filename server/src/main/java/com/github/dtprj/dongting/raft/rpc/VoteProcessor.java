@@ -136,7 +136,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         "vote for node " + voteReq.candidateId);
             }
             if (termUpdated || notPreVoteAndGrant) {
-                statusManager.persistAsync(notPreVoteAndGrant);
+                statusManager.persistAsync();
             }
             if (notPreVoteAndGrant) {
                 return statusManager.waitUpdateFinish(v -> afterStatusFileUpdated(expectTerm, true));

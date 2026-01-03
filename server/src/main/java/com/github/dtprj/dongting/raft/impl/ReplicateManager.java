@@ -131,7 +131,7 @@ public class ReplicateManager {
         if (remoteTerm > raftStatus.currentTerm) {
             String msg = (append ? "append" : "install") + " response term greater than local";
             RaftUtil.incrTerm(remoteTerm, raftStatus, -1, msg);
-            statusManager.persistAsync(true);
+            statusManager.persistAsync();
             return true;
         }
 

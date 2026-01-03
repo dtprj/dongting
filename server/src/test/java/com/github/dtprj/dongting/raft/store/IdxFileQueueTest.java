@@ -361,7 +361,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
             private FrameCallResult afterIdxClose(Void unused) {
                 statusManager.getProperties().put(IdxFileQueue.KEY_PERSIST_IDX_INDEX, "2");
-                statusManager.persistAsync(false);
+                statusManager.persistAsync();
                 return statusManager.waitUpdateFinish(this::afterUpdateStatus);
             }
 

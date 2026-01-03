@@ -499,7 +499,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         private FrameCallResult afterApplyFinish(Void unused) {
             waitApply = false;
             StatusManager statusManager = gc.statusManager;
-            statusManager.persistAsync(true);
+            statusManager.persistAsync();
             switch (rt.type) {
                 case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);

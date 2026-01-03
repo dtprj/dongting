@@ -207,7 +207,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                 gc.voteManager.cancelVote("receive append request with larger term");
                 RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId, "receive append request with larger term");
                 RaftUtil.resetElectTimer(raftStatus);
-                gc.statusManager.persistAsync(true);
+                gc.statusManager.persistAsync();
                 return gc.statusManager.waitUpdateFinish(this);
             } else {
                 log.info("receive {} request with a smaller term, ignore, remoteTerm={}, localTerm={}",
@@ -475,7 +475,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
                     groupId, req.lastIncludedIndex, req.lastIncludedTerm);
             raftStatus.installSnapshot = true;
             gc.applyManager.wakeupApply(); // wakeup apply fiber to exit
-            gc.statusManager.persistAsync(true);
+            gc.statusManager.persistAsync();
             markInstall = true;
         }
         return gc.applyManager.getApplyFiber().join(this::afterApplyExit);
@@ -546,7 +546,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private FrameCallResult afterRaftLogFinishInstall(long nextLogIndex) {
         gc.raftStatus.firstValidIndex = nextLogIndex;
         StatusManager sm = gc.statusManager;
-        sm.persistAsync(true);
+        sm.persistAsync();
         return sm.waitUpdateFinish(this::afterFinishStatusSaved);
     }
 

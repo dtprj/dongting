@@ -32,9 +32,11 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
-import java.nio.channels.FileLock;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.OpenOption;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,18 +46,15 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-public class StatusFile implements AutoCloseable {
+public class StatusFile {
     private static final DtLog log = DtLogs.getLogger(StatusFile.class);
 
-    // we think the minimum storage write unit is 4k
-    public static final int FILE_LENGTH = 4096;
+    public static final int MAX_FILE_LEN = 4096;
     private static final int CRC_HEX_LENGTH = 8;
 
     private final File file;
     private final FiberGroup fiberGroup;
     private final RaftGroupConfigEx groupConfig;
-    private FileLock lock;
-    private DtFile dtFile;
     private final CRC32C crc32c = new CRC32C();
 
     private final Map<String, String> properties = new HashMap<>();
@@ -74,17 +73,29 @@ public class StatusFile implements AutoCloseable {
         return new FiberFrame<>() {
             private ByteBuffer buf;
 
+            private int fileLen;
+            private DtFile dtFile;
+
             @Override
             protected FrameCallResult doFinally() {
                 if (buf != null) {
                     getFiberGroup().dispatcher.thread.heapPool.getPool().release(buf);
+                }
+                if (dtFile != null) {
+                    DtUtil.close(dtFile.getChannel());
+                    dtFile = null;
                 }
                 return Fiber.frameReturn();
             }
 
             @Override
             public FrameCallResult execute(Void input) throws Exception {
-                buf = getFiberGroup().dispatcher.thread.heapPool.getPool().borrow(FILE_LENGTH);
+                long l = file.length();
+                if (l > MAX_FILE_LEN || (file.exists() && l <= CRC_HEX_LENGTH)) {
+                    throw new RaftException("illegal file size");
+                }
+                fileLen = (int) l;
+
                 boolean needLoad = file.exists() && file.length() != 0;
                 HashSet<OpenOption> options = new HashSet<>();
                 options.add(StandardOpenOption.CREATE);
@@ -93,17 +104,12 @@ public class StatusFile implements AutoCloseable {
                 AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), options,
                         getFiberGroup().getExecutor());
                 dtFile = new DtFile(file, channel, fiberGroup);
-                lock = channel.tryLock();
-                if (lock == null) {
-                    throw new RaftException("acquire file lock failed: " + file.getPath());
-                }
                 if (!needLoad) {
                     return Fiber.frameReturn();
                 }
-                if (file.length() != FILE_LENGTH) {
-                    throw new RaftException("bad status file length: " + file.length());
-                }
                 AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
+                buf = getFiberGroup().dispatcher.thread.heapPool.getPool().borrow(fileLen);
+                buf.limit(fileLen);
                 FiberFuture<Void> f = task.read(buf, 0);
                 return f.await(this::resumeAfterRead);
             }
@@ -111,7 +117,7 @@ public class StatusFile implements AutoCloseable {
             private FrameCallResult resumeAfterRead(Void input) {
                 crc32c.reset();
                 byte[] arr = buf.array();
-                crc32c.update(arr, CRC_HEX_LENGTH, FILE_LENGTH - CRC_HEX_LENGTH);
+                crc32c.update(arr, CRC_HEX_LENGTH, fileLen - CRC_HEX_LENGTH);
                 int expectCrc = (int) crc32c.getValue();
                 int actualCrc = Integer.parseUnsignedInt(new String(arr, 0, CRC_HEX_LENGTH,
                         StandardCharsets.UTF_8), 16);
@@ -121,7 +127,7 @@ public class StatusFile implements AutoCloseable {
                 }
 
                 String key = null;
-                for (int i = CRC_HEX_LENGTH + 1, s = i; i < FILE_LENGTH; i++) {
+                for (int i = CRC_HEX_LENGTH + 1, s = i; i < fileLen; i++) {
                     if (key == null) {
                         if (arr[i] == '=') {
                             key = new String(arr, s, i - s, StandardCharsets.UTF_8);
@@ -139,16 +145,11 @@ public class StatusFile implements AutoCloseable {
                 log.info("loaded status file: {}, content: {}", file.getPath(), properties);
                 return Fiber.frameReturn();
             }
-
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                close();
-                throw new RaftException(ex);
-            }
         };
     }
 
     public static void writeToBuffer(Map<String, String> properties, ByteBuffer buf, CRC32C crc32c) {
+        buf.clear();
         buf.position(CRC_HEX_LENGTH);
         buf.put((byte) '\n');
         for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -159,12 +160,10 @@ public class StatusFile implements AutoCloseable {
             buf.put(value);
             buf.put((byte) '\n');
         }
-        while (buf.hasRemaining()) {
-            buf.put((byte) '\n');
-        }
 
+        int limit = buf.position();
         crc32c.reset();
-        RaftUtil.updateCrc(crc32c, buf, CRC_HEX_LENGTH, FILE_LENGTH - CRC_HEX_LENGTH);
+        RaftUtil.updateCrc(crc32c, buf, CRC_HEX_LENGTH, limit - CRC_HEX_LENGTH);
         int crc = (int) crc32c.getValue();
         buf.clear();
         String crcHex = Integer.toHexString(crc);
@@ -174,47 +173,46 @@ public class StatusFile implements AutoCloseable {
         for (int i = 0, len = crcHex.length(); i < len; i++) {
             buf.put((byte) crcHex.charAt(i));
         }
-        buf.clear();
+        buf.position(0);
+        buf.limit(limit);
     }
 
-    public FiberFuture<Void> update(boolean sync) {
-        boolean registerReleaseCallback = false;
-        ByteBuffer buf = null;
+    public FiberFuture<Void> update() {
         ByteBufferPool directPool = fiberGroup.dispatcher.thread.directPool;
+        ByteBuffer buf = directPool.borrow(MAX_FILE_LEN);
+        FiberFuture<Void> f = fiberGroup.newFuture("update-status-file");
+        f.registerCallback((v, ex) -> directPool.release(buf));
         try {
-            buf = directPool.borrow(FILE_LENGTH);
             writeToBuffer(properties, buf, crc32c);
 
             // retry in status manager
-            AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
-            FiberFuture<Void> f;
-            if (sync) {
-                f = task.writeAndForce(buf, 0, false, groupConfig.blockIoExecutor);
-            } else {
-                f = task.write(buf, 0);
-            }
-            registerReleaseCallback = true;
-            ByteBuffer finalBuf = buf;
-            f.registerCallback((v, ex) -> directPool.release(finalBuf));
-            return f;
+            groupConfig.blockIoExecutor.execute(() -> update(f, buf));
         } catch (Throwable e) {
-            if (!registerReleaseCallback) {
-                directPool.release(buf);
-            }
+            log.error("", e);
             RaftException raftException = new RaftException("update status file failed. file=" + file.getPath(), e);
-            return FiberFuture.failedFuture(fiberGroup, raftException);
+            f.completeExceptionally(raftException);
         }
+        return f;
     }
 
-    @Override
-    public void close() {
-        if (lock != null && lock.isValid()) {
-            DtUtil.close(lock);
-            lock = null;
-        }
-        if (dtFile != null) {
-            DtUtil.close(dtFile.getChannel());
-            dtFile = null;
+    private void update(FiberFuture<Void> f, ByteBuffer buf) {
+        FileChannel fc = null;
+        try {
+            File tempFile = new File(file.getPath() + ".tmp");
+            fc = FileChannel.open(tempFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
+            while (buf.hasRemaining()) {
+                int ignored = fc.write(buf);
+            }
+            fc.force(true);
+            Files.move(tempFile.toPath(), file.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            f.fireComplete(null);
+        } catch (Throwable e) {
+            log.error("update status file", e);
+            f.fireCompleteExceptionally(e);
+        } finally {
+            DtUtil.close(fc);
         }
     }
 
