@@ -16,4 +16,5 @@
 
 module dongting.dist {
     requires transitive dongting.server;
+    exports com.github.dtprj.dongting.dist;
 }
