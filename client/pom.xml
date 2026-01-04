@@ -116,6 +116,9 @@
     <profiles>
         <profile>
             <id>merge</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
             <build>
                 <plugins>
                     <plugin>

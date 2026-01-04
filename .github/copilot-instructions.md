@@ -29,6 +29,5 @@
    尽管如此，test目录中的protobuf文件描述的message和main代码中的定义是一致的。
 
 10. client模块依赖java8，但有部分java11代码会在java11运行环境下激活，也有module-info，mvn构建时client模块会按不同的配置多次编译，
-    详见client/pom.xmlclient-ex模块只在开发是存在（也是因为build相关的原因），package的时候client-ex模块会复制到client模块的包中
-    （mvn需要指定-Pmerge参数）。server模块需要java11以上。client.jar和server.jar就包含完整的功能。dist模块（java11+）只是包装了启动
-    脚本和配置文件。
+    详见client/pom.xml，client-ex模块只在开发是存在（也是因为build相关的原因），package的时候client-ex模块会复制到client模块的包中。
+    server模块需要java11以上。client.jar和server.jar就包含完整的功能。dist模块（java11+）只是包装了启动脚本和配置文件。
