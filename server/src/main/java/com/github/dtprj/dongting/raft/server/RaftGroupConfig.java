@@ -41,8 +41,10 @@ public class RaftGroupConfig {
     public int maxCacheTasks = 50000;
     public long maxCacheTaskBytes = 256 * 1024 * 1024;
 
+    public int idxItemsPerFile = 1024 * 1024;
     public int idxCacheSize = 16 * 1024;
     public int idxFlushThreshold = 8 * 1024;
+    public long logFileSize = 1024 * 1024 * 1024;
 
     public boolean ioCallbackUseGroupExecutor = false;
 

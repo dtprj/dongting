@@ -24,13 +24,9 @@ import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.ImplAccessor;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
-import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
-import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
-import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusFile;
 import com.github.dtprj.dongting.raft.store.StatusManager;
-import com.github.dtprj.dongting.raft.store.StoreAccessor;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.TestDir;
@@ -111,6 +107,10 @@ public class ServerTestBase {
         serverConfig.rpcTimeout = tick(rpcTimeout);
 
         RaftGroupConfig groupConfig = config(nodeId, groupId, nodeIdOfMembers, nodeIdOfObservers);
+        groupConfig.idxCacheSize = idxCacheSize;
+        groupConfig.idxFlushThreshold = idxFlushThreshold;
+        groupConfig.idxItemsPerFile = idxItemsPerFile;
+        groupConfig.logFileSize = logFileSize;
 
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
 
@@ -191,15 +191,6 @@ public class ServerTestBase {
             @Override
             public ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig) {
                 return MockExecutors.ioExecutor();
-            }
-
-            @Override
-            public RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory codecFactory) {
-                groupConfig.idxCacheSize = idxCacheSize;
-                groupConfig.idxFlushThreshold = idxFlushThreshold;
-                DefaultRaftLog raftLog = new DefaultRaftLog(groupConfig, statusManager, codecFactory);
-                StoreAccessor.updateRaftLog(raftLog, idxItemsPerFile, logFileSize);
-                return raftLog;
             }
 
             @Override

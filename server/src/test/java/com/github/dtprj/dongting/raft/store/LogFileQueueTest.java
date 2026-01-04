@@ -108,8 +108,9 @@ public class LogFileQueueTest extends BaseFiberTest {
         config.fiberGroup = fiberGroup;
         config.ts = raftStatus.ts;
         config.raftStatus = raftStatus;
+        config.logFileSize = fileSize;
 
-        logFileQueue = new LogFileQueue(dir, config, idxOps, fileSize);
+        logFileQueue = new LogFileQueue(dir, config, idxOps);
         logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
         doInFiber(new FiberFrame<>() {
             @Override
@@ -335,7 +336,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterClose(Void unused) throws IOException {
-                logFileQueue = new LogFileQueue(dir, config, idxOps, 1024);
+                logFileQueue = new LogFileQueue(dir, config, idxOps);
                 logFileQueue.initQueue();
                 assertThrows(RaftException.class, () -> logFileQueue.restore(1, -1, 0));
                 assertThrows(RaftException.class, () -> logFileQueue.restore(1, 5000, 0));
@@ -376,7 +377,7 @@ public class LogFileQueueTest extends BaseFiberTest {
                     updater.run();
                 }
 
-                logFileQueue = new LogFileQueue(dir, config, idxOps, 1024);
+                logFileQueue = new LogFileQueue(dir, config, idxOps);
                 logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
                 logFileQueue.initQueue();
                 FiberFrame<Integer> f = logFileQueue.restore(restoreIndex, restorePos, firstValidPos);
@@ -453,7 +454,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Throwable {
-                logFileQueue = new LogFileQueue(dir, config, idxOps, 1024);
+                logFileQueue = new LogFileQueue(dir, config, idxOps);
                 logFileQueue.initQueue();
                 return Fiber.frameReturn();
             }

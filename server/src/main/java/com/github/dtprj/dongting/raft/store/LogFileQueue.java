@@ -42,7 +42,6 @@ import java.util.List;
 final class LogFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
-    public static final long DEFAULT_LOG_FILE_SIZE = 1024 * 1024 * 1024;
     public static final int MAX_WRITE_BUFFER_SIZE = 128 * 1024;
 
     private final RaftGroupConfigEx groupConfig;
@@ -58,8 +57,8 @@ final class LogFileQueue extends FileQueue {
 
     int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
 
-    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long fileSize) {
-        super(dir, groupConfig, fileSize, true);
+    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
+        super(dir, groupConfig, groupConfig.logFileSize, true);
         this.groupConfig = groupConfig;
         this.idxOps = idxOps;
         this.ts = groupConfig.ts;

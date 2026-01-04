@@ -61,6 +61,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.idxCacheSize = 4;
         c.idxFlushThreshold = 2;
+        c.idxItemsPerFile = 8;
         c.blockIoExecutor = MockExecutors.ioExecutor();
         raftStatus = new RaftStatusImpl(0, dispatcher.ts);
         raftStatus.tailCache = new TailCache(c, raftStatus);
@@ -77,7 +78,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterStatusInit(Void unused) throws Exception {
-                IdxFileQueue q = new IdxFileQueue(dir, statusManager, c, 8);
+                IdxFileQueue q = new IdxFileQueue(dir, statusManager, c);
                 if(init) {
                     q.initQueue();
                     return Fiber.call(q.initRestorePos(), r -> afterInit(q));
@@ -114,8 +115,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
     @Test
     public void testConstructor() {
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
-        assertThrows(IllegalArgumentException.class, () -> new IdxFileQueue(
-                null, null, c, 511));
+        c.idxItemsPerFile = 511;
+        assertThrows(IllegalArgumentException.class, () -> new IdxFileQueue(null, null, c));
     }
 
     @Test

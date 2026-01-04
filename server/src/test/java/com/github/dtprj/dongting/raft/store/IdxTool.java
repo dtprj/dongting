@@ -26,7 +26,7 @@ public class IdxTool {
     private static void getLogPos(long index) throws Exception {
         File dir = new File("target/raftlog/idx");
         long idxPos = index * 8;
-        long mask = IdxFileQueue.DEFAULT_ITEMS_PER_FILE - 1;
+        long mask = 1024 * 1024 - 1;
         long posOfIdxFile = idxPos & mask;
         long fileStartPos = idxPos - posOfIdxFile;
         String fileName = String.format("%020d", fileStartPos);

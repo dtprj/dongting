@@ -58,9 +58,6 @@ public final class DefaultRaftLog implements RaftLog {
 
     private static final long DEFAULT_DELETE_INTERVAL_MILLIS = 10 * 1000;
 
-    int idxItemsPerFile = IdxFileQueue.DEFAULT_ITEMS_PER_FILE;
-    long logFileSize = LogFileQueue.DEFAULT_LOG_FILE_SIZE;
-
     private QueueDeleteFiberFrame deleteFrame;
 
     DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory raftCodecFactory,
@@ -81,10 +78,8 @@ public final class DefaultRaftLog implements RaftLog {
     private void createFiles() {
         File dataDir = FileUtil.ensureDir(groupConfig.dataDir);
 
-        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
-                statusManager, groupConfig, idxItemsPerFile);
-        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
-                groupConfig, idxFiles, logFileSize);
+        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), statusManager, groupConfig);
+        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), groupConfig, idxFiles);
     }
 
     @Override

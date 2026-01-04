@@ -47,8 +47,6 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
     static final String KEY_FIRST_VALID_POS = "firstValidPos";
 
-    public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
-
     private final StatusManager statusManager;
 
     private final int maxCacheItems;
@@ -75,8 +73,9 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     final ChainWriter chainWriter;
 
-    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig, int itemsPerFile) {
-        super(dir, groupConfig, (long) ITEM_LEN * itemsPerFile, false);
+    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig) {
+        super(dir, groupConfig, (long) ITEM_LEN * groupConfig.idxItemsPerFile, false);
+        int itemsPerFile = groupConfig.idxItemsPerFile;
         if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {
             throw new IllegalArgumentException("itemsPerFile not power of 2: " + itemsPerFile);
         }
