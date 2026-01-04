@@ -32,6 +32,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <skipUTs>false</skipUTs>
     </properties>
 
     <licenses>
@@ -175,6 +176,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.3</version>
                 <configuration>
+                    <skipTests>${skipUTs}</skipTests>
                     <argLine>@{argLine} -Xmx256M -XX:MaxDirectMemorySize=128M --add-modules ALL-MODULE-PATH</argLine>
                 </configuration>
             </plugin>
