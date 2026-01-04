@@ -31,9 +31,9 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusFile;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 import com.github.dtprj.dongting.raft.store.StoreAccessor;
-import com.github.dtprj.dongting.raft.store.TestDir;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.TestDir;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.BeforeEach;
 

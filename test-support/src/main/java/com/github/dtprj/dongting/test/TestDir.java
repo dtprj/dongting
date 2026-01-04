@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.store;
+package com.github.dtprj.dongting.test;
 
 import java.io.File;
 import java.text.SimpleDateFormat;

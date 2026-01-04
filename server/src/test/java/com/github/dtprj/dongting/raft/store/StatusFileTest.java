@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.test.TestDir;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
