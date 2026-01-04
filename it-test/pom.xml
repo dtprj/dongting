@@ -59,6 +59,7 @@
                 <version>3.5.4</version>
                 <configuration>
                     <skipITs>${skipITs}</skipITs>
+                    <argLine>-Xmx512M</argLine>
                 </configuration>
                 <executions>
                     <execution>

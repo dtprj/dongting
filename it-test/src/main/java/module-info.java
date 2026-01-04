@@ -16,4 +16,5 @@
 
 module dongting.it.test {
     requires dongting.dist;
+    requires org.slf4j;
 }
