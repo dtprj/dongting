@@ -48,7 +48,6 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     static final String KEY_FIRST_VALID_POS = "firstValidPos";
 
     public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
-    public static final int MAX_BATCH_ITEMS = 16 * 1024;
 
     private final StatusManager statusManager;
 
@@ -212,8 +211,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             submitForceOnlyTask();
             return;
         }
-        if (lastIdx - startIdx > MAX_BATCH_ITEMS) {
-            lastIdx = startIdx + MAX_BATCH_ITEMS;
+        if (lastIdx - startIdx > maxCacheItems) {
+            lastIdx = startIdx + maxCacheItems;
         }
         long startIdxPos = indexToPos(startIdx);
         long lastIdxPos = indexToPos(lastIdx);
