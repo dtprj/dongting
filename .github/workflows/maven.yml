@@ -30,8 +30,12 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
-    - name: Build with Maven
-      run: mvn -B verify --file pom.xml -Dtick=5
+    - name: compile with Maven
+      run: mvn -B compile test-compile --file pom.xml
+    - name: Unit tests with Maven
+      run: mvn -B package --file pom.xml -Dtick=10
+    - name: Integration tests with Maven
+      run: mvn -B verify --file pom.xml -DskipUTs
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
