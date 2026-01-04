@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.it.support;
 
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -115,15 +117,25 @@ public class ConfigFileGenerator {
 
         // Create servers.properties
         File serversFile = new File(nodeDir, "servers.properties");
-        Properties serversProps = new Properties();
-        serversProps.setProperty("servers", serversStr);
-        for (GroupDefinition group : groups) {
-            serversProps.setProperty("group." + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
-            serversProps.setProperty("group." + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);
-        }
+        Properties serversProps = generateServersProperties(serversStr, groups);
         writeConfigFile(serversProps, serversFile);
 
         return new ProcessConfig(nodeDir, configFile, serversFile, nodeId, replicatePort, servicePort);
+    }
+
+    private static Properties generateServersProperties(String serversStr, List<GroupDefinition> groups) {
+        Properties serversProps = new Properties();
+        serversProps.setProperty("servers", serversStr);
+        RaftGroupConfigEx protoType = new RaftGroupConfigEx(0, "", "");
+        for (GroupDefinition group : groups) {
+            serversProps.setProperty("group." + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
+            serversProps.setProperty("group." + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);
+            serversProps.setProperty("group." + group.groupId + ".idxItemsPerFile", String.valueOf(protoType.idxItemsPerFile / 64));
+            serversProps.setProperty("group." + group.groupId + ".idxCacheSize", String.valueOf(protoType.idxCacheSize / 64));
+            serversProps.setProperty("group." + group.groupId + ".idxFlushThreshold", String.valueOf(protoType.idxFlushThreshold / 64));
+            serversProps.setProperty("group." + group.groupId + ".logFileSize", String.valueOf(protoType.logFileSize / 64));
+        }
+        return serversProps;
     }
 
     /**
