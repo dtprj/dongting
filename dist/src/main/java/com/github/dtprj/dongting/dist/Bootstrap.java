@@ -58,6 +58,7 @@ public class Bootstrap {
     private int exitCode;
 
     private Properties configProps;
+    private Properties serversProps;
     private RaftServerConfig serverConfig;
     private List<RaftGroupConfig> groupConfigs;
     private File serversFile;
@@ -89,7 +90,7 @@ public class Bootstrap {
             this.configProps = loadProperties(configFile);
             System.out.println("Config file loaded successfully: " + configFile);
 
-            Properties serversProps = loadProperties(serversConfigFile);
+            this.serversProps = loadProperties(serversConfigFile);
             System.out.println("Servers/groups config file loaded successfully: " + serversConfigFile);
 
             this.serversFile = new File(serversConfigFile);
@@ -118,7 +119,7 @@ public class Bootstrap {
                 String nodeIdOfMembers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
                 String nodeIdOfObservers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfObservers");
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
-                PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
+                PropsUtil.setFieldsFromProps(groupConfig, serversProps, GROUP_PREFIX + groupId);
                 groupConfigs.add(groupConfig);
                 if (!logDataDir) {
                     System.out.println("DATA_DIR=" + groupConfig.dataDir);
@@ -178,7 +179,7 @@ public class Bootstrap {
             @Override
             public RaftGroupConfig createConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
-                PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
+                PropsUtil.setFieldsFromProps(groupConfig, serversProps, GROUP_PREFIX + groupId);
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
                 String s = ensureDir(groupConfig.dataDir);
                 if (s != null) {
