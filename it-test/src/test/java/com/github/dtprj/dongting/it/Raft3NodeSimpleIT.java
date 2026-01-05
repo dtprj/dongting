@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.it.support.BootstrapProcessManager;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
-import com.github.dtprj.dongting.it.support.LeaderElectionValidator;
+import com.github.dtprj.dongting.it.support.Validator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.test.TestDir;
@@ -60,7 +60,7 @@ public class Raft3NodeSimpleIT {
         log.info("Temp directory: {}", tempDir);
 
         BootstrapProcessManager processManager = new BootstrapProcessManager();
-        LeaderElectionValidator validator = null;
+        Validator validator = null;
         List<ProcessInfo> startedProcesses = new ArrayList<>();
 
         try {
@@ -85,7 +85,7 @@ public class Raft3NodeSimpleIT {
             // Step 3: Initialize AdminRaftClient and wait for leader election
             log.info("Step 3: Initializing AdminRaftClient and waiting for leader election");
 
-            validator = new LeaderElectionValidator(GROUP_ID, NODE_IDS);
+            validator = new Validator(GROUP_ID, NODE_IDS);
             validator.initialize();
 
             // Step 4: Wait for leader election

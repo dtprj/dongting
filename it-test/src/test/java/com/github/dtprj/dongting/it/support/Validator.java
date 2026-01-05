@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.it.support;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
+import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,12 +28,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Validate leader election in RAFT cluster.
+ * Tools for validating the correctness of the cluster.
  *
  * @author huangli
  */
-public class LeaderElectionValidator {
-    private static final Logger log = LoggerFactory.getLogger(LeaderElectionValidator.class);
+public class Validator {
+    private static final Logger log = LoggerFactory.getLogger(Validator.class);
 
     private static final long LEADER_ELECTION_TIMEOUT_SECONDS = 60;
     private static final long QUERY_RETRY_INTERVAL_MS = 100;
@@ -42,7 +43,7 @@ public class LeaderElectionValidator {
     private final int groupId;
     private final int[] nodeIds;
 
-    public LeaderElectionValidator(int groupId, int[] nodeIds) {
+    public Validator(int groupId, int[] nodeIds) {
         this.groupId = groupId;
         this.nodeIds = nodeIds;
     }
@@ -157,6 +158,7 @@ public class LeaderElectionValidator {
                 leaderIds.add(status.leaderId);
             }
             terms.add(status.term);
+            Assertions.assertFalse(status.isBug(), "Node " + entry.getKey() + " has bug flag set");
         }
         if (leaderIds.size() == 1 && terms.size() == 1) {
             int leaderId = leaderIds.stream().findFirst().get();
