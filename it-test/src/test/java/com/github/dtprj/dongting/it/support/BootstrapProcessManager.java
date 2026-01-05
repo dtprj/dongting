@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Manage Bootstrap process lifecycle for integration tests.
- * 
+ *
  * @author huangli
  */
 public class BootstrapProcessManager {
@@ -59,13 +59,13 @@ public class BootstrapProcessManager {
      * Start a Bootstrap node process
      */
     public ProcessInfo startNode(ProcessConfig config) throws IOException, InterruptedException {
-        log.info("Starting node {} with replicate port {}, service port {}", 
-                 config.nodeId, config.replicatePort, config.servicePort);
+        log.info("Starting node {} with replicate port {}, service port {}",
+                config.nodeId, config.replicatePort, config.servicePort);
 
 
         File distDir = ItUtil.findDistDir();
         File moduleDir = new File(distDir, "lib");
-        File logbackFile = new File(new File(distDir, "conf"),"logback-server.xml");
+        File logbackFile = new File(new File(distDir, "conf"), "logback-server.xml");
         File logsFile = new File(config.nodeDir, "logs");
 
         log.debug("distDir: {}", distDir);
@@ -118,8 +118,8 @@ public class BootstrapProcessManager {
         if (!waitForReady(processInfo, PROCESS_START_TIMEOUT_SECONDS)) {
             collectLogs(processInfo);
             stopNode(processInfo, 5);
-            throw new IOException("Node " + config.nodeId + " failed to start within " 
-                                + PROCESS_START_TIMEOUT_SECONDS + " seconds");
+            throw new IOException("Node " + config.nodeId + " failed to start within "
+                    + PROCESS_START_TIMEOUT_SECONDS + " seconds");
         }
 
         log.info("Node {} is ready on replicate port {}", config.nodeId, config.replicatePort);
@@ -131,7 +131,7 @@ public class BootstrapProcessManager {
      */
     public boolean waitForReady(ProcessInfo processInfo, long timeoutSeconds) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
-        
+
         // First check if process is alive
         long checkInterval = 100;
         while (System.nanoTime() - deadline < 0) {
@@ -199,10 +199,14 @@ public class BootstrapProcessManager {
         stderrReader.start();
     }
 
+    public void stopNode(ProcessInfo processInfo) {
+        stopNode(processInfo, GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS);
+    }
+
     /**
      * Stop a specific node
      */
-    public void stopNode(ProcessInfo processInfo, long timeoutSeconds) {
+    private void stopNode(ProcessInfo processInfo, long timeoutSeconds) {
         if (processInfo == null || !processInfo.process.isAlive()) {
             return;
         }
@@ -213,7 +217,7 @@ public class BootstrapProcessManager {
             // Try graceful shutdown
             processInfo.process.destroy();
             boolean exited = processInfo.process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-            
+
             if (exited) {
                 int exitCode = processInfo.process.exitValue();
                 log.info("Node {} terminated with exit code {}", processInfo.config.nodeId, exitCode);
@@ -230,12 +234,30 @@ public class BootstrapProcessManager {
     }
 
     /**
+     * Stop a specific node
+     */
+    public void forceStopNode(ProcessInfo processInfo) {
+        if (processInfo == null || !processInfo.process.isAlive()) {
+            return;
+        }
+        log.info("Force stopping node {}", processInfo.config.nodeId);
+        try {
+            // Force kill
+            processInfo.process.destroyForcibly();
+            processInfo.process.waitFor(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            log.warn("Interrupted while stopping node {}", processInfo.config.nodeId, e);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
      * Stop all nodes
      */
     public void stopAllNodes() {
         log.info("Stopping all {} nodes", processes.size());
         for (ProcessInfo processInfo : processes) {
-            stopNode(processInfo, GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS);
+            stopNode(processInfo);
         }
         processes.clear();
     }

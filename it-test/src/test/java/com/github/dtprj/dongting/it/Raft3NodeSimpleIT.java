@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,7 +57,7 @@ public class Raft3NodeSimpleIT {
         File tempDirFile = TestDir.createTestDir(Raft3NodeSimpleIT.class.getSimpleName());
         Path tempDir = tempDirFile.toPath();
 
-        log.info("=== Starting FirstIntegrationTest ===");
+        log.info("=== Starting " + Raft3NodeSimpleIT.class.getSimpleName() + " ===");
         log.info("Temp directory: {}", tempDir);
 
         BootstrapProcessManager processManager = new BootstrapProcessManager();
@@ -64,11 +65,9 @@ public class Raft3NodeSimpleIT {
         List<ProcessInfo> startedProcesses = new ArrayList<>();
 
         try {
-            // Step 1: Generate configuration files
             log.info("Step 1: Generating configuration files for 3-node cluster");
             List<ProcessConfig> configs = ConfigFileGenerator.generateClusterConfig(NODE_IDS, GROUP_ID, tempDir);
 
-            // Step 2: Start all nodes
             log.info("Step 2: Starting all nodes");
             for (ProcessConfig config : configs) {
                 ProcessInfo processInfo = processManager.startNode(config);
@@ -82,17 +81,20 @@ public class Raft3NodeSimpleIT {
                         "Process for node " + processInfo.config.nodeId + " should be alive");
             }
 
-            // Step 3: Initialize AdminRaftClient and wait for leader election
             log.info("Step 3: Initializing AdminRaftClient and waiting for leader election");
 
             validator = new Validator();
             validator.initialize(NODE_IDS, GROUP_ID);
 
-            // Step 4: Wait for leader election
             log.info("Step 4: Waiting for leader election (up to 60 seconds)");
-            validator.waitForLeaderElection(GROUP_ID);
+            int leaderId = validator.waitForLeaderElection(GROUP_ID);
 
-            log.info("=== Leader election and consistency verification passed ===");
+            log.info("Step 5: Killing leader and waiting for leader election");
+            ProcessInfo leader = startedProcesses.stream().filter(p -> p.config.nodeId == leaderId).findFirst().get();
+            processManager.forceStopNode(leader);
+
+            int[] restNodes = IntStream.of(NODE_IDS).filter(n -> n != leaderId).toArray();
+            validator.waitForLeaderElection(GROUP_ID, restNodes, 30);
 
         } catch (Exception e) {
             log.error("Test failed with exception", e);

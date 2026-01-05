@@ -16,9 +16,7 @@
 package com.github.dtprj.dongting.it.support;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.raft.GroupInfo;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
-import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
@@ -71,14 +69,15 @@ public class Validator {
     /**
      * Wait for leader election to complete
      */
-    public void waitForLeaderElection(int groupId) throws Exception {
-        waitForLeaderElection(groupId, LEADER_ELECTION_TIMEOUT_SECONDS);
+    public int waitForLeaderElection(int groupId) throws Exception {
+        int[] nodeIds = adminClient.getGroup(groupId).servers.stream().mapToInt(n -> n.nodeId).toArray();
+        return waitForLeaderElection(groupId, nodeIds, LEADER_ELECTION_TIMEOUT_SECONDS);
     }
 
     /**
      * Wait for leader election with timeout
      */
-    public void waitForLeaderElection(int groupId, long timeoutSeconds) throws Exception {
+    public int waitForLeaderElection(int groupId, int[] nodeIds, long timeoutSeconds) throws Exception {
         log.info("Waiting for leader election (timeout: {} seconds)", timeoutSeconds);
 
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
@@ -89,12 +88,12 @@ public class Validator {
 
             try {
                 // Query all nodes
-                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatus(groupId);
+                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatus(groupId, nodeIds);
 
                 // Validate leader consistency
                 if (validateLeaderConsistency(allStatus)) {
                     log.info("Leader election completed successfully");
-                    return;
+                    return allStatus.values().stream().findFirst().get().leaderId;
                 } else {
                     log.warn("Leader consistency validation failed, will retry");
                 }
@@ -108,7 +107,7 @@ public class Validator {
         }
 
         // Timeout - collect final status for diagnosis
-        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatus(groupId);
+        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatus(groupId, nodeIds);
         log.error("Leader election timeout after {} attempts. Final status:", attemptCount);
         for (Map.Entry<Integer, QueryStatusResp> entry : finalStatus.entrySet()) {
             QueryStatusResp status = entry.getValue();
@@ -122,12 +121,10 @@ public class Validator {
     /**
      * Query status from all nodes
      */
-    public Map<Integer, QueryStatusResp> queryAllNodeStatus(int groupId) {
+    public Map<Integer, QueryStatusResp> queryAllNodeStatus(int groupId, int[] nodeIds) {
         Map<Integer, QueryStatusResp> result = new HashMap<>();
-        GroupInfo gi = adminClient.getGroup(groupId);
 
-        for (RaftNode n : gi.servers) {
-            int nodeId = n.nodeId;
+        for (int nodeId : nodeIds) {
             try {
                 QueryStatusResp status = adminClient.queryRaftServerStatus(nodeId, groupId)
                         .get(SINGLE_QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -157,17 +154,19 @@ public class Validator {
         for (Map.Entry<Integer, QueryStatusResp> entry : allStatus.entrySet()) {
             QueryStatusResp status = entry.getValue();
             // Check leader consistency
-            if (status.leaderId > 0) {
-                leaderIds.add(status.leaderId);
-            }
+            leaderIds.add(status.leaderId);
             terms.add(status.term);
             Assertions.assertFalse(status.isBug(), "Node " + entry.getKey() + " has bug flag set");
         }
+
         if (leaderIds.size() == 1 && terms.size() == 1) {
             int leaderId = leaderIds.stream().findFirst().get();
             int term = terms.stream().findFirst().get();
-            log.info("Leader consistency validated: leaderId={}, term={}", leaderId, term);
-            return true;
+            if (leaderId > 0 && term > 0 && allStatus.get(leaderId) != null) {
+                log.info("Leader consistency validated: leaderId={}, term={}", leaderId, term);
+                return true;
+            }
+            return false;
         } else {
             return false;
         }
