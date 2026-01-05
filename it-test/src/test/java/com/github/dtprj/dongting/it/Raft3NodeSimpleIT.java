@@ -85,12 +85,12 @@ public class Raft3NodeSimpleIT {
             // Step 3: Initialize AdminRaftClient and wait for leader election
             log.info("Step 3: Initializing AdminRaftClient and waiting for leader election");
 
-            validator = new Validator(GROUP_ID, NODE_IDS);
-            validator.initialize();
+            validator = new Validator();
+            validator.initialize(NODE_IDS, GROUP_ID);
 
             // Step 4: Wait for leader election
             log.info("Step 4: Waiting for leader election (up to 60 seconds)");
-            validator.waitForLeaderElection();
+            validator.waitForLeaderElection(GROUP_ID);
 
             log.info("=== Leader election and consistency verification passed ===");
 

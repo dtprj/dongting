@@ -16,7 +16,9 @@
 package com.github.dtprj.dongting.it.support;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.raft.GroupInfo;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
+import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
@@ -39,23 +41,18 @@ public class Validator {
     private static final long QUERY_RETRY_INTERVAL_MS = 100;
     private static final long SINGLE_QUERY_TIMEOUT_SECONDS = 2;
 
-    private AdminRaftClient adminClient;
-    private final int groupId;
-    private final int[] nodeIds;
+    private final AdminRaftClient adminClient;
 
-    public Validator(int groupId, int[] nodeIds) {
-        this.groupId = groupId;
-        this.nodeIds = nodeIds;
+    public Validator() {
+        adminClient = new AdminRaftClient();
     }
 
     /**
      * Initialize AdminRaftClient and configure cluster
      */
-    public void initialize() {
+    public void initialize(int[] nodeIds, int groupId) {
         String servers = ItUtil.formatReplicateServers(nodeIds);
-        log.info("Initializing AdminRaftClient with servers: {}", servers);
 
-        adminClient = new AdminRaftClient();
         adminClient.start();
 
         // Add node information
@@ -67,17 +64,21 @@ public class Validator {
         log.info("AdminRaftClient initialized successfully");
     }
 
+    public AdminRaftClient getAdminClient() {
+        return adminClient;
+    }
+
     /**
      * Wait for leader election to complete
      */
-    public void waitForLeaderElection() throws Exception {
-        waitForLeaderElection(LEADER_ELECTION_TIMEOUT_SECONDS);
+    public void waitForLeaderElection(int groupId) throws Exception {
+        waitForLeaderElection(groupId, LEADER_ELECTION_TIMEOUT_SECONDS);
     }
 
     /**
      * Wait for leader election with timeout
      */
-    public void waitForLeaderElection(long timeoutSeconds) throws Exception {
+    public void waitForLeaderElection(int groupId, long timeoutSeconds) throws Exception {
         log.info("Waiting for leader election (timeout: {} seconds)", timeoutSeconds);
 
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
@@ -88,7 +89,7 @@ public class Validator {
 
             try {
                 // Query all nodes
-                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatus();
+                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatus(groupId);
 
                 // Validate leader consistency
                 if (validateLeaderConsistency(allStatus)) {
@@ -107,7 +108,7 @@ public class Validator {
         }
 
         // Timeout - collect final status for diagnosis
-        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatus();
+        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatus(groupId);
         log.error("Leader election timeout after {} attempts. Final status:", attemptCount);
         for (Map.Entry<Integer, QueryStatusResp> entry : finalStatus.entrySet()) {
             QueryStatusResp status = entry.getValue();
@@ -121,10 +122,12 @@ public class Validator {
     /**
      * Query status from all nodes
      */
-    public Map<Integer, QueryStatusResp> queryAllNodeStatus() {
+    public Map<Integer, QueryStatusResp> queryAllNodeStatus(int groupId) {
         Map<Integer, QueryStatusResp> result = new HashMap<>();
+        GroupInfo gi = adminClient.getGroup(groupId);
 
-        for (int nodeId : nodeIds) {
+        for (RaftNode n : gi.servers) {
+            int nodeId = n.nodeId;
             try {
                 QueryStatusResp status = adminClient.queryRaftServerStatus(nodeId, groupId)
                         .get(SINGLE_QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
