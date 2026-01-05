@@ -390,6 +390,9 @@ public class DtAdmin {
         System.out.println("  Init Finished: " + resp.isInitFinished());
         System.out.println("  Init Failed: " + resp.isInitFailed());
         System.out.println("  Group Ready: " + resp.isGroupReady());
+        if (resp.isBug()) {
+            System.out.println("  Bug: bug flag is set, search BugLog in server logs");
+        }
         System.out.println("  Members: " + resp.members);
         System.out.println("  Observers: " + resp.observers);
         if (!resp.preparedMembers.isEmpty() || !resp.preparedObservers.isEmpty()) {

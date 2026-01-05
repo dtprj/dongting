@@ -151,7 +151,7 @@ public class TimeoutTest {
     @Test
     public void dropBeforeRequestSendTest() throws Exception {
         setup(() -> registerDelayPingProcessor(null, null));
-        BugLog.BUG = false;
+        BugLog.reset();
         for (int i = 0; i < 3; i++) {
             try {
                 DtTime deadline = new DtTime(System.nanoTime() - Duration.ofSeconds(1).toNanos(), 1, TimeUnit.NANOSECONDS);
@@ -163,7 +163,7 @@ public class TimeoutTest {
                 assertTrue(e.getCause().getMessage().contains("timeout before send"), e.getCause().getMessage());
             }
         }
-        assertFalse(BugLog.BUG);
+        assertTrue(BugLog.getCount() == 0);
         assertEquals(0, client.nioStatus.outPendingBytes);
         assertEquals(0, client.nioStatus.outPendingRequests);
         //ensure connection status is correct after timeout

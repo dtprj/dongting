@@ -78,11 +78,12 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
     private static final int FLAG_MASK_INIT_FINISHED = 1;
     private static final int FLAG_MASK_INIT_FAILED = 1 << 1;
     private static final int FLAG_MASK_GROUP_READY = 1 << 2;
+    private static final int FLAG_BUG = 1 << 3;
 
     public QueryStatusResp() {
     }
 
-    public void setFlag(boolean initFinished, boolean initFailed, boolean groupReady) {
+    public void setFlag(boolean initFinished, boolean initFailed, boolean groupReady, boolean bug) {
         flag = 0;
         if (initFinished) {
             flag |= FLAG_MASK_INIT_FINISHED;
@@ -92,6 +93,9 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         }
         if (groupReady) {
             flag |= FLAG_MASK_GROUP_READY;
+        }
+        if (bug) {
+            flag |= FLAG_BUG;
         }
     }
 
@@ -105,6 +109,10 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
 
     public boolean isGroupReady() {
         return (flag & FLAG_MASK_GROUP_READY) != 0;
+    }
+
+    public boolean isBug() {
+        return (flag & FLAG_BUG) != 0;
     }
 
     @Override

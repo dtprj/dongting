@@ -22,16 +22,29 @@ public class BugLog {
 
     private static final DtLog log = DtLogs.getLogger(BugLog.class);
 
-    public static boolean BUG = false;
+    private static volatile int count;
 
     public static void log(Throwable e) {
-        BUG = true;
+        synchronized (BugLog.class) {
+            count++;
+        }
         log.error("", e);
     }
 
     public static DtLog getLog() {
-        BUG = true;
+        synchronized (BugLog.class) {
+            count++;
+        }
         return log;
     }
 
+    public static int getCount() {
+        return count;
+    }
+
+    public static void reset() {
+        synchronized (BugLog.class) {
+            count = 0;
+        }
+    }
 }

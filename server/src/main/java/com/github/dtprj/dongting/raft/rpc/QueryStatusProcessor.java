@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
@@ -60,7 +61,8 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         QueryStatusResp resp = new QueryStatusResp();
         resp.groupId = raftStatus.groupId;
         resp.nodeId = nodeId;
-        resp.setFlag(raftStatus.isInitFinished(), raftStatus.isInitFailed(), raftStatus.isGroupReady());
+        resp.setFlag(raftStatus.isInitFinished(), raftStatus.isInitFailed(),
+                raftStatus.isGroupReady(), BugLog.getCount() != 0);
         resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().node.nodeId;
         resp.term = raftStatus.currentTerm;
         resp.commitIndex = raftStatus.commitIndex;
