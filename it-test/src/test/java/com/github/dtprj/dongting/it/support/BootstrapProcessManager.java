@@ -263,6 +263,33 @@ public class BootstrapProcessManager {
     }
 
     /**
+     * Restart a node gracefully (stop then start)
+     */
+    public ProcessInfo restartNode(ProcessInfo processInfo, long timeoutSeconds) throws IOException, InterruptedException {
+        if (processInfo == null) {
+            throw new IllegalArgumentException("ProcessInfo cannot be null");
+        }
+
+        int nodeId = processInfo.config.nodeId;
+        log.info("Restarting node {}", nodeId);
+
+        // Remove from tracking temporarily
+        processes.remove(processInfo);
+
+        // Stop the node gracefully
+        stopNode(processInfo, timeoutSeconds);
+
+        // Wait a bit for ports to be released
+        Thread.sleep(1000);
+
+        // Start the node again with the same config
+        ProcessInfo newProcessInfo = startNode(processInfo.config);
+
+        log.info("Node {} restarted successfully", nodeId);
+        return newProcessInfo;
+    }
+
+    /**
      * Collect logs from a process
      */
     public String collectLogs(ProcessInfo processInfo) {

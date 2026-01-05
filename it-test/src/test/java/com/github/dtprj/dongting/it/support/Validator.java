@@ -88,7 +88,7 @@ public class Validator {
 
             try {
                 // Query all nodes
-                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatus(groupId, nodeIds);
+                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatusInternal(groupId, nodeIds);
 
                 // Validate leader consistency
                 if (validateLeaderConsistency(allStatus)) {
@@ -107,7 +107,7 @@ public class Validator {
         }
 
         // Timeout - collect final status for diagnosis
-        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatus(groupId, nodeIds);
+        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatusInternal(groupId, nodeIds);
         log.error("Leader election timeout after {} attempts. Final status:", attemptCount);
         for (Map.Entry<Integer, QueryStatusResp> entry : finalStatus.entrySet()) {
             QueryStatusResp status = entry.getValue();
@@ -122,6 +122,13 @@ public class Validator {
      * Query status from all nodes
      */
     public Map<Integer, QueryStatusResp> queryAllNodeStatus(int groupId, int[] nodeIds) {
+        return queryAllNodeStatusInternal(groupId, nodeIds);
+    }
+
+    /**
+     * Query status from all nodes (internal implementation)
+     */
+    private Map<Integer, QueryStatusResp> queryAllNodeStatusInternal(int groupId, int[] nodeIds) {
         Map<Integer, QueryStatusResp> result = new HashMap<>();
 
         for (int nodeId : nodeIds) {
@@ -170,6 +177,96 @@ public class Validator {
         } else {
             return false;
         }
+    }
+
+    /**
+     * Wait for all nodes in the cluster to reach full consistency
+     * (same leader, term, members, observers, and groupReady flag)
+     */
+    public void waitForClusterConsistency(int groupId, int[] nodeIds, long timeoutSeconds) throws Exception {
+        log.info("Waiting for cluster consistency (timeout: {} seconds)", timeoutSeconds);
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+        int attemptCount = 0;
+
+        while (System.nanoTime() - deadline < 0) {
+            attemptCount++;
+
+            try {
+                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatusInternal(groupId, nodeIds);
+
+                if (validateFullConsistency(allStatus)) {
+                    QueryStatusResp sample = allStatus.values().iterator().next();
+                    log.info("Cluster consistency achieved: leaderId={}, term={}, members={}",
+                            sample.leaderId, sample.term, sample.members);
+                    return;
+                } else {
+                    log.debug("Cluster consistency validation failed, attempt {}", attemptCount);
+                }
+
+            } catch (Exception e) {
+                log.debug("Failed to query status (attempt {}): {}", attemptCount, e.getMessage());
+            }
+
+            Thread.sleep(QUERY_RETRY_INTERVAL_MS);
+        }
+
+        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatusInternal(groupId, nodeIds);
+        log.error("Cluster consistency timeout after {} attempts. Final status:", attemptCount);
+        for (Map.Entry<Integer, QueryStatusResp> entry : finalStatus.entrySet()) {
+            QueryStatusResp status = entry.getValue();
+            log.error("  Node {}: leaderId={}, term={}, groupReady={}, members={}, observers={}",
+                    entry.getKey(), status.leaderId, status.term, status.isGroupReady(),
+                    status.members, status.observers);
+        }
+
+        throw new RuntimeException("Cluster consistency timeout after " + timeoutSeconds + " seconds");
+    }
+
+    /**
+     * Validate full cluster consistency including leader, term, members, observers, and groupReady
+     */
+    public boolean validateFullConsistency(Map<Integer, QueryStatusResp> allStatus) {
+        if (allStatus.isEmpty()) {
+            log.warn("No status available for full consistency check");
+            return false;
+        }
+
+        HashSet<Integer> leaderIds = new HashSet<>();
+        HashSet<Integer> terms = new HashSet<>();
+        HashSet<HashSet<Integer>> membersSets = new HashSet<>();
+        HashSet<HashSet<Integer>> observersSets = new HashSet<>();
+        boolean allGroupReady = true;
+
+        for (Map.Entry<Integer, QueryStatusResp> entry : allStatus.entrySet()) {
+            QueryStatusResp status = entry.getValue();
+
+            leaderIds.add(status.leaderId);
+            terms.add(status.term);
+            membersSets.add(new HashSet<>(status.members));
+            observersSets.add(new HashSet<>(status.observers));
+
+            if (!status.isGroupReady()) {
+                allGroupReady = false;
+                log.debug("Node {} is not groupReady yet", entry.getKey());
+            }
+
+            Assertions.assertFalse(status.isBug(), "Node " + entry.getKey() + " has bug flag set");
+        }
+
+        boolean leaderConsistent = leaderIds.size() == 1;
+        boolean termConsistent = terms.size() == 1;
+        boolean membersConsistent = membersSets.size() == 1;
+        boolean observersConsistent = observersSets.size() == 1;
+
+        if (leaderConsistent && termConsistent && membersConsistent && observersConsistent && allGroupReady) {
+            int leaderId = leaderIds.iterator().next();
+            if (leaderId > 0 && allStatus.get(leaderId) != null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

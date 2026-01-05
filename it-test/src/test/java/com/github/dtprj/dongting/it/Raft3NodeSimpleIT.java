@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
 import com.github.dtprj.dongting.it.support.Validator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.test.TestDir;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -30,6 +31,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
@@ -52,7 +54,7 @@ public class Raft3NodeSimpleIT {
      * This is the first and reference integration test for the project.
      */
     @Test
-    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    @Timeout(value = 300, unit = TimeUnit.SECONDS)
     void testThreeNodeClusterStartupAndLeaderElection() throws Exception {
         File tempDirFile = TestDir.createTestDir(Raft3NodeSimpleIT.class.getSimpleName());
         Path tempDir = tempDirFile.toPath();
@@ -91,10 +93,53 @@ public class Raft3NodeSimpleIT {
 
             log.info("Step 5: Killing leader and waiting for leader election");
             ProcessInfo leader = startedProcesses.stream().filter(p -> p.config.nodeId == leaderId).findFirst().get();
+            int oldLeaderId = leader.config.nodeId;
             processManager.forceStopNode(leader);
 
-            int[] restNodes = IntStream.of(NODE_IDS).filter(n -> n != leaderId).toArray();
+            int[] restNodes = IntStream.of(NODE_IDS).filter(n -> n != oldLeaderId).toArray();
             validator.waitForLeaderElection(GROUP_ID, restNodes, 30);
+
+            log.info("Step 6: Restarting old leader {} and waiting for cluster convergence", oldLeaderId);
+            ProcessInfo restartedLeader = processManager.restartNode(leader, 30);
+            int leaderIndex = -1;
+            for (int i = 0; i < startedProcesses.size(); i++) {
+                if (startedProcesses.get(i).config.nodeId == oldLeaderId) {
+                    leaderIndex = i;
+                    break;
+                }
+            }
+            if (leaderIndex >= 0) {
+                startedProcesses.set(leaderIndex, restartedLeader);
+            }
+
+            log.info("Step 7: Waiting for all 3 nodes to converge (same leader, term, members)");
+            validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 60);
+
+            log.info("Step 8: Gracefully stopping a follower and restarting it");
+            Map<Integer, QueryStatusResp> statusMap = validator.queryAllNodeStatus(GROUP_ID, NODE_IDS);
+            QueryStatusResp leaderStatus = statusMap.get(statusMap.values().iterator().next().leaderId);
+            final int[] followerIdHolder = new int[]{-1};
+            for (int nodeId : NODE_IDS) {
+                if (nodeId != leaderStatus.leaderId && nodeId != oldLeaderId) {
+                    followerIdHolder[0] = nodeId;
+                    break;
+                }
+            }
+            if (followerIdHolder[0] < 0) {
+                throw new RuntimeException("Could not find a follower to stop");
+            }
+            final int followerId = followerIdHolder[0];
+            ProcessInfo follower = startedProcesses.stream().filter(p -> p.config.nodeId == followerId).findFirst().get();
+            ProcessInfo restartedFollower = processManager.restartNode(follower, 30);
+            for (int i = 0; i < startedProcesses.size(); i++) {
+                if (startedProcesses.get(i).config.nodeId == followerId) {
+                    startedProcesses.set(i, restartedFollower);
+                    break;
+                }
+            }
+
+            log.info("Step 9: Waiting for follower {} to rejoin and cluster to converge", followerId);
+            validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 60);
 
         } catch (Exception e) {
             log.error("Test failed with exception", e);
@@ -111,8 +156,7 @@ public class Raft3NodeSimpleIT {
             throw e;
 
         } finally {
-            // Step 6: Cleanup
-            log.info("Step 6: Cleaning up resources");
+            log.info("Step 10: Cleaning up resources");
             if (validator != null) {
                 try {
                     validator.close();
@@ -121,7 +165,7 @@ public class Raft3NodeSimpleIT {
                 }
             }
             processManager.stopAllNodes();
-            log.info("=== FirstIntegrationTest completed ===");
+            log.info("=== Raft3NodeSimpleIT completed ===");
         }
     }
 }
