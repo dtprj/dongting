@@ -4,7 +4,7 @@
 - JUnit 5.13
 
 ## Build
-- Build: mvn clean package -DskipTests
+- Build: mvn clean package -DskipITs -DskipUTs
 - Test: mvn clean test -Dtick=5
 
 ## logs

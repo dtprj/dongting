@@ -176,6 +176,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.3</version>
                 <configuration>
+                    <skipAfterFailureCount>1</skipAfterFailureCount>
                     <skipTests>${skipUTs}</skipTests>
                     <argLine>@{argLine} -Xmx256M -XX:MaxDirectMemorySize=128M --add-modules ALL-MODULE-PATH</argLine>
                 </configuration>
