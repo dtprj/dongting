@@ -57,6 +57,7 @@ public class SimpleRaftGroupIT {
     private static final long CONNECT_TIMEOUT = 500;
     private static final long HEARTBEAT_INTERVAL = 700;
     private static final long PING_INTERVAL = 700;
+    private static final long WATCH_TIMEOUT = 5000;
 
     /**
      * Test three-node cluster startup and leader election.
@@ -84,6 +85,7 @@ public class SimpleRaftGroupIT {
                     .connectTimeout(CONNECT_TIMEOUT)
                     .heartbeatInterval(HEARTBEAT_INTERVAL)
                     .pingInterval(PING_INTERVAL)
+                    .watchTimeoutMillis(WATCH_TIMEOUT)
                     .build();
 
             log.info("Step 2: Starting all nodes");

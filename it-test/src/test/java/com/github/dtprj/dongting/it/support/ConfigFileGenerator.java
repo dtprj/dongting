@@ -40,25 +40,15 @@ public class ConfigFileGenerator {
         public final int nodeId;
         public final int replicatePort;
         public final int servicePort;
-        public final Long electTimeout;
-        public final Long rpcTimeout;
-        public final Long connectTimeout;
-        public final Long heartbeatInterval;
-        public final Long pingInterval;
 
-        ProcessConfig(ProcessConfigBuilder builder, File nodeDir, File configFile, File serversFile,
+        ProcessConfig(int nodeId, File nodeDir, File configFile, File serversFile,
                       int replicatePort, int servicePort) {
             this.nodeDir = nodeDir;
             this.configFile = configFile;
             this.serversFile = serversFile;
-            this.nodeId = builder.nodeId;
+            this.nodeId = nodeId;
             this.replicatePort = replicatePort;
             this.servicePort = servicePort;
-            this.electTimeout = builder.electTimeout;
-            this.rpcTimeout = builder.rpcTimeout;
-            this.connectTimeout = builder.connectTimeout;
-            this.heartbeatInterval = builder.heartbeatInterval;
-            this.pingInterval = builder.pingInterval;
         }
     }
 
@@ -73,6 +63,7 @@ public class ConfigFileGenerator {
         private Long connectTimeout;
         private Long heartbeatInterval;
         private Long pingInterval;
+        private Long watchTimeoutMillis;
 
         public ProcessConfigBuilder(int nodeId, Path baseDir, String serversStr, List<GroupDefinition> groups) {
             this.nodeId = nodeId;
@@ -106,6 +97,11 @@ public class ConfigFileGenerator {
             return this;
         }
 
+        public ProcessConfigBuilder watchTimeoutMillis(Long watchTimeoutMillis) {
+            this.watchTimeoutMillis = watchTimeoutMillis;
+            return this;
+        }
+
         public ProcessConfig build() throws IOException {
             return generateNodeConfig(this);
         }
@@ -134,6 +130,7 @@ public class ConfigFileGenerator {
         private Long connectTimeout;
         private Long heartbeatInterval;
         private Long pingInterval;
+        private Long watchTimeoutMillis;
 
         public ClusterConfigBuilder(int[] memberIds, int groupId, Path baseDir) {
             this.memberIds = memberIds;
@@ -171,6 +168,11 @@ public class ConfigFileGenerator {
             return this;
         }
 
+        public ClusterConfigBuilder watchTimeoutMillis(Long watchTimeoutMillis) {
+            this.watchTimeoutMillis = watchTimeoutMillis;
+            return this;
+        }
+
         public List<ProcessConfig> build() throws IOException {
             List<ProcessConfig> result = new ArrayList<>();
 
@@ -203,29 +205,28 @@ public class ConfigFileGenerator {
 
             // Generate config for each member
             for (int nid : memberIds) {
-                ProcessConfig config = new ProcessConfigBuilder(nid, baseDir, serversStr, groupDefinitions)
-                        .electTimeout(electTimeout)
-                        .rpcTimeout(rpcTimeout)
-                        .connectTimeout(connectTimeout)
-                        .heartbeatInterval(heartbeatInterval)
-                        .pingInterval(pingInterval)
-                        .build();
-                result.add(config);
+                result.add(createProcessConfig(nid, serversStr, groupDefinitions));
             }
 
             // Generate config for each observer
             for (int oid : observerIds) {
-                ProcessConfig config = new ProcessConfigBuilder(oid, baseDir, serversStr, groupDefinitions)
-                        .electTimeout(electTimeout)
-                        .rpcTimeout(rpcTimeout)
-                        .connectTimeout(connectTimeout)
-                        .heartbeatInterval(heartbeatInterval)
-                        .pingInterval(pingInterval)
-                        .build();
-                result.add(config);
+                result.add(createProcessConfig(oid, serversStr, groupDefinitions));
             }
 
             return result;
+        }
+
+        private ProcessConfig createProcessConfig(int nid, String serversStr,
+                                                  List<GroupDefinition> groupDefinitions) throws IOException {
+            ProcessConfig config = new ProcessConfigBuilder(nid, baseDir, serversStr, groupDefinitions)
+                    .electTimeout(electTimeout)
+                    .rpcTimeout(rpcTimeout)
+                    .connectTimeout(connectTimeout)
+                    .heartbeatInterval(heartbeatInterval)
+                    .pingInterval(pingInterval)
+                    .watchTimeoutMillis(watchTimeoutMillis)
+                    .build();
+            return config;
         }
     }
 
@@ -272,15 +273,15 @@ public class ConfigFileGenerator {
 
         // Create servers.properties
         File serversFile = new File(nodeDir, "servers.properties");
-        Properties serversProps = generateServersProperties(builder.serversStr, builder.groups);
+        Properties serversProps = generateServersProperties(builder, builder.groups);
         writeConfigFile(serversProps, serversFile);
 
-        return new ProcessConfig(builder, nodeDir, configFile, serversFile, replicatePort, servicePort);
+        return new ProcessConfig(builder.nodeId, nodeDir, configFile, serversFile, replicatePort, servicePort);
     }
 
-    private static Properties generateServersProperties(String serversStr, List<GroupDefinition> groups) {
+    private static Properties generateServersProperties(ProcessConfigBuilder builder, List<GroupDefinition> groups) {
         Properties serversProps = new Properties();
-        serversProps.setProperty("servers", serversStr);
+        serversProps.setProperty("servers", builder.serversStr);
         RaftGroupConfigEx protoType = new RaftGroupConfigEx(0, "", "");
         for (GroupDefinition group : groups) {
             serversProps.setProperty("group." + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
@@ -289,6 +290,9 @@ public class ConfigFileGenerator {
             serversProps.setProperty("group." + group.groupId + ".idxCacheSize", String.valueOf(protoType.idxCacheSize / 64));
             serversProps.setProperty("group." + group.groupId + ".idxFlushThreshold", String.valueOf(protoType.idxFlushThreshold / 64));
             serversProps.setProperty("group." + group.groupId + ".logFileSize", String.valueOf(protoType.logFileSize / 64));
+            if (builder.watchTimeoutMillis != null) {
+                serversProps.setProperty("group." + group.groupId + ".watchTimeoutMillis", String.valueOf(builder.watchTimeoutMillis));
+            }
         }
         return serversProps;
     }

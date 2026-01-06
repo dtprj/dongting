@@ -62,7 +62,7 @@ public class DtKvValidator {
         raftClientConfig.rpcTimeoutMillis = 2000;
 
         KvClientConfig kvClientConfig = new KvClientConfig();
-        kvClientConfig.watchHeartbeatMillis = tick(100);
+        kvClientConfig.watchHeartbeatMillis = 1000;
 
         KvClient client = new KvClient(kvClientConfig, raftClientConfig, new NioClientConfig());
 
@@ -164,7 +164,7 @@ public class DtKvValidator {
         // Test putTemp
         byte[] tempKey = key("tempKey1");
         byte[] value = "tempValue".getBytes(StandardCharsets.UTF_8);
-        long ttl = tick(50);
+        long ttl = tick(100);
         client.putTemp(groupId, tempKey, value, ttl);
 
         // Get immediately should succeed
