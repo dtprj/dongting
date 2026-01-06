@@ -32,6 +32,11 @@ public class WaitUtil {
         waitUtil(Boolean.TRUE, (Supplier) condition, 5000);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void waitUtil(Supplier<Boolean> condition, long timeoutMillis) {
+        waitUtil(Boolean.TRUE, (Supplier) condition, timeoutMillis);
+    }
+
     public static void waitUtil(Object expectValue, Supplier<Object> actual) {
         waitUtil(expectValue, actual, 5000);
     }

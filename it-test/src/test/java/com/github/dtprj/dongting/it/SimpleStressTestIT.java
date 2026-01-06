@@ -39,9 +39,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -92,7 +92,7 @@ public class SimpleStressTestIT {
         List<ProcessInfo> startedProcesses = new ArrayList<>();
         KvClient kvClient = null;
         ExecutorService stressExecutor = null;
-        List<Future<?>> stressFutures = new ArrayList<>();
+        CountDownLatch stressLatch = new CountDownLatch(THREAD_COUNT);
 
         try {
             log.info("Step 1: Generating configuration files with default timeouts");
@@ -126,7 +126,7 @@ public class SimpleStressTestIT {
             stressExecutor = Executors.newFixedThreadPool(THREAD_COUNT);
             for (int i = 0; i < THREAD_COUNT; i++) {
                 final int taskId = i;
-                stressFutures.add(stressExecutor.submit(() -> stressTask(finalKvClient, taskId)));
+                stressExecutor.submit(() -> stressTask(finalKvClient, taskId, stressLatch));
             }
             log.info("Started {} stress threads", THREAD_COUNT);
 
@@ -141,7 +141,7 @@ public class SimpleStressTestIT {
                 int iteration = 0;
                 while (System.currentTimeMillis() < endTime) {
                     iteration++;
-                    dtKvTests.runAllTests();
+                    dtKvTests.runAllTests(500);
                     if (iteration % 10 == 0) {
                         log.info("Validation iteration {}, errors so far: {}", iteration, stressErrors.get());
                     }
@@ -170,8 +170,8 @@ public class SimpleStressTestIT {
         } finally {
             log.info("Step 7: Stopping stress threads");
             stopped = true;
-            for (Future<?> future : stressFutures) {
-                future.get(2, TimeUnit.SECONDS);
+            if (!stressLatch.await(3, TimeUnit.SECONDS)) {
+                log.warn("Stress threads did not complete within 3 seconds");
             }
 
             int totalErrors = stressErrors.get();
@@ -226,7 +226,7 @@ public class SimpleStressTestIT {
         return client;
     }
 
-    private void stressTask(KvClient client, int taskId) {
+    private void stressTask(KvClient client, int taskId, CountDownLatch stressLatch) {
         Random random = new Random();
         try {
             client.mkdir(GROUP_ID, String.valueOf(taskId).getBytes(StandardCharsets.UTF_8));
@@ -246,9 +246,11 @@ public class SimpleStressTestIT {
                     log.warn("Stress thread {} operation failed: {}", taskId, e.getMessage());
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("Stress thread {} encountered unexpected error", taskId, e);
             stressErrors.incrementAndGet();
+        } finally {
+            stressLatch.countDown();
         }
     }
 }

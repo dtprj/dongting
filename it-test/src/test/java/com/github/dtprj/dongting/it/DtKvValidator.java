@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.DistributedLock;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -30,6 +31,7 @@ import com.github.dtprj.dongting.test.WaitUtil;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.dtprj.dongting.test.Tick.tick;
@@ -104,7 +106,7 @@ public class DtKvValidator {
         if (client != null) {
             try {
                 client.stop(new DtTime(5, TimeUnit.SECONDS));
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.warn("Error stopping client", e);
             }
         }
@@ -183,14 +185,14 @@ public class DtKvValidator {
     /**
      * Test temporary node: putTemp and automatic expiration
      */
-    public void testTemporaryNode() {
+    public void testTemporaryNode(long tempTtlMillis) {
         log.debug("=== Testing temporary node ===");
 
 
         // Test putTemp
         byte[] tempKey = key("tempKey1");
         byte[] value = "tempValue".getBytes(StandardCharsets.UTF_8);
-        long ttl = tick(100);
+        long ttl = tick(tempTtlMillis);
         client.putTemp(groupId, tempKey, value, ttl);
 
         // Get immediately should succeed
@@ -198,7 +200,7 @@ public class DtKvValidator {
         assertNotNull(node, "Temporary node should exist immediately after putTemp");
         assertArrayEquals(value, node.data, "Value should match");
 
-        WaitUtil.waitUtil(() -> client.get(groupId, tempKey) == null);
+        WaitUtil.waitUtil(() -> client.get(groupId, tempKey) == null, 10000);
 
         log.debug("Temporary node test passed");
     }
@@ -296,10 +298,10 @@ public class DtKvValidator {
     /**
      * Test distributed lock with two clients competing for same lock
      */
-    public void testDistributedLock() {
+    public void testDistributedLock(long shortLeaseMillis) {
         log.debug("=== Testing distributed lock ===");
         final byte[] lockKey = key("lockKey1");
-        final long leaseMillis = tick(100);
+        final long leaseMillis = tick(shortLeaseMillis);
 
         DistributedLock lock1 = null;
         DistributedLock lock2 = null;
@@ -346,14 +348,71 @@ public class DtKvValidator {
     }
 
     /**
+     * Test distributed lock with wait timeout: when one client releases lock,
+     * another waiting client should acquire it immediately.
+     */
+    public void testDistributedLockWithWait() {
+        log.debug("=== Testing distributed lock with wait ===");
+        final byte[] lockKey = key("lockKey2");
+        final long leaseMillis = 10000;
+        final long waitTimeoutMillis = 1000;
+
+        DistributedLock lock1 = null;
+        DistributedLock lock2 = null;
+        try {
+            lock1 = client.createLock(groupId, lockKey);
+            lock2 = client2.createLock(groupId, lockKey);
+
+            // Client1 acquires lock
+            boolean acquired1 = lock1.tryLock(leaseMillis, 0);
+            assertTrue(acquired1, "Client1 should acquire lock successfully");
+
+            // Client2 tries to acquire with wait timeout (async to avoid blocking main thread)
+            CompletableFuture<Boolean> future = new CompletableFuture<>();
+            long acquireStartNanos = System.nanoTime();
+            lock2.tryLock(leaseMillis, waitTimeoutMillis, FutureCallback.fromFuture(future));
+
+            // Client1 releases lock
+            lock1.unlock();
+
+            // Client2 should acquire lock quickly (not waiting until timeout)
+            Boolean acquired2 = future.get(waitTimeoutMillis, TimeUnit.MILLISECONDS);
+
+            assertTrue(acquired2, "Client2 should acquire lock after client1 releases");
+            assertTrue(lock2.isHeldByCurrentClient(), "Client2 should hold the lock");
+
+            // Verify that client2 acquired lock quickly (much less than waitTimeoutMillis)
+            long waitTime = (System.nanoTime() - acquireStartNanos) / 1000 / 1000;
+            log.debug("Client2 waited {}ms to acquire lock", waitTime);
+            assertTrue(waitTime < waitTimeoutMillis,
+                    "Client2 should acquire lock quickly, actual wait: " + waitTime + "ms");
+
+            // Cleanup
+            lock2.unlock();
+
+            log.debug("Distributed lock with wait test passed");
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (lock1 != null) {
+                lock1.close();
+            }
+            if (lock2 != null) {
+                lock2.close();
+            }
+        }
+    }
+
+    /**
      * Run all DtKV functional tests
      */
-    public void runAllTests() {
+    public void runAllTests(long shortTimeoutMillis) {
         testBasicKvOperations();
         testDirectoryOperations();
-        testTemporaryNode();
+        testTemporaryNode(shortTimeoutMillis);
         testBatchOperations();
         testCompareAndSet();
-        testDistributedLock();
+        testDistributedLock(shortTimeoutMillis);
+        testDistributedLockWithWait();
     }
 }

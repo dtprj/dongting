@@ -202,7 +202,7 @@ public class SimpleRaftGroupIT {
             String serversStr = ItUtil.formatServiceServers(ALL_NODE_IDS);
             dtKvTests = new DtKvValidator(GROUP_ID, serversStr, CLIENT_RPC_TIMEOUT, CLIENT_WATCH_HEARTBEAT_MILLIS);
             dtKvTests.start();
-            dtKvTests.runAllTests();
+            dtKvTests.runAllTests(100);
             log.info("All DtKV functional tests passed successfully");
         } catch (Exception e) {
             log.error("DtKV functional tests failed", e);
