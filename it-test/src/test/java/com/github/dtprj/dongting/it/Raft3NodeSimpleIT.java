@@ -75,8 +75,13 @@ public class Raft3NodeSimpleIT {
 
         try {
             log.info("Step 1: Generating configuration files for 3-node cluster with optimized timeouts");
-            List<ProcessConfig> configs = ConfigFileGenerator.generateClusterConfig(NODE_IDS, GROUP_ID, tempDir,
-                    ELECT_TIMEOUT, RPC_TIMEOUT, CONNECT_TIMEOUT, HEARTBEAT_INTERVAL, PING_INTERVAL);
+            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(NODE_IDS, GROUP_ID, tempDir)
+                    .electTimeout(ELECT_TIMEOUT)
+                    .rpcTimeout(RPC_TIMEOUT)
+                    .connectTimeout(CONNECT_TIMEOUT)
+                    .heartbeatInterval(HEARTBEAT_INTERVAL)
+                    .pingInterval(PING_INTERVAL)
+                    .build();
 
             log.info("Step 2: Starting all nodes");
             for (ProcessConfig config : configs) {
