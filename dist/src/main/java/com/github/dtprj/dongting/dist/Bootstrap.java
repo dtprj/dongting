@@ -57,7 +57,6 @@ public class Bootstrap {
 
     private int exitCode;
 
-    private Properties configProps;
     private Properties serversProps;
     private RaftServerConfig serverConfig;
     private List<RaftGroupConfig> groupConfigs;
@@ -87,7 +86,7 @@ public class Bootstrap {
             String configFile = parseConfigFileFromCommandArgs(args, "-c");
             String serversConfigFile = parseConfigFileFromCommandArgs(args, "-s");
 
-            this.configProps = loadProperties(configFile);
+            Properties configProps = loadProperties(configFile);
             System.out.println("Config file loaded successfully: " + configFile);
 
             this.serversProps = loadProperties(serversConfigFile);
@@ -172,7 +171,9 @@ public class Bootstrap {
         return new DefaultRaftFactory() {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
-                return new DtKV(groupConfig, new KvServerConfig());
+                KvServerConfig kvConfig = new KvServerConfig();
+                PropsUtil.setFieldsFromProps(kvConfig, serversProps, GROUP_PREFIX + groupConfig.groupId);
+                return new DtKV(groupConfig, kvConfig);
             }
 
             // this method called when add group at runtime

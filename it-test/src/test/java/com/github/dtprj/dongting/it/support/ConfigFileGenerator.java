@@ -218,7 +218,7 @@ public class ConfigFileGenerator {
 
         private ProcessConfig createProcessConfig(int nid, String serversStr,
                                                   List<GroupDefinition> groupDefinitions) throws IOException {
-            ProcessConfig config = new ProcessConfigBuilder(nid, baseDir, serversStr, groupDefinitions)
+            return new ProcessConfigBuilder(nid, baseDir, serversStr, groupDefinitions)
                     .electTimeout(electTimeout)
                     .rpcTimeout(rpcTimeout)
                     .connectTimeout(connectTimeout)
@@ -226,7 +226,6 @@ public class ConfigFileGenerator {
                     .pingInterval(pingInterval)
                     .watchTimeoutMillis(watchTimeoutMillis)
                     .build();
-            return config;
         }
     }
 
