@@ -8,8 +8,10 @@
 - Run all tests: `mvn clean test -Dtick=5`
 - Run single test class: `mvn test -Dtest=ClassName -Dtick=5`
 - Run single test method: `mvn test -Dtest=ClassName#methodName -Dtick=5`
-- The `-Dtick=N` parameter multiplies test timing (default: 1)
-- Run integration tests: `mvn verify -DskipUTs`
+- Run all integration tests: `mvn verify -DskipUTs`
+- Run single integration test: `mvn -DskipUTs=true -Dit.test=ClassName verify`
+- We suggest run tests in the root directory
+- We suggest using `-Dtick=5` to increase test stability
 
 ## Codebase Overview
 - **Multi-module Maven project** with Java 11 (Java 8 for client module)
