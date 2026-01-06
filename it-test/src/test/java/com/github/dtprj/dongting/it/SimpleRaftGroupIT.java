@@ -44,8 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author huangli
  */
-public class Raft3NodeSimpleIT {
-    private static final DtLog log = DtLogs.getLogger(Raft3NodeSimpleIT.class);
+public class SimpleRaftGroupIT {
+    private static final DtLog log = DtLogs.getLogger(SimpleRaftGroupIT.class);
 
     private static final int GROUP_ID = 0;
     private static final int[] NODE_IDS = {1, 2, 3};
@@ -63,10 +63,10 @@ public class Raft3NodeSimpleIT {
     @Test
     @Timeout(value = 45, unit = TimeUnit.SECONDS)
     void testThreeNodeClusterStartupAndLeaderElection() throws Exception {
-        File tempDirFile = TestDir.createTestDir(Raft3NodeSimpleIT.class.getSimpleName());
+        File tempDirFile = TestDir.createTestDir(SimpleRaftGroupIT.class.getSimpleName());
         Path tempDir = tempDirFile.toPath();
 
-        log.info("=== Starting " + Raft3NodeSimpleIT.class.getSimpleName() + " ===");
+        log.info("=== Starting " + SimpleRaftGroupIT.class.getSimpleName() + " ===");
         log.info("Temp directory: {}", tempDir);
 
         BootstrapProcessManager processManager = new BootstrapProcessManager();
