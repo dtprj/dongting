@@ -35,7 +35,6 @@ import java.util.concurrent.TimeUnit;
 public class Validator {
     private static final Logger log = LoggerFactory.getLogger(Validator.class);
 
-    private static final long LEADER_ELECTION_TIMEOUT_SECONDS = 60;
     private static final long QUERY_RETRY_INTERVAL_MS = 100;
     private static final long SINGLE_QUERY_TIMEOUT_SECONDS = 2;
 
@@ -64,58 +63,6 @@ public class Validator {
 
     public AdminRaftClient getAdminClient() {
         return adminClient;
-    }
-
-    /**
-     * Wait for leader election to complete
-     */
-    public int waitForLeaderElection(int groupId) throws Exception {
-        int[] nodeIds = adminClient.getGroup(groupId).servers.stream().mapToInt(n -> n.nodeId).toArray();
-        return waitForLeaderElection(groupId, nodeIds, LEADER_ELECTION_TIMEOUT_SECONDS);
-    }
-
-    /**
-     * Wait for leader election with timeout
-     */
-    public int waitForLeaderElection(int groupId, int[] nodeIds, long timeoutSeconds) throws Exception {
-        log.info("Waiting for leader election (timeout: {} seconds)", timeoutSeconds);
-
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
-        int attemptCount = 0;
-
-        while (System.nanoTime() - deadline < 0) {
-            attemptCount++;
-
-            try {
-                // Query all nodes
-                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatusInternal(groupId, nodeIds);
-
-                // Validate leader consistency
-                if (validateLeaderConsistency(allStatus)) {
-                    log.info("Leader election completed successfully");
-                    return allStatus.values().stream().findFirst().get().leaderId;
-                } else {
-                    log.warn("Leader consistency validation failed, will retry");
-                }
-
-            } catch (Exception e) {
-                log.debug("Failed to query status (attempt {}): {}", attemptCount, e.getMessage());
-            }
-
-            // Wait before retry
-            Thread.sleep(QUERY_RETRY_INTERVAL_MS);
-        }
-
-        // Timeout - collect final status for diagnosis
-        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatusInternal(groupId, nodeIds);
-        log.error("Leader election timeout after {} attempts. Final status:", attemptCount);
-        for (Map.Entry<Integer, QueryStatusResp> entry : finalStatus.entrySet()) {
-            QueryStatusResp status = entry.getValue();
-            log.error("  Node {}: term={}, leaderId={}, members={}",
-                    entry.getKey(), status.term, status.leaderId, status.members);
-        }
-
-        throw new RuntimeException("Leader election timeout after " + timeoutSeconds + " seconds");
     }
 
     /**
@@ -148,42 +95,10 @@ public class Validator {
     }
 
     /**
-     * Validate that all nodes agree on the leader
-     */
-    public boolean validateLeaderConsistency(Map<Integer, QueryStatusResp> allStatus) {
-        if (allStatus.isEmpty()) {
-            log.warn("No status available for consistency check");
-            return false;
-        }
-        HashSet<Integer> leaderIds = new HashSet<>();
-        HashSet<Integer> terms = new HashSet<>();
-
-        for (Map.Entry<Integer, QueryStatusResp> entry : allStatus.entrySet()) {
-            QueryStatusResp status = entry.getValue();
-            // Check leader consistency
-            leaderIds.add(status.leaderId);
-            terms.add(status.term);
-            Assertions.assertFalse(status.isBug(), "Node " + entry.getKey() + " has bug flag set");
-        }
-
-        if (leaderIds.size() == 1 && terms.size() == 1) {
-            int leaderId = leaderIds.stream().findFirst().get();
-            int term = terms.stream().findFirst().get();
-            if (leaderId > 0 && term > 0 && allStatus.get(leaderId) != null) {
-                log.info("Leader consistency validated: leaderId={}, term={}", leaderId, term);
-                return true;
-            }
-            return false;
-        } else {
-            return false;
-        }
-    }
-
-    /**
      * Wait for all nodes in the cluster to reach full consistency
      * (same leader, term, members, observers, and groupReady flag)
      */
-    public void waitForClusterConsistency(int groupId, int[] nodeIds, long timeoutSeconds) throws Exception {
+    public int waitForClusterConsistency(int groupId, int[] nodeIds, long timeoutSeconds) throws Exception {
         log.info("Waiting for cluster consistency (timeout: {} seconds)", timeoutSeconds);
 
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
@@ -199,7 +114,7 @@ public class Validator {
                     QueryStatusResp sample = allStatus.values().iterator().next();
                     log.info("Cluster consistency achieved: leaderId={}, term={}, members={}",
                             sample.leaderId, sample.term, sample.members);
-                    return;
+                    return allStatus.values().iterator().next().leaderId;
                 } else {
                     log.debug("Cluster consistency validation failed, attempt {}", attemptCount);
                 }
@@ -261,9 +176,7 @@ public class Validator {
 
         if (leaderConsistent && termConsistent && membersConsistent && observersConsistent && allGroupReady) {
             int leaderId = leaderIds.iterator().next();
-            if (leaderId > 0 && allStatus.get(leaderId) != null) {
-                return true;
-            }
+            return leaderId > 0 && allStatus.get(leaderId) != null;
         }
 
         return false;
@@ -273,13 +186,11 @@ public class Validator {
      * Close the AdminRaftClient
      */
     public void close() {
-        if (adminClient != null) {
-            try {
-                adminClient.stop(new DtTime(5, TimeUnit.SECONDS));
-                log.info("AdminRaftClient stopped");
-            } catch (Exception e) {
-                log.warn("Error stopping AdminRaftClient", e);
-            }
+        try {
+            adminClient.stop(new DtTime(5, TimeUnit.SECONDS));
+            log.info("AdminRaftClient stopped");
+        } catch (Exception e) {
+            log.warn("Error stopping AdminRaftClient", e);
         }
     }
 }

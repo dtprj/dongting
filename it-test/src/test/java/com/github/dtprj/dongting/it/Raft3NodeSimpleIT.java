@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.it.support.BootstrapProcessManager;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
+import com.github.dtprj.dongting.it.support.ItUtil;
 import com.github.dtprj.dongting.it.support.Validator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -49,12 +50,18 @@ public class Raft3NodeSimpleIT {
     private static final int GROUP_ID = 0;
     private static final int[] NODE_IDS = {1, 2, 3};
 
+    private static final long ELECT_TIMEOUT = 1500;
+    private static final long RPC_TIMEOUT = 500;
+    private static final long CONNECT_TIMEOUT = 500;
+    private static final long HEARTBEAT_INTERVAL = 700;
+    private static final long PING_INTERVAL = 700;
+
     /**
      * Test three-node cluster startup and leader election.
      * This is the first and reference integration test for the project.
      */
     @Test
-    @Timeout(value = 300, unit = TimeUnit.SECONDS)
+    @Timeout(value = 45, unit = TimeUnit.SECONDS)
     void testThreeNodeClusterStartupAndLeaderElection() throws Exception {
         File tempDirFile = TestDir.createTestDir(Raft3NodeSimpleIT.class.getSimpleName());
         Path tempDir = tempDirFile.toPath();
@@ -67,8 +74,9 @@ public class Raft3NodeSimpleIT {
         List<ProcessInfo> startedProcesses = new ArrayList<>();
 
         try {
-            log.info("Step 1: Generating configuration files for 3-node cluster");
-            List<ProcessConfig> configs = ConfigFileGenerator.generateClusterConfig(NODE_IDS, GROUP_ID, tempDir);
+            log.info("Step 1: Generating configuration files for 3-node cluster with optimized timeouts");
+            List<ProcessConfig> configs = ConfigFileGenerator.generateClusterConfig(NODE_IDS, GROUP_ID, tempDir,
+                    ELECT_TIMEOUT, RPC_TIMEOUT, CONNECT_TIMEOUT, HEARTBEAT_INTERVAL, PING_INTERVAL);
 
             log.info("Step 2: Starting all nodes");
             for (ProcessConfig config : configs) {
@@ -89,17 +97,20 @@ public class Raft3NodeSimpleIT {
             validator.initialize(NODE_IDS, GROUP_ID);
 
             log.info("Step 4: Waiting for leader election (up to 60 seconds)");
-            int leaderId = validator.waitForLeaderElection(GROUP_ID);
+            int leaderId = validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 30);
 
-            log.info("Step 5: Killing leader and waiting for leader election");
+            log.info("Step 5: Running DtKV functional tests");
+            runDtKvFunctionalTests(NODE_IDS, GROUP_ID);
+
+            log.info("Step 6: Killing leader and waiting for leader election");
             ProcessInfo leader = startedProcesses.stream().filter(p -> p.config.nodeId == leaderId).findFirst().get();
             int oldLeaderId = leader.config.nodeId;
             processManager.forceStopNode(leader);
 
             int[] restNodes = IntStream.of(NODE_IDS).filter(n -> n != oldLeaderId).toArray();
-            validator.waitForLeaderElection(GROUP_ID, restNodes, 30);
+            validator.waitForClusterConsistency(GROUP_ID, restNodes, 30);
 
-            log.info("Step 6: Restarting old leader {} and waiting for cluster convergence", oldLeaderId);
+            log.info("Step 7: Restarting old leader {} and waiting for cluster convergence", oldLeaderId);
             ProcessInfo restartedLeader = processManager.restartNode(leader, 30);
             int leaderIndex = -1;
             for (int i = 0; i < startedProcesses.size(); i++) {
@@ -112,10 +123,10 @@ public class Raft3NodeSimpleIT {
                 startedProcesses.set(leaderIndex, restartedLeader);
             }
 
-            log.info("Step 7: Waiting for all 3 nodes to converge (same leader, term, members)");
+            log.info("Step 8: Waiting for all 3 nodes to converge (same leader, term, members)");
             validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 60);
 
-            log.info("Step 8: Gracefully stopping a follower and restarting it");
+            log.info("Step 9: Gracefully stopping a follower and restarting it");
             Map<Integer, QueryStatusResp> statusMap = validator.queryAllNodeStatus(GROUP_ID, NODE_IDS);
             QueryStatusResp leaderStatus = statusMap.get(statusMap.values().iterator().next().leaderId);
             final int[] followerIdHolder = new int[]{-1};
@@ -138,8 +149,8 @@ public class Raft3NodeSimpleIT {
                 }
             }
 
-            log.info("Step 9: Waiting for follower {} to rejoin and cluster to converge", followerId);
-            validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 60);
+            log.info("Step 10: Waiting for follower {} to rejoin and cluster to converge", followerId);
+            validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 30);
 
         } catch (Exception e) {
             log.error("Test failed with exception", e);
@@ -156,7 +167,7 @@ public class Raft3NodeSimpleIT {
             throw e;
 
         } finally {
-            log.info("Step 10: Cleaning up resources");
+            log.info("Step 11: Cleaning up resources");
             if (validator != null) {
                 try {
                     validator.close();
@@ -166,6 +177,21 @@ public class Raft3NodeSimpleIT {
             }
             processManager.stopAllNodes();
             log.info("=== Raft3NodeSimpleIT completed ===");
+        }
+    }
+
+    /**
+     * Run DtKV functional tests with specific node IDs
+     */
+    private void runDtKvFunctionalTests(int[] nodeIds, int groupId) {
+        try {
+            String serversStr = ItUtil.formatServiceServers(nodeIds);
+            DtKvValidator dtKvTests = new DtKvValidator(groupId, serversStr);
+            dtKvTests.runAllTests();
+            log.info("All DtKV functional tests passed successfully");
+        } catch (Exception e) {
+            log.error("DtKV functional tests failed", e);
+            throw new RuntimeException("DtKV functional tests failed", e);
         }
     }
 }

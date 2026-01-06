@@ -40,15 +40,27 @@ public class ConfigFileGenerator {
         public final int nodeId;
         public final int replicatePort;
         public final int servicePort;
+        public final Long electTimeout;
+        public final Long rpcTimeout;
+        public final Long connectTimeout;
+        public final Long heartbeatInterval;
+        public final Long pingInterval;
 
         public ProcessConfig(File nodeDir, File configFile, File serversFile,
-                             int nodeId, int replicatePort, int servicePort) {
+                             int nodeId, int replicatePort, int servicePort,
+                             Long electTimeout, Long rpcTimeout, Long connectTimeout,
+                             Long heartbeatInterval, Long pingInterval) {
             this.nodeDir = nodeDir;
             this.configFile = configFile;
             this.serversFile = serversFile;
             this.nodeId = nodeId;
             this.replicatePort = replicatePort;
             this.servicePort = servicePort;
+            this.electTimeout = electTimeout;
+            this.rpcTimeout = rpcTimeout;
+            this.connectTimeout = connectTimeout;
+            this.heartbeatInterval = heartbeatInterval;
+            this.pingInterval = pingInterval;
         }
     }
 
@@ -68,6 +80,16 @@ public class ConfigFileGenerator {
      * Generate configuration files for a cluster with specified node count
      */
     public static List<ProcessConfig> generateClusterConfig(int[] nodeIds, int groupId, Path baseDir) throws IOException {
+        return generateClusterConfig(nodeIds, groupId, baseDir, null, null, null, null, null);
+    }
+
+    /**
+     * Generate configuration files for a cluster with custom timeout settings
+     */
+    public static List<ProcessConfig> generateClusterConfig(int[] nodeIds, int groupId, Path baseDir,
+                                                           Long electTimeout, Long rpcTimeout,
+                                                           Long connectTimeout, Long heartbeatInterval,
+                                                           Long pingInterval) throws IOException {
         List<ProcessConfig> result = new ArrayList<>();
 
         // Build servers string
@@ -84,7 +106,8 @@ public class ConfigFileGenerator {
 
         // Generate config for each node
         for (int nid : nodeIds) {
-            ProcessConfig files = generateNodeConfig(nid, baseDir, serversStr, groupDefinitions);
+            ProcessConfig files = generateNodeConfig(nid, baseDir, serversStr, groupDefinitions,
+                    electTimeout, rpcTimeout, connectTimeout, heartbeatInterval, pingInterval);
             result.add(files);
         }
 
@@ -96,6 +119,18 @@ public class ConfigFileGenerator {
      */
     public static ProcessConfig generateNodeConfig(int nodeId, Path baseDir, String serversStr,
                                                    List<GroupDefinition> groups) throws IOException {
+        return generateNodeConfig(nodeId, baseDir, serversStr, groups,
+                null, null, null, null, null);
+    }
+
+    /**
+     * Generate configuration files for a single node with custom timeout settings
+     */
+    public static ProcessConfig generateNodeConfig(int nodeId, Path baseDir, String serversStr,
+                                                   List<GroupDefinition> groups,
+                                                   Long electTimeout, Long rpcTimeout,
+                                                   Long connectTimeout, Long heartbeatInterval,
+                                                   Long pingInterval) throws IOException {
         int replicatePort = ItUtil.replicatePort(nodeId);
         int servicePort = ItUtil.servicePort(nodeId);
         // Create node directory
@@ -113,6 +148,24 @@ public class ConfigFileGenerator {
         configProps.setProperty("replicatePort", String.valueOf(replicatePort));
         configProps.setProperty("servicePort", String.valueOf(servicePort));
         configProps.setProperty("dataDir", dataDir.getAbsolutePath());
+
+        // Add custom timeout settings if provided
+        if (electTimeout != null) {
+            configProps.setProperty("electTimeout", String.valueOf(electTimeout));
+        }
+        if (rpcTimeout != null) {
+            configProps.setProperty("rpcTimeout", String.valueOf(rpcTimeout));
+        }
+        if (connectTimeout != null) {
+            configProps.setProperty("connectTimeout", String.valueOf(connectTimeout));
+        }
+        if (heartbeatInterval != null) {
+            configProps.setProperty("heartbeatInterval", String.valueOf(heartbeatInterval));
+        }
+        if (pingInterval != null) {
+            configProps.setProperty("pingInterval", String.valueOf(pingInterval));
+        }
+
         writeConfigFile(configProps, configFile);
 
         // Create servers.properties
@@ -120,7 +173,8 @@ public class ConfigFileGenerator {
         Properties serversProps = generateServersProperties(serversStr, groups);
         writeConfigFile(serversProps, serversFile);
 
-        return new ProcessConfig(nodeDir, configFile, serversFile, nodeId, replicatePort, servicePort);
+        return new ProcessConfig(nodeDir, configFile, serversFile, nodeId, replicatePort, servicePort,
+                electTimeout, rpcTimeout, connectTimeout, heartbeatInterval, pingInterval);
     }
 
     private static Properties generateServersProperties(String serversStr, List<GroupDefinition> groups) {

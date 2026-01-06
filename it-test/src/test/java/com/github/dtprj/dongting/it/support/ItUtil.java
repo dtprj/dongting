@@ -39,10 +39,18 @@ public class ItUtil {
     }
 
     public static String formatReplicateServers(int[] nodeIds) {
+        return formatServers(nodeIds, true);
+    }
+
+    public static String formatServiceServers(int[] nodeIds) {
+        return formatServers(nodeIds, false);
+    }
+
+    private static String formatServers(int[] nodeIds, boolean replicate) {
         List<RaftNode> replicateNodes = new ArrayList<>();
         for (int nid : nodeIds) {
-            int replicatePort = ItUtil.replicatePort(nid);
-            RaftNode rn = new RaftNode(nid, new HostPort("127.0.0.1", replicatePort));
+            int port = replicate ? ItUtil.replicatePort(nid) : ItUtil.servicePort(nid);
+            RaftNode rn = new RaftNode(nid, new HostPort("127.0.0.1", port));
             replicateNodes.add(rn);
         }
         return RaftNode.formatServers(replicateNodes);
