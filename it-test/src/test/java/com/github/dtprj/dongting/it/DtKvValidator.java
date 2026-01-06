@@ -55,6 +55,13 @@ public class DtKvValidator {
     private KvClient client2;
 
 
+    public DtKvValidator(int groupId, String serversStr) {
+        this.groupId = groupId;
+        this.serversStr = serversStr;
+        this.rpcTimeoutMillis = 0;
+        this.watchHeartbeatMillis = 0;
+    }
+
     public DtKvValidator(int groupId, String serversStr, long rpcTimeoutMillis, long watchHeartbeatMillis) {
         this.groupId = groupId;
         this.serversStr = serversStr;
@@ -69,10 +76,14 @@ public class DtKvValidator {
 
     private KvClient createClient(long rpcTimeoutMillis, long watchHeartbeatMillis) {
         RaftClientConfig raftClientConfig = new RaftClientConfig();
-        raftClientConfig.rpcTimeoutMillis = rpcTimeoutMillis;
+        if (rpcTimeoutMillis > 0) {
+            raftClientConfig.rpcTimeoutMillis = rpcTimeoutMillis;
+        }
 
         KvClientConfig kvClientConfig = new KvClientConfig();
-        kvClientConfig.watchHeartbeatMillis = watchHeartbeatMillis;
+        if (watchHeartbeatMillis > 0) {
+            kvClientConfig.watchHeartbeatMillis = watchHeartbeatMillis;
+        }
 
         KvClient client = new KvClient(kvClientConfig, raftClientConfig, new NioClientConfig());
 
@@ -107,7 +118,7 @@ public class DtKvValidator {
      * Test basic KV operations: put, get, remove
      */
     public void testBasicKvOperations() {
-        log.info("=== Testing basic KV operations ===");
+        log.debug("=== Testing basic KV operations ===");
 
         // Test put and get
         byte[] key1 = key("key1");
@@ -127,14 +138,14 @@ public class DtKvValidator {
         KvNode node3 = client.get(groupId, key1);
         assertNull(node3, "Key should be null after remove");
 
-        log.info("Basic KV operations test passed");
+        log.debug("Basic KV operations test passed");
     }
 
     /**
      * Test directory operations: mkdir, list
      */
     public void testDirectoryOperations() {
-        log.info("=== Testing directory operations ===");
+        log.debug("=== Testing directory operations ===");
 
         // Test mkdir dir first (first level directory)
         byte[] dir1Path = key("dir");
@@ -166,14 +177,14 @@ public class DtKvValidator {
         assertTrue(dirList.stream().anyMatch(r -> new String(r.getKeyInDir().getData()).equals("key2")),
                 "Should contain key2");
 
-        log.info("Directory operations test passed");
+        log.debug("Directory operations test passed");
     }
 
     /**
      * Test temporary node: putTemp and automatic expiration
      */
     public void testTemporaryNode() {
-        log.info("=== Testing temporary node ===");
+        log.debug("=== Testing temporary node ===");
 
 
         // Test putTemp
@@ -189,14 +200,14 @@ public class DtKvValidator {
 
         WaitUtil.waitUtil(() -> client.get(groupId, tempKey) == null);
 
-        log.info("Temporary node test passed");
+        log.debug("Temporary node test passed");
     }
 
     /**
      * Test batch operations: batchPut, batchGet, batchRemove
      */
     public void testBatchOperations() {
-        log.info("=== Testing batch operations ===");
+        log.debug("=== Testing batch operations ===");
 
         // Prepare test data
         byte[] key1 = key("batchKey1");
@@ -233,14 +244,14 @@ public class DtKvValidator {
             assertNull(node, "All keys should be null after batchRemove");
         }
 
-        log.info("Batch operations test passed");
+        log.debug("Batch operations test passed");
     }
 
     /**
      * Test compare and set (CAS) operation
      */
     public void testCompareAndSet() {
-        log.info("=== Testing CAS operation ===");
+        log.debug("=== Testing CAS operation ===");
 
         byte[] key = key("casKey1");
         byte[] value1 = "value1".getBytes(StandardCharsets.UTF_8);
@@ -279,14 +290,14 @@ public class DtKvValidator {
         KvNode node4 = client.get(groupId, key);
         assertNull(node4, "Key should be deleted after CAS with null");
 
-        log.info("CAS operation test passed");
+        log.debug("CAS operation test passed");
     }
 
     /**
      * Test distributed lock with two clients competing for same lock
      */
     public void testDistributedLock() {
-        log.info("=== Testing distributed lock ===");
+        log.debug("=== Testing distributed lock ===");
         final byte[] lockKey = key("lockKey1");
         final long leaseMillis = tick(100);
 
@@ -323,7 +334,7 @@ public class DtKvValidator {
             lock2.unlock();
             assertFalse(lock2.isHeldByCurrentClient(), "Client2 should not hold lock after unlock");
 
-            log.info("Distributed lock test passed");
+            log.debug("Distributed lock test passed");
         } finally {
             if (lock1 != null) {
                 lock1.close();
