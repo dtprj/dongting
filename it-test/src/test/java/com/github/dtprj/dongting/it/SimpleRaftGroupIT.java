@@ -59,6 +59,9 @@ public class SimpleRaftGroupIT {
     private static final long PING_INTERVAL = 700;
     private static final long WATCH_TIMEOUT = 5000;
 
+    private static final long CLIENT_RPC_TIMEOUT = 2000;
+    private static final long CLIENT_WATCH_HEARTBEAT_MILLIS = 1000;
+
     /**
      * Test three-node cluster startup and leader election.
      * This is the first and reference integration test for the project.
@@ -110,7 +113,7 @@ public class SimpleRaftGroupIT {
             int leaderId = validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 30);
 
             log.info("Step 5: Running DtKV functional tests");
-            runDtKvFunctionalTests(ALL_NODE_IDS, GROUP_ID);
+            runDtKvFunctionalTests();
 
             log.info("Step 6: Killing leader and waiting for leader election");
             ProcessInfo leader = startedProcesses.stream().filter(p -> p.config.nodeId == leaderId).findFirst().get();
@@ -193,15 +196,21 @@ public class SimpleRaftGroupIT {
     /**
      * Run DtKV functional tests with specific node IDs
      */
-    private void runDtKvFunctionalTests(int[] nodeIds, int groupId) {
+    private void runDtKvFunctionalTests() {
+        DtKvValidator dtKvTests = null;
         try {
-            String serversStr = ItUtil.formatServiceServers(nodeIds);
-            DtKvValidator dtKvTests = new DtKvValidator(groupId, serversStr);
+            String serversStr = ItUtil.formatServiceServers(ALL_NODE_IDS);
+            dtKvTests = new DtKvValidator(GROUP_ID, serversStr, CLIENT_RPC_TIMEOUT, CLIENT_WATCH_HEARTBEAT_MILLIS);
+            dtKvTests.start();
             dtKvTests.runAllTests();
             log.info("All DtKV functional tests passed successfully");
         } catch (Exception e) {
             log.error("DtKV functional tests failed", e);
             throw new RuntimeException("DtKV functional tests failed", e);
+        } finally {
+            if (dtKvTests != null) {
+                dtKvTests.stop();
+            }
         }
     }
 }

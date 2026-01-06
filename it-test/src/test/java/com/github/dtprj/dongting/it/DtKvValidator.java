@@ -46,23 +46,33 @@ public class DtKvValidator {
 
     private final int groupId;
     private final String serversStr;
+    private final long rpcTimeoutMillis;
+    private final long watchHeartbeatMillis;
+
     private static final String PREFIX = DtKvValidator.class.getSimpleName();
 
     private KvClient client;
     private KvClient client2;
 
 
-    public DtKvValidator(int groupId, String serversStr) {
+    public DtKvValidator(int groupId, String serversStr, long rpcTimeoutMillis, long watchHeartbeatMillis) {
         this.groupId = groupId;
         this.serversStr = serversStr;
+        this.rpcTimeoutMillis = rpcTimeoutMillis;
+        this.watchHeartbeatMillis = watchHeartbeatMillis;
     }
 
-    private KvClient createClient() {
+    public void start() {
+        client = createClient(rpcTimeoutMillis, watchHeartbeatMillis);
+        client2 = createClient(rpcTimeoutMillis, watchHeartbeatMillis);
+    }
+
+    private KvClient createClient(long rpcTimeoutMillis, long watchHeartbeatMillis) {
         RaftClientConfig raftClientConfig = new RaftClientConfig();
-        raftClientConfig.rpcTimeoutMillis = 2000;
+        raftClientConfig.rpcTimeoutMillis = rpcTimeoutMillis;
 
         KvClientConfig kvClientConfig = new KvClientConfig();
-        kvClientConfig.watchHeartbeatMillis = 1000;
+        kvClientConfig.watchHeartbeatMillis = watchHeartbeatMillis;
 
         KvClient client = new KvClient(kvClientConfig, raftClientConfig, new NioClientConfig());
 
@@ -72,6 +82,11 @@ public class DtKvValidator {
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
         client.mkdir(groupId, PREFIX.getBytes(StandardCharsets.UTF_8));
         return client;
+    }
+
+    public void stop() {
+        stopClient(client);
+        stopClient(client2);
     }
 
     private void stopClient(KvClient client) {
@@ -226,7 +241,6 @@ public class DtKvValidator {
      */
     public void testCompareAndSet() {
         log.info("=== Testing CAS operation ===");
-        client = createClient();
 
         byte[] key = key("casKey1");
         byte[] value1 = "value1".getBytes(StandardCharsets.UTF_8);
@@ -324,18 +338,11 @@ public class DtKvValidator {
      * Run all DtKV functional tests
      */
     public void runAllTests() {
-        try {
-            client = createClient();
-            client2 = createClient();
-            testBasicKvOperations();
-            testDirectoryOperations();
-            testTemporaryNode();
-            testBatchOperations();
-            testCompareAndSet();
-            testDistributedLock();
-        } finally {
-            stopClient(client);
-            stopClient(client2);
-        }
+        testBasicKvOperations();
+        testDirectoryOperations();
+        testTemporaryNode();
+        testBatchOperations();
+        testCompareAndSet();
+        testDistributedLock();
     }
 }
