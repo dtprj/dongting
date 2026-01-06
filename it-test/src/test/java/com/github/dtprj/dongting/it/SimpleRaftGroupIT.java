@@ -48,7 +48,9 @@ public class SimpleRaftGroupIT {
     private static final DtLog log = DtLogs.getLogger(SimpleRaftGroupIT.class);
 
     private static final int GROUP_ID = 0;
-    private static final int[] NODE_IDS = {1, 2, 3};
+    private static final int[] MEMBER_IDS = {1, 2, 3};
+    private static final int[] OBSERVER_IDS = {4};
+    private static final int[] ALL_NODE_IDS = {1, 2, 3, 4};
 
     private static final long ELECT_TIMEOUT = 1500;
     private static final long RPC_TIMEOUT = 500;
@@ -75,7 +77,8 @@ public class SimpleRaftGroupIT {
 
         try {
             log.info("Step 1: Generating configuration files for 3-node cluster with optimized timeouts");
-            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(NODE_IDS, GROUP_ID, tempDir)
+            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(MEMBER_IDS, GROUP_ID, tempDir)
+                    .observerIds(OBSERVER_IDS)
                     .electTimeout(ELECT_TIMEOUT)
                     .rpcTimeout(RPC_TIMEOUT)
                     .connectTimeout(CONNECT_TIMEOUT)
@@ -99,21 +102,21 @@ public class SimpleRaftGroupIT {
             log.info("Step 3: Initializing AdminRaftClient and waiting for leader election");
 
             validator = new Validator();
-            validator.initialize(NODE_IDS, GROUP_ID);
+            validator.initialize(ALL_NODE_IDS, GROUP_ID);
 
             log.info("Step 4: Waiting for leader election (up to 60 seconds)");
-            int leaderId = validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 30);
+            int leaderId = validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 30);
 
             log.info("Step 5: Running DtKV functional tests");
-            runDtKvFunctionalTests(NODE_IDS, GROUP_ID);
+            runDtKvFunctionalTests(ALL_NODE_IDS, GROUP_ID);
 
             log.info("Step 6: Killing leader and waiting for leader election");
             ProcessInfo leader = startedProcesses.stream().filter(p -> p.config.nodeId == leaderId).findFirst().get();
             int oldLeaderId = leader.config.nodeId;
             processManager.forceStopNode(leader);
 
-            int[] restNodes = IntStream.of(NODE_IDS).filter(n -> n != oldLeaderId).toArray();
-            validator.waitForClusterConsistency(GROUP_ID, restNodes, 30);
+            int[] restMembers = IntStream.of(ALL_NODE_IDS).filter(n -> n != oldLeaderId).toArray();
+            validator.waitForClusterConsistency(GROUP_ID, restMembers, 30);
 
             log.info("Step 7: Restarting old leader {} and waiting for cluster convergence", oldLeaderId);
             ProcessInfo restartedLeader = processManager.restartNode(leader, 30);
@@ -128,14 +131,14 @@ public class SimpleRaftGroupIT {
                 startedProcesses.set(leaderIndex, restartedLeader);
             }
 
-            log.info("Step 8: Waiting for all 3 nodes to converge (same leader, term, members)");
-            validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 60);
+            log.info("Step 8: Waiting for all nodes to converge (same leader, term, members)");
+            validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 60);
 
             log.info("Step 9: Gracefully stopping a follower and restarting it");
-            Map<Integer, QueryStatusResp> statusMap = validator.queryAllNodeStatus(GROUP_ID, NODE_IDS);
+            Map<Integer, QueryStatusResp> statusMap = validator.queryAllNodeStatus(GROUP_ID, ALL_NODE_IDS);
             QueryStatusResp leaderStatus = statusMap.get(statusMap.values().iterator().next().leaderId);
             final int[] followerIdHolder = new int[]{-1};
-            for (int nodeId : NODE_IDS) {
+            for (int nodeId : MEMBER_IDS) {
                 if (nodeId != leaderStatus.leaderId && nodeId != oldLeaderId) {
                     followerIdHolder[0] = nodeId;
                     break;
@@ -155,7 +158,7 @@ public class SimpleRaftGroupIT {
             }
 
             log.info("Step 10: Waiting for follower {} to rejoin and cluster to converge", followerId);
-            validator.waitForClusterConsistency(GROUP_ID, NODE_IDS, 30);
+            validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 30);
 
         } catch (Exception e) {
             log.error("Test failed with exception", e);

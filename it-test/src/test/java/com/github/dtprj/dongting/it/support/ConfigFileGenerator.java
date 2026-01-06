@@ -124,20 +124,26 @@ public class ConfigFileGenerator {
     }
 
     public static class ClusterConfigBuilder {
-        private final int[] nodeIds;
+        private final int[] memberIds;
         private final int groupId;
         private final Path baseDir;
 
+        private int[] observerIds = new int[0];
         private Long electTimeout;
         private Long rpcTimeout;
         private Long connectTimeout;
         private Long heartbeatInterval;
         private Long pingInterval;
 
-        public ClusterConfigBuilder(int[] nodeIds, int groupId, Path baseDir) {
-            this.nodeIds = nodeIds;
+        public ClusterConfigBuilder(int[] memberIds, int groupId, Path baseDir) {
+            this.memberIds = memberIds;
             this.groupId = groupId;
             this.baseDir = baseDir;
+        }
+
+        public ClusterConfigBuilder observerIds(int[] observerIds) {
+            this.observerIds = observerIds;
+            return this;
         }
 
         public ClusterConfigBuilder electTimeout(Long electTimeout) {
@@ -168,21 +174,48 @@ public class ConfigFileGenerator {
         public List<ProcessConfig> build() throws IOException {
             List<ProcessConfig> result = new ArrayList<>();
 
-            // Build servers string
-            String serversStr = ItUtil.formatReplicateServers(nodeIds);
+            // Build servers string (members + observers)
+            int[] allNodeIds = new int[memberIds.length + observerIds.length];
+            System.arraycopy(memberIds, 0, allNodeIds, 0, memberIds.length);
+            System.arraycopy(observerIds, 0, allNodeIds, memberIds.length, observerIds.length);
+            String serversStr = ItUtil.formatReplicateServers(allNodeIds);
 
             // Build members string
-            StringBuilder ids = new StringBuilder();
-            for (int nid : nodeIds) {
-                ids.append(nid).append(",");
+            StringBuilder memberIdsStr = new StringBuilder();
+            for (int nid : memberIds) {
+                memberIdsStr.append(nid).append(",");
             }
-            ids.deleteCharAt(ids.length() - 1);
-            List<GroupDefinition> groupDefinitions = Collections.singletonList(
-                    new GroupDefinition(groupId, ids.toString(), ""));
+            memberIdsStr.deleteCharAt(memberIdsStr.length() - 1);
 
-            // Generate config for each node
-            for (int nid : nodeIds) {
+            // Build observers string
+            String observersStr = "";
+            if (observerIds.length > 0) {
+                StringBuilder sb = new StringBuilder();
+                for (int oid : observerIds) {
+                    sb.append(oid).append(",");
+                }
+                sb.deleteCharAt(sb.length() - 1);
+                observersStr = sb.toString();
+            }
+
+            List<GroupDefinition> groupDefinitions = Collections.singletonList(
+                    new GroupDefinition(groupId, memberIdsStr.toString(), observersStr));
+
+            // Generate config for each member
+            for (int nid : memberIds) {
                 ProcessConfig config = new ProcessConfigBuilder(nid, baseDir, serversStr, groupDefinitions)
+                        .electTimeout(electTimeout)
+                        .rpcTimeout(rpcTimeout)
+                        .connectTimeout(connectTimeout)
+                        .heartbeatInterval(heartbeatInterval)
+                        .pingInterval(pingInterval)
+                        .build();
+                result.add(config);
+            }
+
+            // Generate config for each observer
+            for (int oid : observerIds) {
+                ProcessConfig config = new ProcessConfigBuilder(oid, baseDir, serversStr, groupDefinitions)
                         .electTimeout(electTimeout)
                         .rpcTimeout(rpcTimeout)
                         .connectTimeout(connectTimeout)
