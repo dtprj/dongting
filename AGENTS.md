@@ -1,6 +1,7 @@
 ## Build and Test Commands
 
 ### Build
+- THE `mvn` COMMAND MUST RUN IN THE ROOT DIRECTORY, NOT IN THE SUBMODULE DIRECTORY
 - Full build: `mvn clean package -DskipITs -DskipUTs`
 - Compile with protobuf: `mvn clean compile test-compile`
 
@@ -10,7 +11,6 @@
 - Run single test method: `mvn test -Dtest=ClassName#methodName -Dtick=5`
 - Run all integration tests: `mvn verify -DskipUTs`
 - Run single integration test: `mvn -DskipUTs=true -Dit.test=ClassName verify`
-- We suggest run tests in the root directory
 - We suggest using `-Dtick=5` to increase test stability
 
 ## Codebase Overview
@@ -29,13 +29,6 @@ All Java files must include Apache 2.0 license header (17 lines)
 - No wildcard imports
 - Internal imports: `com.github.dtprj.dongting.*`
 
-### Naming Conventions
-- Classes: PascalCase (e.g., `FiberGroup`, `LogFileQueue`)
-- Methods: camelCase (e.g., `startGroup`, `checkPositive`)
-- Constants: UPPER_SNAKE_CASE (e.g., `MAX_WRITE_BUFFER_SIZE`, `RPC_MAJOR_VER`)
-- Private fields: camelCase (e.g., `fiberGroup`, `logAppender`)
-- Package-private classes: PascalCase but not public
-
 ### Field Access Pattern
 - Internal usage: Access public/package-private fields directly
 - External API: Use getter/setter methods when additional logic is needed
@@ -52,11 +45,6 @@ All Java files must include Apache 2.0 license header (17 lines)
 - Checkers: `DtUtil.checkPositive()`, `DtUtil.checkNotNull()`
 - Close resources with `DtUtil.close(AutoCloseable)`
 - Fiber errors: `Fiber.fatal()` for critical failures
-
-### Types and Generics
-- Explicit generic types: `FiberFrame<Void>`, `FrameCallResult`
-- Use `@SuppressWarnings` where necessary
-- Avoid raw types when possible
 
 ### Comments
 - Java source code and comments: **English only**
@@ -98,14 +86,3 @@ All Java files must include Apache 2.0 license header (17 lines)
 - **dist**: Java 11+, packaging and scripts only
 - **it-test**: Integration tests
 - **demos**: Example applications
-
-### Method Patterns
-- Static factory methods: `public static FiberFuture<Void> join()`
-- Builder pattern: `new Fiber(name, group, frame, daemon, signals)`
-- Check-then-act: Use atomic operations or fiber-safe patterns
-- Async callbacks: Lambda expressions with resume points
-
-### Constants
-- Define class-level constants in `private static final`
-- Use descriptive names with units where applicable
-- Magic numbers should be named constants
