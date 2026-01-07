@@ -128,7 +128,7 @@ public class WatchManagerTest implements KvListener {
         }
 
         private void waitFirstItemApplied(ServerInfo si, long index) {
-            WaitUtil.waitUtil(() -> si.gc.raftStatus.getLastApplied()>= index,
+            WaitUtil.waitUtil(() -> si.gc.raftStatus.getLastApplied() >= index,
                     si.gc.raftStatus.fiberGroup.getExecutor());
         }
 
@@ -389,11 +389,16 @@ public class WatchManagerTest implements KvListener {
         assertEquals("value3", new String(event.value));
 
         manager.removeWatch(groupId, key1.getBytes());
-        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
-                10002, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value4".getBytes())));
-        p = manager.processNotify(req, null);
-        assertEquals(CmdCodes.SUCCESS, p.respCode);
-        assertEquals(KvCodes.REMOVE_ALL_WATCH, p.bizCode);
+        long[] raftIndexArr = new long[]{10002};
+        WaitUtil.waitUtil(() -> {
+            WatchNotifyReq r = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                    raftIndexArr[0]++, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "valueX".getBytes())));
+            WritePacket wp = manager.processNotify(r, null);
+            assertEquals(CmdCodes.SUCCESS, wp.respCode);
+            // if removeWatch not sync to server at once (because of busy),
+            // the bizCode will be KvCodes.SUCCESS
+            return wp.bizCode == KvCodes.REMOVE_ALL_WATCH;
+        });
         event = manager.takeEvent();
         assertNull(event);
     }
