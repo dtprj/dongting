@@ -37,6 +37,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -228,6 +229,12 @@ public class ServerWatchManagerTest {
         assertEquals(ci2, manager.activeQueueTail);
     }
 
+    private long getNotifiedIndex(DtChannel dtc, String key) {
+        ChannelInfo ci = manager.channelInfoMap.get(dtc);
+        ChannelWatch cw = ci.watches.get(new ByteArray(key.getBytes(StandardCharsets.UTF_8)));
+        return cw.notifiedIndex;
+    }
+
     // basic test
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
@@ -267,7 +274,8 @@ public class ServerWatchManagerTest {
         assertEquals(WatchEvent.STATE_VALUE_EXISTS, pushReqInfo.req.notifyList.get(0).state);
         assertEquals(expectIndex, pushReqInfo.req.notifyList.get(0).raftIndex);
 
-        manager.sync(kv, dtc1, false, keys("key1", "key2"), new long[]{0, 0});
+        manager.sync(kv, dtc1, false, keys("key1", "key2"),
+                new long[]{getNotifiedIndex(dtc1, "key1"), 0});
         expectIndex = raftIndex;
         put("key1", "value1_2");
         put("key2", "value2_2");
@@ -312,7 +320,7 @@ public class ServerWatchManagerTest {
             }
         }
 
-        manager.sync(kv, dtc1, true, keys("key2", "key3"), new long[]{0, 0});
+        manager.sync(kv, dtc1, true, keys("key2", "key3"), new long[]{getNotifiedIndex(dtc1, "key2"), 0});
         manager.sync(kv, dtc2, false, keys("key2"), new long[]{-1});
         put("key1", "value1_4");
         put("key2", "value2_4");

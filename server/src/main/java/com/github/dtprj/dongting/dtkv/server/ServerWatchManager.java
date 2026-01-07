@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  */
 abstract class ServerWatchManager {
     private static final DtLog log = DtLogs.getLogger(ServerWatchManager.class);
-    private final IdentityHashMap<DtChannel, ChannelInfo> channelInfoMap = new IdentityHashMap<>();
+    final IdentityHashMap<DtChannel, ChannelInfo> channelInfoMap = new IdentityHashMap<>();
     private final LinkedHashSet<ChannelInfo> needNotifyChannels = new LinkedHashSet<>();
     private final PriorityQueue<ChannelInfo> retryQueue = new PriorityQueue<>();
     ChannelInfo activeQueueHead;
@@ -421,7 +421,7 @@ abstract class ServerWatchManager {
                             hasFailCode = true;
                             log.error("notify failed. remote={}, bizCode={}", ci.channel.getRemoteAddr(), bizCode);
                         } else {
-                            w.notifiedIndex = w.notifiedIndexPending;
+                            w.notifiedIndex = Math.max(w.notifiedIndexPending, w.notifiedIndex);
                             ci.addNeedNotify(w); // remove in pushNotify(ChannelInfo) method
                         }
                     }
@@ -497,11 +497,11 @@ abstract class ServerWatchManager {
             long knownRaftIndex = knownRaftIndexes[i];
             if (knownRaftIndex >= 0) {
                 ChannelWatch w = ci.watches.get(key);
-                if (w == null || w.removed) {
+                if (w == null || w.removed || knownRaftIndex == 0) {
                     w = createWatch(kv, key, ci, knownRaftIndex);
                     ci.watches.put(w.watchHolder.key, w);
                 } else {
-                    w.notifiedIndex = Math.max(w.notifiedIndex, knownRaftIndex);
+                    w.notifiedIndex = knownRaftIndex;
                     w.needRemoveAfterSyncAll = false;
                 }
                 if (w.pending) {
@@ -558,7 +558,7 @@ abstract class ServerWatchManager {
         // mount to parent dir
         ByteArray parentKey;
         if (parent == null) {
-            parentKey = kv.parentKey(key);
+            parentKey = KvImpl.parentKey(key);
             parent = kv.map.get(parentKey);
         } else {
             parentKey = parent.key;
