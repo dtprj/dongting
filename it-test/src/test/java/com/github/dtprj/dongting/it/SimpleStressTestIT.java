@@ -77,7 +77,7 @@ public class SimpleStressTestIT {
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)
     void testStressWithValidation() throws Exception {
-        File baseDirFile = TestDir.createTestDir(SimpleRaftGroupIT.class.getSimpleName());
+        File baseDirFile = TestDir.createTestDir(SimpleStressTestIT.class.getSimpleName());
         Path baseDirPath = baseDirFile.toPath();
 
         log.info("=== Starting " + SimpleStressTestIT.class.getSimpleName() + " ===");
