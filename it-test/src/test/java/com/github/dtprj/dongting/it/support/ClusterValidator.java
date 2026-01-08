@@ -32,15 +32,15 @@ import java.util.concurrent.TimeUnit;
  *
  * @author huangli
  */
-public class Validator {
-    private static final Logger log = LoggerFactory.getLogger(Validator.class);
+public class ClusterValidator {
+    private static final Logger log = LoggerFactory.getLogger(ClusterValidator.class);
 
     private static final long QUERY_RETRY_INTERVAL_MS = 100;
     private static final long SINGLE_QUERY_TIMEOUT_SECONDS = 2;
 
     private final AdminRaftClient adminClient;
 
-    public Validator() {
+    public ClusterValidator() {
         adminClient = new AdminRaftClient();
     }
 

@@ -17,10 +17,10 @@ package com.github.dtprj.dongting.it;
 
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
+import com.github.dtprj.dongting.it.support.ClusterValidator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
 import com.github.dtprj.dongting.it.support.ItUtil;
-import com.github.dtprj.dongting.it.support.Validator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
@@ -76,7 +76,7 @@ public class SimpleRaftGroupIT {
         log.info("Temp directory: {}", tempDir);
 
         BootstrapProcessManager processManager = new BootstrapProcessManager();
-        Validator validator = null;
+        ClusterValidator validator = null;
         List<ProcessInfo> startedProcesses = new ArrayList<>();
 
         try {
@@ -106,7 +106,7 @@ public class SimpleRaftGroupIT {
 
             log.info("Step 3: Initializing AdminRaftClient and waiting for leader election");
 
-            validator = new Validator();
+            validator = new ClusterValidator();
             validator.initialize(ALL_NODE_IDS, GROUP_ID);
 
             log.info("Step 4: Waiting for leader election (up to 60 seconds)");

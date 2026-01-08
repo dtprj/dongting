@@ -20,10 +20,10 @@ import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
+import com.github.dtprj.dongting.it.support.ClusterValidator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
 import com.github.dtprj.dongting.it.support.ItUtil;
-import com.github.dtprj.dongting.it.support.Validator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClientConfig;
@@ -88,7 +88,7 @@ public class SimpleStressTestIT {
         log.info("Value size range: {} - {} bytes", MIN_VALUE_SIZE, MAX_VALUE_SIZE);
 
         BootstrapProcessManager processManager = new BootstrapProcessManager();
-        Validator validator = null;
+        ClusterValidator validator = null;
         List<ProcessInfo> startedProcesses = new ArrayList<>();
         KvClient kvClient = null;
         ExecutorService stressExecutor = null;
@@ -113,7 +113,7 @@ public class SimpleStressTestIT {
             }
 
             log.info("Step 3: Waiting for leader election");
-            validator = new Validator();
+            validator = new ClusterValidator();
             validator.initialize(ALL_NODE_IDS, GROUP_ID);
             int leaderId = validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 30);
             log.info("Leader elected: {}", leaderId);

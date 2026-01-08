@@ -19,10 +19,10 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dist.Bootstrap;
 import com.github.dtprj.dongting.it.admin.DtAdminProcessManager.AdminResult;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager;
+import com.github.dtprj.dongting.it.support.ClusterValidator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
 import com.github.dtprj.dongting.it.support.ItUtil;
-import com.github.dtprj.dongting.it.support.Validator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
@@ -76,7 +76,7 @@ public class DtAdminIT {
     private static final long PING_INTERVAL = 700;
 
     private static BootstrapProcessManager processManager;
-    private static Validator validator;
+    private static ClusterValidator validator;
     private static String serversPropertiesPath;
 
     @BeforeAll
@@ -111,7 +111,7 @@ public class DtAdminIT {
         ConfigFileGenerator.writeConfigFile(props, dtAdminServersFile);
         serversPropertiesPath = dtAdminServersFile.getAbsolutePath();
 
-        validator = new Validator();
+        validator = new ClusterValidator();
         validator.initialize(ALL_NODE_IDS, GROUP_ID);
         int leaderId = validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 30);
         log.info("Leader elected: {}", leaderId);
