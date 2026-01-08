@@ -69,13 +69,6 @@ public class Validator {
      * Query status from all nodes
      */
     public Map<Integer, QueryStatusResp> queryAllNodeStatus(int groupId, int[] nodeIds) {
-        return queryAllNodeStatusInternal(groupId, nodeIds);
-    }
-
-    /**
-     * Query status from all nodes (internal implementation)
-     */
-    private Map<Integer, QueryStatusResp> queryAllNodeStatusInternal(int groupId, int[] nodeIds) {
         Map<Integer, QueryStatusResp> result = new HashMap<>();
 
         for (int nodeId : nodeIds) {
@@ -108,9 +101,9 @@ public class Validator {
             attemptCount++;
 
             try {
-                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatusInternal(groupId, nodeIds);
+                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatus(groupId, nodeIds);
 
-                if (validateFullConsistency(allStatus)) {
+                if (validateFullConsistency(allStatus) && allStatus.size() == nodeIds.length) {
                     QueryStatusResp sample = allStatus.values().iterator().next();
                     log.info("Cluster consistency achieved: leaderId={}, term={}, members={}",
                             sample.leaderId, sample.term, sample.members);
@@ -126,7 +119,7 @@ public class Validator {
             Thread.sleep(QUERY_RETRY_INTERVAL_MS);
         }
 
-        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatusInternal(groupId, nodeIds);
+        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatus(groupId, nodeIds);
         log.error("Cluster consistency timeout after {} attempts. Final status:", attemptCount);
         for (Map.Entry<Integer, QueryStatusResp> entry : finalStatus.entrySet()) {
             QueryStatusResp status = entry.getValue();
