@@ -53,7 +53,7 @@ public class Bootstrap {
     public static final int DEFAULT_REPLICATE_PORT = 9331;
     public static final int DEFAULT_SERVICE_PORT = 9332;
 
-    private static final String GROUP_PREFIX = "group.";
+    public static final String GROUP_PREFIX = "group.";
 
     private int exitCode;
 

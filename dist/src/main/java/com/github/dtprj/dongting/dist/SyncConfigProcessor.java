@@ -165,6 +165,6 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
         // create new backup with timestamp
         String backupName = baseName + ".bak." + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         File backupFile = new File(parent, backupName);
-        Files.copy(serversFile.toPath(), backupFile.toPath());
+        Files.copy(serversFile.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
     }
 }

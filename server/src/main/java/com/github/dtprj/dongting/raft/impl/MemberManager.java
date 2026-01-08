@@ -448,7 +448,7 @@ public class MemberManager {
                     QueryStatusResp.DECODER, new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
             return f.handle((resp, ex) -> {
                 if (ex != null) {
-                    log.warn("query prepare status failed, groupId={}, remoteId={}", n.nodeId, groupId, ex);
+                    log.warn("query prepare status failed, groupId={}, remoteId={}", groupId, n.nodeId, ex);
                     return Boolean.FALSE;
                 } else {
                     QueryStatusResp body = resp.getBody();
