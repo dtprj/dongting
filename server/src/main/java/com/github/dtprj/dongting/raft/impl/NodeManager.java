@@ -382,6 +382,7 @@ public class NodeManager extends AbstractLifeCircle {
                     f.complete(null);
                 } else {
                     if (existNode.useCount == 0) {
+                        allNodesEx.remove(nodeId);
                         client.removePeer(existNode.peer).thenRun(() -> f.complete(null));
                     } else {
                         f.completeExceptionally(new RaftException("node is using, current ref count: " + existNode.useCount));
