@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
 import com.github.dtprj.dongting.it.support.ClusterValidator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
+import com.github.dtprj.dongting.it.support.DtKvValidator;
 import com.github.dtprj.dongting.it.support.ItUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;

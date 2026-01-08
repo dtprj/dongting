@@ -13,15 +13,16 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.it.admin;
+package com.github.dtprj.dongting.it;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dist.Bootstrap;
-import com.github.dtprj.dongting.it.admin.DtAdminProcessManager.AdminResult;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager;
 import com.github.dtprj.dongting.it.support.ClusterValidator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
+import com.github.dtprj.dongting.it.support.DtAdminProcessManager;
+import com.github.dtprj.dongting.it.support.DtAdminProcessManager.AdminResult;
 import com.github.dtprj.dongting.it.support.ItUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;

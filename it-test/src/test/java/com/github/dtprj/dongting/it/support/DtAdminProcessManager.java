@@ -13,9 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.it.admin;
-
-import com.github.dtprj.dongting.it.support.ItUtil;
+package com.github.dtprj.dongting.it.support;
 
 import java.io.BufferedReader;
 import java.io.File;

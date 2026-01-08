@@ -13,13 +13,13 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.it;
+package com.github.dtprj.dongting.it.support;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.DistributedLock;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.DtLog;
