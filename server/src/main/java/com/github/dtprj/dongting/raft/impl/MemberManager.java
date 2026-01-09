@@ -452,9 +452,10 @@ public class MemberManager {
                     return Boolean.FALSE;
                 } else {
                     QueryStatusResp body = resp.getBody();
-                    log.info("query prepare status success, groupId={}, remoteId={}, lastApplied={}, prepareIndex={}",
-                            groupId, n.nodeId, body.lastApplied, prepareIndex);
-                    return body.lastApplied >= prepareIndex;
+                    boolean result = body.lastApplied >= prepareIndex;
+                    log.info("query prepare status success, result={}, groupId={}, remoteId={}, lastApplied={}, prepareIndex={}",
+                            result, groupId, n.nodeId, body.lastApplied, prepareIndex);
+                    return result;
                 }
             });
         }
@@ -531,6 +532,9 @@ public class MemberManager {
                     finalFuture.completeExceptionally(new RaftException("members prepare status check failed:memberNotReadyCount="
                             + memberNotReadyCount + ",preparedMemberNotReadyCount=" + preparedMemberNotReadyCount));
                 }
+                log.info("members prepare status check, groupId={}, memberReadyCount={}, memberNotReadyCount={}, " +
+                        "preparedMemberReadyCount={}, preparedMemberNotReadyCount={}", groupId, memberReadyCount,
+                        memberNotReadyCount, preparedMemberReadyCount, preparedMemberNotReadyCount);
             } catch (Throwable e) {
                 log.error("check prepare status error", e);
                 finalFuture.completeExceptionally(e);

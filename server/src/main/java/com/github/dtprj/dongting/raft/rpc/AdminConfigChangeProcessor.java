@@ -23,6 +23,8 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.PbLongWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
@@ -75,14 +77,17 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
         CompletableFuture<Long> f;
         if (reqFrame.command == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
             type = "prepare";
+            log(type, rg);
             AdminPrepareConfigChangeReq req = (AdminPrepareConfigChangeReq) reqFrame.getBody();
             f = rg.leaderPrepareJointConsensus(req.members, req.observers, req.preparedMembers, req.preparedObservers);
         } else if (reqFrame.command == Commands.RAFT_ADMIN_COMMIT_CHANGE) {
             type = "commit";
+            log(type, rg);
             AdminCommitOrAbortReq req = (AdminCommitOrAbortReq) reqFrame.getBody();
             f = rg.leaderCommitJointConsensus(req.prepareIndex);
         } else {
             type = "abort";
+            log(type, rg);
             f = rg.leaderAbortJointConsensus();
         }
         f.whenComplete((index, ex) -> {
@@ -99,5 +104,14 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
             }
         });
         return null;
+    }
+
+    private void log(String type, RaftGroup rg) {
+        RaftStatusImpl raftStatus = ((RaftGroupImpl) rg).groupComponents.raftStatus;
+        int leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().node.nodeId;
+        log.info("receive {} request, groupId={}, role={}, term={}, leaderId={}, members={}, observers={}," +
+                        "prepareMembers={},prepareObserves={}", type, rg.getGroupId(), raftStatus.getRole(),
+                raftStatus.currentTerm, leaderId, raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
+                raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers);
     }
 }
