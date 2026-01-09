@@ -550,7 +550,10 @@ public class RaftServer extends AbstractLifeCircle {
      * If the node is already in node list and connected, the future complete normally immediately.
      */
     public CompletableFuture<Void> addNode(RaftNode node) {
-        return nodeManager.addNode(node).thenApply(o -> null);
+        return nodeManager.addNode(node).handle((v, ex) -> {
+            log.info("add node {}, success={}", node, ex == null);
+            return null;
+        });
     }
 
     /**
@@ -558,7 +561,9 @@ public class RaftServer extends AbstractLifeCircle {
      * If the reference count of the node is not 0, the future complete exceptionally.
      */
     public CompletableFuture<Void> removeNode(int nodeId) {
-        return nodeManager.removeNode(nodeId);
+        CompletableFuture<Void> f = nodeManager.removeNode(nodeId);
+        f.whenComplete((v, ex) -> log.info("remove node {}, success={}", nodeId, ex == null));
+        return f;
     }
 
     /**
