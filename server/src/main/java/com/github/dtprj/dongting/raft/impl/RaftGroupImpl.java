@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -193,8 +194,10 @@ public final class RaftGroupImpl extends RaftGroup {
             }
         }
         CompletableFuture<Long> f = new CompletableFuture<>();
-        FiberFrame<Void> ff = groupComponents.memberManager.leaderPrepareJointConsensus(members, observers, preparedMembers, prepareObservers, f);
-        groupComponents.fiberGroup.fireFiber("leaderPrepareJointConsensus", ff);
+        FiberFrame<Void> ff = groupComponents.memberManager.leaderPrepareJointConsensus(
+                members, observers, preparedMembers, prepareObservers, f);
+        Fiber fiber = new Fiber("leaderPrepareJointConsensus", groupComponents.fiberGroup, ff, true);
+        groupComponents.fiberGroup.fireFiber(fiber);
         return f;
     }
 
@@ -203,7 +206,8 @@ public final class RaftGroupImpl extends RaftGroup {
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
         FiberFrame<Void> ff = groupComponents.memberManager.leaderAbortJointConsensus(f);
-        groupComponents.fiberGroup.fireFiber("leaderAbortJointConsensus", ff);
+        Fiber fiber = new Fiber("leaderAbortJointConsensus", groupComponents.fiberGroup, ff, true);
+        groupComponents.fiberGroup.fireFiber(fiber);
         return f;
     }
 
@@ -212,7 +216,8 @@ public final class RaftGroupImpl extends RaftGroup {
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
         FiberFrame<Void> ff = groupComponents.memberManager.leaderCommitJointConsensus(f, prepareIndex);
-        groupComponents.fiberGroup.fireFiber("leaderCommitJointConsensus", ff);
+        Fiber fiber = new Fiber("leaderCommitJointConsensus", groupComponents.fiberGroup, ff, true);
+        groupComponents.fiberGroup.fireFiber(fiber);
         return f;
     }
 

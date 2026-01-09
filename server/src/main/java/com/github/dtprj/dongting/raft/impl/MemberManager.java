@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -46,7 +45,6 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -387,8 +385,6 @@ public class MemberManager {
     private class LeaderCommitFrame extends FiberFrame<Void> {
         private final CompletableFuture<Long> finalFuture;
         private final long prepareIndex;
-        private final HashMap<Integer, CompletableFuture<Boolean>> resultMap = new HashMap<>();
-        private boolean fireCommit;
 
         private LeaderCommitFrame(CompletableFuture<Long> finalFuture, long prepareIndex) {
             this.finalFuture = finalFuture;
@@ -404,141 +400,18 @@ public class MemberManager {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (lastConfigIndexNotMatch()) {
+            if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
-
-            for (RaftMember m : raftStatus.members) {
-                queryPrepareStatus(m);
-            }
-            for (RaftMember m : raftStatus.preparedMembers) {
-                if (resultMap.containsKey(m.node.nodeId)) {
-                    continue;
-                }
-                queryPrepareStatus(m);
-            }
-
-            List<CompletableFuture<Boolean>> list = new ArrayList<>(resultMap.values());
-            for (CompletableFuture<Boolean> resultFuture : list) {
-                resultFuture.thenRunAsync(this::checkPrepareStatus, groupConfig.fiberGroup.getExecutor());
-            }
-            return Fiber.frameReturn();
-        }
-
-        private void queryPrepareStatus(RaftMember m) {
-            RaftNodeEx n = m.node;
-            if (n.self) {
-                log.info("self prepare status, groupId={}, lastApplied={}, prepareIndex={}",
-                        groupId, raftStatus.getLastApplied(), prepareIndex);
-                boolean result = raftStatus.getLastApplied() >= prepareIndex;
-                resultMap.put(n.nodeId, CompletableFuture.completedFuture(result));
-            } else {
-                try {
-                    resultMap.put(n.nodeId, sendQuery(n));
-                } catch (Exception e) {
-                    log.error("query prepare status failed", e);
-                    resultMap.put(n.nodeId, CompletableFuture.completedFuture(false));
-                }
-            }
-        }
-
-        private CompletableFuture<Boolean> sendQuery(RaftNodeEx n) {
-            CompletableFuture<ReadPacket<QueryStatusResp>> f = new CompletableFuture<>();
-            client.sendRequest(n.peer, new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId),
-                    QueryStatusResp.DECODER, new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
-            return f.handle((resp, ex) -> {
-                if (ex != null) {
-                    log.warn("query prepare status failed, groupId={}, remoteId={}", groupId, n.nodeId, ex);
-                    return Boolean.FALSE;
-                } else {
-                    QueryStatusResp body = resp.getBody();
-                    boolean result = body.lastApplied >= prepareIndex;
-                    log.info("query prepare status success, result={}, groupId={}, remoteId={}, lastApplied={}, prepareIndex={}",
-                            result, groupId, n.nodeId, body.lastApplied, prepareIndex);
-                    return result;
-                }
-            });
-        }
-
-        private boolean lastConfigIndexNotMatch() {
             if (prepareIndex != raftStatus.lastConfigChangeIndex) {
                 log.error("prepareIndex not match. prepareIndex={}, lastConfigChangeIndex={}",
                         prepareIndex, raftStatus.lastConfigChangeIndex);
                 finalFuture.completeExceptionally(new RaftException("prepareIndex not match. prepareIndex="
                         + prepareIndex + ", lastConfigChangeIndex=" + raftStatus.lastConfigChangeIndex));
-                return true;
+                return Fiber.frameReturn();
             }
-            return false;
-        }
-
-        private void checkPrepareStatus() {
-            try {
-                if (fireCommit) {
-                    // prevent duplicate change
-                    return;
-                }
-                if (lastConfigIndexNotMatch()) {
-                    return;
-                }
-                int memberReadyCount = 0;
-                int memberNotReadyCount = 0;
-                for (RaftMember m : raftStatus.members) {
-                    CompletableFuture<Boolean> queryResult = resultMap.get(m.node.nodeId);
-                    if (queryResult == null) {
-                        BugLog.getLog().error("queryResult is null");
-                        finalFuture.completeExceptionally(new RaftException("queryResult is null"));
-                        return;
-                    }
-                    if (queryResult.isCompletedExceptionally()) {
-                        memberNotReadyCount++;
-                    } else if (queryResult.isDone()) {
-                        if (queryResult.get()) {
-                            memberReadyCount++;
-                        } else {
-                            memberNotReadyCount++;
-                        }
-                    }
-                }
-                int preparedMemberReadyCount = 0;
-                int preparedMemberNotReadyCount = 0;
-                for (RaftMember m : raftStatus.preparedMembers) {
-                    CompletableFuture<Boolean> queryResult = resultMap.get(m.node.nodeId);
-                    if (queryResult == null) {
-                        BugLog.getLog().error("queryResult is null");
-                        finalFuture.completeExceptionally(new RaftException("queryResult is null"));
-                        return;
-                    }
-                    if (queryResult.isCompletedExceptionally()) {
-                        preparedMemberNotReadyCount++;
-                    } else if (queryResult.isDone()) {
-                        if (queryResult.get()) {
-                            preparedMemberReadyCount++;
-                        } else {
-                            preparedMemberNotReadyCount++;
-                        }
-                    }
-                }
-                int prepareMemberCount = raftStatus.preparedMembers.size();
-                int prepareQuorum = prepareMemberCount == 0 ? 0 : RaftUtil.getElectQuorum(prepareMemberCount);
-                if (memberReadyCount >= raftStatus.electQuorum && preparedMemberReadyCount >= prepareQuorum) {
-                    log.info("members prepare status check success, groupId={}, memberReadyCount={}, preparedMemberReadyCount={}",
-                            groupId, memberReadyCount, preparedMemberReadyCount);
-                    fireCommit = true;
-                    leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
-                } else if (memberNotReadyCount >= raftStatus.electQuorum ||
-                        (prepareQuorum > 0 && preparedMemberNotReadyCount >= prepareQuorum)) {
-                    log.error("members prepare status check failed, groupId={}, memberNotReadyCount={}, preparedMemberNotReadyCount={}",
-                            groupId, memberNotReadyCount, preparedMemberNotReadyCount);
-                    finalFuture.completeExceptionally(new RaftException("members prepare status check failed:memberNotReadyCount="
-                            + memberNotReadyCount + ",preparedMemberNotReadyCount=" + preparedMemberNotReadyCount));
-                }
-                log.info("members prepare status check, groupId={}, memberReadyCount={}, memberNotReadyCount={}, " +
-                        "preparedMemberReadyCount={}, preparedMemberNotReadyCount={}", groupId, memberReadyCount,
-                        memberNotReadyCount, preparedMemberReadyCount, preparedMemberNotReadyCount);
-            } catch (Throwable e) {
-                log.error("check prepare status error", e);
-                finalFuture.completeExceptionally(e);
-            }
+            leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
+            return Fiber.frameReturn();
         }
     }
 
@@ -589,13 +462,13 @@ public class MemberManager {
             @Override
             public void success(long raftIndex, Object nullResult) {
                 if (type == LogItem.TYPE_PREPARE_CONFIG_CHANGE) {
-                    // When prepareIndex applied, the prepared member may still not apply to prepareIndex (the commit
-                    // manager does not check prepare members since they are not active).
-                    // If we call commit config change immediately after prepareIndex applied, the prepareIndex
-                    // check will fail, so we issue a heartbeat and wait to prepareIndex + 1 to be applied.
+                    // When prepareIndex applied, the prepared member may still not replicate to prepareIndex
+                    // (the commit manager does not check prepare members since they are not active).
+                    // Issue a heartbeat and wait to prepareIndex + 1 to be applied, so we can be sure that
+                    // the prepared members are ready.
                     gc.linearTaskRunner.issueHeartBeat();
                     Fiber fiber = new Fiber("finishPrepareFuture", groupConfig.fiberGroup,
-                            finishPrepareFuture(f, raftIndex));
+                            finishPrepareFuture(f, raftIndex), true);
                     fiber.start();
                 } else {
                     f.complete(raftIndex);
@@ -732,9 +605,9 @@ public class MemberManager {
                     raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
                     members, observers, preparedMembers, preparedObservers);
             List<List<RaftNodeEx>> result = nodeManager.doApplyConfig(
-                            raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
-                            raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
-                            members, observers, preparedMembers, preparedObservers);
+                    raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
+                    raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
+                    members, observers, preparedMembers, preparedObservers);
             List<RaftNodeEx> newMemberNodes = result.get(0);
             List<RaftNodeEx> newObserverNodes = result.get(1);
             List<RaftNodeEx> newPreparedMemberNodes = result.get(2);
