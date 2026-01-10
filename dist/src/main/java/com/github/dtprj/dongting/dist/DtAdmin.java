@@ -291,7 +291,7 @@ public class DtAdmin {
         Set<Integer> oldObservers = getOptionalIntSetParam("old-observers");
         Set<Integer> newMembers = getRequiredIntSetParam("new-members");
         Set<Integer> newObservers = getOptionalIntSetParam("new-observers");
-        DtTime timeout = getTimeoutParamOrDefault(client);
+        DtTime timeout = getTimeoutParam(30);
 
         System.out.println("Executing prepare-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         long prepareIndex = client.prepareChange(groupId, oldMembers, oldObservers,
@@ -302,7 +302,7 @@ public class DtAdmin {
     private void executeCommitChange(DistClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
         long prepareIndex = getRequiredLongParam("prepare-index");
-        DtTime timeout = getTimeoutParamOrDefault(client);
+        DtTime timeout = getTimeoutParam(15);
 
         // Step 1: Get leader and query status to validate prepareIndex
         System.out.println("Getting leader info for group " + groupId + "...");
@@ -365,7 +365,7 @@ public class DtAdmin {
 
     private void executeAbortChange(DistClient client) throws Exception {
         int groupId = getRequiredIntParam("group-id");
-        DtTime timeout = getTimeoutParamOrDefault(client);
+        DtTime timeout = getTimeoutParam(15);
 
         System.out.println("Executing abort-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         long index = client.abortChange(groupId, timeout).get();
@@ -691,7 +691,7 @@ public class DtAdmin {
                 System.out.println("Optional Options:");
                 System.out.println("  --old-observers <ids>   Current observer node IDs, comma-separated");
                 System.out.println("  --new-observers <ids>   New observer node IDs, comma-separated");
-                System.out.println("  --timeout <seconds>     Timeout in seconds");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: 30)");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
@@ -710,7 +710,7 @@ public class DtAdmin {
                 System.out.println("  --prepare-index <idx>   Prepare index from prepare-change");
                 System.out.println();
                 System.out.println("Optional Options:");
-                System.out.println("  --timeout <seconds>     Timeout in seconds");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: 15)");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
@@ -727,7 +727,7 @@ public class DtAdmin {
                 System.out.println("  --group-id <id>         Raft group ID");
                 System.out.println();
                 System.out.println("Optional Options:");
-                System.out.println("  --timeout <seconds>     Timeout in seconds");
+                System.out.println("  --timeout <seconds>     Timeout in seconds (default: 15)");
                 System.out.println();
                 System.out.println("Global Options:");
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
