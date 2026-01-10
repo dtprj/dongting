@@ -13,9 +13,8 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.dist.boot;
+package com.github.dtprj.dongting.dist;
 
-import com.github.dtprj.dongting.dist.PropsUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
