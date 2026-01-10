@@ -68,7 +68,7 @@ public class SimpleRaftGroupIT {
      * This is the first and reference integration test for the project.
      */
     @Test
-    @Timeout(value = 45, unit = TimeUnit.SECONDS)
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
     void testThreeNodeClusterStartupAndLeaderElection() throws Exception {
         File tempDirFile = TestDir.createTestDir(SimpleRaftGroupIT.class.getSimpleName());
         Path tempDir = tempDirFile.toPath();

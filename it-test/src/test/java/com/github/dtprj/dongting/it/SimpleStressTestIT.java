@@ -58,13 +58,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class SimpleStressTestIT {
     private static final DtLog log = DtLogs.getLogger(SimpleStressTestIT.class);
+    private static final int TEST_DURATION_SECONDS = 30;
 
     private static final int GROUP_ID = 0;
     private static final int[] MEMBER_IDS = {1, 2, 3};
     private static final int[] OBSERVER_IDS = {4};
     private static final int[] ALL_NODE_IDS = {1, 2, 3, 4};
 
-    private static final int TEST_DURATION_SECONDS = 30;
     private static final int KEY_COUNT = Math.max(10, 100 / Tick.tick(1));
 
     private static final int THREAD_COUNT = Math.max(2, 100 / Tick.tick(1));

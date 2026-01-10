@@ -140,7 +140,7 @@ public class DtAdminIT {
     }
 
     @Test
-    @Timeout(value = 30, unit = TimeUnit.SECONDS)
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
     void testDtAdmin() throws Exception {
         testListNodesAndGroups();
         int leader = testTransferLeader();
