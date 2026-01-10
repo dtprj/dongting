@@ -1,0 +1,53 @@
+#
+# Copyright The Dongting Project
+#
+# The Dongting Project licenses this file to you under the Apache License,
+# version 2.0 (the "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at:
+#
+#   https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+
+# Resolve the script directory
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$BASE_DIR = Split-Path -Parent $ScriptDir
+
+$CONF_DIR = Join-Path $BASE_DIR "conf"
+$LIB_DIR = Join-Path $BASE_DIR "lib"
+$LOG_DIR = Join-Path $BASE_DIR "logs"
+
+# JVM options, since the heap size is only 4g, zgc is not needed.
+$JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=5", "-XX:G1HeapRegionSize=2m", "-XX:+ParallelRefProcEnabled", "-XX:InitiatingHeapOccupancyPercent=30")
+
+# Check if JAVA_HOME is set
+if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {
+    $Java = Join-Path $env:JAVA_HOME "bin\java.exe"
+} else {
+    $Java = "java"
+}
+
+if (-not (Test-Path $LOG_DIR)) {
+    New-Item -ItemType Directory -Path $LOG_DIR -Force | Out-Null
+}
+
+$Arguments = $JavaOpts + @(
+    "-DLOG_DIR=$LOG_DIR",
+    "-Dlogback.configurationFile=$CONF_DIR\logback-benchmark.xml",
+    "--module-path", $LIB_DIR,
+    "--add-exports", "java.base/jdk.internal.misc=dongting.client",
+    "--add-modules", "org.slf4j,ch.qos.logback.classic",
+    "--add-reads", "dongting.client=org.slf4j",
+    "--add-reads", "dongting.client=ch.qos.logback.classic",
+    "-m", "dongting.dist/com.github.dtprj.dongting.dist.DtBenchmark",
+    "-s", (Join-Path $CONF_DIR "servers.properties")
+) + $args
+
+# Run DtBenchmark in foreground so callers see stdout/stderr
+& $Java @Arguments
+exit $LASTEXITCODE
