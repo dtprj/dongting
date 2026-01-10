@@ -16,10 +16,10 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.test.TestUtil;
+import com.github.dtprj.dongting.test.RunnableEx;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 

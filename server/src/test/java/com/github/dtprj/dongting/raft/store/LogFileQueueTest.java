@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -29,6 +28,7 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.test.RunnableEx;
 import com.github.dtprj.dongting.test.TestDir;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

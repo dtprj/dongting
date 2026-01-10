@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.common.RunnableEx;
+import com.github.dtprj.dongting.test.RunnableEx;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
