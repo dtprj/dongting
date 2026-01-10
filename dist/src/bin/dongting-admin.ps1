@@ -23,7 +23,7 @@ $LIB_DIR = Join-Path $BASE_DIR "lib"
 $LOG_DIR = Join-Path $BASE_DIR "logs"
 
 # JVM options
-$JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g")
+$JavaOpts = @("-Xmx512M", "-XX:MaxDirectMemorySize=256M")
 
 # Check if JAVA_HOME is set
 if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {

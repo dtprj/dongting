@@ -24,7 +24,7 @@ LIB_DIR="$BASE_DIR/lib"
 LOG_DIR="$BASE_DIR/logs"
 
 # JVM options
-JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g"
+JAVA_OPTS="-Xmx512M -XX:MaxDirectMemorySize=256M"
 
 # Check if JAVA_HOME is set
 if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
