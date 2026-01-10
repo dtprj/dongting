@@ -39,9 +39,6 @@ mkdir -p "$LOG_DIR" || {
   exit 1
 }
 
-# Set default servers properties file via environment variable
-export defaultDtServerProperties="$CONF_DIR/servers.properties"
-
 # Launch DtAdmin in foreground so stdout/stderr reach the console
 "$JAVA" $JAVA_OPTS \
     -DLOG_DIR="$LOG_DIR" \
@@ -52,5 +49,6 @@ export defaultDtServerProperties="$CONF_DIR/servers.properties"
     --add-reads dongting.client=org.slf4j \
     --add-reads dongting.client=ch.qos.logback.classic \
     -m dongting.dist/com.github.dtprj.dongting.dist.DtAdmin \
+    -s "$CONF_DIR/servers.properties" \
     "$@"
 

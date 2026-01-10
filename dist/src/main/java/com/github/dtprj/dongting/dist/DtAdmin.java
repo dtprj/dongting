@@ -115,11 +115,7 @@ public class DtAdmin {
         }
 
         if (serversFile == null) {
-            // try to get from environment variable
-            serversFile = System.getenv("defaultDtServerProperties");
-            if (serversFile == null || serversFile.trim().isEmpty()) {
-                throw new UsageEx("-s option is required or set defaultDtServerProperties environment variable");
-            }
+            throw new UsageEx("-s option is required");
         }
 
         // find subcommand
@@ -543,11 +539,11 @@ public class DtAdmin {
     }
 
     private static void printGeneralUsage() {
-        System.out.println("Usage: dongting-admin.sh -s <servers.properties> <subcommand> [options]");
+        System.out.println("Usage: dongting-admin.sh <subcommand> [options]");
         System.out.println("       dongting-admin.sh <subcommand> --help");
         System.out.println();
         System.out.println("Global Options:");
-        System.out.println("  -s <file>          Path to servers.properties file (optional, use conf/server.properties by default)");
+        System.out.println("  -s <file>          Path to servers.properties file");
         System.out.println();
         System.out.println("Subcommands:");
         System.out.println("  list-nodes         List all node definitions on specified node");
@@ -577,7 +573,7 @@ public class DtAdmin {
                 System.out.println("  --node-id <id>          Target node ID");
                 System.out.println();
                 System.out.println("Global Options:");
-                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println("  -s <file>               Path to servers.properties file");
                 System.out.println();
                 System.out.println("Examples:");
                 System.out.println("  dongting-admin.sh list-nodes --node-id 1");
@@ -591,7 +587,7 @@ public class DtAdmin {
                 System.out.println("  --node-id <id>          Target node ID");
                 System.out.println();
                 System.out.println("Global Options:");
-                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println("  -s <file>               Path to servers.properties file");
                 System.out.println();
                 System.out.println("Examples:");
                 System.out.println("  dongting-admin.sh list-groups --node-id 1");
@@ -771,7 +767,7 @@ public class DtAdmin {
                 System.out.println("  --node-id <id>          Target node ID");
                 System.out.println();
                 System.out.println("Global Options:");
-                System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
+                System.out.println("  -s <file>               Path to servers.properties file");
                 System.out.println();
                 System.out.println("Examples:");
                 System.out.println("  dongting-admin.sh sync-config --node-id 1");
