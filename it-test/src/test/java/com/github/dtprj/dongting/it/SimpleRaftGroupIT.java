@@ -174,7 +174,7 @@ public class SimpleRaftGroupIT {
             for (ProcessInfo processInfo : startedProcesses) {
                 log.error("Process {} is alive: {}",
                         processInfo.config.nodeId, processInfo.process.isAlive());
-                String logs = processManager.collectLogs(processInfo);
+                StringBuilder logs = processManager.collectLogs(processInfo);
                 log.error("Process {} logs:\n{}", processInfo.config.nodeId, logs);
             }
 

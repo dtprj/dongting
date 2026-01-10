@@ -15,15 +15,12 @@
  */
 package com.github.dtprj.dongting.it.support;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,16 +31,15 @@ import java.util.concurrent.TimeUnit;
 public class DtAdminProcessManager {
     private static final long PROCESS_TIMEOUT_SECONDS = 60;
 
-    /**
-     * Result of executing a DtAdmin command.
-     */
     public static class AdminResult {
         public int exitCode;
-        public final List<String> stdoutLines = new CopyOnWriteArrayList<>();
-        public final List<String> stderrLines = new CopyOnWriteArrayList<>();
+        public final Queue<String> stdoutLines;
+        public final Queue<String> stderrLines;
 
-        public AdminResult() {
+        public AdminResult(ProcessOutputReader.OutputReader outputReader) {
             this.exitCode = -1;
+            this.stdoutLines = outputReader.stdoutLines;
+            this.stderrLines = outputReader.stderrLines;
         }
 
         public boolean isSuccess() {
@@ -105,36 +101,7 @@ public class DtAdminProcessManager {
         pb.directory(distDir);
         Process process = pb.start();
 
-        AdminResult result = new AdminResult();
-
-        // Start output readers
-        Thread stdoutReader = new Thread(() -> {
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    result.stdoutLines.add(line);
-                }
-            } catch (IOException e) {
-                // Ignore
-            }
-        }, "admin-stdout-reader");
-        stdoutReader.setDaemon(true);
-        stdoutReader.start();
-
-        Thread stderrReader = new Thread(() -> {
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    result.stderrLines.add(line);
-                }
-            } catch (IOException e) {
-                // Ignore
-            }
-        }, "admin-stderr-reader");
-        stderrReader.setDaemon(true);
-        stderrReader.start();
+        ProcessOutputReader.OutputReader outputReader = ProcessOutputReader.startOutputReaders(process, "admin");
 
         // Wait for process completion
         boolean completed = process.waitFor(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -143,11 +110,11 @@ public class DtAdminProcessManager {
             throw new IOException("DtAdmin command timed out after " + PROCESS_TIMEOUT_SECONDS + " seconds");
         }
 
+        AdminResult result = new AdminResult(outputReader);
         result.exitCode = process.exitValue();
 
         // Wait for output readers to finish
-        stdoutReader.join(1000);
-        stderrReader.join(1000);
+        outputReader.await(1000);
 
         return result;
     }

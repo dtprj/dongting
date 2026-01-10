@@ -19,14 +19,12 @@ import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -46,12 +44,14 @@ public class BootstrapProcessManager {
     public static class ProcessInfo {
         public final Process process;
         public final ProcessConfig config;
-        public final List<String> stdoutLines = new CopyOnWriteArrayList<>();
-        public final List<String> stderrLines = new CopyOnWriteArrayList<>();
+        public final Queue<String> stdoutLines;
+        public final Queue<String> stderrLines;
 
-        public ProcessInfo(Process process, ProcessConfig config) {
+        public ProcessInfo(Process process, ProcessConfig config, ProcessOutputReader.OutputReader outputReader) {
             this.process = process;
             this.config = config;
+            this.stdoutLines = outputReader.stdoutLines;
+            this.stderrLines = outputReader.stderrLines;
         }
     }
 
@@ -108,11 +108,11 @@ public class BootstrapProcessManager {
         pb.directory(config.nodeDir);
         Process process = pb.start();
 
-        ProcessInfo processInfo = new ProcessInfo(process, config);
-        processes.add(processInfo);
+        ProcessOutputReader.OutputReader outputReader = ProcessOutputReader.startOutputReaders(
+                process, "node-" + config.nodeId);
 
-        // Start output readers
-        startOutputReader(process, processInfo);
+        ProcessInfo processInfo = new ProcessInfo(process, config, outputReader);
+        processes.add(processInfo);
 
         // Wait for process to be ready
         if (!waitForReady(processInfo, PROCESS_START_TIMEOUT_SECONDS)) {
@@ -160,43 +160,6 @@ public class BootstrapProcessManager {
         } catch (IOException e) {
             return false;
         }
-    }
-
-    /**
-     * Start threads to read process output
-     */
-    private void startOutputReader(Process process, ProcessInfo processInfo) {
-        // Read stdout
-        Thread stdoutReader = new Thread(() -> {
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    processInfo.stdoutLines.add(line);
-                    log.debug("[Node-{}-STDOUT] {}", processInfo.config.nodeId, line);
-                }
-            } catch (IOException e) {
-                log.debug("Error reading stdout from node {}", processInfo.config.nodeId, e);
-            }
-        }, "stdout-reader-" + processInfo.config.nodeId);
-        stdoutReader.setDaemon(true);
-        stdoutReader.start();
-
-        // Read stderr
-        Thread stderrReader = new Thread(() -> {
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    processInfo.stderrLines.add(line);
-                    log.warn("[Node-{}-STDERR] {}", processInfo.config.nodeId, line);
-                }
-            } catch (IOException e) {
-                log.debug("Error reading stderr from node {}", processInfo.config.nodeId, e);
-            }
-        }, "stderr-reader-" + processInfo.config.nodeId);
-        stderrReader.setDaemon(true);
-        stderrReader.start();
     }
 
     public void stopNode(ProcessInfo processInfo) {
@@ -292,7 +255,7 @@ public class BootstrapProcessManager {
     /**
      * Collect logs from a process
      */
-    public String collectLogs(ProcessInfo processInfo) {
+    public StringBuilder collectLogs(ProcessInfo processInfo) {
         StringBuilder sb = new StringBuilder();
         sb.append("=== Node ").append(processInfo.config.nodeId).append(" STDOUT ===\n");
         for (String line : processInfo.stdoutLines) {
@@ -304,6 +267,6 @@ public class BootstrapProcessManager {
         }
         String logs = sb.toString();
         log.debug("Collected logs from node {}:\n{}", processInfo.config.nodeId, logs);
-        return logs;
+        return sb;
     }
 }
