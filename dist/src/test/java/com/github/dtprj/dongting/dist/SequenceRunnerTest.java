@@ -226,4 +226,95 @@ public class SequenceRunnerTest {
             Assertions.assertTrue(es.awaitTermination(5, TimeUnit.SECONDS));
         }
     }
+
+    @Test
+    public void testSubmitWithCallback() throws Exception {
+        ExecutorService es = Executors.newSingleThreadExecutor();
+        try {
+            AtomicInteger runCount = new AtomicInteger();
+            SequenceRunner r = new SequenceRunner(es, () -> {
+                runCount.incrementAndGet();
+                try {
+                    Thread.sleep(Tick.tick(50));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }, null);
+
+            CountDownLatch callbackLatch = new CountDownLatch(1);
+            AtomicInteger callbackResult = new AtomicInteger(-1);
+
+            // use submit with callback - only one lock acquisition
+            r.submit(Tick.tick(2_000), ex -> {
+                callbackResult.set(ex == null ? 1 : 0);
+                callbackLatch.countDown();
+            });
+
+            Assertions.assertTrue(callbackLatch.await(Tick.tick(3_000), TimeUnit.MILLISECONDS));
+            Assertions.assertEquals(1, callbackResult.get()); // success
+            Assertions.assertEquals(1, runCount.get());
+        } finally {
+            es.shutdownNow();
+            Assertions.assertTrue(es.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    public void testSubmitWithCallbackTimeout() throws Exception {
+        ExecutorService es = Executors.newSingleThreadExecutor();
+        try {
+            CountDownLatch block = new CountDownLatch(1);
+            SequenceRunner r = new SequenceRunner(es, () -> {
+                try {
+                    block.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }, null);
+
+            CountDownLatch callbackLatch = new CountDownLatch(1);
+            AtomicInteger callbackResult = new AtomicInteger(-1);
+
+            r.submit(Tick.tick(50), ex -> {
+                callbackResult.set(ex == null ? 1 : 0);
+                callbackLatch.countDown();
+            });
+
+            Assertions.assertTrue(callbackLatch.await(Tick.tick(2_000), TimeUnit.MILLISECONDS));
+            Assertions.assertEquals(0, callbackResult.get()); // timeout
+
+            block.countDown();
+        } finally {
+            es.shutdownNow();
+            Assertions.assertTrue(es.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    public void testSubmitWithCallbackOnFailNoRetry() throws Exception {
+        ExecutorService es = Executors.newSingleThreadExecutor();
+        try {
+            RuntimeException mockEx = new RuntimeException("mock failure");
+            SequenceRunner r = new SequenceRunner(es, () -> {
+                throw mockEx;
+            }, null); // no retry
+
+            CountDownLatch callbackLatch = new CountDownLatch(1);
+            AtomicInteger callbackResult = new AtomicInteger(-1);
+            Throwable[] receivedEx = new Throwable[1];
+
+            r.submit(Tick.tick(2_000), ex -> {
+                receivedEx[0] = ex;
+                callbackResult.set(ex == null ? 1 : 0);
+                callbackLatch.countDown();
+            });
+
+            Assertions.assertTrue(callbackLatch.await(Tick.tick(3_000), TimeUnit.MILLISECONDS));
+            Assertions.assertEquals(0, callbackResult.get()); // failed
+            Assertions.assertSame(mockEx, receivedEx[0]);
+        } finally {
+            es.shutdownNow();
+            Assertions.assertTrue(es.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
 }

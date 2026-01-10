@@ -19,11 +19,16 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 /**
  * A thread-safe serialized task runner.
@@ -54,7 +59,11 @@ public class SequenceRunner {
 
     private int failCount;
 
+    private LinkedList<CallbackEntry> callbacks;
+
     /**
+     * @param executor executor to run task
+     * @param task task to run, should be idempotent/re-runnable.
      * @param retryIntervals retry intervals in milliseconds, for example: {1000, 2000, 5000}.
      *                       When task throws, retry after 1000ms, then 2000ms, then always 5000ms.
      *                       Empty or null means no delay retry (retry immediately).
@@ -81,8 +90,27 @@ public class SequenceRunner {
      * This method never blocks on task execution.
      */
     public long submit() {
+        return submit(0, null);
+    }
+
+    /**
+     * Submit a new request with optional callback.
+     * <p>
+     * This method never blocks on task execution.
+     *
+     * @param callbackTimeoutMillis timeout in milliseconds for callback, ignored if callback is null.
+     *                              Must be positive if callback is not null.
+     * @param callback              optional callback to invoke when this request finishes, timeout or fails.
+     *                              Receives null on success, TimeoutException on timeout, or task exception on failure.
+     * @return the version of this request
+     */
+    public long submit(long callbackTimeoutMillis, Consumer<Throwable> callback) {
+        if (callback != null && callbackTimeoutMillis <= 0) {
+            throw new IllegalArgumentException("callbackTimeoutMillis must be positive when callback is not null");
+        }
         long v;
         boolean needStart = false;
+        CallbackEntry entry = null;
         lock.lock();
         try {
             v = ++requestVersion;
@@ -90,11 +118,26 @@ public class SequenceRunner {
                 running = true;
                 needStart = true;
             }
+            if (callback != null) {
+                entry = new CallbackEntry();
+                entry.callback = callback;
+                entry.targetVersion = v;
+                if (callbacks == null) {
+                    callbacks = new LinkedList<>();
+                }
+                callbacks.add(entry);
+            }
         } finally {
             lock.unlock();
         }
         if (needStart) {
             executor.execute(this::runOnce);
+        }
+        if (entry != null) {
+            // schedule timeout outside lock
+            CallbackEntry e = entry;
+            e.timeoutFuture = DtUtil.SCHEDULED_SERVICE.schedule(
+                    () -> onCallbackTimeout(e), callbackTimeoutMillis, TimeUnit.MILLISECONDS);
         }
         return v;
     }
@@ -158,29 +201,35 @@ public class SequenceRunner {
             lock.unlock();
         }
 
-        boolean ok;
+        Throwable ex = null;
         try {
             task.run();
-            ok = true;
             failCount = 0;
         } catch (Throwable e) {
-            ok = false;
+            ex = e;
             log.error("run task failed", e);
         }
 
-        if (ok) {
+        if (ex == null) {
+            boolean shouldStop;
+            LinkedList<CallbackEntry> toInvoke;
             lock.lock();
             try {
                 if (finishedVersion < currentTaskVersion) {
                     finishedVersion = currentTaskVersion;
                 }
                 doneCondition.signalAll();
-                if (finishedVersion >= requestVersion) {
+                shouldStop = finishedVersion >= requestVersion;
+                if (shouldStop) {
                     running = false;
-                    return;
                 }
+                toInvoke = collectCallbacks(currentTaskVersion, null);
             } finally {
                 lock.unlock();
+            }
+            invokeCallbacks(toInvoke);
+            if (shouldStop) {
+                return;
             }
             // still have pending requests, keep running in executor
             executor.execute(this::runOnce);
@@ -190,16 +239,23 @@ public class SequenceRunner {
         // failed
         if (retryIntervals == null) {
             // do not retry if no retry intervals configured
+            boolean shouldStop;
+            LinkedList<CallbackEntry> toInvoke;
             lock.lock();
             try {
                 // don't update finishedVersion since task failed
                 // check if new requests arrived during task execution
-                if (currentTaskVersion >= requestVersion) {
+                shouldStop = currentTaskVersion >= requestVersion;
+                if (shouldStop) {
                     running = false;
-                    return;
                 }
+                toInvoke = collectCallbacks(currentTaskVersion, ex);
             } finally {
                 lock.unlock();
+            }
+            invokeCallbacks(toInvoke);
+            if (shouldStop) {
+                return;
             }
             // new requests arrived during task execution, continue running
             executor.execute(this::runOnce);
@@ -226,5 +282,74 @@ public class SequenceRunner {
             return arr[failCount];
         }
         return arr[arr.length - 1];
+    }
+
+    private void onCallbackTimeout(CallbackEntry entry) {
+        lock.lock();
+        try {
+            if (entry.done) {
+                return;
+            }
+            entry.done = true;
+            if (callbacks != null) {
+                callbacks.remove(entry);
+            }
+        } finally {
+            lock.unlock();
+        }
+        invokeCallback(entry.callback, new TimeoutException("callback timeout"));
+    }
+
+    // caller must hold lock
+    private LinkedList<CallbackEntry> collectCallbacks(long version, Throwable ex) {
+        if (callbacks == null || callbacks.isEmpty()) {
+            return null;
+        }
+        LinkedList<CallbackEntry> toInvoke = null;
+        Iterator<CallbackEntry> it = callbacks.iterator();
+        while (it.hasNext()) {
+            CallbackEntry entry = it.next();
+            if (entry.done) {
+                it.remove();
+                continue;
+            }
+            if (version >= entry.targetVersion) {
+                entry.done = true;
+                entry.ex = ex;
+                it.remove();
+                if (entry.timeoutFuture != null) {
+                    entry.timeoutFuture.cancel(false);
+                }
+                if (toInvoke == null) {
+                    toInvoke = new LinkedList<>();
+                }
+                toInvoke.add(entry);
+            }
+        }
+        return toInvoke;
+    }
+
+    private void invokeCallbacks(LinkedList<CallbackEntry> toInvoke) {
+        if (toInvoke != null) {
+            for (CallbackEntry entry : toInvoke) {
+                invokeCallback(entry.callback, entry.ex);
+            }
+        }
+    }
+
+    private void invokeCallback(Consumer<Throwable> callback, Throwable ex) {
+        try {
+            callback.accept(ex);
+        } catch (Throwable e) {
+            log.error("callback failed", e);
+        }
+    }
+
+    private static class CallbackEntry {
+        Consumer<Throwable> callback;
+        long targetVersion;
+        ScheduledFuture<?> timeoutFuture;
+        boolean done;
+        Throwable ex;
     }
 }
