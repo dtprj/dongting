@@ -34,10 +34,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author huangli
@@ -62,7 +59,6 @@ public class Bootstrap {
     private List<RaftGroupConfig> groupConfigs;
     private File serversFile;
 
-    private volatile ExecutorService ioExecutor;
     private volatile RaftServer raftServer;
 
     public static void main(String[] args) {
@@ -151,13 +147,12 @@ public class Bootstrap {
 
     private void startRaftServer() {
         try {
-            AtomicInteger count = new AtomicInteger();
-            ioExecutor = Executors.newFixedThreadPool(serverConfig.blockIoThreads,
-                    r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
-            raftServer = new RaftServer(serverConfig, groupConfigs, createRaftFactory());
+            this.raftServer = new RaftServer(serverConfig, groupConfigs, createRaftFactory());
             KvServerUtil.initKvServer(raftServer);
             SyncConfigProcessor p = new SyncConfigProcessor(raftServer, serversFile);
-            raftServer.getNioServer().register(Commands.RAFT_ADMIN_SYNC_CONFIG, p, ioExecutor);
+            raftServer.getNioServer().register(Commands.RAFT_ADMIN_SYNC_CONFIG, p,
+                    raftServer.getSharedIoExecutor());
+            raftServer.setPersistConfigTask(p::syncConfigAsync);
             raftServer.start();
         } catch (Throwable e) {
             System.err.println("Failed to start server: " + e);
@@ -187,16 +182,6 @@ public class Bootstrap {
                     throw new RaftException(s);
                 }
                 return groupConfig;
-            }
-
-            @Override
-            public ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig) {
-                return ioExecutor;
-            }
-
-            @Override
-            public void shutdownBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig,
-                                                ExecutorService executor) {
             }
         };
     }
@@ -288,10 +273,6 @@ public class Bootstrap {
         if (raftServer != null) {
             raftServer.stop(timeout);
             raftServer = null;
-        }
-        if (ioExecutor != null) {
-            ioExecutor.shutdown();
-            ioExecutor = null;
         }
     }
 }

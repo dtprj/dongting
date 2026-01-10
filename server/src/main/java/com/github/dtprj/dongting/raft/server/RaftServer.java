@@ -75,7 +75,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -95,6 +98,10 @@ public class RaftServer extends AbstractLifeCircle {
     private final RaftServerConfig serverConfig;
 
     private final NodeManager nodeManager;
+
+    private final ExecutorService sharedIoExecutor;
+
+    private Runnable persistConfigTask;
 
     // indicate each group has enough members (>= elect quorum) raft ping ok
     private final CompletableFuture<Void> allMemberReadyFuture = new CompletableFuture<>();
@@ -181,6 +188,10 @@ public class RaftServer extends AbstractLifeCircle {
         nioServer.register(Commands.RAFT_ADMIN_REMOVE_NODE, adminGroupAndNodeProcessor);
         nioServer.register(Commands.RAFT_ADMIN_LIST_NODES, adminGroupAndNodeProcessor);
         nioServer.register(Commands.RAFT_ADMIN_LIST_GROUPS, adminGroupAndNodeProcessor);
+
+        AtomicInteger count = new AtomicInteger();
+        this.sharedIoExecutor = Executors.newFixedThreadPool(serverConfig.blockIoThreads,
+                r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
 
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
 
@@ -270,7 +281,7 @@ public class RaftServer extends AbstractLifeCircle {
         ApplyManager applyManager = new ApplyManager(gc);
         CommitManager commitManager = new CommitManager(gc);
         ReplicateManager replicateManager = new ReplicateManager(nioClient, gc);
-        MemberManager memberManager = new MemberManager(nioClient, gc);
+        MemberManager memberManager = new MemberManager(nioClient, gc, this::runPersistConfigTask);
         LinearTaskRunner linearTaskRunner = new LinearTaskRunner(gc);
         VoteManager voteManager = new VoteManager(nioClient, gc);
 
@@ -307,7 +318,11 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.ts = raftStatus.ts;
         rgcEx.raftStatus = raftStatus;
         rgcEx.fiberGroup = fiberGroup;
-        rgcEx.blockIoExecutor = raftFactory.createBlockIoExecutor(serverConfig, rgcEx);
+        if (raftFactory.useSharedIoExecutor()) {
+            rgcEx.blockIoExecutor = sharedIoExecutor;
+        } else {
+            rgcEx.blockIoExecutor = raftFactory.createBlockIoExecutor(serverConfig, rgcEx);
+        }
         rgcEx.raftServer = this;
         return rgcEx;
     }
@@ -442,7 +457,7 @@ public class RaftServer extends AbstractLifeCircle {
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex2) -> {
                 if (ex2 != null) {
-                    allGroupReadyFuture.completeExceptionally(ex);
+                    allGroupReadyFuture.completeExceptionally(ex2);
                 } else if (checkStartStatus(allGroupReadyFuture)) {
                     groupReady = true;
                     log.info("all group ready");
@@ -495,6 +510,7 @@ public class RaftServer extends AbstractLifeCircle {
                     nioClient.stop(timeout, true);
                 }
             }
+            sharedIoExecutor.shutdown();
         } catch (RuntimeException | Error e) {
             log.error("stop raft server failed", e);
             throw e;
@@ -534,8 +550,10 @@ public class RaftServer extends AbstractLifeCircle {
             }
 
             private FrameCallResult afterStatusManagerClose(Void unused) {
-                raftFactory.shutdownBlockIoExecutor(serverConfig, gc.groupConfig,
-                        gc.groupConfig.blockIoExecutor);
+                if (!raftFactory.useSharedIoExecutor()) {
+                    raftFactory.shutdownBlockIoExecutor(serverConfig, gc.groupConfig,
+                            gc.groupConfig.blockIoExecutor);
+                }
                 return Fiber.frameReturn();
             }
         });
@@ -552,6 +570,9 @@ public class RaftServer extends AbstractLifeCircle {
     public CompletableFuture<Void> addNode(RaftNode node) {
         return nodeManager.addNode(node).handle((v, ex) -> {
             log.info("add node {}, success={}", node, ex == null);
+            if(ex == null) {
+                runPersistConfigTask();
+            }
             return null;
         });
     }
@@ -562,7 +583,12 @@ public class RaftServer extends AbstractLifeCircle {
      */
     public CompletableFuture<Void> removeNode(int nodeId) {
         CompletableFuture<Void> f = nodeManager.removeNode(nodeId);
-        f.whenComplete((v, ex) -> log.info("remove node {}, success={}", nodeId, ex == null));
+        f.whenComplete((v, ex) -> {
+            log.info("remove node {}, success={}", nodeId, ex == null);
+            if(ex == null) {
+                runPersistConfigTask();
+            }
+        });
         return f;
     }
 
@@ -594,6 +620,7 @@ public class RaftServer extends AbstractLifeCircle {
                 nodeManager.getLock().unlock();
             }
             raftGroups.put(groupConfig.groupId, g);
+            runPersistConfigTask();
 
             g.groupComponents.memberManager.init();
 
@@ -663,6 +690,7 @@ public class RaftServer extends AbstractLifeCircle {
                         } finally {
                             nodeManager.getLock().unlock();
                         }
+                        runPersistConfigTask();
                     }
                 });
                 return CompletableFuture.completedFuture(null);
@@ -719,4 +747,17 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
+    private void runPersistConfigTask() {
+        if (persistConfigTask != null) {
+            persistConfigTask.run();
+        }
+    }
+
+    public void setPersistConfigTask(Runnable persistConfigTask) {
+        this.persistConfigTask = persistConfigTask;
+    }
+
+    public ExecutorService getSharedIoExecutor() {
+        return sharedIoExecutor;
+    }
 }

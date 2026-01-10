@@ -18,12 +18,15 @@ package com.github.dtprj.dongting.dist;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.impl.MembersInfo;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
@@ -53,13 +56,24 @@ import java.util.stream.Collectors;
  */
 public class SyncConfigProcessor extends ReqProcessor<Void> {
 
+    private static final DtLog log = DtLogs.getLogger(SyncConfigProcessor.class);
+
     private final RaftServer server;
     private final File serversFile;
     private final ReentrantLock lock = new ReentrantLock();
 
+    private final SequenceRunner sequenceRunner;
+
     public SyncConfigProcessor(RaftServer server, File serversFile) {
         this.server = server;
         this.serversFile = serversFile;
+        this.sequenceRunner = new SequenceRunner(server.getSharedIoExecutor(), () -> {
+            try {
+                doSyncConfig();
+            } catch (Throwable e) {
+                throw new RaftException(e);
+            }
+        }, new int[]{1000, 10 * 1000, 30 * 1000, 60 * 1000});
     }
 
     @Override
@@ -68,12 +82,34 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
     }
 
     @Override
-    public WritePacket process(ReadPacket<Void> packet, ReqContext reqContext) throws Exception {
+    public WritePacket process(ReadPacket<Void> packet, ReqContext reqContext) {
         boolean servicePort = RaftProcessor.requestServicePort(reqContext, server.getServerConfig());
         if (!RaftProcessor.checkPort(servicePort, false, true)) {
             return RaftProcessor.createWrongPortRest(packet, reqContext);
         }
-        boolean locked = lock.tryLock(5, TimeUnit.SECONDS);
+        sequenceRunner.submit(reqContext.getTimeout().rest(TimeUnit.MILLISECONDS), e -> {
+            if (e == null) {
+                EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                reqContext.writeRespInBizThreads(p);
+            } else {
+                EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+                p.msg = e.toString();
+                reqContext.writeRespInBizThreads(p);
+            }
+        });
+        return null;
+    }
+
+    public void syncConfigAsync() {
+        try {
+            sequenceRunner.submit();
+        } catch (Exception e) {
+            log.error("submit sync task error", e);
+        }
+    }
+
+    private void doSyncConfig() throws Exception {
+        boolean locked = lock.tryLock(5000, TimeUnit.MILLISECONDS);
         if (locked) {
             try {
                 List<RaftNode> allNodes;
@@ -90,19 +126,16 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
                 }
                 Collections.sort(allNodes);
                 groupsInfos.sort(Comparator.comparingInt(Pair::getLeft));
-                syncConfig(allNodes, groupsInfos);
-                return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+                doSyncConfig(allNodes, groupsInfos);
             } finally {
                 lock.unlock();
             }
         } else {
-            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-            p.msg = "sync lock timeout";
-            return p;
+            throw new RaftException("sync lock timeout");
         }
     }
 
-    private void syncConfig(List<RaftNode> nodes, List<Pair<Integer, MembersInfo>> groupInfos) throws IOException {
+    private void doSyncConfig(List<RaftNode> nodes, List<Pair<Integer, MembersInfo>> groupInfos) throws IOException {
         // generate config content
         StringBuilder sb = new StringBuilder();
         sb.append("servers = ").append(RaftNode.formatServers(nodes)).append("\n");

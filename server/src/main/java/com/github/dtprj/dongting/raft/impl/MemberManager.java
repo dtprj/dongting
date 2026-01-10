@@ -65,6 +65,7 @@ public class MemberManager {
 
     private final RaftServerConfig serverConfig;
     private final RaftStatusImpl raftStatus;
+    private final Runnable syncConfigTask;
     private final int groupId;
     private final RaftGroupConfigEx groupConfig;
 
@@ -76,12 +77,13 @@ public class MemberManager {
 
     int daemonSleepInterval = 1000;
 
-    public MemberManager(NioClient client, GroupComponents gc) {
+    public MemberManager(NioClient client, GroupComponents gc, Runnable syncConfigTask) {
         this.client = client;
         this.gc = gc;
         this.serverConfig = gc.serverConfig;
         this.groupConfig = gc.groupConfig;
         this.raftStatus = gc.raftStatus;
+        this.syncConfigTask = syncConfigTask;
         this.groupId = raftStatus.groupId;
 
         if (raftStatus.nodeIdOfMembers.isEmpty()) {
@@ -560,7 +562,12 @@ public class MemberManager {
                 raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
                 emptySet(), emptySet());
         f.raftIndex = raftIndex;
-        return Fiber.call(f, v -> Fiber.frameReturn());
+        return Fiber.call(f, this::afterCommit);
+    }
+
+    private FrameCallResult afterCommit(Void v) {
+        syncConfigTask.run();
+        return Fiber.frameReturn();
     }
 
     public FiberFrame<Void> applyConfigFrame(String msg, Set<Integer> newMembers, Set<Integer> observerIds,

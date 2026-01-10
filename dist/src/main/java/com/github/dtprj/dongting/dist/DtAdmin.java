@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -296,7 +295,7 @@ public class DtAdmin {
         System.out.println("Executing prepare-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         long prepareIndex = client.prepareChange(groupId, oldMembers, oldObservers,
                 newMembers, newObservers, timeout).get();
-        System.out.println("Prepare index: " + prepareIndex);
+        System.out.println("SUCCESS. Prepare index: " + prepareIndex);
     }
 
     private void executeCommitChange(DistClient client) throws Exception {
@@ -325,41 +324,7 @@ public class DtAdmin {
         // Step 3: Execute commit
         System.out.println("Executing commit-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         long commitIndex = client.commitChange(groupId, prepareIndex, timeout).get();
-        System.out.println("Commit index: " + commitIndex);
-
-        // Step 4: Collect all node IDs from members/observers/preparedMembers/preparedObservers
-        Set<Integer> allNodeIds = new HashSet<>();
-        allNodeIds.addAll(statusResp.members);
-        allNodeIds.addAll(statusResp.observers);
-        allNodeIds.addAll(statusResp.preparedMembers);
-        allNodeIds.addAll(statusResp.preparedObservers);
-
-        // Step 5: Sync config on all nodes (sorted by nodeId)
-        List<Integer> sortedNodeIds = new ArrayList<>(allNodeIds);
-        sortedNodeIds.sort(Integer::compareTo);
-        System.out.println("Syncing config on all affected nodes: " + sortedNodeIds);
-        List<Integer> failedNodes = new ArrayList<>();
-        for (int nodeId : sortedNodeIds) {
-            try {
-                System.out.println("Syncing config on node " + nodeId + "...");
-                client.serverSyncConfig(nodeId).get();
-                System.out.println("Sync config on node " + nodeId + " completed");
-            } catch (Exception e) {
-                System.err.println("Failed to sync config on node " + nodeId + ": " + e.getMessage());
-                failedNodes.add(nodeId);
-            }
-        }
-
-        // Step 6: Output summary
-        if (failedNodes.isEmpty()) {
-            System.out.println("All nodes synced successfully");
-        } else {
-            System.out.println("WARNING: Failed to sync config on nodes: " + failedNodes);
-            System.out.println("Please manually run sync-config on these nodes:");
-            for (int nodeId : failedNodes) {
-                System.out.println("  dongting-admin.sh sync-config --node-id " + nodeId);
-            }
-        }
+        System.out.println("SUCCESS. Commit index: " + commitIndex);
         checkLocalConfigFileUpdated();
     }
 
@@ -369,7 +334,7 @@ public class DtAdmin {
 
         System.out.println("Executing abort-change with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         long index = client.abortChange(groupId, timeout).get();
-        System.out.println("Abort index: " + index);
+        System.out.println("SUCCESS. Abort index: " + index);
     }
 
     private void executeQueryStatus(DistClient client) throws Exception {
@@ -412,7 +377,6 @@ public class DtAdmin {
         System.out.println("Executing server-add-group with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverAddGroup(nodeId, groupId, members, observers, timeout).get();
         System.out.println("Add group completed successfully");
-        autoSyncConfig(client, nodeId);
         checkLocalConfigFileUpdated();
     }
 
@@ -424,7 +388,6 @@ public class DtAdmin {
         System.out.println("Executing server-remove-group with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverRemoveGroup(nodeId, groupId, timeout).get();
         System.out.println("Remove group completed successfully");
-        autoSyncConfig(client, nodeId);
         checkLocalConfigFileUpdated();
     }
 
@@ -438,7 +401,6 @@ public class DtAdmin {
         System.out.println("Executing server-add-node with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverAddNode(nodeId, addNodeId, host, port).get();
         System.out.println("Add node completed successfully");
-        autoSyncConfig(client, nodeId);
         checkLocalConfigFileUpdated();
     }
 
@@ -450,7 +412,6 @@ public class DtAdmin {
         System.out.println("Executing server-remove-node with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
         client.serverRemoveNode(nodeId, removeNodeId).get();
         System.out.println("Remove node completed successfully");
-        autoSyncConfig(client, nodeId);
         checkLocalConfigFileUpdated();
     }
 
@@ -481,12 +442,6 @@ public class DtAdmin {
         System.out.println("Executing sync-config...");
         client.serverSyncConfig(nodeId).get();
         System.out.println("Sync config completed successfully");
-    }
-
-    private void autoSyncConfig(DistClient client, int nodeId) throws Exception {
-        System.out.println("Auto executing sync-config on node " + nodeId + "...");
-        client.serverSyncConfig(nodeId).get();
-        System.out.println("Auto sync-config completed successfully");
     }
 
     private void checkLocalConfigFileUpdated() {

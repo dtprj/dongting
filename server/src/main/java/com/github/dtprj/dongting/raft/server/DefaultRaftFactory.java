@@ -29,20 +29,12 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /**
  * @author huangli
  */
 public abstract class DefaultRaftFactory implements RaftFactory {
-
-    private final ReentrantLock lock = new ReentrantLock();
-
-    private int executorUseCount;
-    private ExecutorService sharedIoExecutor;
 
     protected PoolFactory poolFactory;
 
@@ -55,35 +47,17 @@ public abstract class DefaultRaftFactory implements RaftFactory {
     }
 
     @Override
+    public boolean useSharedIoExecutor() {
+        return true;
+    }
+
+    @Override
     public ExecutorService createBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig) {
-        lock.lock();
-        try {
-            if (sharedIoExecutor == null) {
-                executorUseCount = 1;
-                AtomicInteger count = new AtomicInteger();
-                sharedIoExecutor = Executors.newFixedThreadPool(serverConfig.blockIoThreads,
-                        r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
-            } else {
-                executorUseCount++;
-            }
-            return sharedIoExecutor;
-        } finally {
-            lock.unlock();
-        }
+        return null;
     }
 
     @Override
     public void shutdownBlockIoExecutor(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig, ExecutorService executor) {
-        lock.lock();
-        try {
-            executorUseCount--;
-            if (executorUseCount == 0) {
-                sharedIoExecutor.shutdown();
-                sharedIoExecutor = null;
-            }
-        } finally {
-            lock.unlock();
-        }
     }
 
     @Override
