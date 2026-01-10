@@ -265,8 +265,7 @@ public class BootstrapProcessManager {
         for (String line : processInfo.stderrLines) {
             sb.append(line).append("\n");
         }
-        String logs = sb.toString();
-        log.debug("Collected logs from node {}:\n{}", processInfo.config.nodeId, logs);
+        log.debug("Collected logs from node {}:\n{}", processInfo.config.nodeId, sb);
         return sb;
     }
 }
