@@ -107,6 +107,12 @@ public class DtBenchmark {
             System.out.println();
 
             initClients(props);
+
+            if (sync && threadCount > maxPending) {
+                maxPending = threadCount;
+                System.out.println("WARNING: sync mode, threadCount is greater than maxPending, increase maxPending to threadCount.");
+            }
+
             preCreateBenchmarkDir();
             startStatsReporter();
 
@@ -476,7 +482,7 @@ public class DtBenchmark {
     private void shutdownThreadExecutor() {
         threadExecutor.shutdown();
         try {
-            if(!threadExecutor.awaitTermination(5, TimeUnit.SECONDS)){
+            if (!threadExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
                 threadExecutor.shutdownNow();
             }
         } catch (InterruptedException e) {
