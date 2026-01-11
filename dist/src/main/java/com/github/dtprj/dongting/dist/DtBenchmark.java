@@ -467,7 +467,7 @@ public class DtBenchmark {
                 + " threads total" : "one thread per client";
         System.out.println("  Java " + DtUtil.JAVA_VER + ", " + (sync ? "sync" : "async") + " "
                 + (isPut ? "put" : "get") + ", " + keyCount + " keys, "
-                + valueSize + " bytes value, " + maxPending + " maxPending");
+                + valueSize + " bytes value, " + maxPending + " total maxPending");
         System.out.println("  " + clientCount + " clients, " + threadInfo);
         System.out.println();
     }
