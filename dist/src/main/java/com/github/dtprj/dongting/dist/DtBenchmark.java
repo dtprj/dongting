@@ -79,7 +79,8 @@ public class DtBenchmark {
     private final CountDownLatch startLatch = new CountDownLatch(1);
 
     private ScheduledExecutorService statsExecutor;
-    private ExecutorService virtualThreadExecutor;
+    private ExecutorService threadExecutor;
+    private boolean finallyUseVirtualThreads;
 
     private int exitCode;
 
@@ -109,8 +110,15 @@ public class DtBenchmark {
             preCreateBenchmarkDir();
             startStatsReporter();
 
-            if (sync && useVirtualThreads && DtUtil.JAVA_VER >= 21) {
-                virtualThreadExecutor = createVirtualThreadExecutor();
+            if (sync) {
+                if (useVirtualThreads && DtUtil.JAVA_VER >= 21) {
+                    finallyUseVirtualThreads = true;
+                    threadExecutor = createVirtualThreadExecutor();
+                } else {
+                    threadExecutor = Executors.newFixedThreadPool(threadCount);
+                }
+            } else {
+                threadExecutor = Executors.newFixedThreadPool(clientCount);
             }
 
             printBenchmarkConfig();
@@ -121,18 +129,14 @@ public class DtBenchmark {
             int threadsPerClient = sync ? (threadCount / clientCount) : 1;
             int remainingThreads = sync ? (threadCount % clientCount) : 0;
             for (int c = 0; c < clientCount; c++) {
-                int clientIndex = c;
-                int threadsForThisClient = threadsPerClient + (c < remainingThreads ? 1 : 0);
+                KvClient client = clients.get(c);
                 if (sync) {
+                    int threadsForThisClient = threadsPerClient + (c < remainingThreads ? 1 : 0);
                     for (int t = 0; t < threadsForThisClient; t++) {
-                        if (virtualThreadExecutor != null) {
-                            virtualThreadExecutor.execute(() -> runTestThread(clientIndex));
-                        } else {
-                            new Thread(() -> runTestThread(clientIndex), "BenchThread-" + c + "-" + t).start();
-                        }
+                        threadExecutor.execute(() -> runTestThread(client));
                     }
                 } else {
-                    new Thread(() -> runTestThread(clientIndex), "BenchThread-" + c).start();
+                    threadExecutor.execute(() -> runTestThread(client));
                 }
             }
 
@@ -153,8 +157,8 @@ public class DtBenchmark {
             printBenchmarkConfig();
             printStats(true);
 
+            shutdownThreadExecutor();
             shutdown();
-            shutdownVirtualThreadExecutor();
         } catch (UsageEx e) {
             System.err.println("Error: " + e.getMessage());
             System.err.println();
@@ -340,12 +344,11 @@ public class DtBenchmark {
         }
     }
 
-    private void runTestThread(int clientIndex) {
+    private void runTestThread(KvClient client) {
         try {
             startLatch.await();
 
             Random random = new Random();
-            KvClient client = clients.get(clientIndex);
 
             while (running) {
                 int keyIndex = Math.abs(random.nextInt() % keyCount);
@@ -454,7 +457,7 @@ public class DtBenchmark {
 
     private void printBenchmarkConfig() {
         System.out.println("Benchmark config:");
-        String threadInfo = sync ? threadCount + (virtualThreadExecutor == null ? " platform" : " virtual")
+        String threadInfo = sync ? threadCount + (finallyUseVirtualThreads ? " virtual" : " platform")
                 + " threads total" : "one thread per client";
         System.out.println("  Java " + DtUtil.JAVA_VER + ", " + (sync ? "sync" : "async") + " "
                 + (isPut ? "put" : "get") + ", " + keyCount + " keys, "
@@ -470,14 +473,14 @@ public class DtBenchmark {
         }
     }
 
-    private void shutdownVirtualThreadExecutor() {
-        if (virtualThreadExecutor != null) {
-            virtualThreadExecutor.shutdownNow();
-            try {
-                virtualThreadExecutor.awaitTermination(3, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+    private void shutdownThreadExecutor() {
+        threadExecutor.shutdown();
+        try {
+            if(!threadExecutor.awaitTermination(5, TimeUnit.SECONDS)){
+                threadExecutor.shutdownNow();
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
