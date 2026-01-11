@@ -178,7 +178,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         DtUtil.checkPositive(request.command, "request.command");
 
         if (status != STATUS_RUNNING) {
-            throw new NetException("error state: " + status);
+            throw new NetException("error NioNet state: " + status);
         }
 
         // can't invoke actualSize() here because seq and timeout field is not set yet
