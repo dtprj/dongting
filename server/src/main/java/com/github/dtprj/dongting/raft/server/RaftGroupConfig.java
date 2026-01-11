@@ -36,9 +36,9 @@ public class RaftGroupConfig {
     public long maxReplicateBytes = 16 * 1024 * 1024;
     public int singleReplicateLimit = 1800 * 1024;
 
-    public int maxPendingTasks = 2000;
+    public int maxPendingTasks = 100000;
     public long maxPendingTaskBytes = 256 * 1024 * 1024;
-    public int maxCacheTasks = 50000;
+    public int maxCacheTasks = 200000;
     public long maxCacheTaskBytes = 256 * 1024 * 1024;
 
     public int idxItemsPerFile = 1024 * 1024;
