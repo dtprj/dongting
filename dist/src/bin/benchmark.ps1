@@ -45,7 +45,7 @@ $Arguments = $JavaOpts + @(
     "--add-reads", "dongting.client=org.slf4j",
     "--add-reads", "dongting.client=ch.qos.logback.classic",
     "-m", "dongting.dist/com.github.dtprj.dongting.dist.DtBenchmark",
-    "-s", (Join-Path $CONF_DIR "servers.properties")
+    "-s", (Join-Path $CONF_DIR "client.properties")
 ) + $args
 
 # Run DtBenchmark in foreground so callers see stdout/stderr

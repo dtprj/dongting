@@ -1,4 +1,3 @@
-#!/bin/bash
 #
 # Copyright The Dongting Project
 #
@@ -49,6 +48,6 @@ mkdir -p "$LOG_DIR" || {
     --add-reads dongting.client=org.slf4j \
     --add-reads dongting.client=ch.qos.logback.classic \
     -m dongting.dist/com.github.dtprj.dongting.dist.DtBenchmark \
-    -s "$CONF_DIR/servers.properties" \
+    -s "$CONF_DIR/client.properties" \
     "$@"
 
