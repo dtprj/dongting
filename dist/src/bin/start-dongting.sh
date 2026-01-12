@@ -76,9 +76,6 @@ nohup "$JAVA" $JAVA_OPTS \
     -Dlogback.configurationFile="$CONF_DIR/logback-server.xml" \
     --module-path "$LIB_DIR" \
     --add-exports java.base/jdk.internal.misc=dongting.client \
-    --add-modules org.slf4j,ch.qos.logback.classic \
-    --add-reads dongting.client=org.slf4j \
-    --add-reads dongting.client=ch.qos.logback.classic \
     -m dongting.dist/com.github.dtprj.dongting.dist.Bootstrap \
     -c "$CONF_DIR/config.properties" \
     -s "$CONF_DIR/servers.properties" \

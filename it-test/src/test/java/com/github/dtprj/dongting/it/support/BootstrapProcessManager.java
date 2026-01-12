@@ -86,12 +86,6 @@ public class BootstrapProcessManager {
         command.add(moduleDir.getAbsolutePath());
         command.add("--add-exports");
         command.add("java.base/jdk.internal.misc=dongting.client");
-        command.add("--add-modules");
-        command.add("org.slf4j,ch.qos.logback.classic");
-        command.add("--add-reads");
-        command.add("dongting.client=org.slf4j");
-        command.add("--add-reads");
-        command.add("dongting.client=ch.qos.logback.classic");
 
         command.add("-m");
         command.add("dongting.dist/com.github.dtprj.dongting.dist.Bootstrap");

@@ -41,9 +41,6 @@ $Arguments = $JavaOpts + @(
     "-Dlogback.configurationFile=$CONF_DIR\logback-benchmark.xml",
     "--module-path", $LIB_DIR,
     "--add-exports", "java.base/jdk.internal.misc=dongting.client",
-    "--add-modules", "org.slf4j,ch.qos.logback.classic",
-    "--add-reads", "dongting.client=org.slf4j",
-    "--add-reads", "dongting.client=ch.qos.logback.classic",
     "-m", "dongting.dist/com.github.dtprj.dongting.dist.DtBenchmark",
     "-s", (Join-Path $CONF_DIR "client.properties")
 ) + $args
