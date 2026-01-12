@@ -18,6 +18,7 @@
 - **High-performance, zero-dependency** raft/kv/mq engine
 - **Fiber-based concurrency** framework (coroutines)
 - **Project name**: Always use "dongting" (English), never Chinese name
+- **Quality Standard**: Code as a top-tier expert; prioritize performance and strive for excellence
 
 ## Code Style Guidelines
 
@@ -34,6 +35,16 @@ All Java files must include Apache 2.0 license header (17 lines)
 - External API: Use getter/setter methods when additional logic is needed
 - Encapsulation: Some classes use single-child pattern for hiding internals (e.g., `DtChannel` -> `DtChannelImpl`, `RaftGroup` -> `RaftGroupImpl`)
 
+### Class Inheritance Pattern
+For encapsulation purposes, some classes have a single implementation:
+- `DtChannel` → `DtChannelImpl`
+- `RaftGroupConfig` → `RaftGroupConfigEx`
+- `RaftNode` → `RaftNodeEx`
+- `RaftGroup` → `RaftGroupImpl`
+- `RaftStatus` → `RaftStatusImpl`
+
+**Rule**: When you have a parent class instance but need child class methods, cast directly to the child class—this is safe and intentional.
+
 ### Logging
 - Logger: `com.github.dtprj.dongting.log.DtLog`
 - Factory: `com.github.dtprj.dongting.log.DtLogs`
@@ -42,6 +53,7 @@ All Java files must include Apache 2.0 license header (17 lines)
 
 ### Error Handling
 - Use `BugLog` for unexpected errors (safer than assert): `BugLog.log(exception)`
+- Search logs with `grep BugLog` to find unexpected issues
 - Checkers: `DtUtil.checkPositive()`, `DtUtil.checkNotNull()`
 - Close resources with `DtUtil.close(AutoCloseable)`
 - Fiber errors: `Fiber.fatal()` for critical failures
