@@ -6,12 +6,13 @@
 - Compile with protobuf: `mvn clean compile test-compile`
 
 ### Testing
-- Run all tests: `mvn clean test -Dtick=5`
+- Run all unit tests: `mvn clean test -Dtick=5`
 - Run single test class: `mvn test -Dtest=ClassName -Dtick=5`
 - Run single test method: `mvn test -Dtest=ClassName#methodName -Dtick=5`
-- Run all integration tests: `mvn verify -DskipUTs`
-- Run single integration test: `mvn -DskipUTs=true -Dit.test=ClassName verify`
+- Run all integration tests: `mvn verify -DskipUTs -Dtick=5`
+- Run single integration test: `mvn -DskipUTs=true -Dit.test=ClassName verify -Dtick=5`
 - We suggest using `-Dtick=5` to increase test stability
+- package should be done before run any integration tests
 
 ## Codebase Overview
 - **Multi-module Maven project** with Java 11 (Java 8 for client module)
@@ -19,8 +20,6 @@
 - **Fiber-based concurrency** framework (coroutines)
 - **Project name**: Always use "dongting" (English), never Chinese name
 - **Quality Standard**: Code as a top-tier expert; prioritize performance and strive for excellence
-
-## Code Style Guidelines
 
 ### File Headers
 All Java files must include Apache 2.0 license header (17 lines)
