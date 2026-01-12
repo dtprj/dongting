@@ -15,6 +15,9 @@
  */
 
 module dongting.it.test {
-    requires dongting.dist;
     requires org.slf4j;
+    requires ch.qos.logback.classic;
+    requires dongting.client;
+    requires dongting.server;
+    requires dongting.dist;
 }

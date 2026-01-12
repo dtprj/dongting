@@ -15,6 +15,9 @@
  */
 
 module dongting.dist {
-    requires transitive dongting.server;
+    requires org.slf4j;
+    requires ch.qos.logback.classic;
+    requires dongting.client;
+    requires dongting.server;
     exports com.github.dtprj.dongting.dist;
 }

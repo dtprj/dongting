@@ -32,12 +32,22 @@
     <dependencies>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>dongting-dist</artifactId>
+            <artifactId>dongting-test-support</artifactId>
             <version>0.8.4-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>dongting-test-support</artifactId>
+            <artifactId>dongting-client</artifactId>
+            <version>0.8.4-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.dtprj.dongting</groupId>
+            <artifactId>dongting-server</artifactId>
+            <version>0.8.4-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.dtprj.dongting</groupId>
+            <artifactId>dongting-dist</artifactId>
             <version>0.8.4-SNAPSHOT</version>
         </dependency>
     </dependencies>

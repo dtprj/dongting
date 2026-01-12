@@ -33,6 +33,11 @@
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
+            <artifactId>dongting-client</artifactId>
+            <version>0.8.4-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-server</artifactId>
             <version>0.8.4-SNAPSHOT</version>
         </dependency>
