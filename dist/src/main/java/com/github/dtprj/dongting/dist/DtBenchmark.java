@@ -106,12 +106,12 @@ public class DtBenchmark {
             System.out.println("  Group ID: " + groupId);
             System.out.println();
 
-            initClients(props);
-
             if (sync && threadCount > maxPending) {
-                maxPending = threadCount;
-                System.out.println("WARNING: sync mode, threadCount is greater than maxPending, increase maxPending to threadCount.");
+                maxPending = threadCount + 100;
+                System.out.println("WARNING: sync mode, threadCount is greater than maxPending, auto increase maxPending.");
             }
+
+            initClients(props);
 
             preCreateBenchmarkDir();
             startStatsReporter();
@@ -459,6 +459,9 @@ public class DtBenchmark {
                 df.format(fc),
                 avg / 1000,
                 max / 1000);
+        if (isFinal) {
+            System.out.println();
+        }
     }
 
     private void printBenchmarkConfig() {
@@ -524,6 +527,7 @@ public class DtBenchmark {
         System.out.println();
         System.out.println("Examples:");
         System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0");
+        System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --max-pending 5000");
         System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --op get --duration 30");
         System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --sync --thread-count 64");
         System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --value-size 1024 --client-count 2");
