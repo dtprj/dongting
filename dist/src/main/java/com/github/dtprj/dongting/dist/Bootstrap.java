@@ -55,6 +55,7 @@ public class Bootstrap {
     private int exitCode;
 
     private Properties serversProps;
+    private Properties configProps;
     private RaftServerConfig serverConfig;
     private List<RaftGroupConfig> groupConfigs;
     private File serversFile;
@@ -82,7 +83,7 @@ public class Bootstrap {
             String configFile = parseConfigFileFromCommandArgs(args, "-c");
             String serversConfigFile = parseConfigFileFromCommandArgs(args, "-s");
 
-            Properties configProps = loadProperties(configFile);
+            this.configProps = loadProperties(configFile);
             System.out.println("Config file loaded successfully: " + configFile);
 
             this.serversProps = loadProperties(serversConfigFile);
@@ -114,6 +115,7 @@ public class Bootstrap {
                 String nodeIdOfMembers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
                 String nodeIdOfObservers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfObservers");
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
+                PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
                 PropsUtil.setFieldsFromProps(groupConfig, serversProps, GROUP_PREFIX + groupId);
                 groupConfigs.add(groupConfig);
                 if (!logDataDir) {
@@ -175,6 +177,7 @@ public class Bootstrap {
             @Override
             public RaftGroupConfig createConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
+                PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
                 PropsUtil.setFieldsFromProps(groupConfig, serversProps, GROUP_PREFIX + groupId);
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
                 String s = ensureDir(groupConfig.dataDir);
