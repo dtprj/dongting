@@ -5,12 +5,15 @@
 - Full build: `mvn clean package -DskipITs -DskipUTs`
 - Compile with protobuf: `mvn clean compile test-compile`
 
-### Testing
+### Unit Testing
 - Run all unit tests: `mvn clean test -Dtick=5`
-- Run single test class: `mvn test -Dtest=ClassName -Dtick=5`
-- Run single test method: `mvn test -Dtest=ClassName#methodName -Dtick=5`
+- Run single test class: `mvn -pl module -am test -Dtest=ClassName -Dtick=5 -Dsurefire.failIfNoSpecifiedTests=false`
+- Run single test method: `mvn -pl module -am test -Dtest=ClassName#method -Dtick=5 -Dsurefire.failIfNoSpecifiedTests=false`
+- We suggest using `-Dtick=5` to increase test stability
+
+### Integration Testing
 - Run all integration tests: `mvn verify -DskipUTs -Dtick=5`
-- Run single integration test: `mvn -DskipUTs=true -Dit.test=ClassName verify -Dtick=5`
+- Run single integration test: `mvn -pl it-test -am verify -DskipUTs=true -Dit.test=ClassName -Dtick=5`
 - We suggest using `-Dtick=5` to increase test stability
 - package should be done before run any integration tests
 
