@@ -1,7 +1,6 @@
 ## Build and Test Commands
 
 ### Build
-- THE `mvn` COMMAND MUST RUN IN THE ROOT DIRECTORY, NOT IN THE SUBMODULE DIRECTORY
 - Full build: `mvn clean package -DskipITs -DskipUTs`
 - Compile with protobuf: `mvn clean compile test-compile`
 
@@ -14,7 +13,6 @@
 ### Integration Testing
 - Run all integration tests: `mvn verify -DskipUTs -Dtick=5`
 - Run single integration test: `mvn -pl it-test -am verify -DskipUTs=true -Dit.test=ClassName -Dtick=5`
-- We suggest using `-Dtick=5` to increase test stability
 - package should be done before run any integration tests
 
 ## Codebase Overview
@@ -26,11 +24,6 @@
 
 ### File Headers
 All Java files must include Apache 2.0 license header (17 lines)
-
-### Imports
-- Organize logically: std lib, third-party, internal project
-- No wildcard imports
-- Internal imports: `com.github.dtprj.dongting.*`
 
 ### Field Access Pattern
 - Internal usage: Access public/package-private fields directly
@@ -51,14 +44,11 @@ For encapsulation purposes, some classes have a single implementation:
 - Logger: `com.github.dtprj.dongting.log.DtLog`
 - Factory: `com.github.dtprj.dongting.log.DtLogs`
 - Declaration: `private static final DtLog log = DtLogs.getLogger(ClassName.class);`
-- Levels: debug(), info(), warn(), error()
 
 ### Error Handling
 - Use `BugLog` for unexpected errors (safer than assert): `BugLog.log(exception)`
 - Search logs with `grep BugLog` to find unexpected issues
-- Checkers: `DtUtil.checkPositive()`, `DtUtil.checkNotNull()`
-- Close resources with `DtUtil.close(AutoCloseable)`
-- Fiber errors: `Fiber.fatal()` for critical failures
+- Fiber errors: `Fiber.fatal()` for unrecoverable errors
 
 ### Comments
 - Java source code and comments: **English only**
@@ -66,18 +56,13 @@ For encapsulation purposes, some classes have a single implementation:
 - Comments only when necessary (avoid unless adding value)
 
 ### Fiber/Coroutines
-- Each raft group runs in a fiber group (single-threaded by default)
-- Use `FiberFrame` for async operations
-- Return `FrameCallResult` from fiber methods
-- Use `Fiber.sleep()`, `Fiber.call()`, `Fiber.resume()`
+- Each raft group runs in a fiber group (single-threaded)
+- See com.github.dtprj.dongting.fiber package for more details
 
 ### Testing
-- Framework: JUnit 5 (org.junit.jupiter)
-- Use `@BeforeEach` and `@AfterEach` for setup/teardown
-- Extend abstract test bases (e.g., `AbstractFiberTest`)
+- Framework: JUnit 6 (org.junit.jupiter)
 - Use `Tick.tick(millis)` to scale timeouts based on `-Dtick=N`
 - Use `WaitUtil.waitUtil()` for polling conditions
-- Test classes end with `Test`: `FiberLifeCycleTest`
 
 ### Zero Dependency Principle
 - Main code implements custom protobuf encoding/decoding
