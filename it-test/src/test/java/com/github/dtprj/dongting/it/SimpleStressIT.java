@@ -56,8 +56,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author huangli
  */
-public class SimpleStressTestIT {
-    private static final DtLog log = DtLogs.getLogger(SimpleStressTestIT.class);
+public class SimpleStressIT {
+    private static final DtLog log = DtLogs.getLogger(SimpleStressIT.class);
     private static final int TEST_DURATION_SECONDS = 30;
 
     private static final int GROUP_ID = 0;
@@ -78,10 +78,10 @@ public class SimpleStressTestIT {
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)
     void testStressWithValidation() throws Exception {
-        File baseDirFile = TestDir.createTestDir(SimpleStressTestIT.class.getSimpleName());
+        File baseDirFile = TestDir.createTestDir(SimpleStressIT.class.getSimpleName());
         Path baseDirPath = baseDirFile.toPath();
 
-        log.info("=== Starting " + SimpleStressTestIT.class.getSimpleName() + " ===");
+        log.info("=== Starting " + SimpleStressIT.class.getSimpleName() + " ===");
         log.info("Temp directory: {}", baseDirPath);
         log.info("Test duration: {} seconds", TEST_DURATION_SECONDS);
         log.info("Thread count: {}", THREAD_COUNT);
@@ -208,7 +208,7 @@ public class SimpleStressTestIT {
                 }
             }
             processManager.stopAllNodes();
-            log.info("=== " + SimpleStressTestIT.class.getSimpleName() + " completed ===");
+            log.info("=== " + SimpleStressIT.class.getSimpleName() + " completed ===");
         }
     }
 
