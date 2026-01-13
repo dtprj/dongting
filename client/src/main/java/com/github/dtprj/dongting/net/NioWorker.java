@@ -557,6 +557,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             sendHandshake(dtc, ci);
         } catch (Throwable e) {
             log.error("send handshake fail: {}", e);
+            ci.future.completeExceptionally(e);
             close(dtc);
         }
     }
@@ -565,6 +566,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         RpcCallback<HandshakeBody> rpcCallback = (resp, ex) -> {
             if (ex != null) {
                 log.error("handshake fail: {}", ex);
+                ci.future.completeExceptionally(ex);
                 closeLater(dtc);
             } else {
                 handshakeSuccess(dtc, ci, resp);
@@ -602,11 +604,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void handshakeSuccess(DtChannelImpl dtc, ConnectInfo ci, ReadPacket<HandshakeBody> resp) {
         if (status >= STATUS_PREPARE_STOP) {
             log.info("handshake while worker closed, ignore it: {}", dtc.getChannel());
+            ci.future.completeExceptionally(new NetException("worker closed"));
             closeLater(dtc);
             return;
         }
         if (resp.getBody() == null || resp.getBody().config == null) {
             log.error("handshake fail: invalid response");
+            ci.future.completeExceptionally(new NetException("invalid handshake response"));
             closeLater(dtc);
             return;
         }
@@ -621,6 +625,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         finishHandshake(dtc);
         ci.peer.enqueueAfterConnect();
         ci.future.complete(null);
+        ci.peer.connectInfo = null;
     }
 
     public void doInIoThread(Runnable runnable, CompletableFuture<?> future) {
@@ -686,8 +691,15 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 ((NioServer) owner).getClients().remove(dtc.remoteUuid);
             }
         } else {
-            dtc.peer.dtChannel = null;
-            dtc.peer.markNotConnect(config, workerStatus, false);
+            Peer p = dtc.peer;
+            p.dtChannel = null;
+            p.markNotConnect(config, workerStatus, false);
+            if (p.connectInfo != null) {
+                if (!p.connectInfo.future.isDone()) {
+                    p.connectInfo.future.completeExceptionally(new NetException("channel closed"));
+                }
+                p.connectInfo = null;
+            }
             // O(n) in client side
             channelsList.remove(dtc);
         }
