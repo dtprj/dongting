@@ -91,10 +91,8 @@ public class StatusManager {
     }
 
     public FiberFuture<Void> close() {
-        // TODO wait last update
         closed = true;
-        // wake up update fiber
-        needUpdateCondition.signalAll();
+        persistAsync();
         if (updateFiber.isStarted()) {
             return updateFiber.join();
         } else {
@@ -162,7 +160,7 @@ public class StatusManager {
 
     public void persistAsync() {
         requestUpdateVersion++;
-        needUpdateCondition.signal();
+        needUpdateCondition.signalAll();
     }
 
     public FrameCallResult waitUpdateFinish(FrameCall<Void> resumePoint) {
