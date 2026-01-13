@@ -38,7 +38,7 @@ public class Peer {
 
     NioWorker.ConnectInfo connectInfo;
 
-    boolean autoReconnect;
+    boolean shouldAutoReconnect;
     long lastRetryNanos;
 
     private LinkedList<PacketInfoReq> waitConnectList;
@@ -93,7 +93,7 @@ public class Peer {
 
     void markNotConnect(NioConfig config, WorkerStatus workerStatus, boolean byAutoRetry) {
         NioClientConfig c = (NioClientConfig) config;
-        if (autoReconnect && c.connectRetryIntervals != null) {
+        if (shouldAutoReconnect && c.connectRetryIntervals != null) {
             long base;
             int index;
             if (connectRetryCount == 0) {

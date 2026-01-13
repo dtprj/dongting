@@ -468,7 +468,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         PeerStatus s = peer.status;
         if (s == PeerStatus.not_connect) {
-            peer.autoReconnect = true;
+            peer.shouldAutoReconnect = true;
             peer.status = PeerStatus.connecting;
         } else if (s == PeerStatus.removed) {
             NetException ex = new NetException("peer is removed");
@@ -645,7 +645,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     public CompletableFuture<Void> disconnect(Peer peer) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         doInIoThread(() -> {
-            peer.autoReconnect = false;
+            peer.shouldAutoReconnect = false;
             if (peer.dtChannel == null) {
                 f.complete(null);
                 return;
@@ -775,7 +775,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         List<Peer> peers = ((NioClient) owner).getPeers();
         for (Peer p : peers) {
-            if (!p.autoReconnect || p.status != PeerStatus.not_connect) {
+            if (!p.shouldAutoReconnect || p.status != PeerStatus.not_connect) {
                 continue;
             }
             if (ts.nanoTime - p.lastRetryNanos > 0) {
