@@ -222,7 +222,7 @@ public class PbParser {
                         if (value < 0) {
                             throw new PbException("bad field len: " + fieldLen);
                         }
-                        if (parsedBytes + value > size) {
+                        if ((parsedBytes + value) > size || (parsedBytes + value) < 0) {
                             throw new PbException("field length overflow. len=" + value + ",index=" + fieldIndex);
                         }
                         this.fieldLen = value;
@@ -258,7 +258,7 @@ public class PbParser {
         this.fieldType = type;
         value = value >>> 3;
         if (value == 0) {
-            throw new PbException("bad index:" + value + ", last field index is" + fieldIndex);
+            throw new PbException("bad index:" + ((value << 3) & type) + ", last field index is" + fieldIndex);
         }
         this.fieldIndex = value;
 
