@@ -109,11 +109,13 @@ public class ClusterValidator {
                             sample.leaderId, sample.term, sample.members);
                     return allStatus.values().iterator().next().leaderId;
                 } else {
-                    log.debug("Cluster consistency validation failed, attempt {}", attemptCount);
+                    if (attemptCount % 100 == 0) {
+                        log.info("Cluster consistency validation failed, attempt {}", attemptCount);
+                    }
                 }
 
             } catch (Exception e) {
-                log.debug("Failed to query status (attempt {}): {}", attemptCount, e.getMessage());
+                log.info("Failed to query status (attempt {}): {}", attemptCount, e.getMessage());
             }
 
             Thread.sleep(QUERY_RETRY_INTERVAL_MS);
@@ -134,7 +136,7 @@ public class ClusterValidator {
     /**
      * Validate full cluster consistency including leader, term, members, observers, and groupReady
      */
-    public boolean validateFullConsistency(Map<Integer, QueryStatusResp> allStatus) {
+    private boolean validateFullConsistency(Map<Integer, QueryStatusResp> allStatus) {
         if (allStatus.isEmpty()) {
             log.warn("No status available for full consistency check");
             return false;

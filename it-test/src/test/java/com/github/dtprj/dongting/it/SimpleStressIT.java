@@ -103,8 +103,7 @@ public class SimpleStressIT {
 
             log.info("Step 2: Starting all nodes");
             for (ProcessConfig config : configs) {
-                ProcessInfo processInfo = processManager.startNode(config);
-                startedProcesses.add(processInfo);
+                assertTrue(processManager.startNode(config, 10));
                 log.info("Node {} started successfully", config.nodeId);
             }
 
@@ -207,7 +206,7 @@ public class SimpleStressIT {
                     log.warn("Error closing validator", e);
                 }
             }
-            processManager.stopAllNodes();
+            assertTrue(processManager.stopAllNodes(20));
             log.info("=== " + SimpleStressIT.class.getSimpleName() + " completed ===");
         }
     }

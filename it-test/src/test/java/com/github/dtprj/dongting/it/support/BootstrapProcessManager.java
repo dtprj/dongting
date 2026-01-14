@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -36,29 +35,39 @@ import java.util.concurrent.TimeUnit;
 public class BootstrapProcessManager {
     private static final Logger log = LoggerFactory.getLogger(BootstrapProcessManager.class);
 
-    private static final long PROCESS_START_TIMEOUT_SECONDS = 10;
-    private static final long GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 10;
-
     private final List<ProcessInfo> processes = new CopyOnWriteArrayList<>();
 
     public static class ProcessInfo {
         public final Process process;
         public final ProcessConfig config;
-        public final Queue<String> stdoutLines;
-        public final Queue<String> stderrLines;
+        public final File stdoutFile;
+        public final File stderrFile;
 
-        public ProcessInfo(Process process, ProcessConfig config, ProcessOutputReader.OutputReader outputReader) {
+        public ProcessInfo(Process process, ProcessConfig config, File stdoutFile, File stderrFile) {
             this.process = process;
             this.config = config;
-            this.stdoutLines = outputReader.stdoutLines;
-            this.stderrLines = outputReader.stderrLines;
+            this.stdoutFile = stdoutFile;
+            this.stderrFile = stderrFile;
         }
     }
 
     /**
      * Start a Bootstrap node process
      */
-    public ProcessInfo startNode(ProcessConfig config) throws IOException, InterruptedException {
+    public boolean startNode(ProcessConfig config, long startTimeoutSeconds) throws IOException, InterruptedException {
+        ProcessInfo processInfo = startNode0(config, startTimeoutSeconds);
+        if (processInfo != null) {
+            processes.add(processInfo);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Start a Bootstrap node process
+     */
+    private ProcessInfo startNode0(ProcessConfig config, long startTimeoutSeconds)
+            throws IOException, InterruptedException {
         log.info("Starting node {} with replicate port {}, service port {}",
                 config.nodeId, config.replicatePort, config.servicePort);
 
@@ -97,23 +106,25 @@ public class BootstrapProcessManager {
 
         log.debug("Start command: {}", String.join(" ", command));
 
+        // Redirect stdout/stderr to files to avoid memory overflow
+        //noinspection ResultOfMethodCallIgnored
+        logsFile.mkdirs();
+        File stdoutFile = new File(logsFile, "stdout.log");
+        File stderrFile = new File(logsFile, "stderr.log");
+
         // Start process
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(config.nodeDir);
+        pb.redirectOutput(ProcessBuilder.Redirect.to(stdoutFile));
+        pb.redirectError(ProcessBuilder.Redirect.to(stderrFile));
         Process process = pb.start();
 
-        ProcessOutputReader.OutputReader outputReader = ProcessOutputReader.startOutputReaders(
-                process, "node-" + config.nodeId);
-
-        ProcessInfo processInfo = new ProcessInfo(process, config, outputReader);
-        processes.add(processInfo);
+        ProcessInfo processInfo = new ProcessInfo(process, config, stdoutFile, stderrFile);
 
         // Wait for process to be ready
-        if (!waitForReady(processInfo, PROCESS_START_TIMEOUT_SECONDS)) {
-            collectLogs(processInfo);
-            stopNode(processInfo, 5);
-            throw new IOException("Node " + config.nodeId + " failed to start within "
-                    + PROCESS_START_TIMEOUT_SECONDS + " seconds");
+        if (!waitForPortReady(processInfo, startTimeoutSeconds)) {
+            stopNode0(processInfo, 5);
+            return null;
         }
 
         log.info("Node {} is ready on replicate port {}", config.nodeId, config.replicatePort);
@@ -123,7 +134,7 @@ public class BootstrapProcessManager {
     /**
      * Wait for process to be ready
      */
-    public boolean waitForReady(ProcessInfo processInfo, long timeoutSeconds) throws InterruptedException {
+    private boolean waitForPortReady(ProcessInfo processInfo, long timeoutSeconds) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
 
         // First check if process is alive
@@ -134,8 +145,8 @@ public class BootstrapProcessManager {
                 return false;
             }
 
-            // Check if port is ready
-            if (isPortListening(processInfo.config.replicatePort)) {
+            // Check if both replicate port AND service port are ready
+            if (isPortListening(processInfo.config.replicatePort) && isPortListening(processInfo.config.servicePort)) {
                 return true;
             }
 
@@ -156,16 +167,19 @@ public class BootstrapProcessManager {
         }
     }
 
-    public void stopNode(ProcessInfo processInfo) {
-        stopNode(processInfo, GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS);
+    public boolean stopNode(ProcessInfo processInfo, long timeoutSeconds) {
+        boolean r = stopNode0(processInfo, timeoutSeconds);
+        processes.remove(processInfo);
+        return r;
     }
 
     /**
      * Stop a specific node
      */
-    private void stopNode(ProcessInfo processInfo, long timeoutSeconds) {
-        if (processInfo == null || !processInfo.process.isAlive()) {
-            return;
+    private boolean stopNode0(ProcessInfo processInfo, long timeoutSeconds) {
+        if (!processInfo.process.isAlive()) {
+            log.warn("node {} is not alive", processInfo.config.nodeId);
+            return false;
         }
 
         log.info("Stopping node {}", processInfo.config.nodeId);
@@ -178,51 +192,60 @@ public class BootstrapProcessManager {
             if (exited) {
                 int exitCode = processInfo.process.exitValue();
                 log.info("Node {} terminated with exit code {}", processInfo.config.nodeId, exitCode);
+                return true;
             } else {
                 // Force kill
                 log.warn("Node {} did not exit gracefully, forcing termination", processInfo.config.nodeId);
                 processInfo.process.destroyForcibly();
-                processInfo.process.waitFor(5, TimeUnit.SECONDS);
+                return processInfo.process.waitFor(10, TimeUnit.SECONDS);
             }
         } catch (InterruptedException e) {
             log.warn("Interrupted while stopping node {}", processInfo.config.nodeId, e);
             Thread.currentThread().interrupt();
+            return false;
         }
     }
 
     /**
      * Stop a specific node
      */
-    public void forceStopNode(ProcessInfo processInfo) {
+    public boolean forceStopNode(ProcessInfo processInfo) {
         if (processInfo == null || !processInfo.process.isAlive()) {
-            return;
+            return false;
         }
         log.info("Force stopping node {}", processInfo.config.nodeId);
         try {
             // Force kill
             processInfo.process.destroyForcibly();
-            processInfo.process.waitFor(5, TimeUnit.SECONDS);
+            return processInfo.process.waitFor(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             log.warn("Interrupted while stopping node {}", processInfo.config.nodeId, e);
             Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            processes.remove(processInfo);
         }
     }
 
     /**
      * Stop all nodes
      */
-    public void stopAllNodes() {
+    public boolean stopAllNodes(long timeoutSeconds) {
         log.info("Stopping all {} nodes", processes.size());
+        boolean fail = false;
         for (ProcessInfo processInfo : processes) {
-            stopNode(processInfo);
+            if(!stopNode(processInfo, timeoutSeconds)){
+                fail = true;
+            }
         }
         processes.clear();
+        return !fail;
     }
 
     /**
      * Restart a node gracefully (stop then start)
      */
-    public ProcessInfo restartNode(ProcessInfo processInfo, long timeoutSeconds) throws IOException, InterruptedException {
+    public boolean restartNode(ProcessInfo processInfo, long timeoutSeconds) throws IOException, InterruptedException {
         if (processInfo == null) {
             throw new IllegalArgumentException("ProcessInfo cannot be null");
         }
@@ -230,36 +253,33 @@ public class BootstrapProcessManager {
         int nodeId = processInfo.config.nodeId;
         log.info("Restarting node {}", nodeId);
 
-        // Remove from tracking temporarily
+        // Stop the node gracefully
+        if (!stopNode0(processInfo, timeoutSeconds)) {
+            return false;
+        }
         processes.remove(processInfo);
 
-        // Stop the node gracefully
-        stopNode(processInfo, timeoutSeconds);
-
-        // Wait a bit for ports to be released
-        Thread.sleep(1000);
-
         // Start the node again with the same config
-        ProcessInfo newProcessInfo = startNode(processInfo.config);
+        ProcessInfo newProcessInfo = startNode0(processInfo.config, timeoutSeconds);
+        processes.add(newProcessInfo);
 
         log.info("Node {} restarted successfully", nodeId);
-        return newProcessInfo;
+        return true;
     }
 
     /**
-     * Collect logs from a process
+     * Collect logs from a process (returns file paths since logs are redirected to files)
      */
     public StringBuilder collectLogs(ProcessInfo processInfo) {
         StringBuilder sb = new StringBuilder();
-        sb.append("=== Node ").append(processInfo.config.nodeId).append(" STDOUT ===\n");
-        for (String line : processInfo.stdoutLines) {
-            sb.append(line).append("\n");
-        }
-        sb.append("\n=== Node ").append(processInfo.config.nodeId).append(" STDERR ===\n");
-        for (String line : processInfo.stderrLines) {
-            sb.append(line).append("\n");
-        }
-        log.debug("Collected logs from node {}:\n{}", processInfo.config.nodeId, sb);
+        sb.append("=== Node ").append(processInfo.config.nodeId).append(" Log Files ===\n");
+        sb.append("STDOUT: ").append(processInfo.stdoutFile.getAbsolutePath()).append("\n");
+        sb.append("STDERR: ").append(processInfo.stderrFile.getAbsolutePath()).append("\n");
+        log.debug("Log file locations for node {}:\n{}", processInfo.config.nodeId, sb);
         return sb;
+    }
+
+    public List<ProcessInfo> getProcesses() {
+        return processes;
     }
 }

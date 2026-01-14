@@ -31,7 +31,6 @@ import org.junit.jupiter.api.Timeout;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -78,7 +77,7 @@ public class SimpleRaftGroupIT {
 
         BootstrapProcessManager processManager = new BootstrapProcessManager();
         ClusterValidator validator = null;
-        List<ProcessInfo> startedProcesses = new ArrayList<>();
+        List<ProcessInfo> startedProcesses = processManager.getProcesses();
 
         try {
             log.info("Step 1: Generating configuration files for 3-node cluster with optimized timeouts");
@@ -94,12 +93,11 @@ public class SimpleRaftGroupIT {
 
             log.info("Step 2: Starting all nodes");
             for (ProcessConfig config : configs) {
-                ProcessInfo processInfo = processManager.startNode(config);
-                startedProcesses.add(processInfo);
+                assertTrue(processManager.startNode(config, 10));
                 log.info("Node {} started successfully", config.nodeId);
             }
 
-            // Verify all processes are alive
+            // Verify all startedProcesses are alive
             for (ProcessInfo processInfo : startedProcesses) {
                 assertTrue(processInfo.process.isAlive(),
                         "Process for node " + processInfo.config.nodeId + " should be alive");
@@ -125,17 +123,8 @@ public class SimpleRaftGroupIT {
             validator.waitForClusterConsistency(GROUP_ID, restMembers, 30);
 
             log.info("Step 7: Restarting old leader {} and waiting for cluster convergence", oldLeaderId);
-            ProcessInfo restartedLeader = processManager.restartNode(leader, 30);
-            int leaderIndex = -1;
-            for (int i = 0; i < startedProcesses.size(); i++) {
-                if (startedProcesses.get(i).config.nodeId == oldLeaderId) {
-                    leaderIndex = i;
-                    break;
-                }
-            }
-            if (leaderIndex >= 0) {
-                startedProcesses.set(leaderIndex, restartedLeader);
-            }
+            assertTrue(processManager.startNode(leader.config, 30));
+
 
             log.info("Step 8: Waiting for all nodes to converge (same leader, term, members)");
             validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 60);
@@ -155,13 +144,8 @@ public class SimpleRaftGroupIT {
             }
             final int followerId = followerIdHolder[0];
             ProcessInfo follower = startedProcesses.stream().filter(p -> p.config.nodeId == followerId).findFirst().get();
-            ProcessInfo restartedFollower = processManager.restartNode(follower, 30);
-            for (int i = 0; i < startedProcesses.size(); i++) {
-                if (startedProcesses.get(i).config.nodeId == followerId) {
-                    startedProcesses.set(i, restartedFollower);
-                    break;
-                }
-            }
+            assertTrue(processManager.restartNode(follower, 30));
+
 
             log.info("Step 10: Waiting for follower {} to rejoin and cluster to converge", followerId);
             validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 30);
@@ -189,7 +173,7 @@ public class SimpleRaftGroupIT {
                     log.warn("Error closing validator", e);
                 }
             }
-            processManager.stopAllNodes();
+            assertTrue(processManager.stopAllNodes(10));
             log.info("=== Raft3NodeSimpleIT completed ===");
         }
     }

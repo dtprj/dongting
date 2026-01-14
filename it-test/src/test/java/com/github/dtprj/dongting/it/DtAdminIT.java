@@ -100,7 +100,7 @@ public class DtAdminIT {
                 .build();
 
         for (ProcessConfig config : configs) {
-            processManager.startNode(config);
+            assertTrue(processManager.startNode(config, 10));
             log.info("Node {} started successfully", config.nodeId);
         }
 
@@ -133,7 +133,7 @@ public class DtAdminIT {
         }
 
         if (processManager != null) {
-            processManager.stopAllNodes();
+            assertTrue(processManager.stopAllNodes(10));
         }
 
         log.info("=== Cluster cleanup complete ===");
