@@ -66,6 +66,8 @@ public class ConfigFileGenerator {
         private Long pingInterval;
         private Long watchTimeoutMillis;
 
+        private boolean stressTest;
+
         public ProcessConfigBuilder(int nodeId, Path baseDir, String serversStr, List<GroupDefinition> groups) {
             this.nodeId = nodeId;
             this.baseDir = baseDir;
@@ -100,6 +102,11 @@ public class ConfigFileGenerator {
 
         public ProcessConfigBuilder watchTimeoutMillis(Long watchTimeoutMillis) {
             this.watchTimeoutMillis = watchTimeoutMillis;
+            return this;
+        }
+
+        public ProcessConfigBuilder stressTest(boolean stressTest) {
+            this.stressTest = stressTest;
             return this;
         }
 
@@ -156,10 +163,18 @@ public class ConfigFileGenerator {
             for (GroupDefinition group : groups) {
                 serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
                 serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);
-                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxItemsPerFile", String.valueOf(protoType.idxItemsPerFile / 64));
-                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxCacheSize", String.valueOf(protoType.idxCacheSize / 64));
-                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxFlushThreshold", String.valueOf(protoType.idxFlushThreshold / 64));
-                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".logFileSize", String.valueOf(protoType.logFileSize / 64));
+                if (stressTest) {
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".saveSnapshotSeconds", "60");
+                } else {
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxItemsPerFile",
+                            String.valueOf(protoType.idxItemsPerFile / 64));
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxCacheSize",
+                            String.valueOf(protoType.idxCacheSize / 64));
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxFlushThreshold",
+                            String.valueOf(protoType.idxFlushThreshold / 64));
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".logFileSize",
+                            String.valueOf(protoType.logFileSize / 64));
+                }
                 if (watchTimeoutMillis != null) {
                     serversProps.setProperty("group." + group.groupId + ".watchTimeoutMillis", String.valueOf(watchTimeoutMillis));
                 }
@@ -192,6 +207,8 @@ public class ConfigFileGenerator {
         private Long heartbeatInterval;
         private Long pingInterval;
         private Long watchTimeoutMillis;
+
+        private boolean stressTest;
 
         public ClusterConfigBuilder(int[] memberIds, int groupId, Path baseDir) {
             this.memberIds = memberIds;
@@ -231,6 +248,11 @@ public class ConfigFileGenerator {
 
         public ClusterConfigBuilder watchTimeoutMillis(Long watchTimeoutMillis) {
             this.watchTimeoutMillis = watchTimeoutMillis;
+            return this;
+        }
+
+        public ClusterConfigBuilder stressTest(boolean stressTest) {
+            this.stressTest = stressTest;
             return this;
         }
 
@@ -286,6 +308,7 @@ public class ConfigFileGenerator {
                     .heartbeatInterval(heartbeatInterval)
                     .pingInterval(pingInterval)
                     .watchTimeoutMillis(watchTimeoutMillis)
+                    .stressTest(stressTest)
                     .build();
         }
     }
