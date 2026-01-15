@@ -104,7 +104,67 @@ public class ConfigFileGenerator {
         }
 
         public ProcessConfig build() throws IOException {
-            return generateNodeConfig(this);
+            int replicatePort = ItUtil.replicatePort(nodeId);
+            int servicePort = ItUtil.servicePort(nodeId);
+            // Create node directory
+            File nodeDir = baseDir.resolve("node" + nodeId).toFile();
+            if (!nodeDir.exists() && !nodeDir.mkdirs()) {
+                throw new IOException("Failed to create node directory: " + nodeDir);
+            }
+
+            File dataDir = new File(nodeDir, "data");
+
+            // Create config.properties
+            File configFile = new File(nodeDir, "config.properties");
+            Properties configProps = new Properties();
+            configProps.setProperty("nodeId", String.valueOf(nodeId));
+            configProps.setProperty("replicatePort", String.valueOf(replicatePort));
+            configProps.setProperty("servicePort", String.valueOf(servicePort));
+            configProps.setProperty("dataDir", dataDir.getAbsolutePath());
+
+            // Add custom timeout settings if provided
+            if (electTimeout != null) {
+                configProps.setProperty("electTimeout", String.valueOf(electTimeout));
+            }
+            if (rpcTimeout != null) {
+                configProps.setProperty("rpcTimeout", String.valueOf(rpcTimeout));
+            }
+            if (connectTimeout != null) {
+                configProps.setProperty("connectTimeout", String.valueOf(connectTimeout));
+            }
+            if (heartbeatInterval != null) {
+                configProps.setProperty("heartbeatInterval", String.valueOf(heartbeatInterval));
+            }
+            if (pingInterval != null) {
+                configProps.setProperty("pingInterval", String.valueOf(pingInterval));
+            }
+
+            writeConfigFile(configProps, configFile);
+
+            // Create servers.properties
+            File serversFile = new File(nodeDir, "servers.properties");
+            Properties serversProps = generateServersProperties();
+            writeConfigFile(serversProps, serversFile);
+
+            return new ProcessConfig(nodeId, nodeDir, configFile, serversFile, replicatePort, servicePort);
+        }
+
+        private Properties generateServersProperties() {
+            Properties serversProps = new Properties();
+            serversProps.setProperty("servers", serversStr);
+            RaftGroupConfigEx protoType = new RaftGroupConfigEx(0, "", "");
+            for (GroupDefinition group : groups) {
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxItemsPerFile", String.valueOf(protoType.idxItemsPerFile / 64));
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxCacheSize", String.valueOf(protoType.idxCacheSize / 64));
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxFlushThreshold", String.valueOf(protoType.idxFlushThreshold / 64));
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".logFileSize", String.valueOf(protoType.logFileSize / 64));
+                if (watchTimeoutMillis != null) {
+                    serversProps.setProperty("group." + group.groupId + ".watchTimeoutMillis", String.valueOf(watchTimeoutMillis));
+                }
+            }
+            return serversProps;
         }
     }
 
@@ -228,73 +288,6 @@ public class ConfigFileGenerator {
                     .watchTimeoutMillis(watchTimeoutMillis)
                     .build();
         }
-    }
-
-    /**
-     * Generate configuration files for a single node
-     */
-    private static ProcessConfig generateNodeConfig(ProcessConfigBuilder builder) throws IOException {
-        int replicatePort = ItUtil.replicatePort(builder.nodeId);
-        int servicePort = ItUtil.servicePort(builder.nodeId);
-        // Create node directory
-        File nodeDir = builder.baseDir.resolve("node" + builder.nodeId).toFile();
-        if (!nodeDir.exists() && !nodeDir.mkdirs()) {
-            throw new IOException("Failed to create node directory: " + nodeDir);
-        }
-
-        File dataDir = new File(nodeDir, "data");
-
-        // Create config.properties
-        File configFile = new File(nodeDir, "config.properties");
-        Properties configProps = new Properties();
-        configProps.setProperty("nodeId", String.valueOf(builder.nodeId));
-        configProps.setProperty("replicatePort", String.valueOf(replicatePort));
-        configProps.setProperty("servicePort", String.valueOf(servicePort));
-        configProps.setProperty("dataDir", dataDir.getAbsolutePath());
-
-        // Add custom timeout settings if provided
-        if (builder.electTimeout != null) {
-            configProps.setProperty("electTimeout", String.valueOf(builder.electTimeout));
-        }
-        if (builder.rpcTimeout != null) {
-            configProps.setProperty("rpcTimeout", String.valueOf(builder.rpcTimeout));
-        }
-        if (builder.connectTimeout != null) {
-            configProps.setProperty("connectTimeout", String.valueOf(builder.connectTimeout));
-        }
-        if (builder.heartbeatInterval != null) {
-            configProps.setProperty("heartbeatInterval", String.valueOf(builder.heartbeatInterval));
-        }
-        if (builder.pingInterval != null) {
-            configProps.setProperty("pingInterval", String.valueOf(builder.pingInterval));
-        }
-
-        writeConfigFile(configProps, configFile);
-
-        // Create servers.properties
-        File serversFile = new File(nodeDir, "servers.properties");
-        Properties serversProps = generateServersProperties(builder, builder.groups);
-        writeConfigFile(serversProps, serversFile);
-
-        return new ProcessConfig(builder.nodeId, nodeDir, configFile, serversFile, replicatePort, servicePort);
-    }
-
-    private static Properties generateServersProperties(ProcessConfigBuilder builder, List<GroupDefinition> groups) {
-        Properties serversProps = new Properties();
-        serversProps.setProperty("servers", builder.serversStr);
-        RaftGroupConfigEx protoType = new RaftGroupConfigEx(0, "", "");
-        for (GroupDefinition group : groups) {
-            serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
-            serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);
-            serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxItemsPerFile", String.valueOf(protoType.idxItemsPerFile / 64));
-            serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxCacheSize", String.valueOf(protoType.idxCacheSize / 64));
-            serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxFlushThreshold", String.valueOf(protoType.idxFlushThreshold / 64));
-            serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".logFileSize", String.valueOf(protoType.logFileSize / 64));
-            if (builder.watchTimeoutMillis != null) {
-                serversProps.setProperty("group." + group.groupId + ".watchTimeoutMillis", String.valueOf(builder.watchTimeoutMillis));
-            }
-        }
-        return serversProps;
     }
 
     /**
