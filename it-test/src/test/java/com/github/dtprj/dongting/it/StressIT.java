@@ -95,12 +95,16 @@ public class StressIT {
     @Timeout(value = 365, unit = TimeUnit.DAYS)
     void test() throws Exception {
         String s = System.getProperty("stressMode");
+        if (s == null) {
+            // default not run
+            return;
+        }
         if (s.equals("quick")) {
             runStressTest(true);
         } else if (s.equals("full")) {
             runStressTest(false);
         }
-        // default not run
+
     }
 
     private void runStressTest(boolean quickMode) throws Exception {
@@ -132,7 +136,7 @@ public class StressIT {
             // Step 1: Generate configuration and start cluster
             log.info("Step 1: Starting 3-node cluster");
             List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(MEMBER_IDS, GROUP_ID, baseDirPath)
-                    .stressTest(true)
+                    .stressTest(quickMode ? false : true)
                     .build();
 
             for (ProcessConfig config : configs) {
