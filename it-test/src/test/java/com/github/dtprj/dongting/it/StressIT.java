@@ -38,7 +38,6 @@ import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.test.TestDir;
 import com.github.dtprj.dongting.test.Tick;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -92,22 +91,16 @@ public class StressIT {
     private final AtomicBoolean stop = new AtomicBoolean();
     private FaultInjectionScheduler faultInjector;
 
-    @Disabled("Long-running stress test, enable manually")
     @Test
     @Timeout(value = 365, unit = TimeUnit.DAYS)
-    void testLinearizabilityUnderExtremePressure() throws Exception {
-        runStressTest(false);
-    }
-
-    /**
-     * Quick validation test (5 minutes) to verify basic functionality.
-     * This test is NOT disabled and can be used for CI/CD pipelines.
-     */
-    @Test
-    @Timeout(value = 10, unit = TimeUnit.MINUTES)
-    void testLinearizabilityQuickValidation() throws Exception {
-        log.info("Running quick validation test (5 minutes)");
-        runStressTest(true);
+    void test() throws Exception {
+        String s = System.getProperty("stressMode");
+        if (s.equals("quick")) {
+            runStressTest(true);
+        } else if (s.equals("full")) {
+            runStressTest(false);
+        }
+        // default not run
     }
 
     private void runStressTest(boolean quickMode) throws Exception {
