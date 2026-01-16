@@ -90,64 +90,71 @@ class KvImpl {
     }
 
     static KvResult checkExistNode(KvNodeHolder h, KvImpl.OpContext ctx) {
+        KvNodeEx latest = h == null ? null : h.latest;
         switch (ctx.bizType) {
             case DtKV.BIZ_TYPE_PUT:
             case DtKV.BIZ_TYPE_MKDIR:
             case DtKV.BIZ_TYPE_BATCH_PUT:
             case DtKV.BIZ_TYPE_CAS:
-                if (h == null || h.latest.removed) {
+                if (h == null || latest.removed) {
                     return null;
                 }
-                if (h.latest.ttlInfo != null) {
+                if (latest.ttlInfo != null) {
                     return new KvResult(KvCodes.IS_TEMP_NODE);
                 }
                 return null;
             case DtKV.BIZ_TYPE_REMOVE:
             case DtKV.BIZ_TYPE_BATCH_REMOVE:
-                if (h == null || h.latest.removed) {
+                if (h == null || latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
-                if (h.latest.ttlInfo != null && !h.latest.ttlInfo.owner.equals(ctx.operator)) {
+                if (latest.ttlInfo != null && !latest.ttlInfo.owner.equals(ctx.operator)) {
                     return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
             case DtKV.BIZ_TYPE_UPDATE_TTL:
-                if (h == null || h.latest.removed) {
+                if (h == null || latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
-                if (h.latest.ttlInfo == null) {
+                if (latest.ttlInfo == null) {
                     return new KvResult(KvCodes.NOT_TEMP_NODE);
                 }
-                if (!h.latest.ttlInfo.owner.equals(ctx.operator)) {
+                if (!latest.ttlInfo.owner.equals(ctx.operator)) {
                     return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
             case DtKV.BIZ_MK_TEMP_DIR:
             case DtKV.BIZ_TYPE_PUT_TEMP_NODE:
-                if (h == null || h.latest.removed) {
+                if (h == null || latest.removed) {
                     return null;
                 }
-                if (h.latest.ttlInfo == null) {
+                if (latest.ttlInfo == null) {
                     return new KvResult(KvCodes.NOT_TEMP_NODE);
                 }
-                if (!h.latest.ttlInfo.owner.equals(ctx.operator)) {
+                if (!latest.ttlInfo.owner.equals(ctx.operator)) {
                     return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
             case DtKV.BIZ_TYPE_TRY_LOCK:
-                if (h == null || h.latest.removed) {
+                if (h == null || latest.removed) {
                     return null;
                 }
-                if ((h.latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
+                if ((latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
+                    return new KvResult(KvCodes.NOT_LOCK_NODE);
+                }
+                if ((latest.flag & KvNode.FLAG_DIR_MASK) == 0) {
                     return new KvResult(KvCodes.NOT_LOCK_NODE);
                 }
                 return null;
             case DtKV.BIZ_TYPE_UNLOCK:
             case DtKV.BIZ_TYPE_UPDATE_LOCK_LEASE:
-                if (h == null || h.latest.removed) {
+                if (h == null || latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
-                if ((h.latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
+                if ((latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
+                    return new KvResult(KvCodes.NOT_LOCK_NODE);
+                }
+                if ((latest.flag & KvNode.FLAG_DIR_MASK) == 0) {
                     return new KvResult(KvCodes.NOT_LOCK_NODE);
                 }
                 return null;
