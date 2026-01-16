@@ -167,11 +167,7 @@ class TtlManager {
         TtlInfo ttlInfo = new TtlInfo(key, raftIndex, ctx.operator, ctx.leaderCreateTimeMillis, ctx.ttlMillis,
                 ctx.localCreateNanos + ctx.ttlMillis * 1_000_000, ttlInfoIndex++);
         n.ttlInfo = ttlInfo;
-
-        // assert not in ttl queue and pending queue pending queue
-        if (!ttlQueue.add(ttlInfo)) {
-            BugLog.getLog().error("TtlInfo exists {}, {}", key, ttlInfo.raftIndex);
-        }
+        ttlQueue.add(ttlInfo);
         return ttlQueue.first() == ttlInfo;
     }
 
