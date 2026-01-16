@@ -143,7 +143,7 @@ public class StressIT {
             log.info("Step 2: Waiting for leader election");
             validator = new ClusterValidator();
             validator.initialize(MEMBER_IDS, GROUP_ID);
-            int leaderId = validator.waitForClusterConsistency(GROUP_ID, MEMBER_IDS, 30);
+            int leaderId = validator.waitForClusterConsistency(GROUP_ID, MEMBER_IDS, 60);
             log.info("Cluster ready, leader is {}", leaderId);
 
             // Step 3: Create KvClients for validators

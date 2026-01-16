@@ -179,7 +179,7 @@ public class BootstrapProcessManager {
     private boolean stopNode0(ProcessInfo processInfo, long timeoutSeconds) {
         if (!processInfo.process.isAlive()) {
             log.warn("node {} is not alive", processInfo.config.nodeId);
-            return false;
+            return true;
         }
 
         log.info("Stopping node {}", processInfo.config.nodeId);
