@@ -136,7 +136,7 @@ public class StressIT {
             // Step 1: Generate configuration and start cluster
             log.info("Step 1: Starting 3-node cluster");
             List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(MEMBER_IDS, GROUP_ID, baseDirPath)
-                    .stressTest(quickMode ? false : true)
+                    .stressTest(!quickMode)
                     .build();
 
             for (ProcessConfig config : configs) {

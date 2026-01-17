@@ -154,6 +154,8 @@ public class SimpleStressIT {
                     dtKvTests.stop();
                 }
             }
+
+            validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 30);
         } catch (Throwable e) {
             log.error("Test failed with exception", e);
 

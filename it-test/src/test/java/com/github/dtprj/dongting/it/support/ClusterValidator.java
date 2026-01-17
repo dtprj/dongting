@@ -97,37 +97,36 @@ public class ClusterValidator {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
         int attemptCount = 0;
 
+        Map<Integer, QueryStatusResp> allStatus = null;
         while (System.nanoTime() - deadline < 0) {
             attemptCount++;
 
             try {
-                Map<Integer, QueryStatusResp> allStatus = queryAllNodeStatus(groupId, nodeIds);
-
-                if (validateFullConsistency(allStatus) && allStatus.size() == nodeIds.length) {
-                    QueryStatusResp sample = allStatus.values().iterator().next();
-                    log.info("Cluster consistency achieved: leaderId={}, term={}, members={}",
-                            sample.leaderId, sample.term, sample.members);
-                    return allStatus.values().iterator().next().leaderId;
-                } else {
-                    if (attemptCount % 100 == 0) {
-                        log.info("Cluster consistency validation failed, attempt {}", attemptCount);
-                    }
-                }
-
+                allStatus = queryAllNodeStatus(groupId, nodeIds);
             } catch (Exception e) {
                 log.info("Failed to query status (attempt {}): {}", attemptCount, e.getMessage());
             }
-
+            if (validateFullConsistency(allStatus) && allStatus.size() == nodeIds.length) {
+                QueryStatusResp sample = allStatus.values().iterator().next();
+                log.info("Cluster consistency achieved: leaderId={}, term={}, members={}",
+                        sample.leaderId, sample.term, sample.members);
+                return allStatus.values().iterator().next().leaderId;
+            } else {
+                if (attemptCount % 100 == 0) {
+                    log.info("Cluster consistency validation failed, attempt {}", attemptCount);
+                }
+            }
             Thread.sleep(QUERY_RETRY_INTERVAL_MS);
         }
 
-        Map<Integer, QueryStatusResp> finalStatus = queryAllNodeStatus(groupId, nodeIds);
-        log.error("Cluster consistency timeout after {} attempts. Final status:", attemptCount);
-        for (Map.Entry<Integer, QueryStatusResp> entry : finalStatus.entrySet()) {
-            QueryStatusResp status = entry.getValue();
-            log.error("  Node {}: leaderId={}, term={}, groupReady={}, members={}, observers={}",
-                    entry.getKey(), status.leaderId, status.term, status.isGroupReady(),
-                    status.members, status.observers);
+        log.error("Cluster consistency timeout after {} attempts.", attemptCount);
+        if (allStatus != null) {
+            for (Map.Entry<Integer, QueryStatusResp> entry : allStatus.entrySet()) {
+                QueryStatusResp status = entry.getValue();
+                log.error("  Node {}: leaderId={}, term={}, groupReady={}, members={}, observers={}",
+                        entry.getKey(), status.leaderId, status.term, status.isGroupReady(),
+                        status.members, status.observers);
+            }
         }
 
         throw new RuntimeException("Cluster consistency timeout after " + timeoutSeconds + " seconds");
