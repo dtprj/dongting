@@ -41,12 +41,12 @@ public interface KvCodes {
     int NOT_OWNER = 18;
     int NOT_TEMP_NODE = 19;
     int IS_TEMP_NODE = 20;
-    int NOT_EXPIRED = 21;
-    int INVALID_TTL = 22;
-    int TTL_INDEX_MISMATCH = 23;
-    int UNDER_TEMP_DIR = 24;
-    int PARENT_IS_LOCK = 25;
-    int NOT_LOCK_NODE = 26;
+    int INVALID_TTL = 21;
+    int TTL_INDEX_MISMATCH = 22;
+    int UNDER_TEMP_DIR = 23;
+    int PARENT_IS_LOCK = 24;
+    int NOT_LOCK_NODE = 25;
+    int IS_LOCK_NODE = 26;
     int LOCK_BY_SELF = 27;
     int LOCK_BY_OTHER = 28;
 
@@ -95,8 +95,6 @@ public interface KvCodes {
                 return "NOT_TEMP_NODE";
             case IS_TEMP_NODE:
                 return "IS_TEMP_NODE";
-            case NOT_EXPIRED:
-                return "NOT_EXPIRED";
             case INVALID_TTL:
                 return "INVALID_TTL";
             case TTL_INDEX_MISMATCH:
@@ -107,6 +105,8 @@ public interface KvCodes {
                 return "PARENT_IS_LOCK";
             case NOT_LOCK_NODE:
                 return "NOT_LOCK_NODE";
+            case IS_LOCK_NODE:
+                return "IS_LOCK_NODE";
             case LOCK_BY_SELF:
                 return "LOCK_BY_SELF";
             case LOCK_BY_OTHER:
