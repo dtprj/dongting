@@ -62,6 +62,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public KvClient() {
         this(new KvClientConfig(), new RaftClientConfig(), new NioClientConfig());
+        raftClient.getNioClient().getConfig().name = "KvClient";
     }
 
     public KvClient(KvClientConfig config, RaftClientConfig raftClientConfig,

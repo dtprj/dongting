@@ -54,6 +54,7 @@ public class AdminRaftClient extends RaftClient {
 
     public AdminRaftClient() {
         this(new RaftClientConfig(), new NioClientConfig());
+        nioClient.getConfig().name = "AdminRaftClient";
     }
 
     public AdminRaftClient(RaftClientConfig raftClientConfig, NioClientConfig nioClientConfig) {

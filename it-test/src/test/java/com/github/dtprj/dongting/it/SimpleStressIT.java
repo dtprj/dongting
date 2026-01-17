@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.it;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
-import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
 import com.github.dtprj.dongting.it.support.ClusterValidator;
@@ -27,8 +26,6 @@ import com.github.dtprj.dongting.it.support.DtKvValidator;
 import com.github.dtprj.dongting.it.support.ItUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.NioClientConfig;
-import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.test.TestDir;
 import com.github.dtprj.dongting.test.Tick;
 import org.junit.jupiter.api.Test;
@@ -120,12 +117,12 @@ public class SimpleStressIT {
 
             log.info("Step 4: Creating KvClient");
             kvClient = createKvClient();
-            final KvClient finalKvClient = kvClient;
 
             log.info("Step 5: Starting stress threads");
             stressExecutor = Executors.newFixedThreadPool(THREAD_COUNT);
             for (int i = 0; i < THREAD_COUNT; i++) {
                 final int taskId = i;
+                final KvClient finalKvClient = kvClient;
                 stressExecutor.submit(() -> stressTask(finalKvClient, taskId, stressLatch));
             }
             log.info("Started {} stress threads", THREAD_COUNT);
@@ -214,11 +211,7 @@ public class SimpleStressIT {
     }
 
     private KvClient createKvClient() {
-        RaftClientConfig raftClientConfig = new RaftClientConfig();
-
-        KvClientConfig kvClientConfig = new KvClientConfig();
-
-        KvClient client = new KvClient(kvClientConfig, raftClientConfig, new NioClientConfig());
+        KvClient client = new KvClient();
 
         client.start();
 
