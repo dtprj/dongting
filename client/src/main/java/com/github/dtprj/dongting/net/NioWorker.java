@@ -158,6 +158,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 tempList.add(dtc);
             });
             for (DtChannelImpl dtc : tempList) {
+                if (dtc.peer != null) {
+                    dtc.peer.shouldAutoReconnect = false;
+                }
                 close(dtc);
             }
 
@@ -732,7 +735,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanOutgoingTimeoutConnect(Timestamp roundStartTime) {
-        boolean close = status >= STATUS_PREPARE_STOP;
+        boolean close = status >= STATUS_STOPPING;
         for (Iterator<ConnectInfo> it = this.outgoingConnects.iterator(); it.hasNext(); ) {
             ConnectInfo ci = it.next();
             if (close || ci.deadline.isTimeout(roundStartTime)) {
