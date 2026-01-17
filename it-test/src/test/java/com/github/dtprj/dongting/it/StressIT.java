@@ -28,9 +28,9 @@ import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
 import com.github.dtprj.dongting.it.support.FaultInjectionScheduler;
 import com.github.dtprj.dongting.it.support.ItUtil;
-import com.github.dtprj.dongting.it.support.LockExclusivityValidator;
-import com.github.dtprj.dongting.it.support.TransactionAtomicityValidator;
-import com.github.dtprj.dongting.it.support.WriteReadValidator;
+import com.github.dtprj.dongting.it.support.StressLockValidator;
+import com.github.dtprj.dongting.it.support.StressRwValidator;
+import com.github.dtprj.dongting.it.support.StressTxValidator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClientConfig;
@@ -186,10 +186,10 @@ public class StressIT {
 
             int clientIndex = 0;
 
-            // Start WriteReadValidators
+            // Start StressRwValidator
             List<Thread> writeReadValidatorThreads = new ArrayList<>();
             for (int i = 0; i < WRITE_READ_VALIDATOR_THREADS; i++) {
-                WriteReadValidator wrValidator = new WriteReadValidator(
+                StressRwValidator wrValidator = new StressRwValidator(
                         i, GROUP_ID, VALIDATOR_KEY_SPACE, kvClients.get(clientIndex++),
                         validatorStartLatch, writeReadVerifyCount, writeReadViolationCount, writeReadFailureCount, stop);
                 Thread t = new Thread(wrValidator);
@@ -197,11 +197,11 @@ public class StressIT {
                 writeReadValidatorThreads.add(t);
             }
 
-            // Start LockExclusivityValidators (in pairs)
+            // Start StressLockValidator (in pairs)
             List<Thread> lockValidatorThreads = new ArrayList<>();
             for (int i = 0; i < LOCK_VALIDATOR_PAIRS; i++) {
                 for (int j = 0; j < 2; j++) {
-                    LockExclusivityValidator lockValidator = new LockExclusivityValidator(
+                    StressLockValidator lockValidator = new StressLockValidator(
                             i, j, GROUP_ID, LOCK_LEASE_MILLIS, kvClients.get(clientIndex++),
                             validatorStartLatch, lockVerifyCount, lockConflictCount, lockFailureCount, stop);
                     Thread t = new Thread(lockValidator);
@@ -210,11 +210,11 @@ public class StressIT {
                 }
             }
 
-            // Start TransactionAtomicityValidators (half writers, half readers)
+            // Start StressTxValidator (half writers, half readers)
             List<Thread> txnValidatorThreads = new ArrayList<>();
             for (int i = 0; i < TRANSACTION_VALIDATOR_THREADS; i++) {
                 boolean isWriter = (i % 2 == 0);
-                TransactionAtomicityValidator txnValidator = new TransactionAtomicityValidator(
+                StressTxValidator txnValidator = new StressTxValidator(
                         i, GROUP_ID, TRANSACTION_OPERATION_COUNT, LOCK_LEASE_MILLIS, isWriter,
                         kvClients.get(clientIndex++), validatorStartLatch, txnVerifyCount,
                         txnViolationCount, txnFailureCount, stop);

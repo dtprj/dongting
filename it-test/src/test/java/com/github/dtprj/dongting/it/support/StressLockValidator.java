@@ -34,8 +34,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author huangli
  */
-public class LockExclusivityValidator implements Runnable {
-    private static final DtLog log = DtLogs.getLogger(LockExclusivityValidator.class);
+public class StressLockValidator implements Runnable {
+    private static final DtLog log = DtLogs.getLogger(StressLockValidator.class);
     private static final String PREFIX = "StressIT.Lock";
 
     private final int pairId;
@@ -51,10 +51,10 @@ public class LockExclusivityValidator implements Runnable {
 
     private final Random random = new Random();
 
-    public LockExclusivityValidator(int pairId, int clientId, int groupId, long lockLeaseMillis,
-                                    KvClient client, CountDownLatch startLatch,
-                                    AtomicLong verifyCount, AtomicLong conflictCount,
-                                    AtomicLong failureCount, AtomicBoolean stop) {
+    public StressLockValidator(int pairId, int clientId, int groupId, long lockLeaseMillis,
+                               KvClient client, CountDownLatch startLatch,
+                               AtomicLong verifyCount, AtomicLong conflictCount,
+                               AtomicLong failureCount, AtomicBoolean stop) {
         this.pairId = pairId;
         this.clientId = clientId;
         this.groupId = groupId;

@@ -36,8 +36,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author huangli
  */
-public class TransactionAtomicityValidator implements Runnable {
-    private static final DtLog log = DtLogs.getLogger(TransactionAtomicityValidator.class);
+public class StressTxValidator implements Runnable {
+    private static final DtLog log = DtLogs.getLogger(StressTxValidator.class);
     private static final String PREFIX = "StressIT.Txn";
 
     private final int threadId;
@@ -55,10 +55,10 @@ public class TransactionAtomicityValidator implements Runnable {
     private final Random random = new Random();
     private long txnIdCounter = 0;
 
-    public TransactionAtomicityValidator(int threadId, int groupId, int operationCount,
-                                         long lockLeaseMillis, boolean isWriter, KvClient client,
-                                         CountDownLatch startLatch, AtomicLong verifyCount,
-                                         AtomicLong violationCount, AtomicLong failureCount, AtomicBoolean stop) {
+    public StressTxValidator(int threadId, int groupId, int operationCount,
+                             long lockLeaseMillis, boolean isWriter, KvClient client,
+                             CountDownLatch startLatch, AtomicLong verifyCount,
+                             AtomicLong violationCount, AtomicLong failureCount, AtomicBoolean stop) {
         this.threadId = threadId;
         this.groupId = groupId;
         this.operationCount = operationCount;

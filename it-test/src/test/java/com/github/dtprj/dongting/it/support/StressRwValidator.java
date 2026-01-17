@@ -34,8 +34,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author huangli
  */
-public class WriteReadValidator implements Runnable {
-    private static final DtLog log = DtLogs.getLogger(WriteReadValidator.class);
+public class StressRwValidator implements Runnable {
+    private static final DtLog log = DtLogs.getLogger(StressRwValidator.class);
     private static final String PREFIX = "StressIT.WR";
 
     private final int threadId;
@@ -62,9 +62,9 @@ public class WriteReadValidator implements Runnable {
         }
     }
 
-    public WriteReadValidator(int threadId, int groupId, int keySpace, KvClient client,
-                              CountDownLatch startLatch, AtomicLong verifyCount,
-                              AtomicLong violationCount, AtomicLong failureCount, AtomicBoolean stop) {
+    public StressRwValidator(int threadId, int groupId, int keySpace, KvClient client,
+                             CountDownLatch startLatch, AtomicLong verifyCount,
+                             AtomicLong violationCount, AtomicLong failureCount, AtomicBoolean stop) {
         this.threadId = threadId;
         this.groupId = groupId;
         this.keySpace = keySpace;
