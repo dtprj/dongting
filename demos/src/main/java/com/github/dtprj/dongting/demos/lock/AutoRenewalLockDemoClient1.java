@@ -30,12 +30,12 @@ public class AutoRenewalLockDemoClient1 extends DemoClientBase implements GroupI
 
     static final AutoRenewalLockListener listener = new AutoRenewalLockListener() {
         @Override
-        public void onAcquired() {
+        public void onAcquired(AutoRenewalLock lock) {
             System.out.println("lock acquired");
         }
 
         @Override
-        public void onLost() {
+        public void onLost(AutoRenewalLock lock) {
             System.out.println("lock lost");
         }
     };

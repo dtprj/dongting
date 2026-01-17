@@ -156,10 +156,10 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
                 locked = newLocked;
                 if (newLocked) {
                     log.info("get lock: {}", lock.key);
-                    listener.onAcquired();
+                    listener.onAcquired(this);
                 } else {
                     log.info("lost lock: {}", lock.key);
-                    listener.onLost();
+                    listener.onLost(this);
                 }
             }
         } catch (Throwable e) {

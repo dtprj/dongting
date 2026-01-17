@@ -59,12 +59,12 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         final AtomicInteger lostCount = new AtomicInteger(0);
 
         @Override
-        public void onAcquired() {
+        public void onAcquired(AutoRenewalLock lock) {
             acquiredCount.incrementAndGet();
         }
 
         @Override
-        public void onLost() {
+        public void onLost(AutoRenewalLock lock) {
             lostCount.incrementAndGet();
         }
     }
@@ -245,8 +245,8 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
     void testRestLeaseTooSmall() {
         Listener listener = new Listener(){
             @Override
-            public void onLost() {
-                super.onLost();
+            public void onLost(AutoRenewalLock lock) {
+                super.onLost(lock);
                 client1.autoRenewalMinValidLeaseMillis = 1;
             }
         };
