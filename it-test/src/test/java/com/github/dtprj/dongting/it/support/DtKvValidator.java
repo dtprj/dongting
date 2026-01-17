@@ -119,7 +119,7 @@ public class DtKvValidator {
     /**
      * Test basic KV operations: put, get, remove
      */
-    public void testBasicKvOperations() {
+    private void testBasicKvOperations() {
         log.debug("=== Testing basic KV operations ===");
 
         // Test put and get
@@ -146,7 +146,7 @@ public class DtKvValidator {
     /**
      * Test directory operations: mkdir, list
      */
-    public void testDirectoryOperations() {
+    private void testDirectoryOperations() {
         log.debug("=== Testing directory operations ===");
 
         // Test mkdir dir first (first level directory)
@@ -185,7 +185,7 @@ public class DtKvValidator {
     /**
      * Test temporary node: putTemp and automatic expiration
      */
-    public void testTemporaryNode(long tempTtlMillis) {
+    private void testTemporaryNode(long tempTtlMillis) {
         log.debug("=== Testing temporary node ===");
 
 
@@ -208,7 +208,7 @@ public class DtKvValidator {
     /**
      * Test batch operations: batchPut, batchGet, batchRemove
      */
-    public void testBatchOperations() {
+    private void testBatchOperations() {
         log.debug("=== Testing batch operations ===");
 
         // Prepare test data
@@ -252,7 +252,7 @@ public class DtKvValidator {
     /**
      * Test compare and set (CAS) operation
      */
-    public void testCompareAndSet() {
+    private void testCompareAndSet() {
         log.debug("=== Testing CAS operation ===");
 
         byte[] key = key("casKey1");
@@ -298,7 +298,7 @@ public class DtKvValidator {
     /**
      * Test distributed lock with two clients competing for same lock
      */
-    public void testDistributedLock(long shortLeaseMillis) {
+    private void testDistributedLock(long shortLeaseMillis) {
         log.debug("=== Testing distributed lock ===");
         final byte[] lockKey = key("lockKey1");
         final long leaseMillis = tick(shortLeaseMillis);
@@ -351,7 +351,7 @@ public class DtKvValidator {
      * Test distributed lock with wait timeout: when one client releases lock,
      * another waiting client should acquire it immediately.
      */
-    public void testDistributedLockWithWait() {
+    private void testDistributedLockWithWait() {
         log.debug("=== Testing distributed lock with wait ===");
         final byte[] lockKey = key("lockKey2");
         final long leaseMillis = 10000;
