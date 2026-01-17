@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.log.BugLog;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -98,7 +99,11 @@ final class KvNodeEx extends KvNode {
     }
 
     KvNodeHolder peekNextOwner() {
-        return lockOrderQueue.isEmpty() ? null : lockOrderQueue.first();
+        TreeSet<KvNodeHolder> q = lockOrderQueue;
+        if (q == null) {
+            BugLog.getLog().error("lockOrderQueue is null");
+        }
+        return q == null || q.isEmpty() ? null : q.first();
     }
 
     Collection<KvNodeHolder> childrenValues() {
