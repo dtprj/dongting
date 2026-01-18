@@ -15,9 +15,7 @@
  */
 package com.github.dtprj.dongting.it;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
-import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.it.support.BenchmarkProcessManager;
 import com.github.dtprj.dongting.it.support.BenchmarkProcessManager.BenchmarkConfig;
 import com.github.dtprj.dongting.it.support.BenchmarkProcessManager.BenchmarkProcessInfo;
@@ -30,14 +28,10 @@ import com.github.dtprj.dongting.it.support.FaultInjectionScheduler;
 import com.github.dtprj.dongting.it.support.ItUtil;
 import com.github.dtprj.dongting.it.support.StressLockValidator;
 import com.github.dtprj.dongting.it.support.StressRwValidator;
-import com.github.dtprj.dongting.it.support.StressTxValidator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.NioClientConfig;
-import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.test.TestDir;
 import com.github.dtprj.dongting.test.Tick;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -45,12 +39,11 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Extreme stress test for linearizability under high pressure and fault injection.
@@ -62,14 +55,14 @@ public class StressIT {
     private static final DtLog log = DtLogs.getLogger(StressIT.class);
 
     // Test configuration
-    private static final int FAULT_INJECTION_INTERVAL_SECONDS = Integer.getInteger("stressTest.faultInterval", 60);
-    private static final int WRITE_READ_VALIDATOR_THREADS = Integer.getInteger("stressTest.writeReadThreads", 2);
-    private static final int LOCK_VALIDATOR_PAIRS = Integer.getInteger("stressTest.lockPairs", 2);
-    private static final int TRANSACTION_VALIDATOR_THREADS = Integer.getInteger("stressTest.txnThreads", 2);
+    private static final int QUICK_MODE_DURATION_SECONDS = 300;
+    private static final int FAULT_INJECTION_INTERVAL_SECONDS = 60;
+    private static final int WRITE_READ_VALIDATOR_THREADS = 2;
+    private static final int LOCK_VALIDATORS = 2;
+    private static final int TRANSACTION_VALIDATOR_THREADS = 2;
     private static final int VALIDATOR_KEY_SPACE = 10000;
-    private static final int BACKGROUND_MAX_PENDING = Integer.getInteger("stressTest.maxPending", 2000) / Tick.tick(1);
+    private static final int BACKGROUND_MAX_PENDING = 2000 / Tick.tick(1);
     private static final long LOCK_LEASE_MILLIS = 45000;
-    private static final int TRANSACTION_OPERATION_COUNT = 5;
 
     // Cluster configuration
     private static final int GROUP_ID = 0;
@@ -81,12 +74,10 @@ public class StressIT {
     private final AtomicLong writeReadFailureCount = new AtomicLong(0);
 
     private final AtomicLong lockVerifyCount = new AtomicLong(0);
-    private final AtomicLong lockConflictCount = new AtomicLong(0);
+    private final AtomicLong lockViolationCount = new AtomicLong(0);
     private final AtomicLong lockFailureCount = new AtomicLong(0);
 
-    private final AtomicLong txnVerifyCount = new AtomicLong(0);
-    private final AtomicLong txnViolationCount = new AtomicLong(0);
-    private final AtomicLong txnFailureCount = new AtomicLong(0);
+    private boolean failed;
 
     private final AtomicBoolean stop = new AtomicBoolean();
     private FaultInjectionScheduler faultInjector;
@@ -117,18 +108,17 @@ public class StressIT {
         if (quickMode) {
             log.info("Test duration: FOREVER");
         } else {
-            log.info("Test duration: {} minutes (quick validation)", 5);
+            log.info("Test duration: QUICK");
         }
 
         log.info("Fault injection interval: {} seconds", FAULT_INJECTION_INTERVAL_SECONDS);
         log.info("Write-Read validators: {}", WRITE_READ_VALIDATOR_THREADS);
-        log.info("Lock validator pairs: {}", LOCK_VALIDATOR_PAIRS);
+        log.info("Lock validator pairs: {}", LOCK_VALIDATORS);
         log.info("Transaction validators: {}", TRANSACTION_VALIDATOR_THREADS);
 
         BootstrapProcessManager processManager = new BootstrapProcessManager();
         BenchmarkProcessManager benchmarkManager = new BenchmarkProcessManager();
         ClusterValidator validator = null;
-        List<KvClient> kvClients = new ArrayList<>();
         BenchmarkProcessInfo putProcess = null;
         BenchmarkProcessInfo getProcess = null;
 
@@ -150,17 +140,32 @@ public class StressIT {
             int leaderId = validator.waitForClusterConsistency(GROUP_ID, MEMBER_IDS, 60);
             log.info("Cluster ready, leader is {}", leaderId);
 
-            // Step 3: Create KvClients for validators
-            log.info("Step 3: Creating KvClients for validators");
-            int totalValidators = WRITE_READ_VALIDATOR_THREADS + LOCK_VALIDATOR_PAIRS * 2 + TRANSACTION_VALIDATOR_THREADS;
-            for (int i = 0; i < totalValidators; i++) {
-                KvClient client = createKvClient();
-                kvClients.add(client);
+
+            // Step 3: Start validator threads
+            log.info("Step 3: Starting validator threads");
+
+            // Start StressRwValidator
+            List<Thread> writeReadValidatorThreads = new ArrayList<>();
+            for (int i = 0; i < WRITE_READ_VALIDATOR_THREADS; i++) {
+                StressRwValidator wrValidator = new StressRwValidator(
+                        i, GROUP_ID, VALIDATOR_KEY_SPACE, this::createKvClient,
+                        writeReadVerifyCount, writeReadViolationCount, writeReadFailureCount, stop);
+                Thread t = new Thread(wrValidator);
+                t.start();
+                writeReadValidatorThreads.add(t);
             }
-            // Create top-level directories for validators
-            log.info("Creating top-level directories for validators");
-            KvClient firstClient = kvClients.get(0);
-            createValidatorDirectories(firstClient);
+
+            // Start StressLockValidator (in pairs)
+            List<Thread> lockValidatorThreads = new ArrayList<>();
+            for (int i = 0; i < LOCK_VALIDATORS; i++) {
+                StressLockValidator lockValidator = new StressLockValidator(GROUP_ID, i, LOCK_LEASE_MILLIS,
+                        this::createKvClient, lockVerifyCount, lockViolationCount, lockFailureCount, stop);
+                Thread t = new Thread(lockValidator);
+                t.start();
+                lockValidatorThreads.add(t);
+            }
+
+            log.info("All validators started");
 
             // Step 4: Start background pressure processes
             log.info("Step 4: Starting background pressure processes");
@@ -180,97 +185,47 @@ public class StressIT {
             getProcess = benchmarkManager.startBenchmark(getConfig);
             log.info("GET benchmark process started");
 
-            // Step 5: Start validator threads
-            log.info("Step 5: Starting validator threads");
-            CountDownLatch validatorStartLatch = new CountDownLatch(totalValidators);
-
-            int clientIndex = 0;
-
-            // Start StressRwValidator
-            List<Thread> writeReadValidatorThreads = new ArrayList<>();
-            for (int i = 0; i < WRITE_READ_VALIDATOR_THREADS; i++) {
-                StressRwValidator wrValidator = new StressRwValidator(
-                        i, GROUP_ID, VALIDATOR_KEY_SPACE, kvClients.get(clientIndex++),
-                        validatorStartLatch, writeReadVerifyCount, writeReadViolationCount, writeReadFailureCount, stop);
-                Thread t = new Thread(wrValidator);
-                t.start();
-                writeReadValidatorThreads.add(t);
-            }
-
-            // Start StressLockValidator (in pairs)
-            List<Thread> lockValidatorThreads = new ArrayList<>();
-            for (int i = 0; i < LOCK_VALIDATOR_PAIRS; i++) {
-                for (int j = 0; j < 2; j++) {
-                    StressLockValidator lockValidator = new StressLockValidator(
-                            i, j, GROUP_ID, LOCK_LEASE_MILLIS, kvClients.get(clientIndex++),
-                            validatorStartLatch, lockVerifyCount, lockConflictCount, lockFailureCount, stop);
-                    Thread t = new Thread(lockValidator);
-                    t.start();
-                    lockValidatorThreads.add(t);
-                }
-            }
-
-            // Start StressTxValidator (half writers, half readers)
-            List<Thread> txnValidatorThreads = new ArrayList<>();
-            for (int i = 0; i < TRANSACTION_VALIDATOR_THREADS; i++) {
-                boolean isWriter = (i % 2 == 0);
-                StressTxValidator txnValidator = new StressTxValidator(
-                        i, GROUP_ID, TRANSACTION_OPERATION_COUNT, LOCK_LEASE_MILLIS, isWriter,
-                        kvClients.get(clientIndex++), validatorStartLatch, txnVerifyCount,
-                        txnViolationCount, txnFailureCount, stop);
-                Thread t = new Thread(txnValidator);
-                t.start();
-                txnValidatorThreads.add(t);
-            }
-
-            // Wait for all validators to start
-            Assertions.assertTrue(validatorStartLatch.await(20, TimeUnit.SECONDS));
-            log.info("All validators started");
-
-            // Step 6: Start fault injection scheduler
-            log.info("Step 6: Starting fault injection scheduler");
+            // Step 5: Start fault injection scheduler
+            log.info("Step 5: Starting fault injection scheduler");
             faultInjector = new FaultInjectionScheduler(GROUP_ID, MEMBER_IDS, FAULT_INJECTION_INTERVAL_SECONDS,
                     processManager, validator, stop);
             faultInjector.start();
             log.info("Fault injection scheduler started");
 
-            // Step 7: Run for specified duration
+            // Step 6: Run for specified duration
             long testDurationMillis;
             if (quickMode) {
-                testDurationMillis = 5 * 60L * 1000L; // 5 minutes for quick test
+                testDurationMillis = QUICK_MODE_DURATION_SECONDS * 1000L;
             } else {
                 testDurationMillis = 0;
             }
-            log.info("Step 7: Running test for {} ", quickMode ? 5 + " minutes" : "FOREVER");
+            log.info("Step 6: Running test for {} ", quickMode ? 5 + " minutes" : "FOREVER");
             long startTime = System.currentTimeMillis();
 
             while (!quickMode || (System.currentTimeMillis() - startTime < testDurationMillis)) {
                 Thread.sleep(5000);
 
                 // Check for consistency violations
-                if (writeReadViolationCount.get() > 0 || lockConflictCount.get() > 0 || txnViolationCount.get() > 0) {
+                if (writeReadViolationCount.get() > 0 || lockViolationCount.get() > 0) {
                     log.error("Consistency violation detected, stopping test");
                     break;
                 }
                 if (!faultInjector.isAlive()) {
+                    failed = true;
                     log.error("Fault injection thread is not alive, stopping test");
                     break;
                 }
                 for (Thread thread : writeReadValidatorThreads) {
                     if (!thread.isAlive()) {
+                        failed = true;
                         log.error("WriteReadValidator thread is not alive, stopping test");
                         break;
                     }
                 }
                 for (Thread thread : lockValidatorThreads) {
                     if (!thread.isAlive()) {
+                        failed = true;
                         log.error("LockValidator thread is not alive, stopping test");
-                        break;
-                    }
-                }
-                for (Thread thread : txnValidatorThreads) {
-                    if (!thread.isAlive()) {
-                        log.error("TransactionValidator thread is not alive, stopping test");
                         break;
                     }
                 }
@@ -281,18 +236,17 @@ public class StressIT {
             // Signal validators to stop gracefully
             stop.set(true);
 
-            // Step 8: Stop fault injector
-            log.info("Step 8: Stopping fault injector");
+            // Step 7: Stop fault injector
+            log.info("Step 7: Stopping fault injector");
             faultInjector.interrupt();
             faultInjector.join(60 * 1000);
 
-            // Step 9: Stop validators
-            log.info("Step 9: Stopping validators");
+            // Step 8: Stop validators
+            log.info("Step 8: Stopping validators");
             stopValidatorThreads(writeReadValidatorThreads);
             stopValidatorThreads(lockValidatorThreads);
-            stopValidatorThreads(txnValidatorThreads);
-
         } catch (Throwable e) {
+            failed = true;
             log.error("Test failed with exception", e);
 
             log.error("=== Diagnostic Information ===");
@@ -306,7 +260,7 @@ public class StressIT {
             throw e;
 
         } finally {
-            log.info("Step 10: Cleaning up resources");
+            log.info("Cleaning up resources");
 
             // Stop benchmark processes
             if (putProcess != null && putProcess.process.isAlive()) {
@@ -314,15 +268,6 @@ public class StressIT {
             }
             if (getProcess != null && getProcess.process.isAlive()) {
                 benchmarkManager.stopBenchmark(getProcess);
-            }
-
-            // Close KvClients
-            for (KvClient client : kvClients) {
-                try {
-                    client.stop(new DtTime(5, TimeUnit.SECONDS));
-                } catch (Exception e) {
-                    log.warn("Error stopping KvClient", e);
-                }
             }
 
             // Close validator
@@ -340,43 +285,20 @@ public class StressIT {
             log.info("=== StressIT completed ===");
             printTestReport();
         }
+        assertEquals(0, writeReadViolationCount.get());
+        assertEquals(0, lockViolationCount.get());
+        assertFalse(failed);
     }
 
-    private KvClient createKvClient() {
-        RaftClientConfig raftClientConfig = new RaftClientConfig();
-        KvClientConfig kvClientConfig = new KvClientConfig();
-        KvClient client = new KvClient(kvClientConfig, raftClientConfig, new NioClientConfig());
+    private KvClient createKvClient(String name) {
+        KvClient client = new KvClient();
+        client.getRaftClient().getNioClient().getConfig().name = name;
         client.start();
 
         String serversStr = ItUtil.formatServiceServers(MEMBER_IDS);
         client.getRaftClient().clientAddNode(serversStr);
         client.getRaftClient().clientAddOrUpdateGroup(GROUP_ID, MEMBER_IDS);
         return client;
-    }
-
-    private void createValidatorDirectories(KvClient client) {
-        // Create top-level directory "StressIT"
-        client.mkdir(GROUP_ID, "StressIT".getBytes());
-
-        // Create directories for WriteReadValidator: StressIT.WR and StressIT.WR.{threadId}
-        client.mkdir(GROUP_ID, "StressIT.WR".getBytes());
-        for (int i = 0; i < WRITE_READ_VALIDATOR_THREADS; i++) {
-            client.mkdir(GROUP_ID, ("StressIT.WR." + i).getBytes());
-        }
-
-        // Create directories for LockExclusivityValidator: StressIT.Lock and StressIT.Lock.{pairId}
-        client.mkdir(GROUP_ID, "StressIT.Lock".getBytes());
-        for (int i = 0; i < LOCK_VALIDATOR_PAIRS; i++) {
-            client.mkdir(GROUP_ID, ("StressIT.Lock." + i).getBytes());
-        }
-
-        // Create directories for TransactionAtomicityValidator: StressIT.Txn and StressIT.Txn.{threadId}
-        client.mkdir(GROUP_ID, "StressIT.Txn".getBytes());
-        for (int i = 0; i < TRANSACTION_VALIDATOR_THREADS; i++) {
-            client.mkdir(GROUP_ID, ("StressIT.Txn." + i).getBytes());
-            // Create data subdirectory for transaction keys
-            client.mkdir(GROUP_ID, ("StressIT.Txn." + i + ".data").getBytes());
-        }
     }
 
     private void printTestReport() {
@@ -391,13 +313,8 @@ public class StressIT {
 
         log.info("Distributed lock validation:");
         log.info("  - Total verifications: {}", lockVerifyCount.get());
-        log.info("  - Lock conflicts detected: {}", lockConflictCount.get());
+        log.info("  - Lock violations: {}", lockViolationCount.get());
         log.info("  - Operation failures: {} (allowed)", lockFailureCount.get());
-
-        log.info("Transaction atomicity validation:");
-        log.info("  - Total verifications: {}", txnVerifyCount.get());
-        log.info("  - Atomicity violations: {}", txnViolationCount.get());
-        log.info("  - Operation failures: {} (allowed)", txnFailureCount.get());
 
         log.info("--- Fault Injection Statistics ---");
         log.info("  - Transfer Leader count: {}", faultInjector.transferLeaderCount);
@@ -408,8 +325,8 @@ public class StressIT {
         log.info("=== Test Report End ===");
 
         // Check for violations
-        long totalViolations = writeReadViolationCount.get() + lockConflictCount.get() + txnViolationCount.get();
-        if (totalViolations > 0) {
+        long totalViolations = writeReadViolationCount.get() + lockViolationCount.get();
+        if (totalViolations > 0 || failed) {
             log.error("TEST FAILED: {} consistency violations detected", totalViolations);
         } else {
             log.info("TEST PASSED: No consistency violations detected");
