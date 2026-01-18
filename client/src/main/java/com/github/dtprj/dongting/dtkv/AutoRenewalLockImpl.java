@@ -15,19 +15,20 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
  * @author huangli
  */
-class AutoRenewalLockImpl implements AutoRenewalLock {
+class AutoRenewalLockImpl extends AbstractLifeCircle implements AutoRenewalLock {
     private static final DtLog log = DtLogs.getLogger(AutoRenewalLockImpl.class);
 
     // Retry intervals in milliseconds
@@ -44,10 +45,6 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     // a callback is happened-before the next one, so no extra synchronization is needed except for closeImpl() method.
     private boolean locked;
     private boolean rpcInProgress;
-
-    private volatile int closed;
-    private static final AtomicIntegerFieldUpdater<AutoRenewalLockImpl> closedUpdater = AtomicIntegerFieldUpdater
-            .newUpdater(AutoRenewalLockImpl.class, "closed");
 
     private AutoRenewTask currentTask;
 
@@ -66,17 +63,25 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
         this.retryIntervals = client.config.autoRenewalRetryMillis;
         lock.expireListener = this::onExpire;
         this.currentTask = new AutoRenewTask();
+    }
+
+    @Override
+    public void doStart() {
         this.currentTask.scheduleFuture = lockManager.submitTask(currentTask);
     }
 
-    private class AutoRenewTask implements Runnable {
+    private boolean isClosed() {
+        return status >= AbstractLifeCircle.STATUS_STOPPING;
+    }
+
+    private final class AutoRenewTask implements Runnable {
         private int retryIndex;
         private Future<?> scheduleFuture;
         private boolean thisTaskGetLock; // false -> true, and never change to false
 
         @Override
         public void run() {
-            if (closed > 0) {
+            if (isClosed()) {
                 return;
             }
             if (currentTask != this) {
@@ -111,7 +116,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
 
         private void rpcCallback(boolean tryLock, Throwable ex) {
             rpcInProgress = false;
-            if (closed > 0) {
+            if (isClosed()) {
                 return;
             }
             if (currentTask != this) {
@@ -168,7 +173,7 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     private void onExpire() {
-        if (closed > 0) {
+        if (isClosed()) {
             return;
         }
         if (!locked) {
@@ -206,22 +211,20 @@ class AutoRenewalLockImpl implements AutoRenewalLock {
     }
 
     @Override
-    public void close() {
+    public void doStop(DtTime timeout, boolean force) {
         lockManager.removeLock(lock);
     }
 
     public void closeImpl() {
-        if (closedUpdater.compareAndSet(this, 0, 1)) {
-            // if we call KvClient.close(), it will close all locks and then close NioClient immediately,
-            // the unlock operation in DistributedLockImpl.closeImpl() may fail if we call it in the callback
-            // of fireCallbackTask, so we move it out of the callback.
-            lock.closeImpl(); // the method is thread safe
+        // if we call KvClient.close(), it will close all locks and then close NioClient immediately,
+        // the unlock operation in DistributedLockImpl.closeImpl() may fail if we call it in the callback
+        // of fireCallbackTask, so we move it out of the callback.
+        lock.closeImpl(); // the method is thread safe
 
-            // use fireCallbackTask to ensure sequential execution with other callbacks
-            lock.fireCallbackTask(() -> {
-                cancelTask();
-                changeStateIfNeeded(false);
-            });
-        }
+        // use fireCallbackTask to ensure sequential execution with other callbacks
+        lock.fireCallbackTask(() -> {
+            cancelTask();
+            changeStateIfNeeded(false);
+        });
     }
 }

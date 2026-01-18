@@ -49,8 +49,9 @@ public class AutoRenewalLockDemoClient1 extends DemoClientBase implements GroupI
 
         AutoRenewalLock lock = kvClient.createAutoRenewalLock(GROUP_ID, "autoRenewalLock1".getBytes(),
                 30000, listener);
+        lock.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            lock.close();
+            lock.stop(new DtTime(1, TimeUnit.SECONDS));
             kvClient.stop(new DtTime(3, TimeUnit.SECONDS));
         }));
     }

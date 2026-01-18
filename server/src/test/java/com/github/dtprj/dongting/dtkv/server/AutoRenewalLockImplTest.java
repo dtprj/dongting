@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.dtkv.AutoRenewalLock;
 import com.github.dtprj.dongting.dtkv.AutoRenewalLockListener;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -75,13 +77,14 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
 
         byte[] key = "test.lock1".getBytes();
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, 5000, listener);
+        lock.start();
 
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
         assertEquals(0, listener.lostCount.get());
         assertTrue(lock.isHeldByCurrentClient());
         assertTrue(lock.getLeaseRestMillis() > 0);
 
-        lock.close();
+        lock.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test
@@ -91,6 +94,7 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         byte[] key = "test.lock2".getBytes();
         long leaseMillis = tick(30);
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, leaseMillis, listener);
+        lock.start();
 
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
         AtomicLong leaseRestMillis = new AtomicLong(lock.getLeaseRestMillis());
@@ -112,7 +116,7 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         // Should not trigger onAcquired again
         assertEquals(1, listener.acquiredCount.get());
 
-        lock.close();
+        lock.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test
@@ -122,6 +126,7 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         byte[] key = "test.lock3".getBytes();
         long leaseMillis = tick(30);
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, leaseMillis, listener);
+        lock.start();
 
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
 
@@ -132,7 +137,7 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         WaitUtil.waitUtil(1, listener.lostCount::get);
         WaitUtil.waitUtil(2, listener.acquiredCount::get);
 
-        lock.close();
+        lock.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test
@@ -144,6 +149,8 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         long leaseMillis = tick(30);
         AutoRenewalLock lock1 = client1.createAutoRenewalLock(groupId, key, leaseMillis, listener1);
         AutoRenewalLock lock2 = client2.createAutoRenewalLock(groupId, key, leaseMillis, listener2);
+        lock1.start();
+        lock2.start();
 
         // One of them should acquire the lock
         WaitUtil.waitUtil(() -> listener1.acquiredCount.get() == 1 || listener2.acquiredCount.get() == 1);
@@ -162,8 +169,8 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
             WaitUtil.waitUtil(1, listener2.lostCount::get);
             WaitUtil.waitUtil(1, listener1.acquiredCount::get);
         }
-        lock1.close();
-        lock2.close();
+        lock1.stop(new DtTime(1, TimeUnit.SECONDS));
+        lock2.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test
@@ -172,12 +179,13 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
 
         byte[] key = "test.lock5".getBytes();
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(30), listener);
+        lock.start();
 
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
         assertTrue(lock.isHeldByCurrentClient());
 
         // Close while holding
-        lock.close();
+        lock.stop(new DtTime(1, TimeUnit.SECONDS));
 
         // Should trigger onLost
         WaitUtil.waitUtil(1, listener.lostCount::get);
@@ -193,19 +201,21 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
 
         // First client holds the lock
         AutoRenewalLock lock1 = client1.createAutoRenewalLock(groupId, key, 1000, listener1);
+        lock1.start();
         WaitUtil.waitUtil(1, listener1.acquiredCount::get);
 
         // Second client tries to get the same lock (will wait)
         AutoRenewalLock lock2 = client2.createAutoRenewalLock(groupId, key, 1000, listener2);
+        lock2.start();
 
         // Close before acquiring
-        lock2.close();
+        lock2.stop(new DtTime(1, TimeUnit.SECONDS));
         Thread.sleep(tick(5));
 
         assertEquals(0, listener2.acquiredCount.get());
         assertEquals(0, listener2.lostCount.get());
 
-        lock1.close();
+        lock1.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test
@@ -214,6 +224,7 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
 
         byte[] key = "test.lock7".getBytes();
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(40), listener);
+        lock.start();
 
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
 
@@ -225,7 +236,7 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
 
         assertTrue(lock.isHeldByCurrentClient());
         assertEquals(0, listener.lostCount.get());
-        lock.close();
+        lock.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test
@@ -233,12 +244,13 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         Listener listener = new Listener();
         byte[] key = "testExpireDuringRpcInProgress".getBytes();
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(20), listener);
+        lock.start();
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
         client1.mockCount = 1;
         client1.mockDelayMillis = tick(20);
         WaitUtil.waitUtil(1, listener.lostCount::get);
         WaitUtil.waitUtil(2, listener.acquiredCount::get);
-        lock.close();
+        lock.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test
@@ -252,12 +264,13 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         };
         byte[] key = "testRestLeaseTooSmall".getBytes();
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(20), listener);
+        lock.start();
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
         client1.autoRenewalMinValidLeaseMillis = 10000;
         VersionFactory.getInstance().fullFence();
         WaitUtil.waitUtil(1, listener.lostCount::get);
         WaitUtil.waitUtil(2, listener.acquiredCount::get);
-        lock.close();
+        lock.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test
@@ -267,16 +280,18 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         Listener listener = new Listener();
 
         AutoRenewalLock lock1 = client1.createAutoRenewalLock(groupId, key, tick(5000), listener);
+        lock1.start();
 
         // Try to create another lock with the same key in the same client
         assertThrows(IllegalStateException.class, () -> client1.createAutoRenewalLock(
                 groupId, key, tick(5000), listener));
         assertThrows(IllegalStateException.class, () -> client1.createLock(groupId, key));
 
-        lock1.close();
+        lock1.stop(new DtTime(1, TimeUnit.SECONDS));
 
         AutoRenewalLock lock2 = client1.createAutoRenewalLock(groupId, key, tick(5000), listener);
-        lock2.close();
+        lock2.start();
+        lock2.stop(new DtTime(1, TimeUnit.SECONDS));
     }
 
     @Test

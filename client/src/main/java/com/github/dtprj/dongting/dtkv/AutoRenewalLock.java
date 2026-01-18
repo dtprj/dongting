@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.LifeCircle;
+
 /**
  * The auto-renewal lock. If the current client is not holding the lock, the client will try to acquire it
  * in background forever; If the lock is held by the current client, the client will try to renew the lease
@@ -31,7 +34,7 @@ package com.github.dtprj.dongting.dtkv;
  * @see AutoRenewalLockListener
  * @author huangli
  */
-public interface AutoRenewalLock {
+public interface AutoRenewalLock extends LifeCircle {
     /**
      * Detect whether the current client is the owner of the lock. This method returns immediately and will not
      * throw any exception.
@@ -55,13 +58,18 @@ public interface AutoRenewalLock {
     long getLeaseRestMillis();
 
     /**
+     * Start the background tryLock/updateLease operation.
+     */
+    @Override
+    void start();
+
+    /**
      * Safely close the lock, and remove it from KvClient.
      * After close, call createAutoRenewLock() in KvClient will get a new created instance.
      * This method try to asynchronously release the lock if the current client is the owner of the lock or
      * the ownership status cannot be determined (e.g., due to a network error).
      *
-     * <p>
-     * This method will not throw any exception, and do not block caller thread.
      */
-    void close();
+    @Override
+    void stop(DtTime timeout);
 }
