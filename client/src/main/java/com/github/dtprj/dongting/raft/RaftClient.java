@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -31,6 +30,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.PeerStatus;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WritePacket;
 
@@ -288,7 +288,7 @@ public class RaftClient extends AbstractLifeCircle {
         checkStatus();
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
-            FutureCallback.callFail(callback, new NoSuchGroupException(groupId));
+            invokeOriginCallback(callback, null, new NoSuchGroupException(groupId));
             return;
         }
         boolean getPermit = false;
@@ -296,90 +296,153 @@ public class RaftClient extends AbstractLifeCircle {
             getPermit = nioClient.acquirePermit(request, timeout);
             if (groupInfo.leader != null && groupInfo.leader.peer.status == PeerStatus.connected
                     && (groupInfo.lastLeaderFailTime == 0 ||
-                    System.currentTimeMillis() - groupInfo.lastLeaderFailTime < 2000)) {
+                    System.currentTimeMillis() - groupInfo.lastLeaderFailTime < 1000)) {
                 send(groupInfo, request, decoder, timeout, callback, 0, getPermit);
             } else {
-                CompletableFuture<GroupInfo> leaderFuture;
-                if (groupInfo.leaderFuture == null) {
-                    leaderFuture = updateLeaderInfo(groupId, false);
-                } else {
-                    leaderFuture = groupInfo.leaderFuture;
-                }
-                final boolean finalGetPermit = getPermit;
-                leaderFuture.whenComplete((gi, ex) -> {
-                    if (ex != null) {
-                        FutureCallback.callFail(callback, ex);
-                        if (finalGetPermit) {
-                            nioClient.releasePermit(request);
-                        }
-                    } else if (timeout.isTimeout()) {
-                        FutureCallback.callFail(callback, new RaftTimeoutException("timeout after find leader for group " + groupId));
-                        if (finalGetPermit) {
-                            nioClient.releasePermit(request);
-                        }
-                    } else {
-                        send(gi, request, decoder, timeout, callback, 0, finalGetPermit);
-                    }
-                });
+                sendAfterUpdateLeader(groupId, request, decoder, 0, timeout, callback, groupInfo, getPermit);
             }
         } catch (Throwable e) {
             handleSendEx(request, callback, e, getPermit);
         }
     }
 
+    private <T> void sendAfterUpdateLeader(Integer groupId, WritePacket request, DecoderCallbackCreator<T> decoder,
+                                           int retry, DtTime timeout, RpcCallback<T> callback, GroupInfo groupInfo,
+                                           boolean getPermit) {
+        CompletableFuture<GroupInfo> leaderFuture;
+        if (groupInfo.leaderFuture == null) {
+            leaderFuture = updateLeaderInfo(groupId, false);
+        } else {
+            leaderFuture = groupInfo.leaderFuture;
+        }
+        leaderFuture.whenComplete((gi, ex) -> {
+            if (ex != null) {
+                if (getPermit) {
+                    nioClient.releasePermit(request);
+                }
+                invokeOriginCallback(callback, null, ex);
+            } else if (timeout.isTimeout()) {
+                if (getPermit) {
+                    nioClient.releasePermit(request);
+                }
+                invokeOriginCallback(callback, null, new RaftTimeoutException(
+                        "timeout after find leader for group " + groupId));
+            } else {
+                send(gi, request, decoder, timeout, callback, retry, getPermit);
+            }
+        });
+    }
+
     private <T> void handleSendEx(WritePacket request, RpcCallback<T> callback, Throwable e, boolean getPermit) {
-        if (e instanceof InterruptedException) {
+        Throwable root = DtUtil.rootCause(e);
+        if (e instanceof InterruptedException || root instanceof InterruptedException) {
             DtUtil.restoreInterruptStatus();
         }
-        FutureCallback.callFail(callback, e);
         if (getPermit) {
             nioClient.releasePermit(request);
         }
+        invokeOriginCallback(callback, null, e);
     }
 
     private <T> void send(GroupInfo groupInfo, WritePacket request, DecoderCallbackCreator<T> decoder,
                           DtTime timeout, RpcCallback<T> c, int retry, boolean getPermit) {
-        RpcCallback<T> newCallback = (result, ex) -> {
+        RpcCallback<T> newCallback = (result, ex) -> wrapCallback(groupInfo, request, decoder, timeout, c,
+                retry, getPermit, result, ex);
+        nioClient.sendRequest(groupInfo.leader.peer, request, decoder, timeout, newCallback);
+    }
+
+    private <T> void wrapCallback(GroupInfo groupInfo, WritePacket request, DecoderCallbackCreator<T> decoder,
+                                  DtTime timeout, RpcCallback<T> c, int retry, boolean getPermit,
+                                  ReadPacket<T> result, Throwable ex) {
+        boolean shouldRelease = getPermit;
+        try {
             if (ex instanceof NetCodeException) {
                 NetCodeException ncEx = (NetCodeException) ex;
-                if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER && request.canRetry() && retry == 0) {
-                    GroupInfo newGroupInfo = updateLeaderFromExtra(ncEx.getExtra(), groupInfo);
-                    if (newGroupInfo != null && newGroupInfo.leader != null && !timeout.isTimeout()) {
-                        log.info("leader changed, update leader from node {} to {}, request will auto retry",
-                                groupInfo.leader.nodeId, newGroupInfo.leader.nodeId);
-                        request.prepareRetry();
-                        try {
-                            send(newGroupInfo, request, decoder, timeout, c, 1, getPermit);
-                        } catch (Throwable retryEx) {
-                            handleSendEx(request, c, retryEx, getPermit);
+                switch (ncEx.getCode()) {
+                    case CmdCodes.NOT_RAFT_LEADER: {
+                        GroupInfo newGroupInfo = updateLeaderFromExtra(ncEx.getExtra(), groupInfo);
+                        if (request.canRetry() && retry == 0) {
+                            if (status == STATUS_RUNNING && newGroupInfo != null && newGroupInfo.leader != null
+                                    && !timeout.isTimeout()) {
+                                log.info("leader changed, update leader from node {} to {}, request will auto retry",
+                                        groupInfo.leader.nodeId, newGroupInfo.leader.nodeId);
+                                try {
+                                    request.prepareRetry();
+                                    send(newGroupInfo, request, decoder, timeout, c, 1, getPermit);
+                                    // not release permit, it's released in the callback of send()
+                                } catch (Throwable retryEx) {
+                                    // release in handleSendEx
+                                    handleSendEx(request, c, retryEx, getPermit);
+                                }
+                                shouldRelease = false;
+                                return;
+                            }
                         }
-                        return;
+                        break;
                     }
-                }
-                if (ncEx.getCode() != CmdCodes.CLIENT_ERROR) {
-                    updateLeaderFailTime(groupInfo);
+                    case CmdCodes.NOT_INIT:
+                    case CmdCodes.STOPPING:
+                    case CmdCodes.RAFT_GROUP_NOT_INIT:
+                    case CmdCodes.RAFT_GROUP_NOT_FOUND:
+                    case CmdCodes.RAFT_GROUP_STOPPED: {
+                        updateLeaderFailTime(groupInfo);
+                        if (request.canRetry() && retry == 0 && status == STATUS_RUNNING) {
+                            try {
+                                request.prepareRetry();
+                                sendAfterUpdateLeader(groupInfo.groupId, request, decoder, 1, timeout,
+                                        c, groupInfo, getPermit);
+                                // not release permit, it's released in the callback of send()
+                            } catch (Throwable retryEx) {
+                                // release in handleSendEx
+                                handleSendEx(request, c, retryEx, getPermit);
+                            }
+                            shouldRelease = false;
+                            return;
+                        }
+                        break;
+                    }
+                    case CmdCodes.SYS_ERROR:
+                    case CmdCodes.FLOW_CONTROL:
+                        updateLeaderFailTime(groupInfo);
+                        break;
+                    case CmdCodes.COMMAND_NOT_SUPPORT:
+                    case CmdCodes.CLIENT_ERROR:
+                        break;
+                    default:
+                        log.error("unknown error code: {}", ncEx.getCode());
+                        updateLeaderFailTime(groupInfo);
                 }
             } else if (ex != null) {
                 updateLeaderFailTime(groupInfo);
             }
-            if (getPermit) {
+        } catch (Exception e) {
+            log.error("raft client callback error", e);
+        } finally {
+            if (shouldRelease) {
                 nioClient.releasePermit(request);
             }
-            if (c != null) {
-                if (config.useBizExecutor && nioClient.getBizExecutor() != null) {
-                    nioClient.getBizExecutor().submit(() -> {
-                        try {
-                            c.call(result, ex);
-                        } catch (Throwable e) {
-                            log.error("RpcCallback error", e);
-                        }
-                    });
-                } else {
+        }
+        invokeOriginCallback(c, result, ex);
+    }
+
+    private <T> void invokeOriginCallback(RpcCallback<T> c, ReadPacket<T> result, Throwable ex) {
+        if (c != null) {
+            if (config.useBizExecutor && nioClient.getBizExecutor() != null) {
+                nioClient.getBizExecutor().submit(() -> {
+                    try {
+                        c.call(result, ex);
+                    } catch (Throwable e) {
+                        log.error("RpcCallback error", e);
+                    }
+                });
+            } else {
+                try {
                     c.call(result, ex);
+                } catch (Throwable e) {
+                    log.error("RpcCallback error", e);
                 }
             }
-        };
-        nioClient.sendRequest(groupInfo.leader.peer, request, decoder, timeout, newCallback);
+        }
     }
 
     private void updateLeaderFailTime(GroupInfo oldGroupInfo) {
