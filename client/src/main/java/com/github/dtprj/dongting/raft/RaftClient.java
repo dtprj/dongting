@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NetException;
+import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
@@ -43,7 +44,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -278,8 +281,50 @@ public class RaftClient extends AbstractLifeCircle {
         return f;
     }
 
+    private static class SyncFutureCallback<T> implements RpcCallback<T> {
+
+        private final CompletableFuture<ReadPacket<T>> future = new CompletableFuture<>();
+
+        @Override
+        public void call(ReadPacket<T> result, Throwable ex) {
+            if (ex != null) {
+                future.completeExceptionally(ex);
+            } else {
+                future.complete(result);
+            }
+        }
+    }
+
     /**
-     * Send request to raft leader of the group.
+     * Sync send request to raft leader of the group.
+     * If current leader is unknown try to find leader first.
+     * If receive NOT_RAFT_LEADER and with new leader info in extra, redirect the request to new leader.
+     */
+    public <T> ReadPacket<T> sendRequest(Integer groupId, WritePacket request, DecoderCallbackCreator<T> decoder, DtTime timeout) {
+        SyncFutureCallback<T> c = new SyncFutureCallback<>();
+        sendRequest(groupId, request, decoder, timeout, c);
+        return waitFuture(c.future, timeout);
+    }
+
+    private <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
+        try {
+            return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            DtUtil.restoreInterruptStatus();
+            throw new NetException("interrupted", e);
+        } catch (ExecutionException e) {
+            Throwable cause = DtUtil.rootCause(e);
+            if (cause instanceof InterruptedException) {
+                DtUtil.restoreInterruptStatus();
+            }
+            throw new NetException(e);
+        } catch (TimeoutException e) {
+            throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
+        }
+    }
+
+    /**
+     * Async send request to raft leader of the group.
      * If current leader is unknown try to find leader first.
      * If receive NOT_RAFT_LEADER and with new leader info in extra, redirect the request to new leader.
      */
@@ -427,19 +472,21 @@ public class RaftClient extends AbstractLifeCircle {
 
     private <T> void invokeOriginCallback(RpcCallback<T> c, ReadPacket<T> result, Throwable ex) {
         if (c != null) {
-            if (config.useBizExecutor && nioClient.getBizExecutor() != null) {
+            boolean callInBizExecutor = config.useBizExecutor && nioClient.getBizExecutor() != null
+                    && (!(c instanceof SyncFutureCallback));
+            if (callInBizExecutor) {
                 nioClient.getBizExecutor().submit(() -> {
                     try {
                         c.call(result, ex);
                     } catch (Throwable e) {
-                        log.error("RpcCallback error", e);
+                        log.error("RaftClient callback error", e);
                     }
                 });
             } else {
                 try {
                     c.call(result, ex);
                 } catch (Throwable e) {
-                    log.error("RpcCallback error", e);
+                    log.error("RaftClient callback error", e);
                 }
             }
         }

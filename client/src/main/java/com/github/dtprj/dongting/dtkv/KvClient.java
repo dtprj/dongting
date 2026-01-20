@@ -25,22 +25,16 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NetException;
-import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftClientConfig;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -153,27 +147,10 @@ public class KvClient extends AbstractLifeCircle {
         }
     }
 
-    private <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
-        try {
-            return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            DtUtil.restoreInterruptStatus();
-            throw new NetException("interrupted", e);
-        } catch (ExecutionException e) {
-            throw new NetException(e);
-        } catch (TimeoutException e) {
-            throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
-        }
-    }
-
     protected ReadPacket<KvResp> sendSync(int groupId, int cmd, KvReq req) {
-        CompletableFuture<ReadPacket<KvResp>> f = new CompletableFuture<>();
         DtTime timeout = raftClient.createDefaultTimeout();
-
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(cmd, req);
-        raftClient.sendRequest(groupId, wf, DECODER, timeout, RpcCallback.fromFuture(f));
-
-        ReadPacket<KvResp> p = waitFuture(f, timeout);
+        ReadPacket<KvResp> p = raftClient.sendRequest(groupId, wf, DECODER, timeout);
         if (isSuccess(cmd, p.bizCode)) {
             return p;
         }
