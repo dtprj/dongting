@@ -199,9 +199,14 @@ public abstract class NioNet extends AbstractLifeCircle {
             BugLog.getLog().error("current request is not acquired permit");
             return;
         }
-        int estimateSize = request.calcMaxPacketSize();
-        releasePermit(estimateSize);
-        request.acquirePermit = false;
+        try {
+            int estimateSize = request.calcMaxPacketSize();
+            releasePermit(estimateSize);
+        } catch (Exception e) {
+            log.error("release permit fail", e);
+        } finally {
+            request.acquirePermit = false;
+        }
     }
 
     protected void releasePermit(int bytes) {
