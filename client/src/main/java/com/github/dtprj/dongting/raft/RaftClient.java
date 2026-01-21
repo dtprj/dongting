@@ -232,19 +232,23 @@ public class RaftClient extends AbstractLifeCircle {
         } else {
             gi = new GroupInfo(groupId, unmodifiableList(managedServers), epoch, leader, true);
             findLeader(gi, gi.servers.iterator());
-            // use new leader future to complete the old one
-            if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
-                //noinspection DataFlowIssue
-                gi.leaderFuture.whenComplete((result, ex) -> {
-                    if (ex != null) {
-                        oldGroupInfo.leaderFuture.completeExceptionally(ex);
-                    } else {
-                        oldGroupInfo.leaderFuture.complete(result);
-                    }
-                });
-            }
+            updateOldGroupFutureIfNecessary(gi, oldGroupInfo);
         }
         groups.put(groupId, gi);
+    }
+
+    private void updateOldGroupFutureIfNecessary(GroupInfo newGroupInfo, GroupInfo oldGroupInfo) {
+        // use new leader future to complete the old one
+        if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
+            //noinspection DataFlowIssue
+            newGroupInfo.leaderFuture.whenComplete((result, ex) -> {
+                if (ex != null) {
+                    oldGroupInfo.leaderFuture.completeExceptionally(ex);
+                } else {
+                    oldGroupInfo.leaderFuture.complete(result);
+                }
+            });
+        }
     }
 
     private static boolean isMemberChanged(int[] serverIds, GroupInfo oldGroupInfo) {
@@ -588,7 +592,7 @@ public class RaftClient extends AbstractLifeCircle {
                     && gi.lastLeaderFailTime == null && !force) {
                 return CompletableFuture.completedFuture(gi);
             }
-            if (gi.leaderFuture != null) {
+            if (gi.leaderFuture != null && !force) {
                 return gi.leaderFuture;
             }
             GroupInfo newGroupInfo = new GroupInfo(gi, gi.leader, true);
@@ -596,6 +600,7 @@ public class RaftClient extends AbstractLifeCircle {
             Iterator<RaftNode> it = newGroupInfo.servers.iterator();
             log.info("try find leader for group {}", groupId);
             findLeader(newGroupInfo, it);
+            updateOldGroupFutureIfNecessary(newGroupInfo, gi);
             return newGroupInfo.leaderFuture;
         } finally {
             lock.unlock();
