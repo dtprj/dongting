@@ -28,18 +28,17 @@ public class GroupInfo {
 
     public final int groupId;
     public final List<RaftNode> servers;
+    public final int serversEpoch;
     public final RaftNode leader;
 
     final CompletableFuture<GroupInfo> leaderFuture;
     final DtTime lastLeaderFailTime;
 
-    GroupInfo(int groupId, List<RaftNode> servers, RaftNode leader, boolean createFuture) {
+    GroupInfo(int groupId, List<RaftNode> servers, int serversEpoch, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
         this.servers = Objects.requireNonNull(servers, "servers");
+        this.serversEpoch = serversEpoch;
         if (createFuture) {
-            if (leader != null) {
-                throw new IllegalArgumentException("leader is not null");
-            }
             this.leaderFuture = new CompletableFuture<>();
         } else {
             this.leaderFuture = null;
@@ -49,7 +48,7 @@ public class GroupInfo {
     }
 
     GroupInfo(GroupInfo old, RaftNode leader, boolean createFuture) {
-        this(old.groupId, old.servers, leader, createFuture);
+        this(old.groupId, old.servers, old.serversEpoch, leader, createFuture);
     }
 
     GroupInfo(GroupInfo old, DtTime lastLeaderFailTime) {
@@ -58,6 +57,7 @@ public class GroupInfo {
         this.leader = old.leader;
         this.leaderFuture = old.leaderFuture;
         this.lastLeaderFailTime = lastLeaderFailTime;
+        this.serversEpoch = old.serversEpoch;
     }
 
     public boolean contains(RaftNode node) {

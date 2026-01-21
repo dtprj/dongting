@@ -42,13 +42,15 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
+
+import static java.util.Collections.unmodifiableList;
+import static java.util.Objects.requireNonNull;
 
 /**
  * @author huangli
@@ -85,7 +87,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public void clientAddNode(List<RaftNode> nodes) {
-        Objects.requireNonNull(nodes);
+        requireNonNull(nodes);
         nodes.forEach(n -> DtUtil.checkPositive(n.nodeId, "nodeId"));
         if (nodes.stream().map(n -> n.nodeId).distinct().count() != nodes.size()) {
             throw new IllegalArgumentException("duplicated node id");
@@ -106,6 +108,7 @@ public class RaftClient extends AbstractLifeCircle {
             ArrayList<CompletableFuture<RaftNode>> futures = new ArrayList<>();
             for (RaftNode n : nodes) {
                 if (allNodes.get(n.nodeId) == null) {
+                    // this operation should finish quickly
                     CompletableFuture<Peer> f = nioClient.addPeer(n.hostPort);
                     futures.add(f.thenApply(peer -> new RaftNode(n.nodeId, n.hostPort, peer)));
                 }
@@ -158,7 +161,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public void clientAddOrUpdateGroup(int groupId, int[] serverIds) throws NetException {
-        Objects.requireNonNull(serverIds);
+        requireNonNull(serverIds);
         DtUtil.checkNotNegative(groupId, "groupId");
         int len = serverIds.length;
         if (len == 0) {
@@ -220,10 +223,14 @@ public class RaftClient extends AbstractLifeCircle {
 
         Collections.shuffle(managedServers);
         GroupInfo gi;
-        if (leader != null && leader.peer.status == PeerStatus.connected) {
-            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers), leader, false);
+        int epoch = oldGroupInfo == null ? 0 : oldGroupInfo.serversEpoch + 1;
+        boolean oldLeaderOK = leader != null && leader.peer.status == PeerStatus.connected
+                 && oldGroupInfo.lastLeaderFailTime == null;
+        boolean findInProgress = oldGroupInfo != null && oldGroupInfo.leaderFuture != null;
+        if (oldLeaderOK && !findInProgress) {
+            gi = new GroupInfo(groupId, unmodifiableList(managedServers), epoch, leader, false);
         } else {
-            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers), null, true);
+            gi = new GroupInfo(groupId, unmodifiableList(managedServers), epoch, leader, true);
             findLeader(gi, gi.servers.iterator());
             // use new leader future to complete the old one
             if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
@@ -583,7 +590,7 @@ public class RaftClient extends AbstractLifeCircle {
             if (gi.leaderFuture != null) {
                 return gi.leaderFuture;
             }
-            GroupInfo newGroupInfo = new GroupInfo(gi, null, true);
+            GroupInfo newGroupInfo = new GroupInfo(gi, gi.leader, true);
             groups.put(groupId, newGroupInfo);
             Iterator<RaftNode> it = newGroupInfo.servers.iterator();
             log.info("try find leader for group {}", groupId);
@@ -618,8 +625,12 @@ public class RaftClient extends AbstractLifeCircle {
         lock.lock();
         try {
             GroupInfo currentGroupInfo = groups.get(gi.groupId);
-            if (currentGroupInfo != gi) {
-                // group info changed, stop current find process, and wait new find action complete the future
+            if (currentGroupInfo == null) {
+                requireNonNull(gi.leaderFuture).completeExceptionally(new RaftException("group id removed: " + gi.groupId));
+                return;
+            }
+            if (currentGroupInfo.serversEpoch != gi.serversEpoch) {
+                // group member changed, stop current find process, and wait new find action complete the future
                 return;
             }
             if (ex != null) {
@@ -657,7 +668,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     private void connectToLeaderCallback(GroupInfo gi, RaftNode leader, Throwable e) {
-        assert gi.leaderFuture != null;
+        requireNonNull(gi.leaderFuture);
         lock.lock();
         try {
             Peer leaderPeer = leader.peer;
