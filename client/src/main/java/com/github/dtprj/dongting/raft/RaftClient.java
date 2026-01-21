@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.net.WritePacket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -62,8 +63,6 @@ public class RaftClient extends AbstractLifeCircle {
     private final ConcurrentHashMap<Integer, GroupInfo> groups = new ConcurrentHashMap<>();
 
     private final ReentrantLock lock = new ReentrantLock();
-
-    private long nextEpoch = 1;
 
     public RaftClient() {
         this(new RaftClientConfig(), new NioClientConfig());
@@ -155,10 +154,20 @@ public class RaftClient extends AbstractLifeCircle {
 
     public void clientAddOrUpdateGroup(int groupId, int[] serverIds) throws NetException {
         Objects.requireNonNull(serverIds);
-        checkStatus();
-        if (serverIds.length == 0) {
+        DtUtil.checkNotNegative(groupId, "groupId");
+        int len = serverIds.length;
+        if (len == 0) {
             throw new IllegalArgumentException("servers is empty");
         }
+        for (int i = 0; i < len; i++) {
+            DtUtil.checkPositive(serverIds[i], "serverIds");
+            for (int j = 0; j < len; j++) {
+                if (i != j && serverIds[i] == serverIds[j]) {
+                    throw new IllegalArgumentException("duplicated server id: " + serverIds[i]);
+                }
+            }
+        }
+        checkStatus();
         lock.lock();
         try {
             addOrUpdateGroupInLock(groupId, serverIds);
@@ -174,32 +183,9 @@ public class RaftClient extends AbstractLifeCircle {
             }
         }
         GroupInfo oldGroupInfo = groups.get(groupId);
-        boolean memberChanged;
-        if (oldGroupInfo == null || oldGroupInfo.servers.size() != serverIds.length) {
-            memberChanged = true;
-        } else {
-            List<RaftNode> oldServers = oldGroupInfo.servers;
-            boolean allOldServerInNewList = false;
-            for (RaftNode oldServer : oldServers) {
-                for (int newId : serverIds) {
-                    if (oldServer.nodeId == newId) {
-                        allOldServerInNewList = true;
-                        break;
-                    }
-                }
-            }
-            boolean allNewServerInOldList = false;
-            for (int newId : serverIds) {
-                for (RaftNode oldServer : oldServers) {
-                    if (newId == oldServer.nodeId) {
-                        allNewServerInOldList = true;
-                        break;
-                    }
-                }
-            }
-            memberChanged = !allNewServerInOldList || !allOldServerInNewList;
+        if (!isMemberChanged(serverIds, oldGroupInfo)) {
+            return;
         }
-
         List<RaftNode> managedServers = new ArrayList<>();
         RaftNode leader = null;
         for (int nodeId : serverIds) {
@@ -229,25 +215,40 @@ public class RaftClient extends AbstractLifeCircle {
 
         Collections.shuffle(managedServers);
         GroupInfo gi;
-        if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
-            long serversEpoch = memberChanged ? nextEpoch++ : oldGroupInfo.serversEpoch;
-            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers),
-                    serversEpoch, leader, true);
+        if (leader != null && leader.peer.status == PeerStatus.connected) {
+            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers), leader, false);
+        } else {
+            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers), null, true);
             findLeader(gi, gi.servers.iterator());
             // use new leader future to complete the old one
-            //noinspection DataFlowIssue
-            gi.leaderFuture.whenComplete((result, ex) -> {
-                if (ex != null) {
-                    oldGroupInfo.leaderFuture.completeExceptionally(ex);
-                } else {
-                    oldGroupInfo.leaderFuture.complete(result);
-                }
-            });
-        } else {
-            gi = new GroupInfo(groupId, Collections.unmodifiableList(managedServers),
-                    nextEpoch++, leader, false);
+            if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
+                //noinspection DataFlowIssue
+                gi.leaderFuture.whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        oldGroupInfo.leaderFuture.completeExceptionally(ex);
+                    } else {
+                        oldGroupInfo.leaderFuture.complete(result);
+                    }
+                });
+            }
         }
         groups.put(groupId, gi);
+    }
+
+    private static boolean isMemberChanged(int[] serverIds, GroupInfo oldGroupInfo) {
+        if (oldGroupInfo == null || oldGroupInfo.servers.size() != serverIds.length) {
+            return true;
+        } else {
+            HashSet<Integer> oldServerIds = new HashSet<>();
+            for (RaftNode n : oldGroupInfo.servers) {
+                oldServerIds.add(n.nodeId);
+            }
+            HashSet<Integer> newServerIds = new HashSet<>();
+            for (int id : serverIds) {
+                newServerIds.add(id);
+            }
+            return !oldServerIds.equals(newServerIds);
+        }
     }
 
     public void clientRemoveGroup(int groupId) throws NetException {
@@ -373,7 +374,11 @@ public class RaftClient extends AbstractLifeCircle {
                 invokeOriginCallback(callback, null, new RaftTimeoutException(
                         "timeout after find leader for group " + groupId));
             } else {
-                send(gi, request, decoder, timeout, callback, retry, getPermit);
+                try {
+                    send(gi, request, decoder, timeout, callback, retry, getPermit);
+                } catch (Throwable e) {
+                    handleSendEx(request, callback, e, getPermit);
+                }
             }
         });
     }
@@ -594,8 +599,12 @@ public class RaftClient extends AbstractLifeCircle {
             return;
         }
         RaftNode node = it.next();
-        CompletableFuture<QueryStatusResp> s = queryRaftServerStatus(node.nodeId, gi.groupId);
-        s.whenComplete((resp, ex) -> processLeaderQueryResult(gi, it, resp, ex, node));
+        try {
+            CompletableFuture<QueryStatusResp> s = queryRaftServerStatus(node.nodeId, gi.groupId);
+            s.whenComplete((resp, ex) -> processLeaderQueryResult(gi, it, resp, ex, node));
+        } catch (Exception e) {
+            processLeaderQueryResult(gi, it, null, e, node);
+        }
     }
 
     private void processLeaderQueryResult(GroupInfo gi, Iterator<RaftNode> it, QueryStatusResp status,
@@ -604,7 +613,7 @@ public class RaftClient extends AbstractLifeCircle {
         try {
             GroupInfo currentGroupInfo = groups.get(gi.groupId);
             if (currentGroupInfo != gi) {
-                // group info changed, stop current find process
+                // group info changed, stop current find process, and wait new find action complete the future
                 return;
             }
             if (ex != null) {
