@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.net.NetTimeoutException;
@@ -92,26 +93,29 @@ public class RaftClient extends AbstractLifeCircle {
         if (nodes.stream().map(n -> n.nodeId).distinct().count() != nodes.size()) {
             throw new IllegalArgumentException("duplicated node id");
         }
+        if (nodes.stream().map(n -> n.hostPort).distinct().count() != nodes.size()) {
+            throw new IllegalArgumentException("duplicated host port");
+        }
         checkStatus();
         lock.lock();
         try {
+            HashSet<HostPort> existingHostPorts = new HashSet<>(allNodes.size() >> 1);
             for (Map.Entry<Integer, RaftNode> e : allNodes.entrySet()) {
-                for (RaftNode newNode : nodes) {
-                    if (e.getKey() == newNode.nodeId) {
-                        throw new RaftException("node " + e.getKey() + " already exists");
-                    }
-                    if (e.getValue().hostPort.equals(newNode.hostPort)) {
-                        throw new RaftException("node " + e.getValue().hostPort + " already exists");
-                    }
+                existingHostPorts.add(e.getValue().hostPort);
+            }
+            for (RaftNode newNode : nodes) {
+                if (allNodes.get(newNode.nodeId) != null) {
+                    throw new RaftException("node " + newNode.nodeId + " already exists");
+                }
+                if (existingHostPorts.contains(newNode.hostPort)) {
+                    throw new RaftException("node " + newNode.hostPort + " already exists");
                 }
             }
             ArrayList<CompletableFuture<RaftNode>> futures = new ArrayList<>();
             for (RaftNode n : nodes) {
-                if (allNodes.get(n.nodeId) == null) {
-                    // this operation should finish quickly
-                    CompletableFuture<Peer> f = nioClient.addPeer(n.hostPort);
-                    futures.add(f.thenApply(peer -> new RaftNode(n.nodeId, n.hostPort, peer)));
-                }
+                // this operation should finish quickly
+                CompletableFuture<Peer> f = nioClient.addPeer(n.hostPort);
+                futures.add(f.thenApply(peer -> new RaftNode(n.nodeId, n.hostPort, peer)));
             }
             boolean success = false;
             try {
@@ -225,7 +229,7 @@ public class RaftClient extends AbstractLifeCircle {
         GroupInfo gi;
         int epoch = oldGroupInfo == null ? 0 : oldGroupInfo.serversEpoch + 1;
         boolean oldLeaderOK = leader != null && leader.peer.status == PeerStatus.connected
-                 && oldGroupInfo.lastLeaderFailTime == null;
+                && oldGroupInfo.lastLeaderFailTime == null;
         boolean findInProgress = oldGroupInfo != null && oldGroupInfo.leaderFuture != null;
         if (oldLeaderOK && !findInProgress) {
             gi = new GroupInfo(groupId, unmodifiableList(managedServers), epoch, leader, false);
@@ -660,7 +664,7 @@ public class RaftClient extends AbstractLifeCircle {
                             nioClient.connect(leader.peer)
                                     .whenComplete((v, e) -> connectToLeaderCallback(gi, leader, e));
                         } catch (Exception e) {
-                            log.error("", e);
+                            log.error("connect to leader error", e);
                             connectToLeaderCallback(gi, leader, e);
                         }
                     } else {
