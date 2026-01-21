@@ -85,6 +85,11 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public void clientAddNode(List<RaftNode> nodes) {
+        Objects.requireNonNull(nodes);
+        nodes.forEach(n -> DtUtil.checkPositive(n.nodeId, "nodeId"));
+        if (nodes.stream().map(n -> n.nodeId).distinct().count() != nodes.size()) {
+            throw new IllegalArgumentException("duplicated node id");
+        }
         checkStatus();
         lock.lock();
         try {
