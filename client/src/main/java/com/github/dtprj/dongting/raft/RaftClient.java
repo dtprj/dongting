@@ -480,6 +480,7 @@ public class RaftClient extends AbstractLifeCircle {
             }
         } catch (Exception e) {
             log.error("raft client callback error", e);
+            invokeOriginCallback(c, null, e);
         } finally {
             if (shouldRelease) {
                 nioClient.releasePermit(request);
