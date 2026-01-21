@@ -341,8 +341,9 @@ public class RaftClient extends AbstractLifeCircle {
         try {
             getPermit = nioClient.acquirePermit(request, timeout);
             if (groupInfo.leader != null && groupInfo.leader.peer.status == PeerStatus.connected
-                    && (groupInfo.lastLeaderFailTime == 0 ||
-                    System.currentTimeMillis() - groupInfo.lastLeaderFailTime < 1000)) {
+                    && (groupInfo.lastLeaderFailTime == null ||
+                    System.nanoTime() - groupInfo.lastLeaderFailTime.createTimeNanos < 1_000_000_000)) {
+                // one raft group has only one leader, if leader rpc fails, don't trigger findLeader until 1 second
                 send(groupInfo, request, decoder, timeout, callback, 0, getPermit);
             } else {
                 sendAfterUpdateLeader(groupId, request, decoder, 0, timeout, callback, groupInfo, getPermit);
@@ -502,7 +503,7 @@ public class RaftClient extends AbstractLifeCircle {
         if (currentGroupInfo != oldGroupInfo) {
             return;
         }
-        if (currentGroupInfo.lastLeaderFailTime != 0) {
+        if (currentGroupInfo.lastLeaderFailTime != null) {
             return;
         }
         lock.lock();
@@ -511,7 +512,7 @@ public class RaftClient extends AbstractLifeCircle {
             if (currentGroupInfo != oldGroupInfo) {
                 return;
             }
-            GroupInfo newGroupInfo = new GroupInfo(oldGroupInfo, System.currentTimeMillis());
+            GroupInfo newGroupInfo = new GroupInfo(oldGroupInfo, new DtTime());
             groups.put(oldGroupInfo.groupId, newGroupInfo);
         } finally {
             lock.unlock();
@@ -571,7 +572,7 @@ public class RaftClient extends AbstractLifeCircle {
                 return DtUtil.failedFuture(new NoSuchGroupException(groupId));
             }
             if (gi.leader != null && gi.leader.peer.status == PeerStatus.connected
-                    && gi.lastLeaderFailTime == 0 && !force) {
+                    && gi.lastLeaderFailTime == null && !force) {
                 return CompletableFuture.completedFuture(gi);
             }
             if (gi.leaderFuture != null) {

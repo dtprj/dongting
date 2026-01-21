@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.common.DtTime;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -29,7 +31,7 @@ public class GroupInfo {
     public final RaftNode leader;
 
     final CompletableFuture<GroupInfo> leaderFuture;
-    final long lastLeaderFailTime;
+    final DtTime lastLeaderFailTime;
 
     GroupInfo(int groupId, List<RaftNode> servers, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
@@ -43,14 +45,14 @@ public class GroupInfo {
             this.leaderFuture = null;
         }
         this.leader = leader;
-        this.lastLeaderFailTime = 0;
+        this.lastLeaderFailTime = null;
     }
 
     GroupInfo(GroupInfo old, RaftNode leader, boolean createFuture) {
         this(old.groupId, old.servers, leader, createFuture);
     }
 
-    GroupInfo(GroupInfo old, long lastLeaderFailTime) {
+    GroupInfo(GroupInfo old, DtTime lastLeaderFailTime) {
         this.groupId = old.groupId;
         this.servers = old.servers;
         this.leader = old.leader;
