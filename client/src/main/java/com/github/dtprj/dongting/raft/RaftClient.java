@@ -134,6 +134,7 @@ public class RaftClient extends AbstractLifeCircle {
                 throw new NetException(e);
             } finally {
                 if (!success) {
+                    // all success or all fail
                     for (RaftNode n : nodes) {
                         nioClient.removePeer(n.hostPort);
                         allNodes.remove(n.nodeId);
@@ -382,7 +383,8 @@ public class RaftClient extends AbstractLifeCircle {
             if (groupInfo.leader != null && groupInfo.leader.peer.status == PeerStatus.connected
                     && (groupInfo.lastLeaderFailTime == null ||
                     System.nanoTime() - groupInfo.lastLeaderFailTime.createTimeNanos < 1_000_000_000)) {
-                // one raft group has only one leader, if leader rpc fails, don't trigger findLeader until 1 second
+                // one raft group has only one leader, if leader rpc fails, don't trigger findLeader at once,
+                // the request still send to the current leader
                 send(groupInfo, request, decoder, timeout, callback, 0, getPermit);
             } else {
                 sendAfterUpdateLeader(groupId, request, decoder, 0, timeout, callback, groupInfo, getPermit);
@@ -479,6 +481,7 @@ public class RaftClient extends AbstractLifeCircle {
                         if (request.canRetry() && retry == 0 && status == STATUS_RUNNING) {
                             try {
                                 request.prepareRetry();
+                                // the groupInfo is not latest, it's ok here
                                 sendAfterUpdateLeader(groupInfo.groupId, request, decoder, 1, timeout,
                                         c, groupInfo, getPermit);
                                 // not release permit, it's released in the callback of send()
@@ -505,15 +508,15 @@ public class RaftClient extends AbstractLifeCircle {
             } else if (ex != null) {
                 updateLeaderFailTime(groupInfo);
             }
-        } catch (Exception e) {
-            log.error("raft client callback error", e);
-            invokeOriginCallback(c, null, e);
+            invokeOriginCallback(c, result, ex);
+        } catch (Exception wrapperCallbackEx) {
+            log.error("raft client callback error", wrapperCallbackEx);
+            invokeOriginCallback(c, null, wrapperCallbackEx);
         } finally {
             if (shouldRelease) {
                 nioClient.releasePermit(request);
             }
         }
-        invokeOriginCallback(c, result, ex);
     }
 
     private <T> void invokeOriginCallback(RpcCallback<T> c, ReadPacket<T> result, Throwable ex) {
@@ -530,7 +533,7 @@ public class RaftClient extends AbstractLifeCircle {
                         }
                     });
                 } catch (RejectedExecutionException e) {
-                    log.error("callback task submit rejected");
+                    log.error("callback task submit rejected, ignore invoke the callback");
                 }
             } else {
                 try {
@@ -725,7 +728,7 @@ public class RaftClient extends AbstractLifeCircle {
             Peer leaderPeer = leader.peer;
             if (e != null) {
                 log.warn("connect to leader {} fail: {}", leader, e.toString());
-                RaftException re = new RaftException("connect to leader " + leader + " fail");
+                RaftException re = new RaftException("connect to leader " + leader + " fail", e);
                 gi.leaderFuture.completeExceptionally(re);
                 createAndPutGroupInfo(gi, null, false);
             } else {
