@@ -563,7 +563,13 @@ public class RaftClient extends AbstractLifeCircle {
             log.warn("receive NOT_RAFT_LEADER, but no new leader info, groupId={}", lastReqGroupInfo.groupId);
             return null;
         }
-        int suggestLeaderId = Integer.parseInt(new String(extra, StandardCharsets.UTF_8));
+        int suggestLeaderId;
+        try {
+            suggestLeaderId = Integer.parseInt(new String(extra, StandardCharsets.UTF_8));
+        } catch (NumberFormatException e) {
+            log.error("receive NOT_RAFT_LEADER with invalid new leader, groupId={}", lastReqGroupInfo.groupId);
+            return null;
+        }
         lock.lock();
         try {
             GroupInfo currentGroupInfo = groups.get(lastReqGroupInfo.groupId);
@@ -571,7 +577,7 @@ public class RaftClient extends AbstractLifeCircle {
                 log.error("group {} is removed", lastReqGroupInfo.groupId);
                 return null;
             }
-            if (currentGroupInfo != lastReqGroupInfo) {
+            if (currentGroupInfo.serversEpoch != lastReqGroupInfo.serversEpoch) {
                 if (currentGroupInfo.leader != null && currentGroupInfo.leader.nodeId == suggestLeaderId) {
                     return currentGroupInfo;
                 } else {
