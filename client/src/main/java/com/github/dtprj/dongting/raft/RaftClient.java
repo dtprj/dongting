@@ -447,6 +447,7 @@ public class RaftClient extends AbstractLifeCircle {
                                   DtTime timeout, RpcCallback<T> c, int retry, boolean getPermit,
                                   ReadPacket<T> result, Throwable ex) {
         boolean shouldRelease = getPermit;
+        boolean shouldInvokeCallback = true;
         try {
             if (ex instanceof NetCodeException) {
                 NetCodeException ncEx = (NetCodeException) ex;
@@ -467,6 +468,7 @@ public class RaftClient extends AbstractLifeCircle {
                                     handleSendEx(request, c, retryEx, getPermit);
                                 }
                                 shouldRelease = false;
+                                shouldInvokeCallback = false;
                                 return;
                             }
                         }
@@ -490,6 +492,7 @@ public class RaftClient extends AbstractLifeCircle {
                                 handleSendEx(request, c, retryEx, getPermit);
                             }
                             shouldRelease = false;
+                            shouldInvokeCallback = false;
                             return;
                         }
                         break;
@@ -511,14 +514,16 @@ public class RaftClient extends AbstractLifeCircle {
         } catch (Exception wrapperCallbackEx) {
             log.error("raft client callback error", wrapperCallbackEx);
             //noinspection ConstantValue
-            if (ex != null) {
+            if (ex != null && ex != wrapperCallbackEx) {
                 ex.addSuppressed(wrapperCallbackEx);
             }
         } finally {
             if (shouldRelease) {
                 nioClient.releasePermit(request);
             }
-            invokeOriginCallback(c, result, ex);
+            if (shouldInvokeCallback) {
+                invokeOriginCallback(c, result, ex);
+            }
         }
     }
 
@@ -538,12 +543,10 @@ public class RaftClient extends AbstractLifeCircle {
                 } catch (RejectedExecutionException rejectEx) {
                     log.error("callback task submit rejected");
                     try {
-                        if (ex != null) {
+                        if (ex != null && ex != rejectEx) {
                             ex.addSuppressed(rejectEx);
-                            c.call(null, ex);
-                        } else {
-                            c.call(result, null);
                         }
+                        c.call(result, ex);
                     } catch (Throwable callbackEx) {
                         log.error("RaftClient callback error", callbackEx);
                     }
