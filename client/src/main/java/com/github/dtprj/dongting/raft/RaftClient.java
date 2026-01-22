@@ -563,16 +563,13 @@ public class RaftClient extends AbstractLifeCircle {
 
     private void updateLeaderFailTime(GroupInfo oldGroupInfo) {
         GroupInfo currentGroupInfo = groups.get(oldGroupInfo.groupId);
-        if (currentGroupInfo != oldGroupInfo) {
-            return;
-        }
-        if (currentGroupInfo.lastLeaderFailTime != null) {
+        if (currentGroupInfo != oldGroupInfo || currentGroupInfo.lastLeaderFailTime != null) {
             return;
         }
         lock.lock();
         try {
             currentGroupInfo = groups.get(oldGroupInfo.groupId);
-            if (currentGroupInfo != oldGroupInfo) {
+            if (currentGroupInfo != oldGroupInfo || currentGroupInfo.lastLeaderFailTime != null) {
                 return;
             }
             GroupInfo newGroupInfo = GroupInfo.createByLastLeaderFailTime(oldGroupInfo, new DtTime());
