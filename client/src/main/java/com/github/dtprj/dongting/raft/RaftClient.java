@@ -230,28 +230,42 @@ public class RaftClient extends AbstractLifeCircle {
         int epoch = oldGroupInfo == null ? 0 : oldGroupInfo.serversEpoch + 1;
         boolean oldLeaderOK = leader != null && leader.peer.status == PeerStatus.connected
                 && oldGroupInfo.lastLeaderFailTime == null;
-        boolean findInProgress = oldGroupInfo != null && oldGroupInfo.leaderFuture != null;
+        boolean findInProgress = oldGroupInfo != null && oldGroupInfo.leaderFuture != null
+                && !oldGroupInfo.leaderFuture.isDone();
         if (oldLeaderOK && !findInProgress) {
             gi = new GroupInfo(groupId, unmodifiableList(managedServers), epoch, leader, false);
         } else {
             gi = new GroupInfo(groupId, unmodifiableList(managedServers), epoch, leader, true);
             findLeader(gi, gi.servers.iterator());
-            updateOldGroupFutureIfNecessary(gi, oldGroupInfo);
+            finishOldGroupFutureIfNecessary(gi, oldGroupInfo);
         }
         groups.put(groupId, gi);
     }
 
-    private void updateOldGroupFutureIfNecessary(GroupInfo newGroupInfo, GroupInfo oldGroupInfo) {
+    private GroupInfo createAndPutGroupInfo(GroupInfo old, RaftNode leader, boolean createFuture) {
+        GroupInfo gi = new GroupInfo(old.groupId, old.servers, old.serversEpoch + 1, leader, createFuture);
+        finishOldGroupFutureIfNecessary(gi, old);
+        groups.put(gi.groupId, gi);
+        return gi;
+    }
+
+    private void finishOldGroupFutureIfNecessary(GroupInfo newGroupInfo, GroupInfo oldGroupInfo) {
         // use new leader future to complete the old one
-        if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
-            //noinspection DataFlowIssue
-            newGroupInfo.leaderFuture.whenComplete((result, ex) -> {
-                if (ex != null) {
-                    oldGroupInfo.leaderFuture.completeExceptionally(ex);
-                } else {
-                    oldGroupInfo.leaderFuture.complete(result);
-                }
-            });
+        if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null && !oldGroupInfo.leaderFuture.isDone()) {
+            if (newGroupInfo.leaderFuture != null) {
+                newGroupInfo.leaderFuture.whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        oldGroupInfo.leaderFuture.completeExceptionally(ex);
+                    } else {
+                        oldGroupInfo.leaderFuture.complete(result);
+                    }
+                });
+            } else if (newGroupInfo.leader != null) {
+                oldGroupInfo.leaderFuture.complete(newGroupInfo);
+            } else {
+                oldGroupInfo.leaderFuture.completeExceptionally(new RaftException(
+                        "can't found leader for group " + newGroupInfo.groupId));
+            }
         }
     }
 
@@ -542,18 +556,13 @@ public class RaftClient extends AbstractLifeCircle {
 
     private GroupInfo updateLeaderFromExtra(byte[] extra, GroupInfo lastReqGroupInfo) {
         if (extra == null) {
-            log.warn("leader changed, but no new leader info, groupId={}", lastReqGroupInfo.groupId);
-            return null;
-        }
-        GroupInfo currentGroupInfo = groups.get(lastReqGroupInfo.groupId);
-        if (currentGroupInfo == null) {
-            log.error("group {} is removed", lastReqGroupInfo.groupId);
+            log.warn("receive NOT_RAFT_LEADER, but no new leader info, groupId={}", lastReqGroupInfo.groupId);
             return null;
         }
         int suggestLeaderId = Integer.parseInt(new String(extra, StandardCharsets.UTF_8));
         lock.lock();
         try {
-            currentGroupInfo = groups.get(lastReqGroupInfo.groupId);
+            GroupInfo currentGroupInfo = groups.get(lastReqGroupInfo.groupId);
             if (currentGroupInfo == null) {
                 log.error("group {} is removed", lastReqGroupInfo.groupId);
                 return null;
@@ -569,9 +578,7 @@ public class RaftClient extends AbstractLifeCircle {
             }
             RaftNode leader = parseLeader(lastReqGroupInfo, suggestLeaderId);
             if (leader != null) {
-                GroupInfo newGroupInfo = new GroupInfo(lastReqGroupInfo, leader, false);
-                groups.put(lastReqGroupInfo.groupId, newGroupInfo);
-                return newGroupInfo;
+                return createAndPutGroupInfo(lastReqGroupInfo, leader, false);
             } else {
                 return null;
             }
@@ -599,12 +606,10 @@ public class RaftClient extends AbstractLifeCircle {
             if (gi.leaderFuture != null && !force) {
                 return gi.leaderFuture;
             }
-            GroupInfo newGroupInfo = new GroupInfo(gi, gi.leader, true);
-            groups.put(groupId, newGroupInfo);
+            GroupInfo newGroupInfo = createAndPutGroupInfo(gi, gi.leader, true);
             Iterator<RaftNode> it = newGroupInfo.servers.iterator();
             log.info("try find leader for group {}", groupId);
             findLeader(newGroupInfo, it);
-            updateOldGroupFutureIfNecessary(newGroupInfo, gi);
             return newGroupInfo.leaderFuture;
         } finally {
             lock.unlock();
@@ -617,8 +622,7 @@ public class RaftClient extends AbstractLifeCircle {
             gi.leaderFuture.completeExceptionally(new RaftException("can't find leader for group " + gi.groupId));
 
             // set new group info, to trigger next find
-            GroupInfo newGroupInfo = new GroupInfo(gi, null, false);
-            groups.put(gi.groupId, newGroupInfo);
+            createAndPutGroupInfo(gi, null, false);
             return;
         }
         RaftNode node = it.next();
@@ -684,14 +688,12 @@ public class RaftClient extends AbstractLifeCircle {
             Peer leaderPeer = leader.peer;
             if (e != null) {
                 log.warn("connect to leader {} fail: {}", leaderPeer.endPoint, e.toString());
-                groups.put(gi.groupId, new GroupInfo(gi, null, false));
                 RaftException re = new RaftException("connect to leader " + leaderPeer.endPoint + " fail");
                 gi.leaderFuture.completeExceptionally(re);
+                createAndPutGroupInfo(gi, null, false);
             } else {
                 log.info("group {} connected to leader: {}", gi.groupId, leaderPeer.endPoint);
-                GroupInfo newGroupInfo = new GroupInfo(gi, leader, false);
-                groups.put(gi.groupId, newGroupInfo);
-                gi.leaderFuture.complete(newGroupInfo);
+                createAndPutGroupInfo(gi, leader, false);
             }
         } finally {
             lock.unlock();

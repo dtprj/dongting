@@ -28,7 +28,7 @@ public class GroupInfo {
 
     public final int groupId;
     public final List<RaftNode> servers;
-    public final int serversEpoch;
+    public final int serversEpoch; //overflow is allowed
     public final RaftNode leader;
 
     final CompletableFuture<GroupInfo> leaderFuture;
@@ -45,10 +45,6 @@ public class GroupInfo {
         }
         this.leader = leader;
         this.lastLeaderFailTime = null;
-    }
-
-    GroupInfo(GroupInfo old, RaftNode leader, boolean createFuture) {
-        this(old.groupId, old.servers, old.serversEpoch, leader, createFuture);
     }
 
     GroupInfo(GroupInfo old, DtTime lastLeaderFailTime) {
