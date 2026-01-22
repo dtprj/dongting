@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
@@ -100,7 +101,7 @@ public class RaftClient extends AbstractLifeCircle {
         checkStatus();
         lock.lock();
         try {
-            HashSet<HostPort> existingHostPorts = new HashSet<>(allNodes.size() >> 1);
+            HashSet<HostPort> existingHostPorts = new HashSet<>(allNodes.size() << 1);
             for (Map.Entry<Integer, RaftNode> e : allNodes.entrySet()) {
                 existingHostPorts.add(e.getValue().hostPort);
             }
@@ -520,13 +521,17 @@ public class RaftClient extends AbstractLifeCircle {
             boolean callInBizExecutor = config.useBizExecutor && nioClient.getBizExecutor() != null
                     && (!(c instanceof SyncFutureCallback));
             if (callInBizExecutor) {
-                nioClient.getBizExecutor().submit(() -> {
-                    try {
-                        c.call(result, ex);
-                    } catch (Throwable e) {
-                        log.error("RaftClient callback error", e);
-                    }
-                });
+                try {
+                    nioClient.getBizExecutor().submit(() -> {
+                        try {
+                            c.call(result, ex);
+                        } catch (Throwable e) {
+                            log.error("RaftClient callback error", e);
+                        }
+                    });
+                } catch (RejectedExecutionException e) {
+                    log.error("callback task submit rejected");
+                }
             } else {
                 try {
                     c.call(result, ex);
@@ -683,7 +688,7 @@ public class RaftClient extends AbstractLifeCircle {
                     if (leader != null) {
                         log.debug("find leader for group {}: {}", gi.groupId, leader);
                         if (leader.peer.status == PeerStatus.connected) {
-                            log.info("group {} connected to leader: {}", gi.groupId, leader.nodeId);
+                            log.info("group {} connected to leader: {}", gi.groupId, leader);
                             createAndPutGroupInfo(gi, leader, false);
                         } else {
                             try {
@@ -719,12 +724,12 @@ public class RaftClient extends AbstractLifeCircle {
             }
             Peer leaderPeer = leader.peer;
             if (e != null) {
-                log.warn("connect to leader {} fail: {}", leaderPeer.endPoint, e.toString());
-                RaftException re = new RaftException("connect to leader " + leaderPeer.endPoint + " fail");
+                log.warn("connect to leader {} fail: {}", leader, e.toString());
+                RaftException re = new RaftException("connect to leader " + leader + " fail");
                 gi.leaderFuture.completeExceptionally(re);
                 createAndPutGroupInfo(gi, null, false);
             } else {
-                log.info("group {} connected to leader: {}", gi.groupId, leaderPeer.endPoint);
+                log.info("group {} connected to leader: {}", gi.groupId, leaderPeer);
                 createAndPutGroupInfo(gi, leader, false);
             }
         } finally {
