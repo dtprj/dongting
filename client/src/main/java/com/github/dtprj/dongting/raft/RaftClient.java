@@ -508,14 +508,17 @@ public class RaftClient extends AbstractLifeCircle {
             } else if (ex != null) {
                 updateLeaderFailTime(groupInfo);
             }
-            invokeOriginCallback(c, result, ex);
         } catch (Exception wrapperCallbackEx) {
             log.error("raft client callback error", wrapperCallbackEx);
-            invokeOriginCallback(c, null, wrapperCallbackEx);
+            //noinspection ConstantValue
+            if (ex != null) {
+                ex.addSuppressed(wrapperCallbackEx);
+            }
         } finally {
             if (shouldRelease) {
                 nioClient.releasePermit(request);
             }
+            invokeOriginCallback(c, result, ex);
         }
     }
 
@@ -528,18 +531,28 @@ public class RaftClient extends AbstractLifeCircle {
                     nioClient.getBizExecutor().submit(() -> {
                         try {
                             c.call(result, ex);
-                        } catch (Throwable e) {
-                            log.error("RaftClient callback error", e);
+                        } catch (Throwable callbackEx) {
+                            log.error("RaftClient callback error", callbackEx);
                         }
                     });
-                } catch (RejectedExecutionException e) {
-                    log.error("callback task submit rejected, ignore invoke the callback");
+                } catch (RejectedExecutionException rejectEx) {
+                    log.error("callback task submit rejected");
+                    try {
+                        if (ex != null) {
+                            ex.addSuppressed(rejectEx);
+                            c.call(null, ex);
+                        } else {
+                            c.call(result, null);
+                        }
+                    } catch (Throwable callbackEx) {
+                        log.error("RaftClient callback error", callbackEx);
+                    }
                 }
             } else {
                 try {
                     c.call(result, ex);
-                } catch (Throwable e) {
-                    log.error("RaftClient callback error", e);
+                } catch (Throwable callbackEx) {
+                    log.error("RaftClient callback error", callbackEx);
                 }
             }
         }
@@ -674,7 +687,7 @@ public class RaftClient extends AbstractLifeCircle {
                 return;
             }
             if (ex != null) {
-                log.warn("query leader from {} fail: {}", node.nodeId, ex.toString());
+                log.warn("query leader from {} fail: {}", node, ex.toString());
                 findLeader(gi, it);
             } else {
                 if (status == null) {
@@ -725,14 +738,13 @@ public class RaftClient extends AbstractLifeCircle {
                 // group member changed, stop current find process, and wait new find action complete the future
                 return;
             }
-            Peer leaderPeer = leader.peer;
             if (e != null) {
                 log.warn("connect to leader {} fail: {}", leader, e.toString());
                 RaftException re = new RaftException("connect to leader " + leader + " fail", e);
                 gi.leaderFuture.completeExceptionally(re);
                 createAndPutGroupInfo(gi, null, false);
             } else {
-                log.info("group {} connected to leader: {}", gi.groupId, leaderPeer);
+                log.info("group {} connected to leader: {}", gi.groupId, leader);
                 createAndPutGroupInfo(gi, leader, false);
             }
         } finally {
