@@ -682,12 +682,17 @@ public class RaftClient extends AbstractLifeCircle {
                     RaftNode leader = parseLeader(gi, status.leaderId);
                     if (leader != null) {
                         log.debug("find leader for group {}: {}", gi.groupId, leader);
-                        try {
-                            nioClient.connect(leader.peer)
-                                    .whenComplete((v, e) -> connectToLeaderCallback(gi, leader, e));
-                        } catch (Exception e) {
-                            log.error("connect to leader error", e);
-                            connectToLeaderCallback(gi, leader, e);
+                        if (leader.peer.status == PeerStatus.connected) {
+                            log.info("group {} connected to leader: {}", gi.groupId, leader.nodeId);
+                            createAndPutGroupInfo(gi, leader, false);
+                        } else {
+                            try {
+                                nioClient.connect(leader.peer)
+                                        .whenComplete((v, e) -> connectToLeaderCallback(gi, leader, e));
+                            } catch (Exception e) {
+                                log.error("connect to leader error", e);
+                                connectToLeaderCallback(gi, leader, e);
+                            }
                         }
                     } else {
                         findLeader(gi, it);
@@ -703,6 +708,15 @@ public class RaftClient extends AbstractLifeCircle {
         requireNonNull(gi.leaderFuture);
         lock.lock();
         try {
+            GroupInfo currentGroupInfo = groups.get(gi.groupId);
+            if (currentGroupInfo == null) {
+                requireNonNull(gi.leaderFuture).completeExceptionally(new RaftException("group id removed: " + gi.groupId));
+                return;
+            }
+            if (currentGroupInfo.serversEpoch != gi.serversEpoch) {
+                // group member changed, stop current find process, and wait new find action complete the future
+                return;
+            }
             Peer leaderPeer = leader.peer;
             if (e != null) {
                 log.warn("connect to leader {} fail: {}", leaderPeer.endPoint, e.toString());
