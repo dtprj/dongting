@@ -33,6 +33,7 @@ public class GroupInfo {
 
     final CompletableFuture<GroupInfo> leaderFuture;
     final DtTime lastLeaderFailTime;
+    final DtTime lastFindFailTime;
 
     GroupInfo(int groupId, List<RaftNode> servers, int serversEpoch, RaftNode leader, boolean createFuture) {
         this.groupId = groupId;
@@ -45,15 +46,29 @@ public class GroupInfo {
         }
         this.leader = leader;
         this.lastLeaderFailTime = null;
+        this.lastFindFailTime = null;
     }
 
-    GroupInfo(GroupInfo old, DtTime lastLeaderFailTime) {
-        this.groupId = old.groupId;
-        this.servers = old.servers;
-        this.leader = old.leader;
-        this.leaderFuture = old.leaderFuture;
+    private GroupInfo(int groupId, List<RaftNode> servers, int serversEpoch, RaftNode leader,
+                      CompletableFuture<GroupInfo> leaderFuture, DtTime lastLeaderFailTime,
+                      DtTime lastFindFailTime) {
+        this.groupId = groupId;
+        this.servers = servers;
+        this.serversEpoch = serversEpoch;
+        this.leader = leader;
+        this.leaderFuture = leaderFuture;
         this.lastLeaderFailTime = lastLeaderFailTime;
-        this.serversEpoch = old.serversEpoch;
+        this.lastFindFailTime = lastFindFailTime;
+    }
+
+    public static GroupInfo createByLastLeaderFailTime(GroupInfo old, DtTime lastLeaderFailTime) {
+        return new GroupInfo(old.groupId, old.servers, old.serversEpoch, old.leader, old.leaderFuture,
+                lastLeaderFailTime, null);
+    }
+
+    public static GroupInfo createByLastFindFailTime(GroupInfo old, DtTime lastFindFailTime) {
+        return new GroupInfo(old.groupId, old.servers, old.serversEpoch + 1, null, null,
+                null, lastFindFailTime);
     }
 
     public boolean contains(RaftNode node) {

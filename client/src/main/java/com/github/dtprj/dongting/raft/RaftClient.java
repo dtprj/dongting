@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.net.WritePacket;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -180,6 +181,7 @@ public class RaftClient extends AbstractLifeCircle {
             }
         }
         checkStatus();
+        log.info("add or update group {}, serverIds={}", groupId, Arrays.toString(serverIds));
         lock.lock();
         try {
             addOrUpdateGroupInLock(groupId, serverIds);
@@ -234,8 +236,10 @@ public class RaftClient extends AbstractLifeCircle {
                 && !oldGroupInfo.leaderFuture.isDone();
         if (oldLeaderOK && !findInProgress) {
             gi = new GroupInfo(groupId, unmodifiableList(managedServers), epoch, leader, false);
+            log.info("use old leader for group {}, leader={}", groupId, leader.nodeId);
         } else {
             gi = new GroupInfo(groupId, unmodifiableList(managedServers), epoch, leader, true);
+            log.info("find leader for group {}", groupId);
             findLeader(gi, gi.servers.iterator());
             finishOldGroupFutureIfNecessary(gi, oldGroupInfo);
         }
@@ -547,7 +551,7 @@ public class RaftClient extends AbstractLifeCircle {
             if (currentGroupInfo != oldGroupInfo) {
                 return;
             }
-            GroupInfo newGroupInfo = new GroupInfo(oldGroupInfo, new DtTime());
+            GroupInfo newGroupInfo = GroupInfo.createByLastLeaderFailTime(oldGroupInfo, new DtTime());
             groups.put(oldGroupInfo.groupId, newGroupInfo);
         } finally {
             lock.unlock();
@@ -606,8 +610,14 @@ public class RaftClient extends AbstractLifeCircle {
             if (gi.leaderFuture != null && !force) {
                 return gi.leaderFuture;
             }
+            if (gi.lastFindFailTime != null && !force &&
+                    System.nanoTime() - gi.lastFindFailTime.createTimeNanos < 1_000_000_000) {
+                return DtUtil.failedFuture(new RaftException("find leader fail recently"));
+            }
             GroupInfo newGroupInfo = createAndPutGroupInfo(gi, gi.leader, true);
-            Iterator<RaftNode> it = newGroupInfo.servers.iterator();
+            ArrayList<RaftNode> servers = new ArrayList<>(newGroupInfo.servers);
+            Collections.shuffle(servers);
+            Iterator<RaftNode> it = servers.iterator();
             log.info("try find leader for group {}", groupId);
             findLeader(newGroupInfo, it);
             return newGroupInfo.leaderFuture;
@@ -621,8 +631,10 @@ public class RaftClient extends AbstractLifeCircle {
             //noinspection DataFlowIssue
             gi.leaderFuture.completeExceptionally(new RaftException("can't find leader for group " + gi.groupId));
 
+            log.error("can't find leader for group {}", gi.groupId);
             // set new group info, to trigger next find
-            createAndPutGroupInfo(gi, null, false);
+            GroupInfo newGroupInfo = GroupInfo.createByLastFindFailTime(gi, new DtTime());
+            groups.put(gi.groupId, newGroupInfo);
             return;
         }
         RaftNode node = it.next();
