@@ -345,9 +345,6 @@ class KvImpl {
         long localCreateNanos;
         int bizType;
 
-        private KvNodeEx newOwner;
-        private long newOwnerServerSideWaitNanos;
-
         OpContext() {
         }
 
@@ -358,33 +355,16 @@ class KvImpl {
             this.localCreateNanos = localCreateNanos;
             this.bizType = bizType;
         }
-
-        KvResultWithNewOwnerInfo getKvResultWithNewOwnerInfo(KvResult result) {
-            KvResultWithNewOwnerInfo r = new KvResultWithNewOwnerInfo(result, newOwner,
-                    newOwner == null ? null : newOwner.data, newOwnerServerSideWaitNanos);
-            newOwner = null;
-            newOwnerServerSideWaitNanos = 0;
-            return r;
-        }
-
-        void resetNewOwnerInfo() {
-            newOwner = null;
-            newOwnerServerSideWaitNanos = 0;
-        }
     }
 
-    static final class KvResultWithNewOwnerInfo {
-        final KvResult result;
+    static final class KvResultWithNewOwnerInfo extends KvResult {
         final KvNodeEx newOwner;
-        final byte[] newOwnerData;
         final long newOwnerServerSideWaitNanos;
 
-        KvResultWithNewOwnerInfo(KvResult result, KvNodeEx newOwner, byte[] newOwnerData,
-                                 long newOwnerServerSideWaitNanos) {
-            this.result = result;
+        KvResultWithNewOwnerInfo(int bizCode, KvNodeEx newOwner, long newOwnerServerSideWaitNanos) {
+            super(bizCode);
             this.newOwner = newOwner;
             this.newOwnerServerSideWaitNanos = newOwnerServerSideWaitNanos;
-            this.newOwnerData = newOwnerData;
         }
     }
 
@@ -911,7 +891,6 @@ class KvImpl {
             }
             return new KvResult(KvCodes.TTL_INDEX_MISMATCH);
         }
-        opContext.resetNewOwnerInfo();
         long t = lock.writeLock();
         try {
             return expireInLock(index, h);
@@ -998,14 +977,14 @@ class KvImpl {
                 if (parent.latest.childCount() == 0) {
                     doRemoveInLock(index, parent);
                 } else if (ownersLock) {
-                    updateNextOwnerIfExists(index, parent);
+                    return updateNextOwnerIfExists(index, parent);
                 }
             }
         }
         return KvResult.SUCCESS;
     }
 
-    private void updateNextOwnerIfExists(long index, KvNodeHolder parent) {
+    private KvResult updateNextOwnerIfExists(long index, KvNodeHolder parent) {
         KvNodeHolder nextLockOwner = parent.latest.peekNextOwner();
         if (nextLockOwner != null) {
             // update owner hold timeout
@@ -1022,10 +1001,10 @@ class KvImpl {
             // re-init opContext so owner/ttlMillis are set appropriately.
             opContext.init(DtKV.BIZ_TYPE_EXPIRE, n.ttlInfo.owner, newHoldTtlMillis,
                     opContext.leaderCreateTimeMillis, opContext.localCreateNanos);
-            opContext.newOwner = n;
-            opContext.newOwnerServerSideWaitNanos = serverSideWaitNanos;
             ttlManager.updateTtl(index, nextLockOwner.key, n, opContext);
+            return new KvResultWithNewOwnerInfo(KvCodes.SUCCESS, n, serverSideWaitNanos);
         }
+        return KvResult.SUCCESS;
     }
 
     public KvResult tryLock(long index, ByteArray key, byte[] data) {
@@ -1071,7 +1050,6 @@ class KvImpl {
             return new KvResult(KvCodes.LOCK_BY_OTHER);
         }
         boolean holdLock = sub == parent.latest.peekNextOwner();
-        opContext.resetNewOwnerInfo();
         long stamp = lock.writeLock();
         try {
             doRemoveInLock(index, sub);
@@ -1079,8 +1057,7 @@ class KvImpl {
                 doRemoveInLock(index, parent);
             }
             if (holdLock) {
-                updateNextOwnerIfExists(index, parent);
-                return KvResult.SUCCESS;
+                return updateNextOwnerIfExists(index, parent);
             } else {
                 return new KvResult(KvCodes.LOCK_BY_OTHER);
             }

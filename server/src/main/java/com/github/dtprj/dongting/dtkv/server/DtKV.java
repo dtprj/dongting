@@ -200,7 +200,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 return kv.compareAndSet(index, key, req.expectValue, req.value);
             case BIZ_TYPE_EXPIRE:
                 long expectRaftIndex = req.ttlMillis; // yes!
-                return kv.opContext.getKvResultWithNewOwnerInfo(kv.expire(index, key, expectRaftIndex));
+                return kv.expire(index, key, expectRaftIndex);
             case BIZ_TYPE_UPDATE_TTL:
                 return kv.updateTtl(index, key);
             case BIZ_TYPE_UPDATE_LOCK_LEASE:
@@ -208,7 +208,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_TRY_LOCK:
                 return kv.tryLock(index, key, req.value);
             case BIZ_TYPE_UNLOCK:
-                return kv.opContext.getKvResultWithNewOwnerInfo(kv.unlock(index, key));
+                return kv.unlock(index, key);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
@@ -391,7 +391,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             @Override
             public void success(long raftIndex, Object result) {
                 // notify new lock owner if any
-                KvServerUtil.notifyNewLockOwner(raftGroup, (KvImpl.KvResultWithNewOwnerInfo) result);
+                if (result instanceof KvImpl.KvResultWithNewOwnerInfo) {
+                    KvServerUtil.notifyNewLockOwner(raftGroup, (KvImpl.KvResultWithNewOwnerInfo) result);
+                }
 
                 // to remove from pendingQueue:
                 // if KvCodes.SUCCESS, removed in KvImpl.doRemoveInLock

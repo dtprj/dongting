@@ -27,11 +27,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test class for distributed lock operations: tryLock, unlock, updateLockLease.
@@ -201,10 +197,9 @@ class KvLockTest {
 
         // unlock
         initOpContext(owner1, DtKV.BIZ_TYPE_UNLOCK, 0);
-        KvImpl.KvResultWithNewOwnerInfo r = kv.opContext.getKvResultWithNewOwnerInfo(
-                kv.unlock(ver++, ba("lock1")));
+        KvResult r = kv.unlock(ver++, ba("lock1"));
         
-        assertEquals(KvCodes.SUCCESS, r.result.getBizCode());
+        assertEquals(KvCodes.SUCCESS, r.getBizCode());
 
         // verify lock sub node deleted
         ByteArray lockKey = KvServerUtil.buildLockKey(ba("lock1"),
@@ -260,10 +255,9 @@ class KvLockTest {
         // owner1 unlocks
         TestUtil.updateTimestamp(ts, ts.nanoTime + 100_000_000L, ts.wallClockMillis + 100);
         initOpContext(owner1, DtKV.BIZ_TYPE_UNLOCK, 0);
-        KvImpl.KvResultWithNewOwnerInfo r = kv.opContext.getKvResultWithNewOwnerInfo(
-                kv.unlock(ver++, ba("lock1")));
+        KvImpl.KvResultWithNewOwnerInfo r = (KvImpl.KvResultWithNewOwnerInfo) kv.unlock(ver++, ba("lock1"));
         
-        assertEquals(KvCodes.SUCCESS, r.result.getBizCode());
+        assertEquals(KvCodes.SUCCESS, r.getBizCode());
 
         // verify next owner notified
         assertNotNull(r.newOwner);
@@ -291,7 +285,7 @@ class KvLockTest {
         kv.tryLock(ver++, ba("lock1"), value);
 
         initOpContext(owner1, DtKV.BIZ_TYPE_UNLOCK, 0);
-        kv.opContext.getKvResultWithNewOwnerInfo(kv.unlock(ver++, ba("lock1")));
+        kv.unlock(ver++, ba("lock1"));
 
         // both sub node and dir should be removed
         ByteArray lockKey = KvServerUtil.buildLockKey(ba("lock1"),

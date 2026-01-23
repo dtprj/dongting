@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
-import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -160,9 +159,7 @@ public class KvServerUtil {
     }
 
     static void notifyNewLockOwner(RaftGroup g, KvImpl.KvResultWithNewOwnerInfo ri) {
-        KvResult r = ri.result;
-
-        if (r.getBizCode() != KvCodes.SUCCESS || ri.newOwner == null || ri.newOwnerData == null) {
+        if (ri.getBizCode() != KvCodes.SUCCESS || ri.newOwner == null || ri.newOwner.data == null) {
             return;
         }
 
@@ -185,7 +182,7 @@ public class KvServerUtil {
         KvReq req = new KvReq();
         req.groupId = g.getGroupId();
         req.key = KvImpl.parentKey(lockKey).getData();
-        req.value = ri.newOwnerData;
+        req.value = ri.newOwner.data;
         req.ttlMillis = ri.newOwnerServerSideWaitNanos;
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_LOCK_PUSH, req);
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
