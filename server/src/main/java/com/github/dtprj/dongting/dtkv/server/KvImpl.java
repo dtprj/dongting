@@ -1053,11 +1053,17 @@ class KvImpl {
         long stamp = lock.writeLock();
         try {
             doRemoveInLock(index, sub);
-            if (parent.latest.childCount() == 0) {
+            boolean removeParent = parent.latest.childCount() == 0;
+            if (removeParent) {
                 doRemoveInLock(index, parent);
             }
             if (holdLock) {
-                return updateNextOwnerIfExists(index, parent);
+                if (removeParent) {
+                    return KvResult.SUCCESS;
+                } else {
+                    // if parent is removed, the updateNextOwnerIfExists may cause problem
+                    return updateNextOwnerIfExists(index, parent);
+                }
             } else {
                 return new KvResult(KvCodes.LOCK_BY_OTHER);
             }
