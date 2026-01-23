@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -130,17 +131,17 @@ public class StressRwValidator implements Runnable {
             return;
         }
         if (node == null) {
-            log.error("WriteReadValidator-{} VIOLATION: key {} not found after successful write", threadId, keyStr);
+            BugLog.getLog().error("WriteReadValidator-{} VIOLATION: key {} not found after successful write", threadId, keyStr);
             violationCount.incrementAndGet();
             return;
         }
         if (node.data == null) {
-            log.error("WriteReadValidator-{} VIOLATION: key {} found but data is null after successful write", threadId, keyStr);
+            BugLog.getLog().error("WriteReadValidator-{} VIOLATION: key {} found but data is null after successful write", threadId, keyStr);
             violationCount.incrementAndGet();
             return;
         }
         if (!Arrays.equals(value, node.data)) {
-            log.error("WriteReadValidator-{} VIOLATION: key {} found but data is different after successful write", threadId, keyStr);
+            BugLog.getLog().error("WriteReadValidator-{} VIOLATION: key {} found but data is different after successful write", threadId, keyStr);
             violationCount.incrementAndGet();
         }
     }
