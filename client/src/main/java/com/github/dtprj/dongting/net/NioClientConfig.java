@@ -26,7 +26,11 @@ public class NioClientConfig extends NioConfig {
     public int[] connectRetryIntervals = {100, 1000, 5000, 10 * 1000, 20 * 1000, 30 * 1000, 60 * 1000};
 
     public NioClientConfig() {
-        this.name = "DtNioClient";
+        this("DtNioClient");
+    }
+
+    public NioClientConfig(String name) {
+        this.name = name;
         this.bizThreads = Runtime.getRuntime().availableProcessors() * 2;
         if (bizThreads < 4) {
             bizThreads = 4;

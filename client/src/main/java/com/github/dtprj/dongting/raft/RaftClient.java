@@ -70,7 +70,7 @@ public class RaftClient extends AbstractLifeCircle {
     private final ReentrantLock lock = new ReentrantLock();
 
     public RaftClient() {
-        this(new RaftClientConfig(), new NioClientConfig());
+        this(new RaftClientConfig(), new NioClientConfig("RaftClient"));
     }
 
     public RaftClient(RaftClientConfig raftClientConfig, NioClientConfig nioClientConfig) {

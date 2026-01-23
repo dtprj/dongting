@@ -87,9 +87,7 @@ public class DtKvValidator {
             kvClientConfig.watchHeartbeatMillis = watchHeartbeatMillis;
         }
 
-        NioClientConfig ncc = new NioClientConfig();
-        ncc.name = "DtKvValidatorClient";
-        KvClient client = new KvClient(kvClientConfig, raftClientConfig, ncc);
+        KvClient client = new KvClient(kvClientConfig, raftClientConfig, new NioClientConfig("DtKvValidatorClient"));
 
         client.start();
 

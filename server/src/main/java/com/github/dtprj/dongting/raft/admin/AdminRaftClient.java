@@ -53,8 +53,7 @@ import java.util.concurrent.CompletableFuture;
 public class AdminRaftClient extends RaftClient {
 
     public AdminRaftClient() {
-        this(new RaftClientConfig(), new NioClientConfig());
-        nioClient.getConfig().name = "AdminRaftClient";
+        this(new RaftClientConfig(), new NioClientConfig("AdminRaftClient"));
     }
 
     public AdminRaftClient(RaftClientConfig raftClientConfig, NioClientConfig nioClientConfig) {

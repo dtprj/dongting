@@ -55,8 +55,7 @@ public class KvClient extends AbstractLifeCircle {
     private static final DecoderCallbackCreator<KvResp> DECODER = ctx -> ctx.toDecoderCallback(new KvResp.Callback());
 
     public KvClient() {
-        this(new KvClientConfig(), new RaftClientConfig(), new NioClientConfig());
-        raftClient.getNioClient().getConfig().name = "KvClient";
+        this(new KvClientConfig(), new RaftClientConfig(), new NioClientConfig("KvClient"));
     }
 
     public KvClient(KvClientConfig config, RaftClientConfig raftClientConfig,

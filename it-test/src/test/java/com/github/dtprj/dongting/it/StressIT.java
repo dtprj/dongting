@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.it;
 
 import com.github.dtprj.dongting.dtkv.KvClient;
+import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.it.support.BenchmarkProcessManager;
 import com.github.dtprj.dongting.it.support.BenchmarkProcessManager.BenchmarkConfig;
 import com.github.dtprj.dongting.it.support.BenchmarkProcessManager.BenchmarkProcessInfo;
@@ -30,6 +31,8 @@ import com.github.dtprj.dongting.it.support.StressLockValidator;
 import com.github.dtprj.dongting.it.support.StressRwValidator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.test.TestDir;
 import com.github.dtprj.dongting.test.Tick;
 import org.junit.jupiter.api.Test;
@@ -291,8 +294,7 @@ public class StressIT {
     }
 
     private KvClient createKvClient(String name) {
-        KvClient client = new KvClient();
-        client.getRaftClient().getNioClient().getConfig().name = name;
+        KvClient client = new KvClient(new KvClientConfig(), new RaftClientConfig(), new NioClientConfig(name));
         client.start();
 
         String serversStr = ItUtil.formatServiceServers(MEMBER_IDS);
