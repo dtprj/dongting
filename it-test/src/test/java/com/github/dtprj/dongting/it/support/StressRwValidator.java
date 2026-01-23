@@ -74,9 +74,6 @@ public class StressRwValidator implements Runnable {
             log.info("WriteReadValidator-{} started", threadId);
             while (!stop.get()) {
                 runOneVerification();
-                if (!stop.get()) {
-                    Thread.sleep(10);
-                }
             }
             log.info("WriteReadValidator-{} stopped", threadId);
         } catch (InterruptedException e) {
@@ -93,15 +90,17 @@ public class StressRwValidator implements Runnable {
         }
     }
 
-    private void processAllowedEx(Exception e) {
+    private void processAllowedEx(Exception e) throws InterruptedException {
         Throwable root = DtUtil.rootCause(e);
         if (root instanceof InterruptedException) {
             Thread.currentThread().interrupt();
+        } else {
+            Thread.sleep(100);
         }
         failureCount.incrementAndGet();
     }
 
-    private void runOneVerification() {
+    private void runOneVerification() throws InterruptedException {
         int keyIndex = random.nextInt(keySpace);
         byte[] key = makeKey(String.valueOf(keyIndex));
 

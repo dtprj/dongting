@@ -115,7 +115,7 @@ public class StressLockValidator implements Runnable {
             autoLockThread1.start();
             autoLockThread2.start();
             while (!stop.get() && violationCount.get() == 0) {
-                Thread.sleep(500);
+                Thread.sleep(100);
             }
         } catch (InterruptedException e) {
             log.debug("LockExclusivityValidator interrupted");
@@ -147,10 +147,12 @@ public class StressLockValidator implements Runnable {
         }
     }
 
-    private void processAllowedEx(Exception e) {
+    private void processAllowedEx(Exception e) throws InterruptedException {
         Throwable root = DtUtil.rootCause(e);
         if (root instanceof InterruptedException) {
             Thread.currentThread().interrupt();
+        } else {
+            Thread.sleep(500);
         }
         failureCount.incrementAndGet();
     }
@@ -182,6 +184,8 @@ public class StressLockValidator implements Runnable {
                     }
                 }
             }
+        } catch (InterruptedException e) {
+            log.debug("LockExclusivityValidator interrupted");
         } catch (Throwable e) {
             log.error("LockExclusivityValidator encountered unexpected error", e);
             violationCount.incrementAndGet();
@@ -241,7 +245,8 @@ public class StressLockValidator implements Runnable {
         }
     }
 
-    private void runCheckOnce(String key, KvClient client, Supplier<Boolean> heldBySelf, Supplier<Boolean> heldByOther) {
+    private void runCheckOnce(String key, KvClient client, Supplier<Boolean> heldBySelf, Supplier<Boolean> heldByOther)
+            throws InterruptedException {
         byte[] keyBytes = key(key).getBytes(StandardCharsets.UTF_8);
 
         KvNode n;
