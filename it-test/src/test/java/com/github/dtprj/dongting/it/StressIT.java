@@ -85,6 +85,14 @@ public class StressIT {
     private final AtomicBoolean stop = new AtomicBoolean();
     private FaultInjectionScheduler faultInjector;
 
+    private final BootstrapProcessManager processManager = new BootstrapProcessManager();
+    private final BenchmarkProcessManager benchmarkManager = new BenchmarkProcessManager();
+    private ClusterValidator validator;
+    private BenchmarkProcessInfo putProcess;
+    private BenchmarkProcessInfo getProcess;
+    private List<Thread> writeReadValidatorThreads;
+    private List<Thread> lockValidatorThreads;
+
     @Test
     @Timeout(value = 365, unit = TimeUnit.DAYS)
     void test() throws Exception {
@@ -119,12 +127,6 @@ public class StressIT {
         log.info("Lock validator pairs: {}", LOCK_VALIDATORS);
         log.info("Transaction validators: {}", TRANSACTION_VALIDATOR_THREADS);
 
-        BootstrapProcessManager processManager = new BootstrapProcessManager();
-        BenchmarkProcessManager benchmarkManager = new BenchmarkProcessManager();
-        ClusterValidator validator = null;
-        BenchmarkProcessInfo putProcess = null;
-        BenchmarkProcessInfo getProcess = null;
-
         try {
             // Step 1: Generate configuration and start cluster
             log.info("Step 1: Starting 3-node cluster");
@@ -148,7 +150,7 @@ public class StressIT {
             log.info("Step 3: Starting validator threads");
 
             // Start StressRwValidator
-            List<Thread> writeReadValidatorThreads = new ArrayList<>();
+            writeReadValidatorThreads = new ArrayList<>();
             for (int i = 0; i < WRITE_READ_VALIDATOR_THREADS; i++) {
                 StressRwValidator wrValidator = new StressRwValidator(
                         i, GROUP_ID, VALIDATOR_KEY_SPACE, this::createKvClient,
@@ -159,7 +161,7 @@ public class StressIT {
             }
 
             // Start StressLockValidator (in pairs)
-            List<Thread> lockValidatorThreads = new ArrayList<>();
+            lockValidatorThreads = new ArrayList<>();
             for (int i = 0; i < LOCK_VALIDATORS; i++) {
                 StressLockValidator lockValidator = new StressLockValidator(GROUP_ID, i, LOCK_LEASE_MILLIS,
                         this::createKvClient, lockVerifyCount, lockViolationCount, lockFailureCount, stop);
@@ -204,7 +206,7 @@ public class StressIT {
             }
             log.info("Step 6: Running test for {} ", quickMode ? 5 + " minutes" : "FOREVER");
             long startTime = System.currentTimeMillis();
-
+            addShutdownHook();
             while (!quickMode || (System.currentTimeMillis() - startTime < testDurationMillis)) {
                 Thread.sleep(5000);
 
@@ -234,20 +236,9 @@ public class StressIT {
                 }
             }
 
-            log.info("Test duration completed or stopped");
-
-            // Signal validators to stop gracefully
-            stop.set(true);
-
-            // Step 7: Stop fault injector
-            log.info("Step 7: Stopping fault injector");
-            faultInjector.interrupt();
-            faultInjector.join(60 * 1000);
-
-            // Step 8: Stop validators
-            log.info("Step 8: Stopping validators");
-            stopValidatorThreads(writeReadValidatorThreads);
-            stopValidatorThreads(lockValidatorThreads);
+            log.info("Test duration completed");
+        } catch (InterruptedException e) {
+            log.info("Test interrupted");
         } catch (Throwable e) {
             failed = true;
             log.error("Test failed with exception", e);
@@ -261,36 +252,64 @@ public class StressIT {
             }
 
             throw e;
-
         } finally {
-            log.info("Cleaning up resources");
-
-            // Stop benchmark processes
-            if (putProcess != null && putProcess.process.isAlive()) {
-                benchmarkManager.stopBenchmark(putProcess);
-            }
-            if (getProcess != null && getProcess.process.isAlive()) {
-                benchmarkManager.stopBenchmark(getProcess);
-            }
-
-            // Close validator
-            if (validator != null) {
-                try {
-                    validator.close();
-                } catch (Exception e) {
-                    log.warn("Error closing validator", e);
-                }
-            }
-
-            // Stop all cluster nodes
-            assertTrue(processManager.stopAllNodes(30));
-
-            log.info("=== StressIT completed ===");
-            printTestReport();
+            shutdown();
         }
         assertEquals(0, writeReadViolationCount.get());
         assertEquals(0, lockViolationCount.get());
         assertFalse(failed);
+    }
+
+    private void shutdown() throws InterruptedException {
+        // Signal validators to stop gracefully
+        stop.set(true);
+
+        log.info("Shutting down StressIT");
+
+        // Step 7: Stop fault injector
+        if (faultInjector != null) {
+            faultInjector.interrupt();
+            faultInjector.join(60 * 1000);
+        }
+
+        // Step 8: Stop validators
+        if (writeReadValidatorThreads != null) {
+            stopValidatorThreads(writeReadValidatorThreads);
+        }
+        if (lockValidatorThreads != null) {
+            stopValidatorThreads(lockValidatorThreads);
+        }
+
+        // Stop benchmark processes
+        if (putProcess != null && putProcess.process.isAlive()) {
+            benchmarkManager.stopBenchmark(putProcess);
+        }
+        if (getProcess != null && getProcess.process.isAlive()) {
+            benchmarkManager.stopBenchmark(getProcess);
+        }
+
+        // Close validator
+        if (validator != null) {
+            try {
+                validator.close();
+            } catch (Exception e) {
+                log.warn("Error closing validator", e);
+            }
+        }
+
+        // Stop all cluster nodes
+        assertTrue(processManager.stopAllNodes(30));
+
+        log.info("=== StressIT completed ===");
+        printTestReport();
+    }
+
+    private void addShutdownHook() {
+        Thread main = Thread.currentThread();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            log.info("Shutdown hook executed");
+            main.interrupt();
+        }));
     }
 
     private KvClient createKvClient(String name) {
