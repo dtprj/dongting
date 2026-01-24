@@ -1,7 +1,7 @@
 ## Build and Test Commands
 
 ### Build
-- Full build: `mvn clean package -DskipITs -DskipUTs`
+- Full build: `mvn clean package -DskipUTs`
 - Compile with protobuf: `mvn clean compile test-compile`
 
 ### Unit Testing

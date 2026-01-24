@@ -4,7 +4,7 @@ description: Used to start or stop the project's server in development mode via 
 ---
 
 # Build and Basic Instructions
-After executing `mvn clean package -DskipUTs -DskipITs`, the target directory under the project root will contain the dongting-dist directory, which includes:
+After executing `mvn clean package -DskipUTs`, the target directory under the project root will contain the dongting-dist directory, which includes:
 
 - bin: Various startup and shutdown scripts, each providing bat/ps1/sh formats; examples below use sh format
 - lib: Dependency JAR directory
