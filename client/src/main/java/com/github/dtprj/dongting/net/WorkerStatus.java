@@ -215,6 +215,7 @@ class WorkerStatus {
                 PacketInfoReq pi = dtc.pendingReqHead;
                 pendingRequests.remove(BitUtil.toLong(dtc.channelIndexInWorker, pi.packet.seq));
                 removeFromChannelQueue(pi);
+                removeFromNearTimeoutQueue(pi);
                 if (e == null) {
                     e = new NetException("channel closed, cancel pending request in NioWorker");
                 }
