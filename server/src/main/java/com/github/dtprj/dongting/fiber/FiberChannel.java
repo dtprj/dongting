@@ -49,17 +49,36 @@ public class FiberChannel<T> {
         this.notEmptyCondition = groupOfConsumer.newCondition("FiberChannelNotEmpty");
     }
 
+    /**
+     * the return value only ensures that the task is accepted by dispatcher.
+     */
     public boolean fireOffer(T data) {
-        return fireOffer(data, null);
+        return fireOffer0(data, null);
     }
 
-    public boolean fireOffer(T data, Consumer<T> dispatchFailCallback) {
+    /**
+     * If the task is not accepted by dispatcher, the callback invoked in caller thread;
+     * if markShutdown() is called, the callback invoked in dispatcher thread.
+     */
+    public void fireOffer(T data, Consumer<T> dispatchFailCallback) {
+        if (!fireOffer0(data, dispatchFailCallback)) {
+            try {
+                if (dispatchFailCallback != null) {
+                    dispatchFailCallback.accept(data);
+                }
+            } catch (Throwable e) {
+                log.warn("", this);
+            }
+        }
+    }
+
+    private boolean fireOffer0(T data, Consumer<T> dispatchFailCallback) {
         FiberQueueTask t = new FiberQueueTask(groupOfConsumer) {
             @Override
             protected void run() {
                 if (shutdown) {
                     try {
-                        log.warn("task is not accepted because its group is shouldStop: {}", data);
+                        log.warn("task is not accepted because channel is shutdown: {}", data);
                         if (dispatchFailCallback != null) {
                             dispatchFailCallback.accept(data);
                         }
@@ -112,7 +131,7 @@ public class FiberChannel<T> {
     /**
      * take from channel, may invoke resumePoint with null value.
      *
-     * @param millis       timeout in milliseconds
+     * @param millis             timeout in milliseconds
      * @param returnOnShouldStop await should return immediately if group is stopping
      */
     public FrameCallResult take(long millis, boolean returnOnShouldStop, FrameCall<T> resumePoint) {
@@ -162,7 +181,7 @@ public class FiberChannel<T> {
     /**
      * take all elements from channel into given collection, may invoke resumePoint with empty collection.
      *
-     * @param millis       timeout in milliseconds
+     * @param millis             timeout in milliseconds
      * @param returnOnShouldStop await should return immediately if group is stopping
      */
     public FrameCallResult takeAll(Collection<T> c, long millis, boolean returnOnShouldStop, FrameCall<Void> resumePoint) {

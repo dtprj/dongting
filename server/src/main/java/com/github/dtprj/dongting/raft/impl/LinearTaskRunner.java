@@ -138,9 +138,7 @@ public class LinearTaskRunner {
     public void submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {
         RaftTask t = new RaftTask(raftLogType, input, callback);
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
-        if (!taskChannel.fireOffer(t, LinearTaskRunner::onDispatchFail)) {
-            onDispatchFail(t);
-        }
+        taskChannel.fireOffer(t, LinearTaskRunner::onDispatchFail);
     }
 
     public static long lastIndex(RaftStatusImpl raftStatus) {

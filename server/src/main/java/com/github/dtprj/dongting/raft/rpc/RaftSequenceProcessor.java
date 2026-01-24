@@ -124,9 +124,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
     protected final WritePacket doProcess(ReqInfo<T> reqInfo) {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
         FiberChannel<Object> c = rix.raftGroup.groupComponents.processorChannels.get(typeId);
-        if (!c.fireOffer(reqInfo, this::onDispatcherFail)) {
-            onDispatcherFail(reqInfo);
-        }
+        c.fireOffer(reqInfo, this::onDispatcherFail);
         return null;
     }
 }
