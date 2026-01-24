@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.PacketType;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
@@ -61,7 +62,13 @@ class KvClientProcessor extends ReqProcessor<Object> {
         } else if (packet.command == Commands.DTKV_LOCK_PUSH) {
             KvReq req = (KvReq) body;
             lockManager.processLockPush(req.groupId, req, packet.bizCode);
-            return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            if (packet.packetType == PacketType.TYPE_ONE_WAY) {
+                return null;
+            } else {
+                // currently, lock push is always one-way,
+                // but we keep the code in case it changes in the future
+                return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            }
         } else {
             return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
         }
