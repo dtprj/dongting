@@ -132,7 +132,7 @@ public class LinearTaskRunner {
 
     private static void onDispatchFail(RaftTask rt) {
         RaftUtil.release(rt.input);
-        rt.callFail(new RaftException("submit raft task failed"));
+        rt.callFail(new RaftException("submit raft task failed, the fiber group is not running"));
     }
 
     public void submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {

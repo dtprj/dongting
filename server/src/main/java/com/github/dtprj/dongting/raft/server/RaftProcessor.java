@@ -149,6 +149,8 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
                 errorResp.extra = String.valueOf(leader.nodeId).getBytes(StandardCharsets.UTF_8);
             }
             log.warn("not leader, current leader is {}", leader);
+        } else if (root.getMessage().contains("the fiber group is not running")) {
+            errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
         } else {
             errorResp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
             log.warn("raft processor error", ex);

@@ -79,10 +79,6 @@ public final class RaftGroupImpl extends RaftGroup {
     @Override
     public void submitLinearTask(RaftInput input, RaftCallback callback) {
         Objects.requireNonNull(input);
-        if (fiberGroup.shareStatusSource.getShareStatus(false).shouldStop) {
-            RaftUtil.release(input);
-            throw new RaftException("raft group thread is stop");
-        }
         int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
         groupComponents.linearTaskRunner.submitRaftTaskInBizThread(type, input, callback);
     }
