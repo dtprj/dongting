@@ -260,8 +260,8 @@ public class RaftServer extends AbstractLifeCircle {
         }
 
         Dispatcher dispatcher = raftFactory.createDispatcher(serverConfig, rgc);
-        FiberGroup fiberGroup = new FiberGroup("group-" + rgc.groupId, dispatcher);
-        RaftStatusImpl raftStatus = new RaftStatusImpl(rgc.groupId, fiberGroup.dispatcher.ts);
+        RaftStatusImpl raftStatus = new RaftStatusImpl(rgc.groupId, dispatcher.ts);
+        FiberGroup fiberGroup = new FiberGroup("group-" + rgc.groupId, dispatcher, raftStatus);
         raftStatus.nioServer = nioServer;
         raftStatus.tailCache = new TailCache(rgc, raftStatus);
         raftStatus.nodeIdOfMembers = nodeIdOfMembers;
