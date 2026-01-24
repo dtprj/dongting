@@ -688,13 +688,13 @@ final class WatchHolder {
             children = new HashMap<>();
         }
         if (children.put(key, child) != null) {
-            BugLog.log(new RaftException("watch holder child key already exists: " + key));
+            BugLog.log("watch holder child key already exists: " + key);
         }
     }
 
     public void removeChild(ByteArray key) {
         if (children == null) {
-            BugLog.log(new RaftException("assert children != null"));
+            BugLog.log("assert children != null");
             return;
         }
         children.remove(key);

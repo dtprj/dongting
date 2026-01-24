@@ -21,12 +21,12 @@ package com.github.dtprj.dongting.common;
 public class DtBugException extends DtException {
     private static final long serialVersionUID = -5245692015991898799L;
 
-    public DtBugException(String message) {
-        super(message);
+    public DtBugException(Throwable e) {
+        super(e);
     }
 
-    public DtBugException(String message, Throwable cause) {
-        super(message, cause);
+    public DtBugException(String message) {
+        super(message);
     }
 
 }

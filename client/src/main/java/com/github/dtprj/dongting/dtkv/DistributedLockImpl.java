@@ -177,7 +177,7 @@ public class DistributedLockImpl implements DistributedLock {
 
         private void markFinishInLock(Object result, Throwable ex) {
             if (finish) {
-                BugLog.log(new DtBugException("already finished"));
+                BugLog.log("already finished");
                 return;
             }
             finish = true;
@@ -215,7 +215,7 @@ public class DistributedLockImpl implements DistributedLock {
         @Override
         public void run() {
             if (called) {
-                BugLog.log(new DtBugException("already called"));
+                BugLog.log("already called");
                 return;
             }
             // call user callback outside lock, only once

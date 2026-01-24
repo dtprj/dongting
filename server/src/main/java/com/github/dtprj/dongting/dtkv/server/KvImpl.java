@@ -672,6 +672,9 @@ class KvImpl {
     }
 
     private KvResult doRemoveInLock(long index, KvNodeHolder h) {
+        if (h.parent.latest.removed) {
+            BugLog.logAndThrow("remove node in removed parent");
+        }
         long logTime = opContext.leaderCreateTimeMillis;
         addToUpdateQueue(index, h);
 
@@ -964,12 +967,24 @@ class KvImpl {
             }
             while (!output.isEmpty()) {
                 KvNodeHolder current = output.pop();
+                if (current.latest.removed) {
+                    BugLog.logAndThrow("removed node in dir children list");
+                }
+                if ((current.latest.flag & KvNode.FLAG_LOCK_MASK) != 0) {
+                    BugLog.logAndThrow("lock node in temp dir");
+                }
                 doRemoveInLock(index, current);
             }
         } else {
             // not dir
             boolean isLock = (h.latest.flag & KvNode.FLAG_LOCK_MASK) != 0;
             KvNodeHolder parent = h.parent;
+            if (parent.latest.removed) {
+                BugLog.getLog().error("parent removed");
+            }
+            if (isLock && (parent.latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
+                BugLog.getLog().error("parent has no lock mask");
+            }
             boolean ownersLock = isLock && h == parent.latest.peekNextOwner();
             doRemoveInLock(index, h);
             if (isLock) {
@@ -1048,6 +1063,9 @@ class KvImpl {
         KvNodeHolder sub = map.get(fullKey);
         if (sub == null || sub.latest.removed) {
             return new KvResult(KvCodes.LOCK_BY_OTHER);
+        }
+        if (sub.parent != parent) {
+            BugLog.logAndThrow("sub.parent != parent");
         }
         boolean holdLock = sub == parent.latest.peekNextOwner();
         long stamp = lock.writeLock();

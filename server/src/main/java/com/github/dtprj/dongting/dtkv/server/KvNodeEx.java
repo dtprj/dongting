@@ -83,6 +83,13 @@ final class KvNodeEx extends KvNode {
     void addChild(KvNodeHolder c) {
         children.put(c.keyInDir, c);
         if ((flag & KvNode.FLAG_LOCK_MASK) != 0) {
+            int childFlag = c.latest.flag;
+            if ((childFlag & KvNode.FLAG_LOCK_MASK) == 0) {
+                BugLog.logAndThrow("child has no lock mask");
+            }
+            if ((childFlag & KvNode.FLAG_DIR_MASK) != 0) {
+                BugLog.logAndThrow("child is dir");
+            }
             lockOrderQueue.add(c);
         }
     }
@@ -94,14 +101,23 @@ final class KvNodeEx extends KvNode {
     void removeChild(ByteArray keyInDir) {
         KvNodeHolder h = children.remove(keyInDir);
         if ((flag & KvNode.FLAG_LOCK_MASK) != 0 && h != null) {
-            lockOrderQueue.remove(h);
+            int childFlag = h.latest.flag;
+            if ((childFlag & KvNode.FLAG_LOCK_MASK) == 0) {
+                BugLog.logAndThrow("child has no lock mask");
+            }
+            if ((childFlag & KvNode.FLAG_DIR_MASK) != 0) {
+                BugLog.logAndThrow("child is dir");
+            }
+            if (!lockOrderQueue.remove(h)) {
+                BugLog.logAndThrow("lockOrderQueue remove fail");
+            }
         }
     }
 
     KvNodeHolder peekNextOwner() {
         TreeSet<KvNodeHolder> q = lockOrderQueue;
         if (q == null) {
-            BugLog.getLog().error("lockOrderQueue is null");
+            BugLog.logAndThrow("lockOrderQueue is null");
         }
         return q == null || q.isEmpty() ? null : q.first();
     }

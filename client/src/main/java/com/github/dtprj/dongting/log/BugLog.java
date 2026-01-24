@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.log;
 
+import com.github.dtprj.dongting.common.DtBugException;
+
 /**
  * @author huangli
  */
@@ -29,6 +31,29 @@ public class BugLog {
             count++;
         }
         log.error("", e);
+    }
+
+    public static void logAndThrow(Throwable e) {
+        synchronized (BugLog.class) {
+            count++;
+        }
+        log.error("", new DtBugException(e));
+    }
+
+    public static void log(String msg) {
+        synchronized (BugLog.class) {
+            count++;
+        }
+        log.error(msg, new DtBugException(msg));
+    }
+
+    public static void logAndThrow(String msg) {
+        synchronized (BugLog.class) {
+            count++;
+        }
+        DtBugException e = new DtBugException(msg);
+        log.error(msg, e);
+        throw e;
     }
 
     public static DtLog getLog() {
