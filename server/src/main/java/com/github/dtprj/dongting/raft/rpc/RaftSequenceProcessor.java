@@ -124,7 +124,15 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
     protected final WritePacket doProcess(ReqInfo<T> reqInfo) {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
         FiberChannel<Object> c = rix.raftGroup.groupComponents.processorChannels.get(typeId);
-        c.fireOffer(reqInfo, this::onDispatcherFail);
+        if (c == null) {
+            // query status can reach here when group is not initialized
+            reqInfo.reqFrame.clean();
+            EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
+            wf.msg = "raft group not initialized: " + reqInfo.raftGroup.getGroupId();
+            return wf;
+        } else {
+            c.fireOffer(reqInfo, this::onDispatcherFail);
+        }
         return null;
     }
 }
