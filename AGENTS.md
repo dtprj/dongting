@@ -1,10 +1,7 @@
 ## Build and Test
 
-See the [build-and-test skill](.opencode/skill/build-and-test/SKILL.md) for complete build and test commands, including:
-- Build commands (full build, protobuf compilation)
-- Unit testing patterns and commands
-- Integration testing patterns and commands
-- Project structure and module information
+- See the [build-and-test skill](.opencode/skill/build-and-test/SKILL.md) for complete build and test commands.
+- If ```IntelliJ-IDEA``` MCP is available, use it instead of Java LSP. Usage instructions: [idea-mcp skill](.opencode/skill/idea-mcp/SKILL.md)
 
 ## Codebase Overview
 - **Multi-module Maven project** with Java 11 (Java 8 for client module)
