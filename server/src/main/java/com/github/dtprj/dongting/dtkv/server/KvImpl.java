@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Supplier;
@@ -57,10 +56,7 @@ class KvImpl {
 
     private final int groupId;
 
-    // When iterating over this map, we need to divide the process into multiple steps,
-    // with each step only accessing a portion of the map. Therefore, ConcurrentHashMap is needed here.
-    final ConcurrentHashMap<ByteArray, KvNodeHolder> map;
-
+    final KvMap map;
 
     // for fast access root dir
     final KvNodeHolder root;
@@ -84,7 +80,7 @@ class KvImpl {
         this.watchManager = watchManager;
         this.ts = ts;
         this.groupId = groupId;
-        this.map = new ConcurrentHashMap<>(initCapacity, loadFactor);
+        this.map = new KvMap(initCapacity, loadFactor);
         KvNodeEx n = new KvNodeEx(0, 0, 0, 0,
                 KvNode.FLAG_DIR_MASK, null);
         this.root = new KvNodeHolder(ByteArray.EMPTY, ByteArray.EMPTY, n, null);
@@ -636,7 +632,7 @@ class KvImpl {
     }
 
     public Supplier<Boolean> createGcTask() {
-        Iterator<KvNodeHolder> it = map.values().iterator();
+        Iterator<KvNodeHolder> it = map.iterator();
         long t = System.currentTimeMillis();
         log.info("group {} start gc task", groupId);
         return () -> {
