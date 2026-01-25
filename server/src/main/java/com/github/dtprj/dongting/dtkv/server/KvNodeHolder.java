@@ -32,6 +32,8 @@ final class KvNodeHolder {
     long updateIndex;
     boolean inUpdateQueue;
 
+    int childHolderCount;
+
     public KvNodeHolder(ByteArray key, ByteArray keyInDir, KvNodeEx n, KvNodeHolder parent) {
         this.key = key;
         this.keyInDir = keyInDir;

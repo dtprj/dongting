@@ -40,6 +40,9 @@ import java.util.concurrent.locks.StampedLock;
 import java.util.function.Supplier;
 
 /**
+ * All write operations run in same thread, and there are multiple read threads, so the write thread
+ * do not need to acquire StampedLock if it only read data or update fields that read threads will not access.
+ *
  * @author huangli
  */
 class KvImpl {
@@ -418,9 +421,7 @@ class KvImpl {
     private KvResult doPutInLock(long index, ByteArray key, byte[] data, KvNodeHolder current,
                                  KvNodeHolder parent, int lastIndexOfSep) {
         if (current != null && current.parent != parent) {
-            // parent removed by gc (but `current` not gc now), and then re-put
-            map.remove(key);
-            current = null;
+            BugLog.logAndThrow("current.parent != parent");
         }
         lastPutNodeHolder = null;
         if (current == null || current.latest.removed) {
@@ -431,6 +432,7 @@ class KvImpl {
             if (current == null) {
                 current = new KvNodeHolder(key, key.sub(lastIndexOfSep + 1), newKvNode, parent);
                 map.put(key, current);
+                parent.childHolderCount++;
                 parent.latest.addChild(current);
             } else {
                 updateHolderAndGc(current, newKvNode, current.latest);
@@ -562,7 +564,7 @@ class KvImpl {
                     }
                     if (p == null) {
                         if (next == null) {
-                            map.remove(h.key);
+                            tryRemoveFromMap(h);
                         } else {
                             next.previous = null;
                         }
@@ -577,9 +579,21 @@ class KvImpl {
             }
         } else {
             if (n.removed) {
-                map.remove(h.key);
+                tryRemoveFromMap(h);
             } else {
                 n.previous = null;
+            }
+        }
+    }
+
+    private void tryRemoveFromMap(KvNodeHolder h) {
+        if (h.childHolderCount == 0) {
+            map.remove(h.key);
+            int c = --h.parent.childHolderCount;
+            if (c < 0) {
+                BugLog.logAndThrow("childHolderCount < 0");
+            } else if (c == 0) {
+                gc(h.parent);
             }
         }
     }
@@ -604,8 +618,9 @@ class KvImpl {
                 keyInDir = key.sub(lastIndexOfSep + 1);
             }
             KvNodeHolder h = new KvNodeHolder(key, keyInDir, n, parent);
-            parent.latest.addChild(h);
             map.put(key, h);
+            parent.childHolderCount++;
+            parent.latest.addChild(h);
             if (encodeStatus.ttlMillis > 0) {
                 // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
                 long costTimeMillis = ts.wallClockMillis - encodeStatus.leaderTtlStartTime;
@@ -672,8 +687,11 @@ class KvImpl {
     }
 
     private KvResult doRemoveInLock(long index, KvNodeHolder h) {
+        if (h.latest.removed) {
+            BugLog.logAndThrow("already removed");
+        }
         if (h.parent.latest.removed) {
-            BugLog.logAndThrow("remove node in removed parent");
+            BugLog.logAndThrow("parent removed");
         }
         long logTime = opContext.leaderCreateTimeMillis;
         addToUpdateQueue(index, h);
@@ -691,7 +709,15 @@ class KvImpl {
             newKvNode.previous = n;
             gc(h);
         } else {
-            map.remove(h.key);
+            if (h.childHolderCount == 0) {
+                map.remove(h.key);
+                if (--h.parent.childHolderCount < 0) {
+                    BugLog.logAndThrow("childHolderCount < 0");
+                }
+            } else {
+                h.latest = new KvNodeEx(index, logTime, index, logTime);
+                // no previous
+            }
         }
 
         if (watchManager != null) {
