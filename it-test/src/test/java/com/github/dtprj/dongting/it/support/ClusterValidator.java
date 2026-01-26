@@ -181,7 +181,9 @@ public class ClusterValidator {
      */
     public void close() {
         try {
-            adminClient.stop(new DtTime(5, TimeUnit.SECONDS));
+            if (adminClient.getStatus() == AdminRaftClient.STATUS_RUNNING) {
+                adminClient.stop(new DtTime(5, TimeUnit.SECONDS));
+            }
             log.info("AdminRaftClient stopped");
         } catch (Exception e) {
             log.warn("Error stopping AdminRaftClient", e);

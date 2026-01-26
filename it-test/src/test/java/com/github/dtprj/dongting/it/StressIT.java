@@ -84,11 +84,12 @@ public class StressIT {
     private boolean failed;
 
     private final AtomicBoolean stop = new AtomicBoolean();
-    private FaultInjector faultInjector;
 
     private final BootstrapProcessManager processManager = new BootstrapProcessManager();
     private final BenchmarkProcessManager benchmarkManager = new BenchmarkProcessManager();
-    private ClusterValidator validator;
+    private final ClusterValidator validator = new ClusterValidator();
+    private final FaultInjector faultInjector = new FaultInjector(GROUP_ID, MEMBER_IDS,
+            FAULT_INJECTION_INTERVAL_SECONDS, processManager, validator, stop);
     private BenchmarkProcessInfo putProcess;
     private BenchmarkProcessInfo getProcess;
     private List<Thread> writeReadValidatorThreads;
@@ -141,7 +142,6 @@ public class StressIT {
             }
 
             log.info("Step 2: Waiting for leader election");
-            validator = new ClusterValidator();
             validator.initialize(MEMBER_IDS, GROUP_ID);
             int leaderId = validator.waitForClusterConsistency(GROUP_ID, MEMBER_IDS, 60);
             log.info("Cluster ready, leader is {}", leaderId);
@@ -192,11 +192,11 @@ public class StressIT {
             log.info("GET benchmark process started");
 
             // Step 5: Start fault injection scheduler
-            log.info("Step 5: Starting fault injection scheduler");
-            faultInjector = new FaultInjector(GROUP_ID, MEMBER_IDS, FAULT_INJECTION_INTERVAL_SECONDS,
-                    processManager, validator, stop);
-            faultInjector.start();
-            log.info("Fault injection scheduler started");
+            if (!Boolean.parseBoolean(System.getProperty("noFault", "false"))) {
+                log.info("Step 5: Starting fault injection scheduler");
+                faultInjector.start();
+                log.info("Fault injection scheduler started");
+            }
 
             DtUtil.SCHEDULED_SERVICE.scheduleAtFixedRate(this::printTestReport, 1, 1, TimeUnit.MINUTES);
 
@@ -269,10 +269,8 @@ public class StressIT {
         log.info("Shutting down StressIT");
 
         // Step 7: Stop fault injector
-        if (faultInjector != null) {
-            faultInjector.interrupt();
-            faultInjector.join(60 * 1000);
-        }
+        faultInjector.interrupt();
+        faultInjector.join(60 * 1000);
 
         // Step 8: Stop validators
         if (writeReadValidatorThreads != null) {
@@ -291,12 +289,10 @@ public class StressIT {
         }
 
         // Close validator
-        if (validator != null) {
-            try {
-                validator.close();
-            } catch (Exception e) {
-                log.warn("Error closing validator", e);
-            }
+        try {
+            validator.close();
+        } catch (Exception e) {
+            log.warn("Error closing validator", e);
         }
 
         // Stop all cluster nodes
