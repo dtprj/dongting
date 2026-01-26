@@ -429,10 +429,10 @@ class KvImpl {
                 current = new KvNodeHolder(key, key.sub(lastIndexOfSep + 1), newKvNode, parent);
                 map.put(key, current);
                 parent.childHolderCount++;
-                parent.latest.addChild(current);
             } else {
                 updateHolderAndGc(current, newKvNode, current.latest);
             }
+            parent.latest.addChild(current);
             KvResult r = KvResult.SUCCESS;
             if (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK && (flag & KvNode.FLAG_DIR_MASK) == 0) {
                 if (parent.latest.peekNextOwner() == current) {
@@ -1002,10 +1002,10 @@ class KvImpl {
             boolean isLock = (h.latest.flag & KvNode.FLAG_LOCK_MASK) != 0;
             KvNodeHolder parent = h.parent;
             if (parent.latest.removed) {
-                BugLog.getLog().error("parent removed");
+                BugLog.logAndThrow("parent removed");
             }
             if (isLock && (parent.latest.flag & KvNode.FLAG_LOCK_MASK) == 0) {
-                BugLog.getLog().error("parent has no lock mask");
+                BugLog.logAndThrow("parent has no lock mask");
             }
             boolean ownersLock = isLock && h == parent.latest.peekNextOwner();
             doRemoveInLock(index, h);
