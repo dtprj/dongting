@@ -25,7 +25,7 @@ import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
 import com.github.dtprj.dongting.it.support.ClusterValidator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
-import com.github.dtprj.dongting.it.support.FaultInjectionScheduler;
+import com.github.dtprj.dongting.it.support.FaultInjector;
 import com.github.dtprj.dongting.it.support.ItUtil;
 import com.github.dtprj.dongting.it.support.StressLockValidator;
 import com.github.dtprj.dongting.it.support.StressRwValidator;
@@ -83,7 +83,7 @@ public class StressIT {
     private boolean failed;
 
     private final AtomicBoolean stop = new AtomicBoolean();
-    private FaultInjectionScheduler faultInjector;
+    private FaultInjector faultInjector;
 
     private final BootstrapProcessManager processManager = new BootstrapProcessManager();
     private final BenchmarkProcessManager benchmarkManager = new BenchmarkProcessManager();
@@ -192,7 +192,7 @@ public class StressIT {
 
             // Step 5: Start fault injection scheduler
             log.info("Step 5: Starting fault injection scheduler");
-            faultInjector = new FaultInjectionScheduler(GROUP_ID, MEMBER_IDS, FAULT_INJECTION_INTERVAL_SECONDS,
+            faultInjector = new FaultInjector(GROUP_ID, MEMBER_IDS, FAULT_INJECTION_INTERVAL_SECONDS,
                     processManager, validator, stop);
             faultInjector.start();
             log.info("Fault injection scheduler started");

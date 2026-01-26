@@ -32,8 +32,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @author huangli
  */
-public class FaultInjectionScheduler extends Thread {
-    private static final DtLog log = DtLogs.getLogger(FaultInjectionScheduler.class);
+public class FaultInjector extends Thread {
+    private static final DtLog log = DtLogs.getLogger(FaultInjector.class);
 
     private final int groupId;
     private final int[] memberIds;
@@ -49,9 +49,9 @@ public class FaultInjectionScheduler extends Thread {
 
     private final Random random = new Random();
 
-    public FaultInjectionScheduler(int groupId, int[] memberIds, int intervalSeconds,
-                                   BootstrapProcessManager processManager,
-                                   ClusterValidator clusterValidator, AtomicBoolean stopped) {
+    public FaultInjector(int groupId, int[] memberIds, int intervalSeconds,
+                         BootstrapProcessManager processManager,
+                         ClusterValidator clusterValidator, AtomicBoolean stopped) {
         this.groupId = groupId;
         this.memberIds = memberIds;
         this.intervalSeconds = intervalSeconds;
@@ -63,7 +63,7 @@ public class FaultInjectionScheduler extends Thread {
     @Override
     public void run() {
         try {
-            log.info("FaultInjectionScheduler started with interval {} seconds", intervalSeconds);
+            log.info("FaultInjector started with interval {} seconds", intervalSeconds);
 
             long lastFaultTime = System.currentTimeMillis();
             while (!stopped.get()) {
@@ -74,17 +74,17 @@ public class FaultInjectionScheduler extends Thread {
                 }
             }
 
-            log.info("FaultInjectionScheduler stopped");
+            log.info("FaultInjector stopped");
         } catch (InterruptedException e) {
-            log.info("FaultInjectionScheduler interrupted");
+            log.info("FaultInjector interrupted");
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             failCount++;
-            log.error("FaultInjectionScheduler encountered unexpected error", e);
+            log.error("FaultInjector encountered unexpected error", e);
             throw new RuntimeException(e);
         } catch (Error e) {
             failCount++;
-            log.error("FaultInjectionScheduler encountered unexpected error", e);
+            log.error("FaultInjector encountered unexpected error", e);
             throw e;
         }
     }
@@ -95,8 +95,8 @@ public class FaultInjectionScheduler extends Thread {
             return;
         }
         int faultType = random.nextInt(3);
-        log.info("Injecting fault type {}: {}", faultType,
-                faultType == 0 ? "TransferLeader" : faultType == 1 ? "GracefulStop" : "ForceKill");
+        log.info("Injecting fault: {}", faultType == 0 ? "TransferLeader" :
+                faultType == 1 ? "GracefulStop" : "ForceKill");
 
         switch (faultType) {
             case 0:
