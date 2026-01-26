@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.it;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.it.support.BenchmarkProcessManager;
@@ -197,6 +198,8 @@ public class StressIT {
             faultInjector.start();
             log.info("Fault injection scheduler started");
 
+            DtUtil.SCHEDULED_SERVICE.scheduleAtFixedRate(this::printTestReport, 1, 1, TimeUnit.MINUTES);
+
             // Step 6: Run for specified duration
             long testDurationMillis;
             if (quickMode) {
@@ -206,7 +209,6 @@ public class StressIT {
             }
             log.info("Step 6: Running test for {} ", quickMode ? 5 + " minutes" : "FOREVER");
             long startTime = System.currentTimeMillis();
-            addShutdownHook();
             while (!quickMode || (System.currentTimeMillis() - startTime < testDurationMillis)) {
                 Thread.sleep(5000);
 
@@ -301,15 +303,16 @@ public class StressIT {
         assertTrue(processManager.stopAllNodes(30));
 
         log.info("=== StressIT completed ===");
-        printTestReport();
-    }
 
-    private void addShutdownHook() {
-        Thread main = Thread.currentThread();
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.info("Shutdown hook executed");
-            main.interrupt();
-        }));
+        printTestReport();
+
+        // Check for violations
+        long totalViolations = writeReadViolationCount.get() + lockViolationCount.get();
+        if (totalViolations > 0 || failed) {
+            log.error("TEST FAILED: {} consistency violations detected", totalViolations);
+        } else {
+            log.info("TEST PASSED: No consistency violations detected");
+        }
     }
 
     private KvClient createKvClient(String name) {
@@ -323,35 +326,27 @@ public class StressIT {
     }
 
     private void printTestReport() {
-        log.info("=== StressIT Test Report ===");
-        // Note: TEST_DURATION_HOURS might not reflect actual duration in quick test
-
-        log.info("--- Verification Statistics ---");
-        log.info("Write-Read validation:");
-        log.info("  - Total verifications: {}", writeReadVerifyCount.get());
-        log.info("  - Consistency violations: {}", writeReadViolationCount.get());
-        log.info("  - Operation failures: {} (allowed)", writeReadFailureCount.get());
-
-        log.info("Distributed lock validation:");
-        log.info("  - Total verifications: {}", lockVerifyCount.get());
-        log.info("  - Lock violations: {}", lockViolationCount.get());
-        log.info("  - Operation failures: {} (allowed)", lockFailureCount.get());
-
-        log.info("--- Fault Injection Statistics ---");
-        log.info("  - Transfer Leader count: {}", faultInjector.transferLeaderCount);
-        log.info("  - Graceful stop count: {}", faultInjector.gracefulStopCount);
-        log.info("  - Force kill count: {}", faultInjector.forceKillCount);
-        log.info("  - fail count: {}", faultInjector.failCount);
-
-        log.info("=== Test Report End ===");
-
-        // Check for violations
-        long totalViolations = writeReadViolationCount.get() + lockViolationCount.get();
-        if (totalViolations > 0 || failed) {
-            log.error("TEST FAILED: {} consistency violations detected", totalViolations);
-        } else {
-            log.info("TEST PASSED: No consistency violations detected");
-        }
+        String report = "\n=== StressIT Test Report ===\n"
+                + "\n"
+                + "--- Verification Statistics ---\n"
+                + "Write-Read validation:\n"
+                + "  - Total verifications: " + writeReadVerifyCount.get() + "\n"
+                + "  - Consistency violations: " + writeReadViolationCount.get() + "\n"
+                + "  - Operation failures: " + writeReadFailureCount.get() + " (allowed)\n"
+                + "\n"
+                + "Distributed lock validation:\n"
+                + "  - Total verifications: " + lockVerifyCount.get() + "\n"
+                + "  - Lock violations: " + lockViolationCount.get() + "\n"
+                + "  - Operation failures: " + lockFailureCount.get() + " (allowed)\n"
+                + "\n"
+                + "--- Fault Injection Statistics ---\n"
+                + "  - Transfer Leader count: " + faultInjector.transferLeaderCount + "\n"
+                + "  - Graceful stop count: " + faultInjector.gracefulStopCount + "\n"
+                + "  - Force kill count: " + faultInjector.forceKillCount + "\n"
+                + "  - fail count: " + faultInjector.failCount + "\n"
+                + "\n"
+                + "=== Test Report End ===";
+        log.info(report);
     }
 
     private void stopValidatorThreads(List<Thread> threads) {
