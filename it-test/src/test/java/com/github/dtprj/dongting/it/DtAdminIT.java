@@ -121,7 +121,7 @@ public class DtAdminIT {
     }
 
     @AfterAll
-    static void cleanupCluster() {
+    static void cleanupCluster() throws Exception {
         log.info("=== Cleaning up DtAdminIT test cluster ===");
 
         if (validator != null) {
@@ -133,7 +133,7 @@ public class DtAdminIT {
         }
 
         if (processManager != null) {
-            assertTrue(processManager.stopAllNodes(10));
+            processManager.stopAllNodes(10);
         }
 
         log.info("=== Cluster cleanup complete ===");

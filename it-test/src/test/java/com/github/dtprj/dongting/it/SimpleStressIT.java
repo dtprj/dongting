@@ -34,7 +34,6 @@ import org.junit.jupiter.api.Timeout;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -87,7 +86,6 @@ public class SimpleStressIT {
 
         BootstrapProcessManager processManager = new BootstrapProcessManager();
         ClusterValidator validator = null;
-        List<ProcessInfo> startedProcesses = new ArrayList<>();
         KvClient kvClient = null;
         ExecutorService stressExecutor = null;
         CountDownLatch stressLatch = new CountDownLatch(THREAD_COUNT);
@@ -102,11 +100,6 @@ public class SimpleStressIT {
             for (ProcessConfig config : configs) {
                 assertTrue(processManager.startNode(config, 10));
                 log.info("Node {} started successfully", config.nodeId);
-            }
-
-            for (ProcessInfo processInfo : startedProcesses) {
-                assertTrue(processInfo.process.isAlive(),
-                        "Process for node " + processInfo.config.nodeId + " should be alive");
             }
 
             log.info("Step 3: Waiting for leader election");
@@ -157,7 +150,7 @@ public class SimpleStressIT {
             log.error("Test failed with exception", e);
 
             log.error("=== Diagnostic Information ===");
-            for (ProcessInfo processInfo : startedProcesses) {
+            for (ProcessInfo processInfo : processManager.getProcesses()) {
                 log.error("Process {} is alive: {}",
                         processInfo.config.nodeId, processInfo.process.isAlive());
                 StringBuilder logs = processManager.collectLogs(processInfo);
@@ -205,7 +198,7 @@ public class SimpleStressIT {
                     log.warn("Error closing validator", e);
                 }
             }
-            assertTrue(processManager.stopAllNodes(20));
+            processManager.stopAllNodes(20);
             log.info("=== " + SimpleStressIT.class.getSimpleName() + " completed ===");
         }
     }

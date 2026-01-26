@@ -163,12 +163,24 @@ public class FaultInjector extends Thread {
         String opType = force ? "Force" : "Graceful";
 
         log.info("{} stopping node {}", opType, nodeId);
-        long stopTimeout = 180;
-        while (!processManager.stopNode(targetProcess, stopTimeout)) {
-            log.error("Failed to {} stop node {}, timeout={}", opType, nodeId, stopTimeout);
-            failCount++;
+        while (!stopped.get() && targetProcess.process.isAlive()) {
+            if (force) {
+                processManager.forceStopNode(targetProcess, true);
+            } else {
+                long stopTimeout = 180;
+                processManager.stopNode(targetProcess, stopTimeout);
+            }
+            if (targetProcess.process.isAlive()) {
+                log.error("Failed to {} stop node {}", opType, nodeId);
+                failCount++;
+            }
         }
-        gracefulStopCount++;
+        if (force) {
+            forceKillCount++;
+        } else {
+            gracefulStopCount++;
+        }
+
 
         // Restart node
         long startTimeout = force ? 180 : 120;

@@ -117,7 +117,7 @@ public class SimpleRaftGroupIT {
             log.info("Step 6: Killing leader and waiting for leader election");
             ProcessInfo leader = startedProcesses.stream().filter(p -> p.config.nodeId == leaderId).findFirst().get();
             int oldLeaderId = leader.config.nodeId;
-            processManager.forceStopNode(leader);
+            processManager.forceStopNode(leader, true);
 
             int[] restMembers = IntStream.of(ALL_NODE_IDS).filter(n -> n != oldLeaderId).toArray();
             validator.waitForClusterConsistency(GROUP_ID, restMembers, 30);
@@ -173,7 +173,7 @@ public class SimpleRaftGroupIT {
                     log.warn("Error closing validator", e);
                 }
             }
-            assertTrue(processManager.stopAllNodes(10));
+            processManager.stopAllNodes(10);
             log.info("=== Raft3NodeSimpleIT completed ===");
         }
     }

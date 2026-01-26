@@ -296,7 +296,7 @@ public class StressIT {
         }
 
         // Stop all cluster nodes
-        assertTrue(processManager.stopAllNodes(30));
+        processManager.stopAllNodes(30);
 
         log.info("=== StressIT completed ===");
 

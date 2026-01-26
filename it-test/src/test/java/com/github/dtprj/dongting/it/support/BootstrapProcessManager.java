@@ -167,16 +167,18 @@ public class BootstrapProcessManager {
         }
     }
 
-    public boolean stopNode(ProcessInfo processInfo, long timeoutSeconds) {
-        boolean r = stopNode0(processInfo, timeoutSeconds);
-        processes.remove(processInfo);
-        return r;
+    public boolean stopNode(ProcessInfo processInfo, long timeoutSeconds) throws InterruptedException {
+        try {
+            return stopNode0(processInfo, timeoutSeconds);
+        } finally {
+            processes.remove(processInfo);
+        }
     }
 
     /**
      * Stop a specific node
      */
-    private boolean stopNode0(ProcessInfo processInfo, long timeoutSeconds) {
+    private boolean stopNode0(ProcessInfo processInfo, long timeoutSeconds) throws InterruptedException {
         if (!processInfo.process.isAlive()) {
             log.warn("node {} is not alive", processInfo.config.nodeId);
             return true;
@@ -184,43 +186,34 @@ public class BootstrapProcessManager {
 
         log.info("Stopping node {}", processInfo.config.nodeId);
 
-        try {
-            // Try graceful shutdown
-            processInfo.process.destroy();
-            boolean exited = processInfo.process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+        // Try graceful shutdown
+        processInfo.process.destroy();
+        boolean exited = processInfo.process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
 
-            if (exited) {
-                int exitCode = processInfo.process.exitValue();
-                log.info("Node {} terminated with exit code {}", processInfo.config.nodeId, exitCode);
-                return true;
-            } else {
-                // Force kill
-                log.warn("Node {} did not exit gracefully, forcing termination", processInfo.config.nodeId);
-                processInfo.process.destroyForcibly();
-                return processInfo.process.waitFor(10, TimeUnit.SECONDS);
-            }
-        } catch (InterruptedException e) {
-            log.warn("Interrupted while stopping node {}", processInfo.config.nodeId, e);
-            Thread.currentThread().interrupt();
-            return false;
+        if (exited) {
+            int exitCode = processInfo.process.exitValue();
+            log.info("Node {} terminated with exit code {}", processInfo.config.nodeId, exitCode);
+            return true;
+        } else {
+            // Force kill
+            return forceStopNode(processInfo, true);
         }
     }
 
     /**
      * Stop a specific node
      */
-    public boolean forceStopNode(ProcessInfo processInfo) {
-        if (processInfo == null || !processInfo.process.isAlive()) {
-            return false;
+    public boolean forceStopNode(ProcessInfo processInfo, boolean wait) throws InterruptedException {
+        if (!processInfo.process.isAlive()) {
+            log.warn("node {} is not alive", processInfo.config.nodeId);
         }
         log.info("Force stopping node {}", processInfo.config.nodeId);
         try {
             // Force kill
             processInfo.process.destroyForcibly();
-            return processInfo.process.waitFor(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            log.warn("Interrupted while stopping node {}", processInfo.config.nodeId, e);
-            Thread.currentThread().interrupt();
+            if (wait) {
+                return processInfo.process.waitFor(30, TimeUnit.SECONDS);
+            }
             return false;
         } finally {
             processes.remove(processInfo);
@@ -230,16 +223,19 @@ public class BootstrapProcessManager {
     /**
      * Stop all nodes
      */
-    public boolean stopAllNodes(long timeoutSeconds) {
+    public void stopAllNodes(long timeoutSeconds) throws InterruptedException {
         log.info("Stopping all {} nodes", processes.size());
-        boolean fail = false;
-        for (ProcessInfo processInfo : processes) {
-            if(!stopNode(processInfo, timeoutSeconds)){
-                fail = true;
+        try {
+            for (ProcessInfo processInfo : processes) {
+                stopNode(processInfo, timeoutSeconds);
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            for (ProcessInfo processInfo : processes) {
+                forceStopNode(processInfo, false);
+            }
+            throw e;
         }
-        processes.clear();
-        return !fail;
     }
 
     /**
