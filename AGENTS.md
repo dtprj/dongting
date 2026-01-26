@@ -1,7 +1,7 @@
 ## Build and Test
 
-- See the [build-and-test skill](.opencode/skill/build-and-test/SKILL.md) for complete build and test commands.
-- If ```IntelliJ-IDEA``` MCP is available, use it instead of Java LSP. Usage instructions: [idea-mcp skill](.opencode/skill/idea-mcp/SKILL.md)
+- See the [build-and-test](.opencode/skills/build-and-test/SKILL.md) skill for complete build and test commands.
+- If ```IntelliJ-IDEA``` MCP is available, use it instead of Java LSP. Usage skill: [idea-mcp](.opencode/skills/idea-mcp/SKILL.md)
 
 ## Codebase Overview
 - **Multi-module Maven project** with Java 11 (Java 8 for client module)
