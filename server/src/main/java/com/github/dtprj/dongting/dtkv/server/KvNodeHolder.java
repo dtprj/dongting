@@ -34,6 +34,10 @@ final class KvNodeHolder {
 
     int childHolderCount;
 
+    // Doubly-linked list pointers for O(1) removal from KvMap
+    KvNodeHolder prev;
+    KvNodeHolder next;
+
     public KvNodeHolder(ByteArray key, ByteArray keyInDir, KvNodeEx n, KvNodeHolder parent) {
         this.key = key;
         this.keyInDir = keyInDir;
