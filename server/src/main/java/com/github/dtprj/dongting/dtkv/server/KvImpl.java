@@ -694,7 +694,7 @@ class KvImpl {
 
         // The children list only used in list and remove check, and always read the latest data.
         // So we can remove it from children list safely even if there is a snapshot being reading.
-        h.parent.latest.removeChild(h.keyInDir);
+        h.parent.latest.removeChild(h);
 
         ttlManager.remove(h.latest);
 

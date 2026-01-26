@@ -30,14 +30,14 @@ import java.util.NoSuchElementException;
 class KvMap {
     private final HashMap<ByteArray, KvNodeHolder> map;
 
-    // Sentinel head node, next point to the first node, prev point to the last node
-    private final KvNodeHolder head;
+    // Sentinel node, next point to the first node, prev point to the last node
+    private final KvNodeHolder sentinel;
 
     public KvMap(int initCapacity, float loadFactor) {
         this.map = new HashMap<>(initCapacity, loadFactor);
-        this.head = new KvNodeHolder(null, null, null, null);
-        this.head.prev = this.head;
-        this.head.next = this.head;
+        this.sentinel = new KvNodeHolder(null, null, null, null);
+        this.sentinel.prev = this.sentinel;
+        this.sentinel.next = this.sentinel;
     }
 
     public KvNodeHolder get(ByteArray key) {
@@ -70,10 +70,11 @@ class KvMap {
     }
 
     private void addToList(KvNodeHolder node) {
-        node.prev = head.prev;
-        node.next = head;
-        head.prev.next = node;
-        head.prev = node;
+        KvNodeHolder sentinel = this.sentinel;
+        node.prev = sentinel.prev;
+        node.next = sentinel;
+        sentinel.prev.next = node;
+        sentinel.prev = node;
     }
 
     private void removeFromList(KvNodeHolder node) {
@@ -84,11 +85,11 @@ class KvMap {
     }
 
     private class KvMapIterator implements Iterator<KvNodeHolder> {
-        private KvNodeHolder current = head.next;
+        private KvNodeHolder current = sentinel.next;
 
         @Override
         public boolean hasNext() {
-            return current != head;
+            return current != sentinel;
         }
 
         @Override

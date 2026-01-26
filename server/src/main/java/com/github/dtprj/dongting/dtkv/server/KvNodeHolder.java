@@ -38,6 +38,10 @@ final class KvNodeHolder {
     KvNodeHolder prev;
     KvNodeHolder next;
 
+    // Doubly-linked list pointers for O(1) removal from children list
+    KvNodeHolder childPrev;
+    KvNodeHolder childNext;
+
     public KvNodeHolder(ByteArray key, ByteArray keyInDir, KvNodeEx n, KvNodeHolder parent) {
         this.key = key;
         this.keyInDir = keyInDir;
