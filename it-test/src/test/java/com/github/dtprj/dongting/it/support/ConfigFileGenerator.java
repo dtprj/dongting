@@ -66,7 +66,7 @@ public class ConfigFileGenerator {
         private Long pingInterval;
         private Long watchTimeoutMillis;
 
-        private boolean stressTest;
+        private boolean fullSize;
 
         public ProcessConfigBuilder(int nodeId, Path baseDir, String serversStr, List<GroupDefinition> groups) {
             this.nodeId = nodeId;
@@ -105,8 +105,8 @@ public class ConfigFileGenerator {
             return this;
         }
 
-        public ProcessConfigBuilder stressTest(boolean stressTest) {
-            this.stressTest = stressTest;
+        public ProcessConfigBuilder fullSize(boolean fullSize) {
+            this.fullSize = fullSize;
             return this;
         }
 
@@ -163,7 +163,7 @@ public class ConfigFileGenerator {
             for (GroupDefinition group : groups) {
                 serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
                 serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);
-                if (stressTest) {
+                if (fullSize) {
                     serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".saveSnapshotSeconds", "60");
                 } else {
                     serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxItemsPerFile",
@@ -208,7 +208,7 @@ public class ConfigFileGenerator {
         private Long pingInterval;
         private Long watchTimeoutMillis;
 
-        private boolean stressTest;
+        private boolean fullSize;
 
         public ClusterConfigBuilder(int[] memberIds, int groupId, Path baseDir) {
             this.memberIds = memberIds;
@@ -251,8 +251,8 @@ public class ConfigFileGenerator {
             return this;
         }
 
-        public ClusterConfigBuilder stressTest(boolean stressTest) {
-            this.stressTest = stressTest;
+        public ClusterConfigBuilder fullSize(boolean fullSize) {
+            this.fullSize = fullSize;
             return this;
         }
 
@@ -308,7 +308,7 @@ public class ConfigFileGenerator {
                     .heartbeatInterval(heartbeatInterval)
                     .pingInterval(pingInterval)
                     .watchTimeoutMillis(watchTimeoutMillis)
-                    .stressTest(stressTest)
+                    .fullSize(fullSize)
                     .build();
         }
     }

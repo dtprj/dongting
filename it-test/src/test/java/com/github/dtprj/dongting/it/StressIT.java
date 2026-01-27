@@ -59,7 +59,6 @@ public class StressIT {
     private static final DtLog log = DtLogs.getLogger(StressIT.class);
 
     // Test configuration
-    private static final int QUICK_MODE_DURATION_SECONDS = 300;
     private static final int FAULT_INJECTION_INTERVAL_SECONDS = 60;
     private static final int WRITE_READ_VALIDATOR_THREADS = 2;
     private static final int LOCK_VALIDATORS = 2;
@@ -98,30 +97,25 @@ public class StressIT {
     @Test
     @Timeout(value = 365, unit = TimeUnit.DAYS)
     void test() throws Exception {
-        String s = System.getProperty("stressMode");
-        if (s == null) {
-            // default not run
-            return;
-        }
-        if (s.equals("quick")) {
-            runStressTest(true);
-        } else if (s.equals("full")) {
-            runStressTest(false);
-        }
-
+        long duration = Long.parseLong(System.getProperty("duration", "10"));
+        boolean mockFault = "".equals(System.getProperty("mockFault"))
+                || "true".equalsIgnoreCase(System.getProperty("mockFault"));
+        boolean benchmark = "".equals(System.getProperty("benchmark"))
+                || "true".equalsIgnoreCase(System.getProperty("benchmark"));
+        runStressTest(duration, mockFault, benchmark);
     }
 
-    private void runStressTest(boolean quickMode) throws Exception {
+    private void runStressTest(long seconds, boolean mockFault, boolean benchmark) throws Exception {
         File baseDirFile = TestDir.createTestDir(StressIT.class.getSimpleName());
         Path baseDirPath = baseDirFile.toPath();
 
         log.info("=== Starting StressIT ===");
         log.info("Temp directory: {}", baseDirPath);
 
-        if (quickMode) {
+        if (seconds == 0) {
             log.info("Test duration: FOREVER");
         } else {
-            log.info("Test duration: QUICK");
+            log.info("Test duration: {} seconds", seconds);
         }
 
         log.info("Fault injection interval: {} seconds", FAULT_INJECTION_INTERVAL_SECONDS);
@@ -133,7 +127,7 @@ public class StressIT {
             // Step 1: Generate configuration and start cluster
             log.info("Step 1: Starting 3-node cluster");
             List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(MEMBER_IDS, GROUP_ID, baseDirPath)
-                    .stressTest(!quickMode)
+                    .fullSize(seconds == 0)
                     .build();
 
             for (ProcessConfig config : configs) {
@@ -174,25 +168,27 @@ public class StressIT {
             log.info("All validators started");
 
             // Step 4: Start background pressure processes
-            log.info("Step 4: Starting background pressure processes");
-            String servers = ItUtil.formatServiceServers(MEMBER_IDS);
+            if (benchmark) {
+                log.info("Step 4: Starting background pressure processes");
+                String servers = ItUtil.formatServiceServers(MEMBER_IDS);
 
-            File putBenchDir = new File(baseDirPath.toFile(), "benchmark-put");
-            assertTrue(putBenchDir.mkdirs());
-            BenchmarkConfig putConfig = new BenchmarkConfig("put", BACKGROUND_MAX_PENDING, 1,
-                    servers, GROUP_ID, putBenchDir);
-            putProcess = benchmarkManager.startBenchmark(putConfig);
-            log.info("PUT benchmark process started");
+                File putBenchDir = new File(baseDirPath.toFile(), "benchmark-put");
+                assertTrue(putBenchDir.mkdirs());
+                BenchmarkConfig putConfig = new BenchmarkConfig("put", BACKGROUND_MAX_PENDING, 1,
+                        servers, GROUP_ID, putBenchDir);
+                putProcess = benchmarkManager.startBenchmark(putConfig);
+                log.info("PUT benchmark process started");
 
-            File getBenchDir = new File(baseDirPath.toFile(), "benchmark-get");
-            assertTrue(getBenchDir.mkdirs());
-            BenchmarkConfig getConfig = new BenchmarkConfig("get", BACKGROUND_MAX_PENDING, 1,
-                    servers, GROUP_ID, getBenchDir);
-            getProcess = benchmarkManager.startBenchmark(getConfig);
-            log.info("GET benchmark process started");
+                File getBenchDir = new File(baseDirPath.toFile(), "benchmark-get");
+                assertTrue(getBenchDir.mkdirs());
+                BenchmarkConfig getConfig = new BenchmarkConfig("get", BACKGROUND_MAX_PENDING, 1,
+                        servers, GROUP_ID, getBenchDir);
+                getProcess = benchmarkManager.startBenchmark(getConfig);
+                log.info("GET benchmark process started");
+            }
 
             // Step 5: Start fault injection scheduler
-            if (!Boolean.parseBoolean(System.getProperty("noFault", "false"))) {
+            if (mockFault) {
                 log.info("Step 5: Starting fault injection scheduler");
                 faultInjector.start();
                 log.info("Fault injection scheduler started");
@@ -201,23 +197,17 @@ public class StressIT {
             DtUtil.SCHEDULED_SERVICE.scheduleAtFixedRate(this::printTestReport, 1, 1, TimeUnit.MINUTES);
 
             // Step 6: Run for specified duration
-            long testDurationMillis;
-            if (quickMode) {
-                testDurationMillis = QUICK_MODE_DURATION_SECONDS * 1000L;
-            } else {
-                testDurationMillis = 0;
-            }
-            log.info("Step 6: Running test for {} ", quickMode ? 5 + " minutes" : "FOREVER");
+            log.info("Step 6: Running test for {} ", seconds == 0 ? "FOREVER" : (seconds + " seconds"));
             long startTime = System.currentTimeMillis();
-            while (!quickMode || (System.currentTimeMillis() - startTime < testDurationMillis)) {
-                Thread.sleep(5000);
+            while (seconds == 0 || System.currentTimeMillis() - startTime < seconds * 1000) {
+                Thread.sleep(1000);
 
                 // Check for consistency violations
                 if (writeReadViolationCount.get() > 0 || lockViolationCount.get() > 0) {
                     log.error("Consistency violation detected, stopping test");
                     break;
                 }
-                if (!faultInjector.isAlive()) {
+                if (mockFault && !faultInjector.isAlive()) {
                     failed = true;
                     log.error("Fault injection thread is not alive, stopping test");
                     break;
@@ -255,22 +245,24 @@ public class StressIT {
 
             throw e;
         } finally {
-            shutdown();
+            shutdown(mockFault, benchmark);
         }
         assertEquals(0, writeReadViolationCount.get());
         assertEquals(0, lockViolationCount.get());
         assertFalse(failed);
     }
 
-    private void shutdown() throws InterruptedException {
+    private void shutdown(boolean mockFault, boolean benchmark) throws InterruptedException {
         // Signal validators to stop gracefully
         stop.set(true);
 
         log.info("Shutting down StressIT");
 
         // Step 7: Stop fault injector
-        faultInjector.interrupt();
-        faultInjector.join(60 * 1000);
+        if (mockFault) {
+            faultInjector.interrupt();
+            faultInjector.join(60 * 1000);
+        }
 
         // Step 8: Stop validators
         if (writeReadValidatorThreads != null) {
@@ -281,11 +273,13 @@ public class StressIT {
         }
 
         // Stop benchmark processes
-        if (putProcess != null && putProcess.process.isAlive()) {
-            benchmarkManager.stopBenchmark(putProcess);
-        }
-        if (getProcess != null && getProcess.process.isAlive()) {
-            benchmarkManager.stopBenchmark(getProcess);
+        if (benchmark) {
+            if (putProcess != null && putProcess.process.isAlive()) {
+                benchmarkManager.stopBenchmark(putProcess);
+            }
+            if (getProcess != null && getProcess.process.isAlive()) {
+                benchmarkManager.stopBenchmark(getProcess);
+            }
         }
 
         // Close validator
