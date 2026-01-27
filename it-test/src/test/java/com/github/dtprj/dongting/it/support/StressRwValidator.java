@@ -45,23 +45,19 @@ public class StressRwValidator implements Runnable {
     private final int groupId;
     private final int keySpace;
     private final KvClient client;
-    private final AtomicLong verifyCount;
-    private final AtomicLong violationCount;
-    private final AtomicLong failureCount;
+    public static final AtomicLong verifyCount = new AtomicLong();
+    public static final AtomicLong violationCount = new AtomicLong();
+    public static final AtomicLong failureCount = new AtomicLong();
     private final AtomicBoolean stop;
 
     private final Random random = new Random();
 
-    public StressRwValidator(int threadId, int groupId, int keySpace, Function<String, KvClient> clientFactory,
-                             AtomicLong verifyCount, AtomicLong violationCount, AtomicLong failureCount,
+    public StressRwValidator(int groupId, int threadId, int keySpace, Function<String, KvClient> clientFactory,
                              AtomicBoolean stop) {
         this.threadId = threadId;
         this.groupId = groupId;
         this.keySpace = keySpace;
         this.client = clientFactory.apply("StressRwValidator" + threadId);
-        this.verifyCount = verifyCount;
-        this.violationCount = violationCount;
-        this.failureCount = failureCount;
         this.stop = stop;
 
         // Create directory for this validator

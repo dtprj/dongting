@@ -45,7 +45,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -59,6 +58,7 @@ public class StressIT {
     private static final DtLog log = DtLogs.getLogger(StressIT.class);
 
     // Test configuration
+    private static final long DEFAULT_RUN_SECONDS = 30;
     private static final int FAULT_INJECTION_INTERVAL_SECONDS = 60;
     private static final int WRITE_READ_VALIDATOR_THREADS = 2;
     private static final int LOCK_VALIDATORS = 2;
@@ -70,15 +70,6 @@ public class StressIT {
     // Cluster configuration
     private static final int GROUP_ID = 0;
     private static final int[] MEMBER_IDS = {1, 2, 3};
-
-    // Statistics counters
-    private final AtomicLong writeReadVerifyCount = new AtomicLong(0);
-    private final AtomicLong writeReadViolationCount = new AtomicLong(0);
-    private final AtomicLong writeReadFailureCount = new AtomicLong(0);
-
-    private final AtomicLong lockVerifyCount = new AtomicLong(0);
-    private final AtomicLong lockViolationCount = new AtomicLong(0);
-    private final AtomicLong lockFailureCount = new AtomicLong(0);
 
     private boolean failed;
 
@@ -97,7 +88,7 @@ public class StressIT {
     @Test
     @Timeout(value = 365, unit = TimeUnit.DAYS)
     void test() throws Exception {
-        long duration = Long.parseLong(System.getProperty("duration", "10"));
+        long duration = Long.parseLong(System.getProperty("duration", String.valueOf(DEFAULT_RUN_SECONDS)));
         boolean mockFault = "".equals(System.getProperty("mockFault"))
                 || "true".equalsIgnoreCase(System.getProperty("mockFault"));
         boolean benchmark = "".equals(System.getProperty("benchmark"))
@@ -148,8 +139,7 @@ public class StressIT {
             writeReadValidatorThreads = new ArrayList<>();
             for (int i = 0; i < WRITE_READ_VALIDATOR_THREADS; i++) {
                 StressRwValidator wrValidator = new StressRwValidator(
-                        i, GROUP_ID, VALIDATOR_KEY_SPACE, this::createKvClient,
-                        writeReadVerifyCount, writeReadViolationCount, writeReadFailureCount, stop);
+                        GROUP_ID, i, VALIDATOR_KEY_SPACE, this::createKvClient, stop);
                 Thread t = new Thread(wrValidator);
                 t.start();
                 writeReadValidatorThreads.add(t);
@@ -159,7 +149,7 @@ public class StressIT {
             lockValidatorThreads = new ArrayList<>();
             for (int i = 0; i < LOCK_VALIDATORS; i++) {
                 StressLockValidator lockValidator = new StressLockValidator(GROUP_ID, i, LOCK_LEASE_MILLIS,
-                        this::createKvClient, lockVerifyCount, lockViolationCount, lockFailureCount, stop);
+                        this::createKvClient, stop);
                 Thread t = new Thread(lockValidator);
                 t.start();
                 lockValidatorThreads.add(t);
@@ -203,7 +193,7 @@ public class StressIT {
                 Thread.sleep(1000);
 
                 // Check for consistency violations
-                if (writeReadViolationCount.get() > 0 || lockViolationCount.get() > 0) {
+                if (StressRwValidator.violationCount.get() > 0 || StressLockValidator.violationCount.get() > 0) {
                     log.error("Consistency violation detected, stopping test");
                     break;
                 }
@@ -247,8 +237,8 @@ public class StressIT {
         } finally {
             shutdown(mockFault, benchmark);
         }
-        assertEquals(0, writeReadViolationCount.get());
-        assertEquals(0, lockViolationCount.get());
+        assertEquals(0, StressRwValidator.violationCount.get());
+        assertEquals(0, StressLockValidator.violationCount.get());
         assertFalse(failed);
     }
 
@@ -297,7 +287,7 @@ public class StressIT {
         printTestReport();
 
         // Check for violations
-        long totalViolations = writeReadViolationCount.get() + lockViolationCount.get();
+        long totalViolations = StressRwValidator.violationCount.get() + StressLockValidator.violationCount.get();
         if (totalViolations > 0 || failed) {
             log.error("TEST FAILED: {} consistency violations detected", totalViolations);
         } else {
@@ -320,14 +310,14 @@ public class StressIT {
                 + "\n"
                 + "--- Verification Statistics ---\n"
                 + "Write-Read validation:\n"
-                + "  - Total verifications: " + writeReadVerifyCount.get() + "\n"
-                + "  - Consistency violations: " + writeReadViolationCount.get() + "\n"
-                + "  - Operation failures: " + writeReadFailureCount.get() + " (allowed)\n"
+                + "  - Total verifications: " + StressRwValidator.verifyCount.get() + "\n"
+                + "  - Consistency violations: " + StressRwValidator.violationCount.get() + "\n"
+                + "  - Operation failures: " + StressRwValidator.failureCount.get() + " (allowed)\n"
                 + "\n"
                 + "Distributed lock validation:\n"
-                + "  - Total verifications: " + lockVerifyCount.get() + "\n"
-                + "  - Lock violations: " + lockViolationCount.get() + "\n"
-                + "  - Operation failures: " + lockFailureCount.get() + " (allowed)\n"
+                + "  - Total verifications: " + StressLockValidator.verifyCount.get() + "\n"
+                + "  - Lock violations: " + StressLockValidator.violationCount.get() + "\n"
+                + "  - Operation failures: " + StressLockValidator.failureCount.get() + " (allowed)\n"
                 + "\n"
                 + "--- Fault Injection Statistics ---\n"
                 + "  - Transfer Leader count: " + faultInjector.transferLeaderCount + "\n"

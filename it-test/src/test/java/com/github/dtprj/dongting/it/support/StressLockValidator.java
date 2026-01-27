@@ -51,9 +51,9 @@ public class StressLockValidator implements Runnable {
     private final int groupId;
     private final int validatorId;
     private final long lockLeaseMillis;
-    private final AtomicLong verifyCount;
-    private final AtomicLong violationCount;
-    private final AtomicLong failureCount;
+    public static final AtomicLong verifyCount = new AtomicLong();
+    public static final AtomicLong violationCount = new AtomicLong();
+    public static final AtomicLong failureCount = new AtomicLong();
     private final AtomicBoolean stop;
 
     private final KvClient client1;
@@ -69,15 +69,11 @@ public class StressLockValidator implements Runnable {
     private final DistributedLock lock1;
     private final DistributedLock lock2;
 
-    public StressLockValidator(int groupId, int validatorId, long lockLeaseMillis, Function<String, KvClient> clientFactory,
-                               AtomicLong verifyCount, AtomicLong violationCount, AtomicLong failureCount,
-                               AtomicBoolean stop) {
+    public StressLockValidator(int groupId, int validatorId, long lockLeaseMillis,
+                               Function<String, KvClient> clientFactory, AtomicBoolean stop) {
         this.groupId = groupId;
         this.validatorId = validatorId;
         this.lockLeaseMillis = lockLeaseMillis;
-        this.verifyCount = verifyCount;
-        this.violationCount = violationCount;
-        this.failureCount = failureCount;
         this.stop = stop;
 
         this.client1 = clientFactory.apply("StressLockValidator" + validatorId + "_1");
