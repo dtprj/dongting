@@ -69,15 +69,15 @@ public class StressRwValidator implements Runnable {
     public void run() {
         try {
             log.info("WriteReadValidator-{} started", threadId);
-            while (!stop.get()) {
+            while (!stop.get() && violationCount.get() == 0) {
                 runOneVerification();
             }
             log.info("WriteReadValidator-{} stopped", threadId);
         } catch (InterruptedException e) {
             log.debug("WriteReadValidator-{} interrupted", threadId);
         } catch (Throwable e) {
-            log.error("WriteReadValidator-{} encountered unexpected error", threadId, e);
-            throw new RuntimeException(e);
+            BugLog.getLog().error("WriteReadValidator-{} encountered unexpected error", threadId, e);
+            violationCount.incrementAndGet();
         } finally {
             try {
                 client.stop(new DtTime(10, TimeUnit.SECONDS));

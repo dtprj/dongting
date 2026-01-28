@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.it.support.ConfigFileGenerator;
 import com.github.dtprj.dongting.it.support.ConfigFileGenerator.ProcessConfig;
 import com.github.dtprj.dongting.it.support.FaultInjector;
 import com.github.dtprj.dongting.it.support.ItUtil;
+import com.github.dtprj.dongting.it.support.StressAdvancedValidator;
 import com.github.dtprj.dongting.it.support.StressLockValidator;
 import com.github.dtprj.dongting.it.support.StressRwValidator;
 import com.github.dtprj.dongting.log.DtLog;
@@ -84,6 +85,7 @@ public class StressIT {
     private BenchmarkProcessInfo getProcess;
     private List<Thread> writeReadValidatorThreads;
     private List<Thread> lockValidatorThreads;
+    private Thread advancedValidatorThread;
 
     @Test
     @Timeout(value = 365, unit = TimeUnit.DAYS)
@@ -155,6 +157,10 @@ public class StressIT {
                 lockValidatorThreads.add(t);
             }
 
+            advancedValidatorThread = new Thread(new StressAdvancedValidator(
+                    GROUP_ID, LOCK_LEASE_MILLIS, this::createKvClient, stop));
+            advancedValidatorThread.start();
+
             log.info("All validators started");
 
             // Step 4: Start background pressure processes
@@ -193,7 +199,8 @@ public class StressIT {
                 Thread.sleep(1000);
 
                 // Check for consistency violations
-                if (StressRwValidator.violationCount.get() > 0 || StressLockValidator.violationCount.get() > 0) {
+                if (StressRwValidator.violationCount.get() > 0 || StressLockValidator.violationCount.get() > 0
+                        || StressAdvancedValidator.violationCount.get() > 0) {
                     log.error("Consistency violation detected, stopping test");
                     break;
                 }
@@ -215,6 +222,11 @@ public class StressIT {
                         log.error("LockValidator thread is not alive, stopping test");
                         break;
                     }
+                }
+                if (!advancedValidatorThread.isAlive()) {
+                    failed = true;
+                    log.error("AdvancedValidator thread is not alive, stopping test");
+                    break;
                 }
             }
 
@@ -256,10 +268,17 @@ public class StressIT {
 
         // Step 8: Stop validators
         if (writeReadValidatorThreads != null) {
-            stopValidatorThreads(writeReadValidatorThreads);
+            for (Thread thread : writeReadValidatorThreads) {
+                stopValidatorThread(thread);
+            }
         }
         if (lockValidatorThreads != null) {
-            stopValidatorThreads(lockValidatorThreads);
+            for (Thread thread : lockValidatorThreads) {
+                stopValidatorThread(thread);
+            }
+        }
+        if (advancedValidatorThread != null) {
+            stopValidatorThread(advancedValidatorThread);
         }
 
         // Stop benchmark processes
@@ -287,7 +306,9 @@ public class StressIT {
         printTestReport();
 
         // Check for violations
-        long totalViolations = StressRwValidator.violationCount.get() + StressLockValidator.violationCount.get();
+        long totalViolations = StressRwValidator.violationCount.get()
+                + StressLockValidator.violationCount.get()
+                + StressAdvancedValidator.violationCount.get();
         if (totalViolations > 0 || failed) {
             log.error("TEST FAILED: {} consistency violations detected", totalViolations);
         } else {
@@ -314,6 +335,11 @@ public class StressIT {
                 + "  - Consistency violations: " + StressRwValidator.violationCount.get() + "\n"
                 + "  - Operation failures: " + StressRwValidator.failureCount.get() + " (allowed)\n"
                 + "\n"
+                + "Advanced validation:\n"
+                + "  - Total verifications: " + StressAdvancedValidator.verifyCount.get() + "\n"
+                + "  - Consistency violations: " + StressAdvancedValidator.violationCount.get() + "\n"
+                + "  - Operation failures: " + StressAdvancedValidator.failureCount.get() + " (allowed)\n"
+                + "\n"
                 + "Distributed lock validation:\n"
                 + "  - Total verifications: " + StressLockValidator.verifyCount.get() + "\n"
                 + "  - Lock violations: " + StressLockValidator.violationCount.get() + "\n"
@@ -329,14 +355,12 @@ public class StressIT {
         log.info(report);
     }
 
-    private void stopValidatorThreads(List<Thread> threads) {
-        for (Thread thread : threads) {
-            thread.interrupt();
-            try {
-                thread.join(10 * 1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+    private void stopValidatorThread(Thread thread) {
+        thread.interrupt();
+        try {
+            thread.join(10 * 1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }
