@@ -145,9 +145,12 @@ public class StressLockValidator implements Runnable {
     }
 
     private void processAllowedEx(Exception e) throws InterruptedException {
+        if(e instanceof IllegalArgumentException){
+            throw (IllegalArgumentException) e;
+        }
         Throwable root = DtUtil.rootCause(e);
         if (root instanceof InterruptedException) {
-            Thread.currentThread().interrupt();
+            throw (InterruptedException) root;
         } else {
             Thread.sleep(500);
         }

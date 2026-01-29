@@ -88,9 +88,12 @@ public class StressRwValidator implements Runnable {
     }
 
     private void processAllowedEx(Exception e) throws InterruptedException {
+        if(e instanceof IllegalArgumentException){
+            throw (IllegalArgumentException) e;
+        }
         Throwable root = DtUtil.rootCause(e);
         if (root instanceof InterruptedException) {
-            Thread.currentThread().interrupt();
+            throw (InterruptedException) root;
         } else {
             Thread.sleep(100);
         }
@@ -102,7 +105,7 @@ public class StressRwValidator implements Runnable {
         byte[] key = makeKey(String.valueOf(keyIndex));
 
         // Generate value with version
-        byte[] value = new byte[random.nextInt(2048)];
+        byte[] value = new byte[random.nextInt(2047) + 1];
         random.nextBytes(value);
 
         // Write
