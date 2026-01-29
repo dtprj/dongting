@@ -123,8 +123,13 @@ public class RaftClient extends AbstractLifeCircle {
             try {
                 DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
                 for (CompletableFuture<RaftNode> f : futures) {
-                    RaftNode n = f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-                    allNodes.put(n.nodeId, n);
+                    long rest = timeout.rest(TimeUnit.MILLISECONDS);
+                    if (rest > 0) {
+                        RaftNode n = f.get(rest, TimeUnit.MILLISECONDS);
+                        allNodes.put(n.nodeId, n);
+                    } else {
+                        throw new TimeoutException();
+                    }
                 }
                 success = true;
             } catch (InterruptedException e) {
