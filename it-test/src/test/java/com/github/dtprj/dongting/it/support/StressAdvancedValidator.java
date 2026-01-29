@@ -100,7 +100,6 @@ public class StressAdvancedValidator implements Runnable {
                 TestNode child = p.createChild(i);
                 if (remoteCreateChild(child)) {
                     verifyCount.incrementAndGet();
-                    child.writeSuccess = true;
                     if (child.isDir()) {
                         queue.add(child);
                     }
@@ -285,7 +284,6 @@ public class StressAdvancedValidator implements Runnable {
         final byte[] fullKey;
 
         DistributedLock lock;
-        boolean writeSuccess;
         boolean writeFail;
 
         final ArrayList<TestNode> children;
