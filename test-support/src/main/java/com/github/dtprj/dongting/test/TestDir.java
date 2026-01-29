@@ -26,6 +26,16 @@ public class TestDir {
     private static final String TEST_DIR = "target/test-data";
     private static final SimpleDateFormat sdf = new SimpleDateFormat("_HHmmss_SSS_");
 
+    public static File createTestDirWithoutSuffix(String dirName) {
+        File dir = new File(new File(TEST_DIR), dirName);
+        if (!dir.exists()) {
+            if (!dir.mkdirs()) {
+                throw new RuntimeException("create dir fail");
+            }
+        }
+        return dir;
+    }
+
     public static File createTestDir(String prefix) {
         File dir = new File(TEST_DIR);
         if (!dir.exists()) {

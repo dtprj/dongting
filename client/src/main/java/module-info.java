@@ -25,4 +25,5 @@ module dongting.client {
     exports com.github.dtprj.dongting.codec;
     exports com.github.dtprj.dongting.raft;
     exports com.github.dtprj.dongting.queue to dongting.server;
+    opens com.github.dtprj.dongting.net to dongting.it.test;
 }

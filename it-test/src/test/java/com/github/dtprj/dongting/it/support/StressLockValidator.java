@@ -29,12 +29,13 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -70,14 +71,17 @@ public class StressLockValidator implements Runnable {
     private final DistributedLock lock2;
 
     public StressLockValidator(int groupId, int validatorId, long lockLeaseMillis,
-                               Function<String, KvClient> clientFactory, AtomicBoolean stop) {
+                               BiFunction<String, UUID, KvClient> clientFactory, AtomicBoolean stop) {
         this.groupId = groupId;
         this.validatorId = validatorId;
         this.lockLeaseMillis = lockLeaseMillis;
         this.stop = stop;
 
-        this.client1 = clientFactory.apply("StressLockValidator" + validatorId + "_1");
-        this.client2 = clientFactory.apply("StressLockValidator" + validatorId + "_2");
+        long most = 234324325663423L;
+        this.client1 = clientFactory.apply("StressLockValidator" + validatorId + "_1",
+                new UUID(most, validatorId * 10L + 1));
+        this.client2 = clientFactory.apply("StressLockValidator" + validatorId + "_2",
+                new UUID(most, validatorId * 10L + 2));
 
 
         client1.mkdir(groupId, PREFIX.getBytes());
@@ -145,7 +149,7 @@ public class StressLockValidator implements Runnable {
     }
 
     private void processAllowedEx(Exception e) throws InterruptedException {
-        if(e instanceof IllegalArgumentException){
+        if (e instanceof IllegalArgumentException) {
             throw (IllegalArgumentException) e;
         }
         Throwable root = DtUtil.rootCause(e);

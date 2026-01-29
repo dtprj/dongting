@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.it.support.StressLockValidator;
 import com.github.dtprj.dongting.it.support.StressRwValidator;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.test.TestDir;
@@ -41,9 +42,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -99,7 +102,7 @@ public class StressIT {
     }
 
     private void runStressTest(long seconds, boolean mockFault, boolean benchmark) throws Exception {
-        File baseDirFile = TestDir.createTestDir(StressIT.class.getSimpleName());
+        File baseDirFile = TestDir.createTestDirWithoutSuffix(StressIT.class.getSimpleName());
         Path baseDirPath = baseDirFile.toPath();
 
         log.info("=== Starting StressIT ===");
@@ -251,6 +254,7 @@ public class StressIT {
         }
         assertEquals(0, StressRwValidator.violationCount.get());
         assertEquals(0, StressLockValidator.violationCount.get());
+        assertEquals(0, StressAdvancedValidator.violationCount.get());
         assertFalse(failed);
     }
 
@@ -316,14 +320,35 @@ public class StressIT {
         }
     }
 
-    private KvClient createKvClient(String name) {
-        KvClient client = new KvClient(new KvClientConfig(), new RaftClientConfig(), new NioClientConfig(name));
-        client.start();
+    private static final Field uuid1;
+    private static final Field uuid2;
 
-        String serversStr = ItUtil.formatServiceServers(MEMBER_IDS);
-        client.getRaftClient().clientAddNode(serversStr);
-        client.getRaftClient().clientAddOrUpdateGroup(GROUP_ID, MEMBER_IDS);
-        return client;
+    static {
+        try {
+            uuid1 = NioClient.class.getDeclaredField("uuid1");
+            uuid2 = NioClient.class.getDeclaredField("uuid2");
+            uuid1.setAccessible(true);
+            uuid2.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private KvClient createKvClient(String name, UUID uuid) {
+        try {
+            KvClient client = new KvClient(new KvClientConfig(), new RaftClientConfig(), new NioClientConfig(name));
+            NioClient nioClient = client.getRaftClient().getNioClient();
+            uuid1.set(nioClient, uuid.getMostSignificantBits());
+            uuid2.set(nioClient, uuid.getLeastSignificantBits());
+            client.start();
+
+            String serversStr = ItUtil.formatServiceServers(MEMBER_IDS);
+            client.getRaftClient().clientAddNode(serversStr);
+            client.getRaftClient().clientAddOrUpdateGroup(GROUP_ID, MEMBER_IDS);
+            return client;
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void printTestReport() {

@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.dtkv.DistributedLock;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvException;
+import com.github.dtprj.dongting.dtkv.KvNode;
+import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -28,11 +30,13 @@ import org.junit.jupiter.api.Assertions;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * @author huangli
@@ -56,12 +60,12 @@ public class StressAdvancedValidator implements Runnable {
     public static final AtomicLong violationCount = new AtomicLong();
     public static final AtomicLong failureCount = new AtomicLong();
 
-    public StressAdvancedValidator(int groupId, long lockLeaseMillis, Function<String, KvClient> clientFactory,
+    public StressAdvancedValidator(int groupId, long lockLeaseMillis, BiFunction<String, UUID, KvClient> clientFactory,
                                    AtomicBoolean stop) {
         this.groupId = groupId;
         this.lockLeaseMillis = lockLeaseMillis;
         this.stop = stop;
-        this.client = clientFactory.apply("StressAdvancedValidator");
+        this.client = clientFactory.apply("StressAdvancedValidator", new UUID(4574397593475L, 1));
         client.getWatchManager().setListener(event -> verifyCount.incrementAndGet(), DtUtil.SCHEDULED_SERVICE);
         client.mkdir(groupId, PREFIX.getBytes());
     }
@@ -70,6 +74,7 @@ public class StressAdvancedValidator implements Runnable {
     public void run() {
         try {
             log.info("StressAdvancedValidator started");
+            clearResidualData();
             addWatchesForAllPossibleKeys();
             while (!stop.get() && violationCount.get() == 0) {
                 runOnce();
@@ -89,10 +94,59 @@ public class StressAdvancedValidator implements Runnable {
         }
     }
 
+    private void clearResidualData() {
+        // Delete from root using list, depth-first (children first, then parent)
+        // Fault injection hasn't started, any error should fail the test
+        clearDirRecursive(PREFIX.getBytes());
+        // Note: root node (PREFIX) is not removed, it will be reused
+        log.info("Residual data cleared");
+    }
+
+    /**
+     * Recursively clear directory contents. Throws exception on any error.
+     */
+    private void clearDirRecursive(byte[] dirKey) {
+        List<KvResult> children;
+        try {
+            children = client.list(groupId, dirKey);
+        } catch (KvException e) {
+            if (e.getCode() == KvCodes.NOT_FOUND || e.getCode() == KvCodes.PARENT_NOT_DIR) {
+                // temp dir may expire
+                return;
+            }
+            throw e;
+        }
+
+        for (KvResult child : children) {
+            byte[] childKey = concatKey(dirKey, child.getKeyInDir().getData());
+            boolean isDir = child.getNode().isDir();
+            boolean isLock = (child.getNode().flag & KvNode.FLAG_LOCK_MASK) != 0;
+
+            if (isDir && !isLock) {
+                // Recursively clear subdirectory first (depth-first)
+                clearDirRecursive(childKey);
+            }
+
+            // Now delete this child
+            if (isLock) {
+                log.info("unlock... {}", new String(childKey));
+                // For lock: createLock -> unlock -> close -> remove
+                // Any failure will propagate and fail the test
+                DistributedLock lock = client.createLock(groupId, childKey);
+                lock.unlock();
+                lock.close();
+            } else {
+                log.info("remove... {}", new String(childKey));
+                client.remove(groupId, childKey);
+            }
+        }
+    }
+
     private void addWatchesForAllPossibleKeys() {
         ArrayList<byte[]> allKeys = new ArrayList<>();
         generateKeys(PREFIX.getBytes(), 0, allKeys);
         client.getWatchManager().addWatch(groupId, allKeys.toArray(new byte[0][]));
+        log.info("All possible keys added to watch");
     }
 
     private void generateKeys(byte[] key, int depth, ArrayList<byte[]> allKeys) {

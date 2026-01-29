@@ -26,10 +26,11 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * Validator for write-then-read consistency (Read Your Writes).
@@ -52,12 +53,12 @@ public class StressRwValidator implements Runnable {
 
     private final Random random = new Random();
 
-    public StressRwValidator(int groupId, int threadId, int keySpace, Function<String, KvClient> clientFactory,
+    public StressRwValidator(int groupId, int threadId, int keySpace, BiFunction<String, UUID, KvClient> clientFactory,
                              AtomicBoolean stop) {
         this.threadId = threadId;
         this.groupId = groupId;
         this.keySpace = keySpace;
-        this.client = clientFactory.apply("StressRwValidator" + threadId);
+        this.client = clientFactory.apply("StressRwValidator" + threadId, UUID.randomUUID());
         this.stop = stop;
 
         // Create directory for this validator
@@ -88,7 +89,7 @@ public class StressRwValidator implements Runnable {
     }
 
     private void processAllowedEx(Exception e) throws InterruptedException {
-        if(e instanceof IllegalArgumentException){
+        if (e instanceof IllegalArgumentException) {
             throw (IllegalArgumentException) e;
         }
         Throwable root = DtUtil.rootCause(e);
