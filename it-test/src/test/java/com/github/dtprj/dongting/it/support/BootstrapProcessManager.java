@@ -186,17 +186,23 @@ public class BootstrapProcessManager {
 
         log.info("Stopping node {}", processInfo.config.nodeId);
 
-        // Try graceful shutdown
-        processInfo.process.destroy();
-        boolean exited = processInfo.process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+        try {
+            // Try graceful shutdown
+            processInfo.process.destroy();
+            boolean exited = processInfo.process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
 
-        if (exited) {
-            int exitCode = processInfo.process.exitValue();
-            log.info("Node {} terminated with exit code {}", processInfo.config.nodeId, exitCode);
-            return true;
-        } else {
-            // Force kill
-            return forceStopNode(processInfo, true);
+            if (exited) {
+                int exitCode = processInfo.process.exitValue();
+                log.info("Node {} terminated with exit code {}", processInfo.config.nodeId, exitCode);
+                return true;
+            } else {
+                return forceStopNode(processInfo, true);
+            }
+        } finally {
+            if (processInfo.process.isAlive()) {
+                forceStopNode(processInfo, false);
+            }
+            processes.remove(processInfo);
         }
     }
 
@@ -253,7 +259,6 @@ public class BootstrapProcessManager {
         if (!stopNode0(processInfo, timeoutSeconds)) {
             return false;
         }
-        processes.remove(processInfo);
 
         // Start the node again with the same config
         ProcessInfo newProcessInfo = startNode0(processInfo.config, timeoutSeconds);

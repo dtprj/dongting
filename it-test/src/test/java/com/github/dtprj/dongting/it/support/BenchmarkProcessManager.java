@@ -23,7 +23,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,8 +35,6 @@ public class BenchmarkProcessManager {
 
     private static final long PROCESS_START_TIMEOUT_SECONDS = 10;
     private static final long GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 5;
-
-    private final List<BenchmarkProcessInfo> processes = new CopyOnWriteArrayList<>();
 
     public static class BenchmarkConfig {
         public final String operation;
@@ -134,7 +131,6 @@ public class BenchmarkProcessManager {
         Process process = pb.start();
 
         BenchmarkProcessInfo processInfo = new BenchmarkProcessInfo(process, config, stdoutFile, stderrFile);
-        processes.add(processInfo);
 
         // Wait for process to be ready
         if (!waitForReady(processInfo, PROCESS_START_TIMEOUT_SECONDS)) {
@@ -158,7 +154,7 @@ public class BenchmarkProcessManager {
 
         long checkInterval = 100;
         long readyWaitNanos = TimeUnit.SECONDS.toNanos(2); // Wait 2 seconds before considering ready
-        
+
         while (System.nanoTime() < deadline) {
             if (!processInfo.process.isAlive()) {
                 log.error("DtBenchmark {} process died during startup", processInfo.config.operation);
@@ -168,11 +164,11 @@ public class BenchmarkProcessManager {
             // Simple check: if process is alive after 2 seconds, assume ready
             long elapsed = System.nanoTime() - startTime;
             if (elapsed >= readyWaitNanos) {
-                log.info("DtBenchmark {} appears ready after {}ms", 
-                    processInfo.config.operation, TimeUnit.NANOSECONDS.toMillis(elapsed));
+                log.info("DtBenchmark {} appears ready after {}ms",
+                        processInfo.config.operation, TimeUnit.NANOSECONDS.toMillis(elapsed));
                 return true;
             }
-            
+
             Thread.sleep(checkInterval);
         }
 
@@ -201,15 +197,16 @@ public class BenchmarkProcessManager {
             if (exited) {
                 int exitCode = processInfo.process.exitValue();
                 log.info("DtBenchmark {} terminated with exit code {}", processInfo.config.operation, exitCode);
-            } else {
-                // Force kill
-                log.warn("DtBenchmark {} did not exit gracefully, forcing termination", processInfo.config.operation);
-                processInfo.process.destroyForcibly();
-                processInfo.process.waitFor(5, TimeUnit.SECONDS);
             }
         } catch (InterruptedException e) {
             log.warn("Interrupted while stopping DtBenchmark {}", processInfo.config.operation, e);
             Thread.currentThread().interrupt();
+        } finally {
+            if (processInfo.process.isAlive()) {
+                // Force kill
+                log.warn("DtBenchmark {} did not exit gracefully, forcing termination", processInfo.config.operation);
+                processInfo.process.destroyForcibly();
+            }
         }
     }
 
