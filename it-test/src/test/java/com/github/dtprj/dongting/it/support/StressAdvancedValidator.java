@@ -62,6 +62,7 @@ public class StressAdvancedValidator implements Runnable {
         this.lockLeaseMillis = lockLeaseMillis;
         this.stop = stop;
         this.client = clientFactory.apply("StressAdvancedValidator");
+        client.getWatchManager().setListener(event -> verifyCount.incrementAndGet(), DtUtil.SCHEDULED_SERVICE);
         client.mkdir(groupId, PREFIX.getBytes());
     }
 
@@ -69,6 +70,7 @@ public class StressAdvancedValidator implements Runnable {
     public void run() {
         try {
             log.info("StressAdvancedValidator started");
+            addWatchesForAllPossibleKeys();
             while (!stop.get() && violationCount.get() == 0) {
                 runOnce();
             }
@@ -83,6 +85,21 @@ public class StressAdvancedValidator implements Runnable {
                 client.stop(new DtTime(10, TimeUnit.SECONDS));
             } catch (Exception e) {
                 log.error("StressAdvancedValidator stop failed", e);
+            }
+        }
+    }
+
+    private void addWatchesForAllPossibleKeys() {
+        ArrayList<byte[]> allKeys = new ArrayList<>();
+        generateKeys(PREFIX.getBytes(), 0, allKeys);
+        client.getWatchManager().addWatch(groupId, allKeys.toArray(new byte[0][]));
+    }
+
+    private void generateKeys(byte[] key, int depth, ArrayList<byte[]> allKeys) {
+        allKeys.add(key);
+        if (depth < MAX_DEPTH) {
+            for (int j = 0; j < MAX_CHILDREN; j++) {
+                generateKeys(concatKey(key, String.valueOf(j).getBytes()), depth + 1, allKeys);
             }
         }
     }
@@ -136,7 +153,7 @@ public class StressAdvancedValidator implements Runnable {
      * return if it should retry.
      */
     private boolean processCreateEx(Exception e) throws InterruptedException {
-        if(e instanceof IllegalArgumentException){
+        if (e instanceof IllegalArgumentException) {
             throw (IllegalArgumentException) e;
         }
         if (e instanceof KvException) {
@@ -272,6 +289,14 @@ public class StressAdvancedValidator implements Runnable {
         }
     }
 
+    private static byte[] concatKey(byte[] parent, byte[] child) {
+        byte[] bs = new byte[parent.length + child.length + 1];
+        System.arraycopy(parent, 0, bs, 0, parent.length);
+        bs[parent.length] = '.';
+        System.arraycopy(child, 0, bs, parent.length + 1, child.length);
+        return bs;
+    }
+
     private static class TestNode {
         static final int TYPE_DIR = 1;
         static final int TYPE_VALUE = 2;
@@ -304,14 +329,6 @@ public class StressAdvancedValidator implements Runnable {
 
         public boolean isDir() {
             return type == TYPE_DIR || type == TYPE_TEMP_DIR;
-        }
-
-        private byte[] concatKey(byte[] parent, byte[] child) {
-            byte[] bs = new byte[parent.length + child.length + 1];
-            System.arraycopy(parent, 0, bs, 0, parent.length);
-            bs[parent.length] = '.';
-            System.arraycopy(child, 0, bs, parent.length + 1, child.length);
-            return bs;
         }
 
         public TestNode createChild(int childIndex) {
