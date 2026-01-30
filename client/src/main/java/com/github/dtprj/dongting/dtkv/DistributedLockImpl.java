@@ -467,6 +467,7 @@ public class DistributedLockImpl implements DistributedLock {
                 throw new IllegalStateException("lock is closed");
             }
             if (state == STATE_NOT_LOCKED) {
+                log.warn("unlock called on a lock that is not locked, key: {}", key);
                 op.markFinishInLock(null, null);
             } else {
                 unlock0(op);
