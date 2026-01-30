@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.it.support;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.dtkv.DistributedLock;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -33,7 +34,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -94,7 +98,7 @@ public class StressAdvancedValidator implements Runnable {
         }
     }
 
-    private void clearResidualData() {
+    private void clearResidualData() throws InterruptedException {
         // Delete from root using list, depth-first (children first, then parent)
         // Fault injection hasn't started, any error should fail the test
         clearDirRecursive(PREFIX.getBytes());
@@ -105,7 +109,7 @@ public class StressAdvancedValidator implements Runnable {
     /**
      * Recursively clear directory contents. Throws exception on any error.
      */
-    private void clearDirRecursive(byte[] dirKey) {
+    private void clearDirRecursive(byte[] dirKey) throws InterruptedException {
         List<KvResult> children;
         try {
             children = client.list(groupId, dirKey);
@@ -130,10 +134,18 @@ public class StressAdvancedValidator implements Runnable {
             // Now delete this child
             if (isLock) {
                 log.info("unlock... {}", new String(childKey));
-                // For lock: createLock -> unlock -> close -> remove
+                // For lock: createLock -> unlock -> close
                 // Any failure will propagate and fail the test
                 DistributedLock lock = client.createLock(groupId, childKey);
-                lock.unlock();
+                CompletableFuture<Void> f = new CompletableFuture<>();
+                lock.unlock(FutureCallback.fromFuture(f), true);
+                try {
+                    f.get(5, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    throw new RuntimeException(e);
+                } catch (TimeoutException e) {
+                    throw new RuntimeException(e);
+                }
                 lock.close();
             } else {
                 log.info("remove... {}", new String(childKey));
