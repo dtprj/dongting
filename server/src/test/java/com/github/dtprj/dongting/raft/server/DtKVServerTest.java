@@ -86,6 +86,7 @@ public class DtKVServerTest extends ServerTestBase {
             testSimple(client);
             testTtl(client);
             testWatchManager(client);
+            testTypeChange(client);
 
         } finally {
             TestUtil.stop(client);
@@ -222,41 +223,52 @@ public class DtKVServerTest extends ServerTestBase {
 
     private void testTypeChange(KvClient client) {
         String parentKey = "testTypeChangeParent";
-        String subKey = "testTypeChangeParent.sub";
+        String sub1Key = "testTypeChangeParent.sub1";
+        String sub2Key = "testTypeChangeParent.sub2";
+        String sub3Key = "testTypeChangeParent.sub3";
+        String sub4Key = "testTypeChangeParent.sub4";
+        String sub5Key = "testTypeChangeParent.sub5";
+
         client.mkdir(groupId, parentKey.getBytes());
 
-        client.put(groupId, subKey.getBytes(), "v1".getBytes());
-        client.remove(groupId, subKey.getBytes());
+        DistributedLock lock = client.createLock(groupId, sub1Key.getBytes());
+        assertTrue(lock.tryLock(2000, 0));
+        client.mkdir(groupId, sub2Key.getBytes());
+        client.putTemp(groupId, sub3Key.getBytes(), "v1".getBytes(), 3000);
+        client.makeTempDir(groupId, sub4Key.getBytes(), 3000);
+        client.put(groupId, sub5Key.getBytes(), "v1".getBytes());
 
-        DistributedLock lock = client.createLock(groupId, subKey.getBytes());
-        lock.tryLock(2000, 0);
-        checkType(client, parentKey, subKey);
+        checkType(client, parentKey, sub1Key, sub2Key, sub3Key, sub4Key, sub5Key);
+
         lock.unlock();
         lock.close();
+        client.remove(groupId, sub2Key.getBytes());
+        client.remove(groupId, sub3Key.getBytes());
+        client.remove(groupId, sub4Key.getBytes());
+        client.remove(groupId, sub5Key.getBytes());
 
-        client.mkdir(groupId, subKey.getBytes());
-        checkType(client, parentKey, subKey);
-        client.remove(groupId, subKey.getBytes());
+        // change type
+        client.put(groupId, sub1Key.getBytes(), "v2".getBytes());
+        lock = client.createLock(groupId, sub2Key.getBytes());
+        assertTrue(lock.tryLock(2000, 0));
+        client.mkdir(groupId, sub3Key.getBytes());
+        client.putTemp(groupId, sub4Key.getBytes(), "v2".getBytes(), 3000);
+        client.makeTempDir(groupId, sub5Key.getBytes(), 3000);
 
-        client.put(groupId, subKey.getBytes(), "v2".getBytes());
-        checkType(client, parentKey, subKey);
-        client.remove(groupId, subKey.getBytes());
-
-        client.putTemp(groupId, subKey.getBytes(), "v3".getBytes(), 3000);
-        checkType(client, parentKey, subKey);
-        client.remove(groupId, subKey.getBytes());
-
-        client.makeTempDir(groupId, subKey.getBytes(), 3000);
-        checkType(client, parentKey, subKey);
+        checkType(client, parentKey, sub1Key, sub2Key, sub3Key, sub4Key, sub5Key);
     }
 
-    private void checkType(KvClient client, String parentKey, String subKey) {
+    private void checkType(KvClient client, String parentKey, String sub1Key, String sub2Key,
+                           String sub3Key, String sub4Key, String sub5Key) {
         List<KvResult> list = client.list(groupId, parentKey.getBytes());
-        assertEquals(1, list.size());
-        assertEquals(KvCodes.SUCCESS, list.get(0).getBizCode());
-        KvNode sub = client.get(groupId, subKey.getBytes());
-        assertNotNull(sub);
-        assertEquals(list.get(0).getNode().flag, sub.flag);
+        assertEquals(5, list.size());
+        List<KvNode> getList = client.batchGet(groupId, Arrays.asList(sub1Key.getBytes(),
+                sub2Key.getBytes(), sub3Key.getBytes(), sub4Key.getBytes(), sub5Key.getBytes()));
+        assertEquals(5, getList.size());
+        for (int i = 0; i < list.size(); i++) {
+            assertEquals(KvCodes.SUCCESS, list.get(i).getBizCode());
+            assertEquals(list.get(i).getNode().flag, getList.get(i).flag);
+        }
     }
 
 }
