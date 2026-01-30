@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.FutureCallback;
+import com.github.dtprj.dongting.dtkv.DistributedLock;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -38,10 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.dtprj.dongting.test.Tick.tick;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -121,6 +119,7 @@ public class DtKVServerTest extends ServerTestBase {
             testSimple(client);
             testTtl(client);
             testWatchManager(client);
+            testTypeChange(client);
 
         } finally {
             TestUtil.stop(client);
@@ -219,6 +218,45 @@ public class DtKVServerTest extends ServerTestBase {
         client.getWatchManager().addWatch(groupId, key.getBytes());
         client.put(groupId, key.getBytes(), value.getBytes());
         assertTrue(latch.await(2, TimeUnit.SECONDS));
+    }
+
+    private void testTypeChange(KvClient client) {
+        String parentKey = "testTypeChangeParent";
+        String subKey = "testTypeChangeParent.sub";
+        client.mkdir(groupId, parentKey.getBytes());
+
+        client.put(groupId, subKey.getBytes(), "v1".getBytes());
+        client.remove(groupId, subKey.getBytes());
+
+        DistributedLock lock = client.createLock(groupId, subKey.getBytes());
+        lock.tryLock(2000, 0);
+        checkType(client, parentKey, subKey);
+        lock.unlock();
+        lock.close();
+
+        client.mkdir(groupId, subKey.getBytes());
+        checkType(client, parentKey, subKey);
+        client.remove(groupId, subKey.getBytes());
+
+        client.put(groupId, subKey.getBytes(), "v2".getBytes());
+        checkType(client, parentKey, subKey);
+        client.remove(groupId, subKey.getBytes());
+
+        client.putTemp(groupId, subKey.getBytes(), "v3".getBytes(), 3000);
+        checkType(client, parentKey, subKey);
+        client.remove(groupId, subKey.getBytes());
+
+        client.makeTempDir(groupId, subKey.getBytes(), 3000);
+        checkType(client, parentKey, subKey);
+    }
+
+    private void checkType(KvClient client, String parentKey, String subKey) {
+        List<KvResult> list = client.list(groupId, parentKey.getBytes());
+        assertEquals(1, list.size());
+        assertEquals(KvCodes.SUCCESS, list.get(0).getBizCode());
+        KvNode sub = client.get(groupId, subKey.getBytes());
+        assertNotNull(sub);
+        assertEquals(list.get(0).getNode().flag, sub.flag);
     }
 
 }

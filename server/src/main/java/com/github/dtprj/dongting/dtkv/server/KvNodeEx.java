@@ -89,6 +89,9 @@ final class KvNodeEx extends KvNode {
     }
 
     void addChild(KvNodeHolder c) {
+        if (c.childNext != null || c.childPrev != null) {
+            BugLog.logAndThrow("already added");
+        }
         // Insert at the end of the doubly-linked list (before sentinel)
         KvNodeHolder sentinel = children;
         c.childPrev = sentinel.childPrev;

@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Assertions;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -41,6 +42,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+
+import static java.util.stream.Collectors.toList;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -64,6 +68,8 @@ public class StressAdvancedValidator implements Runnable {
     public static final AtomicLong violationCount = new AtomicLong();
     public static final AtomicLong failureCount = new AtomicLong();
 
+    private long round = 1;
+
     public StressAdvancedValidator(int groupId, long lockLeaseMillis, BiFunction<String, UUID, KvClient> clientFactory,
                                    AtomicBoolean stop) {
         this.groupId = groupId;
@@ -82,6 +88,7 @@ public class StressAdvancedValidator implements Runnable {
             addWatchesForAllPossibleKeys();
             while (!stop.get() && violationCount.get() == 0) {
                 runOnce();
+                round++;
             }
             log.info("StressAdvancedValidator stopped");
         } catch (InterruptedException e) {
@@ -141,9 +148,7 @@ public class StressAdvancedValidator implements Runnable {
                 lock.unlock(FutureCallback.fromFuture(f), true);
                 try {
                     f.get(5, TimeUnit.SECONDS);
-                } catch (ExecutionException e) {
-                    throw new RuntimeException(e);
-                } catch (TimeoutException e) {
+                } catch (ExecutionException | TimeoutException e) {
                     throw new RuntimeException(e);
                 }
                 lock.close();
@@ -194,6 +199,8 @@ public class StressAdvancedValidator implements Runnable {
             }
         }
 
+        check(root);
+
         ArrayDeque<TestNode> stack = new ArrayDeque<>();
         ArrayDeque<TestNode> output = new ArrayDeque<>();
         stack.push(root);
@@ -211,6 +218,43 @@ public class StressAdvancedValidator implements Runnable {
             if (current != root) {
                 remoteRemoveChild(current);
                 verifyCount.incrementAndGet();
+            }
+        }
+    }
+
+    private void check(TestNode dir) {
+        KvNode n = client.get(groupId, dir.fullKey);
+        assertTrue(n.isDir());
+        assertEquals(0, (n.flag & KvNode.FLAG_LOCK_MASK));
+
+        List<KvResult> remoteList = client.list(groupId, dir.fullKey);
+        assertEquals(dir.children.size(), remoteList.size());
+
+        List<byte[]> subFullKeys = dir.children.stream().map(node -> node.fullKey).collect(toList());
+        List<KvNode> batchGetResults = client.batchGet(groupId, subFullKeys);
+        assertEquals(dir.children.size(), batchGetResults.size());
+
+        for (int i = 0; i < dir.children.size(); i++) {
+            TestNode child = dir.children.get(i);
+            boolean localSubIsDir = child.isDir();
+            boolean localSubIsLock = child.type == TestNode.TYPE_LOCK;
+            KvNode nodeInList = remoteList.stream()
+                    .filter(node -> Arrays.equals(concatKey(dir.fullKey, node.getKeyInDir().getData()), child.fullKey))
+                    .findFirst()
+                    .map(KvResult::getNode)
+                    .orElse(null);
+            String failMsg = "round " + round + " " + new String(child.fullKey) + " check fail";
+            assertNotNull(nodeInList);
+            assertEquals(localSubIsDir, nodeInList.isDir(), failMsg);
+            assertEquals(localSubIsLock, (nodeInList.flag & KvNode.FLAG_LOCK_MASK) != 0, failMsg);
+
+            KvNode nodeInBatchGet = batchGetResults.get(i);
+            assertArrayEquals(child.fullKey, subFullKeys.get(i));
+            assertEquals(localSubIsDir, nodeInBatchGet.isDir(), failMsg);
+            assertEquals(localSubIsLock, (nodeInBatchGet.flag & KvNode.FLAG_LOCK_MASK) != 0, failMsg);
+
+            if (child.isDir() && !localSubIsLock) {
+                check(child);
             }
         }
     }
