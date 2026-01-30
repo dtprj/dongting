@@ -93,6 +93,18 @@ public interface DistributedLock {
     void unlock(FutureCallback<Void> callback);
 
     /**
+     * Asynchronously to release the lock, if the client is not the owner of the lock, do nothing and invoke the callback.
+     *
+     * @param callback the async callback, by default it will execute in bizExecutor of NioClient.
+     *                 It's recommended to do non-blocking operations in the listener, because it may
+     *                 block the next callbacks.
+     * @param force Force send rpc to server (the server is idempotent) to ensure the unlock operation.
+     *              If the force is false, local client think it does not hold the lock, the rpc request is not send
+     *              (the server status is not same with client because of time measure).
+     */
+    void unlock(FutureCallback<Void> callback, boolean force);
+
+    /**
      * Synchronously to update the lease time of the lock.
      *
      * @param newLeaseMillis the new lease time, should be positive, the lease time starts when this

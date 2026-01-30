@@ -454,12 +454,17 @@ public class DistributedLockImpl implements DistributedLock {
     @Override
     public void unlock() throws KvException, NetException {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        unlock(FutureCallback.fromFuture(f));
+        unlock(FutureCallback.fromFuture(f), false);
         getFuture(f);
     }
 
     @Override
     public void unlock(FutureCallback<Void> callback) {
+        unlock(callback, false);
+    }
+
+    @Override
+    public void unlock(FutureCallback<Void> callback, boolean force) {
         Op op = new Op(Op.OP_TYPE_UNLOCK, 0, 0, callback);
         opLock.lock();
         try {
@@ -468,7 +473,11 @@ public class DistributedLockImpl implements DistributedLock {
             }
             if (state == STATE_NOT_LOCKED) {
                 log.warn("unlock called on a lock that is not locked, key: {}", key);
-                op.markFinishInLock(null, null);
+                if (force) {
+                    unlock0(op);
+                } else {
+                    op.markFinishInLock(null, null);
+                }
             } else {
                 unlock0(op);
             }
