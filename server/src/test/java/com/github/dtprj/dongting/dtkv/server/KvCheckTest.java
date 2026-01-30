@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
+import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,8 +54,9 @@ class KvCheckTest {
             node = new KvNodeEx(1, ts.wallClockMillis, 1, ts.wallClockMillis);
         } else {
             // ttl manager does not distinguish between dir and data node, so use a simple data node for testing
+            int flag = ttlInfo != null ? KvNode.FLAG_TEMP_MASK : 0;
             node = new KvNodeEx(1, ts.wallClockMillis, 1,
-                    ts.wallClockMillis, 0, key.getData());
+                    ts.wallClockMillis, flag, key.getData());
             node.ttlInfo = ttlInfo;
         }
 

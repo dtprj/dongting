@@ -101,7 +101,7 @@ class KvImpl {
                 if ((latest.flag & KvNode.FLAG_LOCK_MASK) != 0) {
                     return new KvResult(KvCodes.IS_LOCK_NODE);
                 }
-                if (latest.ttlInfo != null) {
+                if ((latest.flag & KvNode.FLAG_TEMP_MASK) != 0) {
                     return new KvResult(KvCodes.IS_TEMP_NODE);
                 }
                 return null;
@@ -113,7 +113,7 @@ class KvImpl {
                 if ((latest.flag & KvNode.FLAG_LOCK_MASK) != 0) {
                     return new KvResult(KvCodes.IS_LOCK_NODE);
                 }
-                if (latest.ttlInfo != null && !latest.ttlInfo.owner.equals(ctx.operator)) {
+                if ((latest.flag & KvNode.FLAG_TEMP_MASK) != 0 && !latest.ttlInfo.owner.equals(ctx.operator)) {
                     return new KvResult(KvCodes.NOT_OWNER);
                 }
                 return null;
@@ -121,7 +121,7 @@ class KvImpl {
                 if (h == null || latest.removed) {
                     return KvResult.NOT_FOUND;
                 }
-                if (latest.ttlInfo == null) {
+                if ((latest.flag & KvNode.FLAG_TEMP_MASK) == 0) {
                     return new KvResult(KvCodes.NOT_TEMP_NODE);
                 }
                 if (!latest.ttlInfo.owner.equals(ctx.operator)) {
@@ -136,7 +136,7 @@ class KvImpl {
                 if ((latest.flag & KvNode.FLAG_LOCK_MASK) != 0) {
                     return new KvResult(KvCodes.IS_LOCK_NODE);
                 }
-                if (latest.ttlInfo == null) {
+                if ((latest.flag & KvNode.FLAG_TEMP_MASK) == 0) {
                     return new KvResult(KvCodes.NOT_TEMP_NODE);
                 }
                 if (!latest.ttlInfo.owner.equals(ctx.operator)) {
@@ -173,7 +173,7 @@ class KvImpl {
         switch (ctx.bizType) {
             case DtKV.BIZ_TYPE_TRY_LOCK:
                 while (parent != null) {
-                    if (parent.latest.ttlInfo != null) {
+                    if ((parent.latest.flag & KvNode.FLAG_TEMP_MASK) != 0) {
                         return new KvResult(KvCodes.UNDER_TEMP_DIR);
                     }
                     parent = parent.parent;
@@ -421,8 +421,10 @@ class KvImpl {
         }
         lastPutNodeHolder = null;
         if (current == null || current.latest.removed) {
-            int flag = (data == null || data.length == 0 ? KvNode.FLAG_DIR_MASK : 0) |
-                    (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK ? KvNode.FLAG_LOCK_MASK : 0);
+            int flag = (data == null || data.length == 0 ? KvNode.FLAG_DIR_MASK : 0)
+                    | (opContext.bizType == DtKV.BIZ_TYPE_TRY_LOCK ? KvNode.FLAG_LOCK_MASK : 0)
+                    | (opContext.ttlMillis > 0 ? KvNode.FLAG_TEMP_MASK : 0);
+
             KvNodeEx newKvNode = new KvNodeEx(index, opContext.leaderCreateTimeMillis, index,
                     opContext.leaderCreateTimeMillis, flag, data);
             if (current == null) {

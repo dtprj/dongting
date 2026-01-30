@@ -46,6 +46,7 @@ public class KvNode implements Encodable {
     public final int flag;
     public static final int FLAG_DIR_MASK = 0x1;
     public static final int FLAG_LOCK_MASK = 0x2;
+    public static final int FLAG_TEMP_MASK = 0x4;
 
     private int encodeSize;
 
@@ -58,8 +59,16 @@ public class KvNode implements Encodable {
         this.data = data;
     }
 
-    public boolean isDir() {
+    public final boolean isDir() {
         return (flag & FLAG_DIR_MASK) != 0;
+    }
+
+    public final boolean isLock() {
+        return (flag & FLAG_LOCK_MASK) != 0;
+    }
+
+    public final boolean isTemp() {
+        return (flag & FLAG_TEMP_MASK) != 0;
     }
 
     @Override
