@@ -127,6 +127,7 @@ public class KvNode implements Encodable {
             createTime = 0;
             updateIndex = 0;
             updateTime = 0;
+            flag = 0;
             data = null;
         }
 
