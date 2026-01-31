@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
  * Manage Bootstrap process lifecycle for integration tests.
  *
@@ -108,7 +110,9 @@ public class BootstrapProcessManager {
 
         // Redirect stdout/stderr to files to avoid memory overflow
         //noinspection ResultOfMethodCallIgnored
-        logsFile.mkdirs();
+        if(!logsFile.exists()) {
+            assertTrue(logsFile.mkdirs());
+        }
         File stdoutFile = new File(logsFile, "stdout.log");
         File stderrFile = new File(logsFile, "stderr.log");
 

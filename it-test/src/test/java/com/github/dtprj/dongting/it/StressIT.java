@@ -172,14 +172,18 @@ public class StressIT {
                 String servers = ItUtil.formatServiceServers(MEMBER_IDS);
 
                 File putBenchDir = new File(baseDirPath.toFile(), "benchmark-put");
-                assertTrue(putBenchDir.mkdirs());
+                if (!putBenchDir.exists()) {
+                    assertTrue(putBenchDir.mkdirs());
+                }
                 BenchmarkConfig putConfig = new BenchmarkConfig("put", BACKGROUND_MAX_PENDING, 1,
                         servers, GROUP_ID, putBenchDir);
                 putProcess = benchmarkManager.startBenchmark(putConfig);
                 log.info("PUT benchmark process started");
 
                 File getBenchDir = new File(baseDirPath.toFile(), "benchmark-get");
-                assertTrue(getBenchDir.mkdirs());
+                if (!getBenchDir.exists()) {
+                    assertTrue(getBenchDir.mkdirs());
+                }
                 BenchmarkConfig getConfig = new BenchmarkConfig("get", BACKGROUND_MAX_PENDING, 1,
                         servers, GROUP_ID, getBenchDir);
                 getProcess = benchmarkManager.startBenchmark(getConfig);

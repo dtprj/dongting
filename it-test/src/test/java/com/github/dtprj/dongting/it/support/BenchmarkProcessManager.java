@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
  * Manage DtBenchmark process lifecycle for stress testing.
  *
@@ -81,7 +83,9 @@ public class BenchmarkProcessManager {
         File moduleDir = new File(distDir, "lib");
         File logbackFile = new File(new File(distDir, "conf"), "logback-benchmark.xml");
         File logsFile = new File(config.nodeDir, "logs");
-        logsFile.mkdirs();
+        if (!logsFile.exists()) {
+            assertTrue(logsFile.mkdirs());
+        }
 
         // Create client.properties file with servers
         File clientPropsFile = new File(config.nodeDir, "client.properties");
