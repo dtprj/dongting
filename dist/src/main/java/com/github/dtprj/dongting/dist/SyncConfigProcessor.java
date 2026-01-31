@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.dist;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -30,10 +29,12 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.impl.MembersInfo;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -45,8 +46,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -88,14 +93,14 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
             return RaftProcessor.createWrongPortRest(packet, reqContext);
         }
         sequenceRunner.submit(reqContext.getTimeout().rest(TimeUnit.MILLISECONDS), e -> {
+            EmptyBodyRespPacket p;
             if (e == null) {
-                EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-                reqContext.writeRespInBizThreads(p);
+                p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             } else {
-                EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+                p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
                 p.msg = e.toString();
-                reqContext.writeRespInBizThreads(p);
             }
+            reqContext.writeRespInBizThreads(p);
         });
         return null;
     }
@@ -113,20 +118,23 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
         if (locked) {
             try {
                 List<RaftNode> allNodes;
-                List<Pair<Integer, MembersInfo>> groupsInfos;
+                Map<Integer, MembersInfo> groupInfoMap;
                 NodeManager nm = server.getNodeManager();
                 nm.getLock().lock();
                 try {
                     allNodes = nm.getAllNodes();
-                    groupsInfos = server.getRaftGroups().values().stream()
-                            .map(rg -> new Pair<>(rg.getGroupId(), rg.groupComponents.raftStatus.membersInfo))
-                            .collect(Collectors.toList());
+                    groupInfoMap = server.getRaftGroups().values().stream()
+                            .collect(Collectors.toMap(
+                                    RaftGroupImpl::getGroupId,
+                                    rg -> rg.groupComponents.raftStatus.membersInfo,
+                                    (a, b) -> a,
+                                    TreeMap::new
+                            ));
                 } finally {
                     nm.getLock().unlock();
                 }
                 Collections.sort(allNodes);
-                groupsInfos.sort(Comparator.comparingInt(Pair::getLeft));
-                doSyncConfig(allNodes, groupsInfos);
+                doSyncConfig(allNodes, groupInfoMap);
             } finally {
                 lock.unlock();
             }
@@ -135,21 +143,75 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
         }
     }
 
-    private void doSyncConfig(List<RaftNode> nodes, List<Pair<Integer, MembersInfo>> groupInfos) throws IOException {
+    private void doSyncConfig(List<RaftNode> nodes, Map<Integer, MembersInfo> groupInfoMap) throws IOException {
+        // read old config to preserve other settings
+        Properties oldProps = new Properties();
+        try (FileInputStream fis = new FileInputStream(serversFile)) {
+            oldProps.load(fis);
+        }
+
+        // track processed groups
+        Set<Integer> processedGroupIds = new HashSet<>();
+
         // generate config content
         StringBuilder sb = new StringBuilder();
         sb.append("servers = ").append(RaftNode.formatServers(nodes)).append("\n");
         sb.append("\n");
-        for (Pair<Integer, MembersInfo> pair : groupInfos) {
-            int groupId = pair.getLeft();
-            MembersInfo info = pair.getRight();
-            sb.append("group.").append(groupId).append(".nodeIdOfMembers = ");
-            sb.append(formatNodeIds(info.nodeIdOfMembers));
-            sb.append("\n");
-            sb.append("group.").append(groupId).append(".nodeIdOfObservers = ");
-            sb.append(formatNodeIds(info.nodeIdOfObservers));
-            sb.append("\n");
+
+        // iterate over all old properties
+        for (String key : oldProps.stringPropertyNames()) {
+            String value = oldProps.getProperty(key);
+
+            if ("servers".equals(key)) {
+                continue; // already written
+            }
+
+            if (key.startsWith(Bootstrap.GROUP_PREFIX)) {
+                String rest = key.substring(Bootstrap.GROUP_PREFIX.length());
+                int dotIndex = rest.indexOf('.');
+                if (dotIndex > 0) {
+                    String groupIdStr = rest.substring(0, dotIndex);
+                    try {
+                        int groupId = Integer.parseInt(groupIdStr);
+                        MembersInfo info = groupInfoMap.get(groupId);
+                        if (info == null) {
+                            // deleted group, skip
+                            continue;
+                        }
+                        String suffix = rest.substring(dotIndex + 1);
+                        // check if this is nodeIdOfMembers or nodeIdOfObservers
+                        if ("nodeIdOfMembers".equals(suffix) || "nodeIdOfObservers".equals(suffix)) {
+                            if (processedGroupIds.add(groupId)) {
+                                // write new nodeIdOfMembers and nodeIdOfObservers
+                                writeMembersInfo(sb, groupId, info);
+                            }
+                        } else {
+                            // preserve other group settings
+                            sb.append(key).append(" = ").append(value).append("\n");
+                        }
+                    } catch (NumberFormatException e) {
+                        // invalid group id, preserve as is
+                        sb.append(key).append(" = ").append(value).append("\n");
+                    }
+                } else {
+                    // invalid group key, preserve as is
+                    sb.append(key).append(" = ").append(value).append("\n");
+                }
+            } else {
+                // preserve non-group settings
+                sb.append(key).append(" = ").append(value).append("\n");
+            }
         }
+
+        // write newly added groups
+        for (Map.Entry<Integer, MembersInfo> entry : groupInfoMap.entrySet()) {
+            int groupId = entry.getKey();
+            if (processedGroupIds.add(groupId)) {
+                MembersInfo info = entry.getValue();
+                writeMembersInfo(sb, groupId, info);
+            }
+        }
+
         byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
 
         // write to temp file and fsync
@@ -166,6 +228,15 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
         // atomic move to replace original file
         Files.move(tempFile.toPath(), serversFile.toPath(),
                 StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private void writeMembersInfo(StringBuilder sb, int groupId, MembersInfo info) {
+        sb.append(Bootstrap.GROUP_PREFIX).append(groupId).append(".nodeIdOfMembers = ");
+        sb.append(formatNodeIds(info.nodeIdOfMembers));
+        sb.append("\n");
+        sb.append(Bootstrap.GROUP_PREFIX).append(groupId).append(".nodeIdOfObservers = ");
+        sb.append(formatNodeIds(info.nodeIdOfObservers));
+        sb.append("\n");
     }
 
     private String formatNodeIds(Set<Integer> nodeIds) {
