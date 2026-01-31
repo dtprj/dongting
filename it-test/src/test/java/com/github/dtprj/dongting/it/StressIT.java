@@ -58,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author huangli
  */
+@SuppressWarnings("BusyWait")
 public class StressIT {
     private static final DtLog log = DtLogs.getLogger(StressIT.class);
 
@@ -81,9 +82,9 @@ public class StressIT {
 
     private final BootstrapProcessManager processManager = new BootstrapProcessManager();
     private final BenchmarkProcessManager benchmarkManager = new BenchmarkProcessManager();
-    private final ClusterValidator validator = new ClusterValidator();
+    private final ClusterValidator clusterValidator = new ClusterValidator();
     private final FaultInjector faultInjector = new FaultInjector(GROUP_ID, MEMBER_IDS,
-            FAULT_INJECTION_INTERVAL_SECONDS, processManager, validator, stop);
+            FAULT_INJECTION_INTERVAL_SECONDS, processManager, clusterValidator, stop);
     private BenchmarkProcessInfo putProcess;
     private BenchmarkProcessInfo getProcess;
     private List<Thread> writeReadValidatorThreads;
@@ -120,10 +121,11 @@ public class StressIT {
         log.info("Transaction validators: {}", TRANSACTION_VALIDATOR_THREADS);
 
         try {
+            boolean fullSize = seconds == 0;
             // Step 1: Generate configuration and start cluster
             log.info("Step 1: Starting 3-node cluster");
             List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(MEMBER_IDS, GROUP_ID, baseDirPath)
-                    .fullSize(seconds == 0)
+                    .fullSize(fullSize)
                     .build();
 
             for (ProcessConfig config : configs) {
@@ -132,8 +134,8 @@ public class StressIT {
             }
 
             log.info("Step 2: Waiting for leader election");
-            validator.initialize(MEMBER_IDS, GROUP_ID);
-            int leaderId = validator.waitForClusterConsistency(GROUP_ID, MEMBER_IDS, 60);
+            clusterValidator.initialize(MEMBER_IDS, GROUP_ID);
+            int leaderId = clusterValidator.waitForClusterConsistency(GROUP_ID, MEMBER_IDS, 60);
             log.info("Cluster ready, leader is {}", leaderId);
 
 
@@ -193,6 +195,8 @@ public class StressIT {
             // Step 5: Start fault injection scheduler
             if (mockFault) {
                 log.info("Step 5: Starting fault injection scheduler");
+                faultInjector.setBaseDir(baseDirPath);
+                faultInjector.setFullSize(fullSize);
                 faultInjector.start();
                 log.info("Fault injection scheduler started");
             }
@@ -288,7 +292,7 @@ public class StressIT {
 
             // Close validator
             try {
-                validator.close();
+                clusterValidator.close();
             } catch (Exception e) {
                 log.warn("Error closing validator", e);
             }
@@ -407,6 +411,7 @@ public class StressIT {
                 + "  - Transfer Leader count: " + faultInjector.transferLeaderCount + "\n"
                 + "  - Graceful stop count: " + faultInjector.gracefulStopCount + "\n"
                 + "  - Force kill count: " + faultInjector.forceKillCount + "\n"
+                + "  - Add/Remove observer count: " + faultInjector.addObserverCount + "/" + faultInjector.removeObserverCount + "\n"
                 + "  - fail count: " + faultInjector.failCount + "\n"
                 + "\n"
                 + "=== Test Report End ===";
