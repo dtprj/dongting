@@ -200,6 +200,14 @@ public class StressIT {
             DtUtil.SCHEDULED_SERVICE.scheduleAtFixedRate(this::printTestReport, 1, 1, TimeUnit.MINUTES);
 
             // Step 6: Run for specified duration
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    shutdown(mockFault, benchmark, true);
+                } catch (Exception e) {
+                    log.warn("Shutdown hook interrupted", e);
+                }
+            }));
+
             log.info("Step 6: Running test for {} ", seconds == 0 ? "FOREVER" : (seconds + " seconds"));
             long startTime = System.currentTimeMillis();
             while (seconds == 0 || System.currentTimeMillis() - startTime < seconds * 1000) {
@@ -254,7 +262,7 @@ public class StressIT {
 
             throw e;
         } finally {
-            shutdown(mockFault, benchmark);
+            shutdown(mockFault, benchmark, false);
         }
         assertEquals(0, StressRwValidator.violationCount.get());
         assertEquals(0, StressLockValidator.violationCount.get());
@@ -262,52 +270,73 @@ public class StressIT {
         assertFalse(failed);
     }
 
-    private void shutdown(boolean mockFault, boolean benchmark) throws InterruptedException {
+    private synchronized void shutdown(boolean mockFault, boolean benchmark, boolean force) throws InterruptedException {
         // Signal validators to stop gracefully
+        if (stop.get()) {
+            return;
+        }
         stop.set(true);
 
         log.info("Shutting down StressIT");
 
-        // Step 7: Stop fault injector
-        if (mockFault) {
-            faultInjector.interrupt();
-            faultInjector.join(60 * 1000);
-        }
+        if (!force) {
+            // Step 7: Stop fault injector
+            if (mockFault) {
+                faultInjector.interrupt();
+                faultInjector.join(60 * 1000);
+            }
 
-        // Step 8: Stop validators
-        if (writeReadValidatorThreads != null) {
-            for (Thread thread : writeReadValidatorThreads) {
-                stopValidatorThread(thread);
+            // Close validator
+            try {
+                validator.close();
+            } catch (Exception e) {
+                log.warn("Error closing validator", e);
             }
-        }
-        if (lockValidatorThreads != null) {
-            for (Thread thread : lockValidatorThreads) {
-                stopValidatorThread(thread);
+
+            // Step 8: Stop validators
+            if (writeReadValidatorThreads != null) {
+                for (Thread thread : writeReadValidatorThreads) {
+                    stopValidatorThread(thread);
+                }
             }
-        }
-        if (advancedValidatorThread != null) {
-            stopValidatorThread(advancedValidatorThread);
+            if (lockValidatorThreads != null) {
+                for (Thread thread : lockValidatorThreads) {
+                    stopValidatorThread(thread);
+                }
+            }
+            if (advancedValidatorThread != null) {
+                stopValidatorThread(advancedValidatorThread);
+            }
         }
 
         // Stop benchmark processes
         if (benchmark) {
             if (putProcess != null && putProcess.process.isAlive()) {
-                benchmarkManager.stopBenchmark(putProcess);
+                if (force) {
+                    putProcess.process.destroyForcibly();
+                } else {
+                    benchmarkManager.stopBenchmark(putProcess);
+                }
             }
             if (getProcess != null && getProcess.process.isAlive()) {
-                benchmarkManager.stopBenchmark(getProcess);
+                if (force) {
+                    getProcess.process.destroyForcibly();
+                } else {
+                    benchmarkManager.stopBenchmark(getProcess);
+                }
             }
-        }
-
-        // Close validator
-        try {
-            validator.close();
-        } catch (Exception e) {
-            log.warn("Error closing validator", e);
         }
 
         // Stop all cluster nodes
-        processManager.stopAllNodes(30);
+        if (force) {
+            for (ProcessInfo processInfo : processManager.getProcesses()) {
+                if (processInfo.process.isAlive()) {
+                    processManager.forceStopNode(processInfo, false);
+                }
+            }
+        } else {
+            processManager.stopAllNodes(30);
+        }
 
         log.info("=== StressIT completed ===");
 
