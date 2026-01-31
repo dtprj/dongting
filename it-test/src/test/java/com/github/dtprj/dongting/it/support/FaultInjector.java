@@ -131,6 +131,8 @@ public class FaultInjector extends Thread {
                 && leaderStatus.observers.contains(OBSERVER_NODE_ID)) {
             log.info("Observer node {} found in cluster config, starting process",
                     OBSERVER_NODE_ID);
+            clusterValidator.getAdminClient().clientAddNode(ItUtil.formatReplicateServers(
+                    new int[]{OBSERVER_NODE_ID}));
             startObserverProcess();
             observerActive = true;
         } else {
@@ -421,6 +423,7 @@ public class FaultInjector extends Thread {
         try {
             RaftNode leaderNode = adminClient.fetchLeader(groupId).get(5, TimeUnit.SECONDS);
             if (leaderNode == null) {
+                log.warn("No leader found for group {}", groupId);
                 return null;
             }
             return adminClient.queryRaftServerStatus(leaderNode.nodeId, groupId)
