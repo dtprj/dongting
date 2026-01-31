@@ -106,8 +106,8 @@ public class ClusterValidator {
                 allStatus = queryAllNodeStatus(groupId, nodeIds);
                 if (allStatus != null && validateFullConsistency(allStatus) && allStatus.size() == nodeIds.length) {
                     QueryStatusResp sample = allStatus.values().iterator().next();
-                    log.info("Cluster consistency achieved: leaderId={}, term={}, members={}",
-                            sample.leaderId, sample.term, sample.members);
+                    log.info("Cluster consistency achieved: leaderId={}, term={}, members={}, observers={}",
+                            sample.leaderId, sample.term, sample.members, sample.observers);
                     return allStatus.values().iterator().next().leaderId;
                 } else {
                     if (attemptCount % 100 == 0) {

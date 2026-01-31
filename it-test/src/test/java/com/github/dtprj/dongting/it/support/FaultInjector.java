@@ -426,7 +426,7 @@ public class FaultInjector extends Thread {
             return adminClient.queryRaftServerStatus(leaderNode.nodeId, groupId)
                     .get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
-            log.debug("Failed to get leader status: {}", e.getMessage());
+            log.warn("Failed to get leader status: {}", e.getMessage());
             return null;
         }
     }
