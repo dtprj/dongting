@@ -59,10 +59,16 @@ public class KvNode implements Encodable {
         this.data = data;
     }
 
+    /**
+     * NOTICE: the lock node also has dir flag.
+     */
     public final boolean isDir() {
         return (flag & FLAG_DIR_MASK) != 0;
     }
 
+    /**
+     * NOTICE: the lock node also has dir flag.
+     */
     public final boolean isLock() {
         return (flag & FLAG_LOCK_MASK) != 0;
     }

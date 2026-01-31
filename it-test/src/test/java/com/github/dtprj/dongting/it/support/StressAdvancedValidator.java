@@ -140,7 +140,7 @@ public class StressAdvancedValidator implements Runnable {
 
             // Now delete this child
             if (isLock) {
-                log.info("unlock... {}", new String(childKey));
+                log.debug("unlock... {}", new String(childKey));
                 // For lock: createLock -> unlock -> close
                 // Any failure will propagate and fail the test
                 DistributedLock lock = client.createLock(groupId, childKey);
@@ -153,7 +153,7 @@ public class StressAdvancedValidator implements Runnable {
                 }
                 lock.close();
             } else {
-                log.info("remove... {}", new String(childKey));
+                log.debug("remove... {}", new String(childKey));
                 client.remove(groupId, childKey);
             }
         }
@@ -188,7 +188,7 @@ public class StressAdvancedValidator implements Runnable {
                 TestNode child = p.createChild(i);
                 if (remoteCreateChild(child)) {
                     verifyCount.incrementAndGet();
-                    if (child.isDir()) {
+                    if (child.isDirOrTmpDir()) {
                         queue.add(child);
                     }
                 } else {
@@ -207,7 +207,7 @@ public class StressAdvancedValidator implements Runnable {
         while (!stack.isEmpty()) {
             TestNode current = stack.pop();
             output.push(current);
-            if (current.isDir()) {
+            if (current.isDirOrTmpDir()) {
                 for (TestNode child : current.children) {
                     stack.push(child);
                 }
@@ -222,39 +222,76 @@ public class StressAdvancedValidator implements Runnable {
         }
     }
 
-    private void check(TestNode dir) {
-        KvNode n = client.get(groupId, dir.fullKey);
-        assertTrue(n.isDir());
-        assertEquals(0, (n.flag & KvNode.FLAG_LOCK_MASK));
+    private void check(TestNode dir) throws InterruptedException {
+        if (dir.writeFail) {
+            return;
+        }
+        while (true) {
+            List<KvResult> remoteList;
+            List<byte[]> subFullKeys;
+            List<KvNode> batchGetResults;
+            try {
+                KvNode n = client.get(groupId, dir.fullKey);
+                assertTrue(n.isDir());
+                assertEquals(0, (n.flag & KvNode.FLAG_LOCK_MASK));
 
-        List<KvResult> remoteList = client.list(groupId, dir.fullKey);
-        assertEquals(dir.children.size(), remoteList.size());
+                remoteList = client.list(groupId, dir.fullKey);
+                assertEquals(dir.children.size(), remoteList.size());
 
-        List<byte[]> subFullKeys = dir.children.stream().map(node -> node.fullKey).collect(toList());
-        List<KvNode> batchGetResults = client.batchGet(groupId, subFullKeys);
-        assertEquals(dir.children.size(), batchGetResults.size());
+                subFullKeys = dir.children.stream().map(node -> node.fullKey).collect(toList());
+                batchGetResults = client.batchGet(groupId, subFullKeys);
+                assertEquals(dir.children.size(), batchGetResults.size());
+            } catch (Exception e) {
+                if (processCreateEx(e, dir)) {
+                    Thread.sleep(50);
+                    continue;
+                } else {
+                    return;
+                }
+            }
 
-        for (int i = 0; i < dir.children.size(); i++) {
-            TestNode child = dir.children.get(i);
-            boolean localSubIsDir = child.isDir();
-            boolean localSubIsLock = child.type == TestNode.TYPE_LOCK;
-            KvNode nodeInList = remoteList.stream()
-                    .filter(node -> Arrays.equals(concatKey(dir.fullKey, node.getKeyInDir().getData()), child.fullKey))
-                    .findFirst()
-                    .map(KvResult::getNode)
-                    .orElse(null);
-            String failMsg = "round " + round + " " + new String(child.fullKey) + " check fail";
-            assertNotNull(nodeInList);
-            assertEquals(localSubIsDir, nodeInList.isDir(), failMsg);
-            assertEquals(localSubIsLock, (nodeInList.flag & KvNode.FLAG_LOCK_MASK) != 0, failMsg);
+            for (int i = 0; i < dir.children.size(); i++) {
+                TestNode child = dir.children.get(i);
+                if (child.writeFail) {
+                    continue;
+                }
+                boolean shouldHasLockBit = child.type == TestNode.TYPE_LOCK;
+                boolean shouldHasDirBit = child.isDirOrTmpDir() | shouldHasLockBit;
+                KvNode nodeInList = remoteList.stream()
+                        .filter(node -> Arrays.equals(concatKey(dir.fullKey, node.getKeyInDir().getData()), child.fullKey))
+                        .findFirst()
+                        .map(KvResult::getNode)
+                        .orElse(null);
+                String failMsg = "round " + round + " " + new String(child.fullKey) + " check fail";
+                if (child.tempDirOrUnderTempDir) {
+                    if (nodeInList != null) {
+                        assertEquals(shouldHasDirBit, nodeInList.isDir(), failMsg);
+                        assertEquals(shouldHasLockBit, (nodeInList.flag & KvNode.FLAG_LOCK_MASK) != 0, failMsg);
+                    }
+                } else {
+                    assertNotNull(nodeInList);
+                    assertEquals(shouldHasDirBit, nodeInList.isDir(), failMsg);
+                    assertEquals(shouldHasLockBit, (nodeInList.flag & KvNode.FLAG_LOCK_MASK) != 0, failMsg);
+                }
 
-            KvNode nodeInBatchGet = batchGetResults.get(i);
-            assertArrayEquals(child.fullKey, subFullKeys.get(i));
-            assertEquals(localSubIsDir, nodeInBatchGet.isDir(), failMsg);
-            assertEquals(localSubIsLock, (nodeInBatchGet.flag & KvNode.FLAG_LOCK_MASK) != 0, failMsg);
+                KvNode nodeInBatchGet = batchGetResults.get(i);
+                if (child.tempDirOrUnderTempDir) {
+                    if (nodeInBatchGet != null) {
+                        assertArrayEquals(child.fullKey, subFullKeys.get(i));
+                        assertEquals(shouldHasDirBit, nodeInBatchGet.isDir(), failMsg);
+                        assertEquals(shouldHasLockBit, (nodeInBatchGet.flag & KvNode.FLAG_LOCK_MASK) != 0, failMsg);
+                    }
+                } else {
+                    assertNotNull(nodeInBatchGet);
+                    assertArrayEquals(child.fullKey, subFullKeys.get(i));
+                    assertEquals(shouldHasDirBit, nodeInBatchGet.isDir(), failMsg);
+                    assertEquals(shouldHasLockBit, (nodeInBatchGet.flag & KvNode.FLAG_LOCK_MASK) != 0, failMsg);
+                }
 
-            if (child.isDir() && !localSubIsLock) {
-                check(child);
+                if (child.isDirOrTmpDir() && !shouldHasLockBit) {
+                    check(child);
+                }
+                return;
             }
         }
     }
@@ -262,13 +299,14 @@ public class StressAdvancedValidator implements Runnable {
     /**
      * return if it should retry.
      */
-    private boolean processCreateEx(Exception e) throws InterruptedException {
+    private boolean processCreateEx(Exception e, TestNode child) throws InterruptedException {
         if (e instanceof IllegalArgumentException) {
             throw (IllegalArgumentException) e;
         }
         if (e instanceof KvException) {
             KvException kve = (KvException) e;
-            if (kve.getCode() == KvCodes.PARENT_DIR_NOT_EXISTS) {
+            if (child.tempDirOrUnderTempDir && (kve.getCode() == KvCodes.PARENT_DIR_NOT_EXISTS
+                    || kve.getCode() == KvCodes.NOT_FOUND)) {
                 return false;
             } else {
                 throw new RuntimeException(e);
@@ -291,7 +329,7 @@ public class StressAdvancedValidator implements Runnable {
                         client.mkdir(groupId, child.fullKey);
                         return true;
                     } catch (Exception e) {
-                        if (processCreateEx(e)) {
+                        if (processCreateEx(e, child)) {
                             Thread.sleep(50);
                             continue;
                         } else {
@@ -303,7 +341,7 @@ public class StressAdvancedValidator implements Runnable {
                         client.put(groupId, child.fullKey, child.fullKey);
                         return true;
                     } catch (Exception e) {
-                        if (processCreateEx(e)) {
+                        if (processCreateEx(e, child)) {
                             Thread.sleep(50);
                             continue;
                         } else {
@@ -315,7 +353,7 @@ public class StressAdvancedValidator implements Runnable {
                         client.makeTempDir(groupId, child.fullKey, lockLeaseMillis);
                         return true;
                     } catch (Exception e) {
-                        if (processCreateEx(e)) {
+                        if (processCreateEx(e, child)) {
                             Thread.sleep(50);
                             continue;
                         } else {
@@ -327,7 +365,7 @@ public class StressAdvancedValidator implements Runnable {
                         client.putTemp(groupId, child.fullKey, child.fullKey, lockLeaseMillis);
                         return true;
                     } catch (Exception e) {
-                        if (processCreateEx(e)) {
+                        if (processCreateEx(e, child)) {
                             Thread.sleep(50);
                             continue;
                         } else {
@@ -341,7 +379,7 @@ public class StressAdvancedValidator implements Runnable {
                         child.lock.tryLock(lockLeaseMillis, 0);
                         return true;
                     } catch (Exception e) {
-                        if (processCreateEx(e)) {
+                        if (processCreateEx(e, child)) {
                             Thread.sleep(50);
                             continue;
                         } else {
@@ -430,19 +468,19 @@ public class StressAdvancedValidator implements Runnable {
             this.depth = depth;
             this.tempDirOrUnderTempDir = tempDirOrUnderTempDir;
             this.fullKey = fullKey;
-            if (isDir()) {
+            if (isDirOrTmpDir()) {
                 children = new ArrayList<>();
             } else {
                 children = null;
             }
         }
 
-        public boolean isDir() {
+        public boolean isDirOrTmpDir() {
             return type == TYPE_DIR || type == TYPE_TEMP_DIR;
         }
 
         public TestNode createChild(int childIndex) {
-            if (!isDir()) {
+            if (!isDirOrTmpDir()) {
                 throw new IllegalStateException("not a dir");
             }
             int subType = nextSubType();
