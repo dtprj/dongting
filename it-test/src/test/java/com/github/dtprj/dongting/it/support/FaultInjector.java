@@ -312,8 +312,12 @@ public class FaultInjector extends Thread {
                 return;
             }
 
-            // Add node definition to all existing nodes
             AdminRaftClient adminClient = clusterValidator.getAdminClient();
+
+            // Add node definition to adminClient local (for idempotency, always call this)
+            adminClient.clientAddNode(ItUtil.formatReplicateServers(new int[]{OBSERVER_NODE_ID}));
+
+            // Add node definition to all existing nodes
             for (int memberId : memberIds) {
                 try {
                     adminClient.serverAddNode(memberId, OBSERVER_NODE_ID, "127.0.0.1",
@@ -382,16 +386,21 @@ public class FaultInjector extends Thread {
             // Wait for cluster consistency
             clusterValidator.waitForClusterConsistency(groupId, memberIds, TIMEOUT_SECONDS);
 
-            // Remove group from observer node
-            try {
-                adminClient.serverRemoveGroup(OBSERVER_NODE_ID, groupId, new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
-                log.info("Removed group from observer node {}", OBSERVER_NODE_ID);
-            } catch (Exception e) {
-                log.warn("Error removing group from observer node: {}", e.getMessage());
-            }
-
             // Stop the observer process
             stopObserverProcess();
+
+            // Remove node definition from all existing nodes
+            for (int memberId : memberIds) {
+                try {
+                    adminClient.serverRemoveNode(memberId, OBSERVER_NODE_ID).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                    log.debug("Removed node definition for {} from node {}", OBSERVER_NODE_ID, memberId);
+                } catch (Exception e) {
+                    log.warn("Failed to remove node definition from node {}: {}", memberId, e.getMessage());
+                }
+            }
+
+            // Remove node definition from adminClient local (for idempotency)
+            adminClient.clientRemoveNode(OBSERVER_NODE_ID);
 
             // All steps successful, clear observerActive
             observerActive = false;
@@ -592,6 +601,18 @@ public class FaultInjector extends Thread {
 
             // Then stop the observer process
             stopObserverProcess();
+
+            // Remove node definition from all existing nodes
+            for (int memberId : memberIds) {
+                try {
+                    adminClient.serverRemoveNode(memberId, OBSERVER_NODE_ID).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    log.warn("Failed to remove node definition from node {}: {}", memberId, e.getMessage());
+                }
+            }
+
+            // Remove node definition from adminClient local
+            adminClient.clientRemoveNode(OBSERVER_NODE_ID);
 
             // Finally, clear the flag
             observerActive = false;
