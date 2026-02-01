@@ -364,8 +364,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            log.error("apply failed", ex);
-            return Fiber.frameReturn();
+            log.error("apply failed, lastCommit={}, lastApplying={}, lastApplied={}",
+                    raftStatus.commitIndex, raftStatus.lastApplying, raftStatus.getLastApplied(), ex);
+            throw Fiber.fatal(ex);
         }
 
         @Override
