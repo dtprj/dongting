@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.Random;
 
 /**
  * Generate configuration files for integration tests.
@@ -175,8 +176,10 @@ public class ConfigFileGenerator {
                     serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".logFileSize",
                             String.valueOf(protoType.logFileSize / 64));
                 }
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".useSeparateExecutor",
+                        String.valueOf(new Random().nextBoolean()));
                 if (watchTimeoutMillis != null) {
-                    serversProps.setProperty("group." + group.groupId + ".watchTimeoutMillis", String.valueOf(watchTimeoutMillis));
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".watchTimeoutMillis", String.valueOf(watchTimeoutMillis));
                 }
             }
             return serversProps;
