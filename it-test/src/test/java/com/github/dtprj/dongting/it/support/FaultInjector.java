@@ -66,7 +66,8 @@ public class FaultInjector extends Thread {
     public long forceKillCount;
     public long addObserverCount;
     public long removeObserverCount;
-    public long changeMembersCount;
+    public long changeMembersAddCount;
+    public long changeMembersRemoveCount;
     public long failCount;
 
     private final Random random = new Random();
@@ -696,7 +697,11 @@ public class FaultInjector extends Thread {
             // Wait for cluster consistency with new member configuration (auto-discover)
             clusterValidator.waitForClusterConsistencyAutoDiscover(groupId, TIMEOUT_SECONDS);
 
-            changeMembersCount++;
+            if (currentMembersSet.size() == 3) {
+                changeMembersRemoveCount++;
+            } else {
+                changeMembersAddCount++;
+            }
             log.info("Members change completed successfully");
 
         } catch (Exception e) {

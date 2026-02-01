@@ -417,7 +417,7 @@ public class StressIT {
                 + "  - Graceful stop count: " + faultInjector.gracefulStopCount + "\n"
                 + "  - Force kill count: " + faultInjector.forceKillCount + "\n"
                 + "  - Add/Remove observer count: " + faultInjector.addObserverCount + "/" + faultInjector.removeObserverCount + "\n"
-                + "  - Change members count: " + faultInjector.changeMembersCount + "\n"
+                + "  - Add/Remove members count: " + faultInjector.changeMembersAddCount + "/" + faultInjector.changeMembersRemoveCount + "\n"
                 + "  - fail count: " + faultInjector.failCount + "\n"
                 + "\n"
                 + "=== Test Report End ===";
