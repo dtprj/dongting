@@ -25,8 +25,10 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -201,18 +203,26 @@ public class FaultInjector extends Thread {
     }
 
     private void transferLeader(int currentLeaderId) throws InterruptedException {
-        // Select a random follower as new leader
-        int newLeaderId = -1;
-        for (int i = 0; i < 10; i++) {
-            int candidate = memberIds[random.nextInt(memberIds.length)];
-            if (candidate != currentLeaderId) {
-                newLeaderId = candidate;
-                break;
-            }
+        // Get current members from leader status
+        QueryStatusResp leaderStatus = getLeaderStatus();
+        if (leaderStatus == null || leaderStatus.members == null || leaderStatus.members.isEmpty()) {
+            log.error("Cannot get current members for leader transfer");
+            failCount++;
+            return;
         }
 
+        // Select a random follower as new leader
+        List<Integer> followers = new ArrayList<>();
+        for (int nodeId : leaderStatus.members) {
+            if (nodeId != currentLeaderId) {
+                followers.add(nodeId);
+            }
+        }
+        int newLeaderId = followers.isEmpty() ? -1 : followers.get(random.nextInt(followers.size()));
+
         if (newLeaderId <= 0) {
-            log.warn("Failed to select new leader");
+            log.error("Failed to select new leader from current members: {}", leaderStatus.members);
+            failCount++;
             return;
         }
 
