@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.it.support;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
+import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
@@ -25,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -67,9 +69,9 @@ public class ClusterValidator {
     }
 
     /**
-     * Query status from all nodes
+     * Query status from specified nodes
      */
-    public Map<Integer, QueryStatusResp> queryAllNodeStatus(int groupId, int[] nodeIds) {
+    public Map<Integer, QueryStatusResp> queryNodeStatus(int groupId, int[] nodeIds) {
         Map<Integer, QueryStatusResp> result = new HashMap<>();
 
         for (int nodeId : nodeIds) {
@@ -81,7 +83,6 @@ public class ClusterValidator {
                         nodeId, status.term, status.leaderId);
             } catch (Exception e) {
                 log.debug("Failed to query node {}: {}", nodeId, e.getMessage());
-                // Continue to query other nodes
             }
         }
 
@@ -95,29 +96,30 @@ public class ClusterValidator {
     public int waitForClusterConsistency(int groupId, int[] nodeIds, long timeoutSeconds) throws Exception {
         log.info("Waiting for cluster consistency (timeout: {} seconds)", timeoutSeconds);
 
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+        DtTime deadline = new DtTime(timeoutSeconds, TimeUnit.SECONDS);
         int attemptCount = 0;
-
         Map<Integer, QueryStatusResp> allStatus = null;
-        while (System.nanoTime() - deadline < 0) {
+
+        while (!deadline.isTimeout()) {
             attemptCount++;
 
             try {
-                allStatus = queryAllNodeStatus(groupId, nodeIds);
-                if (allStatus != null && validateFullConsistency(allStatus) && allStatus.size() == nodeIds.length) {
+                allStatus = queryNodeStatus(groupId, nodeIds);
+                if (allStatus.size() == nodeIds.length && validateFullConsistency(allStatus)) {
                     QueryStatusResp sample = allStatus.values().iterator().next();
                     log.info("Cluster consistency achieved: leaderId={}, term={}, members={}, observers={}",
                             sample.leaderId, sample.term, sample.members, sample.observers);
-                    return allStatus.values().iterator().next().leaderId;
-                } else {
-                    if (attemptCount % 100 == 0) {
-                        log.info("Cluster consistency validation failed, attempt {}", attemptCount);
-                        printClusterStatus(allStatus);
-                    }
+                    return sample.leaderId;
+                }
+
+                if (attemptCount % 100 == 0) {
+                    log.info("Cluster consistency validation failed, attempt {}", attemptCount);
+                    printClusterStatus(allStatus);
                 }
             } catch (Exception e) {
-                log.info("Failed to query status (attempt {}): {}", attemptCount, e.getMessage());
+                log.debug("Failed to query status (attempt {}): {}", attemptCount, e.getMessage());
             }
+
             Thread.sleep(QUERY_RETRY_INTERVAL_MS);
         }
 
@@ -127,14 +129,77 @@ public class ClusterValidator {
         throw new RuntimeException("Cluster consistency timeout after " + timeoutSeconds + " seconds");
     }
 
-    private static void printClusterStatus(Map<Integer, QueryStatusResp> allStatus) {
-        if (allStatus != null) {
-            for (Map.Entry<Integer, QueryStatusResp> entry : allStatus.entrySet()) {
-                QueryStatusResp status = entry.getValue();
-                log.info("  Node {}: leaderId={}, term={}, groupReady={}, members={}, observers={}",
-                        entry.getKey(), status.leaderId, status.term, status.isGroupReady(),
-                        status.members, status.observers);
+    /**
+     * Wait for cluster consistency by first discovering current members and observers from a ready node.
+     * This method is useful when cluster configuration may have changed (e.g., after members change).
+     */
+    public int waitForClusterConsistencyAutoDiscover(int groupId, long timeoutSeconds) throws Exception {
+        log.info("Waiting for cluster consistency with auto-discover (timeout: {} seconds)", timeoutSeconds);
+
+        DtTime deadline = new DtTime(timeoutSeconds, TimeUnit.SECONDS);
+        int attemptCount = 0;
+
+        Set<Integer> currentNodes = null;
+        while (!deadline.isTimeout() && currentNodes == null) {
+            attemptCount++;
+
+            currentNodes = discoverCurrentNodes(groupId);
+
+            if (currentNodes == null) {
+                if (attemptCount % 100 == 0) {
+                    log.info("Waiting to discover cluster configuration, attempt {}", attemptCount);
+                }
+                Thread.sleep(QUERY_RETRY_INTERVAL_MS);
             }
+        }
+
+        if (currentNodes == null) {
+            throw new RuntimeException("Cluster consistency timeout after " + timeoutSeconds + " seconds");
+        }
+
+        long remainingSeconds = Math.max(1, deadline.rest(TimeUnit.SECONDS));
+        int[] nodeIdsToQuery = currentNodes.stream().mapToInt(Integer::intValue).toArray();
+        return waitForClusterConsistency(groupId, nodeIdsToQuery, remainingSeconds);
+    }
+
+    /**
+     * Discover current cluster members and observers from leader.
+     *
+     * @return Set of current nodes (members + observers), or null if no leader found
+     */
+    private Set<Integer> discoverCurrentNodes(int groupId) {
+        try {
+            RaftNode leaderNode = adminClient.fetchLeader(groupId).get(5, TimeUnit.SECONDS);
+            if (leaderNode == null) {
+                log.debug("No leader found for group {}", groupId);
+                return null;
+            }
+            QueryStatusResp status = adminClient.queryRaftServerStatus(leaderNode.nodeId, groupId)
+                    .get(5, TimeUnit.SECONDS);
+            if (status.isGroupReady()) {
+                Set<Integer> currentNodes = new HashSet<>();
+                currentNodes.addAll(status.members);
+                currentNodes.addAll(status.observers);
+                log.info("Discovered cluster nodes from leader {}: members={}, observers={}",
+                        status.nodeId, status.members, status.observers);
+                return currentNodes;
+            }
+        } catch (Exception e) {
+            log.debug("Failed to discover cluster nodes: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private static void printClusterStatus(Map<Integer, QueryStatusResp> allStatus) {
+        if (allStatus == null || allStatus.isEmpty()) {
+            log.info("  No status available");
+            return;
+        }
+        for (Map.Entry<Integer, QueryStatusResp> entry : allStatus.entrySet()) {
+            QueryStatusResp status = entry.getValue();
+            log.info("  Node {}: leaderId={}, term={}, groupReady={}, members={}, observers={}",
+                    entry.getKey(), status.leaderId, status.term, status.isGroupReady(),
+                    status.members, status.observers);
         }
     }
 
@@ -143,14 +208,13 @@ public class ClusterValidator {
      */
     private boolean validateFullConsistency(Map<Integer, QueryStatusResp> allStatus) {
         if (allStatus.isEmpty()) {
-            log.warn("No status available for full consistency check");
             return false;
         }
 
-        HashSet<Integer> leaderIds = new HashSet<>();
-        HashSet<Integer> terms = new HashSet<>();
-        HashSet<HashSet<Integer>> membersSets = new HashSet<>();
-        HashSet<HashSet<Integer>> observersSets = new HashSet<>();
+        Set<Integer> leaderIds = new HashSet<>();
+        Set<Integer> terms = new HashSet<>();
+        Set<Set<Integer>> membersSets = new HashSet<>();
+        Set<Set<Integer>> observersSets = new HashSet<>();
         boolean allGroupReady = true;
 
         for (Map.Entry<Integer, QueryStatusResp> entry : allStatus.entrySet()) {

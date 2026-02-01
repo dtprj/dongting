@@ -297,7 +297,7 @@ public class FaultInjector extends Thread {
     private int waitForConvergence(long timeoutSeconds) {
         try {
             log.info("Wait cluster convergence, timeout {} seconds ...", timeoutSeconds);
-            int leaderId = clusterValidator.waitForClusterConsistency(groupId, memberIds, 30);
+            int leaderId = clusterValidator.waitForClusterConsistencyAutoDiscover(groupId, timeoutSeconds);
             log.info("Cluster converged, leaderId: {}", leaderId);
             return leaderId;
         } catch (Exception e) {
@@ -335,9 +335,8 @@ public class FaultInjector extends Thread {
             adminClient.commitChange(groupId, prepareIndex, new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
             log.info("Committed config change to add observer node {}", OBSERVER_NODE_ID);
 
-            // Wait for cluster consistency
-            int[] allNodeIds = StressIT.ALL_NODE_IDS;
-            clusterValidator.waitForClusterConsistency(groupId, allNodeIds, TIMEOUT_SECONDS);
+            // Wait for cluster consistency (auto-discover current members and observers)
+            clusterValidator.waitForClusterConsistencyAutoDiscover(groupId, TIMEOUT_SECONDS);
 
             // Wait for observer to catch up
             if (!waitForObserverCatchUp()) {
@@ -380,8 +379,8 @@ public class FaultInjector extends Thread {
             adminClient.commitChange(groupId, prepareIndex, new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
             log.info("Committed config change to remove observer node {}", OBSERVER_NODE_ID);
 
-            // Wait for cluster consistency
-            clusterValidator.waitForClusterConsistency(groupId, memberIds, TIMEOUT_SECONDS);
+            // Wait for cluster consistency (auto-discover current members and observers)
+            clusterValidator.waitForClusterConsistencyAutoDiscover(groupId, TIMEOUT_SECONDS);
 
             // Stop the observer process
             stopObserverProcess();
@@ -670,9 +669,8 @@ public class FaultInjector extends Thread {
             adminClient.commitChange(groupId, prepareIndex, new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
             log.info("Committed config change, members changed from {} to {}", currentMembersSet, targetMembers);
 
-            // Wait for cluster consistency with new member configuration
-            int[] newMemberIds = targetMembers.stream().mapToInt(Integer::intValue).sorted().toArray();
-            clusterValidator.waitForClusterConsistency(groupId, newMemberIds, TIMEOUT_SECONDS);
+            // Wait for cluster consistency with new member configuration (auto-discover)
+            clusterValidator.waitForClusterConsistencyAutoDiscover(groupId, TIMEOUT_SECONDS);
 
             changeMembersCount++;
             log.info("Members change completed successfully");

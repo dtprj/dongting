@@ -115,7 +115,7 @@ public class SimpleRaftGroupIT {
             runDtKvFunctionalTests();
 
             log.info("Step 6: Killing leader and waiting for leader election");
-            ProcessInfo leader = startedProcesses.stream().filter(p -> p.config.nodeId == leaderId).findFirst().get();
+            ProcessInfo leader = startedProcesses.stream().filter(p -> p.config.nodeId == leaderId).findFirst().orElseThrow();
             int oldLeaderId = leader.config.nodeId;
             processManager.forceStopNode(leader, true);
 
@@ -130,7 +130,7 @@ public class SimpleRaftGroupIT {
             validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 60);
 
             log.info("Step 9: Gracefully stopping a follower and restarting it");
-            Map<Integer, QueryStatusResp> statusMap = validator.queryAllNodeStatus(GROUP_ID, ALL_NODE_IDS);
+            Map<Integer, QueryStatusResp> statusMap = validator.queryNodeStatus(GROUP_ID, ALL_NODE_IDS);
             QueryStatusResp leaderStatus = statusMap.get(statusMap.values().iterator().next().leaderId);
             final int[] followerIdHolder = new int[]{-1};
             for (int nodeId : MEMBER_IDS) {
@@ -143,7 +143,7 @@ public class SimpleRaftGroupIT {
                 throw new RuntimeException("Could not find a follower to stop");
             }
             final int followerId = followerIdHolder[0];
-            ProcessInfo follower = startedProcesses.stream().filter(p -> p.config.nodeId == followerId).findFirst().get();
+            ProcessInfo follower = startedProcesses.stream().filter(p -> p.config.nodeId == followerId).findFirst().orElseThrow();
             assertTrue(processManager.restartNode(follower, 30));
 
 

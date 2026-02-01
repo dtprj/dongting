@@ -137,7 +137,7 @@ public class StressIT {
 
             log.info("Step 2: Waiting for leader election");
             clusterValidator.initialize(MEMBER_IDS, GROUP_ID);
-            int leaderId = clusterValidator.waitForClusterConsistency(GROUP_ID, MEMBER_IDS, 60);
+            int leaderId = clusterValidator.waitForClusterConsistencyAutoDiscover(GROUP_ID, 60);
             log.info("Cluster ready, leader is {}", leaderId);
 
 

@@ -276,7 +276,7 @@ public class DtAdminIT {
         assertTrue(abortResult.stdoutLines.stream().anyMatch(line -> line.contains("Abort index:")));
 
         validator.waitForClusterConsistency(GROUP_ID, ALL_NODE_IDS, 30);
-        Map<Integer, QueryStatusResp> statusMap = validator.queryAllNodeStatus(GROUP_ID, ALL_NODE_IDS);
+        Map<Integer, QueryStatusResp> statusMap = validator.queryNodeStatus(GROUP_ID, ALL_NODE_IDS);
         QueryStatusResp status = statusMap.get(statusMap.values().iterator().next().leaderId);
 
         assertEquals(3, status.members.size());
@@ -401,7 +401,7 @@ public class DtAdminIT {
     }
 
     private int getLeaderId() {
-        Map<Integer, QueryStatusResp> status = validator.queryAllNodeStatus(GROUP_ID, ALL_NODE_IDS);
+        Map<Integer, QueryStatusResp> status = validator.queryNodeStatus(GROUP_ID, ALL_NODE_IDS);
         for (Map.Entry<Integer, QueryStatusResp> entry : status.entrySet()) {
             if (entry.getValue().leaderId > 0) {
                 return entry.getValue().leaderId;
