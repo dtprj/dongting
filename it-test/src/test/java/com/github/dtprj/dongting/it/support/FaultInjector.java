@@ -52,7 +52,7 @@ public class FaultInjector extends Thread {
 
     private final int groupId;
     private final int[] memberIds;
-    private final int intervalSeconds;
+    public final int intervalSeconds;
     private final BootstrapProcessManager processManager;
     private final ClusterValidator clusterValidator;
     private final AtomicBoolean stopped;
@@ -71,12 +71,11 @@ public class FaultInjector extends Thread {
 
     private boolean observerActive;
 
-    public FaultInjector(int groupId, int[] memberIds, int intervalSeconds,
-                         BootstrapProcessManager processManager,
+    public FaultInjector(int groupId, int[] memberIds, BootstrapProcessManager processManager,
                          ClusterValidator clusterValidator, AtomicBoolean stopped) {
         this.groupId = groupId;
         this.memberIds = memberIds;
-        this.intervalSeconds = intervalSeconds;
+        this.intervalSeconds = Integer.parseInt(System.getProperty("faultInterval", "60"));
         this.stopped = stopped;
         this.processManager = processManager;
         this.clusterValidator = clusterValidator;

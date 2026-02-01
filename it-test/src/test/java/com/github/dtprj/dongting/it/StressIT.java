@@ -64,7 +64,6 @@ public class StressIT {
 
     // Test configuration
     private static final long DEFAULT_RUN_SECONDS = 30;
-    private static final int FAULT_INJECTION_INTERVAL_SECONDS = 60;
     private static final int WRITE_READ_VALIDATOR_THREADS = 2;
     private static final int LOCK_VALIDATORS = 2;
     private static final int TRANSACTION_VALIDATOR_THREADS = 2;
@@ -86,7 +85,7 @@ public class StressIT {
     private final BenchmarkProcessManager benchmarkManager = new BenchmarkProcessManager();
     private final ClusterValidator clusterValidator = new ClusterValidator();
     private final FaultInjector faultInjector = new FaultInjector(GROUP_ID, MEMBER_IDS,
-            FAULT_INJECTION_INTERVAL_SECONDS, processManager, clusterValidator, stop);
+              processManager, clusterValidator, stop);
     private BenchmarkProcessInfo putProcess;
     private BenchmarkProcessInfo getProcess;
     private List<Thread> writeReadValidatorThreads;
@@ -117,7 +116,7 @@ public class StressIT {
             log.info("Test duration: {} seconds", seconds);
         }
 
-        log.info("Fault injection interval: {} seconds", FAULT_INJECTION_INTERVAL_SECONDS);
+        log.info("Fault injection interval: {} seconds", faultInjector.intervalSeconds);
         log.info("Write-Read validators: {}", WRITE_READ_VALIDATOR_THREADS);
         log.info("Lock validator pairs: {}", LOCK_VALIDATORS);
         log.info("Transaction validators: {}", TRANSACTION_VALIDATOR_THREADS);
