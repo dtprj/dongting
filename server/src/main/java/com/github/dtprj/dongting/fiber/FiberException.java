@@ -67,7 +67,7 @@ public class FiberException extends DtException {
         ff = f.stackTop;
         StackTraceElement[] stackTrace = new StackTraceElement[frameCount];
         for (int i = 0; i < frameCount; i++) {
-            stackTrace[i] = new StackTraceElement(ff.getClass().getName(), "N/A", null, 0);
+            stackTrace[i] = new StackTraceElement(ff.getClass().getName(), "N/A", f.name, 0);
             ff = ff.prev;
         }
         FiberVirtualException fe = new FiberVirtualException();
