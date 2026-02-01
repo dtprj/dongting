@@ -71,8 +71,6 @@ public class FaultInjector extends Thread {
 
     private final Random random = new Random();
 
-    private boolean observerActive;
-
     public FaultInjector(int groupId, int[] memberIds, BootstrapProcessManager processManager,
                          ClusterValidator clusterValidator, AtomicBoolean stopped) {
         this.groupId = groupId;
@@ -148,7 +146,6 @@ public class FaultInjector extends Thread {
 
         if (leaderStatus == null || !leaderStatus.isGroupReady()) {
             log.warn("No leader available to detect observer status within timeout");
-            observerActive = false;
             return;
         }
 
@@ -158,16 +155,22 @@ public class FaultInjector extends Thread {
             clusterValidator.getAdminClient().clientAddNode(ItUtil.formatReplicateServers(
                     new int[]{OBSERVER_NODE_ID}));
             startObserverProcess();
-            observerActive = true;
         } else {
             log.info("No observer node {} detected in cluster", OBSERVER_NODE_ID);
-            observerActive = false;
         }
     }
 
     private void injectRandomFault() throws Exception {
         int leaderId = waitForConvergence(30);
         if (leaderId == 0) {
+            return;
+        }
+
+        // Query leader status once for all fault types that need it
+        QueryStatusResp leaderStatus = getLeaderStatus();
+        if (leaderStatus == null || !leaderStatus.isGroupReady()) {
+            log.warn("Cannot get leader status, skipping fault injection");
+            failCount++;
             return;
         }
 
@@ -187,17 +190,18 @@ public class FaultInjector extends Thread {
                 restartNode(true);
                 break;
             case 3:
-                if (observerActive) {
+                boolean hasObserver = leaderStatus.observers.contains(OBSERVER_NODE_ID);
+                if (hasObserver) {
                     log.info("Injecting event: RemoveObserver");
-                    removeObserver();
+                    removeObserver(leaderStatus);
                 } else {
                     log.info("Injecting event: AddObserver");
-                    addObserver();
+                    addObserver(leaderStatus);
                 }
                 break;
             case 4:
                 log.info("Injecting event: ChangeMembers");
-                changeMembers(leaderId);
+                changeMembers(leaderStatus);
                 break;
         }
     }
@@ -337,7 +341,7 @@ public class FaultInjector extends Thread {
         }
     }
 
-    private void addObserver() {
+    private void addObserver(QueryStatusResp leaderStatus) {
         log.info("Adding observer node {} to cluster", OBSERVER_NODE_ID);
 
         try {
@@ -356,9 +360,15 @@ public class FaultInjector extends Thread {
             adminClient.clientAddNode(ItUtil.formatReplicateServers(new int[]{OBSERVER_NODE_ID}));
 
             // Prepare and commit config change to add observer
-            Set<Integer>[] sets = buildMemberSets(false, true);
+            // Use actual members from cluster status instead of hardcoded memberIds
+            Set<Integer> currentMembers = new HashSet<>(leaderStatus.members);
+            Set<Integer> oldObservers = new HashSet<>(); // Observer not in cluster yet
+            Set<Integer> newMembers = new HashSet<>(currentMembers);
+            Set<Integer> newObservers = new HashSet<>();
+            newObservers.add(OBSERVER_NODE_ID);
+
             long prepareIndex = adminClient.prepareChange(groupId,
-                    sets[0], sets[1], sets[2], sets[3],
+                    currentMembers, oldObservers, newMembers, newObservers,
                     new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
             log.info("Prepared config change to add observer, prepareIndex={}", prepareIndex);
 
@@ -375,8 +385,6 @@ public class FaultInjector extends Thread {
                 return;
             }
 
-            // All steps successful, set observerActive
-            observerActive = true;
             addObserverCount++;
             log.info("Observer node {} added and caught up", OBSERVER_NODE_ID);
 
@@ -388,21 +396,22 @@ public class FaultInjector extends Thread {
         }
     }
 
-    private void removeObserver() {
-        if (!observerActive) {
-            log.debug("Observer not active, skipping removal");
-            return;
-        }
-
+    private void removeObserver(QueryStatusResp leaderStatus) {
         log.info("Removing observer node {} from cluster", OBSERVER_NODE_ID);
 
         try {
             AdminRaftClient adminClient = clusterValidator.getAdminClient();
 
             // Prepare and commit config change to remove observer
-            Set<Integer>[] sets = buildMemberSets(true, false);
+            // Use actual members from cluster status instead of hardcoded memberIds
+            Set<Integer> currentMembers = new HashSet<>(leaderStatus.members);
+            Set<Integer> oldObservers = new HashSet<>();
+            oldObservers.add(OBSERVER_NODE_ID);
+            Set<Integer> newMembers = new HashSet<>(currentMembers);
+            Set<Integer> newObservers = new HashSet<>();
+
             long prepareIndex = adminClient.prepareChange(groupId,
-                    sets[0], sets[1], sets[2], sets[3],
+                    currentMembers, oldObservers, newMembers, newObservers,
                     new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
             log.info("Prepared config change to remove observer, prepareIndex={}", prepareIndex);
 
@@ -418,17 +427,14 @@ public class FaultInjector extends Thread {
             // Remove node definition from adminClient local (for idempotency)
             adminClient.clientRemoveNode(OBSERVER_NODE_ID);
 
-            // All steps successful, clear observerActive
-            observerActive = false;
             removeObserverCount++;
             log.info("Successfully removed observer node {} from cluster", OBSERVER_NODE_ID);
 
         } catch (Exception e) {
             log.error("Error removing observer node: {}", e.getMessage(), e);
             failCount++;
-            // Try to stop observer process and clear flag to avoid state inconsistency
+            // Try to stop observer process to avoid state inconsistency
             stopObserverProcess();
-            observerActive = false;
         }
     }
 
@@ -552,34 +558,6 @@ public class FaultInjector extends Thread {
     }
 
     /**
-     * Build member and observer sets for config change.
-     *
-     * @param withObserver whether to include observer in oldObservers
-     * @param keepObserver whether to include observer in newObservers
-     * @return array of [oldMembers, oldObservers, newMembers, newObservers]
-     */
-    private Set<Integer>[] buildMemberSets(boolean withObserver, boolean keepObserver) {
-        Set<Integer> oldMembers = new HashSet<>();
-        for (int id : memberIds) {
-            oldMembers.add(id);
-        }
-        Set<Integer> oldObservers = new HashSet<>();
-        if (withObserver) {
-            oldObservers.add(OBSERVER_NODE_ID);
-        }
-
-        Set<Integer> newMembers = new HashSet<>(oldMembers);
-        Set<Integer> newObservers = new HashSet<>();
-        if (keepObserver) {
-            newObservers.add(OBSERVER_NODE_ID);
-        }
-
-        @SuppressWarnings("unchecked")
-        Set<Integer>[] result = new Set[]{oldMembers, oldObservers, newMembers, newObservers};
-        return result;
-    }
-
-    /**
      * Clean up observer state when errors occur.
      * This ensures the system is in a consistent state.
      */
@@ -589,11 +567,23 @@ public class FaultInjector extends Thread {
 
             // First, try to remove observer from cluster config
             try {
-                Set<Integer>[] sets = buildMemberSets(true, false);
-                long prepareIndex = adminClient.prepareChange(groupId, sets[0], sets[1], sets[2], sets[3],
-                        new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
-                adminClient.commitChange(groupId, prepareIndex, new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
-                log.info("Cleaned up observer from cluster config");
+                // Get current members from leader status
+                QueryStatusResp leaderStatus = getLeaderStatus();
+                if (leaderStatus != null && leaderStatus.isGroupReady()) {
+                    Set<Integer> currentMembers = new HashSet<>(leaderStatus.members);
+                    Set<Integer> oldObservers = new HashSet<>();
+                    oldObservers.add(OBSERVER_NODE_ID);
+                    Set<Integer> newMembers = new HashSet<>(currentMembers);
+                    Set<Integer> newObservers = new HashSet<>();
+
+                    long prepareIndex = adminClient.prepareChange(groupId,
+                            currentMembers, oldObservers, newMembers, newObservers,
+                            new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
+                    adminClient.commitChange(groupId, prepareIndex, new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
+                    log.info("Cleaned up observer from cluster config");
+                } else {
+                    log.warn("Cannot get leader status for cleanup, skipping config change");
+                }
             } catch (Exception e) {
                 log.warn("Failed to clean up observer from cluster config: {}", e.getMessage());
             }
@@ -601,8 +591,25 @@ public class FaultInjector extends Thread {
             // Then stop the observer process
             stopObserverProcess();
 
-            // Remove node definition from all existing nodes
-            for (int memberId : memberIds) {
+            // Remove node definition from all known member nodes (use actual members if available, else fall back to memberIds)
+            Set<Integer> nodesToClean = new HashSet<>();
+            try {
+                QueryStatusResp leaderStatus = getLeaderStatus();
+                if (leaderStatus != null && leaderStatus.members != null) {
+                    nodesToClean.addAll(leaderStatus.members);
+                } else {
+                    for (int memberId : memberIds) {
+                        nodesToClean.add(memberId);
+                    }
+                }
+            } catch (Exception e) {
+                // Fall back to configured memberIds
+                for (int memberId : memberIds) {
+                    nodesToClean.add(memberId);
+                }
+            }
+
+            for (int memberId : nodesToClean) {
                 try {
                     adminClient.serverRemoveNode(memberId, OBSERVER_NODE_ID).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 } catch (Exception e) {
@@ -612,9 +619,6 @@ public class FaultInjector extends Thread {
 
             // Remove node definition from adminClient local
             adminClient.clientRemoveNode(OBSERVER_NODE_ID);
-
-            // Finally, clear the flag
-            observerActive = false;
 
             log.info("Observer state cleanup completed");
 
@@ -628,16 +632,9 @@ public class FaultInjector extends Thread {
      * If current is 3 nodes (1,2,3), remove a follower to become 2 nodes.
      * If current is 2 nodes, add the missing node from (1,2,3) to become 3 nodes.
      */
-    private void changeMembers(int currentLeaderId) {
+    private void changeMembers(QueryStatusResp leaderStatus) {
         try {
-            // Get current members from leader status
-            QueryStatusResp leaderStatus = getLeaderStatus();
-            if (leaderStatus == null || !leaderStatus.isGroupReady()) {
-                log.warn("Cannot get leader status or group not ready, skipping members change");
-                failCount++;
-                return;
-            }
-
+            int currentLeaderId = leaderStatus.leaderId;
             Set<Integer> currentMembersSet = new HashSet<>(leaderStatus.members);
 
             Set<Integer> targetMembers;
@@ -683,11 +680,8 @@ public class FaultInjector extends Thread {
 
             AdminRaftClient adminClient = clusterValidator.getAdminClient();
 
-            // Prepare config change
-            Set<Integer> oldObservers = new HashSet<>();
-            if (observerActive) {
-                oldObservers.add(OBSERVER_NODE_ID);
-            }
+            // Prepare config change - use actual observers from leader status
+            Set<Integer> oldObservers = new HashSet<>(leaderStatus.observers);
             Set<Integer> newObservers = new HashSet<>(oldObservers);
 
             long prepareIndex = adminClient.prepareChange(groupId,
