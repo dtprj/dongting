@@ -92,21 +92,29 @@ public class FiberGroup {
      * can call in any thread
      */
     public void requestShutdown() {
-        Fiber shutdownGroupFiber = new Fiber("shutdownGroup", this, new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                // if the dispatcher stopped, no ops
-                if (shareStatusSource.shouldStop) {
+        if (Thread.currentThread() == dispatcher.thread && dispatcher.thread.currentGroup == this) {
+            requestShutdown0();
+        } else {
+            Fiber shutdownGroupFiber = new Fiber("shutdownGroup", this, new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    requestShutdown0();
                     return Fiber.frameReturn();
                 }
-                log.info("request shutdown group: {}", name);
-                shareStatusSource.shouldStop = true;
-                shareStatusSource.copy(true);
-                shouldStopCondition.signalAll();
-                return Fiber.frameReturn();
-            }
-        });
-        fireFiber(shutdownGroupFiber);
+            });
+            fireFiber(shutdownGroupFiber);
+        }
+    }
+
+    private void requestShutdown0() {
+        // if the dispatcher stopped, no ops
+        if (shareStatusSource.shouldStop) {
+            return;
+        }
+        log.info("request shutdown group: {}", name);
+        shareStatusSource.shouldStop = true;
+        shareStatusSource.copy(true);
+        shouldStopCondition.signalAll();
     }
 
     public static FiberGroup currentGroup() {

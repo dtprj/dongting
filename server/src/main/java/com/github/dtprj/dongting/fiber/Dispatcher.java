@@ -508,6 +508,9 @@ public class Dispatcher extends AbstractLifeCircle {
     static Fiber getCurrentFiberAndCheck(FiberGroup expectGroup) {
         DispatcherThread dispatcherThread = DispatcherThread.currentDispatcherThread();
         FiberGroup dispatcherGroup = dispatcherThread.currentGroup;
+        if (dispatcherGroup == null) {
+            throw new FiberException("current fiber group is null");
+        }
         Fiber fiber = dispatcherGroup.currentFiber;
         if (fiber == null) {
             throwFatalError(dispatcherGroup, "usage fatal error: current fiber is null");
@@ -627,8 +630,8 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     boolean doInDispatcherThread(FiberQueueTask r) {
-        if (Thread.currentThread() == thread) {
-            FiberGroup g = thread.currentGroup;
+        FiberGroup g = r.ownerGroup;
+        if (Thread.currentThread() == thread && g == thread.currentGroup) {
             if (g != null) {
                 if (g.finished) {
                     log.warn("task is not accepted because its group is finished: {}", r);
