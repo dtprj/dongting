@@ -196,6 +196,7 @@ public class ConfigFileGenerator {
     }
 
     public static class ClusterConfigBuilder {
+        private final int[] allIds;
         private final int[] memberIds;
         private final int groupId;
         private final Path baseDir;
@@ -210,7 +211,8 @@ public class ConfigFileGenerator {
 
         private boolean fullSize;
 
-        public ClusterConfigBuilder(int[] memberIds, int groupId, Path baseDir) {
+        public ClusterConfigBuilder(int[] allIds, int[] memberIds, int groupId, Path baseDir) {
+            this.allIds = allIds;
             this.memberIds = memberIds;
             this.groupId = groupId;
             this.baseDir = baseDir;
@@ -259,32 +261,16 @@ public class ConfigFileGenerator {
         public List<ProcessConfig> build() throws IOException {
             List<ProcessConfig> result = new ArrayList<>();
 
-            // Build servers string (members + observers)
-            int[] allNodeIds = new int[memberIds.length + observerIds.length];
-            System.arraycopy(memberIds, 0, allNodeIds, 0, memberIds.length);
-            System.arraycopy(observerIds, 0, allNodeIds, memberIds.length, observerIds.length);
-            String serversStr = ItUtil.formatReplicateServers(allNodeIds);
+            String serversStr = ItUtil.formatReplicateServers(allIds);
 
             // Build members string
-            StringBuilder memberIdsStr = new StringBuilder();
-            for (int nid : memberIds) {
-                memberIdsStr.append(nid).append(",");
-            }
-            memberIdsStr.deleteCharAt(memberIdsStr.length() - 1);
+            String memberIdsStr = ItUtil.formatMemberIds(memberIds);
 
             // Build observers string
-            String observersStr = "";
-            if (observerIds.length > 0) {
-                StringBuilder sb = new StringBuilder();
-                for (int oid : observerIds) {
-                    sb.append(oid).append(",");
-                }
-                sb.deleteCharAt(sb.length() - 1);
-                observersStr = sb.toString();
-            }
+            String observersStr = ItUtil.formatMemberIds(observerIds);
 
             List<GroupDefinition> groupDefinitions = Collections.singletonList(
-                    new GroupDefinition(groupId, memberIdsStr.toString(), observersStr));
+                    new GroupDefinition(groupId, memberIdsStr, observersStr));
 
             // Generate config for each member
             for (int nid : memberIds) {

@@ -81,7 +81,7 @@ public class SimpleRaftGroupIT {
 
         try {
             log.info("Step 1: Generating configuration files for 3-node cluster with optimized timeouts");
-            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(MEMBER_IDS, GROUP_ID, tempDir)
+            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(ALL_NODE_IDS, MEMBER_IDS, GROUP_ID, tempDir)
                     .observerIds(OBSERVER_IDS)
                     .electTimeout(ELECT_TIMEOUT)
                     .rpcTimeout(RPC_TIMEOUT)

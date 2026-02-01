@@ -56,6 +56,17 @@ public class ItUtil {
         return RaftNode.formatServers(replicateNodes);
     }
 
+    public static String formatMemberIds(int[] nodeIds) {
+        if (nodeIds.length == 0) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int id : nodeIds) {
+            sb.append(id).append(",");
+        }
+        return sb.substring(0, sb.length() - 1);
+    }
+
     public static File findDistDir() {
         File f = new File("").getAbsoluteFile();
         File projectRoot;

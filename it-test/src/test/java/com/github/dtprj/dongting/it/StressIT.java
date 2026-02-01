@@ -75,6 +75,8 @@ public class StressIT {
     // Cluster configuration
     private static final int GROUP_ID = 0;
     private static final int[] MEMBER_IDS = {1, 2, 3};
+    public static final int[] ALL_NODE_IDS = {1, 2, 3, 4};
+    public static final int OBSERVER_ID = 4;
 
     private boolean failed;
 
@@ -124,7 +126,8 @@ public class StressIT {
             boolean fullSize = seconds == 0;
             // Step 1: Generate configuration and start cluster
             log.info("Step 1: Starting 3-node cluster");
-            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(MEMBER_IDS, GROUP_ID, baseDirPath)
+            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(
+                    ALL_NODE_IDS, MEMBER_IDS, GROUP_ID, baseDirPath)
                     .fullSize(fullSize)
                     .build();
 

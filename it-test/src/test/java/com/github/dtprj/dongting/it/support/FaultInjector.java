@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.it.support;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.it.StressIT;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -42,7 +43,7 @@ import static java.util.Collections.singletonList;
 public class FaultInjector extends Thread {
     private static final DtLog log = DtLogs.getLogger(FaultInjector.class);
 
-    private static final int OBSERVER_NODE_ID = 4;
+    private static final int OBSERVER_NODE_ID = StressIT.OBSERVER_ID;
     private static final long CATCH_UP_CHECK_INTERVAL_MILLIS = 1000;
     private static final long CATCH_UP_THRESHOLD = 5000;
     private static final long TIMEOUT_SECONDS = 60;
@@ -319,17 +320,6 @@ public class FaultInjector extends Thread {
             // Add node definition to adminClient local (for idempotency, always call this)
             adminClient.clientAddNode(ItUtil.formatReplicateServers(new int[]{OBSERVER_NODE_ID}));
 
-            // Add node definition to all existing nodes
-            for (int memberId : memberIds) {
-                try {
-                    adminClient.serverAddNode(memberId, OBSERVER_NODE_ID, "127.0.0.1",
-                            ItUtil.replicatePort(OBSERVER_NODE_ID)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                    log.debug("Added node definition for {} to node {}", OBSERVER_NODE_ID, memberId);
-                } catch (Exception e) {
-                    log.warn("Failed to add node definition to node {}: {}", memberId, e.getMessage());
-                }
-            }
-
             // Prepare and commit config change to add observer
             Set<Integer>[] sets = buildMemberSets(false, true);
             long prepareIndex = adminClient.prepareChange(groupId,
@@ -341,7 +331,7 @@ public class FaultInjector extends Thread {
             log.info("Committed config change to add observer node {}", OBSERVER_NODE_ID);
 
             // Wait for cluster consistency
-            int[] allNodeIds = getAllNodeIds();
+            int[] allNodeIds = StressIT.ALL_NODE_IDS;
             clusterValidator.waitForClusterConsistency(groupId, allNodeIds, TIMEOUT_SECONDS);
 
             // Wait for observer to catch up
@@ -390,16 +380,6 @@ public class FaultInjector extends Thread {
 
             // Stop the observer process
             stopObserverProcess();
-
-            // Remove node definition from all existing nodes
-            for (int memberId : memberIds) {
-                try {
-                    adminClient.serverRemoveNode(memberId, OBSERVER_NODE_ID).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                    log.debug("Removed node definition for {} from node {}", OBSERVER_NODE_ID, memberId);
-                } catch (Exception e) {
-                    log.warn("Failed to remove node definition from node {}: {}", memberId, e.getMessage());
-                }
-            }
 
             // Remove node definition from adminClient local (for idempotency)
             adminClient.clientRemoveNode(OBSERVER_NODE_ID);
@@ -484,8 +464,8 @@ public class FaultInjector extends Thread {
                 return;
             }
 
-            String serversStr = formatReplicateServers(getAllNodeIds());
-            String membersStr = formatMemberIds();
+            String serversStr = formatReplicateServers(StressIT.ALL_NODE_IDS);
+            String membersStr = ItUtil.formatMemberIds(memberIds);
 
             ConfigFileGenerator.ProcessConfig config = new ConfigFileGenerator.ProcessConfigBuilder(
                     OBSERVER_NODE_ID, baseDir, serversStr,
@@ -531,24 +511,6 @@ public class FaultInjector extends Thread {
             }
         }
         return null;
-    }
-
-    private int[] getAllNodeIds() {
-        int[] allIds = new int[memberIds.length + 1];
-        System.arraycopy(memberIds, 0, allIds, 0, memberIds.length);
-        allIds[memberIds.length] = OBSERVER_NODE_ID;
-        return allIds;
-    }
-
-    private String formatMemberIds() {
-        if (memberIds.length == 0) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int id : memberIds) {
-            sb.append(id).append(",");
-        }
-        return sb.substring(0, sb.length() - 1);
     }
 
     private String formatReplicateServers(int[] nodeIds) {

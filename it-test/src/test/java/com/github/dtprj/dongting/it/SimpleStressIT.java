@@ -92,7 +92,7 @@ public class SimpleStressIT {
 
         try {
             log.info("Step 1: Generating configuration files with default timeouts");
-            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(MEMBER_IDS, GROUP_ID, baseDirPath)
+            List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(ALL_NODE_IDS, MEMBER_IDS, GROUP_ID, baseDirPath)
                     .observerIds(OBSERVER_IDS)
                     .build();
 
