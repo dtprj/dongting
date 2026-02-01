@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -63,6 +64,7 @@ public class FaultInjector extends Thread {
     public long forceKillCount;
     public long addObserverCount;
     public long removeObserverCount;
+    public long changeMembersCount;
     public long failCount;
 
     private final Random random = new Random();
@@ -148,7 +150,7 @@ public class FaultInjector extends Thread {
             return;
         }
 
-        int faultType = System.getProperty("faultType") == null ? random.nextInt(4) :
+        int faultType = System.getProperty("faultType") == null ? random.nextInt(5) :
                 Integer.parseInt(System.getProperty("faultType"));
         switch (faultType) {
             case 0:
@@ -171,6 +173,10 @@ public class FaultInjector extends Thread {
                     log.info("Injecting event: AddObserver");
                     addObserver();
                 }
+                break;
+            case 4:
+                log.info("Injecting event: ChangeMembers");
+                changeMembers(leaderId);
                 break;
         }
     }
@@ -586,6 +592,95 @@ public class FaultInjector extends Thread {
 
         } catch (Exception e) {
             log.error("Error during observer state cleanup: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Change cluster members between 2-node and 3-node configuration.
+     * If current is 3 nodes (1,2,3), remove a follower to become 2 nodes.
+     * If current is 2 nodes, add the missing node from (1,2,3) to become 3 nodes.
+     */
+    private void changeMembers(int currentLeaderId) {
+        try {
+            // Get current members from leader status
+            QueryStatusResp leaderStatus = getLeaderStatus();
+            if (leaderStatus == null || !leaderStatus.isGroupReady()) {
+                log.warn("Cannot get leader status or group not ready, skipping members change");
+                failCount++;
+                return;
+            }
+
+            Set<Integer> currentMembersSet = new HashSet<>(leaderStatus.members);
+
+            Set<Integer> targetMembers;
+            int nodeToRemoveOrAdd;
+
+            if (currentMembersSet.size() == 3) {
+                // Current is 3 nodes, need to remove a follower (not leader)
+                nodeToRemoveOrAdd = -1;
+                for (int nodeId : currentMembersSet) {
+                    if (nodeId != currentLeaderId) {
+                        nodeToRemoveOrAdd = nodeId;
+                        break;
+                    }
+                }
+                if (nodeToRemoveOrAdd < 0) {
+                    throw new RuntimeException("Cannot find a non-leader node to remove");
+                }
+
+                targetMembers = new HashSet<>(currentMembersSet);
+                targetMembers.remove(nodeToRemoveOrAdd);
+                log.info("Changing members from {} to {}, removing node {}",
+                        currentMembersSet, targetMembers, nodeToRemoveOrAdd);
+            } else if (currentMembersSet.size() == 2) {
+                // Current is 2 nodes, need to add the missing node from {1,2,3}
+                nodeToRemoveOrAdd = -1;
+                for (int nodeId : memberIds) {
+                    if (!currentMembersSet.contains(nodeId)) {
+                        nodeToRemoveOrAdd = nodeId;
+                        break;
+                    }
+                }
+                if (nodeToRemoveOrAdd < 0) {
+                    throw new RuntimeException("Cannot find a node to add from memberIds " + Arrays.toString(memberIds));
+                }
+
+                targetMembers = new HashSet<>(currentMembersSet);
+                targetMembers.add(nodeToRemoveOrAdd);
+                log.info("Changing members from {} to {}, adding node {}",
+                        currentMembersSet, targetMembers, nodeToRemoveOrAdd);
+            } else {
+                throw new RuntimeException("Unexpected member count: " + currentMembersSet.size());
+            }
+
+            AdminRaftClient adminClient = clusterValidator.getAdminClient();
+
+            // Prepare config change
+            Set<Integer> oldObservers = new HashSet<>();
+            if (observerActive) {
+                oldObservers.add(OBSERVER_NODE_ID);
+            }
+            Set<Integer> newObservers = new HashSet<>(oldObservers);
+
+            long prepareIndex = adminClient.prepareChange(groupId,
+                    currentMembersSet, oldObservers, targetMembers, newObservers,
+                    new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
+            log.info("Prepared config change, prepareIndex={}", prepareIndex);
+
+            // Commit config change
+            adminClient.commitChange(groupId, prepareIndex, new DtTime(TIMEOUT_SECONDS, TimeUnit.SECONDS)).get();
+            log.info("Committed config change, members changed from {} to {}", currentMembersSet, targetMembers);
+
+            // Wait for cluster consistency with new member configuration
+            int[] newMemberIds = targetMembers.stream().mapToInt(Integer::intValue).sorted().toArray();
+            clusterValidator.waitForClusterConsistency(groupId, newMemberIds, TIMEOUT_SECONDS);
+
+            changeMembersCount++;
+            log.info("Members change completed successfully");
+
+        } catch (Exception e) {
+            log.error("Error changing members: {}", e.getMessage(), e);
+            failCount++;
         }
     }
 
