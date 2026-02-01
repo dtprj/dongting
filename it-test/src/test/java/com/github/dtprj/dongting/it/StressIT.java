@@ -137,6 +137,11 @@ public class StressIT {
 
             log.info("Step 2: Waiting for leader election");
             clusterValidator.initialize(MEMBER_IDS, GROUP_ID);
+
+            faultInjector.setBaseDir(baseDirPath);
+            faultInjector.setFullSize(fullSize);
+            faultInjector.detectObserverStatus();
+
             int leaderId = clusterValidator.waitForClusterConsistencyAutoDiscover(GROUP_ID, 60);
             log.info("Cluster ready, leader is {}", leaderId);
 
@@ -197,8 +202,6 @@ public class StressIT {
             // Step 5: Start fault injection scheduler
             if (mockFault) {
                 log.info("Step 5: Starting fault injection scheduler");
-                faultInjector.setBaseDir(baseDirPath);
-                faultInjector.setFullSize(fullSize);
                 faultInjector.start();
                 log.info("Fault injection scheduler started");
             }

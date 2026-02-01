@@ -95,9 +95,6 @@ public class FaultInjector extends Thread {
         try {
             log.info("FaultInjector started with interval {} seconds", intervalSeconds);
 
-            // Detect observer status at startup
-            detectObserverStatus();
-
             long lastFaultTime = System.currentTimeMillis();
             while (!stopped.get()) {
                 Thread.sleep(1000);
@@ -126,11 +123,34 @@ public class FaultInjector extends Thread {
      * Detect observer status by querying cluster nodes.
      * This ensures observerActive is correctly initialized even after restart.
      * We verify both the cluster configuration and the actual process status.
+     * <p>
+     * This method first waits for leader election to complete before checking observer status.
      */
-    private void detectObserverStatus() {
-        QueryStatusResp leaderStatus = getLeaderStatus();
-        if (leaderStatus != null && leaderStatus.isGroupReady()
-                && leaderStatus.observers.contains(OBSERVER_NODE_ID)) {
+    public void detectObserverStatus() {
+        // First wait for leader election to complete
+        QueryStatusResp leaderStatus = null;
+        DtTime deadline = new DtTime(30, TimeUnit.SECONDS);
+        while (!deadline.isTimeout()) {
+            leaderStatus = getLeaderStatus();
+            if (leaderStatus != null && leaderStatus.isGroupReady()) {
+                break;
+            }
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while waiting for leader to detect observer status");
+                return;
+            }
+        }
+
+        if (leaderStatus == null || !leaderStatus.isGroupReady()) {
+            log.warn("No leader available to detect observer status within timeout");
+            observerActive = false;
+            return;
+        }
+
+        if (leaderStatus.observers.contains(OBSERVER_NODE_ID)) {
             log.info("Observer node {} found in cluster config, starting process",
                     OBSERVER_NODE_ID);
             clusterValidator.getAdminClient().clientAddNode(ItUtil.formatReplicateServers(
