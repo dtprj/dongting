@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FutureCallback;
+import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -50,6 +52,7 @@ public final class RaftGroupImpl extends RaftGroup {
     private final int groupId;
     private final RaftStatusImpl raftStatus;
     private final StateMachine stateMachine;
+    private final PerfCallback perfCallback;
 
     public RaftGroupImpl(GroupComponents groupComponents) {
         this.groupComponents = groupComponents;
@@ -58,6 +61,7 @@ public final class RaftGroupImpl extends RaftGroup {
         this.raftStatus = groupComponents.raftStatus;
         this.stateMachine = groupComponents.stateMachine;
         this.fiberGroup = groupComponents.fiberGroup;
+        this.perfCallback = groupComponents.groupConfig.perfCallback;
     }
 
     @Override
@@ -87,6 +91,7 @@ public final class RaftGroupImpl extends RaftGroup {
 
     @Override
     public void leaseRead(Timestamp ts, DtTime deadline, FutureCallback<Long> callback) {
+        perfCallback.fire(PerfConsts.RAFT_C_LEASE_READ);
         RaftShareStatus ss = raftStatus.getShareStatus();
         if (ss.shouldStop) {
             FutureCallback.callFail(callback, new RaftException("raft group thread is stop"));

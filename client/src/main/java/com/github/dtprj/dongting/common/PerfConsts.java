@@ -50,4 +50,5 @@ public interface PerfConsts {
     int RAFT_D_IDX_FORCE = 41;
     int RAFT_D_REPLICATE_RPC = 42;
     int RAFT_D_STATE_MACHINE_EXEC = 43;
+    int RAFT_C_LEASE_READ = 44;
 }
