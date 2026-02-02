@@ -148,6 +148,13 @@ public class Dispatcher extends AbstractLifeCircle {
     private void run() {
         try {
             ArrayList<FiberQueueTask> localData = new ArrayList<>(64);
+            perfCallback.setCollectExecutor(r -> doInDispatcherThread(new FiberQueueTask(null) {
+                @Override
+                protected void run() {
+                    r.run();
+                }
+            }));
+            perfCallback.start();
             ts.refresh();
             while (!isShouldStopPlain() || !groups.isEmpty()) {
                 runImpl(localData);
@@ -163,6 +170,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             shareQueue.shutdown();
             runImpl(localData);
+            perfCallback.shutdown();
             log.info("fiber dispatcher exit: {}", thread.getName());
         } catch (Throwable e) {
             SHOULD_STOP.setVolatile(this, true);

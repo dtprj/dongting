@@ -124,7 +124,7 @@ public class SimplePerfCallback extends PerfCallback {
         };
     }
 
-    public void start() {
+    public void beginCollect() {
         started = true;
     }
 

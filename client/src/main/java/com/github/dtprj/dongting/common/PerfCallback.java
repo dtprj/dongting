@@ -15,12 +15,16 @@
  */
 package com.github.dtprj.dongting.common;
 
+import java.util.concurrent.Executor;
+
 /**
  * @author huangli
  */
 public abstract class PerfCallback implements PerfConsts {
 
     protected final boolean useNanos;
+
+    protected Executor collectExecutor;
 
     public PerfCallback(boolean useNanos) {
         this.useNanos = useNanos;
@@ -127,4 +131,23 @@ public abstract class PerfCallback implements PerfConsts {
 
     public abstract void onEvent(int perfType, long costTime, int count, long sum);
 
+    /**
+     * subclass should keep this method idempotent
+     */
+    public void start() {
+    }
+
+    /**
+     * subclass should keep this method idempotent
+     */
+    public void shutdown() {
+    }
+
+    /**
+     * if the subclass is not thread safe, use this executor to send resetAndLog() method
+     * to the owner thread.
+     */
+    public void setCollectExecutor(Executor collectExecutor) {
+        this.collectExecutor = collectExecutor;
+    }
 }

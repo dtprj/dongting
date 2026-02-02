@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
+import com.github.dtprj.dongting.perf.DefaultRpcPerf;
 import com.github.dtprj.dongting.raft.NoSuchGroupException;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -152,17 +153,18 @@ public class RaftServer extends AbstractLifeCircle {
         customReplicateNioClient(repClientConfig);
         nioClient = new NioClient(repClientConfig);
 
-        NioServerConfig repServerConfig = new NioServerConfig();
+        NioServerConfig nioServerConfig = new NioServerConfig();
         if (serverConfig.servicePort > 0) {
-            repServerConfig.ports = new int[]{serverConfig.replicatePort, serverConfig.servicePort};
+            nioServerConfig.ports = new int[]{serverConfig.replicatePort, serverConfig.servicePort};
         } else {
-            repServerConfig.port = serverConfig.replicatePort;
+            nioServerConfig.port = serverConfig.replicatePort;
         }
-        repServerConfig.name = "RaftRepServer" + serverConfig.nodeId;
-        repServerConfig.bizThreads = 1;
-        setupNioConfig(repServerConfig);
-        customReplicateNioServer(repServerConfig);
-        nioServer = new NioServer(repServerConfig);
+        nioServerConfig.name = "RaftNioServer" + serverConfig.nodeId;
+        nioServerConfig.bizThreads = 1;
+        setupNioConfig(nioServerConfig);
+        nioServerConfig.perfCallback = new DefaultRpcPerf();
+        customReplicateNioServer(nioServerConfig);
+        nioServer = new NioServer(nioServerConfig);
 
         nodeManager = new NodeManager(serverConfig, allRaftServers, nioClient,
                 RaftUtil.getElectQuorum(allRaftServers.size()), nioServer);
@@ -347,6 +349,7 @@ public class RaftServer extends AbstractLifeCircle {
         try {
             // start replicate server and client
             nioServer.start();
+            nioServer.getConfig().perfCallback.start();
             nioClient.start(); // has no servers now
 
             // sync but should complete soon
@@ -504,6 +507,7 @@ public class RaftServer extends AbstractLifeCircle {
             } finally {
                 nodeManager.stop(timeout, true);
                 if (nioServer != null) {
+                    nioServer.getConfig().perfCallback.shutdown();
                     nioServer.stop(timeout);
                 }
                 if (nioClient != null) {
@@ -554,6 +558,7 @@ public class RaftServer extends AbstractLifeCircle {
                     raftFactory.shutdownBlockIoExecutor(serverConfig, gc.groupConfig,
                             gc.groupConfig.blockIoExecutor);
                 }
+                gc.groupConfig.perfCallback.shutdown();
                 return Fiber.frameReturn();
             }
         });
@@ -570,7 +575,7 @@ public class RaftServer extends AbstractLifeCircle {
     public CompletableFuture<Void> addNode(RaftNode node) {
         return nodeManager.addNode(node).handle((v, ex) -> {
             log.info("add node {}, success={}", node, ex == null);
-            if(ex == null) {
+            if (ex == null) {
                 runPersistConfigTask();
             }
             return null;
@@ -585,7 +590,7 @@ public class RaftServer extends AbstractLifeCircle {
         CompletableFuture<Void> f = nodeManager.removeNode(nodeId);
         f.whenComplete((v, ex) -> {
             log.info("remove node {}, success={}", nodeId, ex == null);
-            if(ex == null) {
+            if (ex == null) {
                 runPersistConfigTask();
             }
         });

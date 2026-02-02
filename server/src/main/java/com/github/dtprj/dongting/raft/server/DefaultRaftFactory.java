@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Dispatcher;
+import com.github.dtprj.dongting.perf.DefaultFiberPerf;
 import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
@@ -75,7 +76,7 @@ public abstract class DefaultRaftFactory implements RaftFactory {
     @Override
     public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
         return new Dispatcher("raft-dispatcher-" + groupConfig.groupId, poolFactory,
-                groupConfig.perfCallback);
+                new DefaultFiberPerf());
     }
 
     @Override

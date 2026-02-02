@@ -175,7 +175,7 @@ public class RaftBenchmark extends BenchBase {
         for (RaftGroupConfig groupConfig : groupConfigs) {
             PerfCallback c = groupConfig.perfCallback;
             if (c instanceof PrometheusPerfCallback) {
-                ((PrometheusPerfCallback) c).start();
+                ((PrometheusPerfCallback) c).beginCollect();
             }
         }
     }

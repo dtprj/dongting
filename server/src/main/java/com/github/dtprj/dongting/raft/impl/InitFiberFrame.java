@@ -57,6 +57,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         raftStatus.markInit(true);
         raftStatus.copyShareStatus();
         raftStatus.initFuture.completeExceptionally(ex);
+        groupConfig.perfCallback.shutdown();
         getFiberGroup().requestShutdown();
         return Fiber.frameReturn();
     }
@@ -66,6 +67,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
             raftStatus.markInit(true);
             raftStatus.copyShareStatus();
             raftStatus.initFuture.completeExceptionally(new RaftException("group should stop"));
+            groupConfig.perfCallback.shutdown();
             return true;
         }
         return false;
@@ -73,6 +75,8 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
+        groupConfig.perfCallback.setCollectExecutor(groupConfig.fiberGroup.getExecutor());
+        groupConfig.perfCallback.start();
         gc.stateMachine.start(); // stop in apply manager
         FiberGroup fg = getFiberGroup();
         initRaftStatus(raftStatus, fg, gc.serverConfig);

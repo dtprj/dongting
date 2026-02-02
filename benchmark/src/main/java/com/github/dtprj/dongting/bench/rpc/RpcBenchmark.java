@@ -91,11 +91,11 @@ public class RpcBenchmark extends BenchBase {
     protected void afterWarmup() {
         PerfCallback c = server.getConfig().perfCallback;
         if (c instanceof RpcPerfCallback) {
-            ((RpcPerfCallback) c).start();
+            ((RpcPerfCallback) c).beginCollect();
         }
         c = client.getConfig().perfCallback;
         if (c instanceof RpcPerfCallback) {
-            ((RpcPerfCallback) c).start();
+            ((RpcPerfCallback) c).beginCollect();
         }
     }
 

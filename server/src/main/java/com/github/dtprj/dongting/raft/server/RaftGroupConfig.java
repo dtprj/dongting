@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.NoopPerfCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.perf.DefaultRaftPerf;
 
 /**
  * @author huangli
@@ -48,7 +48,7 @@ public class RaftGroupConfig {
 
     public boolean ioCallbackUseGroupExecutor = false;
 
-    public PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
+    public PerfCallback perfCallback = new DefaultRaftPerf();
 
     // leader replicate/install read concurrency, or recovering write concurrency.
     // greater than 1 require state machine support.

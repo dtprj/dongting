@@ -48,7 +48,7 @@ public abstract class PrometheusPerfCallback extends PerfCallback {
                 .register();
     }
 
-    public void start() {
+    public void beginCollect() {
         started = true;
     }
 
