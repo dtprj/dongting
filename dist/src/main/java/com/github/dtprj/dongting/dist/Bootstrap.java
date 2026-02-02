@@ -20,8 +20,11 @@ import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
+import com.github.dtprj.dongting.raft.server.RaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -149,7 +152,17 @@ public class Bootstrap {
 
     private void startRaftServer() {
         try {
-            this.raftServer = new RaftServer(serverConfig, groupConfigs, createRaftFactory());
+            this.raftServer = new RaftServer(serverConfig, groupConfigs, createRaftFactory()){
+                @Override
+                protected void customReplicateNioServer(NioServerConfig c) {
+                    Bootstrap.this.customReplicateNioServer(c);
+                }
+
+                @Override
+                protected void customReplicateNioClient(NioClientConfig c) {
+                    Bootstrap.this.customReplicateNioClient(c);
+                }
+            };
             KvServerUtil.initKvServer(raftServer);
             SyncConfigProcessor p = new SyncConfigProcessor(raftServer, serversFile);
             raftServer.getNioServer().register(Commands.RAFT_ADMIN_SYNC_CONFIG, p,
@@ -164,7 +177,13 @@ public class Bootstrap {
         }
     }
 
-    private DefaultRaftFactory createRaftFactory() {
+    protected void customReplicateNioServer(@SuppressWarnings("unused") NioServerConfig c) {
+    }
+
+    protected void customReplicateNioClient(@SuppressWarnings("unused") NioClientConfig c) {
+    }
+
+    protected RaftFactory createRaftFactory() {
         return new DefaultRaftFactory() {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
