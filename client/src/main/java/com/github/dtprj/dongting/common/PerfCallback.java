@@ -45,7 +45,14 @@ public abstract class PerfCallback implements PerfConsts {
         if (!accept(perfType)) {
             return 0;
         }
-        return takeTime0(ts);
+        return takeTime0(ts, false);
+    }
+
+    public long takeTimeAndRefresh(int perfType, Timestamp ts) {
+        if (!accept(perfType)) {
+            return 0;
+        }
+        return takeTime0(ts, true);
     }
 
     private long takeTime0() {
@@ -56,10 +63,16 @@ public abstract class PerfCallback implements PerfConsts {
         }
     }
 
-    private long takeTime0(Timestamp ts) {
+    private long takeTime0(Timestamp ts, boolean refresh) {
         if (useNanos) {
+            if (refresh) {
+                ts.refresh();
+            }
             return ts.nanoTime;
         } else {
+            if (refresh) {
+                ts.refresh(1);
+            }
             return ts.wallClockMillis;
         }
     }
@@ -68,7 +81,15 @@ public abstract class PerfCallback implements PerfConsts {
         if (startTime == 0 || !accept(perfType)) {
             return;
         }
-        long costTime = takeTime0(ts) - startTime;
+        long costTime = takeTime0(ts, false) - startTime;
+        onEvent(perfType, costTime, count, sum);
+    }
+
+    public void fireTimeAndRefresh(int perfType, long startTime, int count, long sum, Timestamp ts) {
+        if (startTime == 0 || !accept(perfType)) {
+            return;
+        }
+        long costTime = takeTime0(ts, true) - startTime;
         onEvent(perfType, costTime, count, sum);
     }
 

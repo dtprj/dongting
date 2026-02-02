@@ -146,7 +146,7 @@ class LogAppender {
         }
 
         private FrameCallResult encodeAndWriteItems(LogFile file, int taskIndex) {
-            long roundStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_ENCODE_AND_WRITE);
+            long roundStartTime = perfCallback.takeTimeAndRefresh(PerfConsts.RAFT_D_ENCODE_AND_WRITE, raftStatus.ts);
             bytesToWrite = 0;
             lastItem = null;
             writeCount = 0;
@@ -205,7 +205,7 @@ class LogAppender {
                         file.getFile().getName(), nextPersistPos, next);
                 nextPersistPos = next;
             }
-            perfCallback.fireTime(PerfConsts.RAFT_D_ENCODE_AND_WRITE, roundStartTime);
+            perfCallback.fireTimeAndRefresh(PerfConsts.RAFT_D_ENCODE_AND_WRITE, roundStartTime, 1, 0, raftStatus.ts);
 
             if (taskIndex + count == taskList.size()) {
                 return Fiber.frameReturn();

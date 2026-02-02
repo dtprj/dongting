@@ -318,14 +318,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             DtChannelImpl dtc = (DtChannelImpl) key.attachment();
             if (key.isReadable()) {
                 prepareReadBuffer(roundTime);
-                long startTime = perfCallback.takeTime(PerfConsts.RPC_D_READ);
+                long startTime = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_READ, roundTime);
                 int readBytes = sc.read(readBuffer);
                 if (readBytes == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
                     closeChannelBySelKey(key);
                     return;
                 }
-                perfCallback.fireTime(PerfConsts.RPC_D_READ, startTime, 1, readBytes);
+                perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_READ, startTime, 1, readBytes, roundTime);
                 readBuffer.flip();
                 dtc.afterRead(status == STATUS_RUNNING, readBuffer);
             }
@@ -335,14 +335,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
                 if (buf != null) {
                     subQueue.setWriting(true);
-                    long startTime = perfCallback.takeTime(PerfConsts.RPC_D_WRITE);
+                    long startTime = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_WRITE, roundTime);
                     int x1 = buf.remaining();
                     sc.write(buf);
                     int x2 = buf.remaining();
                     if (x2 == 0) {
                         subQueue.afterBufferWriteFinish();
                     }
-                    perfCallback.fireTime(PerfConsts.RPC_D_WRITE, startTime, 1, x1 - x2);
+                    perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_WRITE, startTime, 1, x1 - x2, roundTime);
                 } else {
                     // no data to write
                     subQueue.setWriting(false);

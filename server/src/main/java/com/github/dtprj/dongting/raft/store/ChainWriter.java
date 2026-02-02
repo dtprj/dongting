@@ -148,7 +148,7 @@ public class ChainWriter {
                 }
             }
         }
-        long startTime = perfCallback.takeTime(writePerfType2);
+        long startTime = perfCallback.takeTimeAndRefresh(writePerfType2, config.ts);
         FiberFuture<Void> f = task.getFuture();
         if (buf != null && buf.remaining() > 0) {
             task.write(buf, task.posInFile);
@@ -164,7 +164,7 @@ public class ChainWriter {
     }
 
     private void afterWrite(Throwable ioEx, WriteTask task, long startTime) {
-        perfCallback.fireTime(writePerfType2, startTime, task.perfWriteItemCount, task.perfWriteBytes);
+        perfCallback.fireTimeAndRefresh(writePerfType2, startTime, task.perfWriteItemCount, task.perfWriteBytes, config.ts);
         if (task.buf != null) {
             directPool.release(task.buf);
         }
@@ -252,13 +252,13 @@ public class ChainWriter {
                 RetryFrame<Void> rf = new RetryFrame<>(ff, config.ioRetryInterval,
                         true, ChainWriter.this::shouldCancelRetry);
                 WriteTask finalTask = task;
-                long perfStartTime = perfCallback.takeTime(forcePerfType);
+                long perfStartTime = perfCallback.takeTimeAndRefresh(forcePerfType, config.ts);
                 return Fiber.call(rf, v -> afterForce(finalTask, perfStartTime));
             }
         }
 
         private FrameCallResult afterForce(WriteTask task, long perfStartTime) {
-            perfCallback.fireTime(forcePerfType, perfStartTime, task.perfForceItemCount, task.perfForceBytes);
+            perfCallback.fireTimeAndRefresh(forcePerfType, perfStartTime, task.perfForceItemCount, task.perfForceBytes, config.ts);
             forceTaskCount--;
 
             if (error || raftStatus.installSnapshot) {

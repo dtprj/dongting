@@ -175,7 +175,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                     // no need to execute read only task if no one wait for result
                     afterExec(index, rt, null, null);
                 } else {
-                    long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
+                    long t = perfCallback.takeTimeAndRefresh(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, ts);
                     FiberFuture<Object> f = null;
                     Throwable execEx = null;
                     try {
@@ -188,7 +188,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                         afterExec(index, rt, null, execEx);
                     } else if (f != null) {
                         f.registerCallback((result, ex) -> {
-                            perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
+                            perfCallback.fireTimeAndRefresh(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t, 1, 0, ts);
                             afterExec(index, rt, result, ex);
                         });
                     } else {

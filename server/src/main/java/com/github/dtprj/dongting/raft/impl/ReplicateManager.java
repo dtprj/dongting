@@ -397,7 +397,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
 
         DtTime timeout = new DtTime(ts.nanoTime, serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);
-        long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
+        long perfStartTime = perfCallback.takeTimeAndRefresh(PerfConsts.RAFT_D_REPLICATE_RPC, ts);
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
             LogItem item = items.get(i);
@@ -417,7 +417,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     void afterAppendRpc(ReadPacket<AppendResp> rf, Throwable ex, AppendReqWritePacket req,
                         long leaseStartNanos, long bytes, long perfStartTime) {
         int itemCount = req.logs == null ? 0 : req.logs.size();
-        perfCallback.fireTime(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes);
+        perfCallback.fireTimeAndRefresh(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes, ts);
         repDoneCondition.signalAll();
         if (epochChange()) {
             log.info("receive outdated append result, replicateEpoch not match. ignore.");

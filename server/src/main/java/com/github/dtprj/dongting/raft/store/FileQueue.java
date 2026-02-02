@@ -223,7 +223,7 @@ abstract class FileQueue {
                 if (pos >= queueEndPosition) {
                     if (!block) {
                         block = true;
-                        blockPerfStartTime = groupConfig.perfCallback.takeTime(perfType);
+                        blockPerfStartTime = groupConfig.perfCallback.takeTimeAndRefresh(perfType, groupConfig.ts);
                     }
                     if (queueAllocFiber.isFinished()) {
                         throw new RaftException("ensureWritePosReady " + pos + " failed because queueAllocFiber is finished");
@@ -231,7 +231,7 @@ abstract class FileQueue {
                     return allocDoneCond.await(this);
                 } else {
                     if (block) {
-                        groupConfig.perfCallback.fireTime(perfType, blockPerfStartTime);
+                        groupConfig.perfCallback.fireTimeAndRefresh(perfType, blockPerfStartTime, 1, 0, groupConfig.ts);
                     }
                     return Fiber.frameReturn();
                 }

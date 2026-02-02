@@ -89,7 +89,7 @@ class IoChannelQueue {
         }
         wf.use = true;
 
-        packetInfo.perfTimeOrAddOrder = perfCallback.takeTime(PerfConsts.RPC_D_CHANNEL_QUEUE);
+        packetInfo.perfTimeOrAddOrder = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_CHANNEL_QUEUE, workerStatus.ts);
         subQueue.addLast(packetInfo);
 
         // the subQueueBytes is not accurate
@@ -150,7 +150,7 @@ class IoChannelQueue {
                 int encodeResult;
                 if (pi == null) {
                     pi = subQueue.pollFirst();
-                    perfCallback.fireTime(PerfConsts.RPC_D_CHANNEL_QUEUE, pi.perfTimeOrAddOrder);
+                    perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_CHANNEL_QUEUE, pi.perfTimeOrAddOrder, 1, 0, workerStatus.ts);
                     encodeResult = encode(buf, pi, roundTime);
                 } else {
                     encodeResult = doEncode(buf, pi);
