@@ -65,6 +65,7 @@ class FixSizeBufferPool {
             buf.putInt(MAGIC_INDEX, 0);
             statBorrowHitCount++;
             updateCurrentUsedShareSizeAfterRemove();
+            buf.clear();
         }
         return buf;
     }
@@ -79,8 +80,9 @@ class FixSizeBufferPool {
     public boolean release(ByteBuffer buf, long nanos) {
         statReleaseCount++;
         IndexedQueue<ByteBuffer> bufferStack = this.bufferStack;
-        // ByteBuffer.getLong may check limit, so we clear buffer first
-        buf.clear();
+        // so most operation on this buffer may fail (if the user use it after release)
+        buf.limit(buf.capacity());
+        buf.position(buf.capacity());
         if (buf.getInt(MAGIC_INDEX) == MAGIC) {
             // shit
             for (int i = 0, stackSize = bufferStack.size(); i < stackSize; i++) {
