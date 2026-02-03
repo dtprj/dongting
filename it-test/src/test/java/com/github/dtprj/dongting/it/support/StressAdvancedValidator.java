@@ -322,6 +322,7 @@ public class StressAdvancedValidator implements Runnable {
     }
 
     private boolean remoteCreateChild(TestNode child) throws InterruptedException {
+        boolean lockCreated = false;
         while (true) {
             switch (child.type) {
                 case TestNode.TYPE_DIR:
@@ -373,7 +374,10 @@ public class StressAdvancedValidator implements Runnable {
                         }
                     }
                 case TestNode.TYPE_LOCK:
-                    child.lock = client.createLock(groupId, child.fullKey);
+                    if (!lockCreated) {
+                        child.lock = client.createLock(groupId, child.fullKey);
+                        lockCreated = true;
+                    }
                     try {
                         // ignore return value, the unlock operation is idempotent
                         child.lock.tryLock(lockLeaseMillis, 0);
