@@ -15,6 +15,17 @@
   ~ under the License.
   -->
 <configuration>
+    <!-- Console appender with configurable log level (default OFF) -->
+    <!-- Use -DCONSOLE_LOG_LEVEL=INFO to enable console output (e.g., Windows foreground mode) -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>${CONSOLE_LOG_LEVEL:-OFF}</level>
+        </filter>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{0} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/dongting-server.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
@@ -46,10 +57,12 @@
     </appender>
 
     <logger name="com.github.dtprj.dongting.perf" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="STATS_FILE"/>
     </logger>
 
     <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </root>
 </configuration>

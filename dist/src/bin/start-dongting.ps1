@@ -62,9 +62,11 @@ if (Test-Path $PidFile) {
 }
 
 # Build arguments
+# CONSOLE_LOG_LEVEL=INFO enables console logging for Windows foreground mode
 $Arguments = $JavaOpts + @(
     "-DDATA_DIR=$DATA_DIR",
     "-DLOG_DIR=$LOG_DIR",
+    "-DCONSOLE_LOG_LEVEL=INFO",
     "-Dlogback.configurationFile=$CONF_DIR\logback-server.xml",
     "--module-path", $LIB_DIR,
     "--add-exports", "java.base/jdk.internal.misc=dongting.client",
