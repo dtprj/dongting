@@ -462,6 +462,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     protected FrameCallResult process() {
         RaftStatusImpl raftStatus = gc.raftStatus;
         InstallSnapshotReq req = reqInfo.reqFrame.getBody();
+        needRelease = false;
         if (!req.members.isEmpty()) {
             return startInstall(raftStatus, req);
         } else {
@@ -500,13 +501,13 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
         FiberFrame<Void> f = mm.applyConfigFrame("install snapshot config change",
                 req.members, req.observers, req.preparedMembers, req.preparedObservers);
-        return Fiber.call(f, v -> writeResp(null));
+        return Fiber.call(f, v -> writeRespAndRelease(null));
     }
 
     private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
         if (!raftStatus.installSnapshot) {
             log.error("not in install snapshot state, groupId={}", groupId);
-            return writeResp(new RaftException("not in install snapshot state"));
+            return writeRespAndRelease(new RaftException("not in install snapshot state"));
         }
         boolean done = req.done;
         ByteBuffer buf = req.data == null ? null : req.data.getBuffer();
@@ -517,7 +518,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         if (done) {
             return f.await(v -> finishInstall(req, raftStatus));
         } else {
-            f.registerCallback((v, ex) -> writeResp(ex));
+            f.registerCallback((v, ex) -> writeRespAndRelease(ex));
             return Fiber.frameReturn();
         }
     }
@@ -559,10 +560,11 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         // The save is async and FiberFuture returned by saveSnapshot() is not used.
         gc.snapshotManager.saveSnapshot();
 
-        return writeResp(null);
+        return writeRespAndRelease(null);
     }
 
-    private FrameCallResult writeResp(Throwable ex) {
+    private FrameCallResult writeRespAndRelease(Throwable ex) {
+        reqInfo.reqFrame.clean();
         if (ex == null) {
             return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
         } else {
