@@ -65,9 +65,8 @@ function Test-DongtingProcess {
         return $false
     }
 
-    $cmdLower = $cmd.ToLowerInvariant()
     $marker = "dongting.dist/com.github.dtprj.dongting.dist.Bootstrap"
-    if (-not $cmdLower.Contains($marker)) {
+    if (-not $cmd.Contains($marker)) {
         Write-Warning "PID $TargetPid command line does not look like a dongting server process: $cmd"
         return $false
     }

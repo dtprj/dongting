@@ -73,21 +73,25 @@ $Arguments = $JavaOpts + @(
     "-s", (Join-Path $CONF_DIR "servers.properties")
 ) + $args
 
-# Start the application and record PID
-$process = Start-Process -FilePath $Java -ArgumentList $Arguments -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $LOG_DIR "start.log") -RedirectStandardError (Join-Path $LOG_DIR "start_error.log")
-if (-not $process -or $process.Id -le 0) {
-    Write-Error "Failed to start dongting (no PID captured)"
-    exit 1
+# Register cleanup to remove PID file on exit
+$null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
+    Remove-Item -Path $Event.MessageData -Force -ErrorAction SilentlyContinue
+} -MessageData $PidFile
+
+try {
+    # Write PID file (use Java process PID, not PowerShell's)
+    # We need to start Java and get its PID first
+    $javaProcess = Start-Process -FilePath $Java -ArgumentList $Arguments -PassThru -NoNewWindow
+    $javaProcess.Id | Out-File -FilePath $PidFile -Encoding ascii -Force
+    Write-Output "dongting started with PID $($javaProcess.Id) (PID file: $PidFile)"
+    Write-Output "Press Ctrl+C to stop, or run stop-dongting.bat from another terminal."
+    
+    # Wait for the Java process to exit
+    $javaProcess.WaitForExit()
+    $exitCode = $javaProcess.ExitCode
+} finally {
+    # Clean up PID file
+    Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
 }
 
-# Verify the process actually started and is running
-Start-Sleep -Milliseconds 1500
-$runningProc = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
-if (-not $runningProc) {
-    Write-Error "Failed to start dongting: process $($process.Id) exited immediately after start"
-    Write-Error "Check $(Join-Path $LOG_DIR 'start.log') and $(Join-Path $LOG_DIR 'start_error.log') for details"
-    exit 1
-}
-
-$process.Id | Out-File -FilePath $PidFile -Encoding ascii -Force
-Write-Output "dongting started with PID $($process.Id) (PID file: $PidFile)"
+exit $exitCode
