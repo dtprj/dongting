@@ -163,14 +163,10 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
-            boolean end = buf.remaining() >= len - currentPos;
             if (index == IDX_DATA) {
-                if (currentPos == 0) {
-                    result.data = context.getHeapPool().create(len);
-                }
-                result.data.getBuffer().put(buf);
-                if (end) {
-                    result.data.getBuffer().flip();
+                RefBuffer rb = parseRefBuffer(buf, len, currentPos);
+                if (rb != null) {
+                    result.data = rb;
                 }
             }
             return true;
