@@ -47,6 +47,21 @@ import java.util.HashSet;
 
 //  bytes data = 15;
 public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable {
+
+    private static final int IDX_GROUP_ID = 1;
+    private static final int IDX_TERM = 2;
+    private static final int IDX_LEADER_ID = 3;
+    private static final int IDX_LAST_INCLUDED_INDEX = 4;
+    private static final int IDX_LAST_INCLUDED_TERM = 5;
+    private static final int IDX_OFFSET = 6;
+    private static final int IDX_DONE = 7;
+    private static final int IDX_NEXT_WRITE_POS = 8;
+    private static final int IDX_MEMBERS = 9;
+    private static final int IDX_OBSERVERS = 10;
+    private static final int IDX_PREPARED_MEMBERS = 11;
+    private static final int IDX_PREPARED_OBSERVERS = 12;
+    private static final int IDX_LAST_CONFIG_CHANGE_INDEX = 13;
+    private static final int IDX_DATA = 15;
     // public int groupId;
     // public int term;
     public int leaderId;
@@ -78,19 +93,19 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         @Override
         public boolean readVarNumber(int index, long value) {
             switch (index) {
-                case 1:
+                case IDX_GROUP_ID:
                     result.groupId = (int) value;
                     break;
-                case 2:
+                case IDX_TERM:
                     result.term = (int) value;
                     break;
-                case 3:
+                case IDX_LEADER_ID:
                     result.leaderId = (int) value;
                     break;
-                case 5:
+                case IDX_LAST_INCLUDED_TERM:
                     result.lastIncludedTerm = (int) value;
                     break;
-                case 7:
+                case IDX_DONE:
                     result.done = value != 0;
                     break;
             }
@@ -100,16 +115,16 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         @Override
         public boolean readFix64(int index, long value) {
             switch (index) {
-                case 4:
+                case IDX_LAST_INCLUDED_INDEX:
                     result.lastIncludedIndex = value;
                     break;
-                case 6:
+                case IDX_OFFSET:
                     result.offset = value;
                     break;
-                case 8:
+                case IDX_NEXT_WRITE_POS:
                     result.nextWritePos = value;
                     break;
-                case 13:
+                case IDX_LAST_CONFIG_CHANGE_INDEX:
                     result.lastConfigChangeIndex = value;
                     break;
             }
@@ -118,25 +133,25 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
 
         public boolean readFix32(int index, int value) {
             switch (index) {
-                case 9:
+                case IDX_MEMBERS:
                     if (result.members == Collections.EMPTY_SET) {
                         result.members = new HashSet<>();
                     }
                     result.members.add(value);
                     break;
-                case 10:
+                case IDX_OBSERVERS:
                     if (result.observers == Collections.EMPTY_SET) {
                         result.observers = new HashSet<>();
                     }
                     result.observers.add(value);
                     break;
-                case 11:
+                case IDX_PREPARED_MEMBERS:
                     if (result.preparedMembers == Collections.EMPTY_SET) {
                         result.preparedMembers = new HashSet<>();
                     }
                     result.preparedMembers.add(value);
                     break;
-                case 12:
+                case IDX_PREPARED_OBSERVERS:
                     if (result.preparedObservers == Collections.EMPTY_SET) {
                         result.preparedObservers = new HashSet<>();
                     }
@@ -149,7 +164,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             boolean end = buf.remaining() >= len - currentPos;
-            if (index == 15) {
+            if (index == IDX_DATA) {
                 if (currentPos == 0) {
                     result.data = context.getHeapPool().create(len);
                 }
@@ -183,24 +198,24 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
 
         public InstallReqWritePacket(InstallSnapshotReq req) {
             this.req = req;
-            int x = PbUtil.sizeOfInt32Field(1, req.groupId)
-                    + PbUtil.sizeOfInt32Field(2, req.term)
-                    + PbUtil.sizeOfInt32Field(3, req.leaderId)
-                    + PbUtil.sizeOfFix64Field(4, req.lastIncludedIndex)
-                    + PbUtil.sizeOfInt32Field(5, req.lastIncludedTerm)
-                    + PbUtil.sizeOfFix64Field(6, req.offset)
-                    + PbUtil.sizeOfInt32Field(7, req.done ? 1 : 0)
-                    + PbUtil.sizeOfFix64Field(8, req.nextWritePos);
-            x += PbUtil.sizeOfFix32Field(9, req.members);
-            x += PbUtil.sizeOfFix32Field(10, req.observers);
-            x += PbUtil.sizeOfFix32Field(11, req.preparedMembers);
-            x += PbUtil.sizeOfFix32Field(12, req.preparedObservers);
-            x += PbUtil.sizeOfFix64Field(13, req.lastConfigChangeIndex);
+            int x = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, req.groupId)
+                    + PbUtil.sizeOfInt32Field(IDX_TERM, req.term)
+                    + PbUtil.sizeOfInt32Field(IDX_LEADER_ID, req.leaderId)
+                    + PbUtil.sizeOfFix64Field(IDX_LAST_INCLUDED_INDEX, req.lastIncludedIndex)
+                    + PbUtil.sizeOfInt32Field(IDX_LAST_INCLUDED_TERM, req.lastIncludedTerm)
+                    + PbUtil.sizeOfFix64Field(IDX_OFFSET, req.offset)
+                    + PbUtil.sizeOfInt32Field(IDX_DONE, req.done ? 1 : 0)
+                    + PbUtil.sizeOfFix64Field(IDX_NEXT_WRITE_POS, req.nextWritePos);
+            x += PbUtil.sizeOfFix32Field(IDX_MEMBERS, req.members);
+            x += PbUtil.sizeOfFix32Field(IDX_OBSERVERS, req.observers);
+            x += PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, req.preparedMembers);
+            x += PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, req.preparedObservers);
+            x += PbUtil.sizeOfFix64Field(IDX_LAST_CONFIG_CHANGE_INDEX, req.lastConfigChangeIndex);
 
             RefBuffer rb = req.data;
             if (rb != null && rb.getBuffer().hasRemaining()) {
                 this.bufferSize = rb.getBuffer().remaining();
-                x += PbUtil.sizeOfLenFieldPrefix(15, bufferSize) + bufferSize;
+                x += PbUtil.sizeOfLenFieldPrefix(IDX_DATA, bufferSize) + bufferSize;
             } else {
                 this.bufferSize = 0;
             }
@@ -216,21 +231,21 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
             if (!headerWritten) {
                 if (dest.remaining() >= headerSize) {
-                    PbUtil.writeInt32Field(dest, 1, req.groupId);
-                    PbUtil.writeInt32Field(dest, 2, req.term);
-                    PbUtil.writeInt32Field(dest, 3, req.leaderId);
-                    PbUtil.writeFix64Field(dest, 4, req.lastIncludedIndex);
-                    PbUtil.writeInt32Field(dest, 5, req.lastIncludedTerm);
-                    PbUtil.writeFix64Field(dest, 6, req.offset);
-                    PbUtil.writeInt32Field(dest, 7, req.done ? 1 : 0);
-                    PbUtil.writeFix64Field(dest, 8, req.nextWritePos);
-                    PbUtil.writeFix32Field(dest, 9, req.members);
-                    PbUtil.writeFix32Field(dest, 10, req.observers);
-                    PbUtil.writeFix32Field(dest, 11, req.preparedMembers);
-                    PbUtil.writeFix32Field(dest, 12, req.preparedObservers);
-                    PbUtil.writeFix64Field(dest, 13, req.lastConfigChangeIndex);
+                    PbUtil.writeInt32Field(dest, IDX_GROUP_ID, req.groupId);
+                    PbUtil.writeInt32Field(dest, IDX_TERM, req.term);
+                    PbUtil.writeInt32Field(dest, IDX_LEADER_ID, req.leaderId);
+                    PbUtil.writeFix64Field(dest, IDX_LAST_INCLUDED_INDEX, req.lastIncludedIndex);
+                    PbUtil.writeInt32Field(dest, IDX_LAST_INCLUDED_TERM, req.lastIncludedTerm);
+                    PbUtil.writeFix64Field(dest, IDX_OFFSET, req.offset);
+                    PbUtil.writeInt32Field(dest, IDX_DONE, req.done ? 1 : 0);
+                    PbUtil.writeFix64Field(dest, IDX_NEXT_WRITE_POS, req.nextWritePos);
+                    PbUtil.writeFix32Field(dest, IDX_MEMBERS, req.members);
+                    PbUtil.writeFix32Field(dest, IDX_OBSERVERS, req.observers);
+                    PbUtil.writeFix32Field(dest, IDX_PREPARED_MEMBERS, req.preparedMembers);
+                    PbUtil.writeFix32Field(dest, IDX_PREPARED_OBSERVERS, req.preparedObservers);
+                    PbUtil.writeFix64Field(dest, IDX_LAST_CONFIG_CHANGE_INDEX, req.lastConfigChangeIndex);
                     if (bufferSize > 0) {
-                        PbUtil.writeLenFieldPrefix(dest, 15, bufferSize);
+                        PbUtil.writeLenFieldPrefix(dest, IDX_DATA, bufferSize);
                     }
                     headerWritten = true;
                 } else {
