@@ -176,8 +176,11 @@ public class ConfigFileGenerator {
                     serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".logFileSize",
                             String.valueOf(protoType.logFileSize / 64));
                 }
-                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".useSeparateExecutor",
-                        String.valueOf(new Random().nextBoolean()));
+                String useSeparateExecutor = System.getProperty("useSeparateExecutor");
+                if (useSeparateExecutor == null) {
+                    useSeparateExecutor = String.valueOf(new Random().nextBoolean());
+                }
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".useSeparateExecutor", useSeparateExecutor);
                 if (watchTimeoutMillis != null) {
                     serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".watchTimeoutMillis", String.valueOf(watchTimeoutMillis));
                 }
