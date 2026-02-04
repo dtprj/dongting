@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.perf;
 
 import com.github.dtprj.dongting.common.PerfConsts;
 
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -26,6 +27,7 @@ public class DefaultRpcPerf extends SimplePerf {
 
     private final LongAdder workCount = new LongAdder();
     private final LongAdder workTotalTime = new LongAdder();
+    private final LongAccumulator workMaxTime = new LongAccumulator(Long::max, 0);
     private final LongAdder selTotalTime = new LongAdder();
 
     public DefaultRpcPerf() {
@@ -42,6 +44,7 @@ public class DefaultRpcPerf extends SimplePerf {
         if (perfType == PerfConsts.RPC_D_WORKER_WORK) {
             workCount.add(count);
             workTotalTime.add(costTime);
+            workMaxTime.accumulate(costTime);
         } else if (perfType == PerfConsts.RPC_D_WORKER_SEL) {
             selTotalTime.add(costTime);
         }
@@ -50,12 +53,14 @@ public class DefaultRpcPerf extends SimplePerf {
     protected void collect() {
         long workCount = this.workCount.sumThenReset();
         long workTotalTime = this.workTotalTime.sumThenReset();
+        long workMaxTime = this.workMaxTime.getThenReset();
         long selTotalTime = this.selTotalTime.sumThenReset();
         if (log.isInfoEnabled()) {
             long avgUs = workCount == 0 ? 0 : workTotalTime / workCount / 1000;
             long totalTime = workTotalTime + selTotalTime;
             long usage10 = totalTime == 0 ? 0 : workTotalTime * 1000 / totalTime;
-            log.info("rpc worker avg time: {}us, thread avg usage {}.{}%", avgUs, usage10 / 10, usage10 % 10);
+            log.info("rpc worker count: {}, avg time: {}us, max time: {}us, thread avg usage {}.{}%",
+                    workCount, avgUs, workMaxTime / 1000, usage10 / 10, usage10 % 10);
         }
     }
 }

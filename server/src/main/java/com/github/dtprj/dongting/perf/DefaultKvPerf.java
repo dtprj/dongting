@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.perf;
 
 import com.github.dtprj.dongting.common.PerfConsts;
 
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -26,8 +27,10 @@ public class DefaultKvPerf extends SimplePerf {
 
     private final LongAdder leaseReadCount = new LongAdder();
     private final LongAdder leaseReadTotalTime = new LongAdder();
+    private final LongAccumulator leaseReadMaxTime = new LongAccumulator(Long::max, 0);
     private final LongAdder linearizableOpCount = new LongAdder();
     private final LongAdder linearizableOpTotalTime = new LongAdder();
+    private final LongAccumulator linearizableOpMaxTime = new LongAccumulator(Long::max, 0);
 
     public DefaultKvPerf() {
         super(false);
@@ -43,28 +46,34 @@ public class DefaultKvPerf extends SimplePerf {
         if (perfType == PerfConsts.DTKV_LEASE_READ) {
             leaseReadCount.add(count);
             leaseReadTotalTime.add(costTime);
+            leaseReadMaxTime.accumulate(costTime);
         } else if (perfType == PerfConsts.DTKV_LINEARIZABLE_OP) {
             linearizableOpCount.add(count);
             linearizableOpTotalTime.add(costTime);
+            linearizableOpMaxTime.accumulate(costTime);
         }
     }
 
     protected void collect() {
         long leaseReadCount = this.leaseReadCount.sumThenReset();
         long leaseReadTotalTime = this.leaseReadTotalTime.sumThenReset();
+        long leaseReadMaxTime = this.leaseReadMaxTime.getThenReset();
         long linearizableOpCount = this.linearizableOpCount.sumThenReset();
         long linearizableOpTotalTime = this.linearizableOpTotalTime.sumThenReset();
+        long linearizableOpMaxTime = this.linearizableOpMaxTime.getThenReset();
         if (log.isInfoEnabled()) {
             long leaseReadAvg10 = leaseReadCount == 0 ? 0 : leaseReadTotalTime * 10 / leaseReadCount;
             long linearizableOpAvg10 = linearizableOpCount == 0 ? 0 : linearizableOpTotalTime * 10 / linearizableOpCount;
-            log.info("kv lease read count: {}, avg time: {}.{}ms",
+            log.info("kv lease read count: {}, avg time: {}.{}ms, max time: {}ms",
                     leaseReadCount,
                     leaseReadAvg10 / 10,
-                    leaseReadAvg10 % 10);
-            log.info("kv linearizable op count: {}, avg time: {}.{}ms",
+                    leaseReadAvg10 % 10,
+                    leaseReadMaxTime);
+            log.info("kv linearizable op count: {}, avg time: {}.{}ms, max time: {}ms",
                     linearizableOpCount,
                     linearizableOpAvg10 / 10,
-                    linearizableOpAvg10 % 10);
+                    linearizableOpAvg10 % 10,
+                    linearizableOpMaxTime);
         }
     }
 }
