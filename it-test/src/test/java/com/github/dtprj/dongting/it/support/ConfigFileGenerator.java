@@ -177,7 +177,9 @@ public class ConfigFileGenerator {
                             String.valueOf(protoType.logFileSize / 64));
                 }
                 String useSeparateExecutor = System.getProperty("useSeparateExecutor");
-                if (useSeparateExecutor == null) {
+                if ("".equals(useSeparateExecutor)) {
+                    useSeparateExecutor = "true";
+                } else if (useSeparateExecutor == null) {
                     useSeparateExecutor = String.valueOf(new Random().nextBoolean());
                 }
                 serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".useSeparateExecutor", useSeparateExecutor);
