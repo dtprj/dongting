@@ -25,7 +25,6 @@ public class DefaultRaftPerf extends SimplePerf {
     private long writeCount;
     private long writeTotalTime;
     private long writeMaxTime;
-    private long readCount;
 
     public DefaultRaftPerf() {
         super(false);
@@ -33,8 +32,7 @@ public class DefaultRaftPerf extends SimplePerf {
 
     @Override
     public boolean accept(int perfType) {
-        return perfType == PerfConsts.RAFT_D_STATE_MACHINE_EXEC
-                || perfType == PerfConsts.RAFT_C_LEASE_READ;
+        return perfType == PerfConsts.RAFT_D_STATE_MACHINE_EXEC;
     }
 
     @Override
@@ -45,8 +43,6 @@ public class DefaultRaftPerf extends SimplePerf {
             if (costTime > writeMaxTime) {
                 writeMaxTime = costTime;
             }
-        } else if (perfType == PerfConsts.RAFT_C_LEASE_READ) {
-            readCount += count;
         }
 
     }
@@ -62,11 +58,9 @@ public class DefaultRaftPerf extends SimplePerf {
                     frac % 100 / 10,
                     frac % 10,
                     writeMaxTime);
-            log.info("raft read count: {}", readCount);
         }
         writeCount = 0;
         writeTotalTime = 0;
         writeMaxTime = 0;
-        readCount = 0;
     }
 }
