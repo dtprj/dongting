@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
@@ -48,10 +49,10 @@ public class KvServerUtil {
     /**
      * call after RaftServer init, before RaftServer start
      */
-    public static void initKvServer(RaftServer server) {
+    public static void initKvServer(RaftServer server, PerfCallback kvPerfCallback) {
         NioServer nioServer = server.getNioServer();
 
-        KvProcessor p = new KvProcessor(server);
+        KvProcessor p = new KvProcessor(server, kvPerfCallback);
         nioServer.register(Commands.DTKV_GET, p, null);
         nioServer.register(Commands.DTKV_PUT, p, null);
         nioServer.register(Commands.DTKV_REMOVE, p, null);

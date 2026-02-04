@@ -99,7 +99,6 @@ public final class RaftGroupImpl extends RaftGroup {
         }
 
         if (ss.groupReady) {
-            ts.refresh(1);
             long t = ts.nanoTime;
             if (ss.leaseEndNanos - t < 0) {
                 long x = (t - ss.leaseEndNanos) / 1_000_000;

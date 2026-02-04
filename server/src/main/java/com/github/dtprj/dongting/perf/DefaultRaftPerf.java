@@ -51,7 +51,7 @@ public class DefaultRaftPerf extends SimplePerf {
         if (log.isInfoEnabled()) {
             long avgTime1000 = writeCount == 0 ? 0 : writeTotalTime * 1000 / writeCount;
             long frac = avgTime1000 % 1000;
-            log.info("raft write count: {}, avg time: {}.{}{}{}ms, max time: {}ms",
+            log.info("raft state machine exec count: {}, avg time: {}.{}{}{}ms, max time: {}ms",
                     writeCount,
                     avgTime1000 / 1000,
                     frac / 100,

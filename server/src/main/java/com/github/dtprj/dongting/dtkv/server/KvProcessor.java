@@ -20,6 +20,8 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
@@ -44,13 +46,18 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @author huangli
  */
 final class KvProcessor extends RaftProcessor<KvReq> {
-    public KvProcessor(RaftServer raftServer) {
+    private final PerfCallback perfCallback;
+
+    public KvProcessor(RaftServer raftServer, PerfCallback perfCallback) {
         super(raftServer, true, false);
+        Objects.requireNonNull(perfCallback);
+        this.perfCallback = perfCallback;
     }
 
     @Override
@@ -177,6 +184,11 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     private void leaseRead(ReqInfo<KvReq> reqInfo, LeaseCallback callback) {
         // run in io thread, so we should use ts of io worker
         Timestamp ts = ((WorkerThread) Thread.currentThread()).ts;
+        long startTime = perfCallback.takeTimeAndRefresh(PerfConsts.DTKV_LEASE_READ, ts);
+        if (startTime == 0) {
+            // lease read now require ts is refreshed
+            ts.refresh(1);
+        }
         reqInfo.raftGroup.leaseRead(ts, reqInfo.reqContext.getTimeout(), (lastApplied, ex) -> {
             if (ex == null) {
                 try {
@@ -184,9 +196,13 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                     reqInfo.reqContext.writeRespInBizThreads(p);
                 } catch (Exception e) {
                     writeErrorResp(reqInfo, e);
+                } finally {
+                    // not use ts, the callback is not ensure run in caller thread
+                    perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
                 }
             } else {
                 writeErrorResp(reqInfo, ex);
+                perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
             }
         });
     }
@@ -204,10 +220,12 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     private class RC extends RaftInput implements RaftCallback {
 
         private ReqInfo<KvReq> reqInfo;
+        private final long startTime;
 
         private RC(int bizType, Encodable body, ReqInfo<KvReq> reqInfo) {
             super(bizType, null, body, reqInfo.reqContext.getTimeout(), false);
             this.reqInfo = reqInfo;
+            this.startTime = perfCallback.takeTime(PerfConsts.DTKV_LINEARIZABLE_OP);
         }
 
         @Override
@@ -251,7 +269,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                         reqInfo.reqContext.writeRespInBizThreads(resp);
 
                         // notify the new lock owner if any
-                        if(ri instanceof KvImpl.KvResultWithNewOwnerInfo) {
+                        if (ri instanceof KvImpl.KvResultWithNewOwnerInfo) {
                             KvServerUtil.notifyNewLockOwner(reqInfo.raftGroup, (KvImpl.KvResultWithNewOwnerInfo) ri);
                         }
 
@@ -263,6 +281,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                 }
                 reqInfo.reqContext.writeRespInBizThreads(resp);
             } finally {
+                perfCallback.fireTime(PerfConsts.DTKV_LINEARIZABLE_OP, startTime);
                 reqInfo = null;
             }
         }
@@ -272,6 +291,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
             try {
                 writeErrorResp(reqInfo, ex);
             } finally {
+                perfCallback.fireTime(PerfConsts.DTKV_LINEARIZABLE_OP, startTime);
                 reqInfo = null;
             }
         }

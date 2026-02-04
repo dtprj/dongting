@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServerConfig;
+import com.github.dtprj.dongting.perf.DefaultKvPerf;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftFactory;
@@ -163,7 +164,9 @@ public class Bootstrap {
                     Bootstrap.this.customReplicateNioClient(c);
                 }
             };
-            KvServerUtil.initKvServer(raftServer);
+            DefaultKvPerf kvPerf = new DefaultKvPerf();
+            kvPerf.start(); // no shutdown is ok, the lifecycle of DefaultKvPerf is the same as the server process
+            KvServerUtil.initKvServer(raftServer, kvPerf);
             SyncConfigProcessor p = new SyncConfigProcessor(raftServer, serversFile);
             raftServer.getNioServer().register(Commands.RAFT_ADMIN_SYNC_CONFIG, p,
                     raftServer.getSharedIoExecutor());

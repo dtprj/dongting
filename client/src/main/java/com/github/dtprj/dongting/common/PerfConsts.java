@@ -36,7 +36,7 @@ public interface PerfConsts {
     int FIBER_D_POLL = 20;
     int FIBER_D_WORK = 21;
 
-    int RAFT_D_LEADER_RUNNER_FIBER_LATENCY = 30;
+    int RAFT_D_LEADER_RUNNER_FIBER_LATENCY = 30; // cross thread
     int RAFT_D_ENCODE_AND_WRITE = 31;
     int RAFT_D_LOG_WRITE1 = 32;
     int RAFT_D_LOG_WRITE2 = 33;
@@ -50,4 +50,7 @@ public interface PerfConsts {
     int RAFT_D_IDX_FORCE = 41;
     int RAFT_D_REPLICATE_RPC = 42;
     int RAFT_D_STATE_MACHINE_EXEC = 43;
+
+    int DTKV_LEASE_READ = 60;
+    int DTKV_LINEARIZABLE_OP = 61;
 }

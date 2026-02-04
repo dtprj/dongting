@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.perf.DefaultKvPerf;
 import com.github.dtprj.dongting.raft.RaftClientConfig;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
@@ -104,7 +105,9 @@ public class RaftBenchmark extends BenchBase {
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
 
         RaftServer raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig), raftFactory);
-        KvServerUtil.initKvServer(raftServer);
+        DefaultKvPerf kvPerf = new DefaultKvPerf();
+        kvPerf.start();
+        KvServerUtil.initKvServer(raftServer, kvPerf);
         raftServer.start();
 
         groupConfigs.add(groupConfig);

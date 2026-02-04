@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
+import com.github.dtprj.dongting.perf.DefaultKvPerf;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.ImplAccessor;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
@@ -120,7 +121,9 @@ public class ServerTestBase {
             ImplAccessor.updateVoteManager(g.groupComponents.voteManager);
         });
         if (openServicePort) {
-            KvServerUtil.initKvServer(raftServer);
+            DefaultKvPerf kvPerf = new DefaultKvPerf();
+            kvPerf.start();
+            KvServerUtil.initKvServer(raftServer, kvPerf);
         }
 
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.demos.base;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
+import com.github.dtprj.dongting.perf.DefaultKvPerf;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -67,7 +68,9 @@ public abstract class DemoKvServerBase {
 
         RaftServer raftServer = new RaftServer(serverConfig, groupConfigs, raftFactory);
         // register DtKV rpc processor
-        KvServerUtil.initKvServer(raftServer);
+        DefaultKvPerf kvPerf = new DefaultKvPerf();
+        kvPerf.start();
+        KvServerUtil.initKvServer(raftServer, kvPerf);
 
         raftServer.start();
         return raftServer;
