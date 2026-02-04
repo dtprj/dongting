@@ -188,7 +188,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                         afterExec(index, rt, null, execEx);
                     } else if (f != null) {
                         f.registerCallback((result, ex) -> {
-                            perfCallback.fireTimeAndRefresh(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t, 1, 0, ts);
+                            // the callback may not run in raft thread, so not access ts
+                            perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t, 1, 0);
                             afterExec(index, rt, result, ex);
                         });
                     } else {

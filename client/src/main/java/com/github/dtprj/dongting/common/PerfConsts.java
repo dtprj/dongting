@@ -49,7 +49,7 @@ public interface PerfConsts {
     int RAFT_D_IDX_WRITE = 40;
     int RAFT_D_IDX_FORCE = 41;
     int RAFT_D_REPLICATE_RPC = 42;
-    int RAFT_D_STATE_MACHINE_EXEC = 43;
+    int RAFT_D_STATE_MACHINE_EXEC = 43; // may fire in other thread
 
     int DTKV_LEASE_READ = 60;
     int DTKV_LINEARIZABLE_OP = 61;
