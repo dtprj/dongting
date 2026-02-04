@@ -30,14 +30,16 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class SimplePerf extends PerfCallback {
     protected static final DtLog log = DtLogs.getLogger(SimplePerf.class);
+    private final boolean useCollectExecutor;
 
     private ScheduledExecutorService ses = DtUtil.SCHEDULED_SERVICE;
     private ScheduledFuture<?> future;
     private boolean started;
     private volatile boolean shutdown;
 
-    public SimplePerf(boolean useNanos) {
+    public SimplePerf(boolean useNanos, boolean useCollectExecutor) {
         super(useNanos);
+        this.useCollectExecutor = useCollectExecutor;
     }
 
     @SuppressWarnings("unused")
@@ -81,7 +83,7 @@ public abstract class SimplePerf extends PerfCallback {
         if (shutdown) {
             return;
         }
-        if (collectExecutor == null) {
+        if (!useCollectExecutor || collectExecutor == null) {
             run0();
         } else {
             try {

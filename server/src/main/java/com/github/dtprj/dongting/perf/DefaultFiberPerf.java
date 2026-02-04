@@ -28,7 +28,7 @@ public class DefaultFiberPerf extends SimplePerf {
     private long pollTotalTime;
 
     public DefaultFiberPerf() {
-        super(true);
+        super(true, true);
     }
 
     @Override

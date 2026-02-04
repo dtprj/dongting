@@ -31,7 +31,7 @@ public class DefaultRpcPerf extends SimplePerf {
     private final LongAdder selTotalTime = new LongAdder();
 
     public DefaultRpcPerf() {
-        super(true);
+        super(true, false);
     }
 
     @Override
@@ -59,7 +59,7 @@ public class DefaultRpcPerf extends SimplePerf {
             long avgUs = workCount == 0 ? 0 : workTotalTime / workCount / 1000;
             long totalTime = workTotalTime + selTotalTime;
             long usage10 = totalTime == 0 ? 0 : workTotalTime * 1000 / totalTime;
-            log.info("rpc worker count: {}, avg time: {}us, max time: {}us, thread avg usage {}.{}%",
+            log.info("rpc work count: {}, avg time: {}us, max time: {}us, thread avg usage {}.{}%",
                     workCount, avgUs, workMaxTime / 1000, usage10 / 10, usage10 % 10);
         }
     }

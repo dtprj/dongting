@@ -33,7 +33,7 @@ public class DefaultKvPerf extends SimplePerf {
     private final LongAccumulator linearizableOpMaxTime = new LongAccumulator(Long::max, 0);
 
     public DefaultKvPerf() {
-        super(false);
+        super(false, false);
     }
 
     @Override
