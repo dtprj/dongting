@@ -53,7 +53,8 @@ public class DefaultFiberPerf extends SimplePerf {
         if (log.isInfoEnabled()) {
             long totalTime = workTotalTime + pollTotalTime;
             long usage10 = totalTime == 0 ? 0 : workTotalTime * 1000 / totalTime;
-            log.info("fiber worker avg time: {}us, max time: {}us, thread usage {}.{}%",
+            log.info("fiber work count {}, avg time: {}us, max time: {}us, thread usage {}.{}%",
+                    workCount,
                     workCount == 0 ? 0 : workTotalTime / workCount / 1000,
                     workMaxTime / 1000,
                     usage10 / 10,
