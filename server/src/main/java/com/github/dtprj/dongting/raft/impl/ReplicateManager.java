@@ -501,6 +501,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                         groupId, member.node.nodeId);
                 updateLease(member, leaseStartNanos, raftStatus);
                 member.installSnapshot = true;
+            } else if (appendCode == AppendProcessor.APPEND_NOT_MEMBER_IN_GROUP) {
+                log.error("append fail because of follower member check fail. groupId={}, remoteId={}," +
+                                "localMembers={}, localPreparedMembers={}, msg={}", groupId, member.node.nodeId,
+                        raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfPreparedMembers, resp.msg);
             } else {
                 BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
                                 "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",

@@ -215,9 +215,10 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                 return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "small term");
             }
         } else {
-            log.warn("receive {} request from a non-member, ignore. remoteId={}, group={}, remote={}", appendType,
-                    leaderId, reqInfo.raftGroup.getGroupId(), reqInfo.reqContext.getDtChannel().getRemoteAddr());
-            return writeAppendResp(AppendProcessor.APPEND_NOT_MEMBER_IN_GROUP, "not member");
+            log.error("receive {} request from a non-member, ignore. remoteId={}, group={}, localMembers={}, localPreparedMembers={}",
+                    appendType, leaderId, reqInfo.raftGroup.getGroupId(), raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfPreparedMembers);
+            String msg = "not member, members=" + raftStatus.nodeIdOfMembers + ", prepareMembers=" + raftStatus.nodeIdOfPreparedMembers;
+            return writeAppendResp(AppendProcessor.APPEND_NOT_MEMBER_IN_GROUP, msg);
         }
     }
 
