@@ -527,9 +527,9 @@ public class DtBenchmark {
         System.out.println();
         System.out.println("Examples:");
         System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0");
-        System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --max-pending 5000");
+        System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --max-pending 10000 --client-count 2");
         System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --op get --duration 30");
-        System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --sync --thread-count 64");
+        System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --sync --thread-count 4000 (Java 21+)");
         System.out.println("  dongting-benchmark.sh -s conf/client.properties -g 0 --value-size 1024 --client-count 2");
     }
 
