@@ -32,6 +32,8 @@ import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.TestDir;
 import com.github.dtprj.dongting.test.WaitUtil;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.io.File;
@@ -54,6 +56,8 @@ import static com.github.dtprj.dongting.test.Tick.tick;
 public class ServerTestBase {
 
     private final boolean openServicePort;
+
+    private static DefaultKvPerf kvPerf = new DefaultKvPerf();
 
     protected boolean startAfterCreate = true;
     protected int initTerm = 0;
@@ -78,6 +82,16 @@ public class ServerTestBase {
 
     public ServerTestBase() {
         this(true);
+    }
+
+    @BeforeAll
+    public static void beforeAll() {
+        kvPerf.start();
+    }
+
+    @AfterAll
+    public static void before() {
+        kvPerf.shutdown();
     }
 
     @BeforeEach
@@ -121,8 +135,6 @@ public class ServerTestBase {
             ImplAccessor.updateVoteManager(g.groupComponents.voteManager);
         });
         if (openServicePort) {
-            DefaultKvPerf kvPerf = new DefaultKvPerf();
-            kvPerf.start();
             KvServerUtil.initKvServer(raftServer, kvPerf);
         }
 
