@@ -49,7 +49,7 @@ public class FaultInjector extends Thread {
     private static final int OBSERVER_NODE_ID = StressIT.OBSERVER_ID;
     private static final long CATCH_UP_CHECK_INTERVAL_MILLIS = 1000;
     private static final long CATCH_UP_THRESHOLD = 5000;
-    private static final long TIMEOUT_SECONDS = 60;
+    private static final long TIMEOUT_SECONDS = 90;
     private static final long OBSERVER_CATCH_UP_TIMEOUT_SECONDS = 600;
 
     private final int groupId;
@@ -303,7 +303,7 @@ public class FaultInjector extends Thread {
         log.info("Node {} restarted", nodeId);
 
         // Wait for cluster convergence
-        waitForConvergence(120);
+        waitForConvergence(TIMEOUT_SECONDS);
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
@@ -336,9 +336,8 @@ public class FaultInjector extends Thread {
             log.info("Cluster converged, leaderId: {}", leaderId);
             return leaderId;
         } catch (Exception e) {
-            log.error("Cluster convergence failed", e);
             failCount++;
-            return 0;
+            throw new AssertionError("Cluster convergence failed", e);
         }
     }
 
@@ -377,7 +376,7 @@ public class FaultInjector extends Thread {
             log.info("Committed config change to add observer node {}", OBSERVER_NODE_ID);
 
             // Wait for cluster consistency (auto-discover current members and observers)
-            clusterValidator.waitForClusterConsistencyAutoDiscover(groupId, TIMEOUT_SECONDS);
+            waitForConvergence(TIMEOUT_SECONDS);
 
             // Wait for observer to catch up
             if (!waitForObserverCatchUp()) {
@@ -420,7 +419,7 @@ public class FaultInjector extends Thread {
             log.info("Committed config change to remove observer node {}", OBSERVER_NODE_ID);
 
             // Wait for cluster consistency (auto-discover current members and observers)
-            clusterValidator.waitForClusterConsistencyAutoDiscover(groupId, TIMEOUT_SECONDS);
+            waitForConvergence(TIMEOUT_SECONDS);
 
             // Stop the observer process
             stopObserverProcess();
@@ -695,7 +694,7 @@ public class FaultInjector extends Thread {
             log.info("Committed config change, members changed from {} to {}", currentMembersSet, targetMembers);
 
             // Wait for cluster consistency with new member configuration (auto-discover)
-            clusterValidator.waitForClusterConsistencyAutoDiscover(groupId, TIMEOUT_SECONDS);
+            waitForConvergence(TIMEOUT_SECONDS);
 
             if (currentMembersSet.size() == 3) {
                 changeMembersRemoveCount++;
