@@ -127,11 +127,11 @@ public class AppendReqWritePacketTest {
         f.logs = logs;
         for (int i = 0; i < 2; i++) {
             LogItem log = new LogItem();
-            log.setBizType(1);
-            log.setIndex(200 + i);
-            log.setTerm(4);
-            log.setTimestamp(System.currentTimeMillis());
-            log.setType(LogItem.TYPE_NORMAL);
+            log.bizType = 1;
+            log.index = 200 + i;
+            log.term = 4;
+            log.timestamp = System.currentTimeMillis();
+            log.type = LogItem.TYPE_NORMAL;
             if (addHeader) {
                 log.setHeader(createBytes(10));
             }
@@ -154,11 +154,11 @@ public class AppendReqWritePacketTest {
         for (int i = 0; i < f.logs.size(); i++) {
             LogItem l1 = f.logs.get(i);
             LogItem l2 = c.logs.get(i);
-            assertEquals(l1.getBizType(), l2.getBizType());
-            assertEquals(l1.getIndex(), l2.getIndex());
-            assertEquals(l1.getTerm(), l2.getTerm());
-            assertEquals(l1.getTimestamp(), l2.getTimestamp());
-            assertEquals(l1.getType(), l2.getType());
+            assertEquals(l1.bizType, l2.bizType);
+            assertEquals(l1.index, l2.index);
+            assertEquals(l1.term, l2.term);
+            assertEquals(l1.timestamp, l2.timestamp);
+            assertEquals(l1.type, l2.type);
             if (l1.getHeader() != null) {
                 assertArrayEquals(((ByteArray) l1.getHeader()).getData(),
                         ((ByteArray) l2.getHeader()).getData());

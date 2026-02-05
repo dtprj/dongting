@@ -323,15 +323,15 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         ArrayList<RaftTask> list = new ArrayList<>(logs.size());
         for (int i = 0, len = logs.size(); i < len; i++) {
             LogItem li = logs.get(i);
-            if (++index != li.getIndex()) {
+            if (++index != li.index) {
                 log.error("bad request: log index not match. index={}, expectIndex={}, leaderId={}, groupId={}",
-                        li.getIndex(), index, req.leaderId, raftStatus.groupId);
+                        li.index, index, req.leaderId, raftStatus.groupId);
                 writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index not match");
                 return Fiber.frameReturn();
             }
-            RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null,
-                    li.getType() == LogItem.TYPE_LOG_READ);
-            RaftTask task = new RaftTask(li.getType(), raftInput, null);
+            RaftInput raftInput = new RaftInput(li.bizType, li.getHeader(), li.getBody(), null,
+                    li.type == LogItem.TYPE_LOG_READ);
+            RaftTask task = new RaftTask(li.type, raftInput, null);
             task.init(li, raftStatus.ts.nanoTime);
             list.add(task);
 

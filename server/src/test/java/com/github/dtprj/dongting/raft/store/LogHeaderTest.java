@@ -30,12 +30,12 @@ public class LogHeaderTest {
     @Test
     public void testWriteAndRead() {
         LogItem item = new LogItem();
-        item.setType(1);
-        item.setBizType(2);
-        item.setTerm(1000);
-        item.setPrevLogTerm(2000);
-        item.setIndex(3000);
-        item.setTimestamp(Long.MAX_VALUE);
+        item.type = 1;
+        item.bizType = 2;
+        item.term = 1000;
+        item.prevLogTerm = 2000;
+        item.index = 3000;
+        item.timestamp = Long.MAX_VALUE;
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         CRC32C crc32C = new CRC32C();
         item.setActualHeaderSize(200);

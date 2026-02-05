@@ -90,7 +90,7 @@ class LogHeader {
     }
 
     public static int writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log) {
-        boolean read = log.getType() == LogItem.TYPE_LOG_READ;
+        boolean read = log.type == LogItem.TYPE_LOG_READ;
         int len;
         if (read) {
             len = ITEM_HEADER_SIZE;
@@ -101,12 +101,12 @@ class LogHeader {
         buffer.putInt(len);
         buffer.putInt(read ? 0 : log.getActualHeaderSize());
         buffer.putInt(read ? 0 : log.getActualBodySize());
-        buffer.put((byte) log.getType());
-        buffer.put((byte) log.getBizType());
-        buffer.putInt(log.getTerm());
-        buffer.putInt(log.getPrevLogTerm());
-        buffer.putLong(log.getIndex());
-        buffer.putLong(log.getTimestamp());
+        buffer.put((byte) log.type);
+        buffer.put((byte) log.bizType);
+        buffer.putInt(log.term);
+        buffer.putInt(log.prevLogTerm);
+        buffer.putLong(log.index);
+        buffer.putLong(log.timestamp);
         crc.reset();
         RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);
         buffer.putInt((int) crc.getValue());
@@ -139,11 +139,11 @@ class LogHeader {
     }
 
     public void copy(LogItem li) {
-        li.setIndex(index);
-        li.setType(type);
-        li.setBizType(bizType);
-        li.setTerm(term);
-        li.setPrevLogTerm(prevLogTerm);
-        li.setTimestamp(timestamp);
+        li.index = index;
+        li.type = type;
+        li.bizType = bizType;
+        li.term = term;
+        li.prevLogTerm = prevLogTerm;
+        li.timestamp = timestamp;
     }
 }

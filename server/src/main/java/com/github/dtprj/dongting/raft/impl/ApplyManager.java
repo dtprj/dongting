@@ -179,7 +179,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                     FiberFuture<Object> f = null;
                     Throwable execEx = null;
                     try {
-                        f = stateMachine.exec(index, rt.item.getTimestamp(), rt.localCreateNanos, input);
+                        f = stateMachine.exec(index, rt.item.timestamp, rt.localCreateNanos, input);
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;
@@ -280,7 +280,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
-        raftStatus.lastAppliedTerm = rt.item.getTerm();
+        raftStatus.lastAppliedTerm = rt.item.term;
 
         updateApplyLagNanos(index, raftStatus);
 
@@ -339,7 +339,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
     private void tryApplyHeartBeat(long appliedIndex) {
         RaftTask t = heartBeatQueue.peekFirst();
-        if (t != null && t.item.getIndex() == appliedIndex + 1) {
+        if (t != null && t.item.index == appliedIndex + 1) {
             heartBeatQueue.pollFirst();
             afterExec(appliedIndex + 1, t, null, null);
         }
@@ -461,20 +461,20 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             }
             LogItem item = items.get(listIndex++);
 
-            RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null,
-                    item.getType() == LogItem.TYPE_LOG_READ);
-            RaftTask rt = new RaftTask(item.getType(), input, null);
+            RaftInput input = new RaftInput(item.bizType, item.getHeader(), item.getBody(), null,
+                    item.type == LogItem.TYPE_LOG_READ);
+            RaftTask rt = new RaftTask(item.type, input, null);
 
             // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
             // this method only used to load logs that not apply after restart.
-            long costTimeMillis = ts.wallClockMillis - item.getTimestamp();
+            long costTimeMillis = ts.wallClockMillis - item.timestamp;
             if (costTimeMillis < 0) {
                 costTimeMillis = 0;
             }
             long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L;
             rt.init(item, localCreateNanos);
 
-            return exec(rt, item.getIndex(), this);
+            return exec(rt, item.index, this);
         }
 
     }
@@ -491,7 +491,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (raftStatus.getLastApplied() != rt.item.getIndex() - 1) {
+            if (raftStatus.getLastApplied() != rt.item.index - 1) {
                 waitApply = true;
                 return applyFinishCond.await(this::afterApplyFinish);
             }
@@ -506,9 +506,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);
                 case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    return gc.memberManager.doAbort(rt.item.getIndex());
+                    return gc.memberManager.doAbort(rt.item.index);
                 case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    return gc.memberManager.doCommit(rt.item.getIndex());
+                    return gc.memberManager.doCommit(rt.item.index);
                 default:
                     throw Fiber.fatal(new RaftException("unknown config change type"));
             }
@@ -530,7 +530,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
                         oldObserverIds, raftStatus.nodeIdOfObservers, raftStatus.groupId);
             }
-            return gc.memberManager.doPrepare(rt.item.getIndex(), newMemberIds, newObserverIds);
+            return gc.memberManager.doPrepare(rt.item.index, newMemberIds, newObserverIds);
         }
 
         private Set<Integer> parseSet(String s) {

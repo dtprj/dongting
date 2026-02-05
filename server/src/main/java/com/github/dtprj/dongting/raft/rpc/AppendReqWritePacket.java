@@ -94,21 +94,21 @@ public class AppendReqWritePacket extends WritePacket {
     }
 
     private int computeItemSize(LogItem item) {
-        int itemSize = item.getPbItemSize();
+        int itemSize = item.pbItemSize;
         if (itemSize > 0) {
             return itemSize;
         }
-        int itemHeaderSize = PbUtil.sizeOfInt32Field(LogItem.IDX_TYPE, item.getType())
-                + PbUtil.sizeOfInt32Field(LogItem.IDX_BIZ_TYPE, item.getBizType())
-                + PbUtil.sizeOfInt32Field(LogItem.IDX_TERM, item.getTerm())
-                + PbUtil.sizeOfFix64Field(LogItem.IDX_INDEX, item.getIndex())
-                + PbUtil.sizeOfInt32Field(LogItem.IDX_PREV_LOG_TERM, item.getPrevLogTerm())
-                + PbUtil.sizeOfFix64Field(LogItem.IDX_TIMESTAMP, item.getTimestamp());
+        int itemHeaderSize = PbUtil.sizeOfInt32Field(LogItem.IDX_TYPE, item.type)
+                + PbUtil.sizeOfInt32Field(LogItem.IDX_BIZ_TYPE, item.bizType)
+                + PbUtil.sizeOfInt32Field(LogItem.IDX_TERM, item.term)
+                + PbUtil.sizeOfFix64Field(LogItem.IDX_INDEX, item.index)
+                + PbUtil.sizeOfInt32Field(LogItem.IDX_PREV_LOG_TERM, item.prevLogTerm)
+                + PbUtil.sizeOfFix64Field(LogItem.IDX_TIMESTAMP, item.timestamp);
         itemSize = itemHeaderSize
                 + EncodeUtil.sizeOf(LogItem.IDX_HEADER, item.getHeader())
                 + EncodeUtil.sizeOf(LogItem.IDX_BODY, item.getBody());
-        item.setPbItemSize(itemSize);
-        item.setPbHeaderSize(itemHeaderSize);
+        item.pbItemSize = itemSize;
+        item.pbHeaderSize = itemHeaderSize;
         return itemSize;
     }
 
@@ -136,17 +136,17 @@ public class AppendReqWritePacket extends WritePacket {
                         return true;
                     }
                     if (dest.remaining() < PbUtil.sizeOfLenFieldPrefix(
-                            AppendReq.IDX_ENTRIES, computeItemSize(currentItem)) + currentItem.getPbHeaderSize()) {
+                            AppendReq.IDX_ENTRIES, computeItemSize(currentItem)) + currentItem.pbHeaderSize) {
                         return false;
                     }
                     PbUtil.writeLenFieldPrefix(dest, AppendReq.IDX_ENTRIES, computeItemSize(currentItem));
 
-                    PbUtil.writeInt32Field(dest, LogItem.IDX_TYPE, currentItem.getType());
-                    PbUtil.writeInt32Field(dest, LogItem.IDX_BIZ_TYPE, currentItem.getBizType());
-                    PbUtil.writeInt32Field(dest, LogItem.IDX_TERM, currentItem.getTerm());
-                    PbUtil.writeFix64Field(dest, LogItem.IDX_INDEX, currentItem.getIndex());
-                    PbUtil.writeInt32Field(dest, LogItem.IDX_PREV_LOG_TERM, currentItem.getPrevLogTerm());
-                    PbUtil.writeFix64Field(dest, LogItem.IDX_TIMESTAMP, currentItem.getTimestamp());
+                    PbUtil.writeInt32Field(dest, LogItem.IDX_TYPE, currentItem.type);
+                    PbUtil.writeInt32Field(dest, LogItem.IDX_BIZ_TYPE, currentItem.bizType);
+                    PbUtil.writeInt32Field(dest, LogItem.IDX_TERM, currentItem.term);
+                    PbUtil.writeFix64Field(dest, LogItem.IDX_INDEX, currentItem.index);
+                    PbUtil.writeInt32Field(dest, LogItem.IDX_PREV_LOG_TERM, currentItem.prevLogTerm);
+                    PbUtil.writeFix64Field(dest, LogItem.IDX_TIMESTAMP, currentItem.timestamp);
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:

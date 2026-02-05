@@ -48,7 +48,7 @@ public class RaftTask {
     public void callSuccess(Object r) {
         if (!invokeCallback) {
             try {
-                RaftCallback.callSuccess(callback, item.getIndex(), r);
+                RaftCallback.callSuccess(callback, item.index, r);
             } finally {
                 callback = null;
                 invokeCallback = true;

@@ -186,13 +186,13 @@ public class LinearTaskRunner {
 
             newIndex++;
             LogItem item = new LogItem();
-            item.setType(rt.type);
-            item.setBizType(input.getBizType());
-            item.setTerm(currentTerm);
-            item.setIndex(newIndex);
-            item.setPrevLogTerm(prevTerm);
+            item.type = rt.type;
+            item.bizType = input.getBizType();
+            item.term = currentTerm;
+            item.index = newIndex;
+            item.prevLogTerm = prevTerm;
             prevTerm = currentTerm;
-            item.setTimestamp(ts.wallClockMillis);
+            item.timestamp = ts.wallClockMillis;
 
             item.setHeader(input.getHeader(), input.isHeadReleasable());
             item.setBody(input.getBody(), input.isBodyReleasable());
@@ -233,7 +233,7 @@ public class LinearTaskRunner {
                 // filer timeout items, released, see raftExec()
                 continue;
             }
-            long index = li.getIndex();
+            long index = li.index;
 
             // successful change owner to TailCache and release in TailCache.release(RaftTask)
             tailCache.put(index, rt);
@@ -242,7 +242,7 @@ public class LinearTaskRunner {
 
             if (i == len - 1) {
                 raftStatus.lastLogIndex = index;
-                raftStatus.lastLogTerm = li.getTerm();
+                raftStatus.lastLogTerm = li.term;
             }
         }
         raftStatus.needRepCondition.signalAll();

@@ -158,7 +158,7 @@ class LogAppender {
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
                 LogItem li = taskList.get(i);
                 int len;
-                if (li.getType() == LogItem.TYPE_LOG_READ) {
+                if (li.type == LogItem.TYPE_LOG_READ) {
                     len = LogHeader.ITEM_HEADER_SIZE;
                 } else {
                     len = LogHeader.computeTotalLen(li.getActualHeaderSize(), li.getActualBodySize());
@@ -222,29 +222,29 @@ class LogAppender {
             for (int i = 0; i < count; i++) {
                 LogItem li = taskList.get(startTaskIndex + i);
                 if (file.firstIndex == 0) {
-                    file.firstIndex = li.getIndex();
-                    file.firstTerm = li.getTerm();
-                    file.firstTimestamp = li.getTimestamp();
+                    file.firstIndex = li.index;
+                    file.firstTerm = li.term;
+                    file.firstTimestamp = li.timestamp;
                 }
                 if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
                     buffer = doWrite(file, buffer);
                 }
                 int len = LogHeader.writeHeader(crc32c, buffer, li);
 
-                if (li.getType() != LogItem.TYPE_LOG_READ && li.getActualHeaderSize() > 0) {
+                if (li.type != LogItem.TYPE_LOG_READ && li.getActualHeaderSize() > 0) {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
                     buffer = encodeData(li.getActualHeaderSize(), li.getHeader(), buffer, file);
                 }
-                if (li.getType() != LogItem.TYPE_LOG_READ && li.getActualBodySize() > 0) {
+                if (li.type != LogItem.TYPE_LOG_READ && li.getActualBodySize() > 0) {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
                     buffer = encodeData(li.getActualBodySize(), li.getBody(), buffer, file);
                 }
 
-                idxOps.put(li.getIndex(), dataPos);
+                idxOps.put(li.index, dataPos);
                 dataPos += len;
                 lastItem = li;
                 writeCount++;
@@ -284,7 +284,7 @@ class LogAppender {
             buffer.flip();
             int bytes = buffer.remaining();
 
-            long lastIndex = lastItem != null ? lastItem.getIndex() : -1;
+            long lastIndex = lastItem != null ? lastItem.index : -1;
             long writeStartPosInFile = nextPersistPos & fileLenMask;
             chainWriter.submitWrite(file, logFileQueue.initialized, buffer, writeStartPosInFile,
                     lastItem != null, writeCount, lastIndex);

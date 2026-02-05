@@ -125,7 +125,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     private void append(List<LogItem> list) throws Exception {
-        long lastIdx = list.get(list.size() - 1).getIndex();
+        long lastIdx = list.get(list.size() - 1).index;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -433,7 +433,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         list.add(createItem(config, 5, 4, 11, 256, 50));// change term
         list.add(createItem(config, 5, 5, 12, 256, 50));
         append(list);
-        raftStatus.lastLogIndex = list.get(list.size() - 1).getIndex();
+        raftStatus.lastLogIndex = list.get(list.size() - 1).index;
 
         TailCache tailCache = raftStatus.tailCache;
         for (int i = 0; i <= list.size(); i++) {
@@ -443,7 +443,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 RaftTask t = new RaftTask(0, ri, null);
                 LogItem li = list.get(j);
                 t.init(li, raftStatus.ts.nanoTime);
-                tailCache.put(li.getIndex(), t);
+                tailCache.put(li.index, t);
             }
             testMatch();
         }

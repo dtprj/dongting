@@ -158,12 +158,12 @@ public class LogFileQueueTest extends BaseFiberTest {
 
     static LogItem createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize, int bizHeaderLen) {
         LogItem item = new LogItem();
-        item.setType(1);
-        item.setBizType(2);
-        item.setTerm(term);
-        item.setPrevLogTerm(prevTerm);
-        item.setIndex(index);
-        item.setTimestamp(config.ts.wallClockMillis);
+        item.type = 1;
+        item.bizType = 2;
+        item.term = term;
+        item.prevLogTerm = prevTerm;
+        item.index = index;
+        item.timestamp = config.ts.wallClockMillis;
         byte[] bs = new byte[bizHeaderLen];
         for (int i = 0; i < bizHeaderLen; i++) {
             bs[i] = (byte) i;
@@ -209,7 +209,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             }
         });
 
-        assertEquals(items[items.length - 1].getIndex(), raftStatus.lastForceLogIndex);
+        assertEquals(items[items.length - 1].index, raftStatus.lastForceLogIndex);
 
         if (!check) {
             return;
@@ -230,12 +230,12 @@ public class LogFileQueueTest extends BaseFiberTest {
             LogHeader header = new LogHeader();
             header.read(buf);
             assertTrue(header.crcMatch());
-            assertEquals(item.getType(), header.type);
-            assertEquals(item.getBizType(), header.bizType);
-            assertEquals(item.getTerm(), header.term);
-            assertEquals(item.getPrevLogTerm(), header.prevLogTerm);
-            assertEquals(item.getIndex(), header.index);
-            assertEquals(item.getTimestamp(), header.timestamp);
+            assertEquals(item.type, header.type);
+            assertEquals(item.bizType, header.bizType);
+            assertEquals(item.term, header.term);
+            assertEquals(item.prevLogTerm, header.prevLogTerm);
+            assertEquals(item.index, header.index);
+            assertEquals(item.timestamp, header.timestamp);
 
             if (bizHeaderLen > 0) {
                 for (int j = 0; j < bizHeaderLen; j++) {

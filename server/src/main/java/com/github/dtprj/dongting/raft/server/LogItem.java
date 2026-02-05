@@ -48,12 +48,12 @@ public class LogItem {
     public static final int TYPE_COMMIT_CONFIG_CHANGE = 4;
     public static final int TYPE_LOG_READ = 5;
 
-    private int type;
-    private int bizType;
-    private int term;
-    private long index;
-    private int prevLogTerm;
-    private long timestamp;
+    public int type;
+    public int bizType;
+    public int term;
+    public long index;
+    public int prevLogTerm;
+    public long timestamp;
 
     private Encodable body;
     private boolean bodyIsRefCount;
@@ -63,8 +63,8 @@ public class LogItem {
     private boolean headerIsRefCount;
     private int actualHeaderSize = -1;
 
-    private int pbHeaderSize;
-    private int pbItemSize;
+    public int pbHeaderSize;
+    public int pbItemSize;
 
     public LogItem() {
     }
@@ -121,38 +121,6 @@ public class LogItem {
         return actualBodySize;
     }
 
-    public int getType() {
-        return type;
-    }
-
-    public void setType(int type) {
-        this.type = type;
-    }
-
-    public int getBizType() {
-        return bizType;
-    }
-
-    public void setBizType(int bizType) {
-        this.bizType = bizType;
-    }
-
-    public int getTerm() {
-        return term;
-    }
-
-    public void setTerm(int term) {
-        this.term = term;
-    }
-
-    public int getPrevLogTerm() {
-        return prevLogTerm;
-    }
-
-    public void setPrevLogTerm(int prevLogTerm) {
-        this.prevLogTerm = prevLogTerm;
-    }
-
     public Encodable getBody() {
         return body;
     }
@@ -161,44 +129,12 @@ public class LogItem {
         this.actualBodySize = actualBodySize;
     }
 
-    public long getIndex() {
-        return index;
-    }
-
-    public void setIndex(long index) {
-        this.index = index;
-    }
-
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(long timestamp) {
-        this.timestamp = timestamp;
-    }
-
     public Encodable getHeader() {
         return header;
     }
 
     public void setActualHeaderSize(int actualHeaderSize) {
         this.actualHeaderSize = actualHeaderSize;
-    }
-
-    public int getPbItemSize() {
-        return pbItemSize;
-    }
-
-    public void setPbItemSize(int pbItemSize) {
-        this.pbItemSize = pbItemSize;
-    }
-
-    public int getPbHeaderSize() {
-        return pbHeaderSize;
-    }
-
-    public void setPbHeaderSize(int pbHeaderSize) {
-        this.pbHeaderSize = pbHeaderSize;
     }
 
 }

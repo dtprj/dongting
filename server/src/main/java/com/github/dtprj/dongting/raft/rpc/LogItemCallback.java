@@ -55,16 +55,16 @@ class LogItemCallback extends PbCallback<Object> {
     public boolean readVarNumber(int index, long value) {
         switch (index) {
             case LogItem.IDX_TYPE:
-                item.setType((int) value);
+                item.type = (int) value;
                 break;
             case LogItem.IDX_BIZ_TYPE:
-                item.setBizType((int) value);
+                item.bizType = (int) value;
                 break;
             case LogItem.IDX_TERM:
-                item.setTerm((int) value);
+                item.term = (int) value;
                 break;
             case LogItem.IDX_PREV_LOG_TERM:
-                item.setPrevLogTerm((int) value);
+                item.prevLogTerm = (int) value;
                 break;
         }
         return true;
@@ -74,10 +74,10 @@ class LogItemCallback extends PbCallback<Object> {
     public boolean readFix64(int index, long value) {
         switch (index) {
             case LogItem.IDX_INDEX:
-                item.setIndex(value);
+                item.index = value;
                 break;
             case LogItem.IDX_TIMESTAMP:
-                item.setTimestamp(value);
+                item.timestamp = value;
                 break;
         }
         return true;
@@ -91,8 +91,8 @@ class LogItemCallback extends PbCallback<Object> {
         if (index == LogItem.IDX_HEADER) {
             if (begin) {
                 item.setActualHeaderSize(len);
-                if (item.getType() == LogItem.TYPE_NORMAL) {
-                    currentDecoderCallback = codecFactory.createHeaderCallback(item.getBizType(), context.createOrGetNestedContext());
+                if (item.type == LogItem.TYPE_NORMAL) {
+                    currentDecoderCallback = codecFactory.createHeaderCallback(item.bizType, context.createOrGetNestedContext());
                 } else {
                     currentDecoderCallback = new ByteArray.Callback();
                 }
@@ -106,8 +106,8 @@ class LogItemCallback extends PbCallback<Object> {
         } else if (index == LogItem.IDX_BODY) {
             if (begin) {
                 item.setActualBodySize(len);
-                if (item.getType() == LogItem.TYPE_NORMAL || item.getType() == LogItem.TYPE_LOG_READ) {
-                    currentDecoderCallback = codecFactory.createBodyCallback(item.getBizType(), context.createOrGetNestedContext());
+                if (item.type == LogItem.TYPE_NORMAL || item.type == LogItem.TYPE_LOG_READ) {
+                    currentDecoderCallback = codecFactory.createBodyCallback(item.bizType, context.createOrGetNestedContext());
                 } else {
                     currentDecoderCallback = new ByteArray.Callback();
                 }
