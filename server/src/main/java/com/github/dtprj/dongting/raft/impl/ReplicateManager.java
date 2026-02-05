@@ -637,6 +637,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     @Override
     protected FrameCallResult handle(Throwable ex) throws Throwable {
         log.error("install snapshot error: group={}, remoteId={}", groupId, member.node.nodeId, ex);
+        incrementEpoch();
         return Fiber.frameReturn();
     }
 

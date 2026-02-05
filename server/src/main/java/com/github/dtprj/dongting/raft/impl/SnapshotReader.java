@@ -68,6 +68,7 @@ public class SnapshotReader extends FiberFrame<Void> {
         this.cancel = cancel;
         this.bufferCreator = bufferCreator;
         this.cond = FiberGroup.currentGroup().newCondition("snapshotReaderCond");
+        log.info("create snapshot reader: {}", snapshot.getClass().getSimpleName());
     }
 
     @Override
