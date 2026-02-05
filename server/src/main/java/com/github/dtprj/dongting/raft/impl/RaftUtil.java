@@ -82,11 +82,11 @@ public final class RaftUtil {
     }
 
     public static void release(RaftInput raftInput) {
-        if (raftInput.isHeadReleasable()) {
-            ((RefCount) raftInput.getHeader()).release();
+        if (raftInput.headReleasable) {
+            ((RefCount) raftInput.header).release();
         }
-        if (raftInput.isBodyReleasable()) {
-            ((RefCount) raftInput.getBody()).release();
+        if (raftInput.bodyReleasable) {
+            ((RefCount) raftInput.body).release();
         }
     }
 

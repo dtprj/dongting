@@ -176,9 +176,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             throw new DtBugException("dtkv is install snapshot");
         }
-        KvReq req = (KvReq) input.getBody();
+        KvReq req = (KvReq) input.body;
         KvImpl kv = kvStatus.kvImpl;
-        int bizType = input.getBizType();
+        int bizType = input.bizType;
         kv.opContext.init(bizType, req.ownerUuid, req.ttlMillis, leaderCreateTimeMillis, localCreateNanos);
         ByteArray key = req.key == null ? null : new ByteArray(req.key);
         switch (bizType) {
@@ -210,7 +210,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_UNLOCK:
                 return kv.unlock(index, key);
             default:
-                throw new IllegalArgumentException("unknown bizType " + input.getBizType());
+                throw new IllegalArgumentException("unknown bizType " + input.bizType);
         }
     }
 

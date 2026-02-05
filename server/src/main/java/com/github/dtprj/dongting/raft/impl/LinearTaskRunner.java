@@ -137,7 +137,7 @@ public class LinearTaskRunner {
 
     public void submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {
         RaftTask t = new RaftTask(raftLogType, input, callback);
-        input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
+        input.perfTime = perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY);
         taskChannel.fireOffer(t, LinearTaskRunner::onDispatchFail);
     }
 
@@ -172,8 +172,8 @@ public class LinearTaskRunner {
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.input;
-            if (input.getPerfTime() != 0) {
-                perfCallback.fireTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, input.getPerfTime());
+            if (input.perfTime != 0) {
+                perfCallback.fireTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, input.perfTime);
             }
 
             Throwable ex = checkTask(rt, raftStatus);
@@ -187,15 +187,15 @@ public class LinearTaskRunner {
             newIndex++;
             LogItem item = new LogItem();
             item.type = rt.type;
-            item.bizType = input.getBizType();
+            item.bizType = input.bizType;
             item.term = currentTerm;
             item.index = newIndex;
             item.prevLogTerm = prevTerm;
             prevTerm = currentTerm;
             item.timestamp = ts.wallClockMillis;
 
-            item.setHeader(input.getHeader(), input.isHeadReleasable());
-            item.setBody(input.getBody(), input.isBodyReleasable());
+            item.setHeader(input.header, input.headReleasable);
+            item.setBody(input.body, input.bodyReleasable);
 
             rt.init(item, ts.nanoTime);
         }
@@ -205,8 +205,8 @@ public class LinearTaskRunner {
 
     private Throwable checkTask(RaftTask rt, RaftStatusImpl raftStatus) {
         RaftInput input = rt.input;
-        if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
-            return new RaftTimeoutException("timeout " + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms");
+        if (input.deadline != null && input.deadline.isTimeout(ts)) {
+            return new RaftTimeoutException("timeout " + input.deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
         if (rt.type == LogItem.TYPE_NORMAL || rt.type == LogItem.TYPE_LOG_READ) {
             if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {

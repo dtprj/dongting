@@ -171,7 +171,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             case LogItem.TYPE_NORMAL:
             case LogItem.TYPE_LOG_READ: {
                 RaftInput input = rt.input;
-                if (input.isReadOnly() && rt.callback == null) {
+                if (input.readOnly && rt.callback == null) {
                     // no need to execute read only task if no one wait for result
                     afterExec(index, rt, null, null);
                 } else {
@@ -274,7 +274,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     private void afterExec(long index, RaftTask rt, Object execResult, Throwable execEx) {
-        if (execEx != null && !rt.input.isReadOnly()) {
+        if (execEx != null && !rt.input.readOnly) {
             throw Fiber.fatal(execEx);
         }
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
@@ -515,7 +515,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
-            byte[] data = ((ByteArray) rt.input.getBody()).getData();
+            byte[] data = ((ByteArray) rt.input.body).getData();
             String dataStr = new String(data);
             String[] fields = dataStr.split(";", -1);
             Set<Integer> oldMemberIds = parseSet(fields[0]);

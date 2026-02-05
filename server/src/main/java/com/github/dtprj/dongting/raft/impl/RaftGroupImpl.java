@@ -79,7 +79,7 @@ public final class RaftGroupImpl extends RaftGroup {
     @Override
     public void submitLinearTask(RaftInput input, RaftCallback callback) {
         Objects.requireNonNull(input);
-        int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
+        int type = input.readOnly ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
         groupComponents.linearTaskRunner.submitRaftTaskInBizThread(type, input, callback);
     }
 

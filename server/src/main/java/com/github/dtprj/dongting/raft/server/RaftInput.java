@@ -23,17 +23,17 @@ import com.github.dtprj.dongting.common.RefCount;
  * @author huangli
  */
 public class RaftInput {
-    private final int bizType;
-    private final DtTime deadline;
-    private final boolean readOnly;
-    private final Encodable header;
-    private final Encodable body;
-    private final long flowControlSize;
-    private final boolean headReleasable;
-    private final boolean bodyReleasable;
+    public final int bizType;
+    public final DtTime deadline;
+    public final boolean readOnly;
+    public final Encodable header;
+    public final Encodable body;
+    public final long flowControlSize;
+    public final boolean headReleasable;
+    public final boolean bodyReleasable;
 
     // this field is reused
-    private long perfTime;
+    public long perfTime;
 
     public RaftInput(int bizType, Encodable header, Encodable body, DtTime deadline, boolean readOnly) {
         if (bizType < 0 || bizType > 127) {
@@ -57,43 +57,4 @@ public class RaftInput {
         this.bodyReleasable = body instanceof RefCount;
     }
 
-    public long getFlowControlSize() {
-        return flowControlSize;
-    }
-
-    public DtTime getDeadline() {
-        return deadline;
-    }
-
-    public Encodable getBody() {
-        return body;
-    }
-
-    public Encodable getHeader() {
-        return header;
-    }
-
-    public boolean isReadOnly() {
-        return readOnly;
-    }
-
-    public int getBizType() {
-        return bizType;
-    }
-
-    public boolean isHeadReleasable() {
-        return headReleasable;
-    }
-
-    public boolean isBodyReleasable() {
-        return bodyReleasable;
-    }
-
-    public long getPerfTime() {
-        return perfTime;
-    }
-
-    public void setPerfTime(long perfTime) {
-        this.perfTime = perfTime;
-    }
 }
