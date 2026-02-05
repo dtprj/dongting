@@ -819,7 +819,7 @@ class KvImpl {
         long max = 0;
         long min = Long.MAX_VALUE;
         for (Snapshot s : openSnapshots) {
-            long idx = s.getSnapshotInfo().getLastIncludedIndex();
+            long idx = s.getSnapshotInfo().lastIncludedIndex;
             max = Math.max(max, idx);
             min = Math.min(min, idx);
         }

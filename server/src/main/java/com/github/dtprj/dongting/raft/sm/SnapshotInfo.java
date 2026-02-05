@@ -24,13 +24,13 @@ import java.util.Set;
  * @author huangli
  */
 public class SnapshotInfo {
-    private final long lastIncludedIndex;
-    private final int lastIncludedTerm;
-    private final Set<Integer> members;
-    private final Set<Integer> observers;
-    private final Set<Integer> preparedMembers;
-    private final Set<Integer> preparedObservers;
-    private final long lastConfigChangeIndex;
+    public final long lastIncludedIndex;
+    public final int lastIncludedTerm;
+    public final Set<Integer> members;
+    public final Set<Integer> observers;
+    public final Set<Integer> preparedMembers;
+    public final Set<Integer> preparedObservers;
+    public final long lastConfigChangeIndex;
 
     public SnapshotInfo(RaftStatus rs) {
         RaftStatusImpl raftStatus = (RaftStatusImpl) rs;
@@ -54,31 +54,4 @@ public class SnapshotInfo {
         this.lastConfigChangeIndex = lastConfigChangeIndex;
     }
 
-    public long getLastIncludedIndex() {
-        return lastIncludedIndex;
-    }
-
-    public int getLastIncludedTerm() {
-        return lastIncludedTerm;
-    }
-
-    public Set<Integer> getMembers() {
-        return members;
-    }
-
-    public Set<Integer> getObservers() {
-        return observers;
-    }
-
-    public Set<Integer> getPreparedMembers() {
-        return preparedMembers;
-    }
-
-    public Set<Integer> getPreparedObservers() {
-        return preparedObservers;
-    }
-
-    public long getLastConfigChangeIndex() {
-        return lastConfigChangeIndex;
-    }
 }

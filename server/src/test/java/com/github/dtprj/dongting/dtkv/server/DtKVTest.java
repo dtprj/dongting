@@ -275,8 +275,8 @@ public class DtKVTest extends BaseFiberTest {
         CopyFrame(KvSnapshot s, DtKV dest) {
             this.s = s;
             this.dest = dest;
-            this.lastIndex = s.getSnapshotInfo().getLastIncludedIndex();
-            this.lastTerm = s.getSnapshotInfo().getLastIncludedTerm();
+            this.lastIndex = s.getSnapshotInfo().lastIncludedIndex;
+            this.lastTerm = s.getSnapshotInfo().lastIncludedTerm;
         }
 
         @Override

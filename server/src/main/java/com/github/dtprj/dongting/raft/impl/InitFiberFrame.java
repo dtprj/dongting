@@ -130,24 +130,24 @@ public class InitFiberFrame extends FiberFrame<Void> {
                 log.warn("no snapshot and firstValidIndex>1, mark install snapshot");
             }
             return afterRecoverStateMachine(null);
-        } else if (snapshot.getSnapshotInfo().getLastIncludedIndex() < raftStatus.firstValidIndex) {
+        } else if (snapshot.getSnapshotInfo().lastIncludedIndex < raftStatus.firstValidIndex) {
             raftStatus.installSnapshot = true;
             log.warn("snapshot lastIncludedIndex({}) less than firstValidIndex({}), mark install snapshot",
-                    snapshot.getSnapshotInfo().getLastIncludedIndex(), raftStatus.firstValidIndex);
+                    snapshot.getSnapshotInfo().lastIncludedIndex, raftStatus.firstValidIndex);
             return afterRecoverStateMachine(null);
         }
         SnapshotInfo si = snapshot.getSnapshotInfo();
-        if (si.getLastIncludedTerm() > raftStatus.currentTerm) {
+        if (si.lastIncludedTerm > raftStatus.currentTerm) {
             log.error("snapshot term greater than current term, snapshot={}, current={}",
-                    si.getLastIncludedTerm(), raftStatus.currentTerm);
+                    si.lastIncludedTerm, raftStatus.currentTerm);
             throw new RaftException("snapshot term greater than current term");
         }
-        gc.raftStatus.lastConfigChangeIndex = si.getLastConfigChangeIndex();
-        gc.raftStatus.lastSavedSnapshotIndex = si.getLastIncludedIndex();
+        gc.raftStatus.lastConfigChangeIndex = si.lastConfigChangeIndex;
+        gc.raftStatus.lastSavedSnapshotIndex = si.lastIncludedIndex;
 
         FiberFrame<Void> f = gc.memberManager.applyConfigFrame(
                 "state machine recover apply config change",
-                si.getMembers(), si.getObservers(), si.getPreparedMembers(), si.getPreparedObservers());
+                si.members, si.observers, si.preparedMembers, si.preparedObservers);
         return Fiber.call(f, v -> afterApplyConfigChange(snapshot));
     }
 
@@ -164,8 +164,8 @@ public class InitFiberFrame extends FiberFrame<Void> {
             return Fiber.frameReturn();
         }
 
-        int snapshotTerm = snapshot == null ? 0 : snapshot.getSnapshotInfo().getLastIncludedTerm();
-        long snapshotIndex = snapshot == null ? 0 : snapshot.getSnapshotInfo().getLastIncludedIndex();
+        int snapshotTerm = snapshot == null ? 0 : snapshot.getSnapshotInfo().lastIncludedTerm;
+        long snapshotIndex = snapshot == null ? 0 : snapshot.getSnapshotInfo().lastIncludedIndex;
         log.info("load snapshot to term={}, index={}, groupId={}", snapshotTerm, snapshotIndex, groupConfig.groupId);
         raftStatus.setLastApplied(snapshotIndex);
         raftStatus.lastAppliedTerm = snapshotTerm;

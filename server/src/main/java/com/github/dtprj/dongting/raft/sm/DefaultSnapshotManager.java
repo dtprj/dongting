@@ -375,7 +375,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private FrameCallResult afterTakeSnapshot(Snapshot snapshot) throws Exception {
             this.readSnapshot = snapshot;
             log.info("begin save snapshot {}. groupId={}, lastIndex={}, lastTerm={}", id,
-                    groupConfig.groupId, snapshotInfo.getLastIncludedIndex(), snapshotInfo.getLastIncludedTerm());
+                    groupConfig.groupId, snapshotInfo.lastIncludedIndex, snapshotInfo.lastIncludedTerm);
 
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
             String baseName = sdf.format(new Date()) + "_" + id;
@@ -455,18 +455,18 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private FrameCallResult saveIdxFile(Void unused) {
             SnapshotInfo si = readSnapshot.getSnapshotInfo();
             Map<String, String> p = statusFile.getProperties();
-            p.put(KEY_LAST_INDEX, String.valueOf(si.getLastIncludedIndex()));
-            p.put(KEY_LAST_TERM, String.valueOf(si.getLastIncludedTerm()));
-            p.put(KEY_MEMBERS, RaftUtil.setToStr(si.getMembers()));
-            p.put(KEY_OBSERVERS, RaftUtil.setToStr(si.getObservers()));
-            p.put(KEY_PREPARED_MEMBERS, RaftUtil.setToStr(si.getPreparedMembers()));
-            p.put(KEY_PREPARED_OBSERVERS, RaftUtil.setToStr(si.getPreparedObservers()));
-            p.put(KEY_LAST_CONFIG_CHANGE_INDEX, String.valueOf(si.getLastConfigChangeIndex()));
+            p.put(KEY_LAST_INDEX, String.valueOf(si.lastIncludedIndex));
+            p.put(KEY_LAST_TERM, String.valueOf(si.lastIncludedTerm));
+            p.put(KEY_MEMBERS, RaftUtil.setToStr(si.members));
+            p.put(KEY_OBSERVERS, RaftUtil.setToStr(si.observers));
+            p.put(KEY_PREPARED_MEMBERS, RaftUtil.setToStr(si.preparedMembers));
+            p.put(KEY_PREPARED_OBSERVERS, RaftUtil.setToStr(si.preparedObservers));
+            p.put(KEY_LAST_CONFIG_CHANGE_INDEX, String.valueOf(si.lastConfigChangeIndex));
             p.put(KEY_BUFFER_SIZE, String.valueOf(bufferSize));
             p.put(KEY_NEXT_ID, String.valueOf(id + 1));
 
             fileSnapshot = new FileSnapshotInfo(newIdxFile, newDataFile.getFile());
-            fileSnapshot.lastIncludeIndex = snapshotInfo.getLastIncludedIndex();
+            fileSnapshot.lastIncludeIndex = snapshotInfo.lastIncludedIndex;
 
             // just for human reading
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -480,13 +480,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
             success = true;
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
             savedSnapshots.addLast(fileSnapshot);
-            raftStatus.lastSavedSnapshotIndex = snapshotInfo.getLastIncludedIndex();
+            raftStatus.lastSavedSnapshotIndex = snapshotInfo.lastIncludedIndex;
 
             return Fiber.frameReturn();
         }
 
         private void complete(Throwable ex) {
-            long raftIndex = snapshotInfo.getLastIncludedIndex();
+            long raftIndex = snapshotInfo.lastIncludedIndex;
             Pair<Long, FiberFuture<Long>> req;
             while ((req = saveRequest.peek()) != null) {
                 if (req.getLeft() <= raftIndex) {
@@ -560,7 +560,7 @@ class RecoverFiberFrame extends FiberFrame<Void> {
         buf.limit(size + 4);
         buf.position(4);
         SnapshotInfo si = snapshot.getSnapshotInfo();
-        FiberFuture<Void> f = stateMachine.installSnapshot(si.getLastIncludedIndex(), si.getLastIncludedTerm(),
+        FiberFuture<Void> f = stateMachine.installSnapshot(si.lastIncludedIndex, si.lastIncludedTerm,
                 offset, false, buf);
         offset += size;
         f.registerCallback((v, ex) -> rb.release());
@@ -569,7 +569,7 @@ class RecoverFiberFrame extends FiberFrame<Void> {
 
     private FrameCallResult finish(Void v) {
         SnapshotInfo si = snapshot.getSnapshotInfo();
-        FiberFuture<Void> f = stateMachine.installSnapshot(si.getLastIncludedIndex(), si.getLastIncludedTerm(),
+        FiberFuture<Void> f = stateMachine.installSnapshot(si.lastIncludedIndex, si.lastIncludedTerm,
                 offset, true, SimpleByteBufferPool.EMPTY_BUFFER);
         return f.await(this::justReturn);
     }

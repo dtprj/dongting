@@ -53,7 +53,7 @@ class KvSnapshot extends Snapshot {
         this.groupId = groupId;
         this.kv = kv;
         this.cancel = cancel;
-        this.lastIncludeRaftIndex = si.getLastIncludedIndex();
+        this.lastIncludeRaftIndex = si.lastIncludedIndex;
         this.iterator = kv.map.iterator();
         this.dtkvExecutor = dtkvExecutor;
     }

@@ -664,7 +664,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
             return Fiber.frameReturn();
         }
         this.snapshot = snapshot;
-        FiberFrame<Long> f = raftLog.loadNextItemPos(snapshot.getSnapshotInfo().getLastIncludedIndex());
+        FiberFrame<Long> f = raftLog.loadNextItemPos(snapshot.getSnapshotInfo().lastIncludedIndex);
         return Fiber.call(f, result -> afterLoadNextItemPos(result, snapshot));
     }
 
@@ -722,16 +722,16 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         req.groupId = groupId;
         req.term = raftStatus.currentTerm;
         req.leaderId = serverConfig.nodeId;
-        req.lastIncludedIndex = si.getLastIncludedIndex();
-        req.lastIncludedTerm = si.getLastIncludedTerm();
+        req.lastIncludedIndex = si.lastIncludedIndex;
+        req.lastIncludedTerm = si.lastIncludedTerm;
         req.offset = snapshotOffset;
 
         if (start) {
-            req.members = si.getMembers();
-            req.observers = si.getObservers();
-            req.preparedMembers = si.getPreparedMembers();
-            req.preparedObservers = si.getPreparedObservers();
-            req.lastConfigChangeIndex = si.getLastConfigChangeIndex();
+            req.members = si.members;
+            req.observers = si.observers;
+            req.preparedMembers = si.preparedMembers;
+            req.preparedObservers = si.preparedObservers;
+            req.lastConfigChangeIndex = si.lastConfigChangeIndex;
         }
         if (finish) {
             req.done = true;

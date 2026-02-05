@@ -157,8 +157,8 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
             private FrameCallResult afterInit2(Snapshot snapshot) {
                 assertNotNull(snapshot);
-                assertEquals(1, snapshot.getSnapshotInfo().getLastIncludedTerm());
-                assertEquals(LOOP, snapshot.getSnapshotInfo().getLastIncludedIndex());
+                assertEquals(1, snapshot.getSnapshotInfo().lastIncludedTerm);
+                assertEquals(LOOP, snapshot.getSnapshotInfo().lastIncludedIndex);
 
                 m.startFiber();
 
