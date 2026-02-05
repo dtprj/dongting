@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
  * Execute DtAdmin commands as a subprocess for integration testing.
  *
@@ -30,6 +32,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class DtAdminProcessManager {
     private static final long PROCESS_TIMEOUT_SECONDS = 60;
+    private static final String SERVERS_PROPERTIES_FILE = "dt-admin-servers.properties";
 
     public static class AdminResult {
         public int exitCode;
@@ -48,19 +51,25 @@ public class DtAdminProcessManager {
     }
 
     /**
-     * Execute a DtAdmin command.
+     * Execute a DtAdmin command and verify success.
      *
-     * @param serversPropertiesFilePath path to servers.properties file
+     * @param tempDir temp directory containing servers.properties and logs
      * @param subCommand the admin subcommand to execute
      * @param args additional command line arguments
      * @return the execution result
+     * @throws AssertionError if command fails
      */
-    private static AdminResult executeCommand(String serversPropertiesFilePath, String subCommand, String... args)
+    public static AdminResult executeAndVerify(File tempDir, String subCommand, String... args)
             throws IOException, InterruptedException {
         File distDir = ItUtil.findDistDir();
         File libDir = new File(distDir, "lib");
         File confDir = new File(distDir, "conf");
         File logbackFile = new File(confDir, "logback-admin.xml");
+        File serversPropertiesFile = new File(tempDir, SERVERS_PROPERTIES_FILE);
+        File logDir = new File(tempDir, "logs");
+        if (!logDir.exists()) {
+            assertTrue(logDir.mkdirs());
+        }
 
         // Build command - similar to dongting-admin.sh
         List<String> command = new ArrayList<>();
@@ -71,6 +80,7 @@ public class DtAdminProcessManager {
         command.add("-XX:MaxDirectMemorySize=128M");
 
         command.add("-Dlogback.configurationFile=" + logbackFile.getAbsolutePath());
+        command.add("-DLOG_DIR=" + logDir.getAbsolutePath());
 
         command.add("--module-path");
         command.add(libDir.getAbsolutePath());
@@ -82,7 +92,7 @@ public class DtAdminProcessManager {
 
         // Add -s option for servers.properties
         command.add("-s");
-        command.add(serversPropertiesFilePath);
+        command.add(serversPropertiesFile.getAbsolutePath());
 
         // Add subcommand
         command.add(subCommand);
@@ -109,22 +119,6 @@ public class DtAdminProcessManager {
 
         // Wait for output readers to finish
         outputReader.await(1000);
-
-        return result;
-    }
-
-    /**
-     * Execute a DtAdmin command and verify success.
-     *
-     * @param serversPropertiesFilePath path to servers.properties file
-     * @param subCommand the admin subcommand to execute
-     * @param args additional command line arguments
-     * @return the execution result
-     * @throws AssertionError if command fails
-     */
-    public static AdminResult executeAndVerify(String serversPropertiesFilePath, String subCommand, String... args)
-            throws IOException, InterruptedException {
-        AdminResult result = executeCommand(serversPropertiesFilePath, subCommand, args);
 
         if (!result.isSuccess()) {
             StringBuilder sb = new StringBuilder();

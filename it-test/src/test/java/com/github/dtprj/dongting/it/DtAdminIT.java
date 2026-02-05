@@ -78,11 +78,11 @@ public class DtAdminIT {
 
     private static BootstrapProcessManager processManager;
     private static ClusterValidator validator;
-    private static String serversPropertiesPath;
+    private static File tempDir;
 
     @BeforeAll
     static void setupCluster() throws Exception {
-        File tempDir = TestDir.createTestDir(DtAdminIT.class.getSimpleName());
+        tempDir = TestDir.createTestDir(DtAdminIT.class.getSimpleName());
         Path tempDirPath = tempDir.toPath();
 
         log.info("=== Setting up DtAdminIT test cluster ===");
@@ -110,7 +110,6 @@ public class DtAdminIT {
         props.setProperty(Bootstrap.GROUP_PREFIX + GROUP_ID + ".nodeIdOfMembers", MEMBER_IDS_STR);
         props.setProperty(Bootstrap.GROUP_PREFIX + GROUP_ID + ".nodeIdOfObservers", OBSERVER_IDS_STR);
         ConfigFileGenerator.writeConfigFile(props, dtAdminServersFile);
-        serversPropertiesPath = dtAdminServersFile.getAbsolutePath();
 
         validator = new ClusterValidator();
         validator.initialize(ALL_NODE_IDS, GROUP_ID);
@@ -160,7 +159,7 @@ public class DtAdminIT {
         log.info("Using node {} for queries", queryNodeId);
 
         AdminResult result = DtAdminProcessManager.executeAndVerify(
-                serversPropertiesPath, "list-nodes", "--node-id", String.valueOf(queryNodeId));
+                tempDir, "list-nodes", "--node-id", String.valueOf(queryNodeId));
 
         // Check if original nodes are visible
         long visibleNodes = result.stdoutLines.stream()
@@ -170,7 +169,7 @@ public class DtAdminIT {
         assertEquals(4, visibleNodes, "Should have 4 nodes visible, found: " + visibleNodes);
 
         result = DtAdminProcessManager.executeAndVerify(
-                serversPropertiesPath, "query-status", "--node-id",
+                tempDir, "query-status", "--node-id",
                 String.valueOf(queryNodeId), "--group-id", String.valueOf(GROUP_ID));
         assertEquals(0, result.exitCode);
         assertTrue(result.stdoutLines.stream().anyMatch(line -> line.contains("Group Ready")));
@@ -186,7 +185,7 @@ public class DtAdminIT {
         log.info("Transferring leader from {} to {}", originalLeaderId, newLeaderId);
 
         AdminResult result = DtAdminProcessManager.executeAndVerify(
-                serversPropertiesPath, "transfer-leader",
+                tempDir, "transfer-leader",
                 "--group-id", String.valueOf(GROUP_ID),
                 "--old-leader", String.valueOf(originalLeaderId),
                 "--new-leader", String.valueOf(newLeaderId));
@@ -230,7 +229,7 @@ public class DtAdminIT {
         String newMembersStr = Arrays.stream(newMembers).mapToObj(String::valueOf).collect(Collectors.joining(","));
         String newObserversStr = Arrays.stream(newObservers).mapToObj(String::valueOf).collect(Collectors.joining(","));
         AdminResult prepareResult = DtAdminProcessManager.executeAndVerify(
-                serversPropertiesPath, "prepare-change",
+                tempDir, "prepare-change",
                 "--group-id", String.valueOf(groupId),
                 "--old-members", oldMembersStr,
                 "--old-observers", oldObserversStr,
@@ -246,7 +245,7 @@ public class DtAdminIT {
         log.info("Prepare index: {}", prepareIndex);
 
         AdminResult commitResult = DtAdminProcessManager.executeAndVerify(
-                serversPropertiesPath, "commit-change",
+                tempDir, "commit-change",
                 "--group-id", String.valueOf(GROUP_ID),
                 "--prepare-index", String.valueOf(prepareIndex));
 
@@ -261,7 +260,7 @@ public class DtAdminIT {
         log.info("=== Running testAbortChange ===");
 
         AdminResult prepareResult = DtAdminProcessManager.executeAndVerify(
-                serversPropertiesPath, "prepare-change",
+                tempDir, "prepare-change",
                 "--group-id", String.valueOf(GROUP_ID),
                 "--old-members", "1,2,3",
                 "--old-observers", "4",
@@ -270,7 +269,7 @@ public class DtAdminIT {
         assertEquals(0, prepareResult.exitCode);
 
         AdminResult abortResult = DtAdminProcessManager.executeAndVerify(
-                serversPropertiesPath, "abort-change", "--group-id", "0");
+                tempDir, "abort-change", "--group-id", "0");
 
         assertEquals(0, abortResult.exitCode);
         assertTrue(abortResult.stdoutLines.stream().anyMatch(line -> line.contains("Abort index:")));
@@ -295,7 +294,7 @@ public class DtAdminIT {
         String membersStr = "1,2";
         for (int i : newGroupNodes) {
             AdminResult result = DtAdminProcessManager.executeAndVerify(
-                    serversPropertiesPath, "add-group",
+                    tempDir, "add-group",
                     "--node-id", String.valueOf(i),
                     "--group-id", String.valueOf(NEW_GROUP_ID),
                     "--members", membersStr);
@@ -310,7 +309,7 @@ public class DtAdminIT {
 
         for (int i : newGroupNodes) {
             AdminResult result = DtAdminProcessManager.executeAndVerify(
-                    serversPropertiesPath, "remove-group",
+                    tempDir, "remove-group",
                     "--node-id", String.valueOf(i),
                     "--group-id", String.valueOf(NEW_GROUP_ID));
             assertEquals(0, result.exitCode);
@@ -358,7 +357,7 @@ public class DtAdminIT {
             for (int rid : nodeIdToRemove) {
                 log.info("Removing node {} on {}", rid, nodeId);
                 AdminResult result = DtAdminProcessManager.executeAndVerify(
-                        serversPropertiesPath, "remove-node",
+                        tempDir, "remove-node",
                         "--node-id", String.valueOf(nodeId),
                         "--remove-node-id", String.valueOf(rid));
                 assertEquals(0, result.exitCode);
@@ -379,7 +378,7 @@ public class DtAdminIT {
             for (int rid : nodeIdToRemove) {
                 log.info("Adding node {} on {}", rid, nodeId);
                 AdminResult result = DtAdminProcessManager.executeAndVerify(
-                        serversPropertiesPath, "add-node",
+                        tempDir, "add-node",
                         "--node-id", String.valueOf(nodeId),
                         "--add-node-id", String.valueOf(rid),
                         "--group-id", String.valueOf(GROUP_ID),
