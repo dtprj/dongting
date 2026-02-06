@@ -78,8 +78,6 @@ public class ReplicateManager {
     private CommitManager commitManager;
     private StatusManager statusManager;
 
-    final IntObjMap<Fiber> replicateFibers = new IntObjMap<>();
-
     public ReplicateManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
@@ -101,6 +99,7 @@ public class ReplicateManager {
             return;
         }
         List<RaftMember> list = raftStatus.replicateList;
+        IntObjMap<Pair<RaftMember, Fiber>> replicateFibers = raftStatus.replicateTasks;
         for (int size = list.size(), i = 0; i < size; i++) {
             RaftMember m = list.get(i);
             if (m.node.self) {
@@ -109,8 +108,8 @@ public class ReplicateManager {
             if (!m.ready) {
                 continue;
             }
-            Fiber currentFiber = replicateFibers.get(m.node.nodeId);
-            if (currentFiber == null || currentFiber.isFinished()) {
+            Pair<RaftMember, Fiber> currentTask = replicateFibers.get(m.node.nodeId);
+            if (currentTask == null || currentTask.getRight().isFinished()) {
                 Fiber f;
                 if (m.installSnapshot) {
                     LeaderInstallFrame ff = new LeaderInstallFrame(this, m);
@@ -122,7 +121,7 @@ public class ReplicateManager {
                             groupConfig.fiberGroup, ff, true);
                 }
                 f.start();
-                replicateFibers.put(m.node.nodeId, f);
+                replicateFibers.put(m.node.nodeId, new Pair<>(m, f));
             }
         }
     }
@@ -529,7 +528,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 body.suggestTerm, body.suggestIndex);
         Fiber f = new Fiber("find-match-pos-" + member.node.nodeId
                 + "-" + member.replicateEpoch, groupConfig.fiberGroup, ff, true);
-        replicateManager.replicateFibers.put(member.node.nodeId, f);
+        raftStatus.replicateTasks.put(member.node.nodeId, new Pair<>(member, f));
         f.start();
     }
 

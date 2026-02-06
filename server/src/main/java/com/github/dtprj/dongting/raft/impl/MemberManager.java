@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -668,9 +669,9 @@ public class MemberManager {
                 List<RaftMember> newRepList = raftStatus.replicateList;
                 for (RaftMember m : oldRepList) {
                     if (!newRepList.contains(m)) {
-                        Fiber repFiber = replicateManager.replicateFibers.get(m.node.nodeId);
-                        if (repFiber != null && !repFiber.isFinished()) {
-                            RemoveLegacyFrame ff = new RemoveLegacyFrame(m, raftIndex, repFiber);
+                        Pair<RaftMember, Fiber> repTask = raftStatus.replicateTasks.get(m.node.nodeId);
+                        if (repTask != null && !repTask.getRight().isFinished()) {
+                            RemoveLegacyFrame ff = new RemoveLegacyFrame(raftIndex, repTask);
                             Fiber f = new Fiber("remove-legacy-" + m.node.nodeId,
                                     groupConfig.fiberGroup, ff, true);
                             f.start();
@@ -693,10 +694,10 @@ public class MemberManager {
         private final Fiber repFiber;
         private final long startNanos;
 
-        private RemoveLegacyFrame(RaftMember m, long raftIndex, Fiber repFiber) {
-            this.m = m;
+        private RemoveLegacyFrame(long raftIndex, Pair<RaftMember, Fiber> repTask) {
+            this.m = repTask.getLeft();
             this.raftIndex = raftIndex;
-            this.repFiber = repFiber;
+            this.repFiber = repTask.getRight();
             this.startNanos = raftStatus.ts.nanoTime;
         }
 
@@ -705,20 +706,31 @@ public class MemberManager {
             // delay stop replicate to ensure the commit config change log is replicate to the legacy member.
             // otherwise the legacy member may start pre-vote and generate WARN logs in other members.
             // however this is not necessary.
-            boolean timeout = raftStatus.ts.nanoTime - startNanos > 5000L * 1000 * 1000;
-            if ((m.matchIndex >= raftIndex && m.repCommitIndexAcked >= raftIndex) || timeout) {
-                return afterSleep();
+            if (m.matchIndex >= raftIndex && m.repCommitIndexAcked >= raftIndex) {
+                return tryStopRepFiber("finished");
+            } else if (raftStatus.ts.nanoTime - startNanos > 5000L * 1000 * 1000) {
+                return tryStopRepFiber("timeout");
             }
             return m.repDoneCondition.await(50, this);
         }
 
-        private FrameCallResult afterSleep() {
+        private FrameCallResult tryStopRepFiber(String status) {
             m.replicateEpoch++;
+            log.info("legacy task {}, wait it stop. node={}", status, m.node.nodeId);
             return repFiber.join(this::afterJoin);
         }
 
         private FrameCallResult afterJoin(Void v) {
-            replicateManager.replicateFibers.remove(m.node.nodeId);
+            int n = m.node.nodeId;
+            Pair<RaftMember, Fiber> existTask = raftStatus.replicateTasks.get(n);
+            if (existTask == null) {
+                log.error("legacy task not exists. node={} ", n);
+            } else if (existTask.getLeft() == m) {
+                log.info("legacy task removed, node={} ", n);
+                raftStatus.replicateTasks.remove(n);
+            } else {
+                log.error("legacy task not match. node={}", n);
+            }
             return Fiber.frameReturn();
         }
     }

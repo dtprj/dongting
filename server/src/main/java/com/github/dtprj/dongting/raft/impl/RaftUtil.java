@@ -147,20 +147,32 @@ public final class RaftUtil {
 
         clearTransferLeaderCondition(raftStatus);
 
+        HashSet<RaftMember> processed = new HashSet<>();
         for (RaftMember member : raftStatus.replicateList) {
-            member.matchIndex = 0;
-            member.nextIndex = 0;
-            member.repCommitIndex = 0;
-            member.repCommitIndexAcked = 0;
-            if (cleanLastConfirmReqNanos) {
-                member.lastConfirmReqNanos = raftStatus.ts.nanoTime - Duration.ofDays(1).toNanos();
-            }
-
-            member.installSnapshot = false;
-            member.replicateEpoch++;
-            // wake up replicate fiber if it is waiting on this condition
-            member.repDoneCondition.signalAll();
+            resetMember(raftStatus, cleanLastConfirmReqNanos, member);
+            processed.add(member);
         }
+        raftStatus.replicateTasks.forEach((k, v) -> {
+            if (!processed.contains(v.getLeft())) {
+                resetMember(raftStatus, cleanLastConfirmReqNanos, v.getLeft());
+                processed.add(v.getLeft());
+            }
+        });
+    }
+
+    private static void resetMember(RaftStatusImpl raftStatus, boolean cleanLastConfirmReqNanos, RaftMember member) {
+        member.matchIndex = 0;
+        member.nextIndex = 0;
+        member.repCommitIndex = 0;
+        member.repCommitIndexAcked = 0;
+        if (cleanLastConfirmReqNanos) {
+            member.lastConfirmReqNanos = raftStatus.ts.nanoTime - Duration.ofDays(1).toNanos();
+        }
+
+        member.installSnapshot = false;
+        member.replicateEpoch++;
+        // wake up replicate fiber if it is waiting on this condition
+        member.repDoneCondition.signalAll();
     }
 
     public static void clearTransferLeaderCondition(RaftStatusImpl raftStatus) {

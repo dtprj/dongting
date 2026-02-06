@@ -16,7 +16,10 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.common.IntObjMap;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.net.NioServer;
@@ -56,6 +59,7 @@ public final class RaftStatusImpl extends RaftStatus {
     public volatile MembersInfo membersInfo;
 
     public List<RaftMember> replicateList;
+    public final IntObjMap<Pair<RaftMember, Fiber>> replicateTasks = new IntObjMap<>();
 
     public TailCache tailCache;
     public FiberCondition needRepCondition;
