@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
@@ -72,30 +73,35 @@ class KvSnapshot extends Snapshot {
         FiberFuture<Integer> f = fiberGroup.newFuture("readNext");
         // no read lock, since we run in dtKvExecutor or raft thread.
         dtkvExecutor.submitTaskInFiberThread(f, () -> {
-            if (cancel.get()) {
-                f.fireCompleteExceptionally(new RaftException("canceled"));
-                return;
-            }
-
-            int startPos = buffer.position();
-            while (true) {
-                if (currentKvNode == null) {
-                    loadNextNode();
-                }
-                if (currentKvNode == null) {
-                    // no more data
-                    f.fireComplete(buffer.position() - startPos);
+            try {
+                if (cancel.get()) {
+                    f.fireCompleteExceptionally(new RaftException("canceled"));
                     return;
                 }
 
-                if (encodeStatus.writeToBuffer(buffer)) {
-                    encodeStatus.reset();
-                    currentKvNode = null;
-                } else {
-                    // buffer is full
-                    f.fireComplete(buffer.position() - startPos);
-                    return;
+                int startPos = buffer.position();
+                while (true) {
+                    if (currentKvNode == null) {
+                        loadNextNode();
+                    }
+                    if (currentKvNode == null) {
+                        // no more data
+                        f.fireComplete(buffer.position() - startPos);
+                        return;
+                    }
+
+                    if (encodeStatus.writeToBuffer(buffer)) {
+                        encodeStatus.reset();
+                        currentKvNode = null;
+                    } else {
+                        // buffer is full
+                        f.fireComplete(buffer.position() - startPos);
+                        return;
+                    }
                 }
+            } catch (Throwable e) {
+                BugLog.log(e);
+                f.fireCompleteExceptionally(e);
             }
         });
 
