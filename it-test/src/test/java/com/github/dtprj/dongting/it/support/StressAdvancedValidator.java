@@ -498,24 +498,36 @@ public class StressAdvancedValidator implements Runnable {
         private int nextSubType() {
             int x = RANDOM.nextInt(100);
             if (depth >= MAX_DEPTH - 1) {
-                if (x < 50) {
+                if (tempDirOrUnderTempDir) {
                     return TYPE_VALUE;
-                } else if (x < 75) {
-                    return TYPE_TEMP_VALUE;
                 } else {
-                    return tempDirOrUnderTempDir ? TYPE_VALUE : TYPE_LOCK;
+                    if (x < 50) {
+                        return TYPE_VALUE;
+                    } else if (x < 75) {
+                        return TYPE_TEMP_VALUE;
+                    } else {
+                        return TYPE_LOCK;
+                    }
                 }
             } else {
-                if (x < 60) {
-                    return TYPE_DIR;
-                } else if (x < 70) {
-                    return TYPE_TEMP_DIR;
-                } else if (x < 80) {
-                    return TYPE_VALUE;
-                } else if (x < 90) {
-                    return TYPE_TEMP_VALUE;
+                if (tempDirOrUnderTempDir) {
+                    if (x < 80) {
+                        return TYPE_DIR;
+                    } else {
+                        return TYPE_VALUE;
+                    }
                 } else {
-                    return tempDirOrUnderTempDir ? TYPE_VALUE : TYPE_LOCK;
+                    if (x < 60) {
+                        return TYPE_DIR;
+                    } else if (x < 70) {
+                        return TYPE_TEMP_DIR;
+                    } else if (x < 80) {
+                        return TYPE_VALUE;
+                    } else if (x < 90) {
+                        return TYPE_TEMP_VALUE;
+                    } else {
+                        return TYPE_LOCK;
+                    }
                 }
             }
         }

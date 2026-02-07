@@ -172,6 +172,8 @@ class KvImpl {
         }
         switch (ctx.bizType) {
             case DtKV.BIZ_TYPE_TRY_LOCK:
+            case DtKV.BIZ_TYPE_PUT_TEMP_NODE:
+            case DtKV.BIZ_MK_TEMP_DIR:
                 while (parent != null) {
                     if ((parent.latest.flag & KvNode.FLAG_TEMP_MASK) != 0) {
                         return new KvResult(KvCodes.UNDER_TEMP_DIR);
@@ -183,8 +185,6 @@ class KvImpl {
             case DtKV.BIZ_TYPE_MKDIR:
             case DtKV.BIZ_TYPE_BATCH_PUT:
             case DtKV.BIZ_TYPE_CAS:
-            case DtKV.BIZ_TYPE_PUT_TEMP_NODE:
-            case DtKV.BIZ_MK_TEMP_DIR:
                 return null;
             default:
                 throw new IllegalStateException(String.valueOf(ctx.bizType));
