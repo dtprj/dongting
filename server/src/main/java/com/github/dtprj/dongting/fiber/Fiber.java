@@ -156,7 +156,7 @@ public class Fiber extends WaitSource {
         if (finished) {
             return Fiber.resume(null, resumePoint);
         }
-        return Dispatcher.awaitOn(currentFiber, this, -1, resumePoint);
+        return Dispatcher.awaitOn(currentFiber, this, 0, resumePoint);
     }
 
     public FrameCallResult join(long millis, FrameCall<Boolean> resumePoint) {

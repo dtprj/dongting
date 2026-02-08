@@ -61,7 +61,7 @@ public class FiberCondition extends WaitSource {
     }
 
     public FrameCallResult await(FrameCall<Void> resumePoint) {
-        return Dispatcher.awaitOn(this, -1, resumePoint);
+        return Dispatcher.awaitOn(this, 0, resumePoint);
     }
 
     public FrameCallResult await(long millis, FrameCall<Void> resumePoint) {
@@ -73,7 +73,7 @@ public class FiberCondition extends WaitSource {
     }
 
     public FrameCallResult await(FiberCondition another, FrameCall<Void> resumePoint) {
-        return await(-1, another, resumePoint);
+        return await(0, another, resumePoint);
     }
 
     public FrameCallResult await(long millis, FiberCondition another, FrameCall<Void> resumePoint) {

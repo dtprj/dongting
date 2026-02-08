@@ -171,7 +171,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FrameCallResult await(FrameCall<T> resumePoint) {
-        return await(-1, resumePoint);
+        return await(0, resumePoint);
     }
 
     public FrameCallResult await(long millis, FrameCall<T> resumePoint) {

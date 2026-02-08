@@ -64,7 +64,7 @@ public class FiberLock extends Lock {
     public FrameCallResult lock(FrameCall<Void> resumePoint) {
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(group);
         if (shouldWait(fiber)) {
-            return Dispatcher.awaitOn(fiber, this, -1, resumePoint);
+            return Dispatcher.awaitOn(fiber, this, 0, resumePoint);
         } else {
             updateOwnerAndHeldCount(fiber);
             return Fiber.resume(null, resumePoint);

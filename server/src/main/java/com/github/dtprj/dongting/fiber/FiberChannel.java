@@ -109,14 +109,14 @@ public class FiberChannel<T> {
      * take from channel, may invoke resumePoint with null value.
      */
     public FrameCallResult take(FrameCall<T> resumePoint) {
-        return take(-1, false, resumePoint);
+        return take(0, false, resumePoint);
     }
 
     /**
      * take from channel, may invoke resumePoint with null value.
      */
     public FrameCallResult take(boolean returnOnShouldStop, FrameCall<T> resumePoint) {
-        return take(-1, returnOnShouldStop, resumePoint);
+        return take(0, returnOnShouldStop, resumePoint);
     }
 
     /**
@@ -159,14 +159,14 @@ public class FiberChannel<T> {
      * take all elements from channel into given collection, may invoke resumePoint with empty collection.
      */
     public FrameCallResult takeAll(Collection<T> c, FrameCall<Void> resumePoint) {
-        return takeAll(c, -1, false, resumePoint);
+        return takeAll(c, 0, false, resumePoint);
     }
 
     /**
      * take all elements from channel into given collection, may invoke resumePoint with empty collection.
      */
     public FrameCallResult takeAll(Collection<T> c, boolean returnOnShouldStop, FrameCall<Void> resumePoint) {
-        return takeAll(c, -1, returnOnShouldStop, resumePoint);
+        return takeAll(c, 0, returnOnShouldStop, resumePoint);
     }
 
     /**
