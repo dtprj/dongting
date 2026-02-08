@@ -50,7 +50,7 @@ public class FiberFuture<T> extends WaitSource {
     protected void prepare(Fiber currentFiber, boolean timeout) {
         if (timeout) {
             currentFiber.inputEx = new FiberTimeoutException("wait "
-                    + currentFiber.source + " timeout:" + currentFiber.scheduleTimeout + "ms");
+                    + currentFiber.source + " timeout:" + currentFiber.scheduleTimeout/1000/1000 + "ms");
             currentFiber.stackTop.resumePoint = null;
         } else {
             if (execEx != null) {
