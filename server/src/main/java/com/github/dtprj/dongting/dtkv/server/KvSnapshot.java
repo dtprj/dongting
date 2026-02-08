@@ -72,26 +72,7 @@ class KvSnapshot extends Snapshot {
                     return;
                 }
 
-                int startPos = buffer.position();
-                while (true) {
-                    if (currentKvNode == null) {
-                        loadNextNode();
-                    }
-                    if (currentKvNode == null) {
-                        // no more data
-                        f.fireComplete(buffer.position() - startPos);
-                        return;
-                    }
-
-                    if (encodeStatus.writeToBuffer(buffer)) {
-                        encodeStatus.reset();
-                        currentKvNode = null;
-                    } else {
-                        // buffer is full
-                        f.fireComplete(buffer.position() - startPos);
-                        return;
-                    }
-                }
+                f.fireComplete(readNext0(buffer));
             } catch (Throwable e) {
                 BugLog.log(e);
                 f.fireCompleteExceptionally(e);
@@ -99,6 +80,27 @@ class KvSnapshot extends Snapshot {
         });
 
         return f;
+    }
+
+    int readNext0(ByteBuffer buffer) {
+        int startPos = buffer.position();
+        while (true) {
+            if (currentKvNode == null) {
+                loadNextNode();
+            }
+            if (currentKvNode == null) {
+                // no more data
+                return buffer.position() - startPos;
+            }
+
+            if (encodeStatus.writeToBuffer(buffer)) {
+                encodeStatus.reset();
+                currentKvNode = null;
+            } else {
+                // buffer is full
+                return buffer.position() - startPos;
+            }
+        }
     }
 
     private void loadNextNode() {
