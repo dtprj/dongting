@@ -108,6 +108,7 @@ class KvSnapshot extends Snapshot {
             // should process parent dir first
             if (stack.size() > 0) {
                 h = stack.removeLast();
+                // not check null, because parent path of an existing node must exist
                 n = getNode(h);
             } else {
                 h = iterator.next();
@@ -120,9 +121,11 @@ class KvSnapshot extends Snapshot {
                 }
                 if (h.parent != null && !processedDirs.contains(h.parent.key)) {
                     while (h.parent != null && !processedDirs.contains(h.parent.key)) {
+                        // push parent node to stack
                         stack.addLast(h);
                         h = h.parent;
                     }
+                    // not check null, because parent path of an existing node must exist
                     n = getNode(h);
                 }
             }
