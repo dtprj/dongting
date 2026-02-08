@@ -57,14 +57,7 @@ class KvSnapshot extends Snapshot {
         this.lastIncludeRaftIndex = si.lastIncludedIndex;
         this.iterator = kv.map.iterator();
         this.dtkvExecutor = dtkvExecutor;
-    }
-
-    void init(FiberFuture<Snapshot> f) {
-        KvSnapshot self = this;
-        dtkvExecutor.submitTaskInFiberThread(f, () -> {
-            kv.openSnapshot(self);
-            f.fireComplete(self);
-        });
+        kv.openSnapshot(this);
     }
 
     @Override

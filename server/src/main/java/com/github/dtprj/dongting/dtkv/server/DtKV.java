@@ -312,9 +312,15 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         KvStatus currentKvStatus = kvStatus;
         int currentEpoch = currentKvStatus.epoch;
         Supplier<Boolean> cancel = () -> kvStatus.epoch != currentEpoch;
-        KvSnapshot s = new KvSnapshot(config.groupId, si, currentKvStatus.kvImpl, cancel, dtkvExecutor);
         FiberFuture<Snapshot> f = mainFiberGroup.newFuture("take-snapshot-" + config.groupId);
-        s.init(f);
+        dtkvExecutor.submitTaskInFiberThread(f, () -> {
+            try {
+                KvSnapshot s = new KvSnapshot(config.groupId, si, currentKvStatus.kvImpl, cancel, dtkvExecutor);
+                f.fireComplete(s);
+            } catch (Exception ex) {
+                f.fireCompleteExceptionally(ex);
+            }
+        });
         return f;
     }
 

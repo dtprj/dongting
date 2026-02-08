@@ -79,7 +79,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 return super.takeSnapshot(si);
             }
         };
-        m = new DefaultSnapshotManager(groupConfig, kv, idx -> {
+        m = new DefaultSnapshotManager(groupConfig, kv, ()-> kv.takeSnapshot(new SnapshotInfo(raftStatus)) , idx -> {
         });
     }
 

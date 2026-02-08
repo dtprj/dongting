@@ -67,7 +67,7 @@ import java.util.function.Supplier;
 public class ReplicateManager {
 
     final NioClient client;
-    private final GroupComponents gc;
+    final GroupComponents gc;
     final int groupId;
     private final RaftStatusImpl raftStatus;
     final RaftGroupConfigEx groupConfig;
@@ -611,7 +611,6 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     private static final DtLog log = DtLogs.getLogger(LeaderInstallFrame.class);
 
     private final RaftLog raftLog;
-    private final StateMachine stateMachine;
     private final RaftGroupConfigEx groupConfig;
     private final RaftServerConfig serverConfig;
     private final NioClient client;
@@ -624,7 +623,6 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
 
     public LeaderInstallFrame(ReplicateManager replicateManager, RaftMember member) {
         super(replicateManager, member);
-        this.stateMachine = replicateManager.stateMachine;
         this.raftLog = replicateManager.raftLog;
         this.groupConfig = replicateManager.groupConfig;
         this.serverConfig = replicateManager.serverConfig;
@@ -654,7 +652,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        FiberFuture<Snapshot> f = stateMachine.takeSnapshot(new SnapshotInfo(raftStatus));
+        FiberFuture<Snapshot> f = replicateManager.gc.applyManager.requestTakeSnapshot();
         return f.await(this::afterTakeSnapshot);
     }
 

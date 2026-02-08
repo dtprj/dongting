@@ -83,6 +83,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private final ExecutorService ioExecutor;
     private final RaftStatusImpl raftStatus;
     private final StateMachine stateMachine;
+    private final Supplier<FiberFuture<Snapshot>> snapshotCreator;
     private final Consumer<Long> logDeleter;
 
     private final SaveSnapshotLoopFrame saveLoopFrame;
@@ -107,11 +108,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private final LinkedList<FileSnapshotInfo> savedSnapshots = new LinkedList<>();
     private final LinkedList<Pair<Long, FiberFuture<Long>>> saveRequest = new LinkedList<>();
 
-    public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine, Consumer<Long> logDeleter) {
+    public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine,
+                                  Supplier<FiberFuture<Snapshot>> snapshotCreator, Consumer<Long> logDeleter) {
         this.groupConfig = groupConfig;
         this.ioExecutor = groupConfig.blockIoExecutor;
         this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.stateMachine = stateMachine;
+        this.snapshotCreator = snapshotCreator;
         this.logDeleter = logDeleter;
         this.saveLoopFrame = new SaveSnapshotLoopFrame();
     }
@@ -303,7 +306,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private final CRC32C crc32c = new CRC32C();
 
-        private final SnapshotInfo snapshotInfo = new SnapshotInfo(raftStatus);
+        private final LinkedList<Pair<Long, FiberFuture<Long>>> currentProcessSaveRequests = new LinkedList<>();
 
         private final int bufferSize = groupConfig.diskSnapshotBufferSize;
         private final long id;
@@ -324,6 +327,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private boolean cancel;
 
         public SaveFrame(long id) {
+            currentProcessSaveRequests.addAll(saveRequest);
+            saveRequest.clear();
             this.id = id;
         }
 
@@ -350,6 +355,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 if (cancel) {
                     complete(new RaftCancelException("save snapshot task is cancelled"));
                 }
+                if (!currentProcessSaveRequests.isEmpty()) {
+                    // should not happen
+                    complete(new RaftException("save snapshot task failed"));
+                }
                 if (newDataFile != null) {
                     deleteInIoExecutor(newDataFile.getFile());
                 }
@@ -368,12 +377,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 return Fiber.frameReturn();
             }
             this.directBufferFactory = new RefBufferFactory(getFiberGroup().dispatcher.thread.directPool, 0);
-            FiberFuture<Snapshot> f =stateMachine.takeSnapshot(snapshotInfo);
+            FiberFuture<Snapshot> f = snapshotCreator.get();
             return f.await(this::afterTakeSnapshot);
         }
 
         private FrameCallResult afterTakeSnapshot(Snapshot snapshot) throws Exception {
             this.readSnapshot = snapshot;
+            SnapshotInfo snapshotInfo = snapshot.getSnapshotInfo();
             log.info("begin save snapshot {}. groupId={}, lastIndex={}, lastTerm={}", id,
                     groupConfig.groupId, snapshotInfo.lastIncludedIndex, snapshotInfo.lastIncludedTerm);
 
@@ -466,7 +476,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             p.put(KEY_NEXT_ID, String.valueOf(id + 1));
 
             fileSnapshot = new FileSnapshotInfo(newIdxFile, newDataFile.getFile());
-            fileSnapshot.lastIncludeIndex = snapshotInfo.lastIncludedIndex;
+            fileSnapshot.lastIncludeIndex = readSnapshot.getSnapshotInfo().lastIncludedIndex;
 
             // just for human reading
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -480,26 +490,26 @@ public class DefaultSnapshotManager implements SnapshotManager {
             success = true;
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
             savedSnapshots.addLast(fileSnapshot);
-            raftStatus.lastSavedSnapshotIndex = snapshotInfo.lastIncludedIndex;
+            raftStatus.lastSavedSnapshotIndex = readSnapshot.getSnapshotInfo().lastIncludedIndex;
 
             return Fiber.frameReturn();
         }
 
         private void complete(Throwable ex) {
-            long raftIndex = snapshotInfo.lastIncludedIndex;
-            Pair<Long, FiberFuture<Long>> req;
-            while ((req = saveRequest.peek()) != null) {
-                if (req.getLeft() <= raftIndex) {
-                    if (ex == null) {
-                        req.getRight().complete(raftIndex);
-                    } else {
-                        req.getRight().completeExceptionally(ex);
-                    }
-                    saveRequest.removeFirst();
+            for (Pair<Long, FiberFuture<Long>> req : currentProcessSaveRequests) {
+                if (ex != null) {
+                    req.getRight().completeExceptionally(ex);
                 } else {
-                    break;
+                    if (readSnapshot == null) {
+                        // should not happen
+                        req.getRight().completeExceptionally(new RaftException("readSnapshot is null"));
+                    } else {
+                        long raftIndex = readSnapshot.getSnapshotInfo().lastIncludedIndex;
+                        req.getRight().complete(raftIndex);
+                    }
                 }
             }
+            currentProcessSaveRequests.clear();
         }
     }
 
