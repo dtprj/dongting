@@ -134,7 +134,7 @@ All demos use DtKV as the Raft state machine, which is an in-memory KV database.
 
 To set up the IDE you can follow the [develop guide](docs/developer.md).
 
-The [cluster](demos/src/main/java/com/github/dtprj/dongting/demos/cluster) directory contains an example of
+The [cluster](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/cluster) directory contains an example of
 running a 3-node raft cluster.
 Run ```DemoServer1```, ```DemoServer2```, and ```DemoServer3``` separately, the raft cluster will typically 
 be ready within one second.
@@ -144,20 +144,20 @@ You can shut down one server at any time, and ```PeriodPutClient``` will remain 
 Additionally, execute ```ChangeLeader``` to switch the Raft leader to a specified node.
 The running ```PeriodPutClient``` will not be affected in any way.
 
-The [standalone](demos/src/main/java/com/github/dtprj/dongting/demos/standalone) directory contains an example
+The [standalone](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/standalone) directory contains an example
 of running a single-node raft group.
 
-The [embedded](demos/src/main/java/com/github/dtprj/dongting/demos/embedded) directory contains an example of 
+The [embedded](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/embedded) directory contains an example of 
 embedding 3 servers and 1 client into single process.
 
-The [configchange](demos/src/main/java/com/github/dtprj/dongting/demos/configchange) directory contains examples 
+The [configchange](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/configchange) directory contains examples 
 of dynamically changing Raft members at runtime.
 First, run ```ConfigChangeDemoServer1```, ```ConfigChangeDemoServer2```, ```ConfigChangeDemoServer3```, 
 and ```ConfigChangeDemoServer4```. By default, a Raft group with node 1, 2, and 3 will be started.
 Executing ```ChangeTo234Client``` will change the Raft members to node 2, 3, and 4.
 Executing ```ChangeTo123Client``` will revert the Raft members back to node 1, 2, and 3.
 
-The [multiraft](demos/src/main/java/com/github/dtprj/dongting/demos/multiraft) directory contains examples of
+The [multiraft](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/multiraft) directory contains examples of
 running multi-raft, which is typically used for sharding or dynamic sharding.
 Run ```MultiRaftDemoServer1```, ```MultiRaftDemoServer2```, and ```MultiRaftDemoServer3``` to start two (static) 
 raft groups by default, with IDs 101 and 102.
@@ -167,14 +167,14 @@ Run ```AddGroup103Demo``` to add raft group 103 at runtime, after which ```Perio
 three successful operations per second.
 Executing ```RemoveGroup103Demo``` will remove raft group 103.
 
-The [watch](demos/src/main/java/com/github/dtprj/dongting/demos/watch) directory an example of
+The [watch](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/watch) directory an example of
 using a client to monitor changes to a specified key, while also demonstrating how to monitor 
 a directory, where the client receives notifications for any changes to its child nodes.
 
-The [ttl](demos/src/main/java/com/github/dtprj/dongting/demos/ttl) directory contains an example of using a client to 
+The [ttl](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/ttl) directory contains an example of using a client to 
 set a key with a TTL, after the TTL expires, the key will be deleted automatically.
 
-The [lock](demos/src/main/java/com/github/dtprj/dongting/demos/lock) directory contains examples of using distributed 
+The [lock](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/lock) directory contains examples of using distributed 
 locks. Distributed locks can be manually operated with tryLock/unlock, or can be fully automated with 
 tryLock/updateLease (which can be used for leader election in business code).
 
