@@ -48,6 +48,7 @@ mvn clean package -DskipUTs
 ./start-dongting.sh
 ```
 服务器将启动并监听 9331 端口（用于server内部通信，如raft复制）和 9332 端口（服务端口）。
+默认会启动一个`DtKV`实例，groupId为0。
 
 ## 运行基准测试
 
@@ -131,7 +132,7 @@ kvClient.start();
 // 在运行时添加node定义，每个node有一个唯一的正整数id 和一个 host:servicePort 地址
 kvClient.getRaftClient().clientAddNode("1,127.0.0.1:9332");
 // kvClient.getRaftClient().clientAddNode("1,192.168.0.1:9332;2,192.168.0.2:9332;3,192.168.0.3:9332");
-// 在运行时添加group定义，这里添加一个 id 为 0 的组，包含 id 为 1、2、3 的 3 个节点
+// 在运行时添加group定义，这里添加一个 groupId 为 0 的组，包含 id 为 1、2、3 的 3 个节点
 kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1,2,3});
 ```
 
@@ -154,6 +155,10 @@ kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) ->
 
 有关 `KvClient` 类的详细用法，请参阅 Javadocs。
 
+## server配置
+
+TODO
+
 ## 运行管理工具
 
 bin目录下的 dongting-admin 脚本是一个服务器管理工具，可用于：
@@ -166,13 +171,18 @@ bin目录下的 dongting-admin 脚本是一个服务器管理工具，可用于�
 
 运行时不带参数可查看使用方法。
 
-## 高级用法（通过代码构建 raft 服务器）
+可以通过`AdminRaftClient`类执行所有的管理功能，记得连接到复制端口。
+
+# 进阶
+
+## 将项目导入IDE
+
+将项目导入后，要设置 IDE，可以参考 [开发指南](docs/developer_CN.md)。
+
+## 通过代码构建 raft 服务器
 
 所有示例都在 `demos` 目录中。它们不需要配置，直接执行 `main` 方法即可运行。
 建议在 IDE 中运行，以便更方便地设置断点和观察。
-所有演示都使用 DtKV 作为 Raft 状态机，它是一个内存中的 KV 数据库。
-
-要设置 IDE，可以参考 [开发指南](docs/developer_CN.md)。
 
 [cluster](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/cluster) 目录包含一个运行 3 节点 raft 集群的示例。
 分别运行 `DemoServer1`、`DemoServer2` 和 `DemoServer3`，raft 集群通常会在一秒内就绪。

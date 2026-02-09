@@ -58,6 +58,7 @@ In the bin directory, run the following command to start the server:
 ```
 The server will start and listen on port 9331(servers internal communication, e.g., raft replication)
 and 9332(service port).
+By default, a DtKV instance with groupId 0 will be started.
 
 ## run benchmark
 
@@ -142,7 +143,7 @@ kvClient.start();
 // add node definition at runtime, each node has a unique positive integer id and a host:servicePort address
 kvClient.getRaftClient().clientAddNode("1,127.0.0.1:9332");
 // kvClient.getRaftClient().clientAddNode("1,192.168.0.1:9332;2,192.168.0.2:9332;3,192.168.0.3:9332");
-// add group definition at runtime, here we add a group with id 0 and 3 nodes with ids 1, 2, and 3
+// add group definition at runtime, here we add a group with groupId 0 and 3 nodes with ids 1, 2, and 3
 kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1,2,3});
 ```
 
@@ -168,6 +169,11 @@ kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) ->
 
 For detailed usage of the `KvClient` class, please refer to the Javadocs.
 
+## server configuration
+
+TODO
+
+
 ## run admin tools
 
 The dongting-admin script in bin directory is a tool for managing servers such as:
@@ -180,14 +186,21 @@ The dongting-admin script in bin directory is a tool for managing servers such a
 
 Run it without parameters to see the usage.
 
-## Advanced usage (build raft server through code)
+You can use the `AdminRaftClient` class to perform all management functions. Remember to connect to the replicate port.
 
-All the examples are in the `demos` directory. 
-They require no configuration and can be run directly by executing the `main` method.
-It is recommended to run them in an IDE for easier breakpoint setting and observation.
-All demos use DtKV as the Raft state machine, which is an in-memory KV database.
+
+# Advanced
+
+## Import project to IDE
 
 To set up the IDE you can follow the [develop guide](docs/developer.md).
+
+## Build raft server through code
+
+All the examples are in the `demos` directory.
+They require no configuration and can be run directly by executing the `main` method.
+It is recommended to run them in an IDE for easier breakpoint setting and observation.
+
 
 The [cluster](demos/src/main/java/com/github/dtprj/dongting/demos/advanced/cluster) directory contains an example of
 running a 3-node raft cluster.
