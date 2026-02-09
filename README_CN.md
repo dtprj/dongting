@@ -50,6 +50,11 @@ mvn clean package -DskipUTs
 服务器将启动并监听 9331 端口（用于server内部通信，如raft复制）和 9332 端口（服务端口）。
 默认会启动一个`DtKV`实例，groupId为0。
 
+运行下面的命令可以（根据data目录下的pid文件找到进程）停止服务器：
+```sh
+./stop-dongting.sh
+```
+
 ## 运行基准测试
 
 运行以下命令启动基准测试客户端：
@@ -157,13 +162,86 @@ kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) ->
 
 ## server配置
 
-TODO
+服务器配置主要包含两个配置文件：`config.properties` 和 `servers.properties`。
+
+### config.properties
+
+此文件配置 Raft 服务器的基本参数：
+
+- **nodeId**：每个服务器必须有一个唯一的正整数 node ID，注意是从1开始，如果只有一个node通常就设置为1
+- **replicatePort**：用于服务器内部通信的端口，例如 Raft 复制（默认值：9331）
+- **servicePort**：用于客户端-服务器通信的端口（默认值：9332）
+- **electTimeout**：Raft 选举超时时间，单位毫秒（默认值：15000）
+- **heartbeatInterval**：Raft 心跳间隔时间，单位毫秒（默认值：2000）
+- **blockIoThreads**：处理阻塞 IO 的线程数（如果没有设置，默认值运行时根据CPU核心数计算生成）
+
+### Raft group公共配置（可选）
+
+以下配置在 `config.properties` 中，影响 Raft group 的行为：
+
+- **dataDir**：数据目录（默认值指向dongting-dist目录下的data目录）
+- **syncForce**：如果为 true，任何操作都会在响应 leader 和计算法定人数之前持久化（fsync）到磁盘。此选项对性能有显著影响（默认值：true）
+- **saveSnapshotSeconds**：保存快照的间隔秒数（默认值：3600）
+- **maxKeepSnapshots**：最多保留的快照数量（默认值：2）
+- **saveSnapshotWhenClose**：关闭时（通常是服务器关闭时）是否保存快照（默认值：true）
+- **deleteLogsAfterTakeSnapshot**：创建快照后是否删除不再需要的raft日志文件（默认值：true）
+
+### servers.properties
+
+此文件配置集群拓扑和 Raft group：
+
+- **servers**：node 列表，格式为 `nodeId,ip:replicatePort`。多个 node 用分号分隔。示例：
+  ```properties
+  # 单节点示例
+  servers = 1,127.0.0.1:9331
+
+  # 多节点示例
+  servers = 1,192.168.0.1:9331;2,192.168.0.2:9331;3,192.168.0.3:9331
+
+  # 本地多节点示例（使用不同端口隔离）
+  servers = 1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003
+  ```
+
+- **Raft group member 配置**：格式为 `group.<groupId>.nodeIdOfMembers = nodeId1,nodeId2,...`。node ID 必须在 `servers` 属性中定义。
+  ```properties
+  group.0.nodeIdOfMembers = 1,2,3
+  ```
+
+- **Raft group observer 配置**：格式为 `group.<groupId>.nodeIdOfObservers = nodeId1,nodeId2,...`。observer 不会参与 leader 选举。
+  ```properties
+  group.0.nodeIdOfObservers = 4
+  ```
+
+observer会接收leader的数据复制，但是不会参与raft投票。
+
+### client.properties
+
+client.properties文件被benchmark使用，注意里面配置是的servers参数连接**服务端口**。
+
+# 集群运维
+
+## 配置一个多节点集群
+
+默认情况下，直接运行start-dongting脚本会启动一个单节点集群监听本机9331端口和9332端口。
+如果需要启动多节点集群，以3节点为例，需要做以下工作：
+
+1. 准备3份dongting-dist目录，如果是自己做测试，在同一个机器上也可以，但要修改端口。
+2. 修改每个config.properties文件中的nodeId。nodeId从1开始，不同node必须不一样。**注意服务器一旦启动，nodeId就不能再修改了（除非清空data目录系的数据）**。
+3. （可选）同一个机器上做测试的话，要修改每个config.properties文件中的端口。
+4. 修改servers.properties文件中的servers参数，3节点的话可能是`1,192.168.0.1:9331;2,192.168.0.2:9331;3,192.168.0.3:9331`或者`1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003`，根据你的ip和端口配置而定
+5. 修改servers.properties文件中的`group.0.nodeIdOfMembers`参数，3节点的话可能是`1,2,3`
+
+以上2、3每个node配置不一样，而4、5每个节点配置是一样的。
+
+如果要做benchmark，还要修改client.properties文件中的servers参数，连接**服务端口**（默认9332）。
+
+配置好以后就可以分别启动了，可以随意杀掉一个进程，看看集群的表现。
 
 ## 运行管理工具
 
 bin目录下的 dongting-admin 脚本是一个服务器管理工具，可用于：
 
-* 更改raft组成员
+* 更改raft group member/observer
 * 转移leader
 * 添加/删除组（multi-raft）
 * 添加/删除集群节点

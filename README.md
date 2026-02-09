@@ -60,6 +60,11 @@ The server will start and listen on port 9331(servers internal communication, e.
 and 9332(service port).
 By default, a DtKV instance with groupId 0 will be started.
 
+Run the following command to stop the server:
+```sh
+./stop-dongting.sh
+```
+
 ## run benchmark
 
 Run the following command to start the benchmark client:
@@ -171,14 +176,87 @@ For detailed usage of the `KvClient` class, please refer to the Javadocs.
 
 ## server configuration
 
-TODO
+Server configuration mainly consists of two configuration files: `config.properties` and `servers.properties`.
+
+### config.properties
+
+This file configures basic parameters of the Raft server:
+
+- **nodeId**: Each server must have a unique positive integer node ID, starting from 1. If there is only one node, it is usually set to 1.
+- **replicatePort**: Port used for server internal communication, e.g., Raft replication (default value: 9331)
+- **servicePort**: Port used for client-server communication (default value: 9332)
+- **electTimeout**: Raft election timeout in milliseconds (default value: 15000)
+- **heartbeatInterval**: Raft heartbeat interval in milliseconds (default value: 2000)
+- **blockIoThreads**: Number of threads for handling blocking IO. If not set, the default value is calculated at runtime based on CPU cores.
+
+### Raft group common configuration (optional)
+
+The following configurations in `config.properties` affect the behavior of Raft group:
+
+- **dataDir**: Data directory (default value points to the data directory under dongting-dist)
+- **syncForce**: If true, any operation will be persisted (fsync) to disk before responding to leader and computing quorum. This option has a significant impact on performance (default value: true)
+- **saveSnapshotSeconds**: Interval in seconds to save snapshots (default value: 3600)
+- **maxKeepSnapshots**: Maximum number of snapshots to keep (default value: 2)
+- **saveSnapshotWhenClose**: Whether to save snapshot when closing (usually when the server is shutting down) (default value: true)
+- **deleteLogsAfterTakeSnapshot**: Whether to delete unnecessary raft log files after creating a snapshot (default value: true)
+
+### servers.properties
+
+This file configures cluster topology and Raft group:
+
+- **servers**: List of nodes, format is `nodeId,ip:replicatePort`. Multiple nodes are separated by semicolons. Examples:
+  ```properties
+  # Single node example
+  servers = 1,127.0.0.1:9331
+
+  # Multi-node example
+  servers = 1,192.168.0.1:9331;2,192.168.0.2:9331;3,192.168.0.3:9331
+
+  # Local multi-node example (using different ports for isolation)
+  servers = 1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003
+  ```
+
+- **Raft group member configuration**: Format is `group.<groupId>.nodeIdOfMembers = nodeId1,nodeId2,...`. Node IDs must be defined in the `servers` property.
+  ```properties
+  group.0.nodeIdOfMembers = 1,2,3
+  ```
+
+- **Raft group observer configuration**: Format is `group.<groupId>.nodeIdOfObservers = nodeId1,nodeId2,...`. Observers will not participate in leader election.
+  ```properties
+  group.0.nodeIdOfObservers = 4
+  ```
+
+Observers will receive data replication from the leader but will not participate in raft voting.
+
+### client.properties
+
+The client.properties file is used by benchmark. Note that the configured servers parameter connects to the **service port**.
+
+# cluster management
+
+## Configure a multi-node cluster
+
+By default, running the start-dongting script directly will start a single-node cluster listening on local ports 9331 and 9332.
+If you need to start a multi-node cluster, taking a 3-node cluster as an example, you need to do the following work:
+
+1. Prepare 3 copies of the dongting-dist directory. For your own testing, you can also use the same machine, but you need to modify the ports.
+2. Modify the nodeId in each config.properties file. Node ID starts from 1, and different nodes must be different. **Note that once the server is started, the nodeId cannot be modified (unless you clear the data in the data directory)**.
+3. (Optional) If testing on the same machine, modify the ports in each config.properties file.
+4. Modify the servers parameter in the servers.properties file. For 3 nodes, it might be `1,192.168.0.1:9331;2,192.168.0.2:9331;3,192.168.0.3:9331` or `1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003`, depending on your IP and port configuration.
+5. Modify the `group.0.nodeIdOfMembers` parameter in the servers.properties file. For 3 nodes, it might be `1,2,3`.
+
+The above 2 and 3 are different for each node, while 4 and 5 are the same for all nodes.
+
+If you want to run a benchmark, you also need to modify the servers parameter in the client.properties file, connecting to the **service port** (default 9332).
+
+After configuration, you can start them separately. You can kill a process at will to see the cluster's performance.
 
 
 ## run admin tools
 
 The dongting-admin script in bin directory is a tool for managing servers such as:
 
-* change raft group members
+* change raft group member/observer
 * transfer leader
 * add/remove group (multi raft)
 * add/remove nodes to the cluster
