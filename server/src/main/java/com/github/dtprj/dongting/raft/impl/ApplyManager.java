@@ -594,6 +594,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             this.snapshotFuture = takeSnapshotRequests.pollFirst();
         }
 
+        @Override
         public FrameCallResult execute(Void v) {
             if (raftStatus.installSnapshot) {
                 snapshotFuture.completeExceptionally(new RaftException("install snapshot"));
@@ -602,7 +603,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             return Fiber.call(new WaitApplyFrame(raftStatus.lastApplying), this::afterSync);
         }
 
-        protected FrameCallResult afterSync(Void v) {
+        private FrameCallResult afterSync(Void v) {
             if (raftStatus.installSnapshot) {
                 snapshotFuture.completeExceptionally(new RaftException("install snapshot"));
                 return Fiber.frameReturn();
