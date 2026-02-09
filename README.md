@@ -2,24 +2,48 @@
 [![codecov](https://codecov.io/github/dtprj/dongting/branch/master/graph/badge.svg)](https://app.codecov.io/github/dtprj/dongting)
 
 # Introduce
-The Dongting project is a high-performance engine that integrates RAFT, configuration server, messaging queues,
-and low-level RPC. Features are as follows:
+The Dongting project is a high-performance engine that integrates RAFT, configuration server, messaging queues.
+Features are as follows:
 
-* (Under testing) Multi RAFT group support. Running multiple RAFT Groups within a same process. Dynamic addition, 
+* Multi RAFT group support. Running multiple RAFT groups within a same process. Dynamic addition, 
   removal, and updating of RAFT Groups, allowing your cluster to scale dynamically. 
   The state machine runs in the raft framework can be customized.
-* (Under testing) Tree-based distribute configuration server with linearizability named DtKV. Supports general
+* Tree-based distribute configuration server with linearizability named DtKV. Supports general
   K/V operations, watch, ttl, and distributed lock.
-* (Under testing) Low-level RPC. Used by Donging itself.
 * (Planned) MQ (message queues) with linearizability. Use RAFT log as message queue log.
 
-## 10X Throughput
+# 10X Throughput
 Dongting is developed using performance-oriented programming.
 
 In simple tests where both server and client run on the same machine, modern high-performance PCs using server default 
 settings can easily achieve over 1 million TPS with the benchmark program, and RT won't be too large either.
 
-Try it now!
+# Zero Dependencies and Only 1% of the Size
+The Dongting project is zero-dependency.
+
+Dongting does not rely on any third-party libraries. No third-party jar files are needed.
+Slf4j is optional, if it is not in the classpath, the project will use the jdk logger.
+
+Are you still troubled by the dependency management issues that spread like wildfire?
+Are you still being ridiculed for having a 1GB image size?
+Dongting has only two JAR packages, the client and the server, which together are less than 1MB.
+It does not have transitive dependencies either. Therefore, you can easily embed it into your application.
+
+Dongting does not place excessive demands on your JDK; it only requires Java 8 for the client and Java 11 for
+the server, that’s all.
+
+Dongting does not require the use of high-performance hardware, such as RDMA or Optane.
+It can even run well on HDD Disks and Raspberry Pis.
+
+Dongting does not rely on any third-party services such as storage services provided by Amazon or
+any other cloud service providers.
+
+Dongting does not require you to adjust Linux kernel parameters to achieve optimal performance
+(you might not even have the permission to do so).
+
+# Try it
+
+## run server
 
 First build, the artifacts are under target/dongting-dist:
 ```sh
@@ -30,6 +54,10 @@ In the bin directory, run the following command to start the server:
 ```sh
 ./start-dongting.sh
 ```
+The server will start and listen on port 9331(servers internal communication, e.g., raft replication)
+and 9332(service port).
+
+## run benchmark
 
 Run the following command to start the benchmark client:
 ```sh
@@ -85,30 +113,19 @@ Benchmark config:
 PS D:\dongting-dist\bin>
 ```
 
-## Zero Dependencies and Only 1% of the Size
-The Dongting project is zero-dependency.
+## run admin tools
 
-Dongting does not rely on any third-party libraries. No third-party jar files are needed.
-Slf4j is optional, if it is not in the classpath, the project will use the jdk logger.
+The dongting-admin script in bin directory is a tool for managing servers such as:
 
-Are you still troubled by the dependency management issues that spread like wildfire?
-Are you still being ridiculed for having a 1GB image size?
-Dongting has only two JAR packages, the client and the server, which together are less than 1MB.
-It does not have transitive dependencies either. Therefore, you can easily embed it into your application.
+* change raft group members
+* transfer leader
+* add/remove group (multi raft)
+* add/remove nodes to the cluster
+* query server status
 
-Dongting does not place excessive demands on your JDK; it only requires Java 8 for the client and Java 11 for
-the server, that’s all.
+Run it without parameters to see the usage.
 
-Dongting does not require the use of high-performance hardware, such as RDMA or Optane.
-It can even run well on HDD Disks and Raspberry Pis.
-
-Dongting does not rely on any third-party services such as storage services provided by Amazon or
-any other cloud service providers.
-
-Dongting does not require you to adjust Linux kernel parameters to achieve optimal performance
-(you might not even have the permission to do so).
-
-## Try it
+## Advanced usage (build raft server through code)
 
 All the examples are in the `demos` directory. 
 They require no configuration and can be run directly by executing the `main` method.
@@ -161,18 +178,7 @@ The [lock](demos/src/main/java/com/github/dtprj/dongting/demos/lock) directory c
 locks. Distributed locks can be manually operated with tryLock/unlock, or can be fully automated with 
 tryLock/updateLease (which can be used for leader election in business code).
 
-
-## Under development
-
-Unfortunately, the project is still under development. All current demos can run, 
-but the entire project requires further internal testing and is not production-ready.
-The latest version is v0.8.x-ALPHA, you can check out it by git tag.
-
-Additionally, the following features have not yet been implemented:
-
-* (MQ) message queues.
-
-## About me
+# About me
 
 https://weibo.com/dtprj
 
