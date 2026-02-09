@@ -16,33 +16,74 @@ and low-level RPC. Features are as follows:
 ## 10X Throughput
 Dongting is developed using performance-oriented programming.
 
-I conducted a simple performance test on a PC with the following specifications:
+In simple tests where both server and client run on the same machine, modern high-performance PCs using server default 
+settings can easily achieve over 1 million TPS with the benchmark program, and RT won't be too large either.
 
-* AMD 5600X 6-core CPU, 12 threads
-* 32GB DDR4 3600MHz RAM
-* 1TB PCI-E 3.0 SSD, which may be the performance bottleneck in my tests.
-* Windows 11
-* JDK 17 with -XX:+UseZGC -Xmx4G -Xms4G
+Try it now!
 
-The test results are as follows:
-* 1 client, 1 server or 3 servers raft group run in same machine, same process, communicate using TCP 127.0.0.1
-* a simple K/V implementation using Dongting raft framework
-* client send requests to server asynchronously, 2000 max pending requests
-* value is 128 bytes
+First build, the artifacts are under target/dongting-dist:
+```sh
+mvn clean package -DskipUTs
+```
 
-*sync write to storage*, means that only after the ```fsync``` call (FileChannel.force()) returns will the follower 
-respond to the leader, and only then will the leader proceed with the RAFT commit.
+In the bin directory, run the following command to start the server:
+```sh
+./start-dongting.sh
+```
 
-*async write to storage* means that as soon as the data is written to the OS, the follower respond to the leader 
-and leader proceed with the RAFT commit. Nevertheless, when the data write is completed, ```fsync``` will be called 
-immediately without any delay, ensuring that data loss is minimized in the event of a power failure.
+Run the following command to start the benchmark client:
+```sh
+./start-benchmark.sh -g 0
+```
 
-The test results are as follows:
+You may need to adjust parameters to achieve maximum throughput, for example:
+```sh
+./start-benchmark.sh -g 0 --max-pending 10000 --client-count 2
+```
 
-|                        | 1 server                     | 3 servers in single RAFT group |
-|------------------------|------------------------------|--------------------------------|
-| sync write to storage  | 704,900 TPS, AVG RT 2.8 ms   | 272,540 TPS, AVG RT 7.3 ms     |
-| async write to storage | 1,777,224 TPS, AVG RT 1.1 ms | 903,760 TPS, AVG RT 2.2 ms     |
+Try Java 21 virtual threads (need Java 21)
+```sh
+./benchmark.sh -g 0 --sync --thread-count 4000
+```
+
+See my results (AMD 9700X 6C12T, ZhiTai TiPro 9000 running in PCI-E 4.0 mode):
+```powershell
+PS D:\dongting-dist\bin> .\benchmark.bat -g 0
+Configuration:
+  Config file: D:\dongting-dist\conf\client.properties
+  Servers: 1,127.0.0.1:9332
+  Group ID: 0
+
+Benchmark config:
+  Java 21, async put, 10000 keys, 256 bytes value, 2000 total maxPending
+  1 clients, one thread per client
+
+Warming up for 3 seconds...
+
+[Warmup] TPS: 1,133,471, Success: 1,133,471, Fail: 0, Avg: 1,754 us, Max: 30,000 us
+[Warmup] TPS: 1,355,100, Success: 1,355,100, Fail: 0, Avg: 1,483 us, Max: 13,000 us
+[Warmup] TPS: 1,349,302, Success: 1,349,302, Fail: 0, Avg: 1,456 us, Max: 14,000 us
+Warmup complete, starting benchmark...
+
+[Now] TPS: 1,389,229, Success: 1,389,229, Fail: 0, Avg: 1,440 us, Max: 13,000 us
+[Now] TPS: 1,331,667, Success: 1,331,667, Fail: 0, Avg: 1,494 us, Max: 13,000 us
+[Now] TPS: 1,324,262, Success: 1,324,262, Fail: 0, Avg: 1,504 us, Max: 12,000 us
+[Now] TPS: 1,369,651, Success: 1,369,651, Fail: 0, Avg: 1,453 us, Max: 13,000 us
+[Now] TPS: 1,380,549, Success: 1,380,549, Fail: 0, Avg: 1,461 us, Max: 13,000 us
+[Now] TPS: 1,344,967, Success: 1,344,967, Fail: 0, Avg: 1,479 us, Max: 19,000 us
+[Now] TPS: 1,327,548, Success: 1,327,548, Fail: 0, Avg: 1,499 us, Max: 24,000 us
+[Now] TPS: 1,363,815, Success: 1,363,815, Fail: 0, Avg: 1,458 us, Max: 12,000 us
+[Now] TPS: 1,359,154, Success: 1,359,154, Fail: 0, Avg: 1,472 us, Max: 13,000 us
+[Now] TPS: 1,345,889, Success: 1,345,889, Fail: 0, Avg: 1,476 us, Max: 13,000 us
+
+Benchmark config:
+  Java 21, async put, 10000 keys, 256 bytes value, 2000 total maxPending
+  1 clients, one thread per client
+
+[Final] TPS: 1,353,905, Success: 13,539,049, Fail: 0, Avg: 1,473 us, Max: 24,000 us
+
+PS D:\dongting-dist\bin>
+```
 
 ## Zero Dependencies and Only 1% of the Size
 The Dongting project is zero-dependency.
