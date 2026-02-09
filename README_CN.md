@@ -105,6 +105,55 @@ Benchmark config:
 PS D:\dongting-dist\bin>
 ```
 
+## 客户端使用
+
+Dongting内置的DtKV支持以下功能：
+
+* get/batchGet
+* put/batchPut
+* remove/batchRemove
+* list
+* mkdir
+* compareAndSet
+* putTemp/makeTempDir（带 TTL 的节点）
+* createLock/createAutoRenewalLock
+
+`DtKV` 使用 `.` 作为 key 的分隔符。例如，您可以使用 `"dir1.key1"` 访问 `dir1` 目录下的 `key1`，value不能为空值或空串。
+
+要使用`DtKV`客户端，需要引入 `dongting-client.jar`（300+KB），无其它依赖。
+
+以下是初始化`DtKV`客户端的简单示例：
+```java
+// dongting 支持multi-raft，因此需要指定group id，默认group id是0
+int groupId = 0;
+KvClient kvClient = new KvClient();
+kvClient.start();
+// 在运行时添加node定义，每个node有一个唯一的正整数id 和一个 host:servicePort 地址
+kvClient.getRaftClient().clientAddNode("1,127.0.0.1:9332");
+// kvClient.getRaftClient().clientAddNode("1,192.168.0.1:9332;2,192.168.0.2:9332;3,192.168.0.3:9332");
+// 在运行时添加group定义，这里添加一个 id 为 0 的组，包含 id 为 1、2、3 的 3 个节点
+kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1,2,3});
+```
+
+请确保指定正确的端口。每个raft node开放两个端口：
+一个是**复制端口**，默认9331，用于 raft 节点之间的内部通信，如复制。`AdminRaftClient` 也连接到此端口。
+另一个是**服务端口**，默认9332，用于 `KvClient` 等客户端的连接。
+
+`KvClient` 提供同步和异步接口。对于单个 `KvClient`，异步操作可以获得最大吞吐量，而同步操作需要多个线程（或虚拟线程）才能达到较高吞吐量。
+需要注意的是，异步操作的回调可能在 raft 线程或 IO 线程上执行。
+因此，你不应在这些回调中执行任何阻塞或 CPU 密集型操作。 如果你不确定或缺乏高级技能，强烈建议使用同步接口。
+
+以下是使用 `KvClient` 的简单示例：
+```java
+// 同步put
+kvClient.put(groupId, "key1".getBytes(), "value1".getBytes());
+kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) -> {
+    // 执行一些既不阻塞也不消耗 CPU 的操作
+});
+```
+
+有关 `KvClient` 类的详细用法，请参阅 Javadocs。
+
 ## 运行管理工具
 
 bin目录下的 dongting-admin 脚本是一个服务器管理工具，可用于：
