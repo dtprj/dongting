@@ -512,12 +512,12 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                             raftStatus.getLastApplied(), raftStatus.lastApplying);
                     logged = true;
                 }
-                return applyFinishCond.await(this::afterPreviousApplyFinish);
+                return applyFinishCond.await(this);
             }
-            return afterPreviousApplyFinish(null);
+            return afterPreviousApplyFinish();
         }
 
-        private FrameCallResult afterPreviousApplyFinish(Void unused) {
+        private FrameCallResult afterPreviousApplyFinish() {
             waitApply = false;
             log.info("previous apply finished, targetIndex={}, lastApplied={}, lastApplying={}", targetIndex,
                     raftStatus.getLastApplied(), raftStatus.lastApplying);
