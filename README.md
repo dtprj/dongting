@@ -1,6 +1,8 @@
 [![Java CI with Maven](https://github.com/dtprj/dongting/actions/workflows/maven.yml/badge.svg)](https://github.com/dtprj/dongting/actions/workflows/maven.yml)
 [![codecov](https://codecov.io/github/dtprj/dongting/branch/master/graph/badge.svg)](https://app.codecov.io/github/dtprj/dongting)
 
+[中文](README_CN.md)
+
 # Introduce
 The Dongting project is a high-performance engine that integrates RAFT, configuration server, messaging queues.
 Features are as follows:
