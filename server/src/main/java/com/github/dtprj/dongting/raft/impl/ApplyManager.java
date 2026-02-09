@@ -406,13 +406,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
             long diff = raftStatus.commitIndex - raftStatus.lastApplying;
             if (!takeSnapshotRequests.isEmpty()) {
-                FiberFuture<Snapshot> f = takeSnapshotRequests.pollFirst();
-                if (raftStatus.installSnapshot) {
-                    f.completeExceptionally(new RaftException("install snapshot"));
-                    return Fiber.resume(null, this);
-                } else {
-                    return Fiber.call(new TakeSnapshotFrame(raftStatus.lastApplying, f), this);
-                }
+                return Fiber.call(new TakeSnapshotFrame(), this);
             } else if (diff == 0) {
                 return needApplyCond.await(this);
             }
@@ -500,11 +494,12 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
     }
 
-    private abstract class SyncFrame extends FiberFrame<Void> {
+    private class WaitApplyFrame extends FiberFrame<Void> {
 
         private final long targetIndex;
+        private boolean logged;
 
-        SyncFrame(long targetIndex) {
+        WaitApplyFrame(long targetIndex) {
             this.targetIndex = targetIndex;
         }
 
@@ -512,33 +507,40 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         public FrameCallResult execute(Void input) {
             if (raftStatus.getLastApplied() < targetIndex) {
                 waitApply = true;
+                if (!logged) {
+                    log.info("wait apply, targetIndex={}, lastApplied={}, lastApplying={}", targetIndex,
+                            raftStatus.getLastApplied(), raftStatus.lastApplying);
+                    logged = true;
+                }
                 return applyFinishCond.await(this::afterPreviousApplyFinish);
             }
             return afterPreviousApplyFinish(null);
         }
 
-        protected FrameCallResult afterPreviousApplyFinish(Void unused) {
+        private FrameCallResult afterPreviousApplyFinish(Void unused) {
             waitApply = false;
-            return doExecute();
+            log.info("previous apply finished, targetIndex={}, lastApplied={}, lastApplying={}", targetIndex,
+                    raftStatus.getLastApplied(), raftStatus.lastApplying);
+            return Fiber.frameReturn();
         }
-
-        protected abstract FrameCallResult doExecute();
-
     }
 
-    private class ConfigChangeFrame extends SyncFrame {
+    private class ConfigChangeFrame extends FiberFrame<Void> {
 
         private final RaftTask rt;
 
         private ConfigChangeFrame(RaftTask rt) {
-            super(rt.item.index - 1);
             this.rt = rt;
         }
 
         // no error handler, use ApplyFrame process ex
 
         @Override
-        protected FrameCallResult doExecute() {
+        public FrameCallResult execute(Void v) {
+            return Fiber.call(new WaitApplyFrame(rt.item.index - 1), this::afterSync);
+        }
+
+        private FrameCallResult afterSync(Void v) {
             StatusManager statusManager = gc.statusManager;
             statusManager.persistAsync();
             switch (rt.type) {
@@ -585,16 +587,26 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
     }
 
-    private class TakeSnapshotFrame extends SyncFrame {
+    private class TakeSnapshotFrame extends FiberFrame<Void> {
         private final FiberFuture<Snapshot> snapshotFuture;
 
-        TakeSnapshotFrame(long targetIndex, FiberFuture<Snapshot> snapshotFuture) {
-            super(targetIndex);
-            this.snapshotFuture = snapshotFuture;
+        TakeSnapshotFrame() {
+            this.snapshotFuture = takeSnapshotRequests.pollFirst();
         }
 
-        @Override
-        protected FrameCallResult doExecute() {
+        public FrameCallResult execute(Void v) {
+            if (raftStatus.installSnapshot) {
+                snapshotFuture.completeExceptionally(new RaftException("install snapshot"));
+                return Fiber.frameReturn();
+            }
+            return Fiber.call(new WaitApplyFrame(raftStatus.lastApplying), this::afterSync);
+        }
+
+        protected FrameCallResult afterSync(Void v) {
+            if (raftStatus.installSnapshot) {
+                snapshotFuture.completeExceptionally(new RaftException("install snapshot"));
+                return Fiber.frameReturn();
+            }
             SnapshotInfo si = new SnapshotInfo(raftStatus);
             FiberFuture<Snapshot> f = stateMachine.takeSnapshot(si);
             return f.await(this::afterTake);
