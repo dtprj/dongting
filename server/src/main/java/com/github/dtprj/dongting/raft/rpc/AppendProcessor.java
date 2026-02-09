@@ -540,12 +540,16 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
         raftStatus.copyShareStatus();
 
+        log.info("apply snapshot to state machine finished, groupId={}, index={}, term={}",
+                groupId, req.lastIncludedIndex, req.lastIncludedTerm);
+
         long nextIdx = req.lastIncludedIndex + 1;
         FiberFrame<Void> ff = gc.raftLog.finishInstall(nextIdx, req.nextWritePos);
         return Fiber.call(ff, v -> afterRaftLogFinishInstall(nextIdx));
     }
 
     private FrameCallResult afterRaftLogFinishInstall(long nextLogIndex) {
+        log.info("raft log reset to nextLogIndex={}", nextLogIndex);
         gc.raftStatus.firstValidIndex = nextLogIndex;
         StatusManager sm = gc.statusManager;
         sm.persistAsync();

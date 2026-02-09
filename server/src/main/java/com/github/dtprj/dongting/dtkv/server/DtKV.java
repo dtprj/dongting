@@ -32,6 +32,8 @@ import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NioServer;
@@ -59,6 +61,8 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class DtKV extends AbstractLifeCircle implements StateMachine {
+
+    private static final DtLog log = DtLogs.getLogger(DtKV.class);
 
     // since we not implements raft log-read, all read biz type of read operation are reserved and not used
     public static final int BIZ_TYPE_PUT = 0;
@@ -315,6 +319,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         FiberFuture<Snapshot> f = mainFiberGroup.newFuture("take-snapshot-" + config.groupId);
         dtkvExecutor.submitTaskInFiberThread(f, () -> {
             try {
+                log.info("take snapshot. lastIncludedIndex={}, lastIncludedTerm={}", si.lastIncludedIndex, si.lastIncludedTerm);
                 KvSnapshot s = new KvSnapshot(config.groupId, si, currentKvStatus.kvImpl, cancel, dtkvExecutor);
                 f.fireComplete(s);
             } catch (Exception ex) {

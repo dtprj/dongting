@@ -550,20 +550,27 @@ class KvImpl {
             KvNodeEx next = null;
             while (n != null) {
                 if (next != null && n.updateIndex > maxOpenSnapshotIndex) {
+                    // no snapshot can see n, and n is not the latest node ('next' exists), so drop n
                     next.previous = n.previous;
                 } else if (next != null && next.updateIndex <= minOpenSnapshotIndex) {
+                    // the min snapshot see 'next', so drop all nodes before 'next'
                     next.previous = null;
                     return;
                 } else if (n.removed) {
                     KvNodeEx p;
                     while ((p = n.previous) != null && (p.updateIndex > maxOpenSnapshotIndex
                             || n.updateIndex <= minOpenSnapshotIndex)) {
+                        // drop p if
+                        // 1. no snapshot can't see p, and p is not the latest node (n exists)
+                        // 2. the min snapshot see n, the p is shadowed by n
                         n.previous = p.previous;
                     }
                     if (p == null) {
                         if (next == null) {
+                            // only a removed node exists
                             tryRemoveFromMap(h);
                         } else {
+                            // n is removed, so it is useless even any snapshot can see it
                             next.previous = null;
                         }
                         return;
