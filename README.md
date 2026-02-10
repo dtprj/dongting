@@ -47,11 +47,9 @@ settings can easily achieve over 1 million TPS with the benchmark program, and R
 
 Are you still troubled by dependency management issues that spread like wildfire? Have you ever been ridiculed for a 1GB image size? You have been saved now!
 
-Dongting has no dependencies. It does not rely on any third-party libraries, no third-party jar files are needed.
-Dongting core has only two JAR packages, client and server together are less than 1MB.
-It also has no transitive dependencies, so you can easily embed it into your application.
+Dongting has no dependencies. It does not rely on any third-party jar files (only SLF4J is optional, if it is not in the classpath, the project will use JDK logging).
+Dongting core has only two JAR packages, client and server together are less than 1MB, you can easily embed it into your program, whether it is client or server.
 
-SLF4J is optional. If it is not in the classpath, the project will use JDK logging.
 Dongting does not place high demands on your JDK: client only requires Java 8, server only requires Java 11.
 
 Dongting does not require using high-performance hardware, such as RDMA or Optane, and it does not rely on any third-party services such as storage services provided by Amazon or other cloud service providers.
