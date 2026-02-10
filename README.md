@@ -26,12 +26,16 @@
 The Dongting project is a high-performance engine that integrates RAFT, configuration server, messaging queues.
 Features are as follows:
 
-* Multi RAFT group support. Running multiple RAFT groups within a same process. Dynamic addition, 
-  removal, and updating of RAFT Groups, allowing your cluster to scale dynamically. 
+* **Multi RAFT group support**: Running multiple RAFT groups within a same process. Dynamic addition,
+  removal, and updating of RAFT groups (sharding), allowing your cluster to scale dynamically.
   The state machine runs in the raft framework can be customized.
-* Tree-based distribute configuration server with linearizability named DtKV. Supports general
-  K/V operations, watch, ttl, and distributed lock.
-* (Planned) MQ (message queues) with linearizability. Use RAFT log as message queue log.
+* **Distributed configuration server DtKV**: Tree-based structure, supports linear consistency general
+  K/V operations, watch, TTL expiration, and distributed lock, similar to etcd.
+  * `DtKV` is an in-memory database, so the total data size cannot be too large, but it uses raft log as redo log, creates snapshots periodically, and will not lose a single record even in power failure.
+  * Natively supports tree-like directories, the complexity of many operations is O(1).
+  * Supports temporary directories, which will be automatically deleted as a whole after TTL expires. The deletion operation is atomic.
+  * Does not support transactions, but provides CAS and very easy-to-use distributed locks.
+* **(Planned) MQ (message queues)**: Use RAFT log as message queue log.
 
 # 10X Throughput
 Dongting is developed using performance-oriented programming.
@@ -67,32 +71,33 @@ mvn clean package -DskipUTs
 The directory structure after build is as follows:
 ```
 dongting-dist/
-├── bin/                 # Scripts directory
-│   ├── benchmark.sh     # Benchmark script
-│   ├── benchmark.bat     # Benchmark script (Windows)
-│   ├── start-dongting.sh   # Start server script (Linux/Mac)
-│   ├── start-dongting.bat   # Start server script (Windows)
-│   ├── stop-dongting.sh   # Stop server script (Linux/Mac)
-│   ├── stop-dongting.bat   # Stop server script (Windows)
-│   ├── dongting-admin.sh # Admin tool script (Linux/Mac)
-│   └── dongting-admin.bat # Admin tool script (Windows)
-├── lib/                 # JAR packages directory
+├── bin/                      # Scripts directory
+│   ├── benchmark.sh          # Benchmark script
+│   ├── benchmark.bat         # Benchmark script (Windows)
+│   ├── start-dongting.sh     # Start server script (Linux/Mac)
+│   ├── start-dongting.bat    # Start server script (Windows)
+│   ├── stop-dongting.sh      # Stop server script (Linux/Mac)
+│   ├── stop-dongting.bat     # Stop server script (Windows)
+│   ├── dongting-admin.sh     # Admin tool script (Linux/Mac)
+│   └── dongting-admin.bat    # Admin tool script (Windows)
+├── lib/                      # JAR packages directory
 │   ├── dongting-client-x.y.z-SNAPSHOT.jar
 │   ├── dongting-server-x.y.z-SNAPSHOT.jar
-│   ├── dongting-dist-x.y.z-SNAPSHOT.jar
+│   ├── dongting-dist-x.y.z-SNAPSHOT.jar # Bootstrap jar, not required if building raft server through code
 │   ├── slf4j-api-x.y.z.jar
 │   ├── logback-x.y.z.jar
 │   └── logback-x.y.z.jar
-├── conf/                # Configuration files directory
+├── conf/                     # Configuration files directory
 │   ├── config.properties
 │   ├── servers.properties
 │   ├── client.properties
 │   ├── logback-server.xml
 │   ├── logback-admin.xml
 │   └── logback-benchmark.xml
-├── docs/                # Documentation directory
-├── data/                # Data directory (generated at runtime)
-└── logs/                # Logs directory (generated at runtime)
+├── docs/                     # Documentation directory
+└── logs/                     # Logs directory
+    ├── dongting-server.log   # Server log (generated at runtime)
+    └── dongting-stats.log    # Stats log (generated at runtime)
 ```
 
 ## run server
@@ -114,12 +119,12 @@ Run the following command to stop the server:
 
 Run the following command to start the benchmark client:
 ```sh
-./start-benchmark.sh -g 0
+./benchmark.sh -g 0
 ```
 
 You may need to adjust parameters to achieve maximum throughput, for example:
 ```sh
-./start-benchmark.sh -g 0 --max-pending 10000 --client-count 2
+./benchmark.sh -g 0 --max-pending 10000 --client-count 2
 ```
 
 Try Java 21 virtual threads (need Java 21)

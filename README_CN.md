@@ -28,9 +28,13 @@ Dongting是一个高性能的分布式引擎，集成了RAFT共识算法、配�
 
 主要特性如下：
 
-* **Multi RAFT 组支持**：在同一进程内运行多个RAFT组，支持动态添加、删除和更新 RAFT 组，实现集群的动态扩展。状态机可以在raft框架中自定义。
-* **分布式配置服务器 DtKV**：树形结构，支持线性一致性的通用K/V操作、监听(watch)、TTL过期和分布式锁。
-* **（计划）线性一致性消息队列 MQ**：使用RAFT日志作为消息队列日志。
+* **Multi RAFT 组支持**：在同一进程内运行多个RAFT组，支持动态添加、删除和更新RAFT group（分片），实现集群的动态扩展。状态机可以在raft框架中自定义。
+* **分布式配置服务器 DtKV**：树形结构，支持线性一致性的通用K/V操作、监听(watch)、TTL过期和分布式锁，类似于etcd
+  * `DtKV`是内存型数据库，因此数据总量不能太大，但它使用raft log作为redo日志，定期做快照，掉电也不会丢失一条数据。
+  * 原生支持树状目录，很多操作的复杂度是O(1)
+  * 支持临时目录，在TTL过期后自动删除整个目录，该删除操作为原子操作
+  * 不支持事务，但是提供了CAS和非常易用的分布式锁
+* **（计划）MQ**：使用RAFT日志作为消息队列日志。
 
 # 10倍吞吐
 
@@ -67,32 +71,34 @@ mvn clean package -DskipUTs
 构建后的目录结构如下：
 ```
 dongting-dist/
-├── bin/                 # 脚本目录
-│   ├── benchmark.sh     # 基准测试脚本
-│   ├── benchmark.bat     # Windows基准测试脚本
-│   ├── start-dongting.sh   # 启动服务器脚本（Linux/Mac）
+├── bin/                     # 脚本目录
+│   ├── benchmark.sh         # 基准测试脚本
+│   ├── benchmark.bat        # Windows基准测试脚本
+│   ├── start-dongting.sh    # 启动服务器脚本（Linux/Mac）
 │   ├── start-dongting.bat   # 启动服务器脚本
-│   ├── stop-dongting.sh   # 停止服务器脚本
-│   ├── stop-dongting.bat   # 停止服务器脚本
-│   ├── dongting-admin.sh # 管理工具脚本（Linux/Mac）
-│   └── dongting-admin.bat # 管理工具脚本
-├── lib/                 # JAR包目录
+│   ├── stop-dongting.sh     # 停止服务器脚本
+│   ├── stop-dongting.bat    # 停止服务器脚本
+│   ├── dongting-admin.sh    # 管理工具脚本（Linux/Mac）
+│   └── dongting-admin.bat   # 管理工具脚本
+├── lib/                     # JAR包目录
 │   ├── dongting-client-x.y.z-SNAPSHOT.jar
 │   ├── dongting-server-x.y.z-SNAPSHOT.jar
-│   ├── dongting-dist-x.y.z-SNAPSHOT.jar
+│   ├── dongting-dist-x.y.z-SNAPSHOT.jar # 引导jar，如果使用代码构建raft server，它不是必须的
 │   ├── slf4j-api-x.y.z.jar
 │   ├── logback-x.y.z.jar
 │   └── logback-x.y.z.jar
-├── conf/                # 配置文件目录
+├── conf/                     # 配置文件目录
 │   ├── config.properties
 │   ├── servers.properties
 │   ├── client.properties
 │   ├── logback-server.xml
 │   ├── logback-admin.xml
 │   └── logback-benchmark.xml
-├── docs/                # 文档目录
-├── data/                # 数据目录（运行时生成）
-└── logs/                # 日志目录（运行时生成）
+├── docs/                     # 文档目录
+├── data/                     # 数据目录（运行时生成）
+└── logs/                     # 日志目录
+    ├── dongting-server.log   # 服务器日志（运行时生成）
+    └── dongting-stats.log    # 统计日志（运行时生成）
 ```
 
 ## 启动服务器
@@ -113,12 +119,12 @@ dongting-dist/
 
 运行以下命令启动基准测试客户端：
 ```sh
-./start-benchmark.sh -g 0
+./benchmark.sh -g 0
 ```
 
 你可能需要调整参数以获得最大吞吐量，例如：
 ```sh
-./start-benchmark.sh -g 0 --max-pending 10000 --client-count 2
+./benchmark.sh -g 0 --max-pending 10000 --client-count 2
 ```
 
 尝试使用Java 21虚拟线程进行多线程压测（需要 Java 21）：
