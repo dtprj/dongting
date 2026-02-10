@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.dist;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.raft.GroupInfo;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftNode;
 
@@ -301,11 +300,11 @@ public class DtAdmin {
 
         // Step 1: Get leader and query status to validate prepareIndex
         System.out.println("Getting leader info for group " + groupId + "...");
-        GroupInfo groupInfo = client.getLeaderInfo(groupId).get();
-        if (groupInfo.leader == null) {
+        RaftNode leader = client.fetchLeader(groupId).get();
+        if (leader == null) {
             throw new RuntimeException("No leader found for group " + groupId);
         }
-        int leaderId = groupInfo.leader.nodeId;
+        int leaderId = leader.nodeId;
         System.out.println("Leader is node " + leaderId + ", querying status...");
 
         QueryStatusResp statusResp = client.queryRaftServerStatus(leaderId, groupId).get();
