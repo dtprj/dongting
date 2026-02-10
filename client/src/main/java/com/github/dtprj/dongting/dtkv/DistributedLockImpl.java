@@ -164,11 +164,14 @@ public class DistributedLockImpl implements DistributedLock {
         private Object opResult;
         private Throwable opEx;
 
-        Op(int opType, long leaseMillis, long tryLockTimeoutMillis, FutureCallback<?> callback) {
+        private final boolean logTryLockTimeout;
+
+        Op(int opType, long leaseMillis, long tryLockTimeoutMillis, FutureCallback<?> callback, boolean logTryLockTimeout) {
             this.tryLockTimeoutMillis = tryLockTimeoutMillis;
             this.leaseMillis = leaseMillis;
             this.callback = callback;
             this.opType = opType;
+            this.logTryLockTimeout = logTryLockTimeout;
         }
 
         private String opTypeStr() {
@@ -209,7 +212,11 @@ public class DistributedLockImpl implements DistributedLock {
                 opLock.unlock();
             }
 
-            log.info("tryLock timeout after {} ms, key: {}", tryLockTimeoutMillis, key);
+            if (logTryLockTimeout) {
+                log.info("tryLock timeout after {} ms, key: {}", tryLockTimeoutMillis, key);
+            } else {
+                log.debug("tryLock timeout after {} ms, key: {}", tryLockTimeoutMillis, key);
+            }
         }
 
         @Override
@@ -363,13 +370,18 @@ public class DistributedLockImpl implements DistributedLock {
 
     @Override
     public void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback) {
+        tryLock(leaseMillis, waitLockTimeoutMillis, callback, true);
+    }
+
+    // For AutoRenewalLock internal use only
+    void tryLock(long leaseMillis, long waitLockTimeoutMillis, FutureCallback<Boolean> callback, boolean logTimeout) {
         DtUtil.checkNotNegative(waitLockTimeoutMillis, "waitLockTimeoutMillis");
         checkLeaseMillis(leaseMillis);
         if (waitLockTimeoutMillis > leaseMillis) {
             throw new IllegalArgumentException("waitLockTimeoutMillis must be less than or equal to leaseMillis");
         }
 
-        Op op = new Op(Op.OP_TYPE_TRY_LOCK, leaseMillis, waitLockTimeoutMillis, callback);
+        Op op = new Op(Op.OP_TYPE_TRY_LOCK, leaseMillis, waitLockTimeoutMillis, callback, logTimeout);
         opLock.lock();
         try {
             tryLock0(leaseMillis, waitLockTimeoutMillis, op);
@@ -465,7 +477,7 @@ public class DistributedLockImpl implements DistributedLock {
 
     @Override
     public void unlock(FutureCallback<Void> callback, boolean force) {
-        Op op = new Op(Op.OP_TYPE_UNLOCK, 0, 0, callback);
+        Op op = new Op(Op.OP_TYPE_UNLOCK, 0, 0, callback, false);
         opLock.lock();
         try {
             if (state == STATE_CLOSED) {
@@ -530,7 +542,7 @@ public class DistributedLockImpl implements DistributedLock {
     @Override
     public void updateLease(long leaseMillis, FutureCallback<Void> callback) {
         checkLeaseMillis(leaseMillis);
-        Op op = new Op(Op.OP_TYPE_RENEW, leaseMillis, 0, callback);
+        Op op = new Op(Op.OP_TYPE_RENEW, leaseMillis, 0, callback, false);
         opLock.lock();
         try {
             updateLease0(leaseMillis, op);

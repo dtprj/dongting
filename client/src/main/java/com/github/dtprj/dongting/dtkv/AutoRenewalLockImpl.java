@@ -105,7 +105,7 @@ class AutoRenewalLockImpl extends AbstractLifeCircle implements AutoRenewalLock 
             try {
                 rpcInProgress = true;
                 if (tryLock) {
-                    lock.tryLock(leaseMillis, leaseMillis, (result, ex) -> rpcCallback(true, ex));
+                    lock.tryLock(leaseMillis, leaseMillis, (result, ex) -> rpcCallback(true, ex), false);
                 } else {
                     lock.updateLease(leaseMillis, (v, ex) -> rpcCallback(false, ex));
                 }
