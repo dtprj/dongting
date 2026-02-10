@@ -8,17 +8,17 @@
 - [Introduce](#introduce)
 - [10X Throughput](#10x-throughput)
 - [Zero Dependencies](#zero-dependencies)
-- [Try it](#try-it)
-  - [build](#build)
-  - [run server](#run-server)
-  - [run benchmark](#run-benchmark)
-  - [client usage](#client-usage)
-  - [client examples](#client-examples)
-  - [server configuration](#server-configuration)
-- [cluster management](#cluster-management)
-  - [Configure a multi-node cluster](#configure-a-multi-node-cluster)
-  - [run admin tools](#run-admin-tools)
-  - [Cluster changes](#cluster-changes)
+ - [Try it](#try-it)
+   - [Build](#build)
+   - [Run server](#run-server)
+   - [Run benchmark](#run-benchmark)
+   - [Client usage](#client-usage)
+   - [Client examples](#client-examples)
+   - [Server configuration](#server-configuration)
+- [Cluster management](#cluster-management)
+   - [Configure a multi-node cluster](#configure-a-multi-node-cluster)
+   - [Run admin tools](#run-admin-tools)
+   - [Cluster changes](#cluster-changes)
 - [Advanced](#advanced)
   - [Import project to IDE](#import-project-to-ide)
   - [Build raft server through code](#build-raft-server-through-code)
@@ -61,7 +61,7 @@ Dongting does not require you to adjust Linux kernel parameters to achieve optim
 
 # Try it
 
-## build
+## Build
 
 First build, the artifacts are under target/dongting-dist:
 ```sh
@@ -100,7 +100,7 @@ dongting-dist/
     └── dongting-stats.log    # Stats log (generated at runtime)
 ```
 
-## run server
+## Run server
 
 In the bin directory, run the following command to start the server:
 ```sh
@@ -115,7 +115,7 @@ Run the following command to stop the server:
 ./stop-dongting.sh
 ```
 
-## run benchmark
+## Run benchmark
 
 Run the following command to start the benchmark client:
 ```sh
@@ -171,7 +171,7 @@ Benchmark config:
 PS D:\dongting-dist\bin>
 ```
 
-## client usage
+## Client usage
 
 The built-in DtKV in Dongting supports the following features:
 
@@ -224,7 +224,7 @@ kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) ->
 
 For detailed usage of the `KvClient` class, please refer to Javadocs.
 
-## client examples
+## Client examples
 
 - [SimpleDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/SimpleDemo.java) - Basic put/get/list operations
 - [BatchDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/BatchDemo.java) - Batch read/write/delete
@@ -236,7 +236,7 @@ For detailed usage of the `KvClient` class, please refer to Javadocs.
 - [DistributedLockDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/DistributedLockDemo.java) - Distributed lock
 - [AutoRenewalLockDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/AutoRenewalLockDemo.java) - Auto-renewal distributed lock
 
-## server configuration
+## Server configuration
 
 Server configuration mainly consists of two configuration files: `config.properties` and `servers.properties`.
 
@@ -314,7 +314,7 @@ If you want to run a benchmark, you also need to modify the servers parameter in
 After configuration, you can start them separately. You can kill a process at will to see the cluster's performance.
 
 
-## run admin tools
+## Run admin tools
 
 The dongting-admin script in bin directory is a tool for managing servers such as:
 
