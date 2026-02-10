@@ -18,6 +18,7 @@
 - [cluster management](#cluster-management)
   - [Configure a multi-node cluster](#configure-a-multi-node-cluster)
   - [run admin tools](#run-admin-tools)
+  - [Cluster changes](#cluster-changes)
 - [Advanced](#advanced)
   - [Import project to IDE](#import-project-to-ide)
   - [Build raft server through code](#build-raft-server-through-code)
@@ -327,6 +328,108 @@ Run it without parameters to see the usage.
 
 You can use the `AdminRaftClient` class to perform all management functions. Remember to connect to the replicate port.
 
+## Cluster changes
+
+Dongting implements the standard raft joint consensus, with changes divided into two phases: first prepare, then commit (or abort).
+These 3 operations are all idempotent, so if they fail due to network issues, you can safely retry.
+In dongting, after the prepare phase completes, c-old is stored in members/observers, and c-new is stored in preparedMembers/preparedObservers.
+After commit or abort, preparedMembers/preparedObservers will be cleared.
+
+One reason for cluster changes might be a failure occurred, and the new configuration might not be able to be delivered to the failed node, causing inconsistent configurations across different nodes in the cluster. The concepts described next will help you understand what to do.
+
+In Dongting, prepare/commit/abort operations are also a raft log entry, which contains the members/observers/preparedMembers/preparedObservers configuration information of the raft group.
+When the state machine saves a snapshot (by default, it saves once when closed), it also stores this information in the snapshot. When the raft group starts, it first restores the snapshot (if any),
+then replays logs from the checkpoint, using the latest group configuration information from them. Therefore, the nodeIdOfMembers/nodeIdOfObservers in servers.properties are actually just used for bootstrapping.
+If there is a snapshot or prepare/commit information in the raft log, the nodeIdOfMembers/nodeIdOfObservers in servers.properties are ignored. Nevertheless,
+it is still necessary to maintain correct nodeIdOfMembers/nodeIdOfObservers. To simplify, preparedMembers/preparedObservers are not included in servers.properties.
+
+To avoid errors, the server will reject voting and replication requests from non-members/preparedMembers. If a node's configuration data is too old, causing it not to recognize the new leader,
+you can delete its data, maintain the correct group information in servers.properties, and then rejoin the cluster.
+
+Note that the group information mentioned above only defines IDs, which must be defined in the servers list, otherwise an error will occur. Before adding a new node, you need to update the definition on each node.
+The dongting-server module needs to start with a configuration and can be modified at runtime, but it is not responsible for maintaining configuration persistence. It is the dongting-dist (dongting-dist.jar) module
+that is responsible for reading and updating servers.properties. After using the dongting-admin script addNode/removeNode, it first updates memory, then updates servers.properties.
+This is not an atomic operation. You need to pay attention to the script's output to ensure the configuration has been correctly updated (the dongting-admin script also provides an idempotent sync-config subcommand for manual synchronization).
+If you are not using dongting-dist's scripts, but are assembling an embedded dongting-server through code yourself, then the persistence of these configurations is your responsibility to ensure.
+
+### Example 1: Remove a node from the group
+
+Assume you have a 3-node cluster with node IDs 1, 2, 3, and group ID 0. Now you need to remove node 3. The operation steps are as follows:
+
+1. First, query the cluster status. Find any node, and from the returned information, find the leader:
+   ```sh
+   ./dongting-admin.sh query-status --node-id 1 --group-id 0
+   ```
+
+2. Prepare the configuration change, changing members from 1, 2, 3 to 1, 2 (the following prepare/commit/abort should be called on the leader):
+   ```sh
+   ./dongting-admin.sh prepare-change --group-id 0 --old-members 1,2,3 --new-members 1,2
+   ```
+
+   This will return a prepare-index, record it for the next step.
+
+3. Commit the configuration change:
+   ```sh
+   ./dongting-admin.sh commit-change --group-id 0 --prepare-index <returned-prepare-index>
+   ```
+
+4. The cluster configuration has been updated, and node 3 has been removed from the group. You can verify with the following command:
+   ```sh
+   ./dongting-admin.sh query-status --node-id 1 --group-id 0
+   ```
+
+5. If needed, you can remove the definition of node 3 (this operation should be executed on all nodes 1 and 2):
+   ```sh
+   ./dongting-admin.sh remove-node --node-id 1 --remove-node-id 3
+   ```
+
+### Example 2: Add a node to the group
+
+Assume you have a 3-node cluster with node IDs 1, 2, 3, and group ID 0. Now you need to add node 4. The operation steps are as follows:
+
+1. First, start the server process for the new node 4:
+   ```sh
+   cd node4/bin
+   ./start-dongting.sh
+   ```
+
+2. Add the definition of node 4 (this operation should be executed on all existing nodes):
+   ```sh
+   ./dongting-admin.sh add-node --node-id 1 --add-node-id 4 --host theHost --port thePort
+   ```
+   ```sh
+   ./dongting-admin.sh add-node --node-id 2 --add-node-id 4 --host theHost --port thePort
+   ```
+   ```sh
+   ./dongting-admin.sh add-node --node-id 3 --add-node-id 4 --host theHost --port thePort
+   ```
+
+   Note: The port should be the new node's replicate port, not the service port.
+
+3. Confirm that node 4 has been added:
+   ```sh
+   ./dongting-admin.sh list-nodes --node-id 1
+   ```
+
+4. Prepare the configuration change, changing members from 1, 2, 3 to 1, 2, 3, 4 (prepare/commit/abort should be called on the leader):
+   ```sh
+   ./dongting-admin.sh prepare-change --group-id 0 --old-members 1,2,3 --new-members 1,2,3,4
+   ```
+
+   This will return a prepare-index, record it for the next step.
+
+5. Commit the configuration change:
+   ```sh
+   ./dongting-admin.sh commit-change --group-id 0 --prepare-index <returned-prepare-index>
+   ```
+
+6. The cluster configuration has been updated, and node 4 has joined the group. You can verify with the following command:
+   ```sh
+   ./dongting-admin.sh query-status --node-id 1 --group-id 0
+   ```
+
+Note: After a new node joins, it will synchronize all data from the leader, which may take some time depending on the data volume. Now that a new node has been added, the voting quorum for this cluster becomes 3.
+Therefore, in production environments, it is recommended to add the new node as an observer first, and after data synchronization is complete, perform another change to promote the observer to a member.
 
 # Advanced
 
