@@ -1,18 +1,31 @@
-# 运行单元测试
-
-```
-mvn clean test -Dtick=5
-```
-
-# 构建和 IDE 设置
+# JDK要求
 
 Dongting 项目为用户输出两个 jar 包：dongting-client.jar 需要 Java 8，dongting-server.jar 需要 Java 11。
 但是，编译整个项目需要 Java 17，因为基准测试模块需要 Java 17。
 
+部署模块dongting-dist要求Java11。
+
+# 构建和测试
+
+单元测试
+```
+mvn clean test -Dtick=5
+```
+
+构建打包，输出在根目录的target下
+```
+mvn clean package -DskipUTs
+```
+
+注意本项目要跳过单元测试是-DskipUTs，而不是-DskipTests。这是因为有的时候我想仅运行某个集成测试，
+-DskipTests 会跳过所有测试包括集成测试，我没有办法搞定，就把它改了。
+
+# IDE 设置
+
 虽然 mvn 命令行构建可以成功，但将整个项目导入 IDE 可能会导致编译错误。
 
 首先，测试代码依赖于 protobuf 编译器生成的一些文件。
-运行以下命令生成源文件：
+运行以下命令生成源文件（你用上面的命令运行过测试或者打包也行）：
 ```
 mvn clean compile test-compile
 ```
@@ -28,10 +41,4 @@ mvn clean compile test-compile
 
 # 在 IDE 中运行演示
 
-demos 目录包含一些使用 `dongting` 的示例，它们不需要配置，可以直接通过 `main` 方法运行。
-
-# 运行简单基准测试
-
-运行 main 方法 RaftBenchmark 即可。
-
-源代码中有一些可以设置的参数，请参见注释。
+demos 模块包含一些使用 `dongting` 的示例，它们不需要配置，可以直接通过 `main` 方法运行。
