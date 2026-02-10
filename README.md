@@ -13,6 +13,7 @@
   - [run server](#run-server)
   - [run benchmark](#run-benchmark)
   - [client usage](#client-usage)
+  - [client examples](#client-examples)
   - [server configuration](#server-configuration)
 - [cluster management](#cluster-management)
   - [Configure a multi-node cluster](#configure-a-multi-node-cluster)
@@ -32,7 +33,7 @@ Features are as follows:
 * **Distributed configuration server DtKV**: Tree-based structure, supports linear consistency general
   K/V operations, watch, TTL expiration, and distributed lock, similar to etcd.
   * `DtKV` is an in-memory database, so the total data size cannot be too large, but it uses raft log as redo log, creates snapshots periodically, and will not lose a single record even in power failure.
-  * Natively supports tree-like directories, the complexity of many operations is O(1).
+  * Natively supports tree-like directories, the complexity of many operations is O(1), such as watching directories, very efficient.
   * Supports temporary directories, which will be automatically deleted as a whole after TTL expires. The deletion operation is atomic.
   * Does not support transactions, but provides CAS and very easy-to-use distributed locks.
 * **(Planned) MQ (message queues)**: Use RAFT log as message queue log.
@@ -220,7 +221,19 @@ kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) ->
 });
 ```
 
-For detailed usage of the `KvClient` class, please refer to the Javadocs.
+For detailed usage of the `KvClient` class, please refer to Javadocs.
+
+## client examples
+
+- [SimpleDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/SimpleDemo.java) - Basic put/get/list operations
+- [BatchDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/BatchDemo.java) - Batch read/write/delete
+- [CasDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/CasDemo.java) - CAS atomic operations
+- [TempValueDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/TempValueDemo.java) - Temporary value (TTL)
+- [TempDirDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/TempDirDemo.java) - Temporary directory (TTL)
+- [UpdateTtlDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/UpdateTtlDemo.java) - Update TTL of temporary nodes
+- [WatchDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/WatchDemo.java) - Key/directory change monitoring
+- [DistributedLockDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/DistributedLockDemo.java) - Distributed lock
+- [AutoRenewalLockDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/AutoRenewalLockDemo.java) - Auto-renewal distributed lock
 
 ## server configuration
 

@@ -13,6 +13,7 @@
   - [启动服务器](#启动服务器)
   - [运行基准测试](#运行基准测试)
   - [客户端使用](#客户端使用)
+  - [客户端完整例子](#客户端完整例子)
   - [server配置](#server配置)
 - [集群运维](#集群运维)
   - [配置一个多节点集群](#配置一个多节点集群)
@@ -31,7 +32,7 @@ Dongting是一个高性能的分布式引擎，集成了RAFT共识算法、配�
 * **Multi RAFT 组支持**：在同一进程内运行多个RAFT组，支持动态添加、删除和更新RAFT group（分片），实现集群的动态扩展。状态机可以在raft框架中自定义。
 * **分布式配置服务器 DtKV**：树形结构，支持线性一致性的通用K/V操作、监听(watch)、TTL过期和分布式锁，类似于etcd
   * `DtKV`是内存型数据库，因此数据总量不能太大，但它使用raft log作为redo日志，定期做快照，掉电也不会丢失一条数据。
-  * 原生支持树状目录，很多操作的复杂度是O(1)
+  * 原生支持树状目录，很多操作的复杂度是O(1)，比如在目录上进行watch，非常高效
   * 支持临时目录，在TTL过期后自动删除整个目录，该删除操作为原子操作
   * 不支持事务，但是提供了CAS和非常易用的分布式锁
 * **（计划）MQ**：使用RAFT日志作为消息队列日志。
@@ -217,6 +218,18 @@ kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) ->
 ```
 
 有关 `KvClient` 类的详细用法，请参阅 Javadocs。
+
+## 客户端完整例子
+
+- [SimpleDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/SimpleDemo.java) - 基本 put/get/list 操作
+- [BatchDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/BatchDemo.java) - 批量读写删
+- [CasDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/CasDemo.java) - CAS原子操作
+- [TempValueDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/TempValueDemo.java) - 临时值(TTL)
+- [TempDirDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/TempDirDemo.java) - 临时目录(TTL)
+- [UpdateTtlDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/UpdateTtlDemo.java) - 更新临时节点的TTL
+- [WatchDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/WatchDemo.java) - key/目录变化监听
+- [DistributedLockDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/DistributedLockDemo.java) - 分布式锁
+- [AutoRenewalLockDemo](demos/src/main/java/com/github/dtprj/dongting/demos/kvclient/AutoRenewalLockDemo.java) - 自动续约分布式锁
 
 ## server配置
 

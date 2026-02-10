@@ -129,6 +129,13 @@ public class WatchManager {
         }
     }
 
+    /**
+     * Note: Watch notifications provide eventual consistency guarantees. Multiple changes to the same key
+     * may be coalesced into a single notification.
+     * <p>
+     * After call addWatch, the server may push watch notification immediately for current value of
+     * the keys.
+     */
     public void addWatch(int groupId, byte[]... keys) {
         check(groupId, keys);
         lock.lock();
@@ -667,6 +674,9 @@ public class WatchManager {
     /**
      * Set listener and user executor for watch events.
      * The listener callback will be executed in a globally serialized manner.
+     * <p>
+     * Note: Watch notifications provide eventual consistency guarantees. Multiple changes to the same key
+     * may be coalesced into a single notification.
      */
     public void setListener(KvListener listener, Executor userExecutor) {
         Objects.requireNonNull(listener);
