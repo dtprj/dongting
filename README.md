@@ -9,6 +9,7 @@
 - [10X Throughput](#10x-throughput)
 - [Zero Dependencies](#zero-dependencies)
 - [Try it](#try-it)
+  - [build](#build)
   - [run server](#run-server)
   - [run benchmark](#run-benchmark)
   - [client usage](#client-usage)
@@ -56,12 +57,45 @@ Dongting does not require you to adjust Linux kernel parameters to achieve optim
 
 # Try it
 
-## run server
+## build
 
 First build, the artifacts are under target/dongting-dist:
 ```sh
 mvn clean package -DskipUTs
 ```
+
+The directory structure after build is as follows:
+```
+dongting-dist/
+├── bin/                 # Scripts directory
+│   ├── benchmark.sh     # Benchmark script
+│   ├── benchmark.bat     # Benchmark script (Windows)
+│   ├── start-dongting.sh   # Start server script (Linux/Mac)
+│   ├── start-dongting.bat   # Start server script (Windows)
+│   ├── stop-dongting.sh   # Stop server script (Linux/Mac)
+│   ├── stop-dongting.bat   # Stop server script (Windows)
+│   ├── dongting-admin.sh # Admin tool script (Linux/Mac)
+│   └── dongting-admin.bat # Admin tool script (Windows)
+├── lib/                 # JAR packages directory
+│   ├── dongting-client-x.y.z-SNAPSHOT.jar
+│   ├── dongting-server-x.y.z-SNAPSHOT.jar
+│   ├── dongting-dist-x.y.z-SNAPSHOT.jar
+│   ├── slf4j-api-x.y.z.jar
+│   ├── logback-x.y.z.jar
+│   └── logback-x.y.z.jar
+├── conf/                # Configuration files directory
+│   ├── config.properties
+│   ├── servers.properties
+│   ├── client.properties
+│   ├── logback-server.xml
+│   ├── logback-admin.xml
+│   └── logback-benchmark.xml
+├── docs/                # Documentation directory
+├── data/                # Data directory (generated at runtime)
+└── logs/                # Logs directory (generated at runtime)
+```
+
+## run server
 
 In the bin directory, run the following command to start the server:
 ```sh
