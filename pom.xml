@@ -54,6 +54,14 @@
         <url>https://github.com/dtprj/dongting</url>
     </scm>
 
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/dtprj/dongting</url>
+        </repository>
+    </distributionManagement>
+
     <modules>
         <module>test-support</module>
         <module>client-ex</module>
