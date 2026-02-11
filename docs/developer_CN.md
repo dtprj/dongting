@@ -20,6 +20,11 @@ mvn clean package -DskipUTs
 注意本项目要跳过单元测试是-DskipUTs，而不是-DskipTests。这是因为有的时候我想仅运行某个集成测试，
 -DskipTests 会跳过所有测试包括集成测试，我没有办法搞定，就把它改了。
 
+如果你想要安装maven artifact：
+```sh
+mvn clean install -Dmaven.test.skip=true
+```
+
 # IDE 设置
 
 虽然 mvn 命令行构建可以成功，但将整个项目导入 IDE 可能会导致编译错误。

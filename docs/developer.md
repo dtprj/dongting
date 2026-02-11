@@ -19,6 +19,11 @@ mvn clean package -DskipUTs
 
 Note: To skip unit tests in this project, use `-DskipUTs` instead of `-DskipTests`. This is because sometimes I want to run only integration tests, but `-DskipTests` would skip all tests including integration tests, so I changed it.
 
+If you want to install the artifact:
+```sh
+mvn clean install -Dmaven.test.skip=true
+```
+
 # IDE Setup
 
 Although the mvn command build succeeds in the command line,

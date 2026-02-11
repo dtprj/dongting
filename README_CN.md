@@ -68,6 +68,11 @@ Dongting不需要您调整Linux内核参数以达到最佳性能（生成环境�
 mvn clean package -DskipUTs
 ```
 
+如果你想要安装maven artifact：
+```sh
+mvn clean install -Dmaven.test.skip=true
+```
+
 构建后的目录结构如下：
 ```
 dongting-dist/

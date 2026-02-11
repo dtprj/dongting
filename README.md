@@ -68,6 +68,12 @@ First build, the artifacts are under target/dongting-dist:
 mvn clean package -DskipUTs
 ```
 
+If you want to install the artifact:
+```sh
+mvn clean install -Dmaven.test.skip=true
+```
+
+
 The directory structure after build is as follows:
 ```
 dongting-dist/
