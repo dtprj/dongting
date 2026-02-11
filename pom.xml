@@ -22,7 +22,7 @@
     <groupId>com.github.dtprj.dongting</groupId>
     <artifactId>dongting</artifactId>
     <packaging>pom</packaging>
-    <version>0.8.4-SNAPSHOT</version>
+    <version>0.8.4</version>
 
     <name>dongting</name>
     <description>a raft/mq/config/rpc engine in single jar with excellent performance</description>

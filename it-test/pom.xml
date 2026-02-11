@@ -21,7 +21,7 @@
     <parent>
         <artifactId>dongting</artifactId>
         <groupId>com.github.dtprj.dongting</groupId>
-        <version>0.8.4-SNAPSHOT</version>
+        <version>0.8.4</version>
     </parent>
     <artifactId>dongting-it-test</artifactId>
     <properties>
@@ -33,22 +33,22 @@
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-test-support</artifactId>
-            <version>0.8.4-SNAPSHOT</version>
+            <version>0.8.4</version>
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-client</artifactId>
-            <version>0.8.4-SNAPSHOT</version>
+            <version>0.8.4</version>
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-server</artifactId>
-            <version>0.8.4-SNAPSHOT</version>
+            <version>0.8.4</version>
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-dist</artifactId>
-            <version>0.8.4-SNAPSHOT</version>
+            <version>0.8.4</version>
         </dependency>
     </dependencies>
     <build>
