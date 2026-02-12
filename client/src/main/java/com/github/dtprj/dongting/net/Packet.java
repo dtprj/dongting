@@ -59,7 +59,7 @@ public abstract class Packet implements DtCleanable {
     @Override
     public final void clean() {
         if (cleaned) {
-            BugLog.getLog().error("already cleaned {}", this);
+            BugLog.log("already cleaned {}", this);
             return;
         }
         try {

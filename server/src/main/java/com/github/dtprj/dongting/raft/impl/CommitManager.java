@@ -57,7 +57,7 @@ public class CommitManager {
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            BugLog.getLog().error("commit fiber error", ex);
+            BugLog.log("commit fiber error", ex);
             if (!isGroupShouldStopPlain()) {
                 startCommitFiber();
             }

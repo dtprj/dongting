@@ -110,7 +110,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
             long mi = computeMidIndex(li, ri);
             task = tailCache.get(mi);
             if (task == null) {
-                BugLog.getLog().error("middle index not in tail cache: {}", mi);
+                BugLog.log("middle index not in tail cache: {}", mi);
                 break;
             }
             int mt = task.item.term;

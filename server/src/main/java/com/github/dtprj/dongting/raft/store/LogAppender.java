@@ -139,7 +139,7 @@ class LogAppender {
             }
             LogFile lf = logFileQueue.getLogFile(nextPersistPos);
             if (lf.isDeleted()) {
-                BugLog.getLog().error("file is deleted or mark deleted: {}", lf.getFile().getPath());
+                BugLog.log("file is deleted or mark deleted: {}", lf.getFile().getPath());
                 throw new RaftException("file is deleted or mark deleted: " + lf.getFile().getPath());
             }
             return encodeAndWriteItems(lf, taskIndex);
@@ -191,7 +191,7 @@ class LogAppender {
                 doWrite(file, buffer);
             } else {
                 if (buffer.capacity() > 0) {
-                    BugLog.getLog().error("buffer capacity > 0", buffer.capacity());
+                    BugLog.log("buffer capacity > 0", buffer.capacity());
                 }
             }
 

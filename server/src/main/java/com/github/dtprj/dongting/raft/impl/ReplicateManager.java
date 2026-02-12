@@ -461,7 +461,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return;
         }
         if (member.installSnapshot) {
-            BugLog.getLog().error("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
+            BugLog.log("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
                     prevLogIndex, prevLogTerm, member.node.nodeId, groupId);
             closeIterator();
             incrementEpoch();
@@ -477,7 +477,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 multiAppend = true;
                 commitManager.leaderTryCommit(expectNewMatchIndex);
             } else {
-                BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}," +
+                BugLog.log("append miss order. old matchIndex={}, append prevLogIndex={}," +
                                 " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
                         member.matchIndex, prevLogIndex, expectNewMatchIndex, member.node.nodeId,
                         groupId, raftStatus.currentTerm, term, body.term);
@@ -505,7 +505,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                                 "localMembers={}, localPreparedMembers={}, msg={}", groupId, member.node.nodeId,
                         raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfPreparedMembers, resp.msg);
             } else {
-                BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
+                BugLog.log("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
                                 "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
                         AppendProcessor.getAppendResultStr(appendCode), member.matchIndex, prevLogIndex, expectNewMatchIndex,
                         member.node.nodeId, groupId, raftStatus.currentTerm, term, body.term);

@@ -334,7 +334,7 @@ public class DistributedLockImpl implements DistributedLock {
             leaseEndNanos = newLeaseEndNanos;
 
             if (expireTask != null) {
-                BugLog.getLog().error("expireTask already exists, key: {}", key);
+                BugLog.log("expireTask already exists, key: {}", key);
                 cancelExpireTask();
             }
             scheduleExpireTask(leaseEndNanos - now);

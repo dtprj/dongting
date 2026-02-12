@@ -57,7 +57,7 @@ public class Timestamp {
         long newNano = System.nanoTime();
         if (newNano - this.nanoTime < 0) {
             // assert false, nanoTime() should not go back
-            BugLog.getLog().error("nanoTime go back, old=" + this.nanoTime + ", new=" + newNano);
+            BugLog.log("nanoTime go back, old=" + this.nanoTime + ", new=" + newNano);
             return false;
         } else {
             this.wallClockMillis = millis;

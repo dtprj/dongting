@@ -63,17 +63,6 @@ public class BugLog {
         throw e;
     }
 
-    /**
-     * @deprecated use other methods of this class.
-     */
-    @Deprecated
-    public static DtLog getLog() {
-        synchronized (BugLog.class) {
-            count++;
-        }
-        return log;
-    }
-
     public static void log(String format, Object... args) {
         log.error(format, args);
 

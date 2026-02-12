@@ -33,7 +33,7 @@ public interface RaftCallback {
         try {
             callback.success(raftIndex, result);
         } catch (Throwable ex) {
-            BugLog.getLog().error("RaftCallback error", ex);
+            BugLog.log("RaftCallback error", ex);
         }
     }
 
@@ -44,7 +44,7 @@ public interface RaftCallback {
         try {
             callback.fail(ex);
         } catch (Throwable ex2) {
-            BugLog.getLog().error("RaftCallback error", ex2);
+            BugLog.log("RaftCallback error", ex2);
         }
     }
 }

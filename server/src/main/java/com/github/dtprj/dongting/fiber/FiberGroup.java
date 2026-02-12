@@ -155,7 +155,7 @@ public class FiberGroup {
             return;
         }
         if (f.started) {
-            BugLog.getLog().error("fiber already started: {}", f.name);
+            BugLog.log("fiber already started: {}", f.name);
             return;
         }
         f.started = true;
@@ -175,7 +175,7 @@ public class FiberGroup {
             removed = normalFibers.remove(f) != null;
         }
         if (!removed) {
-            BugLog.getLog().error("fiber is not in set: {}", f.name);
+            BugLog.log("fiber is not in set: {}", f.name);
         }
     }
 

@@ -115,7 +115,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     @Override
     public FiberFrame<List<LogItem>> next(long index, int limit, int bytesLimit) {
         if (error || close) {
-            BugLog.getLog().error("iterator state error: {},{}", error, close);
+            BugLog.log("iterator state error: {},{}", error, close);
             throw new RaftException("iterator state error");
         }
         if (nextIndex != -1 && index != nextIndex) {

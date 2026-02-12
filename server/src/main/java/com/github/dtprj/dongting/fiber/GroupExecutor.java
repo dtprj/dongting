@@ -348,7 +348,7 @@ class GroupExecutor implements ScheduledExecutorService {
 
     private UnsupportedOperationException ex() {
         UnsupportedOperationException e = new UnsupportedOperationException();
-        BugLog.getLog().error("unsupported operation", e);
+        BugLog.log("unsupported operation", e);
         return e;
     }
 

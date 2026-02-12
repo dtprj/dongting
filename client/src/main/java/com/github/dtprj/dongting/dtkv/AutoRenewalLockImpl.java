@@ -177,7 +177,7 @@ class AutoRenewalLockImpl extends AbstractLifeCircle implements AutoRenewalLock 
             return;
         }
         if (!locked) {
-            BugLog.getLog().error("lock is not locked");
+            BugLog.log("lock is not locked");
             return;
         }
         cancelTask();

@@ -94,7 +94,7 @@ public class StressAdvancedValidator implements Runnable {
         } catch (InterruptedException e) {
             log.debug("StressAdvancedValidator interrupted");
         } catch (Throwable e) {
-            BugLog.getLog().error("StressAdvancedValidator encountered unexpected error", e);
+            BugLog.log("StressAdvancedValidator encountered unexpected error", e);
             violationCount.incrementAndGet();
         } finally {
             try {

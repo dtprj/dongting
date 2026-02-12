@@ -196,7 +196,7 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     public final void releasePermit(WritePacket request) {
         if (!request.acquirePermit) {
-            BugLog.getLog().error("current request is not acquired permit");
+            BugLog.log("current request is not acquired permit");
             return;
         }
         try {
@@ -219,12 +219,12 @@ public abstract class NioNet extends AbstractLifeCircle {
         try {
             nioStatus.outPendingRequests -= count;
             if (nioStatus.outPendingRequests < 0) {
-                BugLog.getLog().error("pendingRequests is " + nioStatus.outPendingRequests);
+                BugLog.log("pendingRequests is " + nioStatus.outPendingRequests);
                 nioStatus.outPendingRequests = 0;
             }
             nioStatus.outPendingBytes -= totalBytes;
             if (nioStatus.outPendingBytes < 0) {
-                BugLog.getLog().error("pendingBytes is " + nioStatus.outPendingBytes);
+                BugLog.log("pendingBytes is " + nioStatus.outPendingBytes);
                 nioStatus.outPendingBytes = 0;
             }
             pendingReqCond.signalAll();

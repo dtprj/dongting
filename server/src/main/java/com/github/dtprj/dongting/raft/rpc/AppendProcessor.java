@@ -177,7 +177,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
             if (remoteTerm == localTerm) {
                 switch (raftStatus.getRole()) {
                     case leader:
-                        BugLog.getLog().error("leader receive {} request. term={}, remote={}", appendType,
+                        BugLog.log("leader receive {} request. term={}, remote={}", appendType,
                                 remoteTerm, reqInfo.reqContext.getDtChannel().getRemoteAddr());
                         return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "leader receive raft install snapshot request");
                     case candidate:
@@ -303,7 +303,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     private FrameCallResult doAppend(AppendReq req) {
         RaftStatusImpl raftStatus = gc.raftStatus;
         if (req.prevLogIndex < raftStatus.commitIndex) {
-            BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
+            BugLog.log("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
                     req.leaderId, req.prevLogIndex, raftStatus.commitIndex, raftStatus.groupId);
             writeAppendResp(AppendProcessor.APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT, null);
             return Fiber.frameReturn();

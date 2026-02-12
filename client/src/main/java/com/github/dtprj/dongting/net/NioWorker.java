@@ -670,7 +670,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             DtChannelImpl dtc = (DtChannelImpl) obj;
             close(dtc);
         } else {
-            BugLog.getLog().error("assert false. key attachment is not " + DtChannelImpl.class.getName());
+            BugLog.log("assert false. key attachment is not " + DtChannelImpl.class.getName());
             closeChannel0(sc);
             assert false;
         }

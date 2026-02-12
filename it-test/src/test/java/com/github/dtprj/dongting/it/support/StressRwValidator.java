@@ -77,7 +77,7 @@ public class StressRwValidator implements Runnable {
         } catch (InterruptedException e) {
             log.debug("WriteReadValidator-{} interrupted", threadId);
         } catch (Throwable e) {
-            BugLog.getLog().error("WriteReadValidator-{} encountered unexpected error", threadId, e);
+            BugLog.log("WriteReadValidator-{} encountered unexpected error", threadId, e);
             violationCount.incrementAndGet();
         } finally {
             try {
@@ -131,17 +131,17 @@ public class StressRwValidator implements Runnable {
             return;
         }
         if (node == null) {
-            BugLog.getLog().error("WriteReadValidator-{} VIOLATION: key {} not found after successful write", threadId, keyStr);
+            BugLog.log("WriteReadValidator-{} VIOLATION: key {} not found after successful write", threadId, keyStr);
             violationCount.incrementAndGet();
             return;
         }
         if (node.data == null) {
-            BugLog.getLog().error("WriteReadValidator-{} VIOLATION: key {} found but data is null after successful write", threadId, keyStr);
+            BugLog.log("WriteReadValidator-{} VIOLATION: key {} found but data is null after successful write", threadId, keyStr);
             violationCount.incrementAndGet();
             return;
         }
         if (!Arrays.equals(value, node.data)) {
-            BugLog.getLog().error("WriteReadValidator-{} VIOLATION: key {} found but data is different after successful write", threadId, keyStr);
+            BugLog.log("WriteReadValidator-{} VIOLATION: key {} found but data is different after successful write", threadId, keyStr);
             violationCount.incrementAndGet();
         }
     }

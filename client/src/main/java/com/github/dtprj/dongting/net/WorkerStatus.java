@@ -139,7 +139,7 @@ class WorkerStatus {
         if (old != null) {
             // seq overflow and reuse, or bug
             String errMsg = "dup seq: old=" + old.packet + ", new=" + pi.packet;
-            BugLog.getLog().error(errMsg);
+            BugLog.log(errMsg);
             removeFromChannelQueue(old);
             removeFromNearTimeoutQueue(old);
             old.callFail(new NetException(errMsg));

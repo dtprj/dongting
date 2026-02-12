@@ -191,7 +191,7 @@ public class StressLockValidator implements Runnable {
         } catch (InterruptedException e) {
             log.debug("LockExclusivityValidator interrupted");
         } catch (Throwable e) {
-            BugLog.getLog().error("LockExclusivityValidator encountered unexpected error", e);
+            BugLog.log("LockExclusivityValidator encountered unexpected error", e);
             violationCount.incrementAndGet();
         }
     }
@@ -243,7 +243,7 @@ public class StressLockValidator implements Runnable {
             } catch (InterruptedException e) {
                 log.debug("AutoLockThread interrupted");
             } catch (Throwable e) {
-                BugLog.getLog().error("AutoLockThread encountered unexpected error", e);
+                BugLog.log("AutoLockThread encountered unexpected error", e);
                 violationCount.incrementAndGet();
             }
         }
@@ -264,7 +264,7 @@ public class StressLockValidator implements Runnable {
         long oldValue;
         if (n != null) {
             if (n.data == null || n.data.length != 8) {
-                BugLog.getLog().error("invalid data length: {}", n.data == null ? 0 : n.data.length);
+                BugLog.log("invalid data length: {}", n.data == null ? 0 : n.data.length);
                 violationCount.incrementAndGet();
                 return;
             }
@@ -303,12 +303,12 @@ public class StressLockValidator implements Runnable {
             return;
         }
         if (n == null) {
-            BugLog.getLog().error("can't get node written before");
+            BugLog.log("can't get node written before");
             violationCount.incrementAndGet();
             return;
         }
         if (n.data == null || n.data.length != 8) {
-            BugLog.getLog().error("invalid data length: {}", n.data == null ? 0 : n.data.length);
+            BugLog.log("invalid data length: {}", n.data == null ? 0 : n.data.length);
             violationCount.incrementAndGet();
             return;
         }
@@ -318,7 +318,7 @@ public class StressLockValidator implements Runnable {
         long v = buf.getLong();
         if (v != oldValue + 1) {
             if (heldBySelf.get()) {
-                BugLog.getLog().error("lock held by self, but value not match. heldByOther={}, oldValue={}, value={}",
+                BugLog.log("lock held by self, but value not match. heldByOther={}, oldValue={}, value={}",
                         heldByOther.get(), oldValue, v);
                 violationCount.incrementAndGet();
             }

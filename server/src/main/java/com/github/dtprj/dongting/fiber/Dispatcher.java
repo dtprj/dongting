@@ -229,7 +229,7 @@ public class Dispatcher extends AbstractLifeCircle {
             scheduleQueue.poll();
             if (f.group.finished) {
                 if (!f.daemon) {
-                    BugLog.getLog().error("group finished, but suspend fiber is not daemon: {}", f.name);
+                    BugLog.log("group finished, but suspend fiber is not daemon: {}", f.name);
                 }
                 continue;
             }
@@ -382,7 +382,7 @@ public class Dispatcher extends AbstractLifeCircle {
         if (currentFrame.frameEx != null) {
             ex.addSuppressed(currentFrame.frameEx);
             if (!currentFrame.finallyCalled) {
-                BugLog.getLog().error("usage fatal error: throw ex after fiber suspend", ex);
+                BugLog.log("usage fatal error: throw ex after fiber suspend", ex);
                 fatalError = ex;
                 return;
             }

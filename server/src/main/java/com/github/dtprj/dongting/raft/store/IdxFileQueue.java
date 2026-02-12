@@ -352,7 +352,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             }
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
             if (logFile.shouldDelete()) {
-                BugLog.getLog().error("idx file deleted, flush fail: {}", logFile.getFile().getPath());
+                BugLog.log("idx file deleted, flush fail: {}", logFile.getFile().getPath());
                 throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
             }
             flush(logFile, suggestForce);
@@ -380,7 +380,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             @Override
             public FrameCallResult execute(Void v) {
                 if (itemIndex < firstIndex) {
-                    BugLog.getLog().error("load index is too small: index={}, firstIndex={}", itemIndex, firstIndex);
+                    BugLog.log("load index is too small: index={}, firstIndex={}", itemIndex, firstIndex);
                     throw new RaftException("index too small");
                 }
                 if (itemIndex > writeFinishIndex) {
@@ -388,7 +388,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                         setResult(cache.get(itemIndex));
                         return Fiber.frameReturn();
                     }
-                    BugLog.getLog().error("load index too large: index={}, persistedIndex={}", itemIndex, persistedIndex);
+                    BugLog.log("load index too large: index={}, persistedIndex={}", itemIndex, persistedIndex);
                     throw new RaftException("index is too large");
                 }
                 long pos = indexToPos(itemIndex);
