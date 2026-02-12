@@ -29,11 +29,10 @@ description: |
 
 - `find_files_by_name_keyword` & `find_files_by_glob`: **MUST** include `fileCountLimit`
   - Without this → schema error "data must have required property 'probablyHasMoreMatchingFiles'"
-  - **Known bug**: Schema validation fails with certain patterns:
-    - `find_files_by_name_keyword`: Start with `fileCountLimit: 1`
-    - `find_files_by_glob`: Start with `fileCountLimit: 5-7`
-    - Broader patterns (e.g., `**/*.java`) may support higher limits
-    - If schema error, try smaller `fileCountLimit` or different patterns
+  - **Critical Bug**: When `fileCountLimit > actual matching files`, MCP server omits `probablyHasMoreMatchingFiles` field → schema error
+  - **Workaround**: Start with `fileCountLimit: 1` or `2`, then increase if needed
+  - For common keywords (many matches), higher limits work fine
+  - If schema error, **reduce** `fileCountLimit` (not increase)
 
 ### Rename Refactoring Limitations
 **⚠️ MCP doesn't document what rename_refactoring CANNOT do:**
@@ -53,7 +52,7 @@ description: |
 
 1. **Path discipline**: Absolute for `projectPath`, relative for everything else
 2. **Count parameters**: Always include `maxUsageCount` for search, `fileCountLimit` for file search
-3. **File search**: Start conservative - `fileCountLimit: 1` for name keyword, `5-7` for glob
+3. **File search strategy**: Start with `fileCountLimit: 1-2`; if schema error, **reduce** the limit (bug: limit > matches causes error)
 4. **Before refactoring**: Search first to understand scope
 5. **After changes**: Use `get_file_problems` to verify no errors introduced
 6. **Java accuracy**: Prefer IDEA's `get_file_problems` over LSP (avoids false positives)
@@ -73,7 +72,7 @@ Tool: IntelliJ-IDEA_find_files_by_name_keyword
 Parameters:
   projectPath: "/Users/huangli/dt/dongting"  # Absolute path
   nameKeyword: "KvImpl"
-  fileCountLimit: 1  # Start with 1 due to schema bug
+  fileCountLimit: 2  # Start small; bug: limit > matches causes schema error
 ```
 
 **If no results**: Try `find_files_by_glob` with pattern:
@@ -213,7 +212,7 @@ Parameters:
 
 | Operation | Recommended Timeout | Notes |
 |-----------|-------------------|-------|
-| **File search** (`find_files_by_*`) | 30000 (30s) | Usually fast; limit results with `fileCountLimit` |
+| **File search** (`find_files_by_*`) | 30000 (30s) | Usually fast; start with `fileCountLimit: 1-2` to avoid schema bug |
 | **Text search** (`search_in_files_by_*`) | 60000 (60s) | Can be slower for large codebases; use `maxUsageCount` |
 | **Read file** (`get_file_text_by_path`) | 10000 (10s) | Fast for text files; binary files may fail |
 | **Get file problems** (`get_file_problems`) | 15000 (15s) | Quick analysis |
@@ -241,7 +240,7 @@ Parameters:
 | Error Message | Likely Cause | Solution |
 |---------------|--------------|----------|
 | `Structured content does not match the tool's output schema: data must have required property 'probablyHasMoreMatchingFiles'` | Missing `fileCountLimit` or `maxUsageCount` parameter | Add required parameter: `fileCountLimit: 1` (for file search) or `maxUsageCount: 10` (for text search) |
-| `MCP error -32602: Structured content does not match the tool's output schema` | MCP server bug with certain parameter values | Reduce `fileCountLimit` (try 1, 5, 7); use simpler glob patterns |
+| `MCP error -32602: Structured content does not match the tool's output schema` | `fileCountLimit` > actual matches (MCP bug) | **Reduce** `fileCountLimit` to 1 or 2; common keywords can use higher limits |
 | `Command failed: Connection refused` | IDEA not running or MCP server not connected | Verify IDEA is running with MCP plugin active; wait for connection |
 | `Command timed out after X milliseconds` | Operation taking longer than default timeout | Increase `timeout` parameter (e.g., 120000 for tests, 30000 for builds) |
 | `File not found` or `Path does not exist` | Incorrect path (absolute vs relative confusion) | Use absolute path for `projectPath`, relative path for `filePath` |
@@ -251,7 +250,7 @@ Parameters:
 
 ### "Structured content does not match" (schema error)
 - Add missing `maxUsageCount` or `fileCountLimit` parameter
-- For file search errors: Try smaller `fileCountLimit` values
+- **For `find_files_by_name_keyword`**: `fileCountLimit` > actual matches causes this bug. **Reduce** the limit to 1 or 2, then increase if needed
 
 ### Commands fail/timeout
 1. Verify IDEA is running with MCP server connected
