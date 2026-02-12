@@ -360,6 +360,9 @@ public class DtAdmin {
             System.out.println("  Prepared Observers: " + resp.preparedObservers);
         }
         System.out.println("  Last Config Change Index: " + resp.lastConfigChangeIndex);
+        if (resp.lastError != null && !resp.lastError.isEmpty()) {
+            System.out.println("  Last Error:\n" + resp.lastError);
+        }
     }
 
     private void executeServerAddGroup(DistClient client) throws Exception {

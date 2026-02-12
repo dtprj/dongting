@@ -230,6 +230,9 @@ public class ClusterValidator {
                 log.debug("Node {} is not groupReady yet", entry.getKey());
             }
 
+            if (status.isBug()) {
+                log.error("Node {} has bug flag set. Last error:\n{}", entry.getKey(), status.lastError);
+            }
             Assertions.assertFalse(status.isBug(), "Node " + entry.getKey() + " has bug flag set");
         }
 

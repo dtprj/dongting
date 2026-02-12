@@ -127,6 +127,7 @@ message QueryStatusResp {
   repeated fixed32 prepared_members = 13[packed = false];
   repeated fixed32 prepared_observers = 14[packed = false];
   fixed64 last_config_change_index = 15;
+  string last_error = 16;
 }
 
 // only use for admin commands, raft server use log replicate to perform config change

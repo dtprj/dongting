@@ -43,6 +43,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
 //    repeated fixed32 prepared_members = 13[packed = false];
 //    repeated fixed32 prepared_observers = 14[packed = false];
 //    fixed64 last_config_change_index = 15;
+//    string last_error = 16;
 
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_NODE_ID = 2;
@@ -59,6 +60,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
     private static final int IDX_PREPARED_MEMBERS = 13;
     private static final int IDX_PREPARED_OBSERVERS = 14;
     private static final int IDX_LAST_CONFIG_CHANGE_INDEX = 15;
+    private static final int IDX_LAST_ERROR = 16;
 
     public int nodeId;
     private int flag;
@@ -69,6 +71,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
     public long lastLogIndex;
     public long applyLagMillis; // the time delay from commit to apply, sampled update.
     public long lastConfigChangeIndex;
+    public String lastError;
 
     public static final DecoderCallbackCreator<QueryStatusResp> DECODER = ctx -> ctx.toDecoderCallback(
             new Callback());
@@ -132,7 +135,8 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
                     PbUtil.sizeOfFix32Field(IDX_OBSERVERS, observers) +
                     PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers) +
                     PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, preparedObservers) +
-                    PbUtil.sizeOfFix64Field(IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex);
+                    PbUtil.sizeOfFix64Field(IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex) +
+                    PbUtil.sizeOfUTF8(IDX_LAST_ERROR, lastError);
         }
         return size;
     }
@@ -154,6 +158,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         PbUtil.writeFix32Field(buf, IDX_PREPARED_MEMBERS, preparedMembers);
         PbUtil.writeFix32Field(buf, IDX_PREPARED_OBSERVERS, preparedObservers);
         PbUtil.writeFix64Field(buf, IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex);
+        PbUtil.writeUTF8Field(buf, IDX_LAST_ERROR, lastError);
     }
 
     public static final class Callback extends PbCallback<QueryStatusResp> {
@@ -233,6 +238,14 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
                 case IDX_LAST_CONFIG_CHANGE_INDEX:
                     resp.lastConfigChangeIndex = value;
                     break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+            if (index == IDX_LAST_ERROR) {
+                resp.lastError = parseUTF8(buf, fieldLen, currentPos);
             }
             return true;
         }
