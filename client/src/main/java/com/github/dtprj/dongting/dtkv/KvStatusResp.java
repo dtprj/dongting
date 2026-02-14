@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.codec.SimpleEncodable;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 
 import java.nio.ByteBuffer;
@@ -26,7 +28,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class KvStatusResp extends PbCallback<KvStatusResp> implements SimpleEncodable {
+public class KvStatusResp extends PbCallback<KvStatusResp> implements Encodable {
     public static final int IDX_RAFT_SERVER_STATUS = 1;
     public static final int IDX_WATCH_COUNT = 2;
 
@@ -60,9 +62,18 @@ public class KvStatusResp extends PbCallback<KvStatusResp> implements SimpleEnco
     }
 
     @Override
-    public void encode(ByteBuffer destBuffer) {
-        EncodeUtil.encode(destBuffer, IDX_RAFT_SERVER_STATUS, raftServerStatus);
-        PbUtil.writeInt32Field(destBuffer, IDX_WATCH_COUNT, watchCount);
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        switch (context.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encode(context, destBuffer, IDX_RAFT_SERVER_STATUS, raftServerStatus)) {
+                    return false;
+                }
+                // fall through
+            case IDX_RAFT_SERVER_STATUS:
+                return EncodeUtil.encodeInt32(context, destBuffer, IDX_WATCH_COUNT, watchCount);
+            default:
+                throw new CodecException(context);
+        }
     }
 
     @Override

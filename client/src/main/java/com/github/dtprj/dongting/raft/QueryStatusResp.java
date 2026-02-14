@@ -15,19 +15,23 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.codec.SimpleEncodable;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * @author huangli
  */
-public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodable {
+public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 //    int32 group_id = 1;
 //    int32 node_id = 2;
 //    int32 flag = 3;
@@ -141,24 +145,101 @@ public class QueryStatusResp extends RaftConfigRpcData implements SimpleEncodabl
         return size;
     }
 
+    private static int[] toIntArray(Set<Integer> set) {
+        if (set == null || set.isEmpty()) {
+            return null;
+        }
+        int[] arr = new int[set.size()];
+        int i = 0;
+        for (Integer v : set) {
+            arr[i++] = v;
+        }
+        return arr;
+    }
+
     @Override
-    public void encode(ByteBuffer buf) {
-        PbUtil.writeInt32Field(buf, IDX_GROUP_ID, groupId);
-        PbUtil.writeInt32Field(buf, IDX_NODE_ID, nodeId);
-        PbUtil.writeInt32Field(buf, IDX_FLAG, flag);
-        PbUtil.writeInt32Field(buf, IDX_TERM, term);
-        PbUtil.writeInt32Field(buf, IDX_LEADER_ID, leaderId);
-        PbUtil.writeFix64Field(buf, IDX_COMMIT_INDEX, commitIndex);
-        PbUtil.writeFix64Field(buf, IDX_LAST_APPLIED, lastApplied);
-        PbUtil.writeFix64Field(buf, IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis);
-        PbUtil.writeFix64Field(buf, IDX_LAST_LOG_INDEX, lastLogIndex);
-        PbUtil.writeFix64Field(buf, IDX_APPLY_LAG_MILLIS, applyLagMillis);
-        PbUtil.writeFix32Field(buf, IDX_MEMBERS, members);
-        PbUtil.writeFix32Field(buf, IDX_OBSERVERS, observers);
-        PbUtil.writeFix32Field(buf, IDX_PREPARED_MEMBERS, preparedMembers);
-        PbUtil.writeFix32Field(buf, IDX_PREPARED_OBSERVERS, preparedObservers);
-        PbUtil.writeFix64Field(buf, IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex);
-        PbUtil.writeUTF8Field(buf, IDX_LAST_ERROR, lastError);
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        switch (context.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_GROUP_ID, groupId)) {
+                    return false;
+                }
+                // fall through
+            case IDX_GROUP_ID:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_NODE_ID, nodeId)) {
+                    return false;
+                }
+                // fall through
+            case IDX_NODE_ID:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_FLAG, flag)) {
+                    return false;
+                }
+                // fall through
+            case IDX_FLAG:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_TERM, term)) {
+                    return false;
+                }
+                // fall through
+            case IDX_TERM:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_LEADER_ID, leaderId)) {
+                    return false;
+                }
+                // fall through
+            case IDX_LEADER_ID:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_COMMIT_INDEX, commitIndex)) {
+                    return false;
+                }
+                // fall through
+            case IDX_COMMIT_INDEX:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_LAST_APPLIED, lastApplied)) {
+                    return false;
+                }
+                // fall through
+            case IDX_LAST_APPLIED:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis)) {
+                    return false;
+                }
+                // fall through
+            case IDX_LAST_APPLY_TIME_TO_NOW_MILLIS:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_LAST_LOG_INDEX, lastLogIndex)) {
+                    return false;
+                }
+                // fall through
+            case IDX_LAST_LOG_INDEX:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_APPLY_LAG_MILLIS, applyLagMillis)) {
+                    return false;
+                }
+                // fall through
+            case IDX_APPLY_LAG_MILLIS:
+                if (!EncodeUtil.encodeFix32s(context, destBuffer, IDX_MEMBERS, toIntArray(members))) {
+                    return false;
+                }
+                // fall through
+            case IDX_MEMBERS:
+                if (!EncodeUtil.encodeFix32s(context, destBuffer, IDX_OBSERVERS, toIntArray(observers))) {
+                    return false;
+                }
+                // fall through
+            case IDX_OBSERVERS:
+                if (!EncodeUtil.encodeFix32s(context, destBuffer, IDX_PREPARED_MEMBERS, toIntArray(preparedMembers))) {
+                    return false;
+                }
+                // fall through
+            case IDX_PREPARED_MEMBERS:
+                if (!EncodeUtil.encodeFix32s(context, destBuffer, IDX_PREPARED_OBSERVERS, toIntArray(preparedObservers))) {
+                    return false;
+                }
+                // fall through
+            case IDX_PREPARED_OBSERVERS:
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex)) {
+                    return false;
+                }
+                // fall through
+            case IDX_LAST_CONFIG_CHANGE_INDEX:
+                return EncodeUtil.encodeUTF8(context, destBuffer, IDX_LAST_ERROR, lastError);
+            default:
+                throw new CodecException(context);
+        }
     }
 
     public static final class Callback extends PbCallback<QueryStatusResp> {

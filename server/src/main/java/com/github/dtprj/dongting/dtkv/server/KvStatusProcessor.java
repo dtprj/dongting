@@ -19,8 +19,8 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
@@ -75,7 +75,7 @@ class KvStatusProcessor extends RaftProcessor<Integer> {
 
     private void finishAndWriteResp(DtKV kv, KvStatusResp resp, ReqInfo<?> reqInfo) {
         resp.watchCount = kv.watchManager.updateWatchStatus(reqInfo.reqContext.getDtChannel());
-        SimpleWritePacket wf = new SimpleWritePacket(resp);
+        EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
         wf.respCode = CmdCodes.SUCCESS;
         reqInfo.reqContext.writeRespInBizThreads(wf);
     }
