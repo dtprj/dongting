@@ -35,6 +35,10 @@ public class HandshakeBodyTest {
                 .setMagic2(HandshakeBody.MAGIC2)
                 .setMajorVersion(1)
                 .setMinorVersion(2)
+                .setProcessInfo(DtPacket.ProcessInfo.newBuilder()
+                        .setUuid1(12345L)
+                        .setUuid2(9876543210L)
+                        .build())
                 .setConfig(DtPacket.Config.newBuilder()
                         .setMaxPacketSize(100)
                         .build())
@@ -47,10 +51,13 @@ public class HandshakeBodyTest {
         parser.parse(ByteBuffer.wrap(bs));
 
         HandshakeBody result = callback.getResult();
-        Assertions.assertEquals(h.getMagic1(), HandshakeBody.MAGIC1);
-        Assertions.assertEquals(h.getMagic2(), HandshakeBody.MAGIC2);
+        Assertions.assertEquals(HandshakeBody.MAGIC1, h.getMagic1());
+        Assertions.assertEquals(HandshakeBody.MAGIC2, h.getMagic2());
         Assertions.assertEquals(h.getMajorVersion(), result.majorVersion);
         Assertions.assertEquals(h.getMinorVersion(), result.minorVersion);
+        Assertions.assertNotNull(result.processInfo);
+        Assertions.assertEquals(h.getProcessInfo().getUuid1(), result.processInfo.uuid1);
+        Assertions.assertEquals(h.getProcessInfo().getUuid2(), result.processInfo.uuid2);
         Assertions.assertEquals(h.getConfig().getMaxPacketSize(), result.config.maxPacketSize);
     }
 
@@ -59,6 +66,9 @@ public class HandshakeBodyTest {
         HandshakeBody h = new HandshakeBody();
         h.majorVersion = 1;
         h.minorVersion = 2;
+        h.processInfo = new ProcessInfoBody();
+        h.processInfo.uuid1 = 12345L;
+        h.processInfo.uuid2 = 9876543210L;
         h.config = new ConfigBody();
         h.config.maxPacketSize = 100;
 
@@ -68,10 +78,12 @@ public class HandshakeBodyTest {
         Assertions.assertEquals(buf.remaining(), h.actualSize());
 
         DtPacket.Handshake result = DtPacket.Handshake.parseFrom(buf);
-        Assertions.assertEquals(h.MAGIC1, result.getMagic1());
-        Assertions.assertEquals(h.MAGIC2, result.getMagic2());
+        Assertions.assertEquals(HandshakeBody.MAGIC1, result.getMagic1());
+        Assertions.assertEquals(HandshakeBody.MAGIC2, result.getMagic2());
         Assertions.assertEquals(h.majorVersion, result.getMajorVersion());
         Assertions.assertEquals(h.minorVersion, result.getMinorVersion());
+        Assertions.assertEquals(h.processInfo.uuid1, result.getProcessInfo().getUuid1());
+        Assertions.assertEquals(h.processInfo.uuid2, result.getProcessInfo().getUuid2());
         Assertions.assertEquals(h.config.maxPacketSize, result.getConfig().getMaxPacketSize());
     }
 }
