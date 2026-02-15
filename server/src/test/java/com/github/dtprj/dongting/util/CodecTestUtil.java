@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbParser;
+import com.github.dtprj.dongting.codec.SimpleEncodable;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import org.junit.jupiter.api.Assertions;
@@ -93,5 +94,12 @@ public class CodecTestUtil {
         Assertions.assertEquals(size, encodedSize);
         Assertions.assertNotNull(o);
         return o;
+    }
+
+    public static ByteBuffer simpleEncode(SimpleEncodable e) {
+        ByteBuffer buf = ByteBuffer.allocate(e.actualSize());
+        e.encode(buf);
+        buf.flip();
+        return buf;
     }
 }
