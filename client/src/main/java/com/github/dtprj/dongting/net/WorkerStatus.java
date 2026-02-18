@@ -94,6 +94,10 @@ class WorkerStatus {
 
 
     private void addToNearTimeoutQueueIfNeed(PacketInfoReq pi) {
+        if (pi.nearTimeoutQueuePrev != null || pi.nearTimeoutQueueNext != null || nearTimeoutQueueHead == pi) {
+            // already in near timeout queue
+            return;
+        }
         if (pi.timeout.deadlineNanos - ts.nanoTime < nearTimeoutThresholdNanos) {
             // add to near timeout queue
             if (nearTimeoutQueueHead == null) {
