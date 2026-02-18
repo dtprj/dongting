@@ -55,6 +55,7 @@ class MultiParser {
             parser.parse(buf);
             if (parser.isFinished()) {
                 parseLen = true;
+                size = 0;
             }
         }
     }
