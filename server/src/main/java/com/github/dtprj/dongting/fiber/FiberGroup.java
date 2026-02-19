@@ -133,10 +133,6 @@ public class FiberGroup {
         return new FiberChannel<>(this);
     }
 
-    public FiberLock newLock(String name) {
-        return new FiberLock(name, this);
-    }
-
     void checkGroup() {
         if (DispatcherThread.currentGroup() != this) {
             throw new FiberException("not in current group: " + name);
