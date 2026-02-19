@@ -135,7 +135,7 @@ public final class RefBuffer extends RefCount implements Encodable {
         if (pool != null) {
             pool.release(buffer);
         } else {
-            // should be direct
+            // should be direct, see constructor, the heap buffer less than threshold is dummy and not call doClean
             SimpleByteBufferPool.VF.releaseDirectBuffer(buffer);
         }
         this.buffer = null;
