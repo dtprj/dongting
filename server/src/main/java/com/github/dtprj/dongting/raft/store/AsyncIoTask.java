@@ -29,6 +29,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -137,7 +138,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
 
     private void retry(Throwable ioEx) {
         long sleepTime = StoreUtil.calcRetryInterval(retryCount, retryInterval);
-        if(sleepTime <= 0) {
+        if (sleepTime <= 0) {
             fireComplete(ioEx);
             return;
         }
@@ -229,8 +230,12 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
                     doForce();
                     fireComplete(null);
                 } catch (Throwable e) {
-                    // retry should run in fiber dispatcher thread
-                    fiberGroup.getExecutor().execute(() -> retry(e));
+                    try {
+                        // retry should run in fiber dispatcher thread
+                        fiberGroup.getExecutor().execute(() -> retry(e));
+                    } catch (RejectedExecutionException ee) {
+                        log.error("force retry rejected because shutdown: {}", fiberGroup.name);
+                    }
                 }
             });
         } catch (Throwable e) {
