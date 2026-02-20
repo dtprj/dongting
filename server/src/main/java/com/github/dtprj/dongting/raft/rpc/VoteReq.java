@@ -41,8 +41,8 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        return PbUtil.sizeOfInt64Field(1, groupId)
-                + PbUtil.sizeOfInt64Field(2, term)
+        return PbUtil.sizeOfInt32Field(1, groupId)
+                + PbUtil.sizeOfInt32Field(2, term)
                 + PbUtil.sizeOfInt32Field(3, candidateId)
                 + PbUtil.sizeOfFix64Field(4, lastLogIndex)
                 + PbUtil.sizeOfInt32Field(5, lastLogTerm)
