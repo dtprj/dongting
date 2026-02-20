@@ -470,7 +470,7 @@ public class EncodeUtil {
     }
 
     public static boolean encodeAscii(EncodeContext c, ByteBuffer dest, int pbIndex, String value) {
-        if (value == null) {
+        if (value == null || value.isEmpty()) {
             c.stage = pbIndex;
             return true;
         }
@@ -478,10 +478,6 @@ public class EncodeUtil {
         if (c.pending == 0) {
             if (!writeObjPrefix(dest, pbIndex, size)) {
                 return false;
-            }
-            if (size == 0) {
-                c.stage = pbIndex;
-                return true;
             }
             c.pending = 1;
         }
@@ -505,7 +501,7 @@ public class EncodeUtil {
     }
 
     public static boolean encodeUTF8(EncodeContext c, ByteBuffer dest, int pbIndex, String value) {
-        if (value == null) {
+        if (value == null || value.isEmpty()) {
             c.stage = pbIndex;
             return true;
         }
@@ -516,7 +512,7 @@ public class EncodeUtil {
         } else {
             bytes = (byte[]) c.status;
         }
-        boolean r = encode(c, dest, pbIndex, bytes, MODE_ENCODE_EMPTY_NOT_ENCODE_NULL);
+        boolean r = encode(c, dest, pbIndex, bytes, MODE_CUT_0BYTE);
         if (r) {
             c.stage = pbIndex;
             c.status = null;

@@ -501,16 +501,17 @@ class EncodeUtilTest {
     public void testEncodeAscii() {
         init(2);
         assertTrue(EncodeUtil.encodeAscii(c, buf, 1, ""));
-        assertEquals(2, buf.position());
+        assertEquals(0, buf.position());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
-        checkUTF8(1, "");
+        assertNull(c.status);
 
         init(0);
         assertTrue(EncodeUtil.encodeAscii(c, buf, 1, null));
         assertEquals(0, buf.position());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
+        assertNull(c.status);
 
         String data = "helloWorld123";
         int size = PbUtil.sizeOfAscii(1, data);
@@ -533,10 +534,10 @@ class EncodeUtilTest {
     public void testEncodeUTF8() {
         init(2);
         assertTrue(EncodeUtil.encodeUTF8(c, buf, 1, ""));
-        assertEquals(2, buf.position());
+        assertEquals(0, buf.position());
         assertEquals(1, c.stage);
         assertEquals(0, c.pending);
-        checkUTF8(1, "");
+        assertNull(c.status);
 
         init(0);
         assertTrue(EncodeUtil.encodeUTF8(c, buf, 1, null));
