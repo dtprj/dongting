@@ -56,6 +56,9 @@ public class AdminListNodesResp extends PbCallback<AdminListNodesResp> implement
 
     @Override
     public int actualSize() {
+        if (nodes == null) {
+            return 0;
+        }
         return PbUtil.sizeOfInt32Field(IDX_SIZE, nodes.size()) +
                 EncodeUtil.sizeOfList(IDX_NODE, nodes);
     }

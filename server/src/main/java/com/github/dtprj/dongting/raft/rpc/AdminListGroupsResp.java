@@ -75,6 +75,9 @@ public class AdminListGroupsResp extends PbCallback<AdminListGroupsResp> impleme
 
     @Override
     public int actualSize() {
+        if (groupIds == null) {
+            return 0;
+        }
         return PbUtil.sizeOfInt32Field(IDX_SIZE, groupIds.length)
                 + PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupIds);
     }
