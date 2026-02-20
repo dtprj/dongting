@@ -41,6 +41,7 @@ public class BugLog {
                 pw.println(msg);
             }
             e.printStackTrace(pw);
+            pw.flush();
             firstError = os.toString();
         }
     }
