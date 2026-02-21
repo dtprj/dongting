@@ -309,38 +309,47 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
             return Fiber.frameReturn();
         }
 
+        updateLeaderCommit(req, raftStatus);
+
+        long expectLogIndex = LinearTaskRunner.lastIndex(raftStatus);
+        if (expectLogIndex != req.prevLogIndex) {
+            log.error("bad request: log index not match. prevLogIndex={}, expectIndex={}, leaderId={}, groupId={}",
+                    req.prevLogIndex, expectLogIndex, req.leaderId, raftStatus.groupId);
+            writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index not match, prevLogIndex="
+                    + req.prevLogIndex + ", expectIndex=" + expectLogIndex);
+            return Fiber.frameReturn();
+        }
+        List<LogItem> logs = req.logs;
+        for (int i = 0, len = logs.size(); i < len; i++) {
+            LogItem li = logs.get(i);
+            if (li.index != ++expectLogIndex) {
+                log.error("bad request: log index not continuous at pos {}, expected={}, actual={}, leaderId={}",
+                        i, expectLogIndex, li.index, req.leaderId);
+                writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index " + i + " not continuous");
+                return Fiber.frameReturn();
+            }
+        }
+
         // Here, we refreshed the ts. Next, the time t set on RaftTask is greater than the time when the raft
         // client constructs the request. Since there is a 1ms error in the ts refresh, the time when the raft
         // client constructs the request happens before (t + 1ms).
         raftStatus.ts.refresh(1);
 
-        List<LogItem> logs = req.logs;
-
-        updateLeaderCommit(req, raftStatus);
-
-        long index = LinearTaskRunner.lastIndex(raftStatus);
-
         ArrayList<RaftTask> list = new ArrayList<>(logs.size());
         for (int i = 0, len = logs.size(); i < len; i++) {
             LogItem li = logs.get(i);
-            if (++index != li.index) {
-                log.error("bad request: log index not match. index={}, expectIndex={}, leaderId={}, groupId={}",
-                        li.index, index, req.leaderId, raftStatus.groupId);
-                writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index not match");
-                return Fiber.frameReturn();
-            }
             RaftInput raftInput = new RaftInput(li.bizType, li.getHeader(), li.getBody(), null,
                     li.type == LogItem.TYPE_LOG_READ);
             RaftTask task = new RaftTask(li.type, raftInput, null);
             task.init(li, raftStatus.ts.nanoTime);
             list.add(task);
 
-            if (index < raftStatus.groupReadyIndex && raftStatus.getRole() != RaftRole.none) {
-                log.info("set groupReadyIndex to {}, groupId={}", index, raftStatus.groupId);
-                raftStatus.groupReadyIndex = index;
+            if (li.index < raftStatus.groupReadyIndex && raftStatus.getRole() != RaftRole.none) {
+                log.info("set groupReadyIndex to {}, groupId={}", li.index, raftStatus.groupId);
+                raftStatus.groupReadyIndex = li.index;
             }
             if (i == len - 1) {
-                registerRespWriter(raftStatus, index);
+                registerRespWriter(raftStatus, li.index);
             }
         }
         gc.commitManager.updateCommitHistory(req.leaderCommit);
