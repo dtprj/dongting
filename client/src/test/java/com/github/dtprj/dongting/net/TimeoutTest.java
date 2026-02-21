@@ -151,7 +151,6 @@ public class TimeoutTest {
     @Test
     public void dropBeforeRequestSendTest() throws Exception {
         setup(() -> registerDelayPingProcessor(null, null));
-        BugLog.reset();
         for (int i = 0; i < 3; i++) {
             try {
                 DtTime deadline = new DtTime(System.nanoTime() - Duration.ofSeconds(1).toNanos(), 1, TimeUnit.NANOSECONDS);

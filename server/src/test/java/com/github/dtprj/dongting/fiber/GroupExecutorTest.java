@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.log.BugLog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -52,9 +53,14 @@ class GroupExecutorTest extends AbstractFiberTest {
         assertThrows(UnsupportedOperationException.class, () -> e.invokeAny(null));
         assertThrows(UnsupportedOperationException.class, () -> e.invokeAny(null, 1, TimeUnit.SECONDS));
 
-        shutdownDispatcher();
-        assertTrue(e.isShutdown());
-        assertTrue(e.isTerminated());
+        try {
+            shutdownDispatcher();
+            assertTrue(e.isShutdown());
+            assertTrue(e.isTerminated());
+        } finally {
+            // Reset BugLog because these methods throws UnsupportedOperationException mark BugLog
+            BugLog.reset();
+        }
     }
 
     @Test

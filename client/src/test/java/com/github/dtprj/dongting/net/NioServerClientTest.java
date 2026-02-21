@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
+import com.github.dtprj.dongting.log.BugLog;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -134,6 +135,10 @@ public class NioServerClientTest {
             }
 
         } finally {
+            // Reset BugLog because this test intentionally triggers a "dup seq" error
+            // by manually decrementing the seq to cause a duplicate sequence number,
+            // which results in BugLog being called in WorkerStatus.addPendingReq()
+            BugLog.reset();
             TestUtil.stop(client, server);
         }
     }

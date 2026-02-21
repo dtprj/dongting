@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.TailCache;
@@ -198,6 +199,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             if (expectResult >= 0) {
                 throw ex;
             }
+            BugLog.reset();
             return Fiber.frameReturn();
         }
 

@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -153,52 +154,62 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
     @Test
     void testDelete() throws Exception {
-        int[] totalSizes = new int[]{400, 400, 512, 200, 400};
-        int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
-        append(1, totalSizes, bizHeaderLen);
-        raftStatus.commitIndex = 5;
-        raftStatus.setLastApplied(5);
-        raftStatus.lastLogIndex = 5;
-        append(6, totalSizes, bizHeaderLen);
+        try {
+            int[] totalSizes = new int[]{400, 400, 512, 200, 400};
+            int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
+            append(1, totalSizes, bizHeaderLen);
+            raftStatus.commitIndex = 5;
+            raftStatus.setLastApplied(5);
+            raftStatus.lastLogIndex = 5;
+            append(6, totalSizes, bizHeaderLen);
 
-        doInFiber(new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                // to fire idx flush
-                return raftLog.close().await(this::resume);
+            doInFiber(new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    // to fire idx flush
+                    return raftLog.close().await(this::resume);
+                }
+
+                private FrameCallResult resume(Void unused) {
+                    return statusManager.close().await(this::justReturn);
+                }
+            });
+
+            init();
+            raftStatus.commitIndex = 5;
+            raftStatus.setLastApplied(5);
+            raftStatus.lastLogIndex = 5;
+            raftStatus.lastForceLogIndex = 5;
+            raftStatus.lastSavedSnapshotIndex = 10;
+
+            // test delete
+            File dir = new File(new File(dataDir), "log");
+
+            {
+                Supplier<Boolean> deleted = fileDeleted(dir, 0);
+                doInFiber(() -> raftLog.markTruncateByIndex(3, 1000));
+                Thread.sleep(2);
+                assertFalse(deleted.get());
+                plus1Hour();
+                WaitUtil.waitUtil(deleted);
             }
+            {
+                plus1Hour();
+                doInFiber(() -> raftLog.markTruncateByTimestamp(raftStatus.ts.wallClockMillis, 0));
 
-            private FrameCallResult resume(Void unused) {
-                return statusManager.close().await(this::justReturn);
+                // can't delete after next persist index and apply index, so only delete to index 4
+                Supplier<Boolean> deleted = fileDeleted(dir, 1024);
+                plus1Hour();
+                WaitUtil.waitUtil(deleted);
             }
-        });
-
-        init();
-        raftStatus.commitIndex = 5;
-        raftStatus.setLastApplied(5);
-        raftStatus.lastLogIndex = 5;
-        raftStatus.lastForceLogIndex = 5;
-        raftStatus.lastSavedSnapshotIndex = 10;
-
-        // test delete
-        File dir = new File(new File(dataDir), "log");
-
-        {
-            Supplier<Boolean> deleted = fileDeleted(dir, 0);
-            doInFiber(() -> raftLog.markTruncateByIndex(3, 1000));
-            Thread.sleep(2);
-            assertFalse(deleted.get());
-            plus1Hour();
-            WaitUtil.waitUtil(deleted);
-        }
-        {
-            plus1Hour();
-            doInFiber(() -> raftLog.markTruncateByTimestamp(raftStatus.ts.wallClockMillis, 0));
-
-            // can't delete after next persist index and apply index, so only delete to index 4
-            Supplier<Boolean> deleted = fileDeleted(dir, 1024);
-            plus1Hour();
-            WaitUtil.waitUtil(deleted);
+        } finally {
+            doInFiber(()->{
+                // Restore timestamp to current time because this test uses plus1Hour() to modify
+                // dispatcher.ts multiple times. Must restore to current time to avoid subsequent
+                // tests seeing "nanoTime go back" error when Dispatcher thread calls ts.refresh()
+                TestUtil.updateTimestamp(raftStatus.ts, System.nanoTime(), System.currentTimeMillis());
+                BugLog.reset();
+            });
         }
     }
 

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.util.MockRuntimeException;
 import org.junit.jupiter.api.BeforeEach;
@@ -212,31 +213,37 @@ class TtlManagerTest {
 
     @Test
     void testRetry() {
-        ByteArray key = ba("test");
-        KvNodeEx node = createKvNode(key);
-        UUID owner = UUID.randomUUID();
-        KvImpl.OpContext ctx = createOpContext(owner, 3);
+        try {
+            ByteArray key = ba("test");
+            KvNodeEx node = createKvNode(key);
+            UUID owner = UUID.randomUUID();
+            KvImpl.OpContext ctx = createOpContext(owner, 3);
 
-        manager.initTtl(ver++, key, node, ctx);
+            manager.initTtl(ver++, key, node, ctx);
 
-        expireCallbackEx = new MockRuntimeException();
-        ts.wallClockMillis += 2000;
-        ts.nanoTime += 2000 * 1000 * 1000;
+            expireCallbackEx = new MockRuntimeException();
+            ts.wallClockMillis += 2000;
+            ts.nanoTime += 2000 * 1000 * 1000;
 
-        assertEquals(manager.defaultDelayNanos, manager.task.execute());
-        assertEquals(1, expiredList.size());
+            assertEquals(manager.defaultDelayNanos, manager.task.execute());
+            assertEquals(1, expiredList.size());
 
-        manager.retry(expiredList.remove(0), expireCallbackEx);
+            manager.retry(expiredList.remove(0), expireCallbackEx);
 
-        ts.nanoTime += manager.retryDelayNanos / 2;
-        ts.wallClockMillis = ts.nanoTime / 1_000_000 / 2;
-        assertEquals(manager.defaultDelayNanos, manager.task.execute());
-        assertEquals(0, expiredList.size());
+            ts.nanoTime += manager.retryDelayNanos / 2;
+            ts.wallClockMillis = ts.nanoTime / 1_000_000 / 2;
+            assertEquals(manager.defaultDelayNanos, manager.task.execute());
+            assertEquals(0, expiredList.size());
 
-        ts.nanoTime += manager.retryDelayNanos * 2;
-        ts.wallClockMillis = ts.nanoTime / 1_000_000 * 2;
-        assertEquals(manager.defaultDelayNanos, manager.task.execute());
-        assertEquals(1, expiredList.size());
+            ts.nanoTime += manager.retryDelayNanos * 2;
+            ts.wallClockMillis = ts.nanoTime / 1_000_000 * 2;
+            assertEquals(manager.defaultDelayNanos, manager.task.execute());
+            assertEquals(1, expiredList.size());
+        } finally {
+            // the mock ex may trigger BugLog
+            BugLog.reset();
+        }
+
     }
 
     @Test

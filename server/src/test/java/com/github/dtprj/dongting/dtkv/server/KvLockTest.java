@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvNode;
 import com.github.dtprj.dongting.dtkv.KvResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -256,7 +257,9 @@ class KvLockTest {
         TestUtil.updateTimestamp(ts, ts.nanoTime + 100_000_000L, ts.wallClockMillis + 100);
         initOpContext(owner1, DtKV.BIZ_TYPE_UNLOCK, 0);
         KvImpl.KvResultWithNewOwnerInfo r = (KvImpl.KvResultWithNewOwnerInfo) kv.unlock(ver++, ba("lock1"));
-        
+        // updateTimestamp trigger BugLog: nanoTime go back
+        BugLog.reset();
+
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
 
         // verify next owner notified
@@ -305,7 +308,9 @@ class KvLockTest {
         TestUtil.updateTimestamp(ts, ts.nanoTime + 100_000_000L, ts.wallClockMillis + 100);
         initOpContext(owner1, DtKV.BIZ_TYPE_UPDATE_LOCK_LEASE, 8000);
         KvResult r = kv.updateLockLease(ver++, ba("lock1"));
-        
+        // updateTimestamp trigger BugLog: nanoTime go back
+        BugLog.reset();
+
         assertEquals(KvCodes.SUCCESS, r.getBizCode());
 
         // verify TTL updated
