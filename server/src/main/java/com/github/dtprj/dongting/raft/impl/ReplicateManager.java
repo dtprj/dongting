@@ -506,9 +506,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                         raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfPreparedMembers, resp.msg);
             } else {
                 BugLog.log("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
-                                "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
+                                "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}. " +
+                                "remoteMsg={}",
                         AppendProcessor.getAppendResultStr(appendCode), member.matchIndex, prevLogIndex, expectNewMatchIndex,
-                        member.node.nodeId, groupId, raftStatus.currentTerm, term, body.term);
+                        member.node.nodeId, groupId, raftStatus.currentTerm, term, body.term, resp.msg);
             }
         }
     }
