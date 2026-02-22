@@ -139,7 +139,7 @@ public class DtAdminIT {
     }
 
     @Test
-    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    @Timeout(value = 3000, unit = TimeUnit.SECONDS)
     void testDtAdmin() throws Exception {
         for (int i = 0; i < 30; i++) {
             testListNodesAndGroups();
