@@ -16,6 +16,7 @@ on:
       - 'docs/**'
       - 'devlogs/**'
       - '**.md'
+  workflow_dispatch:
 
 jobs:
   build:
