@@ -90,7 +90,7 @@ public class DtAdminIT {
 
         processManager = new BootstrapProcessManager();
 
-        List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(ALL_NODE_IDS ,MEMBER_IDS, GROUP_ID, tempDirPath)
+        List<ProcessConfig> configs = new ConfigFileGenerator.ClusterConfigBuilder(ALL_NODE_IDS, MEMBER_IDS, GROUP_ID, tempDirPath)
                 .observerIds(OBSERVER_IDS)
                 .electTimeout(ELECT_TIMEOUT)
                 .rpcTimeout(RPC_TIMEOUT)
@@ -141,14 +141,16 @@ public class DtAdminIT {
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)
     void testDtAdmin() throws Exception {
-        testListNodesAndGroups();
-        int leader = testTransferLeader();
-        int[] newMembers = leader == 1 ? new int[]{1, 2} : new int[]{2, 3};
-        testPrepareAndCommitChange(GROUP_ID, leader, newMembers, new int[]{});
-        changeGroupConfig(GROUP_ID, leader, MEMBER_IDS, OBSERVER_IDS); // change back
-        testAbortChange();
-        testAddRemoveGroup();
-        testRemoveNodeThenReAdd(leader);
+        for (int i = 0; i < 30; i++) {
+            testListNodesAndGroups();
+            int leader = testTransferLeader();
+            int[] newMembers = leader == 1 ? new int[]{1, 2} : new int[]{2, 3};
+            testPrepareAndCommitChange(GROUP_ID, leader, newMembers, new int[]{});
+            changeGroupConfig(GROUP_ID, leader, MEMBER_IDS, OBSERVER_IDS); // change back
+            testAbortChange();
+            testAddRemoveGroup();
+            testRemoveNodeThenReAdd(leader);
+        }
     }
 
     private void testListNodesAndGroups() throws Exception {
