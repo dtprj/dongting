@@ -331,6 +331,9 @@ class FileLogLoader implements RaftLog.LogIterator {
                     if (header.type == LogItem.TYPE_NORMAL || header.type == LogItem.TYPE_LOG_READ) {
                         callback = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext)
                                 : codecFactory.createBodyCallback(header.bizType, decodeContext);
+                        if (callback == null) {
+                            throw new RaftException("decoder not found: bizType=" + header.bizType);
+                        }
                     } else {
                         callback = new ByteArray.Callback();
                     }

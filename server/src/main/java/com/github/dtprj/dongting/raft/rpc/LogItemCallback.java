@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
@@ -93,6 +94,9 @@ class LogItemCallback extends PbCallback<Object> {
                 item.setActualHeaderSize(len);
                 if (item.type == LogItem.TYPE_NORMAL) {
                     currentDecoderCallback = codecFactory.createHeaderCallback(item.bizType, context.createOrGetNestedContext());
+                    if (currentDecoderCallback == null) {
+                        throw new RaftException("no decoder for header, bizType=" + item.bizType);
+                    }
                 } else {
                     currentDecoderCallback = new ByteArray.Callback();
                 }
@@ -108,6 +112,9 @@ class LogItemCallback extends PbCallback<Object> {
                 item.setActualBodySize(len);
                 if (item.type == LogItem.TYPE_NORMAL || item.type == LogItem.TYPE_LOG_READ) {
                     currentDecoderCallback = codecFactory.createBodyCallback(item.bizType, context.createOrGetNestedContext());
+                    if (currentDecoderCallback == null) {
+                        throw new RaftException("no decoder for body, bizType=" + item.bizType);
+                    }
                 } else {
                     currentDecoderCallback = new ByteArray.Callback();
                 }
