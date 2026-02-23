@@ -90,16 +90,14 @@ public final class RefBuffer extends RefCount implements Encodable {
     }
 
     @Override
-    public boolean release(int decrement) {
+    public void release(int decrement) {
         if (root != null) {
-            if (root.release(decrement)) {
+            if (root.release0(decrement)) {
                 this.buffer = null;
-                return true;
-            } else {
-                return false;
             }
+        } else {
+            super.release(decrement);
         }
-        return super.release(decrement);
     }
 
     @Override
@@ -112,12 +110,8 @@ public final class RefBuffer extends RefCount implements Encodable {
     }
 
     @Override
-    public boolean release() {
-        if (root != null) {
-            return root.release();
-        } else {
-            return super.release();
-        }
+    public void release() {
+        release(1);
     }
 
     @Override

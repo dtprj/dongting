@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.java11;
 
+import com.github.dtprj.dongting.common.AbstractRefCountTest;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.RefCount;
 import org.junit.jupiter.api.AfterAll;
@@ -34,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * @author huangli
  */
-public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountTest {
+public abstract class AbstractMultiThreadRefCountTest extends AbstractRefCountTest {
 
     private static final int THREADS = 100;
     private static final int LOOP = 5000;

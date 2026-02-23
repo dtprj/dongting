@@ -13,16 +13,12 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.java11;
+package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.RefCount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -40,15 +36,18 @@ public abstract class AbstractRefCountTest {
 
     @Test
     public void simpleTest() {
-        assertTrue(rf.release());
+        rf.release();
+        assertTrue(rf.isReleased());
         assertThrows(DtException.class, () -> rf.release());
     }
 
     @Test
     public void simpleTest2() {
         rf.retain();
-        assertFalse(rf.release());
-        assertTrue(rf.release());
+        rf.release();
+        assertFalse(rf.isReleased());
+        rf.release();
+        assertTrue(rf.isReleased());
         assertThrows(DtException.class, () -> rf.release());
         assertThrows(DtException.class, () -> rf.retain());
     }
@@ -56,9 +55,12 @@ public abstract class AbstractRefCountTest {
     @Test
     public void simpleTest3() {
         rf.retain(5);
-        assertFalse(rf.release());
-        assertFalse(rf.release(2));
-        assertTrue(rf.release(3));
+        rf.release();
+        assertFalse(rf.isReleased());
+        rf.release(2);
+        assertFalse(rf.isReleased());
+        rf.release(3);
+        assertTrue(rf.isReleased());
         assertThrows(DtException.class, () -> rf.release());
         assertThrows(DtException.class, () -> rf.retain());
     }
@@ -79,7 +81,9 @@ public abstract class AbstractRefCountTest {
     protected void doOverflowTest() {
         rf.retain();
         assertThrows(DtException.class, () -> rf.retain(Integer.MAX_VALUE / 2));
-        assertFalse(rf.release());
-        assertTrue(rf.release());
+        rf.release();
+        assertFalse(rf.isReleased());
+        rf.release();
+        assertTrue(rf.isReleased());
     }
 }

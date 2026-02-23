@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.java8;
 
+import com.github.dtprj.dongting.common.AbstractRefCountTest;
 import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.java11.AbstractRefCountTest;
 
 /**
  * @author huangli

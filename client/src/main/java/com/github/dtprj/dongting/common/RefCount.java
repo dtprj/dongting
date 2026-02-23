@@ -64,13 +64,18 @@ public class RefCount {
         }
     }
 
-    public boolean release() {
-        return release(1);
+    public void release() {
+        release0(1);
     }
 
-    public boolean release(int decrement) {
+    public void release(int decrement) {
+        release0(decrement);
+    }
+
+    protected boolean release0(int decrement) {
         AbstractRefCountUpdater u = updater;
         if (u == null) {
+            // dummy always return false
             return false;
         }
         boolean r = u.release(this, decrement);
