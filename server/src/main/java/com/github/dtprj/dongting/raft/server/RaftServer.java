@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -196,8 +197,6 @@ public class RaftServer extends AbstractLifeCircle {
                 r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
 
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
-
-        allMemberReadyFuture.whenComplete(this::afterAllMemberReady);
     }
 
     private void addRaftGroupProcessor(NioServer nioServer, int command, RaftSequenceProcessor<?> processor) {
@@ -378,8 +377,8 @@ public class RaftServer extends AbstractLifeCircle {
             });
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
-                    allMemberReadyFuture.completeExceptionally(ex);
-                } else if (checkStartStatus(allMemberReadyFuture)) {
+                    finishAllMemberReadyFuture(ex);
+                } else if (checkStartStatus()) {
                     startNodePing();
                 }
             });
@@ -389,9 +388,15 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private boolean checkStartStatus(CompletableFuture<Void> f) {
+    private boolean checkStartStatus() {
         if (status > STATUS_RUNNING) {
-            f.completeExceptionally(new IllegalStateException("server is not running: " + status));
+            IllegalStateException ex = new IllegalStateException("server is not running: " + status);
+            if (!allMemberReadyFuture.isDone()) {
+                allMemberReadyFuture.completeExceptionally(ex);
+            }
+            if (!allGroupReadyFuture.isDone()) {
+                allGroupReadyFuture.completeExceptionally(ex);
+            }
             return false;
         }
         return true;
@@ -412,14 +417,14 @@ public class RaftServer extends AbstractLifeCircle {
             nodeManager.start();
             nodeManager.getNodePingReadyFuture().whenComplete((v, ex) -> {
                 if (ex != null) {
-                    allMemberReadyFuture.completeExceptionally(ex);
-                } else if (checkStartStatus(allMemberReadyFuture)) {
+                    finishAllMemberReadyFuture(ex);
+                } else if (checkStartStatus()) {
                     startMemberPing();
                 }
             });
         } catch (Exception e) {
             log.error("start node manager failed", e);
-            allMemberReadyFuture.completeExceptionally(e);
+            finishAllMemberReadyFuture(e);
         }
     }
 
@@ -430,24 +435,30 @@ public class RaftServer extends AbstractLifeCircle {
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
-                    allMemberReadyFuture.completeExceptionally(ex);
-                } else if (checkStartStatus(allMemberReadyFuture)) {
-                    allMemberReadyFuture.complete(null);
+                    finishAllMemberReadyFuture(ex);
+                } else if (checkStartStatus()) {
+                    finishAllMemberReadyFuture(null);
                 }
             });
         } catch (Exception e) {
             log.error("start raft groups failed", e);
-            allMemberReadyFuture.completeExceptionally(e);
+            finishAllMemberReadyFuture(e);
         }
     }
 
-    private void afterAllMemberReady(Void unused, Throwable ex) {
+    private void finishAllMemberReadyFuture(Throwable ex) {
         if (ex != null) {
+            allMemberReadyFuture.completeExceptionally(ex);
             allGroupReadyFuture.completeExceptionally(ex);
+            return;
+        }
+        if (allMemberReadyFuture.isDone()) {
+            BugLog.log("allMemberReadyFuture is done");
             return;
         }
         try {
             log.info("all group member check ready");
+            allMemberReadyFuture.complete(null);
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             DtTime deadline = new DtTime(1000, TimeUnit.DAYS);
             raftGroups.forEach((groupId, g) -> {
@@ -461,7 +472,7 @@ public class RaftServer extends AbstractLifeCircle {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex2) -> {
                 if (ex2 != null) {
                     allGroupReadyFuture.completeExceptionally(ex2);
-                } else if (checkStartStatus(allGroupReadyFuture)) {
+                } else if (checkStartStatus()) {
                     groupReady = true;
                     log.info("all group ready");
                     allGroupReadyFuture.complete(null);
