@@ -112,7 +112,7 @@ public final class RaftGroupImpl extends RaftGroup {
             }
         } else {
             // wait group ready
-            CompletableFuture<Long> f = groupComponents.applyManager.addToWaitReadyQueue(deadline);
+            CompletableFuture<Long> f = groupComponents.applyManager.addToWaitReadyQueueFromAnyThread(deadline);
             f.whenComplete((idx, ex) -> {
                 if (ex != null) {
                     FutureCallback.callFail(callback, ex);

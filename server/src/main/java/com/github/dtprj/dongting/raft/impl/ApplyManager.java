@@ -254,7 +254,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         }
     }
 
-    public CompletableFuture<Long> addToWaitReadyQueue(DtTime t) {
+    public CompletableFuture<Long> addToWaitReadyQueueFromAnyThread(DtTime t) {
         CompletableFuture<Long> f = new CompletableFuture<>();
         boolean b = fiberGroup.fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
             @Override
