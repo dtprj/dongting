@@ -326,6 +326,11 @@ public class FiberGroup {
     public ScheduledExecutorService getExecutor() {
         return executor;
     }
+
+    public boolean isCurrentGroup() {
+        DispatcherThread t = dispatcher.thread;
+        return Thread.currentThread() == t && this == t.currentGroup;
+    }
 }
 
 class GroupRunnerFiberFrame extends FiberFrame<Void> {
