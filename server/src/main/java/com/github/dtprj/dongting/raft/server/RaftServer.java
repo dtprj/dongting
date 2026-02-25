@@ -464,8 +464,7 @@ public class RaftServer extends AbstractLifeCircle {
             raftGroups.forEach((groupId, g) -> {
                 RaftShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
                 if (!ss.groupReady && ss.role != RaftRole.none) {
-                    futures.add(g.groupComponents.applyManager
-                            .addToWaitReadyQueueFromAnyThread(deadline).thenApply(idx -> null));
+                    futures.add(g.groupComponents.applyManager.addToWaitReadyQueueFromAnyThread(deadline));
                 }
             });
 

@@ -57,7 +57,7 @@ import static java.util.Collections.emptySet;
 /**
  * @author huangli
  */
-public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<Long>>> {
+public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<Void>>> {
     private static final DtLog log = DtLogs.getLogger(ApplyManager.class);
 
     private final GroupComponents gc;
@@ -76,7 +76,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
 
     private long initCommitIndex;
 
-    private final PriorityQueue<Pair<DtTime, CompletableFuture<Long>>> waitReadyQueue;
+    private final PriorityQueue<Pair<DtTime, CompletableFuture<Void>>> waitReadyQueue;
     private final LinkedList<FiberFuture<Snapshot>> takeSnapshotRequests = new LinkedList<>();
 
     private int execCount = 0;
@@ -100,7 +100,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     @Override
-    public int compare(Pair<DtTime, CompletableFuture<Long>> o1, Pair<DtTime, CompletableFuture<Long>> o2) {
+    public int compare(Pair<DtTime, CompletableFuture<Void>> o1, Pair<DtTime, CompletableFuture<Void>> o2) {
         long now = ts.nanoTime;
         long diff = (o1.getLeft().deadlineNanos - now) - (o2.getLeft().deadlineNanos - now);
         return diff < 0 ? -1 : diff > 0 ? 1 : 0;
@@ -123,7 +123,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
                 if (raftStatus.isGroupReady()) {
                     return applyMonitorCond.await(1000, this);
                 } else {
-                    processWaitGroupReadyQueue(true, false, 0);
+                    processWaitGroupReadyQueue(true, false);
                     return applyMonitorCond.await(100, this);
                 }
             }
@@ -159,7 +159,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
         } catch (Throwable e) {
             log.error("state machine stop failed", e);
         }
-        processWaitGroupReadyQueue(false, true, 0);
+        processWaitGroupReadyQueue(false, true);
     }
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
@@ -213,60 +213,60 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
     }
 
     // if processAll and group should stop, use null as leaseReadIndex
-    private void processWaitGroupReadyQueue(boolean processTimeout, boolean processStop, long leaseReadIndex) {
+    private void processWaitGroupReadyQueue(boolean processTimeout, boolean processStop) {
         if (waitReadyQueue.isEmpty()) {
             return;
         }
-        Iterator<Pair<DtTime, CompletableFuture<Long>>> it = waitReadyQueue.iterator();
+        Iterator<Pair<DtTime, CompletableFuture<Void>>> it = waitReadyQueue.iterator();
         while (it.hasNext()) {
-            Pair<DtTime, CompletableFuture<Long>> p = it.next();
+            Pair<DtTime, CompletableFuture<Void>> p = it.next();
             DtTime deadline = p.getLeft();
-            CompletableFuture<Long> f = p.getRight();
+            CompletableFuture<Void> f = p.getRight();
             if (processTimeout) {
                 if (deadline.isTimeout(ts)) {
                     it.remove();
                     RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
                             + deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
-                    completeWaitReadyFuture(f, null, e);
+                    completeWaitReadyFuture(f, e);
                 } else {
                     break;
                 }
             } else {
                 it.remove();
                 if (processStop) {
-                    completeWaitReadyFuture(f, null, new RaftException("group should stop"));
+                    completeWaitReadyFuture(f, new RaftException("group should stop"));
                 } else {
-                    completeWaitReadyFuture(f, leaseReadIndex, null);
+                    completeWaitReadyFuture(f, null);
                 }
             }
         }
     }
 
-    private void completeWaitReadyFuture(CompletableFuture<Long> f, Long index, Throwable ex) {
+    private void completeWaitReadyFuture(CompletableFuture<Void> f, Throwable ex) {
         try {
             if (ex != null) {
                 f.completeExceptionally(ex);
             } else {
-                f.complete(index);
+                f.complete(null);
             }
         } catch (Exception e) {
             log.error("lease read callback failed", e);
         }
     }
 
-    public CompletableFuture<Long> addToWaitReadyQueueFromAnyThread(DtTime t) {
-        CompletableFuture<Long> f = new CompletableFuture<>();
+    public CompletableFuture<Void> addToWaitReadyQueueFromAnyThread(DtTime t) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
         boolean b = fiberGroup.fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 if (t.isTimeout(raftStatus.ts)) {
                     RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
                             + t.getTimeout(TimeUnit.MILLISECONDS) + "ms");
-                    completeWaitReadyFuture(f, null, e);
-                } else if (isGroupShouldStopPlain()) {
-                    completeWaitReadyFuture(f, null, new RaftException("group should stop"));
+                    completeWaitReadyFuture(f, e);
+                } else if (raftStatus.isShouldStop()) {
+                    completeWaitReadyFuture(f, new RaftException("group should stop"));
                 } else if (raftStatus.isGroupReady()) {
-                    completeWaitReadyFuture(f, raftStatus.getLastApplied(), null);
+                    completeWaitReadyFuture(f, null);
                 } else {
                     waitReadyQueue.add(new Pair<>(t, f));
                 }
@@ -320,7 +320,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<L
             raftStatus.initFuture.complete(null);
         }
         if (processWaitGroupReadyQueue) {
-            processWaitGroupReadyQueue(false, false, index);
+            processWaitGroupReadyQueue(false, false);
         }
 
         if (waitApply) {

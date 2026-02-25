@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.Set;
@@ -35,22 +35,22 @@ public abstract class RaftGroup {
     public abstract void submitLinearTask(RaftInput input, RaftCallback callback);
 
     /**
-     * Get raft lease read index, use this index to read data from the state machine.
-     * Generally, the callback should be called immediately in current thread,
-     * however, if group not ready it may be called in raft thread after some time.
+     * Query whether lease read can be performed.
      *
-     * <p>NOTE1: Lease read is also linearizable.</p>
-     *
-     * <p>NOTE2: The DtKV does not use the read index (always read the latest snapshot),
-     * so current implementation always returns 0 as the read index to improve performance.</p>
-     *
+     * <p>NOTE: Lease read is also linearizable.</p>
      *
      * <li>If current node is not leader, or lease timeout(indicates something wrong),
      * callback will fail with a NotLeaderException. </li>
      * <li>If it can't get the index before deadline, callback will fail with a RaftExecTimeoutException. </li>
+     *
+     * @param ts the ts should be refreshed
+     * @param deadline the deadline
+     * @return true if a lease read can be performed and false
+     *         if the group is not ready and addGroupReadyListener should be called
      */
-    public abstract void leaseRead(Timestamp ts, DtTime deadline, FutureCallback<Long> callback);
+    public abstract boolean isLeaseReadValid(Timestamp ts, DtTime deadline) throws RaftException;
 
+    public abstract CompletableFuture<Void> addGroupReadyListener(DtTime deadline);
 
     /**
      * ADMIN API.

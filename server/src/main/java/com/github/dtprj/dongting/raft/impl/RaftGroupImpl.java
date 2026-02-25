@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -25,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
@@ -86,18 +86,20 @@ public final class RaftGroupImpl extends RaftGroup {
     private long lastLeaseTimeoutLogNanoTime;
 
     @Override
-    public void leaseRead(Timestamp ts, DtTime deadline, FutureCallback<Long> callback) {
+    public boolean isLeaseReadValid(Timestamp ts, DtTime deadline) throws RaftException {
+        // lease read require ts is refreshed
+        ts.refresh(1);
+        if (deadline.isTimeout(ts)) {
+            throw new RaftTimeoutException("wait group ready timeout: "
+                    + deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
+        }
         RaftShareStatus ss = raftStatus.getShareStatus();
         if (ss.shouldStop) {
-            FutureCallback.callFail(callback, new RaftException("raft group thread is stop"));
-            return;
+            throw new RaftException("raft group thread is stop");
         }
         if (ss.role != RaftRole.leader) {
-            FutureCallback.callFail(callback, new NotLeaderException(
-                    ss.currentLeader == null ? null : ss.currentLeader.node));
-            return;
+            throw new NotLeaderException(ss.currentLeader == null ? null : ss.currentLeader.node);
         }
-
         if (ss.groupReady) {
             long t = ts.nanoTime;
             if (ss.leaseEndNanos - t < 0) {
@@ -106,21 +108,19 @@ public final class RaftGroupImpl extends RaftGroup {
                     log.error("lease expired for {} ms", x);
                     lastLeaseTimeoutLogNanoTime = t;
                 }
-                FutureCallback.callFail(callback, new NotLeaderException(null, "lease expired for " + x + "ms"));
+                throw new NotLeaderException(null, "lease expired for " + x + "ms");
             } else {
-                FutureCallback.callSuccess(callback, 0L);
+                return true;
             }
         } else {
-            // wait group ready
-            CompletableFuture<Long> f = groupComponents.applyManager.addToWaitReadyQueueFromAnyThread(deadline);
-            f.whenComplete((idx, ex) -> {
-                if (ex != null) {
-                    FutureCallback.callFail(callback, ex);
-                } else {
-                    FutureCallback.callSuccess(callback, 0L);
-                }
-            });
+            // should call addGroupReadyListener to wait group ready
+            return false;
         }
+    }
+
+    @Override
+    public CompletableFuture<Void> addGroupReadyListener(DtTime deadline) {
+        return groupComponents.applyManager.addToWaitReadyQueueFromAnyThread(deadline);
     }
 
     @Override
