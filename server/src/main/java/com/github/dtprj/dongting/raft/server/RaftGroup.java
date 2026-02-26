@@ -43,7 +43,7 @@ public abstract class RaftGroup {
      * callback will fail with a NotLeaderException. </li>
      * <li>If it can't get the index before deadline, callback will fail with a RaftExecTimeoutException. </li>
      *
-     * @param ts the ts should be refreshed
+     * @param ts the ts of current thread
      * @param deadline the deadline
      * @return true if a lease read can be performed and false
      *         if the group is not ready and addGroupReadyListener should be called

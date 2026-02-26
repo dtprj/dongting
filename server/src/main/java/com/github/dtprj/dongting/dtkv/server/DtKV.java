@@ -85,12 +85,12 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_TYPE_UNLOCK = 16;
     public static final int BIZ_TYPE_UPDATE_LOCK_LEASE = 17;
 
-    private final Timestamp ts;
+    public final Timestamp ts;
     final DtKVExecutor dtkvExecutor;
 
     private final FiberGroup mainFiberGroup;
     private final RaftGroupConfigEx config;
-    private final KvServerConfig kvConfig;
+    public final KvServerConfig kvConfig;
     final boolean useSeparateExecutor;
 
     volatile KvStatus kvStatus;

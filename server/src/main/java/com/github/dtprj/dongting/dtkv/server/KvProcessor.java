@@ -162,35 +162,45 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         }
     }
 
-    /**
-     * the callback may run in other thread (raft thread etc.).
-     */
+    // run in io thread
     private void leaseRead(ReqInfo<KvReq> reqInfo, KvReq req) {
-        // run in io thread, so we should use ts of io worker
-        Timestamp ts = ((WorkerThread) Thread.currentThread()).ts;
-        long startTime = perfCallback.takeTimeAndRefresh(PerfConsts.DTKV_LEASE_READ, ts);
-        leaseRead0(reqInfo, req, startTime, ts);
+        DtKV dtKV = KvServerUtil.getStateMachine(reqInfo);
+        if (dtKV == null) {
+            // response write in getStateMachine method, return null to indicate not write response
+            return;
+        }
+
+        long startTime = perfCallback.takeTime(PerfConsts.DTKV_LEASE_READ);
+
+        if (dtKV.kvConfig.readInDtKvExecutor) {
+            submitToDtKvExecutor(reqInfo, req, dtKV, startTime);
+        } else {
+            // run in io thread, so we should use ts of io worker
+            Timestamp ts = ((WorkerThread) Thread.currentThread()).ts;
+            leaseRead0(dtKV, reqInfo, req, startTime, ts);
+        }
     }
 
-    private void leaseRead0(ReqInfo<KvReq> reqInfo, KvReq req, long startTime, Timestamp ts) {
+    private void submitToDtKvExecutor(ReqInfo<KvReq> reqInfo, KvReq req, DtKV dtKV, long startTime) {
+        // use dtKV.ts, the ts bound to dtkv executor
+        boolean b = dtKV.dtkvExecutor.submitTaskInAnyThread(() -> leaseRead0(dtKV, reqInfo, req, startTime, dtKV.ts));
+        if (!b) {
+            perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
+            writeErrorResp(reqInfo, new RaftException("dtkv executor is stopping"));
+        }
+    }
+
+    private void leaseRead0(DtKV dtKV, ReqInfo<KvReq> reqInfo, KvReq req, long startTime, Timestamp ts) {
         WritePacket p;
         try {
             boolean b = reqInfo.raftGroup.isLeaseReadValid(ts, reqInfo.reqContext.getTimeout());
             if (b) {
-                p = doLeaseRead(reqInfo, req);
+                p = doLeaseRead(dtKV, reqInfo, req);
                 perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
             } else {
                 CompletableFuture<Void> f = reqInfo.raftGroup.addGroupReadyListener(reqInfo.reqContext.getTimeout());
-                f.whenComplete((v, ex) -> {
-                    if (ex == null) {
-                        // the future completed in raft thread, so this callback is run in raft thread
-                        Timestamp timestampInGroup = ((RaftGroupImpl) reqInfo.raftGroup).groupComponents.raftStatus.ts;
-                        leaseRead0(reqInfo, req, startTime, timestampInGroup);
-                    } else {
-                        perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
-                        writeErrorResp(reqInfo, ex);
-                    }
-                });
+                // the future completed in raft thread
+                f.whenComplete((v, ex) -> groupReadyCallback(dtKV, reqInfo, req, startTime, ex));
                 return;
             }
         } catch (Exception e) {
@@ -198,17 +208,25 @@ final class KvProcessor extends RaftProcessor<KvReq> {
             writeErrorResp(reqInfo, e);
             return;
         }
-        if (p != null) {
-            reqInfo.reqContext.writeRespInBizThreads(p);
+        reqInfo.reqContext.writeRespInBizThreads(p);
+    }
+
+    // run in raft thread
+    private void groupReadyCallback(DtKV dtKV, ReqInfo<KvReq> reqInfo, KvReq req, long startTime, Throwable ex) {
+        if (ex == null) {
+            if (dtKV.kvConfig.readInDtKvExecutor) {
+                submitToDtKvExecutor(reqInfo, req, dtKV, startTime);
+            } else {
+                Timestamp timestampInGroup = ((RaftGroupImpl) reqInfo.raftGroup).groupComponents.raftStatus.ts;
+                leaseRead0(dtKV, reqInfo, req, startTime, timestampInGroup);
+            }
+        } else {
+            perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
+            writeErrorResp(reqInfo, ex);
         }
     }
 
-    private WritePacket doLeaseRead(ReqInfo<KvReq> reqInfo, KvReq req) {
-        DtKV dtKV = KvServerUtil.getStateMachine(reqInfo);
-        if (dtKV == null) {
-            // response write in getStateMachine method, return null to indicate not write response
-            return null;
-        }
+    private WritePacket doLeaseRead(DtKV dtKV, ReqInfo<KvReq> reqInfo, KvReq req) {
         long raftIndex = 0; // read operations do not return raftIndex to client
         switch (reqInfo.reqFrame.command) {
             case Commands.DTKV_GET:

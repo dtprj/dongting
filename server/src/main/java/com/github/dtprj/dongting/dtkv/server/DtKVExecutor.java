@@ -53,7 +53,7 @@ class DtKVExecutor {
         this.fiberGroup = fiberGroup;
     }
 
-    public boolean submitTaskInAnyThread(Runnable r) throws RejectedExecutionException {
+    public boolean submitTaskInAnyThread(Runnable r) {
         try {
             Executor e = separateExecutor == null ? fiberGroup.getExecutor() : separateExecutor;
             e.execute(r);

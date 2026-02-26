@@ -19,7 +19,19 @@ package com.github.dtprj.dongting.dtkv.server;
  * @author huangli
  */
 public class KvServerConfig {
+    /**
+     * if true, the state machine operation run in a separate thread,
+     * the DtKv executor is a standalone executor with single thread.
+     * if false, the state machine operation run in the raft fiber thread(single thread),
+     * the DtKv executor is the raft fiber thread executor.
+     */
     public boolean useSeparateExecutor = false;
+
+    /**
+     * if true, the read operation run in the DtKv executor.
+     * if false, the read operation run in any thread, generally in the io thread.
+     */
+    public boolean readInDtKvExecutor = true;
     public int initMapCapacity = 16 * 1024;
     public float loadFactor = 0.75f;
     public int watchDispatchIntervalMillis = 500;
