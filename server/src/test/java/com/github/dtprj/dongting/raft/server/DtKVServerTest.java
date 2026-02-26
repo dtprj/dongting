@@ -47,12 +47,14 @@ import static org.junit.jupiter.api.Assertions.*;
 public class DtKVServerTest extends ServerTestBase {
 
     private boolean useSepExecutor;
+    private boolean readInDtKvExecutor;
 
     @Override
     protected void config(KvServerConfig config) {
         super.config(config);
         config.watchDispatchIntervalMillis = 0;
         config.useSeparateExecutor = this.useSepExecutor;
+        config.readInDtKvExecutor = this.readInDtKvExecutor;
     }
 
     @Override
@@ -63,13 +65,14 @@ public class DtKVServerTest extends ServerTestBase {
 
     @ParameterizedTest
     @CsvSource({
-            "true, true",
-            "true, false",
-            "false, true",
-            "false, false"
+            "true, true, true",
+            "true, false, false",
+            "false, true, true",
+            "false, false, false"
     })
-    public void testSingle(boolean useSepExecutor, boolean clientUseBizExecutor) throws Exception {
+    public void testSingle(boolean useSepExecutor, boolean readInDtKvExecutor, boolean clientUseBizExecutor) throws Exception {
         this.useSepExecutor = useSepExecutor;
+        this.readInDtKvExecutor = readInDtKvExecutor;
         ServerInfo s1 = null;
         RaftClientConfig raftClientConfig = new RaftClientConfig();
         raftClientConfig.useBizExecutor = clientUseBizExecutor;
@@ -98,6 +101,7 @@ public class DtKVServerTest extends ServerTestBase {
     @ValueSource(booleans = {true, false})
     public void testMulti(boolean useSepExecutor) throws Exception {
         this.useSepExecutor = useSepExecutor;
+        this.readInDtKvExecutor = false;
         ServerInfo s1 = null, s2 = null, s3 = null;
         KvClient client = new KvClient();
 
