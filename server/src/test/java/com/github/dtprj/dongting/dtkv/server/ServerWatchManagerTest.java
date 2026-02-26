@@ -137,7 +137,9 @@ public class ServerWatchManagerTest {
             }
         };
         TtlManager tm = new TtlManager(ts, null);
-        kv = new KvImpl(manager, tm, ts, groupId, 16, 0.75f);
+        KvServerConfig c = new KvServerConfig();
+        c.initMapCapacity = 16;
+        kv = new KvImpl(manager, tm, ts, groupId, c);
         put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
     }
 

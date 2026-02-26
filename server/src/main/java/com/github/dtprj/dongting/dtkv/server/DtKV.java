@@ -130,8 +130,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             }
         };
         this.ttlManager = new TtlManager(ts, this::expire);
-        KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId,
-                kvConfig.initMapCapacity, kvConfig.loadFactor);
+        KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId, kvConfig);
         updateStatus(false, kvImpl);
     }
 
@@ -283,8 +282,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
             watchManager.reset();
-            KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId, kvConfig.initMapCapacity,
-                    kvConfig.loadFactor);
+            KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId, kvConfig);
             updateStatus(true, kvImpl);
             encodeStatus = new EncodeStatus();
         } else if (!kvStatus.installSnapshot) {

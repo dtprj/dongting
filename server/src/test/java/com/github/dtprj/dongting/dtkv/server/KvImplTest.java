@@ -49,7 +49,9 @@ class KvImplTest {
         ver = 1;
         ts = new Timestamp();
         TtlManager tm = new TtlManager(ts, null);
-        kv = new KvImpl(null, tm, ts, 0, 16, 0.75f);
+        KvServerConfig c = new KvServerConfig();
+        c.initMapCapacity = 16;
+        kv = new KvImpl(null, tm, ts, 0, c);
     }
 
     static ByteArray ba(String str) {

@@ -39,8 +39,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
 /**
- * All write operations run in same thread, and there are multiple read threads, so the write thread
+ * All write operations run in same thread (in DtkvExecutor).
+ * If readInDtKvExecutor is true (default), all read/write operations run in same thread and not need lock.
+ * If readInDtKvExecutor is false, there are multiple read threads and one write thread, but the writer
  * do not need to acquire lock if it only read data or update fields that read threads will not access.
+ *
  * @author huangli
  */
 class KvImpl {
@@ -60,8 +63,7 @@ class KvImpl {
     // for fast access root dir
     final KvNodeHolder root;
 
-    // write operations is not atomic, so we need lock although ConcurrentHashMap is used
-    private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final ReentrantReadWriteLock readWriteLock;
 
     private final Timestamp ts;
 
@@ -75,16 +77,17 @@ class KvImpl {
     private final TtlManager ttlManager;
 
     public KvImpl(ServerWatchManager watchManager, TtlManager ttlManager, Timestamp ts, int groupId,
-                  int initCapacity, float loadFactor) {
+                  KvServerConfig kvServerConfig) {
         this.watchManager = watchManager;
         this.ts = ts;
         this.groupId = groupId;
-        this.map = new KvMap(initCapacity, loadFactor);
+        this.map = new KvMap(kvServerConfig.initMapCapacity, kvServerConfig.loadFactor);
         KvNodeEx n = new KvNodeEx(0, 0, 0, 0,
                 KvNode.FLAG_DIR_MASK, null);
         this.root = new KvNodeHolder(ByteArray.EMPTY, ByteArray.EMPTY, n, null);
         this.map.put(ByteArray.EMPTY, root);
         this.ttlManager = ttlManager;
+        this.readWriteLock = kvServerConfig.readInDtKvExecutor ? null : new ReentrantReadWriteLock();
     }
 
     static KvResult checkExistNode(KvNodeHolder h, KvImpl.OpContext ctx) {
@@ -238,11 +241,16 @@ class KvImpl {
         if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
         }
-        readWriteLock.readLock().lock();
+        ReentrantReadWriteLock readWriteLock = this.readWriteLock;
+        if (readWriteLock != null) {
+            readWriteLock.readLock().lock();
+        }
         try {
             return get0(key);
         } finally {
-            readWriteLock.readLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.readLock().unlock();
+            }
         }
     }
 
@@ -275,7 +283,9 @@ class KvImpl {
         }
         int s = keys.size();
         ArrayList<KvResult> list = new ArrayList<>(s);
-        readWriteLock.readLock().lock();
+        if (readWriteLock != null) {
+            readWriteLock.readLock().lock();
+        }
         try {
             for (int i = 0; i < s; i++) {
                 byte[] bs = keys.get(i);
@@ -288,7 +298,9 @@ class KvImpl {
                 }
             }
         } finally {
-            readWriteLock.readLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.readLock().unlock();
+            }
         }
         return new Pair<>(KvCodes.SUCCESS, list);
     }
@@ -304,7 +316,9 @@ class KvImpl {
         if (ck != KvCodes.SUCCESS) {
             return new Pair<>(ck, null);
         }
-        readWriteLock.readLock().lock();
+        if (readWriteLock != null) {
+            readWriteLock.readLock().lock();
+        }
         try {
             KvNodeHolder h;
             if (key == null || key.getData().length == 0) {
@@ -325,7 +339,9 @@ class KvImpl {
             ArrayList<KvResult> list = kvNode.list();
             return new Pair<>(KvCodes.SUCCESS, list);
         } finally {
-            readWriteLock.readLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.readLock().unlock();
+            }
         }
     }
 
@@ -371,7 +387,7 @@ class KvImpl {
         return checkAndPut(index, key, data, true);
     }
 
-    private KvResult checkAndPut(long index, ByteArray key, byte[] data, boolean lock) {
+    private KvResult checkAndPut(long index, ByteArray key, byte[] data, boolean lockAndFireUpdate) {
         int ck = checkKey(key, false, false);
         if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
@@ -393,14 +409,16 @@ class KvImpl {
         if (r != null) {
             return r;
         }
-        if (lock) {
+        if (lockAndFireUpdate && readWriteLock != null) {
             this.readWriteLock.writeLock().lock();
         }
         try {
             return doPutInLock(index, key, data, h, parent, lastIndexOfSep);
         } finally {
-            if (lock) {
-                this.readWriteLock.writeLock().unlock();
+            if (lockAndFireUpdate) {
+                if (readWriteLock != null) {
+                    this.readWriteLock.writeLock().unlock();
+                }
                 afterUpdate();
             }
         }
@@ -512,14 +530,18 @@ class KvImpl {
         if (values == null || values.size() != size) {
             return new Pair<>(KvCodes.INVALID_VALUE, null);
         }
-        readWriteLock.writeLock().lock();
+        if (readWriteLock != null) {
+            readWriteLock.writeLock().lock();
+        }
         try {
             for (int i = 0; i < size; i++) {
                 byte[] k = keys.get(i);
                 list.add(checkAndPut(index, k == null ? null : new ByteArray(k), values.get(i), false));
             }
         } finally {
-            readWriteLock.writeLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.writeLock().unlock();
+            }
             afterUpdate();
         }
         return new Pair<>(KvCodes.SUCCESS, list);
@@ -639,7 +661,9 @@ class KvImpl {
         long t = System.currentTimeMillis();
         log.info("group {} start gc task", groupId);
         return () -> {
-            readWriteLock.writeLock().lock();
+            if (readWriteLock != null) {
+                readWriteLock.writeLock().lock();
+            }
             try {
                 for (int i = 0; i < gcItems; i++) {
                     if (!it.hasNext()) {
@@ -651,7 +675,9 @@ class KvImpl {
                 }
                 return Boolean.TRUE;
             } finally {
-                readWriteLock.writeLock().unlock();
+                if (readWriteLock != null) {
+                    readWriteLock.writeLock().unlock();
+                }
             }
         };
     }
@@ -660,7 +686,7 @@ class KvImpl {
         return checkAndRemove(index, key, true);
     }
 
-    private KvResult checkAndRemove(long index, ByteArray key, boolean lock) {
+    private KvResult checkAndRemove(long index, ByteArray key, boolean lockAndFireUpdate) {
         int ck = checkKey(key, false, false);
         if (ck != KvCodes.SUCCESS) {
             return new KvResult(ck);
@@ -674,14 +700,16 @@ class KvImpl {
         if (n.childCount() > 0) {
             return new KvResult(KvCodes.HAS_CHILDREN);
         }
-        if (lock) {
+        if (lockAndFireUpdate && readWriteLock != null) {
             this.readWriteLock.writeLock().lock();
         }
         try {
             return doRemoveInLock(index, h);
         } finally {
-            if (lock) {
-                this.readWriteLock.writeLock().unlock();
+            if (lockAndFireUpdate) {
+                if (readWriteLock != null) {
+                    this.readWriteLock.writeLock().unlock();
+                }
                 afterUpdate();
             }
         }
@@ -735,14 +763,18 @@ class KvImpl {
         }
         int size = keys.size();
         ArrayList<KvResult> list = new ArrayList<>(size);
-        readWriteLock.writeLock().lock();
+        if (readWriteLock != null) {
+            readWriteLock.writeLock().lock();
+        }
         try {
             for (int i = 0; i < size; i++) {
                 byte[] k = keys.get(i);
                 list.add(checkAndRemove(index, k == null ? null : new ByteArray(k), false));
             }
         } finally {
-            readWriteLock.writeLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.writeLock().unlock();
+            }
             afterUpdate();
         }
         return new Pair<>(KvCodes.SUCCESS, list);
@@ -776,7 +808,9 @@ class KvImpl {
         if (r != null) {
             return r;
         }
-        readWriteLock.writeLock().lock();
+        if (readWriteLock != null) {
+            readWriteLock.writeLock().lock();
+        }
         try {
             if (expectedValue == null || expectedValue.length == 0) {
                 if (h == null || h.latest.removed) {
@@ -809,7 +843,9 @@ class KvImpl {
                 }
             }
         } finally {
-            readWriteLock.writeLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.writeLock().unlock();
+            }
             afterUpdate();
         }
     }
@@ -921,11 +957,15 @@ class KvImpl {
             }
             return new KvResult(KvCodes.TTL_INDEX_MISMATCH);
         }
-        readWriteLock.writeLock().lock();
+        if (readWriteLock != null) {
+            readWriteLock.writeLock().lock();
+        }
         try {
             return expireInLock(index, h);
         } finally {
-            readWriteLock.writeLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.writeLock().unlock();
+            }
             afterUpdate();
         }
     }
@@ -1052,7 +1092,9 @@ class KvImpl {
     public KvResult tryLock(long index, ByteArray key, byte[] data) {
         long ttlMillis = opContext.ttlMillis;
         opContext.ttlMillis = 0; // the lock dir has no ttl
-        readWriteLock.writeLock().lock();
+        if (readWriteLock != null) {
+            readWriteLock.writeLock().lock();
+        }
         try {
             KvResult r = checkAndPut(index, key, null, false);
             if (r.getBizCode() != KvCodes.SUCCESS && r.getBizCode() != KvCodes.DIR_EXISTS) {
@@ -1070,7 +1112,9 @@ class KvImpl {
             }
             return doPutInLock(index, fullKey, data, sub, parent, parent.key.length);
         } finally {
-            readWriteLock.writeLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.writeLock().unlock();
+            }
             afterUpdate();
         }
     }
@@ -1095,7 +1139,9 @@ class KvImpl {
             BugLog.logAndThrow("sub.parent != parent");
         }
         boolean holdLock = sub == parent.latest.peekNextOwner();
-        readWriteLock.writeLock().lock();
+        if (readWriteLock != null) {
+            readWriteLock.writeLock().lock();
+        }
         try {
             doRemoveInLock(index, sub);
             boolean removeParent = parent.latest.childCount() == 0;
@@ -1113,7 +1159,9 @@ class KvImpl {
                 return new KvResult(KvCodes.LOCK_BY_OTHER);
             }
         } finally {
-            readWriteLock.writeLock().unlock();
+            if (readWriteLock != null) {
+                readWriteLock.writeLock().unlock();
+            }
             afterUpdate();
         }
     }
