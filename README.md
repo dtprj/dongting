@@ -59,6 +59,8 @@ It can even run well on HDD disks and Raspberry Pi.
 
 Dongting does not require you to adjust Linux kernel parameters to achieve optimal performance (in production environments you may not even have permission to do so).
 
+Dongting is completely modular (while still being compatible with java8), and the server can be deployed with a minimized JRE using jlink.
+
 # Try it
 
 ## Build

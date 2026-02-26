@@ -57,7 +57,9 @@ Dongting对JDK的要求也不高：客户端仅需Java 8，服务器端仅需Jav
 Dongting不需要使用高性能硬件，如RDMA或Optane什么的，它也不依赖Amazon或其他云服务提供商提供的任何第三方服务，如存储服务。
 它甚至可以在 HDD 硬盘和树莓派上良好运行。
 
-Dongting不需要您调整Linux内核参数以达到最佳性能（生成环境你甚至可能没有权限这样做）。
+Dongting不需要调整Linux内核参数以达到最佳性能（生成环境你甚至可能没有权限这样做）。
+
+Dongting是完全模块化的（同时client仍兼容java8），服务端部署时，可以用jlink裁剪一个最小化的部署JRE。
 
 # TRY IT
 
