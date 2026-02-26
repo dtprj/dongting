@@ -45,6 +45,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
+ * Run in dtkv executor, do not need to acquire lock if it only read data
+ * or update fields that read threads will not access.
+ *
  * @author huangli
  */
 abstract class ServerWatchManager {

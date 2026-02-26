@@ -80,6 +80,7 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
             }
         }
 
+        // submit to dtkv executor
         if (dtKV.dtkvExecutor.submitTaskInAnyThread(() -> exec(dtKV, reqInfo, req))) {
             return null;
         } else {
@@ -87,6 +88,8 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
         }
     }
 
+    // Run in dtkv executor, do not need to acquire lock if it only read data
+    // or update fields that read threads will not access.
     private void exec(DtKV dtKV, ReqInfo<WatchReqCallback> reqInfo, WatchReqCallback req) {
         KvStatus kvStatus = dtKV.kvStatus;
         if (kvStatus.installSnapshot) {
