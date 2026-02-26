@@ -40,7 +40,11 @@ public class BugLog {
             if (msg != null && !msg.isEmpty()) {
                 pw.println(msg);
             }
-            e.printStackTrace(pw);
+            if (e == null) {
+                log.error("BugLog called with null throwable");
+            } else {
+                e.printStackTrace(pw);
+            }
             pw.flush();
             firstError = os.toString();
         }
