@@ -37,7 +37,7 @@ public class FiberCondition extends WaitSource {
         if (cs != null) {
             for (FiberCondition c : cs) {
                 if (c != this) {
-                    c.waiters.remove(waitFiber);
+                    c.removeWaiter(waitFiber);
                 }
             }
         }

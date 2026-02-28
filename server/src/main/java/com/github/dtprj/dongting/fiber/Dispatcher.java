@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -235,7 +234,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             if (f.source != null) {
                 // assert waiters must not null, because source is not null
-                f.source.waiters.remove(f);
+                f.source.removeWaiter(f);
                 f.source.prepare(f, true);
             }
             f.cleanSchedule();
@@ -444,10 +443,7 @@ public class Dispatcher extends AbstractLifeCircle {
         fiber.scheduleTimeout = nanos;
         fiber.ready = false;
         fiber.group.dispatcher.addToScheduleQueue(nanos, fiber);
-        if (c.waiters == null) {
-            c.waiters = new LinkedList<>();
-        }
-        c.waiters.addLast(fiber);
+        c.addWaiter(fiber);
         return FrameCallResult.SUSPEND;
     }
 
@@ -462,10 +458,7 @@ public class Dispatcher extends AbstractLifeCircle {
         fiber.ready = false;
         fiber.group.dispatcher.addToScheduleQueue(nanos, fiber);
         for (FiberCondition c : cs) {
-            if (c.waiters == null) {
-                c.waiters = new LinkedList<>();
-            }
-            c.waiters.addLast(fiber);
+            c.addWaiter(fiber);
         }
         return FrameCallResult.SUSPEND;
     }
@@ -569,13 +562,11 @@ public class Dispatcher extends AbstractLifeCircle {
             String str;
             if (fiber.source != null) {
                 WaitSource s = fiber.source;
-                // assert waiters is not null
-                s.waiters.remove(fiber);
+                s.removeWaiter(fiber);
                 fiber.source = null;
                 if (fiber.sourceConditions != null) {
                     for (FiberCondition c : fiber.sourceConditions) {
-                        // assert waiters is not null
-                        c.waiters.remove(fiber);
+                        c.removeWaiter(fiber);
                     }
                     str = s + " and other " + (fiber.sourceConditions.length - 1) + " conditions";
                     fiber.sourceConditions = null;

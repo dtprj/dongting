@@ -194,7 +194,7 @@ public class ConditionTest extends AbstractFiberTest {
         CompletableFuture<Void> f2 = new CompletableFuture<>();
         CompletableFuture<Void> f3 = new CompletableFuture<>();
         CompletableFuture<Void> f4 = new CompletableFuture<>();
-        Fiber fiber = new Fiber("waiter", fiberGroup, new FiberFrame<Void>() {
+        Fiber fiber = new Fiber("waiter", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return c1.await(c2, this::resume1);
@@ -245,8 +245,8 @@ public class ConditionTest extends AbstractFiberTest {
                        FiberCondition c3, Fiber fiber) throws Exception {
         f.get(3, TimeUnit.SECONDS);
         doInFiber(() -> {
-            assertTrue(c1.waiters.isEmpty());
-            assertTrue(c2.waiters.isEmpty());
+            assertEquals(0, c1.getWaiterCount());
+            assertEquals(0, c2.getWaiterCount());
             if (fiber.isFinished()) {
                 assertNull(fiber.source);
             } else {

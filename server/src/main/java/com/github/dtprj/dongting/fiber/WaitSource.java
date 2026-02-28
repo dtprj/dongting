@@ -24,7 +24,7 @@ abstract class WaitSource {
     public final String name;
 
     final FiberGroup group;
-    LinkedList<Fiber> waiters;
+    private LinkedList<Fiber> waiters;
 
     public WaitSource(String name, FiberGroup group) {
         this.group = group;
@@ -73,5 +73,25 @@ abstract class WaitSource {
                 signalFiber(f, false);
             }
         }
+    }
+
+    void addWaiter(Fiber fiber) {
+        if (waiters == null) {
+            waiters = new LinkedList<>();
+        }
+        waiters.addLast(fiber);
+    }
+
+    void removeWaiter(Fiber fiber) {
+        if (waiters != null) {
+            waiters.remove(fiber);
+        }
+    }
+
+    int getWaiterCount() {
+        if (waiters == null) {
+            return 0;
+        }
+        return waiters.size();
     }
 }
