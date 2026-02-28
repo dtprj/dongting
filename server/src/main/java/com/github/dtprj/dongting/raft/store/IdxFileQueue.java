@@ -64,6 +64,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private long nextIndex;
     private long firstIndex;
 
+    private final FlushLoopFrame flushLoopFrame = new FlushLoopFrame();
     private long lastFlushNanos;
     private static final long FLUSH_INTERVAL_NANOS = 2L * 1000 * 1000 * 1000;
 
@@ -89,8 +90,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         this.blockCacheItems = maxCacheItems << 2;
         this.cache = new LongLongSeqMap(maxCacheItems);
 
-        this.flushFiber = new Fiber("idxFlush-" + groupConfig.groupId,
-                groupConfig.fiberGroup, new FlushLoopFrame());
+        this.flushFiber = new Fiber("idxFlush-" + groupConfig.groupId, groupConfig.fiberGroup, flushLoopFrame);
         this.needFlushCondition = groupConfig.fiberGroup.newCondition("IdxNeedFlush-" + groupConfig.groupId);
         this.flushDoneCondition = groupConfig.fiberGroup.newCondition("IdxFlushDone-" + groupConfig.groupId);
 
@@ -100,7 +100,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         chainWriter.setForcePerfType(PerfConsts.RAFT_D_IDX_FORCE);
     }
 
-    public FiberFrame<Pair<Long, Long>> initRestorePos() throws Exception {
+    public FiberFrame<Pair<Long, Long>> initRestorePos() {
         this.firstIndex = posToIndex(queueStartPosition);
         this.persistedIndexInStatusFile = RaftUtil.parseLong(statusManager.getProperties(),
                 KEY_PERSIST_IDX_INDEX, 0);
@@ -198,7 +198,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         }
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if (getDiff() >= flushThreshold) {
+        if (flushLoopFrame.waiting && getDiff() >= flushThreshold) {
             needFlushCondition.signal();
         }
     }
@@ -275,7 +275,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                                     " commitIndex={}, lastWriteIndex={}, lastForceIndex={}",
                             raftStatus.groupId, cache.size(), blockCacheItems, first, last, writeFinishIndex,
                             raftStatus.commitIndex, raftStatus.lastWriteLogIndex, raftStatus.lastForceLogIndex);
-                    needFlushCondition.signalAll();
+                    needFlushCondition.signal();
                     return flushDoneCondition.await(1000, this);
                 }
                 return Fiber.frameReturn();
@@ -301,8 +301,11 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     private class FlushLoopFrame extends FiberFrame<Void> {
 
+        private boolean waiting;
+
         @Override
         public FrameCallResult execute(Void input) {
+            waiting = false;
             if (raftStatus.installSnapshot) {
                 return Fiber.frameReturn();
             }
@@ -323,6 +326,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             } else {
                 long restMillis = (lastFlushNanos + FLUSH_INTERVAL_NANOS - ts.nanoTime) / 1000 / 1000;
                 if (restMillis > 0) {
+                    waiting = true;
                     return needFlushCondition.await(restMillis, this);
                 } else {
                     flushType = 1;
