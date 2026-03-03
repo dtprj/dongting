@@ -24,14 +24,42 @@ $LOG_DIR = Join-Path $BASE_DIR "logs"
 $DATA_DIR = Join-Path $BASE_DIR "data"
 $PidFile = Join-Path $DATA_DIR "dongting.pid"
 
-# JVM options, since the heap size is only 4g, zgc is not needed.
-$JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=5", "-XX:G1HeapRegionSize=2m", "-XX:+ParallelRefProcEnabled", "-XX:InitiatingHeapOccupancyPercent=30")
-
 # Check if JAVA_HOME is set
 if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {
     $Java = Join-Path $env:JAVA_HOME "bin\java.exe"
 } else {
     $Java = "java"
+}
+
+# Get Java major version
+try {
+    $versionOutput = & $Java -version 2>&1 | Select-Object -First 1
+    if ($versionOutput -match 'version "(\d+)') {
+        $JavaVersion = [int]$Matches[1]
+    } else {
+        Write-Error "Failed to detect Java version"
+        exit 1
+    }
+} catch {
+    Write-Error "Failed to detect Java version: $_"
+    exit 1
+}
+
+# Require JDK 11+
+if ($JavaVersion -lt 11) {
+    Write-Error "Java 11 or higher is required, but found Java $JavaVersion"
+    exit 1
+}
+
+# JVM options: JDK 11-16 use G1GC, JDK 17-20 use ZGC, JDK 21-24 use ZGC with ZGenerational, JDK 25+ use ZGC (generational by default)
+if ($JavaVersion -ge 25) {
+    $JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-XX:+UseZGC")
+} elseif ($JavaVersion -ge 21) {
+    $JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-XX:+UseZGC", "-XX:+ZGenerational")
+} elseif ($JavaVersion -ge 17) {
+    $JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-XX:+UseZGC")
+} else {
+    $JavaOpts = @("-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=15", "-XX:G1HeapRegionSize=2m", "-XX:+ParallelRefProcEnabled", "-XX:InitiatingHeapOccupancyPercent=30")
 }
 
 if (-not (Test-Path $DATA_DIR)) {

@@ -25,14 +25,35 @@ LOG_DIR="$BASE_DIR/logs"
 DATA_DIR="$BASE_DIR/data"
 PID_FILE="$DATA_DIR/dongting.pid"
 
-# JVM options, since the heap size is only 4g, zgc is not needed.
-JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g -XX:+UseG1GC -XX:MaxGCPauseMillis=5 -XX:G1HeapRegionSize=2m -XX:+ParallelRefProcEnabled -XX:InitiatingHeapOccupancyPercent=30"
-
 # Check if JAVA_HOME is set
 if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"
 else
     JAVA="java"
+fi
+
+# Get Java major version
+JAVA_VERSION=$($JAVA -version 2>&1 | head -1 | sed -E 's/.*version "([0-9]+).*/\1/')
+if [ -z "$JAVA_VERSION" ] || ! [ "$JAVA_VERSION" -gt 0 ] 2>/dev/null; then
+    echo "Failed to detect Java version" >&2
+    exit 1
+fi
+
+# Require JDK 11+
+if [ "$JAVA_VERSION" -lt 11 ]; then
+    echo "Java 11 or higher is required, but found Java $JAVA_VERSION" >&2
+    exit 1
+fi
+
+# JVM options: JDK 11-16 use G1GC, JDK 17-20 use ZGC, JDK 21-24 use ZGC with ZGenerational, JDK 25+ use ZGC (generational by default)
+if [ "$JAVA_VERSION" -ge 25 ]; then
+    JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g -XX:+UseZGC"
+elif [ "$JAVA_VERSION" -ge 21 ]; then
+    JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g -XX:+UseZGC -XX:+ZGenerational"
+elif [ "$JAVA_VERSION" -ge 17 ]; then
+    JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g -XX:+UseZGC"
+else
+    JAVA_OPTS="-Xms4g -Xmx4g -XX:MaxDirectMemorySize=2g -XX:+UseG1GC -XX:MaxGCPauseMillis=15 -XX:G1HeapRegionSize=2m -XX:+ParallelRefProcEnabled -XX:InitiatingHeapOccupancyPercent=30"
 fi
 
 mkdir -p "$DATA_DIR" || {
