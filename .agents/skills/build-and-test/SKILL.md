@@ -1,6 +1,6 @@
 ---
 name: build-and-test
-description: Build and test commands for the Dongting project. Use for compiling, running unit tests, and executing integration tests. Supports full build, protobuf compilation, and various test execution patterns.
+description: Build/test commands, and unit testing key points including BugLog handling guidelines.
 ---
 
 # Build and Test
@@ -20,18 +20,18 @@ This skill provides commands and patterns for building and testing the Dongting 
 
 | Command | Purpose |
 |---------|---------|
-| `mvn clean test -Dtick=5` | Run all unit tests |
-| `mvn -pl module -am test -Dtest=ClassName -Dtick=5 -Dsurefire.failIfNoSpecifiedTests=false` | Run single test class |
-| `mvn -pl module -am test -Dtest=ClassName#method -Dtick=5 -Dsurefire.failIfNoSpecifiedTests=false` | Run single test method |
+| `mvn clean test -Dtick=3` | Run all unit tests, takes about 25 seconds to run. |
+| `mvn -pl module -am test -Dtest=ClassName -Dtick=3 -Dsurefire.failIfNoSpecifiedTests=false` | Run single test class |
+| `mvn -pl module -am test -Dtest=ClassName#method -Dtick=3 -Dsurefire.failIfNoSpecifiedTests=false` | Run single test method |
 
-**Tip**: Use `-Dtick=5` to increase test stability.
+**Tip**: Use `-Dtick=3` to increase test stability.
 
 ### Integration Testing
 
 | Command | Purpose |
 |---------|---------|
-| `mvn verify -DskipUTs -Dtick=5` | Run all integration tests |
-| `mvn -pl it-test -am verify -DskipUTs=true -Dit.test=ClassName -Dtick=5` | Run single integration test |
+| `mvn verify -DskipUTs -Dtick=3` | Run all integration tests, takes about 100 seconds to run.  |
+| `mvn -pl it-test -am verify -DskipUTs=true -Dit.test=ClassName -Dtick=3` | Run single integration test |
 
 **Note**: Package must be completed before running integration tests. After modifying code, always run `mvn clean package -DskipUTs` first.
 

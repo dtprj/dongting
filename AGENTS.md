@@ -1,6 +1,6 @@
 ## Build and Test
 
-- See the [build-and-test](.agents/skills/build-and-test/SKILL.md) skill for complete build and test commands.
+- Before running compile/package/test commands or writing tests, see [build-and-test](.agents/skills/build-and-test/SKILL.md) skill for important details.
 - If ```IntelliJ-IDEA``` MCP is available, use it instead of Java LSP. Usage skill: [idea-mcp](.agents/skills/idea-mcp/SKILL.md)
 
 ## Codebase Overview
