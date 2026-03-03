@@ -16,7 +16,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.DEFAULT_THRESHOLD;
+import static com.github.dtprj.dongting.buf.DefaultPoolFactory.DEFAULT_THRESHOLD;
 import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.calcTotalSize;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -44,15 +44,21 @@ public class SimpleByteBufferPoolTest {
         }
     }
 
+    private SimpleByteBufferPoolConfig createDefaultConfig(int threshold) {
+        return new SimpleByteBufferPoolConfig(TS, false, threshold,
+                false, DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT,
+                DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
+    }
+
     @Test
     public void testConstructor() {
         SimpleByteBufferPoolConfig c1 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, false, null, null, null);
         assertThrows(NullPointerException.class, () -> new SimpleByteBufferPool(c1));
 
-        SimpleByteBufferPoolConfig c2 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, false, new int[]{100}, SimpleByteBufferPool.DEFAULT_MIN_COUNT, SimpleByteBufferPool.DEFAULT_MAX_COUNT);
+        SimpleByteBufferPoolConfig c2 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, false, new int[]{100}, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT, DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c2));
 
-        SimpleByteBufferPoolConfig c3 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, false, new int[]{-1}, SimpleByteBufferPool.DEFAULT_MIN_COUNT, SimpleByteBufferPool.DEFAULT_MAX_COUNT);
+        SimpleByteBufferPoolConfig c3 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, false, new int[]{-1}, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT, DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c3));
 
         SimpleByteBufferPoolConfig c4 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, false, new int[]{128}, new int[]{-1}, new int[]{2});
@@ -70,7 +76,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow1() {
-        pool = new SimpleByteBufferPool(TS, false);
+        pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
         ByteBuffer buf1 = pool.borrow(1);
         ByteBuffer buf2 = pool.borrow(1024);
         assertEquals(1, buf1.capacity());
@@ -84,7 +90,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow2() {
-        pool = new SimpleByteBufferPool(TS, false);
+        pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1025);
         assertEquals(1024, buf1.capacity());
@@ -139,7 +145,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testThreshold() {
-        pool = new SimpleByteBufferPool(TS, false, 2048);
+        pool = new SimpleByteBufferPool(createDefaultConfig(2048));
         ByteBuffer buf = pool.borrow(2047);
         assertEquals(2047, buf.capacity());
         pool.release(buf);
@@ -302,7 +308,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBadUsage() {
-        pool = new SimpleByteBufferPool(TS, false);
+        pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
         ByteBuffer buf1 = pool.borrow(400);
         pool.release(buf1);
         assertThrows(DtException.class, () -> pool.release(buf1));
@@ -317,11 +323,6 @@ public class SimpleByteBufferPoolTest {
     }
 
     public static void main(String[] args) {
-        System.out.println("default SimpleByteBufferPool");
-        System.out.printf("max:%,d\nmin:%,d\n\n",
-                calcTotalSize(SimpleByteBufferPool.DEFAULT_BUF_SIZE, SimpleByteBufferPool.DEFAULT_MAX_COUNT),
-                calcTotalSize(SimpleByteBufferPool.DEFAULT_BUF_SIZE, SimpleByteBufferPool.DEFAULT_MIN_COUNT));
-
         System.out.println("default two level global");
         System.out.printf("max:%,d\nmin:%,d\n\n",
                 calcTotalSize(DefaultPoolFactory.DEFAULT_GLOBAL_SIZE, DefaultPoolFactory.DEFAULT_GLOBAL_MAX_COUNT),

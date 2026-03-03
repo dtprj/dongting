@@ -25,9 +25,15 @@ import org.junit.jupiter.api.Test;
  */
 public class RefBufferTest {
 
+    private SimpleByteBufferPoolConfig createDefaultConfig() {
+        return new SimpleByteBufferPoolConfig(new Timestamp(), false, DefaultPoolFactory.DEFAULT_THRESHOLD,
+                false, DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT,
+                DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
+    }
+
     @Test
     public void testCreate1() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(createDefaultConfig());
         RefBuffer refBuffer = new RefBuffer(false, pool, 127, 128);
         refBuffer.retain();
         refBuffer.release();
@@ -38,7 +44,7 @@ public class RefBufferTest {
 
     @Test
     public void testCreate2() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(createDefaultConfig());
         RefBuffer refBuffer = new RefBuffer(false, pool, 128, 128);
         refBuffer.retain();
         refBuffer.release();
@@ -48,7 +54,7 @@ public class RefBufferTest {
 
     @Test
     public void testCreatePlain1() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(createDefaultConfig());
         RefBuffer refBuffer = new RefBuffer(true, pool, 127, 128);
         refBuffer.retain();
         refBuffer.release();
@@ -59,7 +65,7 @@ public class RefBufferTest {
 
     @Test
     public void testCreatePlain2() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(createDefaultConfig());
         RefBuffer refBuffer = new RefBuffer(true, pool, 128, 128);
         refBuffer.retain();
         refBuffer.release();

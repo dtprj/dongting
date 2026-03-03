@@ -40,6 +40,8 @@ public class DefaultPoolFactory implements PoolFactory {
     // 18,874,368 bytes
     public static final int[] DEFAULT_SMALL_MAX_COUNT = new int[]{8192, 4096, 2048, 1024, 1024, 1024, 512, 256};
 
+    public static final int DEFAULT_THRESHOLD = 64;
+
     private static final SimpleByteBufferPool GLOBAL_DIRECT_POOL = createGlobalPool(true);
     private static final SimpleByteBufferPool GLOBAL_HEAP_POOL = createGlobalPool(false);
 
@@ -62,7 +64,7 @@ public class DefaultPoolFactory implements PoolFactory {
 
     @Override
     public ByteBufferPool createPool(Timestamp ts, boolean direct) {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(ts, direct, direct ? 0 : 64, false,
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(ts, direct, direct ? 0 : DEFAULT_THRESHOLD, false,
                 DEFAULT_SMALL_SIZE, DEFAULT_SMALL_MIN_COUNT, DEFAULT_SMALL_MAX_COUNT, 20000,
                 calcTotalSize(DEFAULT_SMALL_SIZE, DEFAULT_SMALL_MAX_COUNT) / 2);
         SimpleByteBufferPool p1 = new SimpleByteBufferPool(c);

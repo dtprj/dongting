@@ -31,15 +31,6 @@ public class SimpleByteBufferPoolConfig {
     public final long timeoutMillis;
     public final long shareSize;
 
-    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct) {
-        this(ts, direct, SimpleByteBufferPool.DEFAULT_THRESHOLD, false);
-    }
-
-    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, boolean threadSafe) {
-        this(ts, direct, threshold, threadSafe, SimpleByteBufferPool.DEFAULT_BUF_SIZE,
-                SimpleByteBufferPool.DEFAULT_MIN_COUNT, SimpleByteBufferPool.DEFAULT_MAX_COUNT);
-    }
-
     public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, boolean threadSafe,
                                       int[] bufSizes, int[] minCount, int[] maxCount) {
         this(ts, direct, threshold, threadSafe, bufSizes, minCount, maxCount, 10 * 1000, 0);

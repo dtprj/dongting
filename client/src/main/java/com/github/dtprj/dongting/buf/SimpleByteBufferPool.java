@@ -32,7 +32,6 @@ import java.util.Objects;
 public class SimpleByteBufferPool extends ByteBufferPool {
     static final VersionFactory VF = VersionFactory.getInstance();
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
-    public static final int DEFAULT_THRESHOLD = 128;
 
     final int threshold;
     final int[] bufSizes;
@@ -47,28 +46,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     // used in FixSizeBufferPool
     long currentUsedShareSize;
-
-    public static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
-            32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
-            4 * 1024 * 1024};
-
-    // 111,149,056 bytes
-    public static final int[] DEFAULT_MAX_COUNT = new int[]{1024, 512, 256, 128, 128,
-            128, 128, 64, 64, 32, 16, 8,
-            4};
-
-    // 3,129,344 bytes
-    public static final int[] DEFAULT_MIN_COUNT = new int[]{16, 16, 16, 16, 16,
-            16, 8, 4, 2, 1, 0, 0,
-            0};
-
-    public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold) {
-        this(new SimpleByteBufferPoolConfig(ts, direct, threshold, false));
-    }
-
-    public SimpleByteBufferPool(Timestamp ts, boolean direct) {
-        this(new SimpleByteBufferPoolConfig(ts, direct));
-    }
 
     public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
         super(config.direct);
