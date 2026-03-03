@@ -32,8 +32,8 @@ else
     JAVA="java"
 fi
 
-# Get Java major version
-JAVA_VERSION=$($JAVA -version 2>&1 | head -1 | sed -E 's/.*version "([0-9]+).*/\1/')
+# Get Java major version (handles both Java 8 "1.8.x" and Java 9+ "11.x" formats)
+JAVA_VERSION=$($JAVA -version 2>&1 | head -1 | sed -E 's/.*version "(1\.)?([0-9]+).*/\2/')
 if [ -z "$JAVA_VERSION" ] || ! [ "$JAVA_VERSION" -gt 0 ] 2>/dev/null; then
     echo "Failed to detect Java version" >&2
     exit 1
@@ -116,11 +116,15 @@ if ! kill -0 "$NEW_PID" 2>/dev/null; then
 fi
 
 # Verify it's the expected Java process
-if ! ps -p "$NEW_PID" -o args= 2>/dev/null | grep -q "dongting.dist/com.github.dtprj.dongting.dist.Bootstrap"; then
-  echo "Failed to start dongting: PID $NEW_PID is not a dongting process" >&2
-  kill "$NEW_PID" 2>/dev/null || true
-  exit 1
-fi
+CMDLINE=$(ps -p "$NEW_PID" -o args= 2>/dev/null) || CMDLINE=""
+case "$CMDLINE" in
+  *"dongting.dist/com.github.dtprj.dongting.dist.Bootstrap"*) ;;
+  *)
+    echo "Failed to start dongting: PID $NEW_PID is not a dongting process" >&2
+    kill "$NEW_PID" 2>/dev/null || true
+    exit 1
+    ;;
+esac
 
 echo "$NEW_PID" >"$PID_FILE" || {
   echo "Failed to write PID file $PID_FILE" >&2

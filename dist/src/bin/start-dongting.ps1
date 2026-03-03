@@ -31,11 +31,11 @@ if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) {
     $Java = "java"
 }
 
-# Get Java major version
+# Get Java major version (handles both Java 8 "1.8.x" and Java 9+ "11.x" formats)
 try {
     $versionOutput = & $Java -version 2>&1 | Select-Object -First 1
-    if ($versionOutput -match 'version "(\d+)') {
-        $JavaVersion = [int]$Matches[1]
+    if ($versionOutput -match 'version "(1\.)?(\d+)') {
+        $JavaVersion = [int]$Matches[2]
     } else {
         Write-Error "Failed to detect Java version"
         exit 1
