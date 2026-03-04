@@ -6,7 +6,7 @@ package com.github.dtprj.dongting.bench.fixcount;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 /**
- * @author <a href="mailto:areyouok@gmail.com">huangli</a>
+ * @author huangli
  */
 public class MpscQueueCountTest extends MpscCountBenchBase {
     private final Object data = new Object();

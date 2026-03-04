@@ -6,7 +6,7 @@ package com.github.dtprj.dongting.bench.fixcount;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * @author <a href="mailto:areyouok@gmail.com">huangli</a>
+ * @author huangli
  */
 public class ConcurrentLinkedQueueCountTest extends MpscCountBenchBase {
     private final Object data = new Object();
