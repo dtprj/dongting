@@ -21,10 +21,13 @@ import com.github.dtprj.dongting.common.Timestamp;
  * @author huangli
  */
 public class SimpleByteBufferPoolConfig {
+    public static final int DEFAULT_WEAK_REF_THRESHOLD = 4096;
+
     public final Timestamp ts;
     public final boolean direct;
     public final boolean threadSafe;
     public final int threshold;
+    public final int weakRefThreshold;
     public final int[] bufSizes;
     public final int[] minCount;
     public final int[] maxCount;
@@ -33,14 +36,21 @@ public class SimpleByteBufferPoolConfig {
 
     public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, boolean threadSafe,
                                       int[] bufSizes, int[] minCount, int[] maxCount) {
-        this(ts, direct, threshold, threadSafe, bufSizes, minCount, maxCount, 10 * 1000, 0);
+        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, threadSafe, bufSizes, minCount, maxCount, 10 * 1000, 0);
     }
 
     public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, boolean threadSafe, int[] bufSizes,
                                       int[] minCount, int[] maxCount, long timeoutMillis, long shareSize) {
+        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, threadSafe, bufSizes, minCount, maxCount, timeoutMillis, shareSize);
+    }
+
+    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, int weakRefThreshold,
+                                      boolean threadSafe, int[] bufSizes, int[] minCount, int[] maxCount,
+                                      long timeoutMillis, long shareSize) {
         this.ts = ts;
         this.direct = direct;
         this.threshold = threshold;
+        this.weakRefThreshold = weakRefThreshold;
         this.threadSafe = threadSafe;
         this.bufSizes = bufSizes;
         this.minCount = minCount;

@@ -15,9 +15,10 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.IndexedQueue;
 
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 
 /**
@@ -35,13 +36,16 @@ class FixSizeBufferPool {
     private static final int MAGIC = 0xEA1D9C07;
 
     private final IndexedQueue<ByteBuffer> bufferStack;
+    private final IndexedQueue<WeakReference<ByteBuffer>> weakRefStack;
+    private final boolean weakRefEnabled;
 
     long statBorrowCount;
     long statBorrowHitCount;
     long statReleaseCount;
     long statReleaseHitCount;
 
-    public FixSizeBufferPool(SimpleByteBufferPool p, boolean direct, long shareSize, int minCount, int maxCount, int bufferSize) {
+    public FixSizeBufferPool(SimpleByteBufferPool p, boolean direct, long shareSize,
+                             int minCount, int maxCount, int bufferSize, int weakRefThreshold) {
         this.p = p;
         this.direct = direct;
         this.shareSize = shareSize;
@@ -52,22 +56,44 @@ class FixSizeBufferPool {
         this.maxCount = maxCount;
         this.bufferSize = bufferSize;
         this.bufferStack = new IndexedQueue<>(maxCount);
+        // Enable weak reference feature for heap buffers with size >= threshold
+        // Direct buffers are excluded because they create "iceberg" objects
+        this.weakRefEnabled = !direct && bufferSize >= weakRefThreshold;
+        this.weakRefStack = weakRefEnabled ? new IndexedQueue<>(16) : null;
     }
 
     public ByteBuffer borrow() {
         statBorrowCount++;
-        ByteBuffer buf = bufferStack.removeLast();
+        ByteBuffer buf = borrow0();
         if (buf != null) {
             int bufMagic = buf.getInt(MAGIC_INDEX);
             if (bufMagic != MAGIC) {
-                throw new DtException("A bug may exist where the buffer is written to after release.");
+                throw new DtBugException("A bug may exist where the buffer is written to after release.");
             }
             buf.putInt(MAGIC_INDEX, 0);
             statBorrowHitCount++;
-            updateCurrentUsedShareSizeAfterRemove();
             buf.clear();
         }
         return buf;
+    }
+
+    private ByteBuffer borrow0() {
+        if (weakRefEnabled) {
+            while (weakRefStack.size() > 0) {
+                WeakReference<ByteBuffer> ref = weakRefStack.removeLast();
+                ByteBuffer buf = ref.get();
+                if (buf != null) {
+                    return buf;
+                }
+            }
+        }
+
+        ByteBuffer buf = bufferStack.removeLast();
+        if (buf != null) {
+            updateCurrentUsedShareSizeAfterRemove();
+            return buf;
+        }
+        return null;
     }
 
     private void updateCurrentUsedShareSizeAfterRemove() {
@@ -87,7 +113,7 @@ class FixSizeBufferPool {
             // shit
             for (int i = 0, stackSize = bufferStack.size(); i < stackSize; i++) {
                 if (bufferStack.get(i) == buf) {
-                    throw new DtException("A bug may exist where the buffer is released twice.");
+                    throw new DtBugException("A bug may exist where the buffer is released twice.");
                 }
             }
         }
@@ -95,7 +121,11 @@ class FixSizeBufferPool {
         if (bufferStack.size() >= maxCount) {
             long newUsedShareSize = p.currentUsedShareSize + bufferSize;
             if (newUsedShareSize > shareSize) {
-                // too many buffer in pool
+                if (weakRefEnabled) {
+                    // only write magic, return time is not needed
+                    buf.putInt(MAGIC_INDEX, MAGIC);
+                    weakRefStack.addLast(new WeakReference<>(buf));
+                }
                 return false;
             } else {
                 p.currentUsedShareSize = newUsedShareSize;
@@ -124,8 +154,33 @@ class FixSizeBufferPool {
                 updateCurrentUsedShareSizeAfterRemove();
                 if (direct) {
                     SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
+                } else if (weakRefEnabled) {
+                    // the buffer is not used recently, add to bottom
+                    weakRefStack.addFirst(new WeakReference<>(buf));
                 }
             }
+        }
+        if (weakRefEnabled) {
+            cleanWeakRefHeadAndTail();
+        }
+    }
+
+    private void cleanWeakRefHeadAndTail() {
+        WeakReference<ByteBuffer> ref = weakRefStack.getFirst();
+        if (ref == null) {
+            return;
+        }
+        while (ref.get() == null) {
+            weakRefStack.removeFirst();
+            ref = weakRefStack.getFirst();
+            if (ref == null) {
+                return;
+            }
+        }
+        ref = weakRefStack.getLast();
+        while (ref != null && ref.get() == null) {
+            weakRefStack.removeLast();
+            ref = weakRefStack.getLast();
         }
     }
 
