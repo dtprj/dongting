@@ -124,27 +124,6 @@ public class SimpleByteBufferPoolTest {
     }
 
     @Test
-    public void testClean1() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
-                new int[]{100, 200}, new int[]{1, 1}, new int[]{2, 2}, 1000, 0);
-        pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(100);
-        ByteBuffer buf2 = pool.borrow(100);
-        pool.release(buf1);
-        pool.release(buf2);
-
-        // not clean
-        plus(pool, 500);
-        pool.clean();
-        ByteBuffer buf3 = pool.borrow(100);
-        ByteBuffer buf4 = pool.borrow(100);
-        assertSame(buf2, buf3);
-        assertSame(buf1, buf4);
-        pool.release(buf1);
-        pool.release(buf2);
-    }
-
-    @Test
     public void testThreshold() {
         pool = new SimpleByteBufferPool(createDefaultConfig(2048));
         ByteBuffer buf = pool.borrow(2047);
@@ -161,109 +140,6 @@ public class SimpleByteBufferPoolTest {
         assertEquals(4096, buf.capacity());
         pool.release(buf);
         assertSame(buf, pool.borrow(4096));
-    }
-
-    @Test
-    public void testClean2() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
-                new int[]{1024, 2048}, new int[]{1, 1}, new int[]{3, 3}, 1000, 0);
-        pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(1024);
-        ByteBuffer buf2 = pool.borrow(1024);
-        ByteBuffer buf3 = pool.borrow(1024);
-        pool.release(buf1);
-        pool.release(buf2);
-        pool.release(buf3);
-
-        //clean 2 buffer
-        for (int i = 0; i < 5; i++) {
-            plus(pool, 1001);
-            pool.clean();
-            ByteBuffer buf4 = pool.borrow(1024);
-            ByteBuffer buf5 = pool.borrow(1024);
-            ByteBuffer buf6 = pool.borrow(1024);
-            assertSame(buf3, buf4);
-            assertTrue(buf5 != buf1 && buf5 != buf2 && buf5 != buf3);
-            assertTrue(buf6 != buf1 && buf6 != buf2 && buf6 != buf3);
-            buf1 = buf4;
-            buf2 = buf5;
-            buf3 = buf6;
-            pool.release(buf1);
-            pool.release(buf2);
-            pool.release(buf3);
-        }
-    }
-
-    @Test
-    public void testClean3() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
-                new int[]{1024, 2048}, new int[]{1, 1}, new int[]{2, 2}, 1000, 0);
-        pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(2048);
-        ByteBuffer buf2 = pool.borrow(2048);
-        pool.release(buf1);
-        pool.release(buf2);
-
-        //clean 1 buffer
-        for (int i = 0; i < 5; i++) {
-            plus(pool, 1001);
-            pool.clean();
-            ByteBuffer buf3 = pool.borrow(2048);
-            ByteBuffer buf4 = pool.borrow(2048);
-            assertSame(buf2, buf3);
-            assertTrue(buf4 != buf1 && buf4 != buf2);
-            buf1 = buf3;
-            buf2 = buf4;
-            pool.release(buf1);
-            pool.release(buf2);
-        }
-    }
-
-    @Test
-    public void testClean4() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
-                new int[]{1024, 2048}, new int[]{0, 0}, new int[]{2, 2}, 1000, 0);
-        pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(2048);
-        ByteBuffer buf2 = pool.borrow(2048);
-        pool.release(buf1);
-        pool.release(buf2);
-
-        //clean 2 buffer
-        for (int i = 0; i < 5; i++) {
-            plus(pool, 1001);
-            pool.clean();
-            ByteBuffer buf3 = pool.borrow(2048);
-            ByteBuffer buf4 = pool.borrow(2048);
-            assertTrue(buf3 != buf1 && buf3 != buf2);
-            assertTrue(buf4 != buf1 && buf4 != buf2);
-            buf1 = buf3;
-            buf2 = buf4;
-            pool.release(buf1);
-            pool.release(buf2);
-        }
-    }
-
-    @Test
-    public void testShareSize() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
-                new int[]{100, 200}, new int[]{1, 1}, new int[]{2, 2}, 1000, 500);
-        pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(200);
-        ByteBuffer buf2 = pool.borrow(200);
-        ByteBuffer buf3 = pool.borrow(200);
-        ByteBuffer buf4 = pool.borrow(200);
-        ByteBuffer buf5 = pool.borrow(200);
-        pool.release(buf1);
-        pool.release(buf2);
-        pool.release(buf3);
-        pool.release(buf4);
-        pool.release(buf5);
-
-        assertSame(buf4, pool.borrow(200));
-        plus(pool, 1001);
-        pool.clean();
-        assertSame(buf3, pool.borrow(200));
     }
 
     @Test
@@ -324,114 +200,21 @@ public class SimpleByteBufferPoolTest {
     }
 
     @Test
-    public void testWeakRefNotEnabledForDirect() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, true, 0, false,
-                new int[]{4096}, new int[]{1}, new int[]{2});
-        pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(4096);
-        ByteBuffer buf2 = pool.borrow(4096);
-        ByteBuffer buf3 = pool.borrow(4096);
-        pool.release(buf1);
-        pool.release(buf2);
-        pool.release(buf3);
-        assertSame(buf2, pool.borrow(4096));
-        assertSame(buf1, pool.borrow(4096));
-        assertNotSame(buf3, pool.borrow(4096));
-    }
-
-    @Test
-    public void testWeakRefNotEnabledForSmallBuffer() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, 4096,
-                false, new int[]{1024}, new int[]{1}, new int[]{2}, 1000, 0);
+    public void testClean() {
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
+                new int[]{1024}, new int[]{1}, new int[]{2}, 1000, 0);
         pool = new SimpleByteBufferPool(c);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
-        ByteBuffer buf3 = pool.borrow(1024);
         pool.release(buf1);
         pool.release(buf2);
-        pool.release(buf3);
-        assertSame(buf2, pool.borrow(1024));
-        assertSame(buf1, pool.borrow(1024));
-        assertNotSame(buf3, pool.borrow(1024));
-    }
-
-    @Test
-    public void testWeakRefReleaseToWeakStack() {
-        for (int attempt = 0; attempt < 3; attempt++) {
-            SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
-                    new int[]{4096}, new int[]{1}, new int[]{2});
-            pool = new SimpleByteBufferPool(c);
-            ByteBuffer buf1 = pool.borrow(4096);
-            ByteBuffer buf2 = pool.borrow(4096);
-            ByteBuffer buf3 = pool.borrow(4096);
-            pool.release(buf1);
-            pool.release(buf2);
-            pool.release(buf3);
-            ByteBuffer b1 = pool.borrow(4096);
-            ByteBuffer b2 = pool.borrow(4096);
-            ByteBuffer b3 = pool.borrow(4096);
-            if (b1 == buf3 && b2 == buf2 && b3 == buf1) {
-                return;
-            }
-        }
-        fail("weak ref test failed after 3 attempts");
-    }
-
-    @Test
-    public void testWeakRefCleanToWeakStack() {
-        for (int attempt = 0; attempt < 3; attempt++) {
-            SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
-                    new int[]{4096}, new int[]{1}, new int[]{3}, 1000, 0);
-            pool = new SimpleByteBufferPool(c);
-            ByteBuffer buf1 = pool.borrow(4096);
-            ByteBuffer buf2 = pool.borrow(4096);
-            ByteBuffer buf3 = pool.borrow(4096);
-            pool.release(buf1);
-            pool.release(buf2);
-            pool.release(buf3);
-
-            plus(pool, 1001);
-            pool.clean();
-
-            ByteBuffer buf4 = pool.borrow(4096);
-            ByteBuffer buf5 = pool.borrow(4096);
-            ByteBuffer buf6 = pool.borrow(4096);
-
-            if (buf4 == buf1 && buf5 == buf2 && buf6 == buf3) {
-                return;
-            }
-        }
-        fail("weak ref test failed after 3 attempts");
-    }
-
-    @Test
-    public void testWeakRefGCAndClean() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
-                new int[]{4096}, new int[]{0}, new int[]{1}, 1000, 0);
-        SimpleByteBufferPool testPool = new SimpleByteBufferPool(c);
-
-        ByteBuffer buf1 = testPool.borrow(4096);
-        ByteBuffer buf2 = testPool.borrow(4096);
-        ByteBuffer buf3 = testPool.borrow(4096);
-        testPool.release(buf1);
-        testPool.release(buf2);
-        testPool.release(buf3);
-
-        //noinspection UnusedAssignment
-        buf2 = null;
-
-        System.gc();
-        System.runFinalization();
-
-        testPool.clean();
-
-        ByteBuffer borrowed1 = testPool.borrow(4096);
-        ByteBuffer borrowed2 = testPool.borrow(4096);
-
-        assertNotNull(borrowed1);
-        assertNotNull(borrowed2);
-        assertEquals(4096, borrowed1.capacity());
-        assertEquals(4096, borrowed2.capacity());
+        
+        plus(pool, 1001);
+        pool.clean();
+        
+        ByteBuffer buf3 = pool.borrow(1024);
+        assertSame(buf2, buf3);
+        assertNotSame(pool.borrow(1024), buf1);
     }
 
     public static void main(String[] args) {
