@@ -1,7 +1,6 @@
 ## Build and Test
 
 - Before running compile/package/test commands or writing tests, see [build-and-test](.agents/skills/build-and-test/SKILL.md) skill for important details.
-- If ```IntelliJ-IDEA``` MCP is available, use it instead of Java LSP. Usage skill: [idea-mcp](.agents/skills/idea-mcp/SKILL.md)
 
 ## Codebase Overview
 - **Multi-module Maven project** with Java 11 (Java 8 for client module)

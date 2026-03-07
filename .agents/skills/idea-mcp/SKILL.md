@@ -1,7 +1,7 @@
 ---
 name: idea-mcp
 description: |
-  IntelliJ IDEA MCP for Java code analysis, testing, refactoring, and project navigation. Use when: (1) Checking Java compilation errors (get_file_problems is more accurate than LSP for multi-module Maven), (2) Running tests via IDEA run configurations, (3) Performing rename refactoring across the codebase, (4) Searching code or finding files in the project, (5) Executing terminal commands in IDEA context. Requires IDEA to be running with MCP plugin connected.
+  IntelliJ IDEA MCP for Java code analysis, testing, refactoring, and project navigation. Use when: (1) Checking Java compilation errors (get_file_problems is more accurate than LSP for multi-module Maven), (2) Performing rename refactoring across the codebase, (3) Searching code or finding files in the project. Requires IDEA to be running with MCP plugin connected.
 ---
 
 # IntelliJ IDEA MCP Skill
