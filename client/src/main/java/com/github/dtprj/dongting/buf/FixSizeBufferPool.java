@@ -30,7 +30,7 @@ class FixSizeBufferPool {
     private final int bufferSize;
     private final int maxCount;
     private final int minCount;
-    private final SimpleByteBufferPool p;
+    private final SimpleByteBufferPoolConfig config;
     private final boolean direct;
     private final long shareSize;
     private static final int MAGIC = 0xEA1D9C07;
@@ -44,9 +44,9 @@ class FixSizeBufferPool {
     long statReleaseCount;
     long statReleaseHitCount;
 
-    public FixSizeBufferPool(SimpleByteBufferPool p, boolean direct, long shareSize,
-                             int minCount, int maxCount, int bufferSize, int weakRefThreshold) {
-        this.p = p;
+    public FixSizeBufferPool(SimpleByteBufferPoolConfig config, boolean direct, long shareSize,
+                              int minCount, int maxCount, int bufferSize, int weakRefThreshold) {
+        this.config = config;
         this.direct = direct;
         this.shareSize = shareSize;
         if (bufferSize < 16) {
@@ -99,7 +99,7 @@ class FixSizeBufferPool {
     private void updateCurrentUsedShareSizeAfterRemove() {
         int size = bufferStack.size();
         if (size >= maxCount) {
-            p.currentUsedShareSize -= bufferSize;
+            config.currentUsedShareSize -= bufferSize;
         }
     }
 
@@ -119,7 +119,7 @@ class FixSizeBufferPool {
         }
 
         if (bufferStack.size() >= maxCount) {
-            long newUsedShareSize = p.currentUsedShareSize + bufferSize;
+            long newUsedShareSize = config.currentUsedShareSize + bufferSize;
             if (newUsedShareSize > shareSize) {
                 if (weakRefEnabled) {
                     // only write magic, return time is not needed
@@ -128,7 +128,7 @@ class FixSizeBufferPool {
                 }
                 return false;
             } else {
-                p.currentUsedShareSize = newUsedShareSize;
+                config.currentUsedShareSize = newUsedShareSize;
             }
         }
         statReleaseHitCount++;

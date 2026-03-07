@@ -44,9 +44,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private Timestamp ts;
     private final FixSizeBufferPool[] pools;
 
-    // used in FixSizeBufferPool
-    long currentUsedShareSize;
-
     public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
         super(config.direct);
         Objects.requireNonNull(config.bufSizes);
@@ -95,7 +92,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
         this.pools = new FixSizeBufferPool[bufferTypeCount];
         for (int i = 0; i < bufferTypeCount; i++) {
-            this.pools[i] = new FixSizeBufferPool(this, direct, config.shareSize,
+            this.pools[i] = new FixSizeBufferPool(config, direct, config.shareSize,
                     minCount[i], maxCount[i], bufSizes[i], config.weakRefThreshold);
         }
     }
