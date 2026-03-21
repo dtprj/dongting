@@ -244,7 +244,7 @@ class LogAppender {
                     buffer = encodeData(li.getActualBodySize(), li.getBody(), buffer, file);
                 }
 
-                idxOps.put(li.index, dataPos);
+                idxOps.put(li.index, dataPos, len);
                 dataPos += len;
                 lastItem = li;
                 writeCount++;

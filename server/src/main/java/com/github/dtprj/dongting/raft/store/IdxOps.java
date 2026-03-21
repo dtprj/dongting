@@ -21,10 +21,11 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
  * @author huangli
  */
 interface IdxOps {
-    void put(long index, long position);
+    void put(long index, long position, int size);
 
     boolean needWaitFlush();
 
     FiberFrame<Void> waitFlush();
+
     FiberFrame<Long> loadLogPos(long itemIndex);
 }

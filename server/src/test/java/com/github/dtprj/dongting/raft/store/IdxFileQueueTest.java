@@ -126,7 +126,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 for (int i = 1; i <= 10; i++) {
-                    idxFileQueue.put(i, i * 100);
+                    idxFileQueue.put(i, (i - 1) * 100, 100);
                 }
                 assertEquals(10, idxFileQueue.cache.size());
                 return Fiber.frameReturn();
@@ -142,7 +142,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 for (int i = 1; i <= 30; i++) {
                     raftStatus.commitIndex = i - 1;
                     raftStatus.lastForceLogIndex = i - 1;
-                    idxFileQueue.put(i, i * 100);
+                    idxFileQueue.put(i, (i - 1) * 100, 100);
                 }
                 raftStatus.commitIndex = 30;
                 raftStatus.lastForceLogIndex = 30;
@@ -167,8 +167,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                assertThrows(RaftException.class, () -> idxFileQueue.put(10, 1000));
-                assertThrows(RaftException.class, () -> idxFileQueue.put(0, 1000));
+                assertThrows(RaftException.class, () -> idxFileQueue.put(10, 1000, 100));
+                assertThrows(RaftException.class, () -> idxFileQueue.put(0, 1000, 100));
                 return Fiber.frameReturn();
             }
         });
@@ -182,9 +182,9 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 for (int i = 1; i <= 10; i++) {
                     raftStatus.commitIndex = i - 1;
                     raftStatus.lastForceLogIndex = i - 1;
-                    idxFileQueue.put(i, i * 100);
+                    idxFileQueue.put(i, (i - 1) * 100, 100);
                 }
-                assertThrows(RaftException.class, () -> idxFileQueue.put(5, 500));
+                assertThrows(RaftException.class, () -> idxFileQueue.put(5, 500, 500));
                 return Fiber.frameReturn();
             }
         });
@@ -227,7 +227,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 for (int i = 1; i <= 10; i++) {
-                    idxFileQueue.put(i, i * 100);
+                    idxFileQueue.put(i, (i - 1) * 100, 100);
                 }
                 idxFileQueue.truncateTail(5);
                 assertEquals(4, idxFileQueue.cache.size());
@@ -250,7 +250,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 for (int i = 1; i <= 30; i++) {
                     raftStatus.commitIndex = i - 1;
                     raftStatus.lastForceLogIndex = i - 1;
-                    idxFileQueue.put(i, i * 100);
+                    idxFileQueue.put(i, (i - 1) * 100, 100);
                 }
                 return idxFileQueue.close().await(this::afterIdxClose);
             }
@@ -277,7 +277,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                     // delete a file
                     return Fiber.call(idxFileQueue.deleteFirstFile(), this::afterDelete);
                 }
-                FiberFrame<Void> f = new LoadLogPosFrame(checkIndex, checkIndex * 100);
+                FiberFrame<Void> f = new LoadLogPosFrame(checkIndex, (checkIndex - 1) * 100);
                 checkIndex++;
                 return Fiber.call(f, this::checkPos);
             }
@@ -301,7 +301,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 for (int i = 1; i <= 30; i++) {
                     raftStatus.commitIndex = i - 1;
                     raftStatus.lastForceLogIndex = i - 1;
-                    idxFileQueue.put(i, i * 100);
+                    idxFileQueue.put(i, (i - 1) * 100, 100);
                 }
                 return waitFlush(null);
             }
@@ -328,7 +328,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
             private FrameCallResult resume(Pair<Long, Long> p) {
                 assertEquals(29, p.getLeft());
-                assertEquals(2900, p.getRight());
+                assertEquals(2800, p.getRight());
                 assertEquals(30, idxFileQueue.getNextIndex());
                 assertEquals(30, idxFileQueue.getNextPersistIndex());
                 assertEquals(0, idxFileQueue.queueStartPosition);
@@ -345,7 +345,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 for (int i = 1; i <= 30; i++) {
                     raftStatus.commitIndex = i - 1;
                     raftStatus.lastForceLogIndex = i - 1;
-                    idxFileQueue.put(i, i * 100);
+                    idxFileQueue.put(i, (i - 1) * 100, 100);
                 }
                 return waitFlush(null);
             }
@@ -384,13 +384,13 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
             private FrameCallResult resume(Pair<Long, Long> p) {
                 assertEquals(8, p.getLeft());
-                assertEquals(800, p.getRight());
+                assertEquals(700, p.getRight());
                 assertEquals(9, idxFileQueue.getNextIndex());
                 assertEquals(9, idxFileQueue.getNextPersistIndex());
-                assertEquals(8 << 3, idxFileQueue.queueStartPosition);
+                assertEquals(idxFileQueue.indexToPos(8), idxFileQueue.queueStartPosition);
                 // mock recover
                 for (int i = 9; i <= 30; i++) {
-                    idxFileQueue.put(i, i * 100);
+                    idxFileQueue.put(i, (i - 1) * 100, 100);
                 }
                 return Fiber.frameReturn();
             }

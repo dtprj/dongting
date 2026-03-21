@@ -26,11 +26,9 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -252,22 +250,11 @@ public final class DefaultRaftLog implements RaftLog {
                     setResult(0L);
                     return Fiber.frameReturn();
                 }
-                return Fiber.call(idxFiles.loadLogPos(index), this::afterLoadPos);
+                return Fiber.call(idxFiles.loadRaftIdxInfo(index), this::afterLoadPos);
             }
 
-            private FrameCallResult afterLoadPos(Long pos) {
-                return Fiber.call(logFiles.loadHeader(pos), h -> afterLoadHeader(h, pos));
-            }
-
-            private FrameCallResult afterLoadHeader(LogHeader header, long pos) {
-                if (!header.crcMatch()) {
-                    throw new ChecksumException("log header crc mismatch: " + pos);
-                }
-                if (header.isEndMagic()) {
-                    throw new RaftException("unexpected end magic: " + pos);
-                }
-                long nextPos = pos + header.totalLen;
-                setResult(nextPos);
+            private FrameCallResult afterLoadPos(Pair<Long, Integer> idxInfo) {
+                setResult(idxInfo.getLeft() + idxInfo.getRight());
                 return Fiber.frameReturn();
             }
         };

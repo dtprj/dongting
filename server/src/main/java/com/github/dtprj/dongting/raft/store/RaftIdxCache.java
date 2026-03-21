@@ -15,14 +15,22 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.DtUtil;
+
+import java.nio.ByteBuffer;
+import java.util.zip.CRC32C;
+
 /**
  * @author huangli
  */
 class RaftIdxCache {
 
-    private long[] data;
-    private long firstKey;
-    private long lastKey;
+    private static final int SLOT_SIZE = 12;
+    private int capacity;
+    private byte[] data;
+    private ByteBuffer buffer;
+    private long firstRaftIndex;
+    private long lastRaftIndex;
     private int size;
 
     public RaftIdxCache(int initialCapacity) {
@@ -30,41 +38,51 @@ class RaftIdxCache {
         while (capacity < initialCapacity) {
             capacity <<= 1;
         }
-        data = new long[capacity];
-        firstKey = -1;
-        lastKey = -1;
+        data = new byte[capacity * SLOT_SIZE];
+        buffer = ByteBuffer.wrap(data);
+        this.capacity = capacity;
+        firstRaftIndex = -1;
+        lastRaftIndex = -1;
     }
 
-    public void put(long key, long value) {
-        if (lastKey != -1 && key != lastKey + 1) {
-            throw new IllegalArgumentException("Key must be exactly 1 greater than the last key");
+    public void put(long raftIndex, long pos, int itemSize) {
+        if (lastRaftIndex != -1 && raftIndex != lastRaftIndex + 1) {
+            throw new IllegalArgumentException("raftIndex not continuous");
         }
-        if (size >= data.length) {
+        if (size >= capacity) {
             resize();
         }
-        if (firstKey == -1) {
-            firstKey = key;
+        if (firstRaftIndex == -1) {
+            firstRaftIndex = raftIndex;
         }
-        lastKey = key;
-        data[idx(key, data.length)] = value;
+        lastRaftIndex = raftIndex;
+        int index = bufIndex(raftIndex, capacity);
+        buffer.putLong(index, pos);
+        buffer.putInt(index + 8, itemSize);
         size++;
     }
 
-    public long get(long key) {
-        if (key >= firstKey && key <= lastKey) {
-            return data[idx(key, data.length)];
+    int lastGetSize;
+
+    public long get(long raftIndex) {
+        if (raftIndex >= firstRaftIndex && raftIndex <= lastRaftIndex) {
+            int slotIndex = bufIndex(raftIndex, capacity);
+            lastGetSize = buffer.getInt(slotIndex + 8);
+            return buffer.getLong(slotIndex);
         }
-        throw new IllegalArgumentException("bad key " + key + ",first=" + firstKey + ",last=" + lastKey);
+        throw new IllegalArgumentException("bad raftIndex " + raftIndex + ",first=" + firstRaftIndex + ",last=" + lastRaftIndex);
     }
 
     public void remove() {
         if (size > 0) {
-            data[idx(firstKey, data.length)] = 0;
-            firstKey++;
+            int index = bufIndex(firstRaftIndex, capacity);
+            buffer.putLong(index, 0);
+            buffer.putInt(index + 8, 0);
+            firstRaftIndex++;
             size--;
             if (size == 0) {
-                firstKey = -1;
-                lastKey = -1;
+                firstRaftIndex = -1;
+                lastRaftIndex = -1;
             }
         }
     }
@@ -73,50 +91,84 @@ class RaftIdxCache {
         return size;
     }
 
-    public long getFirstKey() {
-        return firstKey;
+    public long getFirstRaftIndex() {
+        return firstRaftIndex;
     }
 
-    public long getLastKey() {
-        return lastKey;
+    public long getLastRaftIndex() {
+        return lastRaftIndex;
     }
 
-    private int idx(long key, int len) {
-        return (int) (key & (len - 1));
+    private int bufIndex(long raftIndex, int len) {
+        return (((int) raftIndex) & (len - 1)) * SLOT_SIZE;
     }
 
     private void resize() {
-        int oldCapacity = data.length;
+        int oldCapacity = this.capacity;
         int newCapacity = oldCapacity << 1;
-        long[] newData = new long[newCapacity];
+        byte[] newData = new byte[newCapacity * SLOT_SIZE];
 
-        int firstPartLength = oldCapacity - idx(firstKey, oldCapacity);
-        int secondPartLength = oldCapacity - firstPartLength;
+        int firstPartItems = (data.length - bufIndex(firstRaftIndex, oldCapacity)) / SLOT_SIZE;
+        int secondPartItems = oldCapacity - firstPartItems;
 
-        System.arraycopy(data, idx(firstKey, oldCapacity), newData, idx(firstKey, newCapacity), firstPartLength);
-        if (secondPartLength > 0) {
-            System.arraycopy(data, 0, newData, idx((firstKey + firstPartLength), newCapacity), secondPartLength);
+        System.arraycopy(data, bufIndex(firstRaftIndex, oldCapacity), newData,
+                bufIndex(firstRaftIndex, newCapacity), firstPartItems * SLOT_SIZE);
+        if (secondPartItems > 0) {
+            System.arraycopy(data, 0, newData, bufIndex((firstRaftIndex + firstPartItems), newCapacity),
+                    secondPartItems * SLOT_SIZE);
         }
 
-        data = newData;
+        this.data = newData;
+        this.buffer = ByteBuffer.wrap(newData);
+        this.capacity = newCapacity;
     }
 
     /**
-     * truncate tail to the given key (inclusive)
+     * truncate tail to the given raftIndex (inclusive)
      */
-    public void truncate(long key) {
-        if (key < firstKey || key > lastKey) {
-            throw new IllegalArgumentException("Invalid key to truncate");
+    public void truncate(long raftIndex) {
+        if (raftIndex < firstRaftIndex || raftIndex > lastRaftIndex) {
+            throw new IllegalArgumentException("Invalid raftIndex to truncate");
         }
-        while (lastKey >= key) {
-            data[idx(lastKey, data.length)] = 0;
-            lastKey--;
+        while (lastRaftIndex >= raftIndex) {
+            int bufIndex = bufIndex(lastRaftIndex, capacity);
+            buffer.putLong(bufIndex, 0);
+            buffer.putInt(bufIndex + 8, 0);
+            lastRaftIndex--;
             size--;
         }
         if (size == 0) {
-            firstKey = -1;
-            lastKey = -1;
+            firstRaftIndex = -1;
+            lastRaftIndex = -1;
         }
+    }
+
+    public long fill(long index, ByteBuffer destBuffer) {
+        DtUtil.checkPositive(destBuffer.remaining(), "destBuffer.remaining");
+        if (destBuffer.remaining() % IdxFileQueue.ITEM_LEN != 0) {
+            throw new IllegalArgumentException("invalid buf size " + destBuffer.remaining());
+        }
+        int count = destBuffer.remaining() / IdxFileQueue.ITEM_LEN;
+        if (index < firstRaftIndex || index > lastRaftIndex) {
+            throw new IllegalArgumentException("bad index " + index + ", firstRaftIndex="
+                    + firstRaftIndex + ", lastRaftIndex=" + lastRaftIndex);
+        }
+        if ((index + count - 1) < firstRaftIndex || (index + count - 1) > lastRaftIndex) {
+            throw new IllegalArgumentException("bad index " + index + "," + destBuffer.remaining()
+                    + ", firstRaftIndex=" + firstRaftIndex + ", lastRaftIndex=" + lastRaftIndex);
+        }
+        // the crc32c is a simple object, so here no need to cache
+        CRC32C crc = new CRC32C();
+        byte[] data = this.data;
+        for (int i = 0; i < count; i++, index++) {
+            int srcBufferIndex = bufIndex(index, capacity);
+            crc.update(data, srcBufferIndex, SLOT_SIZE);
+            destBuffer.put(data, srcBufferIndex, SLOT_SIZE);
+            destBuffer.putInt((int) crc.getValue());
+            crc.reset();
+        }
+        destBuffer.flip();
+        return index;
     }
 }
 

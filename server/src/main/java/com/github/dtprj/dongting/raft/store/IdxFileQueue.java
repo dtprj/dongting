@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -37,13 +38,14 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.zip.CRC32C;
 
 /**
  * @author huangli
  */
 final class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
-    private static final int ITEM_LEN = 8;
+    static final int ITEM_LEN = 16;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
     static final String KEY_FIRST_VALID_POS = "firstValidPos";
 
@@ -174,17 +176,17 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     public long indexToPos(long index) {
-        // each item 8 bytes
-        return index << 3;
+        // each item 16 bytes
+        return index << 4;
     }
 
     public long posToIndex(long pos) {
-        // each item 8 bytes
-        return pos >>> 3;
+        // each item 16 bytes
+        return pos >>> 4;
     }
 
     @Override
-    public void put(long itemIndex, long dataPosition) {
+    public void put(long itemIndex, long dataPosition, int size) {
         if (itemIndex > nextIndex) {
             throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
         }
@@ -196,7 +198,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 throw new RaftException("put index!=nextIndex " + itemIndex + ", " + nextIndex);
             }
         }
-        cache.put(itemIndex, dataPosition);
+        cache.put(itemIndex, dataPosition, size);
         nextIndex = itemIndex + 1;
         if (flushLoopFrame.waiting && getDiff() >= flushThreshold) {
             needFlushCondition.signal();
@@ -205,13 +207,13 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     private void flush(LogFile logFile, boolean suggestForce) {
         long startIdx = nextPersistIndex;
-        long lastIdx = Math.min(raftStatus.commitIndex, cache.getLastKey());
+        long lastIdx = Math.min(raftStatus.commitIndex, cache.getLastRaftIndex());
         if (lastIdx < startIdx) {
             submitForceOnlyTask();
             return;
         }
-        if (lastIdx - startIdx > maxCacheItems) {
-            lastIdx = startIdx + maxCacheItems;
+        if (lastIdx - startIdx + 1 > maxCacheItems) {
+            lastIdx = startIdx + maxCacheItems - 1;
         }
         long startIdxPos = indexToPos(startIdx);
         long lastIdxPos = indexToPos(lastIdx);
@@ -238,21 +240,13 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     private void fillAndSubmit(ByteBuffer buf, long startIndex, LogFile logFile, boolean suggestForce) {
-        long index = startIndex;
-        //noinspection UnnecessaryLocalVariable
-        RaftIdxCache c = cache;
-        while (buf.hasRemaining()) {
-            long value = c.get(index++);
-            buf.putLong(value);
-        }
-        buf.flip();
-        nextPersistIndex = index;
+        nextPersistIndex = cache.fill(startIndex, buf);
 
         long filePos = indexToPos(startIndex) & fileLenMask;
         boolean fileEnd = filePos + buf.remaining() == fileSize;
         boolean force = fileEnd || suggestForce;
-        int items = (int) (index - startIndex);
-        chainWriter.submitWrite(logFile, initialized, buf, filePos, force, items, index - 1);
+        int items = (int) (nextPersistIndex - startIndex);
+        chainWriter.submitWrite(logFile, initialized, buf, filePos, force, items, nextPersistIndex - 1);
         removeHead();
     }
 
@@ -269,8 +263,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             @Override
             public FrameCallResult execute(Void input) {
                 if (needWaitFlush()) {
-                    long first = cache.getFirstKey();
-                    long last = cache.getLastKey();
+                    long first = cache.getFirstRaftIndex();
+                    long last = cache.getLastRaftIndex();
                     log.warn("group {} cache size {} exceed {}, may cause block. cache from {} to {}, idxWriteFinishIndex={}," +
                                     " commitIndex={}, lastWriteIndex={}, lastForceIndex={}",
                             raftStatus.groupId, cache.size(), blockCacheItems, first, last, writeFinishIndex,
@@ -285,7 +279,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     private long getDiff() {
         // in recovery, the commit index may be larger than last key, lastKey may be -1
-        long lastNeedFlushItem = Math.min(cache.getLastKey(), raftStatus.commitIndex);
+        long lastNeedFlushItem = Math.min(cache.getLastRaftIndex(), raftStatus.commitIndex);
         return Math.max(lastNeedFlushItem - nextPersistIndex + 1, 0);
     }
 
@@ -294,7 +288,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         long maxCacheItems = this.maxCacheItems;
         long writeFinishIndex = this.writeFinishIndex;
         // notice: we are not write no-commited logs to the idx file
-        while (cache.size() >= maxCacheItems && cache.getFirstKey() < writeFinishIndex) {
+        while (cache.size() >= maxCacheItems && cache.getFirstRaftIndex() < writeFinishIndex) {
             cache.remove();
         }
     }
@@ -376,41 +370,71 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     @Override
     public FiberFrame<Long> loadLogPos(long itemIndex) {
-        DtUtil.checkPositive(itemIndex, "index");
-
-        return new FiberFrame<>() {
-            final ByteBuffer buffer = ByteBuffer.allocate(8);
-
+        return new PostFiberFrame<>(loadRaftIdxInfo(itemIndex)) {
             @Override
-            public FrameCallResult execute(Void v) {
-                if (itemIndex < firstIndex) {
-                    BugLog.log("load index is too small: index={}, firstIndex={}", itemIndex, firstIndex);
-                    throw new RaftException("index too small");
-                }
-                if (itemIndex > writeFinishIndex) {
-                    if (itemIndex >= cache.getFirstKey() && itemIndex <= cache.getLastKey()) {
-                        setResult(cache.get(itemIndex));
-                        return Fiber.frameReturn();
-                    }
-                    BugLog.log("load index too large: index={}, persistedIndex={}", itemIndex, persistedIndex);
-                    throw new RaftException("index is too large");
-                }
-                long pos = indexToPos(itemIndex);
-                LogFile lf = getLogFile(pos);
-                if (lf.isDeleted()) {
-                    throw new RaftException("file deleted: " + lf.getFile().getPath());
-                }
-                long filePos = pos & fileLenMask;
-                AsyncIoTask t = new AsyncIoTask(groupConfig.fiberGroup, lf);
-                return t.read(buffer, filePos).await(this::afterLoad);
-            }
-
-            private FrameCallResult afterLoad(Void unused) {
-                buffer.flip();
-                setResult(buffer.getLong());
+            protected FrameCallResult postProcess(Pair<Long, Integer> result) {
+                setResult(result.getLeft());
                 return Fiber.frameReturn();
             }
         };
+    }
+
+    public FiberFrame<Pair<Long, Integer>> loadRaftIdxInfo(long itemIndex) {
+        DtUtil.checkPositive(itemIndex, "index");
+        return new LoadRaftIdxInfoFrame(itemIndex);
+    }
+
+    private class LoadRaftIdxInfoFrame extends FiberFrame<Pair<Long, Integer>> {
+        final ByteBuffer buffer = ByteBuffer.allocate(16);
+
+        private final long itemIndex;
+
+        public LoadRaftIdxInfoFrame(long itemIndex) {
+            this.itemIndex = itemIndex;
+        }
+
+        @Override
+        public FrameCallResult execute(Void v) {
+            if (itemIndex < firstIndex) {
+                BugLog.log("load index is too small: index={}, firstIndex={}", itemIndex, firstIndex);
+                throw new RaftException("index too small");
+            }
+            if (itemIndex > writeFinishIndex) {
+                if (itemIndex >= cache.getFirstRaftIndex() && itemIndex <= cache.getLastRaftIndex()) {
+                    long pos = cache.get(itemIndex);
+                    setResult(new Pair<>(pos, cache.lastGetSize));
+                    return Fiber.frameReturn();
+                }
+                BugLog.log("load index too large: index={}, persistedIndex={}", itemIndex, persistedIndex);
+                throw new RaftException("index is too large");
+            }
+            long pos = indexToPos(itemIndex);
+            LogFile lf = getLogFile(pos);
+            if (lf.isDeleted()) {
+                throw new RaftException("file deleted: " + lf.getFile().getPath());
+            }
+            long filePos = pos & fileLenMask;
+            AsyncIoTask t = new AsyncIoTask(groupConfig.fiberGroup, lf);
+            return t.read(buffer, filePos).await(this::afterLoad);
+        }
+
+        private FrameCallResult afterLoad(Void unused) {
+            buffer.flip();
+            long pos = buffer.getLong();
+            int size = buffer.getInt();
+            int actualCrc = buffer.getInt();
+            byte[] arr = buffer.array();
+            // the crc32c is a simple object, so here no need to cache
+            CRC32C crc = new CRC32C();
+            crc.update(arr, 0, arr.length - 4);
+            int expectCrc = (int) crc.getValue();
+            if (actualCrc != expectCrc) {
+                // TODO restore use log file
+                throw new RaftException("load log pos crc check fail");
+            }
+            setResult(new Pair<>(pos, size));
+            return Fiber.frameReturn();
+        }
     }
 
     /**
@@ -424,7 +448,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         if (cache.size() == 0) {
             return;
         }
-        if (index < cache.getFirstKey() || index > cache.getLastKey()) {
+        if (index < cache.getFirstRaftIndex() || index > cache.getLastRaftIndex()) {
             throw new RaftException("truncateTail out of cache range: " + index);
         }
         log.info("truncate tail to {}(inclusive), old nextIndex={}", index, nextIndex);

@@ -35,33 +35,37 @@ public class RaftIdxCacheTest {
 
     @Test
     public void testPutAndGet() {
-        map.put(0, 100);
-        map.put(1, 200);
-        map.put(2, 300);
+        map.put(1, 0, 1000);
+        map.put(2, 1000, 200);
+        map.put(3, 1200, 300);
 
-        assertEquals(100, map.get(0));
-        assertEquals(200, map.get(1));
-        assertEquals(300, map.get(2));
+        assertEquals(0, map.get(1));
+        assertEquals(1000, map.lastGetSize);
+        assertEquals(1000, map.get(2));
+        assertEquals(200, map.lastGetSize);
+        assertEquals(1200, map.get(3));
+        assertEquals(300, map.lastGetSize);
     }
 
     @Test
     public void testRemove() {
-        map.put(0, 100);
-        map.put(1, 200);
-        map.put(2, 300);
+        map.put(1, 0, 100);
+        map.put(2, 100, 200);
+        map.put(3, 300, 500);
         map.remove();
         map.remove();
 
         assertThrows(IllegalArgumentException.class, () -> map.get(0));
         assertThrows(IllegalArgumentException.class, () -> map.get(1));
-        assertEquals(300, map.get(2));
+        assertEquals(300, map.get(3));
+        assertEquals(500, map.lastGetSize);
     }
 
     @Test
     public void testSize() {
-        map.put(0, 100);
-        map.put(1, 200);
-        map.put(2, 300);
+        map.put(1, 0, 100);
+        map.put(2, 100, 200);
+        map.put(3, 300, 1000);
 
         assertEquals(3, map.size());
         map.remove();
@@ -70,35 +74,37 @@ public class RaftIdxCacheTest {
 
     @Test
     public void testGetFirstKey() {
-        map.put(0, 100);
-        map.put(1, 200);
-        map.put(2, 300);
+        map.put(1, 0, 100);
+        map.put(2, 100, 200);
+        map.put(3, 300, 800);
 
-        assertEquals(0, map.getFirstKey());
+        assertEquals(1, map.getFirstRaftIndex());
         map.remove();
-        assertEquals(1, map.getFirstKey());
+        assertEquals(2, map.getFirstRaftIndex());
     }
 
     @Test
     public void testGetLastKey() {
-        map.put(0, 100);
-        map.put(1, 200);
-        map.put(2, 300);
+        map.put(1, 0, 100);
+        map.put(2, 100, 200);
+        map.put(3, 300, 400);
 
-        assertEquals(2, map.getLastKey());
+        assertEquals(3, map.getLastRaftIndex());
         map.remove();
-        assertEquals(2, map.getLastKey());
+        assertEquals(3, map.getLastRaftIndex());
     }
 
     @Test
     public void testResize() {
         for (long i = 0; i < 10; i++) {
-            map.put(i, i * 100);
+            int raftIndex = (int) (i + 1);
+            map.put(raftIndex, raftIndex * 100, 100);
         }
 
         assertEquals(10, map.size());
         for (long i = 0; i < 10; i++) {
-            assertEquals(i * 100, map.get(i));
+            int raftIndex = (int) (i + 1);
+            assertEquals(raftIndex * 100, map.get(raftIndex));
         }
     }
 
@@ -106,15 +112,15 @@ public class RaftIdxCacheTest {
     public void testResize2() {
         int base = 15;
         for (long i = 0; i < 8; i++) {
-            map.put(base + i, (base + i) * 100);
+            map.put(base + i, (base + i) * 100, 100);
         }
         assertEquals(8, map.size());
         for (long i = 0; i < 8; i++) {
-            long key = map.getLastKey() + 1;
-            map.put(key, key * 100);
+            long key = map.getLastRaftIndex() + 1;
+            map.put(key, key * 100, 100);
         }
         assertEquals(16, map.size());
-        for (long i = map.getFirstKey(); i <= map.getLastKey(); i++) {
+        for (long i = map.getFirstRaftIndex(); i <= map.getLastRaftIndex(); i++) {
             assertEquals(i * 100, map.get(i));
         }
     }
@@ -122,24 +128,24 @@ public class RaftIdxCacheTest {
     @Test
     public void testCircularBuffer() {
         for (long i = 0; i < 8; i++) {
-            map.put(i, i * 100);
+            map.put(i, i * 100, 100);
         }
         map.remove();
         map.remove();
         map.remove();
         map.remove();
 
-        map.put(8, 800);
-        map.put(9, 900);
-        map.put(10, 1000);
-        map.put(11, 1100);
+        map.put(8, 800, 100);
+        map.put(9, 900, 100);
+        map.put(10, 1000, 100);
+        map.put(11, 1100, 100);
 
         for (int i = 4; i < 12; i++) {
             assertEquals(i * 100, map.get(i));
         }
 
         for (int i = 12; i < 100; i++) {
-            map.put(i, i * 100);
+            map.put(i, i * 100, 100);
         }
 
         for (int i = 4; i < 100; i++) {
@@ -149,22 +155,22 @@ public class RaftIdxCacheTest {
 
     @Test
     public void testIllegalArgument() {
-        map.put(0, 100);
-        map.put(1, 200);
+        map.put(1, 0, 100);
+        map.put(2, 100, 200);
 
-        assertThrows(IllegalArgumentException.class, () -> map.put(3, 400));
+        assertThrows(IllegalArgumentException.class, () -> map.put(300, 400, 400));
     }
 
     @Test
     public void testTruncate() {
         for (long i = 0; i < 10; i++) {
-            map.put(i, i * 100);
+            map.put(i, i * 100, 100);
         }
 
         map.truncate(6);
         assertEquals(6, map.size());
-        assertEquals(0, map.getFirstKey());
-        assertEquals(5, map.getLastKey());
+        assertEquals(0, map.getFirstRaftIndex());
+        assertEquals(5, map.getLastRaftIndex());
 
         for (long i = 0; i <= 5; i++) {
             assertEquals(i * 100, map.get(i));
@@ -174,17 +180,17 @@ public class RaftIdxCacheTest {
     @Test
     public void testTruncate2() {
         for (long i = 0; i < 8; i++) {
-            map.put(i, i * 100);
+            map.put(i, i * 100, 100);
         }
         map.remove();
         map.remove();
-        map.put(8, 800);
-        map.put(9, 900);
+        map.put(8, 800, 100);
+        map.put(9, 900, 100);
 
         map.truncate(4);
         assertEquals(2, map.size());
-        assertEquals(2, map.getFirstKey());
-        assertEquals(3, map.getLastKey());
+        assertEquals(2, map.getFirstRaftIndex());
+        assertEquals(3, map.getLastRaftIndex());
 
         assertEquals(200, map.get(2));
         assertEquals(300, map.get(3));
@@ -193,7 +199,7 @@ public class RaftIdxCacheTest {
     @Test
     public void testTruncateWithInvalidKey() {
         for (long i = 0; i < 10; i++) {
-            map.put(i, i * 100);
+            map.put(i, i * 100, 100);
         }
 
         assertThrows(IllegalArgumentException.class, () -> map.truncate(10));
@@ -202,24 +208,24 @@ public class RaftIdxCacheTest {
     @Test
     public void testTruncateAtFirstKey() {
         for (long i = 0; i < 10; i++) {
-            map.put(i, i * 100);
+            map.put(i, i * 100, 100);
         }
 
         map.truncate(0);
         assertEquals(0, map.size());
-        assertEquals(-1, map.getFirstKey());
-        assertEquals(-1, map.getLastKey());
+        assertEquals(-1, map.getFirstRaftIndex());
+        assertEquals(-1, map.getLastRaftIndex());
     }
 
     @Test
     public void testTruncateAtLastKey() {
         for (long i = 0; i < 10; i++) {
-            map.put(i, i * 100);
+            map.put(i, i * 100, 100);
         }
 
         map.truncate(9);
         assertEquals(9, map.size());
-        assertEquals(0, map.getFirstKey());
-        assertEquals(8, map.getLastKey());
+        assertEquals(0, map.getFirstRaftIndex());
+        assertEquals(8, map.getLastRaftIndex());
     }
 }
