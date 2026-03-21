@@ -53,7 +53,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private final int blockCacheItems;
 
     private final int flushThreshold;
-    final LongLongSeqMap cache;
+    final RaftIdxCache cache;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
@@ -88,7 +88,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         this.maxCacheItems = groupConfig.idxCacheSize;
         this.flushThreshold = groupConfig.idxFlushThreshold;
         this.blockCacheItems = maxCacheItems << 2;
-        this.cache = new LongLongSeqMap(maxCacheItems);
+        this.cache = new RaftIdxCache(maxCacheItems);
 
         this.flushFiber = new Fiber("idxFlush-" + groupConfig.groupId, groupConfig.fiberGroup, flushLoopFrame);
         this.needFlushCondition = groupConfig.fiberGroup.newCondition("IdxNeedFlush-" + groupConfig.groupId);
@@ -240,7 +240,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private void fillAndSubmit(ByteBuffer buf, long startIndex, LogFile logFile, boolean suggestForce) {
         long index = startIndex;
         //noinspection UnnecessaryLocalVariable
-        LongLongSeqMap c = cache;
+        RaftIdxCache c = cache;
         while (buf.hasRemaining()) {
             long value = c.get(index++);
             buf.putLong(value);
@@ -290,7 +290,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     private void removeHead() {
-        LongLongSeqMap cache = this.cache;
+        RaftIdxCache cache = this.cache;
         long maxCacheItems = this.maxCacheItems;
         long writeFinishIndex = this.writeFinishIndex;
         // notice: we are not write no-commited logs to the idx file

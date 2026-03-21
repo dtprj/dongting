@@ -18,14 +18,14 @@ package com.github.dtprj.dongting.raft.store;
 /**
  * @author huangli
  */
-class LongLongSeqMap {
+class RaftIdxCache {
 
     private long[] data;
     private long firstKey;
     private long lastKey;
     private int size;
 
-    public LongLongSeqMap(int initialCapacity) {
+    public RaftIdxCache(int initialCapacity) {
         int capacity = 1;
         while (capacity < initialCapacity) {
             capacity <<= 1;

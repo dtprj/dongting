@@ -25,12 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author huangli
  */
 
-public class LongLongSeqMapTest {
-    private LongLongSeqMap map;
+public class RaftIdxCacheTest {
+    private RaftIdxCache map;
 
     @BeforeEach
     public void setUp() {
-        map = new LongLongSeqMap(8);
+        map = new RaftIdxCache(8);
     }
 
     @Test
