@@ -18,6 +18,9 @@ package com.github.dtprj.dongting.raft.store;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
+import java.util.zip.CRC32C;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -227,5 +230,104 @@ public class RaftIdxCacheTest {
         assertEquals(9, map.size());
         assertEquals(0, map.getFirstRaftIndex());
         assertEquals(8, map.getLastRaftIndex());
+    }
+
+    @Test
+    public void testFill() {
+        // raftIndex from 1, pos from 0
+        map.put(1, 0, 100);
+        map.put(2, 100, 200);
+        map.put(3, 300, 300);
+
+        // destBuffer.remaining() must be multiple of 16 (IdxFileQueue.ITEM_LEN)
+        ByteBuffer buf = ByteBuffer.allocate(48); // 3 items * 16 bytes
+
+        long nextIndex = map.fill(1, buf);
+        assertEquals(4, nextIndex); // next index after filling 3 items (1,2,3)
+
+        // verify first item: pos=0, size=100
+        assertEquals(0, buf.getLong());
+        assertEquals(100, buf.getInt());
+        int crc1 = buf.getInt();
+        // verify second item: pos=100, size=200
+        assertEquals(100, buf.getLong());
+        assertEquals(200, buf.getInt());
+        int crc2 = buf.getInt();
+        // verify third item: pos=300, size=300
+        assertEquals(300, buf.getLong());
+        assertEquals(300, buf.getInt());
+        int crc3 = buf.getInt();
+
+        // verify crc32c: each item is 12 bytes (pos+size), stored in big-endian
+        CRC32C crc = new CRC32C();
+        byte[] item1 = new byte[12];
+        ByteBuffer.wrap(item1).putLong(0).putInt(100);
+        crc.update(item1);
+        assertEquals((int) crc.getValue(), crc1);
+
+        byte[] item2 = new byte[12];
+        ByteBuffer.wrap(item2).putLong(100).putInt(200);
+        crc.reset();
+        crc.update(item2);
+        assertEquals((int) crc.getValue(), crc2);
+
+        byte[] item3 = new byte[12];
+        ByteBuffer.wrap(item3).putLong(300).putInt(300);
+        crc.reset();
+        crc.update(item3);
+        assertEquals((int) crc.getValue(), crc3);
+    }
+
+    @Test
+    public void testFillPartial() {
+        map.put(1, 0, 100);
+        map.put(2, 100, 200);
+        map.put(3, 300, 300);
+
+        // fill only first 2 items
+        ByteBuffer buf = ByteBuffer.allocate(32); // 2 items
+        long nextIndex = map.fill(1, buf);
+        assertEquals(3, nextIndex);
+
+        assertEquals(0, buf.getLong());
+        assertEquals(100, buf.getInt());
+        buf.getInt(); // skip crc
+        assertEquals(100, buf.getLong());
+        assertEquals(200, buf.getInt());
+    }
+
+    @Test
+    public void testFillInvalidBufferSize() {
+        map.put(1, 0, 100);
+        ByteBuffer buf = ByteBuffer.allocate(10); // not multiple of 16
+        assertThrows(IllegalArgumentException.class, () -> map.fill(1, buf));
+    }
+
+    @Test
+    public void testFillInvalidIndex() {
+        map.put(1, 0, 100);
+        ByteBuffer buf = ByteBuffer.allocate(16);
+        // index < firstRaftIndex
+        assertThrows(IllegalArgumentException.class, () -> map.fill(0, buf));
+        // index > lastRaftIndex
+        assertThrows(IllegalArgumentException.class, () -> map.fill(2, buf));
+    }
+
+    @Test
+    public void testFillIndexPlusCountExceed() {
+        map.put(1, 0, 100);
+        map.put(2, 100, 200);
+        ByteBuffer buf = ByteBuffer.allocate(48); // 3 items, but only 2 in cache
+        assertThrows(IllegalArgumentException.class, () -> map.fill(1, buf));
+    }
+
+    @Test
+    public void testFillEmpty() {
+        // fill empty cache - but we need to first add something then remove
+        map.put(1, 0, 100);
+        map.remove();
+        // now cache is empty, firstRaftIndex = -1
+        ByteBuffer buf = ByteBuffer.allocate(16);
+        assertThrows(IllegalArgumentException.class, () -> map.fill(1, buf));
     }
 }

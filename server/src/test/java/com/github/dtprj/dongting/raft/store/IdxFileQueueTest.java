@@ -192,30 +192,32 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
     private class LoadLogPosFrame extends FiberFrame<Void> {
         private final long index;
-        private final long expectResult;
+        private final long expectPos;
+        private final long expectSize;
 
         @Override
         protected FrameCallResult handle(Throwable ex) throws Throwable {
-            if (expectResult >= 0) {
+            if (expectPos >= 0) {
                 throw ex;
             }
             BugLog.reset();
             return Fiber.frameReturn();
         }
 
-        public LoadLogPosFrame(long index, long expectResult) {
+        public LoadLogPosFrame(long index, long expectPos, long expectSize) {
             this.index = index;
-            this.expectResult = expectResult;
+            this.expectPos = expectPos;
+            this.expectSize = expectSize;
         }
 
         @Override
         public FrameCallResult execute(Void input) {
-            return Fiber.call(idxFileQueue.loadLogPos(index), this::resume);
+            return Fiber.call(idxFileQueue.loadRaftIdxInfo(index), this::resume);
         }
 
-        private FrameCallResult resume(Long result) {
-            if (result == null || result != expectResult) {
-                throw new RuntimeException("result=" + result + ", expect=" + expectResult);
+        private FrameCallResult resume(Pair<Long, Integer> result) {
+            if (result == null || result.getLeft() != expectPos || result.getRight() != expectSize) {
+                throw new RuntimeException("result=" + result + ", expectPos=" + expectPos + ", expectSize=" + expectSize);
             }
             return Fiber.frameReturn();
         }
@@ -277,18 +279,18 @@ public class IdxFileQueueTest extends BaseFiberTest {
                     // delete a file
                     return Fiber.call(idxFileQueue.deleteFirstFile(), this::afterDelete);
                 }
-                FiberFrame<Void> f = new LoadLogPosFrame(checkIndex, (checkIndex - 1) * 100);
+                FiberFrame<Void> f = new LoadLogPosFrame(checkIndex, (checkIndex - 1) * 100, 100);
                 checkIndex++;
                 return Fiber.call(f, this::checkPos);
             }
 
             private FrameCallResult afterDelete(Void unused) {
                 assertEquals(idxFileQueue.indexToPos(8), idxFileQueue.queueStartPosition);
-                return Fiber.call(new LoadLogPosFrame(1, -1), this::afterCheck1);
+                return Fiber.call(new LoadLogPosFrame(1, -1, -1), this::afterCheck1);
             }
 
             private FrameCallResult afterCheck1(Void unused) {
-                return Fiber.call(new LoadLogPosFrame(30, -1), this::justReturn);
+                return Fiber.call(new LoadLogPosFrame(30, -1, -1), this::justReturn);
             }
         });
     }
