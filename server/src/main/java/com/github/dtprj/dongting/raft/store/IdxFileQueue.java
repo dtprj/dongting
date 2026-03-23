@@ -67,7 +67,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private long firstIndex;
 
     private final FlushLoopFrame flushLoopFrame = new FlushLoopFrame();
-    private long lastFlushNanos;
+    private long lastForceNanos;
     private static final long FLUSH_INTERVAL_NANOS = 2L * 1000 * 1000 * 1000;
 
     private final Fiber flushFiber;
@@ -84,7 +84,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         }
         this.statusManager = statusManager;
         this.ts = groupConfig.ts;
-        this.lastFlushNanos = ts.nanoTime;
+        this.lastForceNanos = ts.nanoTime;
         this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
 
         this.maxCacheItems = groupConfig.idxCacheSize;
@@ -205,6 +205,12 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
+    private long getDiff() {
+        // in recovery, the commit index may be larger than last key, lastKey may be -1
+        long lastNeedFlushItem = Math.min(cache.getLastRaftIndex(), raftStatus.commitIndex);
+        return Math.max(lastNeedFlushItem - nextPersistIndex + 1, 0);
+    }
+
     private void flush(LogFile logFile, boolean suggestForce) {
         long startIdx = nextPersistIndex;
         long lastIdx = Math.min(raftStatus.commitIndex, cache.getLastRaftIndex());
@@ -277,12 +283,6 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         };
     }
 
-    private long getDiff() {
-        // in recovery, the commit index may be larger than last key, lastKey may be -1
-        long lastNeedFlushItem = Math.min(cache.getLastRaftIndex(), raftStatus.commitIndex);
-        return Math.max(lastNeedFlushItem - nextPersistIndex + 1, 0);
-    }
-
     private void removeHead() {
         RaftIdxCache cache = this.cache;
         long maxCacheItems = this.maxCacheItems;
@@ -304,31 +304,29 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 return Fiber.frameReturn();
             }
             long diff = getDiff();
-            // 0: flush without force, 1 : flush with force, 2: force only
+            long flushRestMillis = (lastForceNanos + FLUSH_INTERVAL_NANOS - ts.nanoTime) / 1000 / 1000;
+            // 0: flush without force, 1 : flush with force, 2: force only and exit
             int flushType;
             if (diff > 0 && nextPersistIndex <= firstIndex) {
                 // after install snapshot
                 flushType = 1;
             } else if (diff > flushThreshold) {
-                flushType = 0;
+                flushType = flushRestMillis > 0 ? 0 : 1;
             } else if (markClose) {
-                if (diff > 0) {
-                    flushType = 1;
-                } else {
-                    flushType = 2;
-                }
+                flushType = diff > 0 ? 1 : 2;
             } else {
-                long restMillis = (lastFlushNanos + FLUSH_INTERVAL_NANOS - ts.nanoTime) / 1000 / 1000;
-                if (restMillis > 0) {
+                if (flushRestMillis > 0) {
                     waiting = true;
-                    return needFlushCondition.await(restMillis, this);
+                    return needFlushCondition.await(flushRestMillis, this);
                 } else {
                     flushType = 1;
                 }
             }
 
             // begin prepare flush
-            lastFlushNanos = ts.nanoTime;
+            if (flushType > 0) {
+                lastForceNanos = ts.nanoTime;
+            }
             FrameCall<Void> resumePoint;
             if (flushType == 0) {
                 resumePoint = v -> afterPosReady(false);
