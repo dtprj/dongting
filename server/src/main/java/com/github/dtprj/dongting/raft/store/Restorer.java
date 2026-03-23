@@ -113,8 +113,7 @@ class Restorer {
 
         private FrameCallResult afterReadFirstItemHeader(long firstItemPos) {
             buffer.flip();
-            header.read(buffer);
-            if (header.crcMatch()) {
+            if (header.read(buffer)) {
                 if (header.isEndMagic()) {
                     log.info("first item is end magic. file={}, pos={}", lf.getFile().getPath(), firstItemPos);
                     setResult(new Pair<>(false, lf.startPos + firstItemPos));
@@ -207,7 +206,7 @@ class Restorer {
 
     private int itemCheckFail(LogFile lf, String reason) {
         if (restoreIndexChecked) {
-            if (header.totalLen == 0 && header.headerCrc == 0) {
+            if (header.totalLen == 0 && header.term == 0 && header.timestamp == 0 && header.index == 0) {
                 log.info("reach end of file. file={}, pos={}", lf.getFile().getPath(), itemStartPosOfFile);
             } else {
                 log.warn("reach end of file. last write maybe not finished or truncated. file={}, pos={}, index={}, term={}, reason={}",
@@ -252,8 +251,7 @@ class Restorer {
         if (buf.remaining() < LogHeader.ITEM_HEADER_SIZE) {
             return RT_CONTINUE_LOAD;
         }
-        header.read(buf);
-        if (!header.crcMatch()) {
+        if (!header.read(buf)) {
             return itemCheckFail(lf, "header crc not match");
         }
         if (header.isEndMagic()) {

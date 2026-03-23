@@ -285,13 +285,12 @@ class FileLogLoader implements RaftLog.LogIterator {
         private boolean extractHeader(ByteBuffer readBuffer) {
             LogHeader h = header;
             itemStartPos = bufferStartPos + readBuffer.position();
-            h.read(readBuffer);
+            if (!h.read(readBuffer)) {
+                throw new ChecksumException("header crc not match: index=" + (nextIndex + result.size())
+                        + ",pos=" + itemStartPos);
+            }
             if (h.isEndMagic()) {
                 return false;
-            }
-            if (!h.crcMatch()) {
-                throw new ChecksumException("header crc not match: index=" + (nextIndex + result.size())
-                        + ",pos=" + itemStartPos + ",len=" + h.totalLen);
             }
 
             int bodyLen = h.bodyLen;

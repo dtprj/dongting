@@ -52,9 +52,6 @@ class LogHeader {
     long index;
     long timestamp;
 
-    int headerCrc;
-    int expectCrc;
-
     public LogHeader() {
     }
 
@@ -62,7 +59,7 @@ class LogHeader {
         return totalLen == END_LEN_MAGIC;
     }
 
-    public void read(ByteBuffer buf) {
+    public boolean read(ByteBuffer buf) {
         int start = buf.position();
         totalLen = buf.getInt();
         bizHeaderLen = buf.getInt();
@@ -73,16 +70,12 @@ class LogHeader {
         prevLogTerm = buf.getInt();
         index = buf.getLong();
         timestamp = buf.getLong();
-        headerCrc = buf.getInt();
+        int headerCrc = buf.getInt();
 
         CRC32C crc32c = this.crc32c;
         crc32c.reset();
         RaftUtil.updateCrc(crc32c, buf, start, ITEM_HEADER_SIZE - 4);
-        expectCrc = (int) crc32c.getValue();
-    }
-
-    public boolean crcMatch() {
-        return headerCrc == expectCrc;
+        return headerCrc == ((int) crc32c.getValue());
     }
 
     public static int computeTotalLen(int bizHeaderLen, int bodyLen) {

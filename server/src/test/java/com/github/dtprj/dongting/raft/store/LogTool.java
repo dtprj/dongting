@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.raft.server.ChecksumException;
+
 import java.io.File;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -35,13 +37,14 @@ public class LogTool {
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, FILE_SIZE);
             buf.position(filePos);
             LogHeader header = new LogHeader();
-            header.read(buf);
+            if(!header.read(buf)){
+                throw new ChecksumException();
+            }
             return header;
         }
     }
 
     public static void main(String[] args) throws Exception {
-        LogHeader h = loadHeader(0);
-        System.out.println(h.crcMatch());
+        loadHeader(0);
     }
 }

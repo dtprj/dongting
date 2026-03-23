@@ -268,8 +268,7 @@ final class LogFileQueue extends FileQueue {
             private FrameCallResult afterLoadHeader(Void unused) {
                 buf.flip();
                 LogHeader header = new LogHeader();
-                header.read(buf);
-                if (!header.crcMatch()) {
+                if (!header.read(buf)) {
                     throw new RaftException("header crc not match");
                 }
                 setResult(header);

@@ -228,8 +228,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             }
             LogItem item = items[i];
             LogHeader header = new LogHeader();
-            header.read(buf);
-            assertTrue(header.crcMatch());
+            assertTrue(header.read(buf));
             assertEquals(item.type, header.type);
             assertEquals(item.bizType, header.bizType);
             assertEquals(item.term, header.term);

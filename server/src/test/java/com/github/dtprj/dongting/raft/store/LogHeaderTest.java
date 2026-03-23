@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
@@ -44,7 +45,7 @@ public class LogHeaderTest {
 
         buf.clear();
         LogHeader header = new LogHeader();
-        header.read(buf);
+        assertTrue(header.read(buf));
         assertEquals(1, header.type);
         assertEquals(2, header.bizType);
         assertEquals(1000, header.term);
@@ -55,7 +56,6 @@ public class LogHeaderTest {
         assertEquals(header.totalLen, LogHeader.computeTotalLen(200, 300));
         assertEquals(200, header.bizHeaderLen);
         assertEquals(300, header.bodyLen);
-        assertEquals(header.expectCrc, header.headerCrc);
     }
 
     @Test
@@ -66,8 +66,7 @@ public class LogHeaderTest {
 
         buf.clear();
         LogHeader header = new LogHeader();
-        header.read(buf);
+        assertTrue(header.read(buf));
         assertEquals(0xF19A7BCB, header.totalLen);
-        assertEquals(header.expectCrc, header.headerCrc);
     }
 }

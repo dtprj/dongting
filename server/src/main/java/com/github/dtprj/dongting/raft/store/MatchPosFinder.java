@@ -195,8 +195,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
 
         buf.flip();
         LogHeader header = new LogHeader();
-        header.read(buf);
-        if (!header.crcMatch()) {
+        if (!header.read(buf)) {
             throw new ChecksumException();
         }
         if (header.index != midIndex) {
