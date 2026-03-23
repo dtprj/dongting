@@ -168,7 +168,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         for (int i = 0; i < bizHeaderLen; i++) {
             bs[i] = (byte) i;
         }
-        item.setHeader(new ByteArray(bs));
+        item.setBizHeader(new ByteArray(bs));
         int bodySize = totalSize - LogHeader.computeTotalLen(bizHeaderLen, 0);
         if (bodySize > 0) {
             // crc 4 bytes
@@ -178,7 +178,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         for (int i = 0; i < bodySize; i++) {
             bs[i] = (byte) i;
         }
-        item.setBody(new ByteArray(bs));
+        item.setBizBody(new ByteArray(bs));
 
         return item;
     }
@@ -238,7 +238,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
             if (bizHeaderLen > 0) {
                 for (int j = 0; j < bizHeaderLen; j++) {
-                    assertEquals(((ByteArray) item.getHeader()).getData()[j], buf.get());
+                    assertEquals(((ByteArray) item.getBizHeader()).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bizHeaderLen, bizHeaderLen);
@@ -248,7 +248,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             if (header.bodyLen > 0) {
                 int bodyLen = header.bodyLen;
                 for (int j = 0; j < bodyLen; j++) {
-                    assertEquals(((ByteArray) item.getBody()).getData()[j], buf.get());
+                    assertEquals(((ByteArray) item.getBizBody()).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bodyLen, bodyLen);

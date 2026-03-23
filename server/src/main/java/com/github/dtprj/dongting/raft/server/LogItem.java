@@ -55,11 +55,11 @@ public class LogItem {
     public int prevLogTerm;
     public long timestamp;
 
-    private Encodable body;
+    private Encodable bizBody;
     private boolean bodyIsRefCount;
     private int actualBodySize = -1;
 
-    private Encodable header;
+    private Encodable bizHeader;
     private boolean headerIsRefCount;
     private int actualHeaderSize = -1;
 
@@ -71,66 +71,66 @@ public class LogItem {
 
     public void retain() {
         if (headerIsRefCount) {
-            ((RefCount) header).retain();
+            ((RefCount) bizHeader).retain();
         }
         if (bodyIsRefCount) {
-            ((RefCount) body).retain();
+            ((RefCount) bizBody).retain();
         }
     }
 
     public void release() {
         if (headerIsRefCount) {
-            ((RefCount) header).release();
+            ((RefCount) bizHeader).release();
         }
         if (bodyIsRefCount) {
-            ((RefCount) body).release();
+            ((RefCount) bizBody).release();
         }
     }
 
     public void setHeader(Encodable header, boolean refCount) {
-        this.header = header;
+        this.bizHeader = header;
         this.headerIsRefCount = refCount;
     }
 
     public void setBody(Encodable body, boolean refCount) {
-        this.body = body;
+        this.bizBody = body;
         this.bodyIsRefCount = refCount;
     }
 
-    public void setHeader(Encodable header) {
-        this.header = header;
-        this.headerIsRefCount = header instanceof RefCount;
+    public void setBizHeader(Encodable bizHeader) {
+        this.bizHeader = bizHeader;
+        this.headerIsRefCount = bizHeader instanceof RefCount;
     }
 
-    public void setBody(Encodable body) {
-        this.body = body;
-        this.bodyIsRefCount = body instanceof RefCount;
+    public void setBizBody(Encodable bizBody) {
+        this.bizBody = bizBody;
+        this.bodyIsRefCount = bizBody instanceof RefCount;
     }
 
     public int getActualHeaderSize() {
         if (actualHeaderSize == -1) {
-            actualHeaderSize = header == null ? 0 : header.actualSize();
+            actualHeaderSize = bizHeader == null ? 0 : bizHeader.actualSize();
         }
         return actualHeaderSize;
     }
 
     public int getActualBodySize() {
         if (actualBodySize == -1) {
-            actualBodySize = body == null ? 0 : body.actualSize();
+            actualBodySize = bizBody == null ? 0 : bizBody.actualSize();
         }
         return actualBodySize;
     }
 
-    public Encodable getBody() {
-        return body;
+    public Encodable getBizBody() {
+        return bizBody;
     }
 
     public void setActualBodySize(int actualBodySize) {
         this.actualBodySize = actualBodySize;
     }
 
-    public Encodable getHeader() {
-        return header;
+    public Encodable getBizHeader() {
+        return bizHeader;
     }
 
     public void setActualHeaderSize(int actualHeaderSize) {

@@ -350,9 +350,9 @@ class FileLogLoader implements RaftLog.LogIterator {
                 currentReadBytes += read;
                 if (currentReadBytes >= dataLen) {
                     if (isHeader) {
-                        item.setHeader(result);
+                        item.setBizHeader(result);
                     } else {
-                        item.setBody(result);
+                        item.setBizBody(result);
                     }
                 }
             }

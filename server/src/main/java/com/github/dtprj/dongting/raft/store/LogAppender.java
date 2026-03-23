@@ -235,13 +235,13 @@ class LogAppender {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
-                    buffer = encodeData(li.getActualHeaderSize(), li.getHeader(), buffer, file);
+                    buffer = encodeData(li.getActualHeaderSize(), li.getBizHeader(), buffer, file);
                 }
                 if (li.type != LogItem.TYPE_LOG_READ && li.getActualBodySize() > 0) {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
-                    buffer = encodeData(li.getActualBodySize(), li.getBody(), buffer, file);
+                    buffer = encodeData(li.getActualBodySize(), li.getBizBody(), buffer, file);
                 }
 
                 idxOps.put(li.index, dataPos, len);

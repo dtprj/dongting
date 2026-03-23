@@ -105,7 +105,7 @@ class LogItemCallback extends PbCallback<Object> {
             }
             Encodable result = parseNested(buf, len, currentPos, currentDecoderCallback);
             if (end) {
-                item.setHeader(result);
+                item.setBizHeader(result);
             }
         } else if (index == LogItem.IDX_BODY) {
             if (begin) {
@@ -123,7 +123,7 @@ class LogItemCallback extends PbCallback<Object> {
             }
             Encodable result = parseNested(buf, len, currentPos, currentDecoderCallback);
             if (end) {
-                item.setBody(result);
+                item.setBizBody(result);
             }
         }
         return true;

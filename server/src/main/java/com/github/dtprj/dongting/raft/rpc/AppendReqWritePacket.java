@@ -105,8 +105,8 @@ public class AppendReqWritePacket extends WritePacket {
                 + PbUtil.sizeOfInt32Field(LogItem.IDX_PREV_LOG_TERM, item.prevLogTerm)
                 + PbUtil.sizeOfFix64Field(LogItem.IDX_TIMESTAMP, item.timestamp);
         itemSize = itemHeaderSize
-                + EncodeUtil.sizeOf(LogItem.IDX_HEADER, item.getHeader())
-                + EncodeUtil.sizeOf(LogItem.IDX_BODY, item.getBody());
+                + EncodeUtil.sizeOf(LogItem.IDX_HEADER, item.getBizHeader())
+                + EncodeUtil.sizeOf(LogItem.IDX_BODY, item.getBizBody());
         item.pbItemSize = itemSize;
         item.pbHeaderSize = itemHeaderSize;
         return itemSize;
@@ -150,14 +150,14 @@ public class AppendReqWritePacket extends WritePacket {
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
-                    if (EncodeUtil.encode(context, dest, LogItem.IDX_HEADER, currentItem.getHeader())) {
+                    if (EncodeUtil.encode(context, dest, LogItem.IDX_HEADER, currentItem.getBizHeader())) {
                         writeStatus = WRITE_ITEM_BIZ_BODY;
                         break;
                     } else {
                         return false;
                     }
                 case WRITE_ITEM_BIZ_BODY:
-                    if (EncodeUtil.encode(context, dest, LogItem.IDX_BODY, currentItem.getBody())) {
+                    if (EncodeUtil.encode(context, dest, LogItem.IDX_BODY, currentItem.getBizBody())) {
                         writeStatus = WRITE_ITEM_HEADER;
                         currentItem = null;
                         encodeLogIndex++;

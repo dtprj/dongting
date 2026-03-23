@@ -133,10 +133,10 @@ public class AppendReqWritePacketTest {
             log.timestamp = System.currentTimeMillis();
             log.type = LogItem.TYPE_NORMAL;
             if (addHeader) {
-                log.setHeader(createBytes(10));
+                log.setBizHeader(createBytes(10));
             }
             if (addBody) {
-                log.setBody(createBytes(20));
+                log.setBizBody(createBytes(20));
             }
             logs.add(log);
         }
@@ -159,17 +159,17 @@ public class AppendReqWritePacketTest {
             assertEquals(l1.term, l2.term);
             assertEquals(l1.timestamp, l2.timestamp);
             assertEquals(l1.type, l2.type);
-            if (l1.getHeader() != null) {
-                assertArrayEquals(((ByteArray) l1.getHeader()).getData(),
-                        ((ByteArray) l2.getHeader()).getData());
+            if (l1.getBizHeader() != null) {
+                assertArrayEquals(((ByteArray) l1.getBizHeader()).getData(),
+                        ((ByteArray) l2.getBizHeader()).getData());
             } else {
-                assertNull(l2.getHeader());
+                assertNull(l2.getBizHeader());
             }
-            if (l1.getBody() != null) {
-                assertArrayEquals(((ByteArray) l1.getBody()).getData(),
-                        ((ByteArray) l2.getBody()).getData());
+            if (l1.getBizBody() != null) {
+                assertArrayEquals(((ByteArray) l1.getBizBody()).getData(),
+                        ((ByteArray) l2.getBizBody()).getData());
             } else {
-                assertNull(l2.getBody());
+                assertNull(l2.getBizBody());
             }
         }
     }
