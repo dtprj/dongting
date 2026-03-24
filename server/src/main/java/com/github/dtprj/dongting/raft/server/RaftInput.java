@@ -15,9 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.RefCount;
 
 /**
  * @author huangli
@@ -26,35 +24,20 @@ public class RaftInput {
     public final int bizType;
     public final DtTime deadline;
     public final boolean readOnly;
-    public final Encodable header;
-    public final Encodable body;
-    public final long flowControlSize;
-    public final boolean headReleasable;
-    public final boolean bodyReleasable;
+    public final RaftReqData reqData;
 
     // this field is reused
     public long perfTime;
 
-    public RaftInput(int bizType, Encodable header, Encodable body, DtTime deadline, boolean readOnly) {
+    public RaftInput(int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly) {
         if (bizType < 0 || bizType > 127) {
             // we use 1 byte to store bizType in raft log
             throw new IllegalArgumentException("bizType must be in [0, 127]");
         }
         this.bizType = bizType;
-        this.body = body;
-        this.header = header;
+        this.reqData = reqData;
         this.deadline = deadline;
         this.readOnly = readOnly;
-        int flowControlSize = 0;
-        if (header != null) {
-            flowControlSize += header.actualSize();
-        }
-        if (body != null) {
-            flowControlSize += body.actualSize();
-        }
-        this.flowControlSize = flowControlSize;
-        this.headReleasable = header instanceof RefCount;
-        this.bodyReleasable = body instanceof RefCount;
     }
 
 }

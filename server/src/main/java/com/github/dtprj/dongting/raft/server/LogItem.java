@@ -15,9 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.common.RefCount;
-
 /**
  * @author huangli
  */
@@ -55,86 +52,12 @@ public class LogItem {
     public int prevLogTerm;
     public long timestamp;
 
-    private Encodable bizBody;
-    private boolean bodyIsRefCount;
-    private int actualBodySize = -1;
-
-    private Encodable bizHeader;
-    private boolean headerIsRefCount;
-    private int actualHeaderSize = -1;
+    public RaftReqData reqData;
 
     public int pbHeaderSize;
     public int pbItemSize;
 
     public LogItem() {
-    }
-
-    public void retain() {
-        if (headerIsRefCount) {
-            ((RefCount) bizHeader).retain();
-        }
-        if (bodyIsRefCount) {
-            ((RefCount) bizBody).retain();
-        }
-    }
-
-    public void release() {
-        if (headerIsRefCount) {
-            ((RefCount) bizHeader).release();
-        }
-        if (bodyIsRefCount) {
-            ((RefCount) bizBody).release();
-        }
-    }
-
-    public void setHeader(Encodable header, boolean refCount) {
-        this.bizHeader = header;
-        this.headerIsRefCount = refCount;
-    }
-
-    public void setBody(Encodable body, boolean refCount) {
-        this.bizBody = body;
-        this.bodyIsRefCount = refCount;
-    }
-
-    public void setBizHeader(Encodable bizHeader) {
-        this.bizHeader = bizHeader;
-        this.headerIsRefCount = bizHeader instanceof RefCount;
-    }
-
-    public void setBizBody(Encodable bizBody) {
-        this.bizBody = bizBody;
-        this.bodyIsRefCount = bizBody instanceof RefCount;
-    }
-
-    public int getActualHeaderSize() {
-        if (actualHeaderSize == -1) {
-            actualHeaderSize = bizHeader == null ? 0 : bizHeader.actualSize();
-        }
-        return actualHeaderSize;
-    }
-
-    public int getActualBodySize() {
-        if (actualBodySize == -1) {
-            actualBodySize = bizBody == null ? 0 : bizBody.actualSize();
-        }
-        return actualBodySize;
-    }
-
-    public Encodable getBizBody() {
-        return bizBody;
-    }
-
-    public void setActualBodySize(int actualBodySize) {
-        this.actualBodySize = actualBodySize;
-    }
-
-    public Encodable getBizHeader() {
-        return bizHeader;
-    }
-
-    public void setActualHeaderSize(int actualHeaderSize) {
-        this.actualHeaderSize = actualHeaderSize;
     }
 
 }

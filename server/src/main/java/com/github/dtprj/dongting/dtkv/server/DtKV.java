@@ -46,6 +46,7 @@ import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -178,7 +179,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             throw new DtBugException("dtkv is install snapshot");
         }
-        KvReq req = (KvReq) input.body;
+        KvReq req = (KvReq) input.reqData.bizBody;
         KvImpl kv = kvStatus.kvImpl;
         int bizType = input.bizType;
         kv.opContext.init(bizType, req.ownerUuid, req.ttlMillis, leaderCreateTimeMillis, localCreateNanos);
@@ -394,7 +395,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         KvReq req = new KvReq();
         req.key = ttlInfo.key.getData();
         req.ttlMillis = ttlInfo.raftIndex;
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_EXPIRE, null, req, null, false);
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_EXPIRE, new RaftReqData(null, req), null, false);
         RaftCallback callback = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {

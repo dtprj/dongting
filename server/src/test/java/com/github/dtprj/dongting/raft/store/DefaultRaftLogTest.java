@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -31,6 +32,7 @@ import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
@@ -338,7 +340,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
         });
 
-        RaftInput input = new RaftInput(0, null, null, null, false);
+        RaftInput input = new RaftInput(0, new RaftReqData((Encodable) null, null), null, false);
         raftStatus.tailCache.put(3, new RaftTask(0, input, null));
         // test cancel if tail cache has next item
         doInFiber(new FiberFrame<>() {
@@ -450,7 +452,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         for (int i = 0; i <= list.size(); i++) {
             tailCache.cleanAll();
             for (int j = list.size() - i; j < list.size(); j++) {
-                RaftInput ri = new RaftInput(0, null, null, null, false);
+                RaftInput ri = new RaftInput(0, new RaftReqData((Encodable) null, null), null, false);
                 RaftTask t = new RaftTask(0, ri, null);
                 LogItem li = list.get(j);
                 t.init(li, raftStatus.ts.nanoTime);

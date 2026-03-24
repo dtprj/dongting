@@ -338,7 +338,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         ArrayList<RaftTask> list = new ArrayList<>(logs.size());
         for (int i = 0, len = logs.size(); i < len; i++) {
             LogItem li = logs.get(i);
-            RaftInput raftInput = new RaftInput(li.bizType, li.getBizHeader(), li.getBizBody(), null,
+            RaftInput raftInput = new RaftInput(li.bizType, li.reqData, null,
                     li.type == LogItem.TYPE_LOG_READ);
             RaftTask task = new RaftTask(li.type, raftInput, null);
             task.init(li, raftStatus.ts.nanoTime);

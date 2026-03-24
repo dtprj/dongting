@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.util.CodecTestUtil;
 import org.junit.jupiter.api.Assertions;
@@ -132,12 +133,7 @@ public class AppendReqWritePacketTest {
             log.term = 4;
             log.timestamp = System.currentTimeMillis();
             log.type = LogItem.TYPE_NORMAL;
-            if (addHeader) {
-                log.setBizHeader(createBytes(10));
-            }
-            if (addBody) {
-                log.setBizBody(createBytes(20));
-            }
+            log.reqData = new RaftReqData(addHeader ? createBytes(10) : null, addBody ? createBytes(20) : null);
             logs.add(log);
         }
         return f;
@@ -159,17 +155,17 @@ public class AppendReqWritePacketTest {
             assertEquals(l1.term, l2.term);
             assertEquals(l1.timestamp, l2.timestamp);
             assertEquals(l1.type, l2.type);
-            if (l1.getBizHeader() != null) {
-                assertArrayEquals(((ByteArray) l1.getBizHeader()).getData(),
-                        ((ByteArray) l2.getBizHeader()).getData());
+            if (l1.reqData.bizHeader != null) {
+                assertArrayEquals(((ByteArray) l1.reqData.bizHeader).getData(),
+                        ((ByteArray) l2.reqData.bizHeader).getData());
             } else {
-                assertNull(l2.getBizHeader());
+                assertNull(l2.reqData.bizHeader);
             }
-            if (l1.getBizBody() != null) {
-                assertArrayEquals(((ByteArray) l1.getBizBody()).getData(),
-                        ((ByteArray) l2.getBizBody()).getData());
+            if (l1.reqData.bizBody != null) {
+                assertArrayEquals(((ByteArray) l1.reqData.bizBody).getData(),
+                        ((ByteArray) l2.reqData.bizBody).getData());
             } else {
-                assertNull(l2.getBizBody());
+                assertNull(l2.reqData.bizBody);
             }
         }
     }

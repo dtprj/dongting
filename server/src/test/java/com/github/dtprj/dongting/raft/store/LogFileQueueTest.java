@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.RunnableEx;
@@ -164,21 +165,20 @@ public class LogFileQueueTest extends BaseFiberTest {
         item.prevLogTerm = prevTerm;
         item.index = index;
         item.timestamp = config.ts.wallClockMillis;
-        byte[] bs = new byte[bizHeaderLen];
+        byte[] bizHeader = new byte[bizHeaderLen];
         for (int i = 0; i < bizHeaderLen; i++) {
-            bs[i] = (byte) i;
+            bizHeader[i] = (byte) i;
         }
-        item.setBizHeader(new ByteArray(bs));
         int bodySize = totalSize - LogHeader.computeTotalLen(bizHeaderLen, 0);
         if (bodySize > 0) {
             // crc 4 bytes
             bodySize -= 4;
         }
-        bs = new byte[bodySize];
+        byte[] bizBody = new byte[bodySize];
         for (int i = 0; i < bodySize; i++) {
-            bs[i] = (byte) i;
+            bizBody[i] = (byte) i;
         }
-        item.setBizBody(new ByteArray(bs));
+        item.reqData = new RaftReqData(bizHeader, bizBody);
 
         return item;
     }
@@ -238,7 +238,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
             if (bizHeaderLen > 0) {
                 for (int j = 0; j < bizHeaderLen; j++) {
-                    assertEquals(((ByteArray) item.getBizHeader()).getData()[j], buf.get());
+                    assertEquals(((ByteArray) item.reqData.bizHeader).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bizHeaderLen, bizHeaderLen);
@@ -248,7 +248,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             if (header.bodyLen > 0) {
                 int bodyLen = header.bodyLen;
                 for (int j = 0; j < bodyLen; j++) {
-                    assertEquals(((ByteArray) item.getBizBody()).getData()[j], buf.get());
+                    assertEquals(((ByteArray) item.reqData.bizBody).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bodyLen, bodyLen);

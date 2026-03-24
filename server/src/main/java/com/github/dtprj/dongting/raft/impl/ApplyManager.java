@@ -476,7 +476,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             }
             LogItem item = items.get(listIndex++);
 
-            RaftInput input = new RaftInput(item.bizType, item.getBizHeader(), item.getBizBody(), null,
+            RaftInput input = new RaftInput(item.bizType, item.reqData, null,
                     item.type == LogItem.TYPE_LOG_READ);
             RaftTask rt = new RaftTask(item.type, input, null);
 
@@ -556,7 +556,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
-            byte[] data = ((ByteArray) rt.input.body).getData();
+            byte[] data = ((ByteArray) rt.input.reqData.bizBody).getData();
             String dataStr = new String(data);
             String[] fields = dataStr.split(";", -1);
             Set<Integer> oldMemberIds = parseSet(fields[0]);

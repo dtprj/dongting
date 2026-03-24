@@ -40,6 +40,7 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
@@ -256,7 +257,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         private final long startTime;
 
         private RC(int bizType, Encodable body, ReqInfo<KvReq> reqInfo) {
-            super(bizType, null, body, reqInfo.reqContext.getTimeout(), false);
+            super(bizType, new RaftReqData(null, body), reqInfo.reqContext.getTimeout(), false);
             this.reqInfo = reqInfo;
             this.startTime = perfCallback.takeTime(PerfConsts.DTKV_LINEARIZABLE_OP);
         }

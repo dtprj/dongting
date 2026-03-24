@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
@@ -30,7 +29,6 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.RaftPing;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -81,21 +79,15 @@ public final class RaftUtil {
         }
     }
 
-    public static void release(RaftInput raftInput) {
-        if (raftInput.headReleasable) {
-            ((RefCount) raftInput.header).release();
-        }
-        if (raftInput.bodyReleasable) {
-            ((RefCount) raftInput.body).release();
-        }
-    }
-
     public static void release(List<LogItem> items) {
         if (items == null) {
             return;
         }
         for (int s = items.size(), i = 0; i < s; i++) {
-            items.get(i).release();
+            LogItem li = items.get(i);
+            if (li.reqData != null) {
+                li.reqData.release();
+            }
         }
     }
 

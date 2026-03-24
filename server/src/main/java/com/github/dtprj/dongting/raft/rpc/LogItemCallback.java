@@ -19,8 +19,10 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
@@ -32,6 +34,8 @@ import java.nio.ByteBuffer;
 class LogItemCallback extends PbCallback<Object> {
 
     private LogItem item;
+    private Encodable bizHeader;
+    private Encodable bizBody;
     RaftCodecFactory codecFactory;
 
     @Override
@@ -42,13 +46,21 @@ class LogItemCallback extends PbCallback<Object> {
     @Override
     protected void end(boolean success) {
         if (!success) {
-            item.release();
+            if (bizHeader != null && bizHeader instanceof RefCount) {
+                ((RefCount) bizHeader).release();
+            }
+            if (bizBody != null && bizBody instanceof RefCount) {
+                ((RefCount) bizBody).release();
+            }
         }
         item = null;
+        bizHeader = null;
+        bizBody = null;
     }
 
     @Override
     protected Object getResult() {
+        item.reqData = new RaftReqData(bizHeader, bizBody);
         return item;
     }
 
@@ -91,8 +103,7 @@ class LogItemCallback extends PbCallback<Object> {
         DecoderCallback<? extends Encodable> currentDecoderCallback;
         if (index == LogItem.IDX_HEADER) {
             if (begin) {
-                item.setActualHeaderSize(len);
-                if (item.type == LogItem.TYPE_NORMAL) {
+                if (item.type == LogItem.TYPE_NORMAL) { // TYPE_LOG_READ do not have a header
                     currentDecoderCallback = codecFactory.createHeaderCallback(item.bizType, context.createOrGetNestedContext());
                     if (currentDecoderCallback == null) {
                         throw new RaftException("no decoder for header, bizType=" + item.bizType);
@@ -105,12 +116,11 @@ class LogItemCallback extends PbCallback<Object> {
             }
             Encodable result = parseNested(buf, len, currentPos, currentDecoderCallback);
             if (end) {
-                item.setBizHeader(result);
+                bizHeader = result;
             }
         } else if (index == LogItem.IDX_BODY) {
             if (begin) {
-                item.setActualBodySize(len);
-                if (item.type == LogItem.TYPE_NORMAL || item.type == LogItem.TYPE_LOG_READ) {
+                if (item.type == LogItem.TYPE_NORMAL) { // TYPE_LOG_READ do not have a body
                     currentDecoderCallback = codecFactory.createBodyCallback(item.bizType, context.createOrGetNestedContext());
                     if (currentDecoderCallback == null) {
                         throw new RaftException("no decoder for body, bizType=" + item.bizType);
@@ -123,7 +133,7 @@ class LogItemCallback extends PbCallback<Object> {
             }
             Encodable result = parseNested(buf, len, currentPos, currentDecoderCallback);
             if (end) {
-                item.setBizBody(result);
+                bizBody = result;
             }
         }
         return true;

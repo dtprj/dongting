@@ -88,12 +88,12 @@ class LogHeader {
         if (read) {
             len = ITEM_HEADER_SIZE;
         } else {
-            len = computeTotalLen(log.getActualHeaderSize(), log.getActualBodySize());
+            len = computeTotalLen(log.reqData.bizHeaderSize, log.reqData.bizBodySize);
         }
         int startPos = buffer.position();
         buffer.putInt(len);
-        buffer.putInt(read ? 0 : log.getActualHeaderSize());
-        buffer.putInt(read ? 0 : log.getActualBodySize());
+        buffer.putInt(read ? 0 : log.reqData.bizHeaderSize);
+        buffer.putInt(read ? 0 : log.reqData.bizBodySize);
         buffer.put((byte) log.type);
         buffer.put((byte) log.bizType);
         buffer.putInt(log.term);

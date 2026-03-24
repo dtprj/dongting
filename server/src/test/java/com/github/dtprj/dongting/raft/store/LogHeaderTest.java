@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -39,8 +40,7 @@ public class LogHeaderTest {
         item.timestamp = Long.MAX_VALUE;
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         CRC32C crc32C = new CRC32C();
-        item.setActualHeaderSize(200);
-        item.setActualBodySize(300);
+        item.reqData = new RaftReqData(new byte[200], new byte[300]);
         LogHeader.writeHeader(crc32C, buf, item);
 
         buf.clear();

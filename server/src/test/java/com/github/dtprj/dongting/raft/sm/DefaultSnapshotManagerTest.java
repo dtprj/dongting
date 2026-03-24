@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.TestDir;
 import org.junit.jupiter.api.Test;
@@ -116,7 +117,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                     return afterLoop();
                 }
                 KvReq req = new KvReq(1, ("key" + index).getBytes(), ("value" + index).getBytes());
-                RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
+                RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, new RaftReqData(null, req),
                         new DtTime(1, TimeUnit.SECONDS), false);
                 Timestamp ts = groupConfig.ts;
                 FiberFuture<Object> f = kv.exec(index++, ts.wallClockMillis, ts.nanoTime, i);

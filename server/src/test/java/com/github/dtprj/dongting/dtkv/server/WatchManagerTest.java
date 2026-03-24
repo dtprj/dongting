@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.Tick;
@@ -106,7 +107,7 @@ public class WatchManagerTest implements KvListener {
             WatchManagerTest.groupId = groupId;
             // add first item and make raft index in statemachine greater than 0
             KvReq req = new KvReq(groupId, "aaa".getBytes(), "bbb".getBytes());
-            RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, null, req,
+            RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, new RaftReqData(null, req),
                     new DtTime(3, TimeUnit.SECONDS), false);
             CompletableFuture<Long> f = new CompletableFuture<>();
             leader.raftServer.getRaftGroup(groupId).submitLinearTask(i, new RaftCallback() {

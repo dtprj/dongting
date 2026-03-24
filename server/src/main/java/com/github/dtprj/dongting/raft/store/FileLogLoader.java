@@ -36,6 +36,7 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
@@ -139,8 +140,16 @@ class FileLogLoader implements RaftLog.LogIterator {
         private int currentReadBytes;
         private final List<LogItem> result = new LinkedList<>();
         private int state = STATE_ITEM_HEADER;
-        private LogItem item;
         private long itemStartPos;
+
+        private LogItem item;
+        private Encodable bizHeader;
+        private int bizHeaderSize;
+        private int bizHeaderCrc;
+
+        private Encodable bizBody;
+        private int bizBodySize;
+        private int bizBodyCrc;
 
         NextFrame(long startIndex, int limit, int bytesLimit) {
             this.startIndex = startIndex;
@@ -302,8 +311,8 @@ class FileLogLoader implements RaftLog.LogIterator {
             this.item = li;
             h.copy(li);
 
-            li.setActualHeaderSize(h.bizHeaderLen);
-            li.setActualBodySize(bodyLen);
+            bizHeaderSize = h.bizHeaderLen;
+            bizBodySize = bodyLen;
 
             return true;
         }
@@ -350,9 +359,9 @@ class FileLogLoader implements RaftLog.LogIterator {
                 currentReadBytes += read;
                 if (currentReadBytes >= dataLen) {
                     if (isHeader) {
-                        item.setBizHeader(result);
+                        bizHeader = result;
                     } else {
-                        item.setBizBody(result);
+                        bizBody = result;
                     }
                 }
             }
@@ -364,24 +373,42 @@ class FileLogLoader implements RaftLog.LogIterator {
                     throw new ChecksumException("crc32c not match: index=" + header.index + ",pos="
                             + itemStartPos + ",len=" + dataLen);
                 }
+                if (isHeader) {
+                    bizHeaderCrc = crc;
+                } else {
+                    bizBodyCrc = crc;
+                }
                 return true;
             } else {
                 return false;
             }
         }
 
+        private void add() {
+            item.reqData = new RaftReqData(bizHeader, bizHeaderSize, bizHeaderCrc, bizBody, bizBodySize, bizBodyCrc);
+            result.add(item);
+
+            item = null;
+
+            bizHeaderSize = 0;
+            bizBodySize = 0;
+            bizHeaderCrc = 0;
+
+            bizHeader = null;
+            bizBody = null;
+            bizBodyCrc = 0;
+        }
+
         private int extractBizBody(ByteBuffer buf) {
             int bodyLen = header.bodyLen;
             if (bodyLen == 0) {
-                result.add(item);
-                item = null;
+                add();
                 state = STATE_ITEM_HEADER;
                 return checkItemLimit();
             }
             boolean readFinish = readData(buf, bodyLen, false);
             if (readFinish) {
-                result.add(item);
-                item = null;
+                add();
                 state = STATE_ITEM_HEADER;
                 return checkItemLimit();
             } else {

@@ -336,11 +336,11 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 RaftTask rt = tailCache.get(nextIndex + i);
                 //noinspection DataFlowIssue
                 LogItem li = rt.item;
-                size += li.getActualBodySize();
+                size += li.reqData.totalSize;
                 if (i > 0 && size > sizeLimit) {
                     break;
                 }
-                li.retain();
+                li.reqData.retain();
                 items.add(li);
             }
             sendAppendRequest(member, items);
@@ -400,7 +400,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
             LogItem item = items.get(i);
-            bytes += item.getActualBodySize();
+            bytes += item.reqData.totalSize;
         }
         long finalBytes = bytes;
         Executor ge = groupConfig.fiberGroup.getExecutor();

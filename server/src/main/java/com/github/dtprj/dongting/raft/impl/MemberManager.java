@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.VersionFactory;
@@ -42,6 +41,7 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
@@ -458,7 +458,7 @@ public class MemberManager {
                     stageStr, raftStatus.getRole(), groupId);
             f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
         }
-        RaftInput input = new RaftInput(0, null, data == null ? null : new ByteArray(data),
+        RaftInput input = new RaftInput(0, new RaftReqData(null, data),
                 null, false);
         // use runner fiber to execute to avoid race condition
         gc.linearTaskRunner.submitRaftTaskInBizThread(type, input, new RaftCallback() {

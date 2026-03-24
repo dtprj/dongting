@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.PerfCallback;
@@ -34,6 +35,7 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
@@ -100,7 +102,7 @@ public class LinearTaskRunner {
         private FrameCallResult afterTakeAll(Void unused) {
             if (isGroupShouldStopPlain()) {
                 for (RaftTask rt : list) {
-                    RaftUtil.release(rt.input);
+                    rt.input.reqData.release();
                     rt.callFail(new RaftException("raft group is stopping"));
                 }
                 taskChannel.markShutdown();
@@ -131,7 +133,7 @@ public class LinearTaskRunner {
     }
 
     private static void onDispatchFail(RaftTask rt) {
-        RaftUtil.release(rt.input);
+        rt.input.reqData.release();
         rt.callFail(new RaftException("submit raft task failed, the fiber group is not running"));
     }
 
@@ -155,7 +157,7 @@ public class LinearTaskRunner {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
-                RaftUtil.release(t.input);
+                t.input.reqData.release();
                 t.callFail(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
             }
             return FiberFrame.voidCompletedFrame();
@@ -178,7 +180,7 @@ public class LinearTaskRunner {
 
             Throwable ex = checkTask(rt, raftStatus);
             if (ex != null) {
-                RaftUtil.release(input);
+                input.reqData.release();
                 rt.callFail(ex);
                 // not removed from list, filter in append()
                 continue;
@@ -194,8 +196,7 @@ public class LinearTaskRunner {
             prevTerm = currentTerm;
             item.timestamp = ts.wallClockMillis;
 
-            item.setHeader(input.header, input.headReleasable);
-            item.setBody(input.body, input.bodyReleasable);
+            item.reqData = input.reqData;
 
             rt.init(item, ts.nanoTime);
         }
@@ -251,7 +252,7 @@ public class LinearTaskRunner {
 
     private RaftInput createHeartBeatInput() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        return new RaftInput(0, null, null, deadline, false);
+        return new RaftInput(0, new RaftReqData((Encodable) null, null), deadline, false);
     }
 
     public void issueHeartBeat() {

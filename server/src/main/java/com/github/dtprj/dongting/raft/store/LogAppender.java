@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -161,7 +162,7 @@ class LogAppender {
                 if (li.type == LogItem.TYPE_LOG_READ) {
                     len = LogHeader.ITEM_HEADER_SIZE;
                 } else {
-                    len = LogHeader.computeTotalLen(li.getActualHeaderSize(), li.getActualBodySize());
+                    len = LogHeader.computeTotalLen(li.reqData.bizHeaderSize, li.reqData.bizBodySize);
                 }
                 if (len <= fileRestBytes) {
                     bytesToWrite += len;
@@ -231,17 +232,18 @@ class LogAppender {
                 }
                 int len = LogHeader.writeHeader(crc32c, buffer, li);
 
-                if (li.type != LogItem.TYPE_LOG_READ && li.getActualHeaderSize() > 0) {
+                RaftReqData rd = li.reqData;
+                if (li.type != LogItem.TYPE_LOG_READ && rd.bizHeaderSize > 0) {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
-                    buffer = encodeData(li.getActualHeaderSize(), li.getBizHeader(), buffer, file);
+                    buffer = encodeData(rd.bizHeaderSize, rd.bizHeader, buffer, file);
                 }
-                if (li.type != LogItem.TYPE_LOG_READ && li.getActualBodySize() > 0) {
+                if (li.type != LogItem.TYPE_LOG_READ && rd.bizBodySize > 0) {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
-                    buffer = encodeData(li.getActualBodySize(), li.getBizBody(), buffer, file);
+                    buffer = encodeData(rd.bizBodySize, rd.bizBody, buffer, file);
                 }
 
                 idxOps.put(li.index, dataPos, len);
