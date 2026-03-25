@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.ArrayList;
@@ -202,7 +203,7 @@ public class LinearTaskRunner {
         if (rt.deadline != null && rt.deadline.isTimeout(ts)) {
             return new RaftTimeoutException("timeout " + rt.deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
-        if (rt.type == LogItem.TYPE_NORMAL || rt.type == LogItem.TYPE_LOG_READ) {
+        if (rt.type == LogHeader.TYPE_NORMAL || rt.type == LogHeader.TYPE_LOG_READ) {
             if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {
                 log.warn("reject task, pendingRequests={}, maxPendingRaftTasks={}",
                         raftStatus.tailCache.pendingCount, groupConfig.maxPendingTasks);
@@ -245,7 +246,7 @@ public class LinearTaskRunner {
 
     private RaftTask createHeartBeatInput() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        return new RaftTask(LogItem.TYPE_HEARTBEAT, 0, new RaftReqData((Encodable) null, null),
+        return new RaftTask(LogHeader.TYPE_HEARTBEAT, 0, new RaftReqData((Encodable) null, null),
                 deadline, false, null);
     }
 

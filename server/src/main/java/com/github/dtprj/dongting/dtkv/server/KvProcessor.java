@@ -38,12 +38,12 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -248,7 +248,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, Encodable body) {
-        RaftTask rt = new RaftTask(LogItem.TYPE_NORMAL, bizType, new RaftReqData(null, body),
+        RaftTask rt = new RaftTask(LogHeader.TYPE_NORMAL, bizType, new RaftReqData(null, body),
                 reqInfo.reqContext.getTimeout(), false, new RC(reqInfo));
         reqInfo.raftGroup.submitLinearTask(rt);
     }

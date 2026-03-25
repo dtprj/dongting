@@ -43,6 +43,7 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
@@ -338,7 +339,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         for (int i = 0, len = logs.size(); i < len; i++) {
             LogItem li = logs.get(i);
             RaftTask task = new RaftTask(li.type, li.bizType, li.reqData, null,
-                    li.type == LogItem.TYPE_LOG_READ, null);
+                    li.type == LogHeader.TYPE_LOG_READ, null);
             task.init(li, raftStatus.ts.nanoTime);
             list.add(task);
 

@@ -24,7 +24,14 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-class LogHeader {
+public class LogHeader {
+    public static final int TYPE_NORMAL = 0;
+    public static final int TYPE_HEARTBEAT = 1;
+    public static final int TYPE_PREPARE_CONFIG_CHANGE = 2;
+    public static final int TYPE_DROP_CONFIG_CHANGE = 3;
+    public static final int TYPE_COMMIT_CONFIG_CHANGE = 4;
+    public static final int TYPE_LOG_READ = 5;
+
     // total len(4 bytes), include this 4 bytes
     // biz header len 4 bytes
     // body len 4 bytes
@@ -83,7 +90,7 @@ class LogHeader {
     }
 
     public static int writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log) {
-        boolean read = log.type == LogItem.TYPE_LOG_READ;
+        boolean read = log.type == TYPE_LOG_READ;
         int len;
         if (read) {
             len = ITEM_HEADER_SIZE;

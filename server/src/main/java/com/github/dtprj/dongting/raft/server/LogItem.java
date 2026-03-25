@@ -38,13 +38,6 @@ public class LogItem {
     public static final int IDX_HEADER = 7;
     public static final int IDX_BODY = 8;
 
-    public static final int TYPE_NORMAL = 0;
-    public static final int TYPE_HEARTBEAT = 1;
-    public static final int TYPE_PREPARE_CONFIG_CHANGE = 2;
-    public static final int TYPE_DROP_CONFIG_CHANGE = 3;
-    public static final int TYPE_COMMIT_CONFIG_CHANGE = 4;
-    public static final int TYPE_LOG_READ = 5;
-
     public int type;
     public int bizType;
     public int term;

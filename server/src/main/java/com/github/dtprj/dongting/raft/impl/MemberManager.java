@@ -36,12 +36,12 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.RaftPing;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -356,7 +356,7 @@ public class MemberManager {
                     return Fiber.frameReturn();
                 }
                 nodeManager.checkLeaderPrepare(newMemberNodes, newObserverNodes);
-                leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE,
+                leaderConfigChange(LogHeader.TYPE_PREPARE_CONFIG_CHANGE,
                         getInputData(newMemberNodes, newObserverNodes), f);
                 return Fiber.frameReturn();
             }
@@ -374,7 +374,7 @@ public class MemberManager {
 
             @Override
             public FrameCallResult execute(Void input) {
-                leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null, f);
+                leaderConfigChange(LogHeader.TYPE_DROP_CONFIG_CHANGE, null, f);
                 return Fiber.frameReturn();
             }
         };
@@ -412,7 +412,7 @@ public class MemberManager {
                         + prepareIndex + ", lastConfigChangeIndex=" + raftStatus.lastConfigChangeIndex));
                 return Fiber.frameReturn();
             }
-            leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
+            leaderConfigChange(LogHeader.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
             return Fiber.frameReturn();
         }
     }
@@ -441,13 +441,13 @@ public class MemberManager {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
-                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                case LogHeader.TYPE_PREPARE_CONFIG_CHANGE:
                     stageStr = "prepare";
                     break;
-                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                case LogHeader.TYPE_COMMIT_CONFIG_CHANGE:
                     stageStr = "commit";
                     break;
-                case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                case LogHeader.TYPE_DROP_CONFIG_CHANGE:
                     stageStr = "abort";
                     break;
                 default:
@@ -460,7 +460,7 @@ public class MemberManager {
         RaftCallback c = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {
-                if (type == LogItem.TYPE_PREPARE_CONFIG_CHANGE) {
+                if (type == LogHeader.TYPE_PREPARE_CONFIG_CHANGE) {
                     // When prepareIndex applied, the prepared member may still not replicate to prepareIndex
                     // (the commit manager does not check prepare members since they are not active).
                     // Issue a heartbeat and wait to prepareIndex + 1 to be applied, so we can be sure that

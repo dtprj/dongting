@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 
 /**
  * @author huangli
@@ -41,7 +42,7 @@ public abstract class RaftInput {
     }
 
     public static RaftInput create(int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly, RaftCallback callback) {
-        return new RaftTask(readOnly ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL,
+        return new RaftTask(readOnly ? LogHeader.TYPE_LOG_READ : LogHeader.TYPE_NORMAL,
                 bizType, reqData, deadline, readOnly, callback);
     }
 }

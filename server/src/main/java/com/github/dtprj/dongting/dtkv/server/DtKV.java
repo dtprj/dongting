@@ -42,7 +42,6 @@ import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -51,6 +50,7 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -416,7 +416,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 dtkvExecutor.submitTaskInAnyThread(() -> ttlManager.retry(ttlInfo, ex));
             }
         };
-        RaftTask ri = new RaftTask(LogItem.TYPE_NORMAL, DtKV.BIZ_TYPE_EXPIRE, new RaftReqData(null, req),
+        RaftTask ri = new RaftTask(LogHeader.TYPE_NORMAL, DtKV.BIZ_TYPE_EXPIRE, new RaftReqData(null, req),
                 null, false, callback);
         // no flow control here
         raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(ri);

@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.util.CodecTestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -132,7 +133,7 @@ public class AppendReqWritePacketTest {
             log.index = 200 + i;
             log.term = 4;
             log.timestamp = System.currentTimeMillis();
-            log.type = LogItem.TYPE_NORMAL;
+            log.type = LogHeader.TYPE_NORMAL;
             log.reqData = new RaftReqData(addHeader ? createBytes(10) : null, addBody ? createBytes(20) : null);
             logs.add(log);
         }

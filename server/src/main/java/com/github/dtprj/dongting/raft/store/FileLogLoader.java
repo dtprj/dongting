@@ -340,7 +340,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 int oldPos = buf.position();
                 if (currentReadBytes == 0) {
                     DecoderCallback<?> callback;
-                    if (header.type == LogItem.TYPE_NORMAL || header.type == LogItem.TYPE_LOG_READ) {
+                    if (header.type == LogHeader.TYPE_NORMAL || header.type == LogHeader.TYPE_LOG_READ) {
                         callback = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext)
                                 : codecFactory.createBodyCallback(header.bizType, decodeContext);
                         if (callback == null) {

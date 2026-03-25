@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
@@ -164,17 +165,17 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
         raftStatus.lastApplying = index;
         switch (rt.type) {
-            case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
-            case LogItem.TYPE_DROP_CONFIG_CHANGE:
-            case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+            case LogHeader.TYPE_PREPARE_CONFIG_CHANGE:
+            case LogHeader.TYPE_DROP_CONFIG_CHANGE:
+            case LogHeader.TYPE_COMMIT_CONFIG_CHANGE:
                 // block apply fiber util config change complete
                 return Fiber.call(new ConfigChangeFrame(rt), unused -> {
                     raftStatus.lastConfigChangeIndex = index;
                     afterExec(index, rt, null, null);
                     return Fiber.resume(null, resumePoint);
                 });
-            case LogItem.TYPE_NORMAL:
-            case LogItem.TYPE_LOG_READ: {
+            case LogHeader.TYPE_NORMAL:
+            case LogHeader.TYPE_LOG_READ: {
                 if (rt.readOnly && rt.callback == null) {
                     // no need to execute read only task if no one wait for result
                     afterExec(index, rt, null, null);
@@ -475,7 +476,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             LogItem item = items.get(listIndex++);
 
             RaftTask rt = new RaftTask(item.type, item.bizType, item.reqData, null,
-                    item.type == LogItem.TYPE_LOG_READ, null);
+                    item.type == LogHeader.TYPE_LOG_READ, null);
 
             // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
             // this method only used to load logs that not apply after restart.
@@ -541,11 +542,11 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             StatusManager statusManager = gc.statusManager;
             statusManager.persistAsync();
             switch (rt.type) {
-                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                case LogHeader.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);
-                case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                case LogHeader.TYPE_DROP_CONFIG_CHANGE:
                     return gc.memberManager.doAbort(rt.item.index);
-                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                case LogHeader.TYPE_COMMIT_CONFIG_CHANGE:
                     return gc.memberManager.doCommit(rt.item.index);
                 default:
                     throw Fiber.fatal(new RaftException("unknown config change type"));
