@@ -41,7 +41,6 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.StatusManager;
@@ -338,9 +337,8 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         ArrayList<RaftTask> list = new ArrayList<>(logs.size());
         for (int i = 0, len = logs.size(); i < len; i++) {
             LogItem li = logs.get(i);
-            RaftInput raftInput = new RaftInput(li.bizType, li.reqData, null,
-                    li.type == LogItem.TYPE_LOG_READ);
-            RaftTask task = new RaftTask(li.type, raftInput, null);
+            RaftTask task = new RaftTask(li.type, li.bizType, li.reqData, null,
+                    li.type == LogItem.TYPE_LOG_READ, null);
             task.init(li, raftStatus.ts.nanoTime);
             list.add(task);
 

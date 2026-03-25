@@ -107,10 +107,8 @@ public class WatchManagerTest implements KvListener {
             WatchManagerTest.groupId = groupId;
             // add first item and make raft index in statemachine greater than 0
             KvReq req = new KvReq(groupId, "aaa".getBytes(), "bbb".getBytes());
-            RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, new RaftReqData(null, req),
-                    new DtTime(3, TimeUnit.SECONDS), false);
             CompletableFuture<Long> f = new CompletableFuture<>();
-            leader.raftServer.getRaftGroup(groupId).submitLinearTask(i, new RaftCallback() {
+            RaftCallback c = new RaftCallback() {
                 @Override
                 public void success(long raftIndex, Object result) {
                     f.complete(raftIndex);
@@ -120,7 +118,10 @@ public class WatchManagerTest implements KvListener {
                 public void fail(Throwable ex) {
                     f.completeExceptionally(ex);
                 }
-            });
+            };
+            RaftInput i = RaftInput.create(DtKV.BIZ_TYPE_PUT, new RaftReqData(null, req),
+                    new DtTime(3, TimeUnit.SECONDS), false, c);
+            leader.raftServer.getRaftGroup(groupId).submitLinearTask(i);
             long firstIndex = f.get();
             // wait every server has applied the first item
             waitFirstItemApplied(s1, firstIndex);

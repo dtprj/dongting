@@ -40,7 +40,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
@@ -458,10 +457,7 @@ public class MemberManager {
                     stageStr, raftStatus.getRole(), groupId);
             f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
         }
-        RaftInput input = new RaftInput(0, new RaftReqData(null, data),
-                null, false);
-        // use runner fiber to execute to avoid race condition
-        gc.linearTaskRunner.submitRaftTaskInBizThread(type, input, new RaftCallback() {
+        RaftCallback c = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {
                 if (type == LogItem.TYPE_PREPARE_CONFIG_CHANGE) {
@@ -482,7 +478,11 @@ public class MemberManager {
             public void fail(Throwable ex) {
                 f.completeExceptionally(ex);
             }
-        });
+        };
+        RaftTask task = new RaftTask(type, 0, new RaftReqData(null, data),
+                null, false, c);
+        // use runner fiber to execute to avoid race condition
+        gc.linearTaskRunner.submitRaftTaskInBizThread(task);
     }
 
     private FiberFrame<Void> finishPrepareFuture(CompletableFuture<Long> f, long prepareIndex) {

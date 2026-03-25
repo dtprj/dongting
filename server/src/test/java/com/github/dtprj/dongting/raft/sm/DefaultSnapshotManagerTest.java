@@ -117,8 +117,8 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                     return afterLoop();
                 }
                 KvReq req = new KvReq(1, ("key" + index).getBytes(), ("value" + index).getBytes());
-                RaftInput i = new RaftInput(DtKV.BIZ_TYPE_PUT, new RaftReqData(null, req),
-                        new DtTime(1, TimeUnit.SECONDS), false);
+                RaftInput i = RaftInput.create(DtKV.BIZ_TYPE_PUT, new RaftReqData(null, req),
+                        new DtTime(1, TimeUnit.SECONDS), false, null);
                 Timestamp ts = groupConfig.ts;
                 FiberFuture<Object> f = kv.exec(index++, ts.wallClockMillis, ts.nanoTime, i);
                 return f.await(this::afterPut);

@@ -32,7 +32,7 @@ public abstract class RaftGroup {
 
     public abstract StateMachine getStateMachine();
 
-    public abstract void submitLinearTask(RaftInput input, RaftCallback callback);
+    public abstract void submitLinearTask(RaftInput input);
 
     /**
      * Query whether lease read can be performed.

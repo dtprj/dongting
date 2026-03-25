@@ -127,8 +127,8 @@ public class DtKVTest extends BaseFiberTest {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private <T> FiberFuture<T> exec(long index, int bizType, KvReq req) {
-        RaftInput i = new RaftInput(bizType, new RaftReqData(null, req),
-                new DtTime(1, TimeUnit.SECONDS), false);
+        RaftInput i = RaftInput.create(bizType, new RaftReqData(null, req),
+                new DtTime(1, TimeUnit.SECONDS), false, null);
         req.ownerUuid = uuid;
         return (FiberFuture) kv.exec(index, ts.wallClockMillis, ts.nanoTime, i);
     }

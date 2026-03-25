@@ -25,9 +25,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
-import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -77,10 +75,9 @@ public final class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public void submitLinearTask(RaftInput input, RaftCallback callback) {
+    public void submitLinearTask(RaftInput input) {
         Objects.requireNonNull(input);
-        int type = input.readOnly ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
-        groupComponents.linearTaskRunner.submitRaftTaskInBizThread(type, input, callback);
+        groupComponents.linearTaskRunner.submitRaftTaskInBizThread((RaftTask) input);
     }
 
     private long lastLeaseTimeoutLogNanoTime;

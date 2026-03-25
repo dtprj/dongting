@@ -41,6 +41,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -395,7 +396,6 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         KvReq req = new KvReq();
         req.key = ttlInfo.key.getData();
         req.ttlMillis = ttlInfo.raftIndex;
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_EXPIRE, new RaftReqData(null, req), null, false);
         RaftCallback callback = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {
@@ -416,8 +416,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 dtkvExecutor.submitTaskInAnyThread(() -> ttlManager.retry(ttlInfo, ex));
             }
         };
+        RaftTask ri = new RaftTask(LogItem.TYPE_NORMAL, DtKV.BIZ_TYPE_EXPIRE, new RaftReqData(null, req),
+                null, false, callback);
         // no flow control here
-        raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(LogItem.TYPE_NORMAL, ri, callback);
+        raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(ri);
     }
 
 }

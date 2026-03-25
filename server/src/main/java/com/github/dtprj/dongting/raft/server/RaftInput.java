@@ -16,20 +16,22 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 
 /**
  * @author huangli
  */
-public class RaftInput {
+public abstract class RaftInput {
     public final int bizType;
     public final DtTime deadline;
     public final boolean readOnly;
     public final RaftReqData reqData;
+    public RaftCallback callback;
 
     // this field is reused
     public long perfTime;
 
-    public RaftInput(int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly) {
+    protected RaftInput(int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly, RaftCallback callback) {
         if (bizType < 0 || bizType > 127) {
             // we use 1 byte to store bizType in raft log
             throw new IllegalArgumentException("bizType must be in [0, 127]");
@@ -38,6 +40,11 @@ public class RaftInput {
         this.reqData = reqData;
         this.deadline = deadline;
         this.readOnly = readOnly;
+        this.callback = callback;
     }
 
+    public static RaftInput create(int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly, RaftCallback callback) {
+        return new RaftTask(readOnly ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL,
+                bizType, reqData, deadline, readOnly, callback);
+    }
 }

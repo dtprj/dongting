@@ -32,9 +32,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
-import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.RaftLog;
@@ -102,7 +100,7 @@ public class LinearTaskRunner {
         private FrameCallResult afterTakeAll(Void unused) {
             if (isGroupShouldStopPlain()) {
                 for (RaftTask rt : list) {
-                    rt.input.reqData.release();
+                    rt.reqData.release();
                     rt.callFail(new RaftException("raft group is stopping"));
                 }
                 taskChannel.markShutdown();
@@ -123,9 +121,7 @@ public class LinearTaskRunner {
             if (!list.isEmpty()) {
                 return Fiber.call(raftExec(list), this);
             } else if (raftStatus.getRole() == RaftRole.leader) {
-                RaftInput input = createHeartBeatInput();
-                RaftTask task = new RaftTask(LogItem.TYPE_HEARTBEAT, input, null);
-                return Fiber.call(raftExec(Collections.singletonList(task)), this);
+                return Fiber.call(raftExec(Collections.singletonList(createHeartBeatInput())), this);
             }
             // loop
             return Fiber.resume(null, this);
@@ -133,14 +129,13 @@ public class LinearTaskRunner {
     }
 
     private static void onDispatchFail(RaftTask rt) {
-        rt.input.reqData.release();
+        rt.reqData.release();
         rt.callFail(new RaftException("submit raft task failed, the fiber group is not running"));
     }
 
-    public void submitRaftTaskInBizThread(int raftLogType, RaftInput input, RaftCallback callback) {
-        RaftTask t = new RaftTask(raftLogType, input, callback);
-        input.perfTime = perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY);
-        taskChannel.fireOffer(t, LinearTaskRunner::onDispatchFail);
+    public void submitRaftTaskInBizThread(RaftTask task) {
+        task.perfTime = perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY);
+        taskChannel.fireOffer(task, LinearTaskRunner::onDispatchFail);
     }
 
     public static long lastIndex(RaftStatusImpl raftStatus) {
@@ -157,7 +152,7 @@ public class LinearTaskRunner {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
-                t.input.reqData.release();
+                t.reqData.release();
                 t.callFail(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
             }
             return FiberFrame.voidCompletedFrame();
@@ -173,14 +168,13 @@ public class LinearTaskRunner {
         int currentTerm = raftStatus.currentTerm;
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
-            RaftInput input = rt.input;
-            if (input.perfTime != 0) {
-                perfCallback.fireTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, input.perfTime);
+            if (rt.perfTime != 0) {
+                perfCallback.fireTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, rt.perfTime);
             }
 
             Throwable ex = checkTask(rt, raftStatus);
             if (ex != null) {
-                input.reqData.release();
+                rt.reqData.release();
                 rt.callFail(ex);
                 // not removed from list, filter in append()
                 continue;
@@ -189,14 +183,14 @@ public class LinearTaskRunner {
             newIndex++;
             LogItem item = new LogItem();
             item.type = rt.type;
-            item.bizType = input.bizType;
+            item.bizType = rt.bizType;
             item.term = currentTerm;
             item.index = newIndex;
             item.prevLogTerm = prevTerm;
             prevTerm = currentTerm;
             item.timestamp = ts.wallClockMillis;
 
-            item.reqData = input.reqData;
+            item.reqData = rt.reqData;
 
             rt.init(item, ts.nanoTime);
         }
@@ -205,9 +199,8 @@ public class LinearTaskRunner {
     }
 
     private Throwable checkTask(RaftTask rt, RaftStatusImpl raftStatus) {
-        RaftInput input = rt.input;
-        if (input.deadline != null && input.deadline.isTimeout(ts)) {
-            return new RaftTimeoutException("timeout " + input.deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
+        if (rt.deadline != null && rt.deadline.isTimeout(ts)) {
+            return new RaftTimeoutException("timeout " + rt.deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
         if (rt.type == LogItem.TYPE_NORMAL || rt.type == LogItem.TYPE_LOG_READ) {
             if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {
@@ -250,14 +243,14 @@ public class LinearTaskRunner {
         return raftLog.append(logItems);
     }
 
-    private RaftInput createHeartBeatInput() {
+    private RaftTask createHeartBeatInput() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        return new RaftInput(0, new RaftReqData((Encodable) null, null), deadline, false);
+        return new RaftTask(LogItem.TYPE_HEARTBEAT, 0, new RaftReqData((Encodable) null, null),
+                deadline, false, null);
     }
 
     public void issueHeartBeat() {
-        RaftInput input = createHeartBeatInput();
-        submitRaftTaskInBizThread(LogItem.TYPE_HEARTBEAT, input, null);
+        submitRaftTaskInBizThread(createHeartBeatInput());
     }
 
 }

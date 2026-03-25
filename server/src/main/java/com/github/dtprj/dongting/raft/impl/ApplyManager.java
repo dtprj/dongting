@@ -35,7 +35,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -176,8 +175,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 });
             case LogItem.TYPE_NORMAL:
             case LogItem.TYPE_LOG_READ: {
-                RaftInput input = rt.input;
-                if (input.readOnly && rt.callback == null) {
+                if (rt.readOnly && rt.callback == null) {
                     // no need to execute read only task if no one wait for result
                     afterExec(index, rt, null, null);
                 } else {
@@ -185,7 +183,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                     FiberFuture<Object> f = null;
                     Throwable execEx = null;
                     try {
-                        f = stateMachine.exec(index, rt.item.timestamp, rt.localCreateNanos, input);
+                        f = stateMachine.exec(index, rt.item.timestamp, rt.localCreateNanos, rt);
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;
@@ -280,7 +278,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     }
 
     private void afterExec(long index, RaftTask rt, Object execResult, Throwable execEx) {
-        if (execEx != null && !rt.input.readOnly) {
+        if (execEx != null && !rt.readOnly) {
             throw Fiber.fatal(execEx);
         }
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
@@ -476,9 +474,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             }
             LogItem item = items.get(listIndex++);
 
-            RaftInput input = new RaftInput(item.bizType, item.reqData, null,
-                    item.type == LogItem.TYPE_LOG_READ);
-            RaftTask rt = new RaftTask(item.type, input, null);
+            RaftTask rt = new RaftTask(item.type, item.bizType, item.reqData, null,
+                    item.type == LogItem.TYPE_LOG_READ, null);
 
             // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
             // this method only used to load logs that not apply after restart.
@@ -556,7 +553,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
-            byte[] data = ((ByteArray) rt.input.reqData.bizBody).getData();
+            byte[] data = ((ByteArray) rt.reqData.bizBody).getData();
             String dataStr = new String(data);
             String[] fields = dataStr.split(";", -1);
             Set<Integer> oldMemberIds = parseSet(fields[0]);

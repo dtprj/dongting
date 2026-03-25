@@ -15,18 +15,18 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 /**
  * @author huangli
  */
-public class RaftTask {
+public class RaftTask extends RaftInput {
 
     public final int type;
-    public final RaftInput input;
-    public RaftCallback callback;
     public long localCreateNanos;
     public LogItem item;
 
@@ -34,10 +34,9 @@ public class RaftTask {
 
     boolean addPending;
 
-    public RaftTask(int type, RaftInput input, RaftCallback callback) {
+    public RaftTask(int type, int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly, RaftCallback callback) {
+        super(bizType, reqData, deadline, readOnly, callback);
         this.type = type;
-        this.input = input;
-        this.callback = callback;
     }
 
     public void init(LogItem item, long localCreateNanos) {
