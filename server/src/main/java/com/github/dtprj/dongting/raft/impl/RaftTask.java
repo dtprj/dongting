@@ -26,6 +26,8 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
  */
 public class RaftTask extends RaftInput {
 
+    public long perfTime;
+
     public final int type;
     public long localCreateNanos;
     public LogItem item;

@@ -28,9 +28,6 @@ public abstract class RaftInput {
     public final RaftReqData reqData;
     public RaftCallback callback;
 
-    // this field is reused
-    public long perfTime;
-
     protected RaftInput(int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly, RaftCallback callback) {
         if (bizType < 0 || bizType > 127) {
             // we use 1 byte to store bizType in raft log
