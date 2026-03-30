@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.RefCount;
@@ -26,6 +27,8 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public final class RefBuffer extends RefCount implements Encodable {
+
+    public static final RefBuffer EMPTY = new RefBuffer(ByteBuffer.allocate(0));
 
     private ByteBuffer buffer;
     private final ByteBufferPool pool;
@@ -183,5 +186,24 @@ public final class RefBuffer extends RefCount implements Encodable {
 
     public void prepareForEncode() {
         this.encodeSize = this.buffer.remaining();
+    }
+
+    public static final class Callback extends DecoderCallback<RefBuffer> {
+
+        @Override
+        public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+            parseRefBuffer(buffer, bodyLen, currentPos);
+            return true;
+        }
+
+        @Override
+        protected RefBuffer getResult() {
+            if (context.status == null) {
+                return EMPTY;
+            } else {
+                return (RefBuffer) context.status;
+            }
+        }
+
     }
 }

@@ -170,26 +170,20 @@ public class ByteArray implements Encodable, Comparable<ByteArray> {
 
     public static final class Callback extends DecoderCallback<ByteArray> {
 
-        private byte[] r;
-
         @Override
         public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
-            r = parseBytes(buffer, bodyLen, currentPos);
+            parseBytes(buffer, bodyLen, currentPos);
             return true;
         }
 
         @Override
         protected ByteArray getResult() {
-            if (r == null) {
+            if (context.status == null) {
                 return EMPTY;
             } else {
-                return new ByteArray(r);
+                return new ByteArray((byte[]) context.status);
             }
         }
 
-        @Override
-        protected void end(boolean success) {
-            this.r = null;
-        }
     }
 }

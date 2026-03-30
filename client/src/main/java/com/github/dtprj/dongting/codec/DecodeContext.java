@@ -37,7 +37,7 @@ public class DecodeContext {
     private DecodeContext nestedContext;
 
     // reset in PbParser and Decoder
-    Object status;
+    public Object status;
 
     // caches
     private PbNoCopyDecoderCallback pbNoCopyDecoderCallback;
