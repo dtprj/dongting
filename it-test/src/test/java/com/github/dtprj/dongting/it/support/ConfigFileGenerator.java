@@ -160,7 +160,7 @@ public class ConfigFileGenerator {
         private Properties generateServersProperties() {
             Properties serversProps = new Properties();
             serversProps.setProperty("servers", serversStr);
-            RaftGroupConfigEx protoType = new RaftGroupConfigEx(0, "", "");
+            RaftGroupConfigEx protoType = new RaftGroupConfigEx(1, "", "");
             for (GroupDefinition group : groups) {
                 serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
                 serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);

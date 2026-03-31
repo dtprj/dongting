@@ -119,7 +119,7 @@ In the bin directory, run the following command to start the server:
 ```
 The server will start and listen on port 9331(servers internal communication, e.g., raft replication)
 and 9332(service port).
-By default, a DtKV instance with groupId 0 will be started.
+By default, a DtKV instance with groupId 1 will be started.
 
 Run the following command to stop the server:
 ```sh
@@ -130,26 +130,26 @@ Run the following command to stop the server:
 
 Run the following command to start the benchmark client:
 ```sh
-./benchmark.sh -g 0
+./benchmark.sh -g 1
 ```
 
 You may need to adjust parameters to achieve maximum throughput, for example:
 ```sh
-./benchmark.sh -g 0 --max-pending 10000 --client-count 2
+./benchmark.sh -g 1 --max-pending 10000 --client-count 2
 ```
 
 Try Java 21 virtual threads (need Java 21)
 ```sh
-./benchmark.sh -g 0 --sync --thread-count 4000
+./benchmark.sh -g 1 --sync --thread-count 4000
 ```
 
 See my results (AMD 9700X 6C12T, ZhiTai TiPro 9000 running in PCI-E 4.0 mode):
 ```powershell
-PS D:\dongting-dist\bin> .\benchmark.bat -g 0
+PS D:\dongting-dist\bin> .\benchmark.bat -g 1
 Configuration:
   Config file: D:\dongting-dist\conf\client.properties
   Servers: 1,127.0.0.1:9332
-  Group ID: 0
+  Group ID: 1
 
 Benchmark config:
   Java 21, async put, 10000 keys, 256 bytes value, 2000 total maxPending
@@ -202,14 +202,14 @@ To use the `DtKV` client, you need to include the `dongting-client.jar` (300+KB)
 
 The following is a simple example of initializing the `DtKV` client:
 ```java
-// dongting supports multi-raft, so we need to specify the group id, default group id is 0
-int groupId = 0;
+// dongting supports multi-raft, so we need to specify the group id, default group id is 1
+int groupId = 1;
 KvClient kvClient = new KvClient();
 kvClient.start();
 // add node definition at runtime, each node has a unique positive integer id and a host:servicePort address
 kvClient.getRaftClient().clientAddNode("1,127.0.0.1:9332");
 // kvClient.getRaftClient().clientAddNode("1,192.168.0.1:9332;2,192.168.0.2:9332;3,192.168.0.3:9332");
-// add group definition at runtime, here we add a group with groupId 0 and 3 nodes with ids 1, 2, and 3
+// add group definition at runtime, here we add a group with groupId 1 and 3 nodes with ids 1, 2, and 3
 kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1,2,3});
 ```
 
@@ -291,12 +291,12 @@ This file configures cluster topology and Raft group:
 
 - **Raft group member configuration**: Format is `group.<groupId>.nodeIdOfMembers = nodeId1,nodeId2,...`. Node IDs must be defined in the `servers` property.
   ```properties
-  group.0.nodeIdOfMembers = 1,2,3
+  group.1.nodeIdOfMembers = 1,2,3
   ```
 
 - **Raft group observer configuration**: Format is `group.<groupId>.nodeIdOfObservers = nodeId1,nodeId2,...`. Observers will not participate in leader election.
   ```properties
-  group.0.nodeIdOfObservers = 4
+  group.1.nodeIdOfObservers = 4
   ```
 
 Observers will receive data replication from the leader but will not participate in raft voting.
@@ -316,7 +316,7 @@ If you need to start a multi-node cluster, taking a 3-node cluster as an example
 2. Modify the nodeId in each config.properties file. Node ID starts from 1, and different nodes must be different. **Note that once the server is started, the nodeId cannot be modified (unless you clear the data in the data directory)**.
 3. (Optional) If testing on the same machine, modify the ports in each config.properties file.
 4. Modify the servers parameter in the servers.properties file. For 3 nodes, it might be `1,192.168.0.1:9331;2,192.168.0.2:9331;3,192.168.0.3:9331` or `1,127.0.0.1:4001;2,127.0.0.1:4002;3,127.0.0.1:4003`, depending on your IP and port configuration.
-5. Modify the `group.0.nodeIdOfMembers` parameter in the servers.properties file. For 3 nodes, it might be `1,2,3`.
+5. Modify the `group.1.nodeIdOfMembers` parameter in the servers.properties file. For 3 nodes, it might be `1,2,3`.
 
 The above 2 and 3 are different for each node, while 4 and 5 are the same for all nodes.
 
@@ -365,28 +365,28 @@ If you are not using dongting-dist's scripts, but are assembling an embedded don
 
 ### Example 1: Remove a node from the group
 
-Assume you have a 3-node cluster with node IDs 1, 2, 3, and group ID 0. Now you need to remove node 3. The operation steps are as follows:
+Assume you have a 3-node cluster with node IDs 1, 2, 3, and group ID 1. Now you need to remove node 3. The operation steps are as follows:
 
 1. First, query the cluster status. Find any node, and from the returned information, find the leader:
    ```sh
-   ./dongting-admin.sh query-status --node-id 1 --group-id 0
+   ./dongting-admin.sh query-status --node-id 1 --group-id 1
    ```
 
 2. Prepare the configuration change, changing members from 1, 2, 3 to 1, 2 (the following prepare/commit/abort should be called on the leader):
    ```sh
-   ./dongting-admin.sh prepare-change --group-id 0 --old-members 1,2,3 --new-members 1,2
+   ./dongting-admin.sh prepare-change --group-id 1 --old-members 1,2,3 --new-members 1,2
    ```
 
    This will return a prepare-index, record it for the next step.
 
 3. Commit the configuration change:
    ```sh
-   ./dongting-admin.sh commit-change --group-id 0 --prepare-index <returned-prepare-index>
+   ./dongting-admin.sh commit-change --group-id 1 --prepare-index <returned-prepare-index>
    ```
 
 4. The cluster configuration has been updated, and node 3 has been removed from the group. You can verify with the following command:
    ```sh
-   ./dongting-admin.sh query-status --node-id 1 --group-id 0
+   ./dongting-admin.sh query-status --node-id 1 --group-id 1
    ```
 
 5. If needed, you can remove the definition of node 3 (this operation should be executed on all nodes 1 and 2):
@@ -396,7 +396,7 @@ Assume you have a 3-node cluster with node IDs 1, 2, 3, and group ID 0. Now you 
 
 ### Example 2: Add a node to the group
 
-Assume you have a 3-node cluster with node IDs 1, 2, 3, and group ID 0. Now you need to add node 4. The operation steps are as follows:
+Assume you have a 3-node cluster with node IDs 1, 2, 3, and group ID 1. Now you need to add node 4. The operation steps are as follows:
 
 1. First, start the server process for the new node 4:
    ```sh
@@ -424,19 +424,19 @@ Assume you have a 3-node cluster with node IDs 1, 2, 3, and group ID 0. Now you 
 
 4. Prepare the configuration change, changing members from 1, 2, 3 to 1, 2, 3, 4 (prepare/commit/abort should be called on the leader):
    ```sh
-   ./dongting-admin.sh prepare-change --group-id 0 --old-members 1,2,3 --new-members 1,2,3,4
+   ./dongting-admin.sh prepare-change --group-id 1 --old-members 1,2,3 --new-members 1,2,3,4
    ```
 
    This will return a prepare-index, record it for the next step.
 
 5. Commit the configuration change:
    ```sh
-   ./dongting-admin.sh commit-change --group-id 0 --prepare-index <returned-prepare-index>
+   ./dongting-admin.sh commit-change --group-id 1 --prepare-index <returned-prepare-index>
    ```
 
 6. The cluster configuration has been updated, and node 4 has joined the group. You can verify with the following command:
    ```sh
-   ./dongting-admin.sh query-status --node-id 1 --group-id 0
+   ./dongting-admin.sh query-status --node-id 1 --group-id 1
    ```
 
 Note: After a new node joins, it will synchronize all data from the leader, which may take some time depending on the data volume. Now that a new node has been added, the voting quorum for this cluster becomes 3.

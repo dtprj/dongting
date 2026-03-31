@@ -55,7 +55,7 @@ import java.util.concurrent.TimeUnit;
 public class RaftBenchmark extends BenchBase {
     private static final DtLog log = DtLogs.getLogger(RaftBenchmark.class);
     private static final String DATA_DIR = "target/raftlog";
-    private static final int GROUP_ID = 0;
+    private static final int GROUP_ID = 1;
 
     private static final int NODE_COUNT = 3; // change this should delete dongting/target dir
     private static final int CLIENT_COUNT = 1; // also it is client thread count and tcp connections count

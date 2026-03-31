@@ -19,7 +19,7 @@ After executing `mvn clean package -DskipUTs`, the target directory under the pr
 - benchmark.sh: Runs the benchmark; after execution, the process exits. Running without parameters prints usage. Entry point is the DtBenchmark class.
 - dongting-admin.sh: Runs the O&M tool; after execution, the process exits. Running without parameters prints usage. Entry point is the DtAdmin class.
 
-After build completes, if start-dongting.sh is run without any modifications, it will start a single-node cluster by default, listening on port 9331 (replicatePort) and 9332 (servicePort), with nodeId 1, containing a DtKV server with groupId 0.
+After build completes, if start-dongting.sh is run without any modifications, it will start a single-node cluster by default, listening on port 9331 (replicatePort) and 9332 (servicePort), with nodeId 1, containing a DtKV server with groupId 1.
 
 All scripts except stop-dongting start a Java process. The JDK can be specified by setting JAVA_HOME environment variable.
 

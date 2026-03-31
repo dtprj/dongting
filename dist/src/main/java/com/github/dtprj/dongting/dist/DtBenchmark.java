@@ -532,11 +532,11 @@ public class DtBenchmark {
         System.out.println("  --no-virtual-threads     Disable virtual threads for sync mode");
         System.out.println();
         System.out.println("Examples:");
-        System.out.println("  ./benchmark.sh -g 0");
-        System.out.println("  ./benchmark.sh -g 0 --max-pending 10000 --client-count 2");
-        System.out.println("  ./benchmark.sh -g 0 --op get --duration 30");
-        System.out.println("  ./benchmark.sh -g 0 --sync --thread-count 4000 (Java 21+)");
-        System.out.println("  ./benchmark.sh -g 0 --value-size 1024 --client-count 2");
+        System.out.println("  ./benchmark.sh -g 1");
+        System.out.println("  ./benchmark.sh -g 1 --max-pending 10000 --client-count 2");
+        System.out.println("  ./benchmark.sh -g 1 --op get --duration 30");
+        System.out.println("  ./benchmark.sh -g 1 --sync --thread-count 4000 (Java 21+)");
+        System.out.println("  ./benchmark.sh -g 1 --value-size 1024 --client-count 2");
     }
 
     private static class UsageEx extends RuntimeException {

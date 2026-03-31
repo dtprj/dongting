@@ -72,7 +72,7 @@ public class NodeManagerTest {
         server.start();
         client.start();
 
-        RaftStatusImpl raftStatus = new RaftStatusImpl(0, new Timestamp());
+        RaftStatusImpl raftStatus = new RaftStatusImpl(1, new Timestamp());
         raftStatus.nodeIdOfMembers = RaftUtil.strToIdSet(members);
         raftStatus.nodeIdOfObservers = RaftUtil.strToIdSet(observers);
 

@@ -174,7 +174,7 @@ public class RaftClient extends AbstractLifeCircle {
 
     public void clientAddOrUpdateGroup(int groupId, int[] serverIds) throws NetException {
         requireNonNull(serverIds);
-        DtUtil.checkNotNegative(groupId, "groupId");
+        DtUtil.checkPositive(groupId, "groupId");
         int len = serverIds.length;
         if (len == 0) {
             throw new IllegalArgumentException("servers is empty");

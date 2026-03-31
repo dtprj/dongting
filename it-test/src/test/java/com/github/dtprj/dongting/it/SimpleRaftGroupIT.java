@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class SimpleRaftGroupIT {
     private static final DtLog log = DtLogs.getLogger(SimpleRaftGroupIT.class);
 
-    private static final int GROUP_ID = 0;
+    private static final int GROUP_ID = 1;
     private static final int[] MEMBER_IDS = {1, 2, 3};
     private static final int[] OBSERVER_IDS = {4};
     private static final int[] ALL_NODE_IDS = {1, 2, 3, 4};

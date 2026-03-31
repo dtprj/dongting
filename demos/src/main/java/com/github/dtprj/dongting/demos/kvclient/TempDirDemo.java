@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class TempDirDemo {
 
-    private static final int GROUP_ID = 0;
+    private static final int GROUP_ID = 1;
     private static final String SERVERS = "1,127.0.0.1:9332";
     private static final int[] MEMBERS = {1};
 

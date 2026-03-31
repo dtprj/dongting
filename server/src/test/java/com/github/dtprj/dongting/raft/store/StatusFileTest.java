@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class StatusFileTest extends BaseFiberTest {
 
     private static RaftGroupConfigEx createGroupConfig() {
-        RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
+        RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(1, "1", "");
         groupConfig.fiberGroup = fiberGroup;
         groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
         return groupConfig;

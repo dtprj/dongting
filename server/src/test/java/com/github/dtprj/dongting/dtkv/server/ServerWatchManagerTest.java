@@ -109,7 +109,7 @@ public class ServerWatchManagerTest {
         pushRequestList = new LinkedList<>();
         tasks = new LinkedList<>();
         raftIndex = 1;
-        int groupId = 0;
+        int groupId = 1;
         LinkedList<PushReqInfo> q = pushRequestList;
         this.rpcEx = null;
         this.rpcResult = null;

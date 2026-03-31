@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.perf.DefaultRaftPerf;
 
@@ -64,6 +65,7 @@ public class RaftGroupConfig {
     public boolean deleteLogsAfterTakeSnapshot = true;
 
     RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
+        DtUtil.checkPositive(groupId, "groupId");
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
         this.nodeIdOfObservers = nodeIdOfObservers;

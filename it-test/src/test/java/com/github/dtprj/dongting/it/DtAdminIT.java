@@ -62,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class DtAdminIT {
     private static final DtLog log = DtLogs.getLogger(DtAdminIT.class);
 
-    private static final int GROUP_ID = 0;
+    private static final int GROUP_ID = 1;
     private static final int NEW_GROUP_ID = 1000;
     private static final int[] MEMBER_IDS = {1, 2, 3};
     private static final String MEMBER_IDS_STR = "1,2,3";
@@ -269,7 +269,7 @@ public class DtAdminIT {
         assertEquals(0, prepareResult.exitCode);
 
         AdminResult abortResult = DtAdminProcessManager.executeAndVerify(
-                tempDir, "abort-change", "--group-id", "0");
+                tempDir, "abort-change", "--group-id", String.valueOf(GROUP_ID));
 
         assertEquals(0, abortResult.exitCode);
         assertTrue(abortResult.stdoutLines.stream().anyMatch(line -> line.contains("Abort index:")));

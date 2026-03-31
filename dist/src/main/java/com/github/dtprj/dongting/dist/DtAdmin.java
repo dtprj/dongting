@@ -612,7 +612,7 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh query-status --node-id 1 --group-id 0 --timeout 60");
+                System.out.println("  dongting-admin.sh query-status --node-id 1 --group-id 1 --timeout 60");
                 break;
             case "transfer-leader":
                 System.out.println("Usage: dongting-admin.sh transfer-leader [options]");
@@ -631,7 +631,7 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh transfer-leader --group-id 0 --old-leader 1 --new-leader 2 --timeout 60");
+                System.out.println("  dongting-admin.sh transfer-leader --group-id 1 --old-leader 1 --new-leader 2 --timeout 60");
                 break;
             case "prepare-change":
                 System.out.println("Usage: dongting-admin.sh prepare-change [options]");
@@ -652,8 +652,8 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh prepare-change --group-id 0 --old-members 1,2,3 --new-members 2,3,4");
-                System.out.println("  dongting-admin.sh prepare-change --group-id 0 --old-members 1,2,3 --old-observers 4 --new-members 2,3,4 --new-observers 5");
+                System.out.println("  dongting-admin.sh prepare-change --group-id 1 --old-members 1,2,3 --new-members 2,3,4");
+                System.out.println("  dongting-admin.sh prepare-change --group-id 1 --old-members 1,2,3 --old-observers 4 --new-members 2,3,4 --new-observers 5");
                 break;
             case "commit-change":
                 System.out.println("Usage: dongting-admin.sh commit-change [options]");
@@ -671,7 +671,7 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh commit-change --group-id 0 --prepare-index 12345");
+                System.out.println("  dongting-admin.sh commit-change --group-id 1 --prepare-index 12345");
                 break;
             case "abort-change":
                 System.out.println("Usage: dongting-admin.sh abort-change [options]");
@@ -688,7 +688,7 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh abort-change --group-id 0");
+                System.out.println("  dongting-admin.sh abort-change --group-id 1");
                 break;
             case "add-group":
                 System.out.println("Usage: dongting-admin.sh add-group [options]");
@@ -708,8 +708,8 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh add-group --node-id 1 --group-id 0 --members 1,2,3");
-                System.out.println("  dongting-admin.sh add-group --node-id 1 --group-id 0 --members 1,2,3 --observers 4,5");
+                System.out.println("  dongting-admin.sh add-group --node-id 1 --group-id 1 --members 1,2,3");
+                System.out.println("  dongting-admin.sh add-group --node-id 1 --group-id 1 --members 1,2,3 --observers 4,5");
                 break;
             case "remove-group":
                 System.out.println("Usage: dongting-admin.sh remove-group [options]");
@@ -727,7 +727,7 @@ public class DtAdmin {
                 System.out.println("  -s <file>               Path to servers.properties file (optional, use conf/server.properties by default)");
                 System.out.println();
                 System.out.println("Examples:");
-                System.out.println("  dongting-admin.sh remove-group --node-id 1 --group-id 0");
+                System.out.println("  dongting-admin.sh remove-group --node-id 1 --group-id 1");
                 break;
             case "add-node":
                 System.out.println("Usage: dongting-admin.sh add-node [options]");

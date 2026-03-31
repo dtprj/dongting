@@ -72,7 +72,7 @@ public class StressIT {
     private static final long LOCK_LEASE_MILLIS = 45000;
 
     // Cluster configuration
-    private static final int GROUP_ID = 0;
+    private static final int GROUP_ID = 1;
     private static final int[] MEMBER_IDS = {1, 2, 3};
     public static final int[] ALL_NODE_IDS = {1, 2, 3, 4};
     public static final int OBSERVER_ID = 4;
