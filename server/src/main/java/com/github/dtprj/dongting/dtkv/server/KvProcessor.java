@@ -18,11 +18,9 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResp;
@@ -32,11 +30,9 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.net.WorkerThread;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
-import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
@@ -49,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -87,11 +82,6 @@ final class KvProcessor extends RaftProcessor<KvReq> {
 
         try {
             switch (frame.command) {
-                case Commands.DTKV_GET:
-                case Commands.DTKV_BATCH_GET:
-                case Commands.DTKV_LIST:
-                    leaseRead(reqInfo, req);
-                    break;
                 case Commands.DTKV_PUT:
                     submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, req);
                     break;
@@ -146,104 +136,6 @@ final class KvProcessor extends RaftProcessor<KvReq> {
             reqInfo.reqContext.writeRespInBizThreads(p);
         } else {
             submitWriteTask(reqInfo, bizType, req);
-        }
-    }
-
-    private WritePacket convertMultiResult(long raftIndex, Pair<Integer, List<KvResult>> r) {
-        List<KvResult> results = r.getRight();
-        if (results == null) {
-            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
-            p.bizCode = r.getLeft();
-            return p;
-        } else {
-            KvResp resp = new KvResp(raftIndex, results);
-            EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
-            p.respCode = CmdCodes.SUCCESS;
-            p.bizCode = KvCodes.SUCCESS;
-            return p;
-        }
-    }
-
-    // run in io thread
-    private void leaseRead(ReqInfo<KvReq> reqInfo, KvReq req) {
-        DtKV dtKV = KvServerUtil.getStateMachine(reqInfo);
-        if (dtKV == null) {
-            // response write in getStateMachine method, return null to indicate not write response
-            return;
-        }
-
-        long startTime = perfCallback.takeTime(PerfConsts.DTKV_LEASE_READ);
-
-        if (dtKV.kvConfig.readInDtKvExecutor) {
-            submitToDtKvExecutor(reqInfo, req, dtKV, startTime);
-        } else {
-            // run in io thread, so we should use ts of io worker
-            Timestamp ts = ((WorkerThread) Thread.currentThread()).ts;
-            leaseRead0(dtKV, reqInfo, req, startTime, ts);
-        }
-    }
-
-    private void submitToDtKvExecutor(ReqInfo<KvReq> reqInfo, KvReq req, DtKV dtKV, long startTime) {
-        // use dtKV.ts, the ts bound to dtkv executor
-        boolean b = dtKV.dtkvExecutor.submitTaskInAnyThread(() -> leaseRead0(dtKV, reqInfo, req, startTime, dtKV.ts));
-        if (!b) {
-            perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
-            writeErrorResp(reqInfo, new RaftException("dtkv executor is stopping"));
-        }
-    }
-
-    private void leaseRead0(DtKV dtKV, ReqInfo<KvReq> reqInfo, KvReq req, long startTime, Timestamp ts) {
-        WritePacket p;
-        try {
-            boolean b = reqInfo.raftGroup.isLeaseReadValid(ts, reqInfo.reqContext.getTimeout());
-            if (b) {
-                p = doLeaseRead(dtKV, reqInfo, req);
-                perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
-            } else {
-                CompletableFuture<Void> f = reqInfo.raftGroup.addGroupReadyListener(reqInfo.reqContext.getTimeout());
-                // the future completed in raft thread
-                f.whenComplete((v, ex) -> groupReadyCallback(dtKV, reqInfo, req, startTime, ex));
-                return;
-            }
-        } catch (Exception e) {
-            perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
-            writeErrorResp(reqInfo, e);
-            return;
-        }
-        reqInfo.reqContext.writeRespInBizThreads(p);
-    }
-
-    // run in raft thread
-    private void groupReadyCallback(DtKV dtKV, ReqInfo<KvReq> reqInfo, KvReq req, long startTime, Throwable ex) {
-        if (ex == null) {
-            if (dtKV.kvConfig.readInDtKvExecutor) {
-                submitToDtKvExecutor(reqInfo, req, dtKV, startTime);
-            } else {
-                Timestamp timestampInGroup = ((RaftGroupImpl) reqInfo.raftGroup).groupComponents.raftStatus.ts;
-                leaseRead0(dtKV, reqInfo, req, startTime, timestampInGroup);
-            }
-        } else {
-            perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
-            writeErrorResp(reqInfo, ex);
-        }
-    }
-
-    private WritePacket doLeaseRead(DtKV dtKV, ReqInfo<KvReq> reqInfo, KvReq req) {
-        long raftIndex = 0; // read operations do not return raftIndex to client
-        switch (reqInfo.reqFrame.command) {
-            case Commands.DTKV_GET:
-                KvResult r = dtKV.get(req.key == null ? null : new ByteArray(req.key));
-                KvResp resp = new KvResp(raftIndex, Collections.singletonList(r));
-                EncodableBodyWritePacket p = new EncodableBodyWritePacket(resp);
-                p.respCode = CmdCodes.SUCCESS;
-                p.bizCode = r.getBizCode();
-                return p;
-            case Commands.DTKV_BATCH_GET:
-                return convertMultiResult(raftIndex, dtKV.batchGet(req.keys));
-            case Commands.DTKV_LIST:
-                return convertMultiResult(raftIndex, dtKV.list(req.key == null ? null : new ByteArray(req.key)));
-            default:
-                throw new RaftException("unknown command: " + reqInfo.reqFrame.command);
         }
     }
 

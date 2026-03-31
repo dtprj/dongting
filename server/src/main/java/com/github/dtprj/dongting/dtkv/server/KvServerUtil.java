@@ -53,12 +53,13 @@ public class KvServerUtil {
         NioServer nioServer = server.getNioServer();
 
         KvProcessor p = new KvProcessor(server, kvPerfCallback);
-        nioServer.register(Commands.DTKV_GET, p, null);
+        KvReadProcessor rp = new KvReadProcessor(server, kvPerfCallback);
+        nioServer.register(Commands.DTKV_GET, rp, null);
+        nioServer.register(Commands.DTKV_BATCH_GET, rp, null);
+        nioServer.register(Commands.DTKV_LIST, rp, null);
         nioServer.register(Commands.DTKV_PUT, p, null);
         nioServer.register(Commands.DTKV_REMOVE, p, null);
         nioServer.register(Commands.DTKV_MKDIR, p, null);
-        nioServer.register(Commands.DTKV_LIST, p, null);
-        nioServer.register(Commands.DTKV_BATCH_GET, p, null);
         nioServer.register(Commands.DTKV_BATCH_PUT, p, null);
         nioServer.register(Commands.DTKV_BATCH_REMOVE, p, null);
         nioServer.register(Commands.DTKV_CAS, p, null);
