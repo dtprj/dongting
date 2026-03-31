@@ -840,6 +840,7 @@ public class MemberManager {
 
             if (newLeader.ready && lastLogCommit && newLeaderHasLastLog) {
                 PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
+                req.groupId = groupId;
                 CompletableFuture<ReadPacket<QueryStatusResp>> queryFuture = new CompletableFuture<>();
                 client.sendRequest(newLeader.node.peer, req, QueryStatusResp.DECODER,
                         new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(queryFuture));
@@ -880,6 +881,7 @@ public class MemberManager {
             req.groupId = groupId;
             SimpleWritePacket frame = new SimpleWritePacket(req);
             frame.command = Commands.RAFT_TRANSFER_LEADER;
+            frame.groupId = groupId;
             DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
             client.sendRequest(newLeader.peer, frame, dc, new DtTime(5, TimeUnit.SECONDS),
                     (result, ex) -> {

@@ -40,6 +40,7 @@ import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWritePacket;
@@ -742,6 +743,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         // data buffer released in WritePacket
         InstallSnapshotReq.InstallReqWritePacket wf = new InstallSnapshotReq.InstallReqWritePacket(req);
         wf.command = Commands.RAFT_INSTALL_SNAPSHOT;
+        wf.groupId = groupId;
         FiberGroup fg = groupConfig.fiberGroup;
         FiberFuture<Void> f = fg.newFuture("install-" + groupId + "-" + req.offset);
         DtTime timeout = new DtTime(serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);

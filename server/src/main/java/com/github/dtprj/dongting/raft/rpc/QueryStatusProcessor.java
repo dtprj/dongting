@@ -42,11 +42,6 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<Integer> frame) {
-        return frame.getBody();
-    }
-
-    @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<Integer> reqInfo) {
         RaftStatusImpl raftStatus = reqInfo.raftGroup.groupComponents.raftStatus;
         QueryStatusResp resp = buildQueryStatusResp(raftServer.getServerConfig().nodeId, raftStatus);

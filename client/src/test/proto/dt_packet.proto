@@ -24,6 +24,7 @@ message Packet {
   string resp_msg = 6;
   fixed64 timeout = 7;
   bytes extra = 8;
+  int32 group_id = 9;
   bytes body = 15;
 }
 

@@ -44,11 +44,6 @@ class KvStatusProcessor extends RaftProcessor<Integer> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<Integer> frame) {
-        return frame.getBody();
-    }
-
-    @Override
     protected WritePacket doProcess(ReqInfo<Integer> reqInfo) {
         DtKV kv = KvServerUtil.getStateMachine(reqInfo);
         if (kv == null) {

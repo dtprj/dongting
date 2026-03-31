@@ -46,20 +46,6 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    protected int getGroupId(ReadPacket frame) {
-        if (frame.command == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
-            ReadPacket<AdminPrepareConfigChangeReq> f = (ReadPacket<AdminPrepareConfigChangeReq>) frame;
-            AdminPrepareConfigChangeReq req = f.getBody();
-            return req.groupId;
-        } else {
-            ReadPacket<AdminCommitOrAbortReq> f = (ReadPacket<AdminCommitOrAbortReq>) frame;
-            AdminCommitOrAbortReq req = f.getBody();
-            return req.groupId;
-        }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    @Override
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
             return context.toDecoderCallback(new AdminPrepareConfigChangeReq.Callback());

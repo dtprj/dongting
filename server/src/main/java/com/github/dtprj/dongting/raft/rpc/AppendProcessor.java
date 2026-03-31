@@ -77,18 +77,6 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    protected int getGroupId(ReadPacket frame) {
-        if (frame.command == Commands.RAFT_APPEND_ENTRIES) {
-            ReadPacket<AppendReq> f = (ReadPacket<AppendReq>) frame;
-            return f.getBody().groupId;
-        } else {
-            ReadPacket<InstallSnapshotReq> f = (ReadPacket<InstallSnapshotReq>) frame;
-            return f.getBody().groupId;
-        }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    @Override
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
             AppendReq.Callback c = ((DecodeContextEx) context).appendReqCallback(decoderFactory);

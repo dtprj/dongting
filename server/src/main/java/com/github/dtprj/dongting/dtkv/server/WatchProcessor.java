@@ -39,11 +39,6 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<WatchReqCallback> frame) {
-        return frame.getBody().groupId;
-    }
-
-    @Override
     public DecoderCallback<WatchReqCallback> createDecoderCallback(int command, DecodeContext context) {
         return context.toDecoderCallback(new WatchReqCallback());
     }

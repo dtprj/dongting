@@ -327,6 +327,7 @@ public class RaftClient extends AbstractLifeCircle {
             return DtUtil.failedFuture(new RaftException("node not found: " + nodeId));
         }
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
+        req.groupId = groupId;
         CompletableFuture<QueryStatusResp> f = new CompletableFuture<>();
         RpcCallback<QueryStatusResp> callback = RpcCallback.fromUnwrapFuture(f);
         nioClient.sendRequest(n.peer, req, QueryStatusResp.DECODER, createDefaultTimeout(), callback);

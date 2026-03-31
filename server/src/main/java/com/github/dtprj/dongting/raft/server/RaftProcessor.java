@@ -51,8 +51,6 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         this.enableReplicatePort = enableReplicatePort;
     }
 
-    protected abstract int getGroupId(ReadPacket<T> frame);
-
     public static boolean requestServicePort(ReqContext reqContext, RaftServerConfig config) {
         return reqContext.getDtChannel().getLocalPort() == config.servicePort;
     }
@@ -103,7 +101,13 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
                 return wf;
             }
         }
-        int groupId = getGroupId(packet);
+        int groupId = packet.groupId;
+        if (groupId == 0) {
+            packet.clean();
+            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
+            errorResp.msg = "groupId not set in packet";
+            return errorResp;
+        }
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         if (g == null) {
             packet.clean();

@@ -42,11 +42,6 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
     }
 
     @Override
-    protected int getGroupId(ReadPacket<TransferLeaderReq> frame) {
-        return frame.getBody().groupId;
-    }
-
-    @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<TransferLeaderReq> reqInfo) {
         ReadPacket<TransferLeaderReq> frame = reqInfo.reqFrame;
         TransferLeaderReq req = frame.getBody();

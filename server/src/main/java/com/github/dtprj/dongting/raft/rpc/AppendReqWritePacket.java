@@ -51,7 +51,6 @@ import java.util.List;
 //}
 public class AppendReqWritePacket extends WritePacket {
 
-    public int groupId;
     public int term;
     public int leaderId;
     public long prevLogIndex;

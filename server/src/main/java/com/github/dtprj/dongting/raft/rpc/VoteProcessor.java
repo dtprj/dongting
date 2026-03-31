@@ -44,11 +44,6 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<VoteReq> frame) {
-        return frame.getBody().groupId;
-    }
-
-    @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<VoteReq> reqInfo) {
         return new VoteFiberFrame(reqInfo);
     }

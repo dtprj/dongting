@@ -35,11 +35,6 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPing> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<RaftPing> frame) {
-        return frame.getBody().groupId;
-    }
-
-    @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<RaftPing> reqInfo) {
         GroupComponents gc = reqInfo.raftGroup.groupComponents;
         SimpleWritePacket resp = RaftUtil.buildRaftPingPacket(gc.serverConfig.nodeId, gc.raftStatus);

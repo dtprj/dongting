@@ -32,28 +32,28 @@ public class PacketPbTest {
     }
 
     private void test() throws Exception {
-        test0(1, 0, 0, 0, 1, "1", new byte[]{1}, 0, 0);
-        test0(2, 1, 1, 1, 0, "123", new byte[]{1, 5}, 1, 1);
-        test0(1000, 1000, 1000, 1000, 2000, "123", null, 10000, 1000);
-        test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", null, Long.MAX_VALUE, 1000);
-        test0(-1, -1, -1, -1, -1, "123", null, -1, 1000);
-        test0(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, "123", null, Long.MIN_VALUE, 1000);
+        test0(1, 0, 0, 0, 1, "1", new byte[]{1}, 0, 0, 0);
+        test0(2, 1, 1, 1, 0, "123", new byte[]{1, 5}, 1, 1, 1);
+        test0(1000, 1000, 1000, 1000, 2000, "123", null, 10000, 1000, 500);
+        test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", null, Long.MAX_VALUE, 1000, Integer.MAX_VALUE);
+        test0(-1, -1, -1, -1, -1, "123", null, -1, 1000, -1);
+        test0(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, "123", null, Long.MIN_VALUE, 1000, Integer.MIN_VALUE);
 
         char[] cs = new char[2000];
         Arrays.fill(cs, 'a');
         byte[] extra = new byte[2000];
         new Random().nextBytes(extra);
-        test0(1000, 1000, 1000, 1000, 2000, new String(cs), null, 1000, 1000);
+        test0(1000, 1000, 1000, 1000, 2000, new String(cs), null, 1000, 1000, 0);
     }
 
     private void test0(int packetType, int command, int seq, int respCode, int bizCode, String msg, byte[] extra,
-                       long timeout, int bodySize) throws Exception {
-        testEncode0(packetType, command, seq, respCode, bizCode, msg, extra, timeout, bodySize);
-        testDecode0(packetType, command, seq, respCode, bizCode, msg, extra, timeout, bodySize);
+                       long timeout, int bodySize, int groupId) throws Exception {
+        testEncode0(packetType, command, seq, respCode, bizCode, msg, extra, timeout, bodySize, groupId);
+        testDecode0(packetType, command, seq, respCode, bizCode, msg, extra, timeout, bodySize, groupId);
     }
 
     private void testEncode0(int packetType, int command, int seq, int respCode, int bizCode, String msg, byte[] extra,
-                             long timeout, int bodySize) throws Exception {
+                             long timeout, int bodySize, int groupId) throws Exception {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
         ByteBufferWritePacket f = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
@@ -65,6 +65,7 @@ public class PacketPbTest {
         f.msg = msg;
         f.timeout = timeout;
         f.extra = extra;
+        f.groupId = groupId;
         ByteBuffer buf = ByteBuffer.allocate(f.actualSize());
         f.encode(new EncodeContext(null), buf);
         buf.flip();
@@ -77,6 +78,7 @@ public class PacketPbTest {
         assertEquals(bizCode, pbf.getBizCode());
         assertEquals(msg, pbf.getRespMsg());
         assertEquals(timeout, pbf.getTimeout());
+        assertEquals(groupId, pbf.getGroupId());
         if (extra != null) {
             assertArrayEquals(extra, pbf.getExtra().toByteArray());
         } else {
@@ -86,7 +88,7 @@ public class PacketPbTest {
     }
 
     private void testDecode0(int packetType, int command, int seq, int respCode, int bizCode,
-                             String msg, byte[] extra, long timeout, int bodySize) throws IOException {
+                             String msg, byte[] extra, long timeout, int bodySize, int groupId) throws IOException {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
         DtPacket.Packet.Builder builder = DtPacket.Packet.newBuilder()
@@ -97,6 +99,7 @@ public class PacketPbTest {
                 .setBizCode(bizCode)
                 .setRespMsg(msg)
                 .setTimeout(timeout)
+                .setGroupId(groupId)
                 .setBody(ByteString.copyFrom(bs));
         if (extra != null) {
             builder.setExtra(ByteString.copyFrom(extra));
@@ -149,5 +152,6 @@ public class PacketPbTest {
         assertEquals(msg, dtc.getPacket().msg);
         assertArrayEquals(extra, dtc.getPacket().extra);
         assertEquals(timeout, dtc.getPacket().timeout);
+        assertEquals(groupId, dtc.getPacket().groupId);
     }
 }

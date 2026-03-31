@@ -172,6 +172,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             case Packet.IDX_BIZ_CODE:
                 packet.bizCode = (int) value;
                 break;
+            case Packet.IDX_GROUP_ID:
+                packet.groupId = (int) value;
+                break;
         }
         return true;
     }
