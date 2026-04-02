@@ -20,17 +20,18 @@ import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.function.BiFunction;
+
 /**
+ * Require decode in DtThread.
+ *
  * @author huangli
  */
 public class DecodeContext {
     private static final DtLog log = DtLogs.getLogger(DecodeContext.class);
 
-    static final int THREAD_LOCAL_BUFFER_SIZE = 4 * 1024;
-    private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
-    private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
-
-    private RefBufferFactory heapPool;
+    public final RefBufferFactory heapPool;
+    public final byte[] threadLocalBuffer;
 
     private PbParser nestedParser;
     private Decoder nestedDecoder;
@@ -47,11 +48,15 @@ public class DecodeContext {
     private PbBytesCallback pbBytesCallback;
     private KvReq.KvReqCallback kvReqCallback;
 
-    public DecodeContext() {
+    public static BiFunction<RefBufferFactory, byte[], DecodeContext> factory = DecodeContext::new;
+
+    protected DecodeContext(RefBufferFactory f, byte[] b) {
+        this.heapPool = f;
+        this.threadLocalBuffer = b;
     }
 
     protected DecodeContext createNestedInstance() {
-        return new DecodeContext();
+        return new DecodeContext(heapPool, threadLocalBuffer);
     }
 
     public void reset(PbParser root) {
@@ -87,7 +92,6 @@ public class DecodeContext {
     public DecodeContext createOrGetNestedContext() {
         if (nestedContext == null) {
             nestedContext = createNestedInstance();
-            nestedContext.heapPool = heapPool;
         }
         return nestedContext;
     }
@@ -104,18 +108,6 @@ public class DecodeContext {
             nestedDecoder = new Decoder();
         }
         return nestedDecoder;
-    }
-
-    public RefBufferFactory getHeapPool() {
-        return heapPool;
-    }
-
-    public void setHeapPool(RefBufferFactory heapPool) {
-        this.heapPool = heapPool;
-    }
-
-    public byte[] getThreadLocalBuffer() {
-        return threadLocalBuffer;
     }
 
     @SuppressWarnings("unchecked")

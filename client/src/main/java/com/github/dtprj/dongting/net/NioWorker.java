@@ -18,7 +18,9 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
@@ -382,7 +384,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         while (channels.get(channelIndex) != null) {
             channelIndex++;
         }
-        DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++);
+        DecodeContext decodeContext = DecodeContext.factory.apply(workerStatus.heapPool, DtThread.currentDtThread().threadLocalBuffer);
+        DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++, decodeContext);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.subQueue.setRegisterForWrite(new RegWriteRunner(selectionKey));
 

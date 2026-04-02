@@ -18,18 +18,18 @@ package com.github.dtprj.dongting.codec;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 
 /**
  * @author huangli
  */
 public class CodecTestUtil {
-    private static ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
+    private static final ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
 
     public static DecodeContext createContext() {
-        DecodeContext c = new DecodeContext();
-        c.setHeapPool(new RefBufferFactory(pool, 128));
-        return c;
+        return DecodeContext.factory.apply(new RefBufferFactory(pool, 128),
+                new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
     }
 
     public static EncodeContext createEncodeContext() {

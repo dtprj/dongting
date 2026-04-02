@@ -4,6 +4,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.CodecTestUtil;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DtPacket;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -110,15 +111,16 @@ public class PacketPbTest {
         buf.put(encodeBytes);
         buf.flip();
 
+        DecodeContext decodeContext = CodecTestUtil.createContext();
         WorkerStatus workerStatus = new WorkerStatus(null, null,
-                null, CodecTestUtil.createContext().getHeapPool(), new Timestamp(), 1000);
+                null, decodeContext.heapPool, new Timestamp(), 1000);
 
         SocketChannel sc = SocketChannel.open();
         sc.bind(new InetSocketAddress(19344));
         DtChannelImpl dtc;
         try {
             dtc = new DtChannelImpl(new Java8NioStatus(), workerStatus,
-                    new NioClientConfig(), null, sc, 0) {
+                    new NioClientConfig(), null, sc, 0, decodeContext) {
 
                 @Override
                 public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {

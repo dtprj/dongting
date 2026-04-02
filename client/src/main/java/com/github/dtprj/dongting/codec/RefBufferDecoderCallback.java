@@ -40,9 +40,9 @@ public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (currentPos == 0) {
             if (plain) {
-                r = context.getHeapPool().createPlain(bodyLen);
+                r = context.heapPool.createPlain(bodyLen);
             } else {
-                r = context.getHeapPool().create(bodyLen);
+                r = context.heapPool.create(bodyLen);
             }
         }
         ByteBuffer bb = r.getBuffer();

@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.raft.rpc.AppendReq;
 import com.github.dtprj.dongting.raft.rpc.AppendResp;
@@ -30,12 +31,13 @@ public final class DecodeContextEx extends DecodeContext {
     private AppendReq.Callback appendReqCallback;
     private AppendResp.Callback appendRespCallback;
 
-    public DecodeContextEx() {
+    public DecodeContextEx(RefBufferFactory heapPool, byte[] threadLocalBuffer) {
+        super(heapPool, threadLocalBuffer);
     }
 
     @Override
     protected DecodeContext createNestedInstance() {
-        return new DecodeContextEx();
+        return new DecodeContextEx(heapPool, threadLocalBuffer);
     }
 
     public AppendReq.Callback appendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {

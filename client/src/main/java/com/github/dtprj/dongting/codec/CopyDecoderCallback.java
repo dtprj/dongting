@@ -32,7 +32,7 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
             return decode(buffer);
         }
         if (start) {
-            temp = context.getHeapPool().getPool().borrow(bodyLen);
+            temp = context.heapPool.getPool().borrow(bodyLen);
         }
         temp.put(buffer);
         if (end) {
@@ -45,7 +45,7 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
     @Override
     public void end(boolean success) {
         if (temp != null) {
-            context.getHeapPool().getPool().release(temp);
+            context.heapPool.getPool().release(temp);
             temp = null;
         }
     }

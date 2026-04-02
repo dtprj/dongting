@@ -13,20 +13,25 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
-
-import com.github.dtprj.dongting.common.DtThread;
-import com.github.dtprj.dongting.common.Timestamp;
+package com.github.dtprj.dongting.common;
 
 /**
  * @author huangli
  */
-public final class WorkerThread extends DtThread {
-
-    public final Timestamp ts;
-
-    WorkerThread(Runnable r, String name, Timestamp ts) {
+public class DtThread extends Thread {
+    public static final int THREAD_LOCAL_BUFFER_SIZE = 4 * 1024;
+    
+    public final byte[] threadLocalBuffer = new byte[THREAD_LOCAL_BUFFER_SIZE];
+    
+    protected DtThread(Runnable r, String name) {
         super(r, name);
-        this.ts = ts;
+    }
+    
+    public static DtThread currentDtThread() {
+        Thread current = Thread.currentThread();
+        if (current instanceof DtThread) {
+            return (DtThread) current;
+        }
+        throw new DtException("not in DtThread");
     }
 }

@@ -81,7 +81,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     PacketInfoReq pendingReqTail;
 
     public DtChannelImpl(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig, Peer peer,
-                         SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
+                         SocketChannel socketChannel, int channelIndexInWorker, DecodeContext decodeContext) throws IOException {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
         this.nioConfig = nioConfig;
@@ -90,8 +90,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.peer = peer;
         this.createTimeNanos = workerStatus.ts.nanoTime;
 
-        this.decodeContext = nioConfig.decodeContextFactory.get();
-        this.decodeContext.setHeapPool(workerStatus.heapPool);
+        this.decodeContext = decodeContext;
 
         this.parser = new MultiParser(decodeContext, this, nioConfig.maxPacketSize);
 

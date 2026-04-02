@@ -17,11 +17,12 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.common.DtThread;
 
 /**
  * @author huangli
  */
-public final class DispatcherThread extends Thread {
+public final class DispatcherThread extends DtThread {
 
     FiberGroup currentGroup;
 

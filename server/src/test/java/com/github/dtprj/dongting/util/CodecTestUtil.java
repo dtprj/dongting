@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import org.junit.jupiter.api.Assertions;
@@ -38,9 +39,7 @@ public class CodecTestUtil {
     private final static RefBufferFactory refBufferFactory = new RefBufferFactory(pool, 128);
 
     public static DecodeContextEx decodeContext() {
-        DecodeContextEx c = new DecodeContextEx();
-        c.setHeapPool(refBufferFactory);
-        return c;
+        return new DecodeContextEx(refBufferFactory, new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
     }
 
     public static EncodeContext encodeContext() {

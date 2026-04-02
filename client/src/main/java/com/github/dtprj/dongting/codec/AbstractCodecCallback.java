@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -58,10 +59,10 @@ public abstract class AbstractCodecCallback<T> {
         if (currentPos == 0) {
             if (remain >= fieldLen) {
                 ByteBufferPool pool = null;
-                if (fieldLen < DecodeContext.THREAD_LOCAL_BUFFER_SIZE) {
-                    arr = context.getThreadLocalBuffer();
+                if (fieldLen < DtThread.THREAD_LOCAL_BUFFER_SIZE) {
+                    arr = context.threadLocalBuffer;
                 } else {
-                    pool = context.getHeapPool().getPool();
+                    pool = context.heapPool.getPool();
                     temp = pool.borrow(fieldLen);
                     arr = temp.array();
                 }
@@ -76,7 +77,7 @@ public abstract class AbstractCodecCallback<T> {
                 arr = new byte[fieldLen];
                 context.status = arr;
             } else {
-                ByteBufferPool pool = context.getHeapPool().getPool();
+                ByteBufferPool pool = context.heapPool.getPool();
                 temp = pool.borrow(fieldLen);
                 context.status = temp;
                 arr = temp.array();
@@ -97,7 +98,7 @@ public abstract class AbstractCodecCallback<T> {
             buf.get(arr, currentPos, needRead);
             String s = new String(arr, 0, fieldLen, StandardCharsets.UTF_8);
             if (temp != null) {
-                ByteBufferPool pool = context.getHeapPool().getPool();
+                ByteBufferPool pool = context.heapPool.getPool();
                 pool.release(temp);
             }
             return s;
@@ -137,7 +138,7 @@ public abstract class AbstractCodecCallback<T> {
         }
         RefBuffer result;
         if (currentPos == 0) {
-            result = context.getHeapPool().create(fieldLen);
+            result = context.heapPool.create(fieldLen);
             context.status = result;
         } else {
             result = (RefBuffer) context.status;

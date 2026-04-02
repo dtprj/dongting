@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -124,6 +125,8 @@ public class RaftServer extends AbstractLifeCircle {
         Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
         Objects.requireNonNull(raftFactory);
+        // always use DecodeContextEx in server side
+        DecodeContext.factory = DecodeContextEx::new;
         this.serverConfig = serverConfig;
         this.raftFactory = raftFactory;
         this.groupCustomizer = groupCustomizer;
@@ -212,7 +215,6 @@ public class RaftServer extends AbstractLifeCircle {
         nc.maxInBytes = 0;
         nc.maxBodySize = Integer.MAX_VALUE;
         nc.maxPacketSize = Integer.MAX_VALUE;
-        nc.decodeContextFactory = DecodeContextEx::new;
     }
 
     protected void customReplicateNioClient(@SuppressWarnings("unused") NioClientConfig c) {
