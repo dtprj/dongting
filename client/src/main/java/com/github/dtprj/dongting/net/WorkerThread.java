@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 
@@ -24,9 +26,19 @@ import com.github.dtprj.dongting.common.Timestamp;
 public final class WorkerThread extends DtThread {
 
     public final Timestamp ts;
+    public final DecodeContext decodeContext;
 
-    WorkerThread(Runnable r, String name, Timestamp ts) {
+    WorkerThread(Runnable r, String name, Timestamp ts, RefBufferFactory refBufferFactory) {
         super(r, name);
         this.ts = ts;
+        this.decodeContext = DecodeContext.factory.apply(refBufferFactory, threadLocalBuffer);
+    }
+
+    public static WorkerThread currentWorkerThread() {
+        Thread t = Thread.currentThread();
+        if (t instanceof WorkerThread) {
+            return (WorkerThread) t;
+        }
+        throw new NetException("not in WorkerThread");
     }
 }

@@ -99,7 +99,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.nioStatus = nioStatus;
         this.config = config;
         this.owner = owner;
-        this.thread = new WorkerThread(this, workerName, timestamp);
         this.workerName = workerName;
         this.cleanIntervalNanos = config.cleanInterval * 1000 * 1000;
         this.perfCallback = config.perfCallback;
@@ -122,6 +121,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
         RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 512);
+
+        this.thread = new WorkerThread(this, workerName, timestamp, refBufferFactory);
 
         workerStatus = new WorkerStatus(this, ioWorkerQueue, directPool,
                 refBufferFactory, timestamp, config.nearTimeoutThreshold);
@@ -384,6 +385,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         while (channels.get(channelIndex) != null) {
             channelIndex++;
         }
+        // the worker thread is multiplexing, so can't use threadLocal DecodeContext
         DecodeContext decodeContext = DecodeContext.factory.apply(workerStatus.heapPool, DtThread.currentDtThread().threadLocalBuffer);
         DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++, decodeContext);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);

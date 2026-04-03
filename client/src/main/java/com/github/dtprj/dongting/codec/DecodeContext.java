@@ -48,6 +48,7 @@ public class DecodeContext {
     private PbBytesCallback pbBytesCallback;
     private KvReq.KvReqCallback kvReqCallback;
 
+    // replace in server side to create DecodeContextEx
     public static BiFunction<RefBufferFactory, byte[], DecodeContext> factory = DecodeContext::new;
 
     protected DecodeContext(RefBufferFactory f, byte[] b) {
