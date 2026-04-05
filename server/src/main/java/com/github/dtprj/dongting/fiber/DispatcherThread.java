@@ -27,11 +27,9 @@ public final class DispatcherThread extends DtThread {
     FiberGroup currentGroup;
 
     public final ByteBufferPool directPool;
-    public final RefBufferFactory heapPool;
 
     DispatcherThread(Runnable r, String name, RefBufferFactory heapPool, ByteBufferPool directPool) {
-        super(r, name);
-        this.heapPool = heapPool;
+        super(r, name, heapPool);
         this.directPool = directPool;
     }
 
