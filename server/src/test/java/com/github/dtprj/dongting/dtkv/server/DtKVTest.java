@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
@@ -29,6 +30,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -127,7 +129,9 @@ public class DtKVTest extends BaseFiberTest {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private <T> FiberFuture<T> exec(long index, int bizType, KvReq req) {
-        RaftInput i = RaftInput.create(bizType, new RaftReqData(null, req),
+        RefBuffer rb = RaftUtil.encode(req);
+        RaftReqData rd = new RaftReqData(null, 0, rb, RaftUtil.calcCrc32c(rb));
+        RaftInput i = RaftInput.create(bizType, rd, null, req,
                 new DtTime(1, TimeUnit.SECONDS), false, null);
         req.ownerUuid = uuid;
         return (FiberFuture) kv.exec(index, ts.wallClockMillis, ts.nanoTime, i);

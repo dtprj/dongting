@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -29,11 +29,12 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -60,8 +61,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
 
     @Override
     public DecoderCallback<KvReq> createDecoderCallback(int cmd, DecodeContext context) {
-        DecodeContextEx e = (DecodeContextEx) context;
-        return context.toDecoderCallback(e.kvReqCallback());
+        return context.toDecoderCallback(context.kvReqCallback());
     }
 
     /**
@@ -71,11 +71,14 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     protected WritePacket doProcess(ReqInfo<KvReq> reqInfo) {
         ReadPacket<KvReq> frame = reqInfo.reqFrame;
         KvReq req = frame.getBody();
-
-        // use uuid initialized in handshake
-        req.ownerUuid = reqInfo.reqContext.getDtChannel().getRemoteUuid();
-
         try {
+            if (req == null) {
+                throw new NetCodeException(CmdCodes.CLIENT_ERROR, "no body", null);
+            }
+
+            // use uuid initialized in handshake
+            req.ownerUuid = reqInfo.reqContext.getDtChannel().getRemoteUuid();
+
             switch (frame.command) {
                 case Commands.DTKV_PUT:
                     submitWriteTask(reqInfo, DtKV.BIZ_TYPE_PUT, req);
@@ -134,8 +137,10 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         }
     }
 
-    private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, Encodable body) {
-        RaftTask rt = new RaftTask(LogHeader.TYPE_NORMAL, bizType, new RaftReqData(null, body),
+    private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
+        RefBuffer rb = RaftUtil.encode(req);
+        RaftReqData reqData = new RaftReqData(null, 0, rb, RaftUtil.calcCrc32c(rb));
+        RaftTask rt = new RaftTask(LogHeader.TYPE_NORMAL, bizType, reqData, null, req,
                 reqInfo.reqContext.getTimeout(), false, new RC(reqInfo));
         reqInfo.raftGroup.submitLinearTask(rt);
     }

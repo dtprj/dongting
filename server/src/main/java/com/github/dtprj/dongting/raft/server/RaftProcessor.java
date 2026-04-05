@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
@@ -155,7 +156,12 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             log.warn("not leader, current leader is {}", leader);
         } else if (root.getMessage().contains("the fiber group is not running")) {
             errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
-        } else {
+        } else if(root instanceof NetCodeException) {
+            NetCodeException nce = (NetCodeException) root;
+            errorResp = new EmptyBodyRespPacket(nce.getCode());
+            errorResp.msg = nce.getMessage();
+            errorResp.extra = nce.getExtra();
+        } else{
             errorResp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
             log.warn("raft processor error", ex);
         }

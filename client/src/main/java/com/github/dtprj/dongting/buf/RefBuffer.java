@@ -118,7 +118,7 @@ public final class RefBuffer extends RefCount implements Encodable {
     }
 
     @Override
-    protected boolean isReleased() {
+    public boolean isReleased() {
         if (root != null) {
             return root.isReleased();
         } else {

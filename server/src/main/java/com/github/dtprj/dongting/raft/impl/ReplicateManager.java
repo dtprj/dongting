@@ -40,7 +40,6 @@ import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
-import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWritePacket;
@@ -48,6 +47,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendResp;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * @author huangli
@@ -350,15 +351,15 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             if (replicateIterator == null) {
                 replicateIterator = raftLog.openIterator(this::epochChange);
             }
-            FiberFrame<List<LogItem>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
+            FiberFrame<List<RaftInput>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
                     groupConfig.singleReplicateLimit);
             return Fiber.call(nextFrame, this::resumeAfterLogLoad);
         }
     }
 
-    private FrameCallResult resumeAfterLogLoad(List<LogItem> items) {
+    private FrameCallResult resumeAfterLogLoad(List<RaftInput> items) {
         if (shouldStopReplicate()) {
-            RaftUtil.release(items);
+            RaftUtil.releaseInputs(items);
             return Fiber.frameReturn();
         }
         if (items == null || items.isEmpty()) {
@@ -366,14 +367,14 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             closeIterator();
             return Fiber.resume(null, this);
         }
-        if (member.nextIndex != items.get(0).index) {
+        if (member.nextIndex != ((RaftTask) items.get(0)).item.index) {
             log.error("the first load item index not match nextIndex, ignore load result");
-            RaftUtil.release(items);
+            RaftUtil.releaseInputs(items);
             closeIterator();
             return Fiber.resume(null, this);
         }
 
-        sendAppendRequest(member, items);
+        sendAppendRequest(member, items.stream().map(i -> ((RaftTask) i).item).collect(Collectors.toList()));
         return Fiber.resume(null, this);
     }
 

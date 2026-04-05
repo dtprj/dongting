@@ -15,7 +15,11 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
@@ -36,6 +40,7 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
+import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -197,5 +202,21 @@ public class KvServerUtil {
                         ex.getMessage());
             }
         });
+    }
+
+    public static KvReq decode(RefBuffer rb) {
+        ByteBuffer bb = rb.getBuffer();
+        int oldPos = bb.position();
+        int oldLimit = bb.limit();
+        try {
+            DtThread wt = DtThread.currentDtThread();
+            DecodeContext c = wt.decodeContext;
+            PbParser p = wt.parser;
+            p.prepareNext(c, c.kvReqCallback(), bb.remaining());
+            return (KvReq) p.parse(bb);
+        } finally {
+            bb.position(oldPos);
+            bb.limit(oldLimit);
+        }
     }
 }

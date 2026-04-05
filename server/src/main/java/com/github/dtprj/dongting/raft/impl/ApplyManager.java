@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
@@ -34,7 +33,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
-import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -421,7 +420,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 if (logIterator == null) {
                     logIterator = raftLog.openIterator(null);
                 }
-                FiberFrame<List<LogItem>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
+                FiberFrame<List<RaftInput>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
                 return Fiber.call(ff, this::afterLoad);
             } else {
                 closeIterator();
@@ -429,7 +428,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             }
         }
 
-        private FrameCallResult afterLoad(List<LogItem> items) {
+        private FrameCallResult afterLoad(List<RaftInput> items) {
             ExecLoadResultFrame ff = new ExecLoadResultFrame(items);
             return Fiber.call(ff, this::execLoop);
         }
@@ -444,10 +443,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     private class ExecLoadResultFrame extends FiberFrame<Void> {
 
-        private final List<LogItem> items;
+        private final List<RaftInput> items;
         private int listIndex;
 
-        public ExecLoadResultFrame(List<LogItem> items) {
+        public ExecLoadResultFrame(List<RaftInput> items) {
             // Here, we refreshed the ts. Next, the time t set on RaftTask is greater than the time when the raft
             // client constructs the request. Since there is a 1ms error in the ts refresh, the time when the raft
             // client constructs the request happens before (t + 1ms).
@@ -457,7 +456,12 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
         @Override
         protected FrameCallResult doFinally() {
-            RaftUtil.release(items);
+            if (items != null) {
+                for (int size = items.size(), i = 0; i < size; i++) {
+                    RaftInput ri = items.get(i);
+                    ri.reqData.release();
+                }
+            }
             return Fiber.frameReturn();
         }
 
@@ -473,21 +477,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             if (listIndex >= items.size()) {
                 return Fiber.frameReturn();
             }
-            LogItem item = items.get(listIndex++);
+            RaftTask rt = (RaftTask) items.get(listIndex++);
 
-            RaftTask rt = new RaftTask(item.type, item.bizType, item.reqData, null,
-                    item.type == LogHeader.TYPE_LOG_READ, null);
-
-            // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
-            // this method only used to load logs that not apply after restart.
-            long costTimeMillis = ts.wallClockMillis - item.timestamp;
-            if (costTimeMillis < 0) {
-                costTimeMillis = 0;
-            }
-            long localCreateNanos = ts.nanoTime - costTimeMillis * 1_000_000L;
-            rt.init(item, localCreateNanos);
-
-            return exec(rt, item.index, this);
+            return exec(rt, rt.item.index, this);
         }
 
     }
@@ -554,7 +546,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
-            byte[] data = ((ByteArray) rt.reqData.bizBody).getData();
+            byte[] data = (byte[]) rt.bizBody;
             String dataStr = new String(data);
             String[] fields = dataStr.split(";", -1);
             Set<Integer> oldMemberIds = parseSet(fields[0]);

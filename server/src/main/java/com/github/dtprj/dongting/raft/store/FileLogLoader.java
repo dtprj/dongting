@@ -16,11 +16,10 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -35,6 +34,7 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
@@ -68,6 +68,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final RaftCodecFactory codecFactory;
     private final DecodeContext decodeContext;
     private final Decoder decoder;
+    private final DecoderCallback<RefBuffer> refBufferCallback = new RefBuffer.Callback();
 
     private boolean error;
     private boolean close;
@@ -113,7 +114,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     }
 
     @Override
-    public FiberFrame<List<LogItem>> next(long index, int limit, int bytesLimit) {
+    public FiberFrame<List<RaftInput>> next(long index, int limit, int bytesLimit) {
         if (error || close || loading) {
             BugLog.log("iterator state error: {},{},{}", error, close, loading);
             throw new RaftException("iterator state error");
@@ -124,7 +125,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         return new NextFrame(index, limit, bytesLimit);
     }
 
-    private class NextFrame extends FiberFrame<List<LogItem>> {
+    private class NextFrame extends FiberFrame<List<RaftInput>> {
         private static final int RESULT_CONTINUE_PARSE = 11;
         private static final int RESULT_FINISH = 12;
         private static final int RESULT_NEED_LOAD = 13;
@@ -136,17 +137,15 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private int totalReadBytes;
         private int currentReadBytes;
-        private final List<LogItem> result = new LinkedList<>();
+        private final List<RaftInput> result = new LinkedList<>();
         private int state = STATE_ITEM_HEADER;
         private long itemStartPos;
 
         private LogItem item;
-        private Encodable bizHeader;
-        private int bizHeaderSize;
+        private RefBuffer bizHeader;
         private int bizHeaderCrc;
 
-        private Encodable bizBody;
-        private int bizBodySize;
+        private RefBuffer bizBody;
         private int bizBodyCrc;
 
         NextFrame(long startIndex, int limit, int bytesLimit) {
@@ -300,7 +299,6 @@ class FileLogLoader implements RaftLog.LogIterator {
                 return false;
             }
 
-            int bodyLen = h.bodyLen;
             if (!h.checkHeader(logFiles.filePos(itemStartPos), logFiles.fileLength())) {
                 throw new RaftException("header check fail: index=" + (nextIndex + result.size()) + ",pos=" + itemStartPos);
             }
@@ -308,9 +306,6 @@ class FileLogLoader implements RaftLog.LogIterator {
             LogItem li = new LogItem();
             this.item = li;
             h.copy(li);
-
-            bizHeaderSize = h.bizHeaderLen;
-            bizBodySize = bodyLen;
 
             return true;
         }
@@ -337,19 +332,9 @@ class FileLogLoader implements RaftLog.LogIterator {
             if (dataLen - currentReadBytes > 0 && buf.remaining() > 0) {
                 int oldPos = buf.position();
                 if (currentReadBytes == 0) {
-                    DecoderCallback<?> callback;
-                    if (header.type == LogHeader.TYPE_NORMAL || header.type == LogHeader.TYPE_LOG_READ) {
-                        callback = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext)
-                                : codecFactory.createBodyCallback(header.bizType, decodeContext);
-                        if (callback == null) {
-                            throw new RaftException("decoder not found: bizType=" + header.bizType);
-                        }
-                    } else {
-                        callback = new ByteArray.Callback();
-                    }
-                    decoder.prepareNext(decodeContext, callback);
+                    decoder.prepareNext(decodeContext, refBufferCallback);
                 }
-                Encodable result = (Encodable) decoder.decode(buf, dataLen, currentReadBytes);
+                RefBuffer result = (RefBuffer) decoder.decode(buf, dataLen, currentReadBytes);
                 int read = buf.position() - oldPos;
                 if (read > 0) {
                     RaftUtil.updateCrc(crc32c, buf, oldPos, read);
@@ -383,18 +368,52 @@ class FileLogLoader implements RaftLog.LogIterator {
         }
 
         private void add() {
-            item.reqData = new RaftReqData(bizHeader, bizHeaderSize, bizHeaderCrc, bizBody, bizBodySize, bizBodyCrc);
-            result.add(item);
+            item.reqData = new RaftReqData(bizHeader, bizHeaderCrc, bizBody, bizBodyCrc);
+            Object decodeBizHeader = decodeData(item.type, bizHeader, true);
+            Object decodeBizBody = decodeData(item.type, bizBody, false);
+            RaftTask rt = new RaftTask(header.type, header.bizType, item.reqData, decodeBizHeader, decodeBizBody,
+                    null, header.type == LogHeader.TYPE_LOG_READ, null);
+
+            // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
+            // this method only used to load logs that not apply after restart.
+            long costTimeMillis = groupConfig.ts.wallClockMillis - item.timestamp;
+            if (costTimeMillis < 0) {
+                costTimeMillis = 0;
+            }
+            long localCreateNanos = groupConfig.ts.nanoTime - costTimeMillis * 1_000_000L;
+            rt.init(item, localCreateNanos);
+
+            result.add(rt);
 
             item = null;
 
-            bizHeaderSize = 0;
-            bizBodySize = 0;
             bizHeaderCrc = 0;
+            bizBodyCrc = 0;
 
             bizHeader = null;
             bizBody = null;
-            bizBodyCrc = 0;
+        }
+
+        private Object decodeData(int type, RefBuffer data, boolean isHeader) {
+            if (data == null) {
+                return null;
+            }
+            ByteBuffer buf = data.getBuffer();
+            int oldPos = buf.position();
+            try {
+                if (type != LogHeader.TYPE_NORMAL) {
+                    byte[] b = new byte[buf.remaining()];
+                    buf.get(b);
+                    return b;
+                }
+                DecoderCallback<?> c = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext) :
+                        codecFactory.createBodyCallback(header.bizType, decodeContext);
+                int len = isHeader ? header.bizHeaderLen : header.bodyLen;
+                decoder.prepareNext(decodeContext, c);
+                return decoder.decode(data.getBuffer(), len, 0);
+            } finally {
+                buf.position(oldPos);
+            }
         }
 
         private int extractBizBody(ByteBuffer buf) {

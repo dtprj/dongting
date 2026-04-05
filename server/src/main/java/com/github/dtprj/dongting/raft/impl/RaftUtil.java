@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -29,6 +32,7 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.RaftPing;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -89,6 +93,39 @@ public final class RaftUtil {
                 li.reqData.release();
             }
         }
+    }
+
+    public static void releaseInputs(List<RaftInput> list) {
+        if (list == null) {
+            return;
+        }
+        for (int s = list.size(), i = 0; i < s; i++) {
+            RaftInput li = list.get(i);
+            if (li.reqData != null) {
+                li.reqData.release();
+            }
+        }
+    }
+
+    public static RefBuffer encode(Encodable obj) {
+        if (obj == null) {
+            return null;
+        }
+        EncodeContext c = new EncodeContext(null); // allocate in stack
+        ByteBuffer buf = ByteBuffer.allocate(obj.actualSize());
+        obj.encode(c, buf);
+        buf.flip();
+        return RefBuffer.wrap(buf);
+    }
+
+    public static int calcCrc32c(RefBuffer buf) {
+        if (buf == null) {
+            return 0;
+        }
+        CRC32C c = new CRC32C(); // allocate in stack
+        ByteBuffer bb = buf.getBuffer();
+        updateCrc(c, bb, bb.position(), bb.remaining());
+        return (int) c.getValue();
     }
 
     public static void incrTerm(int remoteTerm, RaftStatusImpl raftStatus, int newLeaderId, String reason) {

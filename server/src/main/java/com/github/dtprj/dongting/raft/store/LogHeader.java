@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
@@ -92,15 +93,22 @@ public class LogHeader {
     public static int writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log) {
         boolean read = log.type == TYPE_LOG_READ;
         int len;
+        int bizHeaderSize;
+        int bizBodySize;
         if (read) {
             len = ITEM_HEADER_SIZE;
+            bizHeaderSize = 0;
+            bizBodySize = 0;
         } else {
-            len = computeTotalLen(log.reqData.bizHeaderSize, log.reqData.bizBodySize);
+            RaftReqData reqData = log.reqData;
+            bizHeaderSize = reqData.bizHeaderSize;
+            bizBodySize = reqData.bizBodySize;
+            len = computeTotalLen(bizHeaderSize, bizBodySize);
         }
         int startPos = buffer.position();
         buffer.putInt(len);
-        buffer.putInt(read ? 0 : log.reqData.bizHeaderSize);
-        buffer.putInt(read ? 0 : log.reqData.bizBodySize);
+        buffer.putInt(bizHeaderSize);
+        buffer.putInt(bizBodySize);
         buffer.put((byte) log.type);
         buffer.put((byte) log.bizType);
         buffer.putInt(log.term);

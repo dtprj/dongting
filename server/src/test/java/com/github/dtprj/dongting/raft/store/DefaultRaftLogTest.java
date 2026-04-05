@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -31,6 +30,7 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
@@ -306,7 +306,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(1, 1, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<LogItem> logItems) {
+            private FrameCallResult afterNext(List<RaftInput> logItems) {
                 fail();
                 return Fiber.frameReturn();
             }
@@ -327,7 +327,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(1, 1, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<LogItem> logItems) {
+            private FrameCallResult afterNext(List<RaftInput> logItems) {
                 fail();
                 return Fiber.frameReturn();
             }
@@ -338,8 +338,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
-
-        RaftTask input = new RaftTask(LogHeader.TYPE_NORMAL ,0, new RaftReqData((Encodable) null, null),
+        RaftReqData rd = new RaftReqData(null, 0, null, 0);
+        RaftTask input = new RaftTask(LogHeader.TYPE_NORMAL, 0, rd, null, null,
                 null, false, null);
         raftStatus.tailCache.put(3, input);
         // test cancel if tail cache has next item
@@ -351,7 +351,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(1, 1000, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<LogItem> logItems) {
+            private FrameCallResult afterNext(List<RaftInput> logItems) {
                 assertEquals(2, logItems.size());
                 return Fiber.frameReturn();
             }
@@ -368,7 +368,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(1, total, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<LogItem> logItems) {
+            private FrameCallResult afterNext(List<RaftInput> logItems) {
                 assertEquals(total, logItems.size());
                 return Fiber.call(it.next(total + 1, 1, 500000), this::afterNext);
             }
@@ -389,7 +389,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(index, 2, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<LogItem> logItems) throws Exception {
+            private FrameCallResult afterNext(List<RaftInput> logItems) throws Exception {
                 assertEquals(2, logItems.size());
                 index += 2;
                 if (index <= total) {
@@ -410,7 +410,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(index, limit, 300), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<LogItem> logItems) throws Exception {
+            private FrameCallResult afterNext(List<RaftInput> logItems) throws Exception {
                 index += logItems.size();
                 if (index <= total) {
                     return Fiber.resume(null, this);
@@ -452,7 +452,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         for (int i = 0; i <= list.size(); i++) {
             tailCache.cleanAll();
             for (int j = list.size() - i; j < list.size(); j++) {
-                RaftTask t = new RaftTask(LogHeader.TYPE_NORMAL,0, new RaftReqData((Encodable) null, null),
+                RaftReqData rd = new RaftReqData(null, 0, null, 0);
+                RaftTask t = new RaftTask(LogHeader.TYPE_NORMAL,0, rd, null, null,
                         null, false, null);
                 LogItem li = list.get(j);
                 t.init(li, raftStatus.ts.nanoTime);

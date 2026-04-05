@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.PerfCallback;
@@ -246,8 +245,9 @@ public class LinearTaskRunner {
 
     private RaftTask createHeartBeatInput() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        return new RaftTask(LogHeader.TYPE_HEARTBEAT, 0, new RaftReqData((Encodable) null, null),
-                deadline, false, null);
+        RaftReqData reqData = new RaftReqData(null, 0, null, 0);
+        return new RaftTask(LogHeader.TYPE_HEARTBEAT, 0, reqData,
+                null, null, deadline, false, null);
     }
 
     public void issueHeartBeat() {

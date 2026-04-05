@@ -15,9 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -27,7 +29,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
@@ -326,7 +327,9 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         ArrayList<RaftTask> list = new ArrayList<>(logs.size());
         for (int i = 0, len = logs.size(); i < len; i++) {
             LogItem li = logs.get(i);
-            RaftTask task = new RaftTask(li.type, li.bizType, li.reqData, null,
+            Object header = decode(li.type, li.reqData.bizHeader);
+            Object body = decode(li.type, li.reqData.bizBody);
+            RaftTask task = new RaftTask(li.type, li.bizType, li.reqData, header, body, null,
                     li.type == LogHeader.TYPE_LOG_READ, null);
             task.init(li, raftStatus.ts.nanoTime);
             list.add(task);
@@ -344,6 +347,22 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         FiberFrame<Void> f = gc.linearTaskRunner.append(raftStatus, list);
         // success response write in CommitManager fiber
         return Fiber.call(f, this::justReturn);
+    }
+
+    private Object decode(int type, RefBuffer rb) {
+        if (rb == null) {
+            return null;
+        }
+        if (type == LogHeader.TYPE_NORMAL) {
+            return KvServerUtil.decode(rb);
+        } else {
+            ByteBuffer buf = rb.getBuffer();
+            byte[] b = new byte[buf.remaining()];
+            int p = buf.position();
+            buf.get(b);
+            buf.position(p);
+            return b;
+        }
     }
 
     private void updateLeaderCommit(AppendReq req, RaftStatusImpl raftStatus) {

@@ -36,8 +36,9 @@ public class RaftTask extends RaftInput {
 
     boolean addPending;
 
-    public RaftTask(int type, int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly, RaftCallback callback) {
-        super(bizType, reqData, deadline, readOnly, callback);
+    public RaftTask(int type, int bizType, RaftReqData reqData, Object bizHeader, Object bizBody, DtTime deadline,
+                    boolean readOnly, RaftCallback callback) {
+        super(bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
         this.type = type;
     }
 

@@ -53,6 +53,10 @@ public class RefCount {
         }
     }
 
+    public final boolean isDummy() {
+        return updater == null;
+    }
+
     public void retain() {
         retain(1);
     }
@@ -85,7 +89,7 @@ public class RefCount {
         return r;
     }
 
-    protected boolean isReleased() {
+    public boolean isReleased() {
         AbstractRefCountUpdater u = updater;
         if (u == null) {
             return false;

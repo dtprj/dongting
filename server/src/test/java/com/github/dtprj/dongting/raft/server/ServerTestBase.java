@@ -199,7 +199,7 @@ public class ServerTestBase {
             @Override
             public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
-                return new Dispatcher("node-" + nodeId + "-" + groupConfig.groupId +
+                return new Dispatcher("n" + nodeId + "-g" + groupConfig.groupId +
                         "-dispatcher", new DefaultPoolFactory(), groupConfig.perfCallback);
             }
 

@@ -15,16 +15,13 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
-import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.nio.ByteBuffer;
 
@@ -35,9 +32,13 @@ import java.nio.ByteBuffer;
 class LogItemCallback extends PbCallback<Object> {
 
     private LogItem item;
-    private Encodable bizHeader;
-    private Encodable bizBody;
+    private RefBuffer bizHeader;
+    private RefBuffer bizBody;
     RaftCodecFactory codecFactory;
+    private final DecoderCallback<RefBuffer> refBufferCallback = new RefBuffer.Callback();
+
+    public LogItemCallback() {
+    }
 
     @Override
     protected void begin(int len) {
@@ -61,7 +62,7 @@ class LogItemCallback extends PbCallback<Object> {
 
     @Override
     protected Object getResult() {
-        item.reqData = new RaftReqData(bizHeader, bizBody);
+        item.reqData = new RaftReqData(bizHeader, 0, bizBody, 0);
         return item;
     }
 
@@ -99,40 +100,14 @@ class LogItemCallback extends PbCallback<Object> {
 
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
-        boolean begin = currentPos == 0;
         boolean end = buf.remaining() >= len - currentPos;
-        DecoderCallback<? extends Encodable> currentDecoderCallback;
         if (index == LogItem.IDX_HEADER) {
-            if (begin) {
-                if (item.type == LogHeader.TYPE_NORMAL) { // TYPE_LOG_READ do not have a header
-                    currentDecoderCallback = codecFactory.createHeaderCallback(item.bizType, context.createOrGetNestedContext());
-                    if (currentDecoderCallback == null) {
-                        throw new RaftException("no decoder for header, bizType=" + item.bizType);
-                    }
-                } else {
-                    currentDecoderCallback = new ByteArray.Callback();
-                }
-            } else {
-                currentDecoderCallback = null;
-            }
-            Encodable result = parseNested(buf, len, currentPos, currentDecoderCallback);
+            RefBuffer result = parseNested(buf, len, currentPos, refBufferCallback);
             if (end) {
                 bizHeader = result;
             }
         } else if (index == LogItem.IDX_BODY) {
-            if (begin) {
-                if (item.type == LogHeader.TYPE_NORMAL) { // TYPE_LOG_READ do not have a body
-                    currentDecoderCallback = codecFactory.createBodyCallback(item.bizType, context.createOrGetNestedContext());
-                    if (currentDecoderCallback == null) {
-                        throw new RaftException("no decoder for body, bizType=" + item.bizType);
-                    }
-                } else {
-                    currentDecoderCallback = new ByteArray.Callback();
-                }
-            } else {
-                currentDecoderCallback = null;
-            }
-            Encodable result = parseNested(buf, len, currentPos, currentDecoderCallback);
+            RefBuffer result = parseNested(buf, len, currentPos, refBufferCallback);
             if (end) {
                 bizBody = result;
             }

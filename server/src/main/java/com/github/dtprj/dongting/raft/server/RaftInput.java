@@ -29,7 +29,12 @@ public abstract class RaftInput {
     public final RaftReqData reqData;
     public RaftCallback callback;
 
-    protected RaftInput(int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly, RaftCallback callback) {
+    // decoded biz objects
+    public Object bizHeader;
+    public Object bizBody;
+
+    protected RaftInput(int bizType, RaftReqData reqData, Object bizHeader, Object bizBody,
+                        DtTime deadline, boolean readOnly, RaftCallback callback) {
         if (bizType < 0 || bizType > 127) {
             // we use 1 byte to store bizType in raft log
             throw new IllegalArgumentException("bizType must be in [0, 127]");
@@ -39,10 +44,13 @@ public abstract class RaftInput {
         this.deadline = deadline;
         this.readOnly = readOnly;
         this.callback = callback;
+        this.bizHeader = bizHeader;
+        this.bizBody = bizBody;
     }
 
-    public static RaftInput create(int bizType, RaftReqData reqData, DtTime deadline, boolean readOnly, RaftCallback callback) {
+    public static RaftInput create(int bizType, RaftReqData reqData, Object bizHeader, Object bizBody,
+                                   DtTime deadline, boolean readOnly, RaftCallback callback) {
         return new RaftTask(readOnly ? LogHeader.TYPE_LOG_READ : LogHeader.TYPE_NORMAL,
-                bizType, reqData, deadline, readOnly, callback);
+                bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
     }
 }

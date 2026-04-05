@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -29,6 +30,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -117,7 +119,9 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                     return afterLoop();
                 }
                 KvReq req = new KvReq(1, ("key" + index).getBytes(), ("value" + index).getBytes());
-                RaftInput i = RaftInput.create(DtKV.BIZ_TYPE_PUT, new RaftReqData(null, req),
+                RefBuffer rb = RaftUtil.encode(req);
+                RaftReqData rd = new RaftReqData(null, 0, rb, RaftUtil.calcCrc32c(rb));
+                RaftInput i = RaftInput.create(DtKV.BIZ_TYPE_PUT, rd, null, req,
                         new DtTime(1, TimeUnit.SECONDS), false, null);
                 Timestamp ts = groupConfig.ts;
                 FiberFuture<Object> f = kv.exec(index++, ts.wallClockMillis, ts.nanoTime, i);

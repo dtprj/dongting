@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
@@ -42,6 +43,7 @@ import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -180,7 +182,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         if (kvStatus.installSnapshot) {
             throw new DtBugException("dtkv is install snapshot");
         }
-        KvReq req = (KvReq) input.reqData.bizBody;
+        KvReq req = (KvReq) input.bizBody;
         KvImpl kv = kvStatus.kvImpl;
         int bizType = input.bizType;
         kv.opContext.init(bizType, req.ownerUuid, req.ttlMillis, leaderCreateTimeMillis, localCreateNanos);
@@ -416,7 +418,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 dtkvExecutor.submitTaskInAnyThread(() -> ttlManager.retry(ttlInfo, ex));
             }
         };
-        RaftTask ri = new RaftTask(LogHeader.TYPE_NORMAL, DtKV.BIZ_TYPE_EXPIRE, new RaftReqData(null, req),
+        RefBuffer reqBuffer = RaftUtil.encode(req);
+        RaftReqData reqData = new RaftReqData(null, 0, reqBuffer, RaftUtil.calcCrc32c(reqBuffer));
+        RaftTask ri = new RaftTask(LogHeader.TYPE_NORMAL, DtKV.BIZ_TYPE_EXPIRE, reqData, null, req,
                 null, false, callback);
         // no flow control here
         raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(ri);

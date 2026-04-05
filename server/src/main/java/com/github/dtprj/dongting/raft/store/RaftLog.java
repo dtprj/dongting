@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -83,6 +84,6 @@ public interface RaftLog {
          * @param bytesLimit max bytes of logs to return, 0 means no limit
          * @return return log items, don't return null or empty array
          */
-        FiberFrame<List<LogItem>> next(long index, int limit, int bytesLimit);
+        FiberFrame<List<RaftInput>> next(long index, int limit, int bytesLimit);
     }
 }

@@ -15,52 +15,41 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.RefCount;
 
 /**
  * @author huangli
  */
 public class RaftReqData extends RefCount {
-    public final Encodable bizHeader;
+    public final RefBuffer bizHeader;
     public final int bizHeaderSize;
     public final int bizHeaderCrc; // reserved, 0 means the crc is not computed
 
-    public final Encodable bizBody;
+    public final RefBuffer bizBody;
     public final int bizBodySize;
     public final int bizBodyCrc; // reserved, 0 means the crc is not computed
 
     public final int totalSize;
 
-    public RaftReqData(Encodable bizHeader, int bizHeaderSize, int bizHeaderCrc,
-                       Encodable bizBody, int bizBodySize, int bizBodyCrc) {
-        super(false, !(bizHeader instanceof RefCount || bizBody instanceof RefCount));
+    public RaftReqData(RefBuffer bizHeader, int bizHeaderCrc, RefBuffer bizBody, int bizBodyCrc) {
+        super(false, (bizHeader == null || bizHeader.isDummy()) && (bizBody == null || bizBody.isDummy()));
         this.bizHeader = bizHeader;
-        this.bizHeaderSize = bizHeaderSize;
         this.bizHeaderCrc = bizHeaderCrc;
         this.bizBody = bizBody;
-        this.bizBodySize = bizBodySize;
         this.bizBodyCrc = bizBodyCrc;
+        this.bizHeaderSize = bizHeader == null ? 0 : bizHeader.actualSize();
+        this.bizBodySize = bizBody == null ? 0 : bizBody.actualSize();
         this.totalSize = (bizHeaderSize == 0 ? 0 : bizHeaderSize + 4) + (bizBodySize == 0 ? 0 : bizBodySize + 4);
-    }
-
-    public RaftReqData(Encodable bizHeader, Encodable bizBody) {
-        this(bizHeader, bizHeader == null ? 0 : bizHeader.actualSize(), 0,
-                bizBody, bizBody == null ? 0 : bizBody.actualSize(), 0);
-    }
-
-    public RaftReqData(byte[] bizHeader, byte[] bizBody) {
-        this(bizHeader == null ? null : new ByteArray(bizHeader), bizBody == null ? null : new ByteArray(bizBody));
     }
 
     @Override
     protected void doClean() {
-        if (bizHeader instanceof RefCount) {
-            ((RefCount) bizHeader).release();
+        if (bizHeader != null) {
+            bizHeader.release();
         }
-        if (bizBody instanceof RefCount) {
-            ((RefCount) bizBody).release();
+        if (bizBody != null) {
+            bizBody.release();
         }
     }
 }

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -178,7 +178,13 @@ public class LogFileQueueTest extends BaseFiberTest {
         for (int i = 0; i < bodySize; i++) {
             bizBody[i] = (byte) i;
         }
-        item.reqData = new RaftReqData(bizHeader, bizBody);
+
+        RefBuffer bizHeaderBuffer = RefBuffer.wrap(ByteBuffer.wrap(bizHeader));
+        int headerCrc = RaftUtil.calcCrc32c(bizHeaderBuffer);
+        RefBuffer bizBodyBuffer = RefBuffer.wrap(ByteBuffer.wrap(bizBody));
+        int bodyCrc = RaftUtil.calcCrc32c(bizBodyBuffer);
+
+        item.reqData = new RaftReqData(bizHeaderBuffer, headerCrc, bizBodyBuffer, bodyCrc);
 
         return item;
     }
@@ -237,8 +243,9 @@ public class LogFileQueueTest extends BaseFiberTest {
             assertEquals(item.timestamp, header.timestamp);
 
             if (bizHeaderLen > 0) {
+                ByteBuffer expect = item.reqData.bizHeader.getBuffer();
                 for (int j = 0; j < bizHeaderLen; j++) {
-                    assertEquals(((ByteArray) item.reqData.bizHeader).getData()[j], buf.get());
+                    assertEquals(expect.get(j), buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bizHeaderLen, bizHeaderLen);
@@ -247,8 +254,9 @@ public class LogFileQueueTest extends BaseFiberTest {
 
             if (header.bodyLen > 0) {
                 int bodyLen = header.bodyLen;
+                ByteBuffer expect = item.reqData.bizBody.getBuffer();
                 for (int j = 0; j < bodyLen; j++) {
-                    assertEquals(((ByteArray) item.reqData.bizBody).getData()[j], buf.get());
+                    assertEquals(expect.get(j), buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bodyLen, bodyLen);
