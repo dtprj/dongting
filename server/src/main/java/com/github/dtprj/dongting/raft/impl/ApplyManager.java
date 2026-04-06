@@ -281,6 +281,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         if (execEx != null && !rt.readOnly) {
             throw Fiber.fatal(execEx);
         }
+        rt.bizHeader = null;
+        rt.bizBody = null;
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
