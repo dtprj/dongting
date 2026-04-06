@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -68,7 +69,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final RaftCodecFactory codecFactory;
     private final DecodeContext decodeContext;
     private final Decoder decoder;
-    private final DecoderCallback<RefBuffer> refBufferCallback = new RefBuffer.Callback();
+    private final DecoderCallback<RefBuffer> refBufferCallback = new RefBufferDecoderCallback();
 
     private boolean error;
     private boolean close;

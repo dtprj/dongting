@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -35,7 +36,7 @@ class LogItemCallback extends PbCallback<Object> {
     private RefBuffer bizHeader;
     private RefBuffer bizBody;
     RaftCodecFactory codecFactory;
-    private final DecoderCallback<RefBuffer> refBufferCallback = new RefBuffer.Callback();
+    private final DecoderCallback<RefBuffer> refBufferCallback = new RefBufferDecoderCallback();
 
     public LogItemCallback() {
     }

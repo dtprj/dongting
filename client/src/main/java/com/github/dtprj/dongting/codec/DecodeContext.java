@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.log.DtLog;
@@ -48,7 +47,6 @@ public class DecodeContext {
     private PbStrCallback pbStrCallback;
     private PbBytesCallback pbBytesCallback;
     private KvReq.KvReqCallback kvReqCallback;
-    private RefBuffer.Callback refBufferCallback;
 
     // replace in server side to create DecodeContextEx
     public static BiFunction<RefBufferFactory, byte[], DecodeContext> factory = DecodeContext::new;
@@ -157,13 +155,6 @@ public class DecodeContext {
             kvReqCallback = new KvReq.KvReqCallback();
         }
         return kvReqCallback;
-    }
-
-    public RefBuffer.Callback cachedRefBufferCallback() {
-        if (refBufferCallback == null) {
-            refBufferCallback = new RefBuffer.Callback();
-        }
-        return refBufferCallback;
     }
 
 }
