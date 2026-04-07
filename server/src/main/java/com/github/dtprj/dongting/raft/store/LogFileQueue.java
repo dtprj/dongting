@@ -244,39 +244,6 @@ final class LogFileQueue extends FileQueue {
         return logAppender.new WriteFiberFrame(inputs);
     }
 
-    public FiberFrame<LogHeader> loadHeader(long pos) {
-        LogFile f = getLogFile(pos);
-        if (f.isDeleted()) {
-            throw new RaftException("file deleted: " + f.getFile());
-        }
-        ByteBuffer buf = directPool.borrow(LogHeader.ITEM_HEADER_SIZE);
-        return new FiberFrame<>() {
-
-            @Override
-            protected FrameCallResult doFinally() {
-                directPool.release(buf);
-                return super.doFinally();
-            }
-
-            @Override
-            public FrameCallResult execute(Void input) {
-                long filePos = filePos(pos);
-                AsyncIoTask task = new AsyncIoTask(fiberGroup, f);
-                return task.read(buf, filePos).await(this::afterLoadHeader);
-            }
-
-            private FrameCallResult afterLoadHeader(Void unused) {
-                buf.flip();
-                LogHeader header = new LogHeader();
-                if (!header.read(buf)) {
-                    throw new RaftException("header crc not match");
-                }
-                setResult(header);
-                return Fiber.frameReturn();
-            }
-        };
-    }
-
     public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) throws Exception {
         long start = startPosOfFile(nextLogPos);
         queueStartPosition = start;

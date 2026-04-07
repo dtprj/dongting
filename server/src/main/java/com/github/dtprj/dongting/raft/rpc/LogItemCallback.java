@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
-import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -49,11 +48,11 @@ class LogItemCallback extends PbCallback<Object> {
     @Override
     protected void end(boolean success) {
         if (!success) {
-            if (bizHeader != null && bizHeader instanceof RefCount) {
-                ((RefCount) bizHeader).release();
+            if (bizHeader != null) {
+                bizHeader.release();
             }
-            if (bizBody != null && bizBody instanceof RefCount) {
-                ((RefCount) bizBody).release();
+            if (bizBody != null) {
+                bizBody.release();
             }
         }
         item = null;
