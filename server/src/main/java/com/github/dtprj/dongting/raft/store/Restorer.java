@@ -113,7 +113,7 @@ class Restorer {
 
         private FrameCallResult afterReadFirstItemHeader(long firstItemPos) {
             buffer.flip();
-            if (header.read(buffer)) {
+            if (header.readAndCheckCrc(crc32c, buffer)) {
                 if (header.isEndMagic()) {
                     log.info("first item is end magic. file={}, pos={}", lf.getFile().getPath(), firstItemPos);
                     setResult(new Pair<>(false, lf.startPos + firstItemPos));
@@ -251,7 +251,7 @@ class Restorer {
         if (buf.remaining() < LogHeader.ITEM_HEADER_SIZE) {
             return RT_CONTINUE_LOAD;
         }
-        if (!header.read(buf)) {
+        if (!header.readAndCheckCrc(crc32c, buf)) {
             return itemCheckFail(lf, "header crc not match");
         }
         if (header.isEndMagic()) {

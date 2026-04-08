@@ -48,8 +48,6 @@ public class LogHeader {
     // negative value means end of file
     private static final int END_LEN_MAGIC = 0xF19A7BCB;
 
-    private final CRC32C crc32c = new CRC32C();
-
     int totalLen;
     int bizHeaderLen;
     int bodyLen;
@@ -59,6 +57,7 @@ public class LogHeader {
     int prevLogTerm;
     long index;
     long timestamp;
+    int headerCrc;
 
     public LogHeader() {
     }
@@ -67,8 +66,7 @@ public class LogHeader {
         return totalLen == END_LEN_MAGIC;
     }
 
-    public boolean read(ByteBuffer buf) {
-        int start = buf.position();
+    public void read(ByteBuffer buf) {
         totalLen = buf.getInt();
         bizHeaderLen = buf.getInt();
         bodyLen = buf.getInt();
@@ -78,10 +76,13 @@ public class LogHeader {
         prevLogTerm = buf.getInt();
         index = buf.getLong();
         timestamp = buf.getLong();
-        int headerCrc = buf.getInt();
+        headerCrc = buf.getInt();
+    }
 
-        CRC32C crc32c = this.crc32c;
+    public boolean readAndCheckCrc(CRC32C crc32c, ByteBuffer buf) {
+        int start = buf.position();
         crc32c.reset();
+        read(buf);
         RaftUtil.updateCrc(crc32c, buf, start, ITEM_HEADER_SIZE - 4);
         return headerCrc == ((int) crc32c.getValue());
     }

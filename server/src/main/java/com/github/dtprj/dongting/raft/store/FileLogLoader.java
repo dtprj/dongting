@@ -292,7 +292,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         private boolean extractHeader(ByteBuffer readBuffer) {
             LogHeader h = header;
             itemStartPos = bufferStartPos + readBuffer.position();
-            if (!h.read(readBuffer)) {
+            if (!h.readAndCheckCrc(crc32c, readBuffer)) {
                 throw new ChecksumException("header crc not match: index=" + (nextIndex + result.size())
                         + ",pos=" + itemStartPos);
             }

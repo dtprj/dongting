@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.raft.server.ChecksumException;
 import java.io.File;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.zip.CRC32C;
 
 /**
  * @author huangli
@@ -37,7 +38,7 @@ public class LogTool {
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, FILE_SIZE);
             buf.position(filePos);
             LogHeader header = new LogHeader();
-            if(!header.read(buf)){
+            if(!header.readAndCheckCrc(new CRC32C(), buf)){
                 throw new ChecksumException();
             }
             return header;

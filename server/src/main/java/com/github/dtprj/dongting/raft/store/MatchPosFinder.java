@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.nio.ByteBuffer;
 import java.util.function.Supplier;
+import java.util.zip.CRC32C;
 
 /**
  * @author huangli
@@ -195,7 +196,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
 
         buf.flip();
         LogHeader header = new LogHeader();
-        if (!header.read(buf)) {
+        if (!header.readAndCheckCrc(new CRC32C(), buf)) {
             throw new ChecksumException();
         }
         if (header.index != midIndex) {

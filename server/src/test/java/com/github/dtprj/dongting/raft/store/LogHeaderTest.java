@@ -47,7 +47,7 @@ public class LogHeaderTest {
 
         buf.clear();
         LogHeader header = new LogHeader();
-        assertTrue(header.read(buf));
+        assertTrue(header.readAndCheckCrc(new CRC32C(), buf));
         assertEquals(1, header.type);
         assertEquals(2, header.bizType);
         assertEquals(1000, header.term);
@@ -68,7 +68,7 @@ public class LogHeaderTest {
 
         buf.clear();
         LogHeader header = new LogHeader();
-        assertTrue(header.read(buf));
+        assertTrue(header.readAndCheckCrc(new CRC32C(), buf));
         assertEquals(0xF19A7BCB, header.totalLen);
     }
 }
