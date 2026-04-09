@@ -22,8 +22,8 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.LogHeader;
@@ -76,7 +76,7 @@ public class AppendReqWritePacketTest {
         buf.clear();
 
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory);
+        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory, decodeContext.heapPool, decodeContext.threadLocalBuffer);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         AppendReq result = (AppendReq) p.parse(buf);
@@ -96,7 +96,7 @@ public class AppendReqWritePacketTest {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
         EncodeContext context = new EncodeContext(null);
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory);
+        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory, decodeContext.heapPool, decodeContext.threadLocalBuffer);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         Random r = new Random();
@@ -127,22 +127,22 @@ public class AppendReqWritePacketTest {
         f.prevLogIndex = 100;
         f.prevLogTerm = 3;
         f.leaderCommit = 99;
-        ArrayList<LogItem> logs = new ArrayList<>();
+        ArrayList<RaftTask> logs = new ArrayList<>();
         f.logs = logs;
         for (int i = 0; i < 2; i++) {
-            LogItem log = new LogItem();
-            log.bizType = 1;
-            log.index = 200 + i;
-            log.term = 4;
-            log.timestamp = System.currentTimeMillis();
-            log.type = LogHeader.TYPE_NORMAL;
             RefBuffer bizHeader = addHeader ? createBytes(10) : null;
             int headerCrc = bizHeader != null ? RaftUtil.calcCrc32c(bizHeader) : 0;
             RefBuffer bizBody = addBody ? createBytes(20) : null;
             int bodyCrc = bizBody != null ? RaftUtil.calcCrc32c(bizBody) : 0;
-            log.reqData = new RaftReqData(bizHeader, headerCrc, bizBody, bodyCrc);
+            RaftReqData reqData = new RaftReqData(bizHeader, headerCrc, bizBody, bodyCrc);
 
-            logs.add(log);
+            RaftTask rt = new RaftTask(LogHeader.TYPE_NORMAL, 1, reqData, null, null, null, false, null);
+            rt.index = 200+i;
+            rt.term = 4;
+            rt.prevLogTerm = 3;
+            rt.timestamp = System.currentTimeMillis();
+
+            logs.add(rt);
         }
         return f;
     }
@@ -156,8 +156,8 @@ public class AppendReqWritePacketTest {
         assertEquals(f.leaderCommit, c.leaderCommit);
         assertEquals(f.logs.size(), c.logs.size());
         for (int i = 0; i < f.logs.size(); i++) {
-            LogItem l1 = f.logs.get(i);
-            LogItem l2 = c.logs.get(i);
+            RaftTask l1 = f.logs.get(i);
+            RaftTask l2 = c.logs.get(i);
             assertEquals(l1.bizType, l2.bizType);
             assertEquals(l1.index, l2.index);
             assertEquals(l1.term, l2.term);

@@ -15,11 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -40,15 +38,12 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
-import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -308,32 +303,23 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
                     + req.prevLogIndex + ", expectIndex=" + expectLogIndex);
             return Fiber.frameReturn();
         }
-        List<LogItem> logs = req.logs;
-        for (int i = 0, len = logs.size(); i < len; i++) {
-            LogItem li = logs.get(i);
-            if (li.index != ++expectLogIndex) {
-                log.error("bad request: log index not continuous at pos {}, expected={}, actual={}, leaderId={}",
-                        i, expectLogIndex, li.index, req.leaderId);
-                writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index " + i + " not continuous");
-                return Fiber.frameReturn();
-            }
-        }
 
         // Here, we refreshed the ts. Next, the time t set on RaftTask is greater than the time when the raft
         // client constructs the request. Since there is a 1ms error in the ts refresh, the time when the raft
         // client constructs the request happens before (t + 1ms).
         raftStatus.ts.refresh(1);
 
-        ArrayList<RaftTask> list = new ArrayList<>(logs.size());
+        List<RaftTask> logs = req.logs;
         for (int i = 0, len = logs.size(); i < len; i++) {
-            LogItem li = logs.get(i);
-            Object header = decode(li.type, li.reqData.bizHeader);
-            Object body = decode(li.type, li.reqData.bizBody);
-            RaftTask task = new RaftTask(li.type, li.bizType, li.reqData, header, body, null,
-                    li.type == LogHeader.TYPE_LOG_READ, null);
-            task.init(li, raftStatus.ts.nanoTime);
-            list.add(task);
+            RaftTask li = logs.get(i);
+            if (li.index != ++expectLogIndex) {
+                log.error("bad request: log index not continuous at pos {}, expected={}, actual={}, leaderId={}",
+                        i, expectLogIndex, li.index, req.leaderId);
+                writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index " + i + " not continuous");
+                return Fiber.frameReturn();
+            }
 
+            li.init(li.term, li.prevLogTerm, li.index, li.timestamp, raftStatus.ts.nanoTime);
             if (li.index < raftStatus.groupReadyIndex && raftStatus.getRole() != RaftRole.none) {
                 log.info("set groupReadyIndex to {}, groupId={}", li.index, raftStatus.groupId);
                 raftStatus.groupReadyIndex = li.index;
@@ -344,25 +330,9 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         }
         gc.commitManager.updateCommitHistory(req.leaderCommit);
         needRelease = false;
-        FiberFrame<Void> f = gc.linearTaskRunner.append(raftStatus, list);
+        FiberFrame<Void> f = gc.linearTaskRunner.append(raftStatus, logs);
         // success response write in CommitManager fiber
         return Fiber.call(f, this::justReturn);
-    }
-
-    private Object decode(int type, RefBuffer rb) {
-        if (rb == null) {
-            return null;
-        }
-        if (type == LogHeader.TYPE_NORMAL) {
-            return KvServerUtil.decode(rb);
-        } else {
-            ByteBuffer buf = rb.getBuffer();
-            byte[] b = new byte[buf.remaining()];
-            int p = buf.position();
-            buf.get(b);
-            buf.position(p);
-            return b;
-        }
     }
 
     private void updateLeaderCommit(AppendReq req, RaftStatusImpl raftStatus) {

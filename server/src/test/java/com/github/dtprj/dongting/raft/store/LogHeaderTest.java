@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import org.junit.jupiter.api.Test;
 
@@ -32,18 +32,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class LogHeaderTest {
     @Test
     public void testWriteAndRead() {
-        LogItem item = new LogItem();
-        item.type = 1;
-        item.bizType = 2;
-        item.term = 1000;
-        item.prevLogTerm = 2000;
-        item.index = 3000;
-        item.timestamp = Long.MAX_VALUE;
+        RaftReqData reqData = new RaftReqData(RefBuffer.wrap(ByteBuffer.wrap(new byte[200])), 0,
+                RefBuffer.wrap(ByteBuffer.wrap(new byte[300])), 0);
+        RaftTask rt = new RaftTask(1, 2, reqData, null, null, null, false, null);
+        rt.init(1000, 2000, 3000, Long.MAX_VALUE, 0);
+
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         CRC32C crc32C = new CRC32C();
-        item.reqData = new RaftReqData(RefBuffer.wrap(ByteBuffer.wrap(new byte[200])),0 ,
-                RefBuffer.wrap(ByteBuffer.wrap(new byte[300])),0);
-        LogHeader.writeHeader(crc32C, buf, item);
+        LogHeader.writeHeader(crc32C, buf, rt);
 
         buf.clear();
         LogHeader header = new LogHeader();

@@ -40,18 +40,7 @@ message AppendEntriesReq {
   int32 prev_log_term = 5;
   fixed64 leader_commit = 6;
   int32 logs_size = 7;
-  repeated LogItem entries = 8[packed=false];
-}
-
-message LogItem {
-  int32 type = 1;
-  int32 bizType = 2;
-  int32 term = 3;
-  fixed64 index = 4;
-  int32 prev_log_term = 5;
-  fixed64 timestamp = 6;
-  bytes header = 7;
-  bytes body = 8;
+  bytes entries = 8;
 }
 
 message AppendEntriesResp {

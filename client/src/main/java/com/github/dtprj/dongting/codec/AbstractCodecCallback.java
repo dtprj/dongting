@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.log.DtLog;
@@ -132,34 +130,13 @@ public abstract class AbstractCodecCallback<T> {
         }
     }
 
-    protected final RefBuffer parseRefBuffer(ByteBuffer buf, int fieldLen, int currentPos) {
-        if (fieldLen == 0) {
-            return RefBuffer.wrap(SimpleByteBufferPool.EMPTY_BUFFER);
-        }
-        RefBuffer result;
-        if (currentPos == 0) {
-            result = context.heapPool.create(fieldLen);
-            context.status = result;
-        } else {
-            result = (RefBuffer) context.status;
-        }
-        ByteBuffer resultBuf = result.getBuffer();
-        resultBuf.put(buf);
-        if (resultBuf.position() < fieldLen) {
-            return null;
-        } else {
-            resultBuf.flip();
-            result.prepareForEncode();
-            return result;
-        }
-    }
-
     @SuppressWarnings("unchecked")
     protected final <X> X parseNested(ByteBuffer buf, int fieldLen, int currentPos,
                                       PbCallback<X> nestedCallback) {
         PbParser nestedParser = context.createOrGetNestedParser();
+        DecodeContext nestedContext = context.createOrGetNestedContext();
         if (currentPos == 0) {
-            nestedParser.prepareNext(context.createOrGetNestedContext(), nestedCallback, fieldLen);
+            nestedParser.prepareNext(nestedContext, nestedCallback, fieldLen);
         }
         boolean end = buf.remaining() >= fieldLen - currentPos;
         X result = (X) nestedParser.parse(buf);
@@ -168,6 +145,7 @@ public abstract class AbstractCodecCallback<T> {
                 throw new PbException("parse not finish after read all bytes. fieldLen=" + fieldLen
                         + ", currentPos=" + currentPos + "class=" + getClass());
             }
+            nestedContext.reset(nestedParser);
         } else {
             if (nestedParser.isFinished()) {
                 throw new PbException("parse finished without read all bytes. fieldLen=" + fieldLen
@@ -181,8 +159,9 @@ public abstract class AbstractCodecCallback<T> {
     protected final <X> X parseNested(ByteBuffer buf, int fieldLen, int currentPos,
                                       DecoderCallback<X> nestedCallback) {
         Decoder nestedDecoder = context.createOrGetNestedDecoder();
+        DecodeContext nestedContext = context.createOrGetNestedContext();
         if (currentPos == 0) {
-            nestedDecoder.prepareNext(context.createOrGetNestedContext(), nestedCallback);
+            nestedDecoder.prepareNext(nestedContext, nestedCallback);
         }
         boolean end = buf.remaining() >= fieldLen - currentPos;
         X result = (X) nestedDecoder.decode(buf, fieldLen, currentPos);
@@ -191,6 +170,7 @@ public abstract class AbstractCodecCallback<T> {
                 throw new PbException("decode not finish after read all bytes. fieldLen="
                         + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
             }
+            nestedContext.reset(nestedDecoder);
         } else {
             if (nestedDecoder.isFinished()) {
                 throw new PbException("decode finished without read all bytes. fieldLen="

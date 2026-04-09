@@ -23,8 +23,8 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -157,14 +157,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
     }
 
-    static LogItem createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize, int bizHeaderLen) {
-        LogItem item = new LogItem();
-        item.type = 1;
-        item.bizType = 2;
-        item.term = term;
-        item.prevLogTerm = prevTerm;
-        item.index = index;
-        item.timestamp = config.ts.wallClockMillis;
+    static RaftTask createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize, int bizHeaderLen) {
         byte[] bizHeader = new byte[bizHeaderLen];
         for (int i = 0; i < bizHeaderLen; i++) {
             bizHeader[i] = (byte) i;
@@ -184,15 +177,21 @@ public class LogFileQueueTest extends BaseFiberTest {
         RefBuffer bizBodyBuffer = RefBuffer.wrap(ByteBuffer.wrap(bizBody));
         int bodyCrc = RaftUtil.calcCrc32c(bizBodyBuffer);
 
-        item.reqData = new RaftReqData(bizHeaderBuffer, headerCrc, bizBodyBuffer, bodyCrc);
+        RaftReqData reqData = new RaftReqData(bizHeaderBuffer, headerCrc, bizBodyBuffer, bodyCrc);
 
-        return item;
+        RaftTask rt = new RaftTask(1, 2, reqData, null, null, null, false, null);
+        rt.term = term;
+        rt.prevLogTerm = prevTerm;
+        rt.index = index;
+        rt.timestamp = config.ts.wallClockMillis;
+
+        return rt;
     }
 
     private void append(boolean check, long startPos, int... totalSizes) throws Exception {
         long fileSize = 1024;
-        LogItem[] items = new LogItem[totalSizes.length];
-        List<LogItem> list = new ArrayList<>();
+        RaftTask[] items = new RaftTask[totalSizes.length];
+        List<RaftTask> list = new ArrayList<>();
         for (int i = 0; i < totalSizes.length; i++) {
             items[i] = createItem(config, term, prevTerm, index, totalSizes[i], bizHeaderLen);
             index++;
@@ -232,7 +231,7 @@ public class LogFileQueueTest extends BaseFiberTest {
                 startPos += fileSize;
                 buf = load(startPos);
             }
-            LogItem item = items[i];
+            RaftTask item = items[i];
             LogHeader header = new LogHeader();
             assertTrue(header.readAndCheckCrc(new CRC32C(), buf));
             assertEquals(item.type, header.type);

@@ -183,7 +183,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                     FiberFuture<Object> f = null;
                     Throwable execEx = null;
                     try {
-                        f = stateMachine.exec(index, rt.item.timestamp, rt.localCreateNanos, rt);
+                        f = stateMachine.exec(index, rt.timestamp, rt.localCreateNanos, rt);
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;
@@ -286,7 +286,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
-        raftStatus.lastAppliedTerm = rt.item.term;
+        raftStatus.lastAppliedTerm = rt.term;
 
         updateApplyLagNanos(index, raftStatus);
 
@@ -345,7 +345,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     private void tryApplyHeartBeat(long appliedIndex) {
         RaftTask t = heartBeatQueue.peekFirst();
-        if (t != null && t.item.index == appliedIndex + 1) {
+        if (t != null && t.index == appliedIndex + 1) {
             heartBeatQueue.pollFirst();
             afterExec(appliedIndex + 1, t, null, null);
         }
@@ -422,7 +422,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 if (logIterator == null) {
                     logIterator = raftLog.openIterator(null);
                 }
-                FiberFrame<List<RaftInput>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
+                FiberFrame<List<RaftTask>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
                 return Fiber.call(ff, this::afterLoad);
             } else {
                 closeIterator();
@@ -430,7 +430,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             }
         }
 
-        private FrameCallResult afterLoad(List<RaftInput> items) {
+        private FrameCallResult afterLoad(List<RaftTask> items) {
             ExecLoadResultFrame ff = new ExecLoadResultFrame(items);
             return Fiber.call(ff, this::execLoop);
         }
@@ -445,10 +445,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     private class ExecLoadResultFrame extends FiberFrame<Void> {
 
-        private final List<RaftInput> items;
+        private final List<RaftTask> items;
         private int listIndex;
 
-        public ExecLoadResultFrame(List<RaftInput> items) {
+        public ExecLoadResultFrame(List<RaftTask> items) {
             // Here, we refreshed the ts. Next, the time t set on RaftTask is greater than the time when the raft
             // client constructs the request. Since there is a 1ms error in the ts refresh, the time when the raft
             // client constructs the request happens before (t + 1ms).
@@ -479,9 +479,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             if (listIndex >= items.size()) {
                 return Fiber.frameReturn();
             }
-            RaftTask rt = (RaftTask) items.get(listIndex++);
+            RaftTask rt = items.get(listIndex++);
 
-            return exec(rt, rt.item.index, this);
+            return exec(rt, rt.index, this);
         }
 
     }
@@ -529,7 +529,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
         @Override
         public FrameCallResult execute(Void v) {
-            return Fiber.call(new WaitApplyFrame(rt.item.index - 1), this::afterSync);
+            return Fiber.call(new WaitApplyFrame(rt.index - 1), this::afterSync);
         }
 
         private FrameCallResult afterSync(Void v) {
@@ -539,9 +539,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 case LogHeader.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);
                 case LogHeader.TYPE_DROP_CONFIG_CHANGE:
-                    return gc.memberManager.doAbort(rt.item.index);
+                    return gc.memberManager.doAbort(rt.index);
                 case LogHeader.TYPE_COMMIT_CONFIG_CHANGE:
-                    return gc.memberManager.doCommit(rt.item.index);
+                    return gc.memberManager.doCommit(rt.index);
                 default:
                     throw Fiber.fatal(new RaftException("unknown config change type"));
             }
@@ -563,7 +563,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
                         oldObserverIds, raftStatus.nodeIdOfObservers, raftStatus.groupId);
             }
-            return gc.memberManager.doPrepare(rt.item.index, newMemberIds, newObserverIds);
+            return gc.memberManager.doPrepare(rt.index, newMemberIds, newObserverIds);
         }
 
         private Set<Integer> parseSet(String s) {

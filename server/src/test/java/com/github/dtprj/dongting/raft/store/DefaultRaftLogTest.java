@@ -28,9 +28,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
@@ -118,15 +116,15 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     private void append(long index, int[] totalSizes, int[] bizHeaderLen) throws Exception {
-        ArrayList<LogItem> list = new ArrayList<>();
+        ArrayList<RaftTask> list = new ArrayList<>();
         for (int i = 0; i < totalSizes.length; i++) {
-            LogItem li = createItem(config, 100, 100, index++, totalSizes[i], bizHeaderLen[i]);
+            RaftTask li = createItem(config, 100, 100, index++, totalSizes[i], bizHeaderLen[i]);
             list.add(li);
         }
         append(list);
     }
 
-    private void append(List<LogItem> list) throws Exception {
+    private void append(List<RaftTask> list) throws Exception {
         long lastIdx = list.get(list.size() - 1).index;
         doInFiber(new FiberFrame<>() {
             @Override
@@ -306,7 +304,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(1, 1, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<RaftInput> logItems) {
+            private FrameCallResult afterNext(List<RaftTask> logItems) {
                 fail();
                 return Fiber.frameReturn();
             }
@@ -327,7 +325,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(1, 1, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<RaftInput> logItems) {
+            private FrameCallResult afterNext(List<RaftTask> logItems) {
                 fail();
                 return Fiber.frameReturn();
             }
@@ -351,7 +349,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(1, 1000, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<RaftInput> logItems) {
+            private FrameCallResult afterNext(List<RaftTask> logItems) {
                 assertEquals(2, logItems.size());
                 return Fiber.frameReturn();
             }
@@ -368,7 +366,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(1, total, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<RaftInput> logItems) {
+            private FrameCallResult afterNext(List<RaftTask> logItems) {
                 assertEquals(total, logItems.size());
                 return Fiber.call(it.next(total + 1, 1, 500000), this::afterNext);
             }
@@ -389,7 +387,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(index, 2, 500000), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<RaftInput> logItems) throws Exception {
+            private FrameCallResult afterNext(List<RaftTask> logItems) throws Exception {
                 assertEquals(2, logItems.size());
                 index += 2;
                 if (index <= total) {
@@ -410,7 +408,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.call(it.next(index, limit, 300), this::afterNext);
             }
 
-            private FrameCallResult afterNext(List<RaftInput> logItems) throws Exception {
+            private FrameCallResult afterNext(List<RaftTask> logItems) throws Exception {
                 index += logItems.size();
                 if (index <= total) {
                     return Fiber.resume(null, this);
@@ -429,7 +427,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
     @Test
     void testTryFindMatchPos() throws Exception {
-        ArrayList<LogItem> list = new ArrayList<>();
+        ArrayList<RaftTask> list = new ArrayList<>();
         // file 1
         list.add(createItem(config, 1, 0, 1, 256, 50));
         list.add(createItem(config, 1, 1, 2, 256, 50));
@@ -455,8 +453,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 RaftReqData rd = new RaftReqData(null, 0, null, 0);
                 RaftTask t = new RaftTask(LogHeader.TYPE_NORMAL,0, rd, null, null,
                         null, false, null);
-                LogItem li = list.get(j);
-                t.init(li, raftStatus.ts.nanoTime);
+                RaftTask li = list.get(j);
+                t.init(li.term, li.prevLogTerm, li.index, li.timestamp, raftStatus.ts.nanoTime);
                 tailCache.put(li.index, t);
             }
             testMatch();

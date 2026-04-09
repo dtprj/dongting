@@ -24,11 +24,11 @@ import com.github.dtprj.dongting.common.RefCount;
 public class RaftReqData extends RefCount {
     public final RefBuffer bizHeader;
     public final int bizHeaderSize;
-    public final int bizHeaderCrc; // reserved, 0 means the crc is not computed
+    public final int bizHeaderCrc;
 
     public final RefBuffer bizBody;
     public final int bizBodySize;
-    public final int bizBodyCrc; // reserved, 0 means the crc is not computed
+    public final int bizBodyCrc;
 
     public final int totalSize;
 

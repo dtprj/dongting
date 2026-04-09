@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -30,10 +29,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -86,13 +83,13 @@ class LogAppender {
     class WriteFiberFrame extends FiberFrame<Void> {
 
         // 3 temp status fields, should reset in encodeAndWriteItems()
-        private LogItem lastItem;
+        private RaftTask lastItem;
         private int writeCount;
         private int bytesToWrite;
 
-        private final List<LogItem> taskList;
+        private final List<RaftTask> taskList;
 
-        WriteFiberFrame(List<LogItem> taskList) {
+        WriteFiberFrame(List<RaftTask> taskList) {
             this.taskList = taskList;
         }
 
@@ -157,7 +154,7 @@ class LogAppender {
             long fileRestBytes = file.endPos - nextPersistPos;
             int count = 0;
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
-                LogItem li = taskList.get(i);
+                RaftTask li = taskList.get(i);
                 int len;
                 if (li.type == LogHeader.TYPE_LOG_READ) {
                     len = LogHeader.ITEM_HEADER_SIZE;
@@ -221,31 +218,15 @@ class LogAppender {
             long writeStartPosInFile = nextPersistPos & fileLenMask;
             long dataPos = file.startPos + writeStartPosInFile;
             for (int i = 0; i < count; i++) {
-                LogItem li = taskList.get(startTaskIndex + i);
+                RaftTask li = taskList.get(startTaskIndex + i);
                 if (file.firstIndex == 0) {
                     file.firstIndex = li.index;
                     file.firstTerm = li.term;
                     file.firstTimestamp = li.timestamp;
                 }
-                if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                    buffer = doWrite(file, buffer);
-                }
-                int len = LogHeader.writeHeader(crc32c, buffer, li);
 
-                RaftReqData rd = li.reqData;
-                if (li.type != LogHeader.TYPE_LOG_READ && rd.bizHeaderSize > 0) {
-                    if (!buffer.hasRemaining()) {
-                        buffer = doWrite(file, buffer);
-                    }
-                    buffer = encodeData(rd.bizHeaderSize, rd.bizHeader, buffer, file);
-                }
-                if (li.type != LogHeader.TYPE_LOG_READ && rd.bizBodySize > 0) {
-                    if (!buffer.hasRemaining()) {
-                        buffer = doWrite(file, buffer);
-                    }
-                    buffer = encodeData(rd.bizBodySize, rd.bizBody, buffer, file);
-                }
-
+                int len = li.actualSize();
+                buffer = encodeData(len, li, buffer, file);
                 idxOps.put(li.index, dataPos, len);
                 dataPos += len;
                 lastItem = li;
@@ -254,15 +235,14 @@ class LogAppender {
             return buffer;
         }
 
-        private ByteBuffer encodeData(int actualSize, Encodable src, ByteBuffer dest, LogFile file) {
-            crc32c.reset();
+        private ByteBuffer encodeData(int actualSize, RaftTask src, ByteBuffer dest, LogFile file) {
             try {
                 int totalEncodeLen = 0;
+                encodeContext.status = crc32c;
                 while (true) {
                     int startPos = dest.position();
                     boolean finish = src.encode(encodeContext, dest);
                     totalEncodeLen += dest.position() - startPos;
-                    RaftUtil.updateCrc(crc32c, dest, startPos, dest.position() - startPos);
                     if (finish) {
                         if (totalEncodeLen != actualSize) {
                             throw new RaftException("encode problem, totalEncodeLen != actualSize");
@@ -275,10 +255,6 @@ class LogAppender {
             } finally {
                 encodeContext.reset();
             }
-            if (dest.remaining() < 4) {
-                dest = doWrite(file, dest);
-            }
-            dest.putInt((int) crc32c.getValue());
             return dest;
         }
 

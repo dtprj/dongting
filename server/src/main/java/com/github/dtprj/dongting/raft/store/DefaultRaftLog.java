@@ -28,8 +28,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
@@ -156,7 +156,7 @@ public final class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public FiberFrame<Void> append(List<LogItem> inputs) {
+    public FiberFrame<Void> append(List<RaftTask> inputs) {
         return logFiles.append(inputs);
     }
 

@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.nio.ByteBuffer;
@@ -43,7 +43,7 @@ public class LogHeader {
     // index 8 bytes
     // timestamp 8 bytes
     // header crc
-    static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 1 + 1 + 4 + 4 + 8 + 8 + 4;
+    public static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 1 + 1 + 4 + 4 + 8 + 8 + 4;
 
     // negative value means end of file
     private static final int END_LEN_MAGIC = 0xF19A7BCB;
@@ -91,8 +91,8 @@ public class LogHeader {
         return ITEM_HEADER_SIZE + (bizHeaderLen == 0 ? 0 : bizHeaderLen + 4) + (bodyLen == 0 ? 0 : bodyLen + 4);
     }
 
-    public static int writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log) {
-        boolean read = log.type == TYPE_LOG_READ;
+    public static int writeHeader(CRC32C crc, ByteBuffer buffer, RaftTask rt) {
+        boolean read = rt.type == TYPE_LOG_READ;
         int len;
         int bizHeaderSize;
         int bizBodySize;
@@ -101,7 +101,7 @@ public class LogHeader {
             bizHeaderSize = 0;
             bizBodySize = 0;
         } else {
-            RaftReqData reqData = log.reqData;
+            RaftReqData reqData = rt.reqData;
             bizHeaderSize = reqData.bizHeaderSize;
             bizBodySize = reqData.bizBodySize;
             len = computeTotalLen(bizHeaderSize, bizBodySize);
@@ -110,12 +110,12 @@ public class LogHeader {
         buffer.putInt(len);
         buffer.putInt(bizHeaderSize);
         buffer.putInt(bizBodySize);
-        buffer.put((byte) log.type);
-        buffer.put((byte) log.bizType);
-        buffer.putInt(log.term);
-        buffer.putInt(log.prevLogTerm);
-        buffer.putLong(log.index);
-        buffer.putLong(log.timestamp);
+        buffer.put((byte) rt.type);
+        buffer.put((byte) rt.bizType);
+        buffer.putInt(rt.term);
+        buffer.putInt(rt.prevLogTerm);
+        buffer.putLong(rt.index);
+        buffer.putLong(rt.timestamp);
         crc.reset();
         RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);
         buffer.putInt((int) crc.getValue());
@@ -145,14 +145,5 @@ public class LogHeader {
                 && expectTotalLen > 0
                 && totalLen == expectTotalLen
                 && filePos + expectTotalLen <= fileLen;
-    }
-
-    public void copy(LogItem li) {
-        li.index = index;
-        li.type = type;
-        li.bizType = bizType;
-        li.term = term;
-        li.prevLogTerm = prevLogTerm;
-        li.timestamp = timestamp;
     }
 }

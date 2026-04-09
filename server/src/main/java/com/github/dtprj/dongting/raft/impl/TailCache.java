@@ -126,8 +126,8 @@ public final class TailCache {
     private void release(RaftTask t) {
         cacheCount--;
         cacheBytes = Math.max(cacheBytes - t.reqData.totalSize, 0);
-        if (t.item != null) {
-            t.item.reqData.release();
+        if (t.reqData != null) {
+            t.reqData.release();
         }
     }
 

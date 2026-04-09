@@ -45,9 +45,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWritePacket;
 import com.github.dtprj.dongting.raft.rpc.AppendResp;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
@@ -61,7 +59,6 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * @author huangli
@@ -332,18 +329,16 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         if (first != null) {
             closeIterator();
             long sizeLimit = groupConfig.singleReplicateLimit;
-            ArrayList<LogItem> items = new ArrayList<>(limit);
+            ArrayList<RaftTask> items = new ArrayList<>(limit);
             long size = 0;
             for (int i = 0; i < limit; i++) {
                 RaftTask rt = tailCache.get(nextIndex + i);
-                //noinspection DataFlowIssue
-                LogItem li = rt.item;
-                size += li.reqData.totalSize;
+                size += rt.reqData.totalSize;
                 if (i > 0 && size > sizeLimit) {
                     break;
                 }
-                li.reqData.retain();
-                items.add(li);
+                rt.reqData.retain();
+                items.add(rt);
             }
             sendAppendRequest(member, items);
             return Fiber.resume(null, this);
@@ -351,13 +346,13 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             if (replicateIterator == null) {
                 replicateIterator = raftLog.openIterator(this::epochChange);
             }
-            FiberFrame<List<RaftInput>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
+            FiberFrame<List<RaftTask>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
                     groupConfig.singleReplicateLimit);
             return Fiber.call(nextFrame, this::resumeAfterLogLoad);
         }
     }
 
-    private FrameCallResult resumeAfterLogLoad(List<RaftInput> items) {
+    private FrameCallResult resumeAfterLogLoad(List<RaftTask> items) {
         if (shouldStopReplicate()) {
             RaftUtil.releaseInputs(items);
             return Fiber.frameReturn();
@@ -367,18 +362,18 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             closeIterator();
             return Fiber.resume(null, this);
         }
-        if (member.nextIndex != ((RaftTask) items.get(0)).item.index) {
+        if (member.nextIndex != items.get(0).index) {
             log.error("the first load item index not match nextIndex, ignore load result");
             RaftUtil.releaseInputs(items);
             closeIterator();
             return Fiber.resume(null, this);
         }
 
-        sendAppendRequest(member, items.stream().map(i -> ((RaftTask) i).item).collect(Collectors.toList()));
+        sendAppendRequest(member, items);
         return Fiber.resume(null, this);
     }
 
-    private void sendAppendRequest(RaftMember member, List<LogItem> items) {
+    private void sendAppendRequest(RaftMember member, List<RaftTask> items) {
         AppendReqWritePacket req = new AppendReqWritePacket();
         req.command = Commands.RAFT_APPEND_ENTRIES;
         req.groupId = groupId;
@@ -387,7 +382,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         req.leaderCommit = raftStatus.commitIndex;
 
         if (!items.isEmpty()) {
-            LogItem firstItem = items.get(0);
+            RaftTask firstItem = items.get(0);
             long prevLogIndex = firstItem.index - 1;
             req.prevLogIndex = prevLogIndex;
             req.prevLogTerm = firstItem.prevLogTerm;
@@ -401,7 +396,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         long perfStartTime = perfCallback.takeTimeAndRefresh(PerfConsts.RAFT_D_REPLICATE_RPC, ts);
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
-            LogItem item = items.get(i);
+            RaftTask item = items.get(i);
             bytes += item.reqData.totalSize;
         }
         long finalBytes = bytes;

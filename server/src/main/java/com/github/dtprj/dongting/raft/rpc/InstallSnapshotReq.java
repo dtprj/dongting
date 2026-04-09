@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtCleanable;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftConfigRpcData;
@@ -89,6 +90,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
 
     public static class Callback extends PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
+        private final RefBufferDecoderCallback refBufferCallback = new RefBufferDecoderCallback();
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -164,7 +166,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_DATA) {
-                RefBuffer rb = parseRefBuffer(buf, len, currentPos);
+                RefBuffer rb = parseNested(buf, len, currentPos, refBufferCallback);
                 if (rb != null) {
                     result.data = rb;
                 }

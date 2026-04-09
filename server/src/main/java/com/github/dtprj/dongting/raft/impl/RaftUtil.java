@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.RaftPing;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
@@ -83,19 +82,7 @@ public final class RaftUtil {
         }
     }
 
-    public static void release(List<LogItem> items) {
-        if (items == null) {
-            return;
-        }
-        for (int s = items.size(), i = 0; i < s; i++) {
-            LogItem li = items.get(i);
-            if (li.reqData != null) {
-                li.reqData.release();
-            }
-        }
-    }
-
-    public static void releaseInputs(List<RaftInput> list) {
+    public static void releaseInputs(List<RaftTask> list) {
         if (list == null) {
             return;
         }

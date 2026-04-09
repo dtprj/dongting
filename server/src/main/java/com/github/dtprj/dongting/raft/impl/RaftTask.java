@@ -15,22 +15,38 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
+import com.github.dtprj.dongting.raft.store.LogHeader;
+
+import java.nio.ByteBuffer;
+import java.util.zip.CRC32C;
 
 /**
  * @author huangli
  */
-public class RaftTask extends RaftInput {
+public class RaftTask extends RaftInput implements Encodable {
+
+    static final int HEADER_FINISHED = 1;
+    static final int BIZ_HEADER_FINISHED = 2;
+    static final int BIZ_HEADER_CRC_FINISHED = 3;
+    static final int BIZ_BODY_FINISHED = 4;
+    static final int BIZ_BODY_CRC_FINISHED = 5;
 
     public long perfTime;
 
-    public final int type;
     public long localCreateNanos;
-    public LogItem item;
+
+    public final int type;
+
+    public int term;
+    public int prevLogTerm;
+    public long index;
+    public long timestamp;
 
     private boolean invokeCallback;
 
@@ -42,15 +58,19 @@ public class RaftTask extends RaftInput {
         this.type = type;
     }
 
-    public void init(LogItem item, long localCreateNanos) {
+    // TODO optimise RaftTask.init()
+    public void init(int term, int prevLogTerm, long index, long timestamp, long localCreateNanos) {
         this.localCreateNanos = localCreateNanos;
-        this.item = item;
+        this.term = term;
+        this.prevLogTerm = prevLogTerm;
+        this.index = index;
+        this.timestamp = timestamp;
     }
 
     public void callSuccess(Object r) {
         if (!invokeCallback) {
             try {
-                RaftCallback.callSuccess(callback, item.index, r);
+                RaftCallback.callSuccess(callback, index, r);
             } finally {
                 callback = null;
                 invokeCallback = true;
@@ -67,5 +87,77 @@ public class RaftTask extends RaftInput {
                 invokeCallback = true;
             }
         }
+    }
+
+    @Override
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        EncodeContext sub = null;
+        RaftReqData reqData = this.reqData;
+        switch (context.stage) {
+            case EncodeContext.STAGE_BEGIN:
+                if (destBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                    return false;
+                } else {
+                    CRC32C crc = (CRC32C) context.status; // require the caller set the crc as status
+                    LogHeader.writeHeader(crc, destBuffer, this);
+                    context.stage = HEADER_FINISHED;
+                }
+                sub = context.createOrGetNestedContext(true);
+                // fall through
+            case HEADER_FINISHED:
+                if (reqData.bizHeaderSize > 0) {
+                    if (sub == null) {
+                        sub = context.createOrGetNestedContext(false);
+                    }
+                    boolean finish = reqData.bizHeader.encode(sub, destBuffer);
+                    if (finish) {
+                        // the body's reset called by parent context.reset(),
+                        // if error occurred, the sub context will be reset by parent context.reset()
+                        sub.reset();
+                        context.stage = BIZ_HEADER_FINISHED;
+                    } else {
+                        return false;
+                    }
+                }
+                // fall through
+            case BIZ_HEADER_FINISHED:
+                if (reqData.bizHeaderSize > 0) {
+                    if (destBuffer.remaining() < 4) {
+                        return false;
+                    } else {
+                        destBuffer.putInt(reqData.bizHeaderCrc);
+                    }
+                }
+                context.stage = BIZ_HEADER_CRC_FINISHED;
+                // fall through
+            case BIZ_HEADER_CRC_FINISHED:
+                if (reqData.bizBodySize > 0) {
+                    if (sub == null) {
+                        sub = context.createOrGetNestedContext(false);
+                    }
+                    boolean finish = reqData.bizBody.encode(sub, destBuffer);
+                    if (finish) {
+                        context.stage = BIZ_BODY_FINISHED;
+                    } else {
+                        return false;
+                    }
+                }
+                // fall through
+            case BIZ_BODY_FINISHED:
+                if (reqData.bizBodySize > 0) {
+                    if (destBuffer.remaining() < 4) {
+                        return false;
+                    } else {
+                        destBuffer.putInt(reqData.bizBodyCrc);
+                    }
+                }
+                context.stage = BIZ_BODY_CRC_FINISHED;
+        }
+        return true;
+    }
+
+    @Override
+    public int actualSize() {
+        return LogHeader.ITEM_HEADER_SIZE + reqData.totalSize;
     }
 }

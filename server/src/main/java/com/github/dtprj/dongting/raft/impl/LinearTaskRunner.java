@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -166,6 +165,7 @@ public class LinearTaskRunner {
 
         int prevTerm = raftStatus.lastLogTerm;
         int currentTerm = raftStatus.currentTerm;
+        ArrayList<RaftTask> filterInputs = null;
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
             if (rt.perfTime != 0) {
@@ -176,26 +176,26 @@ public class LinearTaskRunner {
             if (ex != null) {
                 rt.reqData.release();
                 rt.callFail(ex);
-                // not removed from list, filter in append()
+                if (filterInputs == null) {
+                    filterInputs = new ArrayList<>(inputs.size());
+                    for (int j = 0; j < i; j++) {
+                        filterInputs.add(inputs.get(j));
+                    }
+                }
                 continue;
             }
 
             newIndex++;
-            LogItem item = new LogItem();
-            item.type = rt.type;
-            item.bizType = rt.bizType;
-            item.term = currentTerm;
-            item.index = newIndex;
-            item.prevLogTerm = prevTerm;
+
+            rt.init(currentTerm, prevTerm, newIndex, ts.wallClockMillis, ts.nanoTime);
             prevTerm = currentTerm;
-            item.timestamp = ts.wallClockMillis;
 
-            item.reqData = rt.reqData;
-
-            rt.init(item, ts.nanoTime);
+            if (filterInputs != null) {
+                filterInputs.add(rt);
+            }
         }
 
-        return append(raftStatus, inputs);
+        return append(raftStatus, filterInputs == null ? inputs : filterInputs);
     }
 
     private Throwable checkTask(RaftTask rt, RaftStatusImpl raftStatus) {
@@ -219,28 +219,20 @@ public class LinearTaskRunner {
 
     public FiberFrame<Void> append(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
         TailCache tailCache = raftStatus.tailCache;
-        ArrayList<LogItem> logItems = new ArrayList<>(inputs.size());
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
-            LogItem li = rt.item;
-            if (li == null) {
-                // filer timeout items, released, see raftExec()
-                continue;
-            }
-            long index = li.index;
+            long index = rt.index;
 
             // successful change owner to TailCache and release in TailCache.release(RaftTask)
             tailCache.put(index, rt);
 
-            logItems.add(li);
-
             if (i == len - 1) {
                 raftStatus.lastLogIndex = index;
-                raftStatus.lastLogTerm = li.term;
+                raftStatus.lastLogTerm = rt.term;
             }
         }
         raftStatus.needRepCondition.signalAll();
-        return raftLog.append(logItems);
+        return raftLog.append(inputs);
     }
 
     private RaftTask createHeartBeatInput() {

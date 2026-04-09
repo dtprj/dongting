@@ -42,7 +42,7 @@ public final class DecodeContextEx extends DecodeContext {
 
     public AppendReq.Callback appendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {
         if (appendReqCallback == null) {
-            appendReqCallback = new AppendReq.Callback(decoderFactory);
+            appendReqCallback = new AppendReq.Callback(decoderFactory, heapPool, threadLocalBuffer);
         }
         return appendReqCallback;
     }

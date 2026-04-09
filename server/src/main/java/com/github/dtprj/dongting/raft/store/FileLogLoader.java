@@ -33,9 +33,7 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
@@ -115,7 +113,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     }
 
     @Override
-    public FiberFrame<List<RaftInput>> next(long index, int limit, int bytesLimit) {
+    public FiberFrame<List<RaftTask>> next(long index, int limit, int bytesLimit) {
         if (error || close || loading) {
             BugLog.log("iterator state error: {},{},{}", error, close, loading);
             throw new RaftException("iterator state error");
@@ -126,7 +124,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         return new NextFrame(index, limit, bytesLimit);
     }
 
-    private class NextFrame extends FiberFrame<List<RaftInput>> {
+    private class NextFrame extends FiberFrame<List<RaftTask>> {
         private static final int RESULT_CONTINUE_PARSE = 11;
         private static final int RESULT_FINISH = 12;
         private static final int RESULT_NEED_LOAD = 13;
@@ -138,11 +136,10 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private int totalReadBytes;
         private int currentReadBytes;
-        private final List<RaftInput> result = new LinkedList<>();
+        private final List<RaftTask> result = new LinkedList<>();
         private int state = STATE_ITEM_HEADER;
         private long itemStartPos;
 
-        private LogItem item;
         private RefBuffer bizHeader;
         private int bizHeaderCrc;
 
@@ -304,10 +301,6 @@ class FileLogLoader implements RaftLog.LogIterator {
                 throw new RaftException("header check fail: index=" + (nextIndex + result.size()) + ",pos=" + itemStartPos);
             }
 
-            LogItem li = new LogItem();
-            this.item = li;
-            h.copy(li);
-
             return true;
         }
 
@@ -369,24 +362,22 @@ class FileLogLoader implements RaftLog.LogIterator {
         }
 
         private void add() {
-            item.reqData = new RaftReqData(bizHeader, bizHeaderCrc, bizBody, bizBodyCrc);
-            Object decodeBizHeader = decodeData(item.type, bizHeader, true);
-            Object decodeBizBody = decodeData(item.type, bizBody, false);
-            RaftTask rt = new RaftTask(header.type, header.bizType, item.reqData, decodeBizHeader, decodeBizBody,
+            RaftReqData reqData = new RaftReqData(bizHeader, bizHeaderCrc, bizBody, bizBodyCrc);
+            Object decodeBizHeader = decodeData(header.type, bizHeader, true);
+            Object decodeBizBody = decodeData(header.type, bizBody, false);
+            RaftTask rt = new RaftTask(header.type, header.bizType, reqData, decodeBizHeader, decodeBizBody,
                     null, header.type == LogHeader.TYPE_LOG_READ, null);
 
             // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
             // this method only used to load logs that not apply after restart.
-            long costTimeMillis = groupConfig.ts.wallClockMillis - item.timestamp;
+            long costTimeMillis = groupConfig.ts.wallClockMillis - header.timestamp;
             if (costTimeMillis < 0) {
                 costTimeMillis = 0;
             }
             long localCreateNanos = groupConfig.ts.nanoTime - costTimeMillis * 1_000_000L;
-            rt.init(item, localCreateNanos);
+            rt.init(header.term, header.prevLogTerm, header.index, header.timestamp, localCreateNanos);
 
             result.add(rt);
-
-            item = null;
 
             bizHeaderCrc = 0;
             bizBodyCrc = 0;
