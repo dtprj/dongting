@@ -1,4 +1,4 @@
-# This workflow will build a package using Maven and then publish it to GitHub packages when a release is created
+# This workflow will build packages with Maven and publish them when a release is published
 # For more information see: https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#apache-maven-with-a-settings-path
 
 name: Maven Package
@@ -11,7 +11,7 @@ jobs:
   publish-maven:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -32,6 +32,16 @@ jobs:
       run: mvn -B deploy -s $GITHUB_WORKSPACE/settings.xml -Dmaven.test.skip=true
       env:
         GITHUB_TOKEN: ${{ github.token }}
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./target/dongting-dist.zip
+        asset_name: dongting-dist.zip
+        asset_content_type: application/zip
 
   build-release-assets:
     needs: publish-maven
@@ -65,9 +75,18 @@ jobs:
       env:
         ASSET_SUFFIX: ${{ matrix.asset_suffix }}
       run: |
-        JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/ {print $2; exit}')
+        JAVA_VERSION=$(java -XshowSettings:properties -version 2>&1 | awk -F'= ' '/^[[:space:]]*java.version = / {print $2; exit}')
+        if [ -z "$JAVA_VERSION" ]; then
+          JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/ {print $2; exit}')
+        fi
+        if [ -z "$JAVA_VERSION" ]; then
+          echo "Failed to detect JAVA_VERSION" >&2
+          exit 1
+        fi
+        JAVA_VERSION_SUFFIX=${JAVA_VERSION//./-}
+        JAVA_VERSION_SUFFIX=${JAVA_VERSION_SUFFIX//+/-}
         echo "java_version=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
-        echo "asset_name=dongting-dist-${ASSET_SUFFIX}-jre${JAVA_VERSION}.zip" >> "$GITHUB_OUTPUT"
+        echo "asset_name=dongting-dist-${ASSET_SUFFIX}-jre${JAVA_VERSION_SUFFIX}.zip" >> "$GITHUB_OUTPUT"
 
     - name: Build release asset
       run: mvn -B clean package -DskipUTs -PaddJRE --file pom.xml
@@ -76,7 +95,9 @@ jobs:
       shell: bash
       env:
         ASSET_NAME: ${{ steps.metadata.outputs.asset_name }}
-      run: mv target/dongting-dist.zip "target/${ASSET_NAME}"
+      run: |
+        test -f target/dongting-dist.zip
+        mv -v target/dongting-dist.zip "target/${ASSET_NAME}"
 
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
