@@ -75,7 +75,8 @@ jobs:
       env:
         ASSET_SUFFIX: ${{ matrix.asset_suffix }}
       run: |
-        JAVA_VERSION=$(java -XshowSettings:properties -version 2>&1 | awk -F'= ' '/^[[:space:]]*java.version = / {print $2; exit}')
+        JAVA_SETTINGS=$(java -XshowSettings:properties -version 2>&1 || true)
+        JAVA_VERSION=$(printf '%s\n' "$JAVA_SETTINGS" | awk -F'= ' '/^[[:space:]]*java.version = / {print $2; exit}')
         if [ -z "$JAVA_VERSION" ]; then
           JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/ {print $2; exit}')
         fi
@@ -83,8 +84,7 @@ jobs:
           echo "Failed to detect JAVA_VERSION" >&2
           exit 1
         fi
-        JAVA_VERSION_SUFFIX=${JAVA_VERSION//./-}
-        JAVA_VERSION_SUFFIX=${JAVA_VERSION_SUFFIX//+/-}
+        JAVA_VERSION_SUFFIX=$(printf '%s' "$JAVA_VERSION" | sed 's/[^0-9A-Za-z]/-/g')
         echo "java_version=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
         echo "asset_name=dongting-dist-${ASSET_SUFFIX}-jre${JAVA_VERSION_SUFFIX}.zip" >> "$GITHUB_OUTPUT"
 
