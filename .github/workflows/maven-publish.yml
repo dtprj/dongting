@@ -53,7 +53,7 @@ jobs:
           asset_suffix: linux
         - runner: windows-latest
           asset_suffix: windows
-        - runner: macos-14
+        - runner: macos-15
           asset_suffix: macos-arm
 
     runs-on: ${{ matrix.runner }}
