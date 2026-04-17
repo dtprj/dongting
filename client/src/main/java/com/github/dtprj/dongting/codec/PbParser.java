@@ -360,10 +360,18 @@ public class PbParser {
         int start = buf.position();
         int end = start + actualRead;
         int oldLimit = buf.limit();
-        buf.limit(end);
+        if (oldLimit > end) {
+            buf.limit(end);
+        }
         boolean result = callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
-        buf.limit(oldLimit);
-        buf.position(end);
+        if (result && buf.position() != end) {
+            throw new PbException("readBytes returned true but didn't consume all bytes. "
+                    + "fieldIndex=" + this.fieldIndex + ", fieldLen=" + fieldLen
+                    + ", currentPos=" + pendingBytes + ", class=" + callback.getClass().getName());
+        }
+        if (oldLimit > end) {
+            buf.limit(oldLimit);
+        }
         parsedBytes += actualRead;
         if (result) {
             if (needRead == actualRead) {
@@ -373,6 +381,7 @@ public class PbParser {
                 pendingBytes += actualRead;
             }
         } else {
+            buf.position(end);
             pendingBytes = 0;
             status = STATUS_SKIP_REST;
         }

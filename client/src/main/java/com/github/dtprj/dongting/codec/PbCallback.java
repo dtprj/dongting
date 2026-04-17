@@ -35,6 +35,7 @@ public abstract class PbCallback<T> extends AbstractCodecCallback<T> {
     }
 
     public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        buf.position(buf.limit());
         return true;
     }
 }

@@ -79,39 +79,39 @@ public class Decoder {
             beginCalled = true;
             callback.begin(bodyLen);
         }
-        int oldPos = buffer.position();
         int oldLimit = buffer.limit();
-        int endPos = oldPos + bodyLen - currentPos;
+        int recordEndPos = buffer.position() + bodyLen - currentPos;
+        boolean allDataAvailable = oldLimit >= recordEndPos;
         try {
             if (skip) {
-                buffer.position(Math.min(oldLimit, endPos));
+                buffer.position(Math.min(oldLimit, recordEndPos));
                 return null;
-            } else {
-                if (oldLimit >= endPos) {
-                    buffer.limit(endPos);
-                    try {
-                        skip = !callback.doDecode(buffer, bodyLen, currentPos);
-                    } finally {
-                        buffer.limit(oldLimit);
-                        buffer.position(endPos);
-                    }
-                    return callback.getResult();
-                } else {
-                    try {
-                        skip = !callback.doDecode(buffer, bodyLen, currentPos);
-                    } finally {
-                        buffer.limit(oldLimit);
-                        buffer.position(oldLimit);
-                    }
-                    return null;
+            }
+            if (oldLimit > recordEndPos) {
+                buffer.limit(recordEndPos);
+            }
+            try {
+                skip = !callback.doDecode(buffer, bodyLen, currentPos);
+                if (!skip && buffer.position() != (allDataAvailable ? recordEndPos : oldLimit)) {
+                    throw new CodecException("doDecode returned true but didn't consume all bytes. "
+                            + "bodyLen=" + bodyLen + ", currentPos=" + currentPos
+                            + ", class=" + callback.getClass().getName());
+                }
+            } finally {
+                if (oldLimit > recordEndPos) {
+                    buffer.limit(oldLimit);
+                }
+                if (skip) {
+                    buffer.position(allDataAvailable ? recordEndPos : oldLimit);
                 }
             }
+            return allDataAvailable ? callback.getResult() : null;
         } catch (RuntimeException | Error e) {
             skip = true;
             callEndAndReset(false);
             throw e;
         } finally {
-            if (oldLimit >= endPos) {
+            if (allDataAvailable) {
                 callEndAndReset(!skip);
             }
         }
