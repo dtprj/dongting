@@ -451,7 +451,12 @@ public class RaftClient extends AbstractLifeCircle {
                           DtTime timeout, RpcCallback<T> c, int retry, boolean getPermit) {
         RpcCallback<T> newCallback = (result, ex) -> wrapCallback(groupInfo, request, decoder, timeout, c,
                 retry, getPermit, result, ex);
-        nioClient.sendRequest(groupInfo.leader.peer, request, decoder, timeout, newCallback);
+        sendRpcToPeer(groupInfo.leader.peer, request, decoder, timeout, newCallback);
+    }
+
+    protected <T> void sendRpcToPeer(Peer peer, WritePacket request, DecoderCallbackCreator<T> decoder,
+                                      DtTime timeout, RpcCallback<T> callback) {
+        nioClient.sendRequest(peer, request, decoder, timeout, callback);
     }
 
     private <T> void wrapCallback(GroupInfo groupInfo, WritePacket request, DecoderCallbackCreator<T> decoder,
