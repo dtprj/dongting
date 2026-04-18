@@ -74,13 +74,14 @@ public class RaftLogData extends RaftReqData {
         private int parsedBytes;
 
         private final CRC32C crc = new CRC32C();
+        private final ByteBuffer tmpBuffer = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
 
         private static final int STATUS_INIT = 0;
-        private static final int STATUS_HEADER = 1;
-        private static final int STATUS_BIZ_HEADER = 2;
-        private static final int STATUS_BIZ_HEADER_CRC = 3;
-        private static final int STATUS_BIZ_BODY = 4;
-        private static final int STATUS_BIZ_BODY_CRC = 5;
+        private static final int STATUS_FINISH_HEADER = 1;
+        private static final int STATUS_FINISH_BIZ_HEADER = 2;
+        private static final int STATUS_FINISH_BIZ_HEADER_CRC = 3;
+        private static final int STATUS_FINISH_BIZ_BODY = 4;
+        private static final int STATUS_FINISH_BIZ_BODY_CRC = 5;
 
         public Callback(Consumer<RaftLogData> consumer) {
             this.consumer = consumer;
@@ -93,69 +94,126 @@ public class RaftLogData extends RaftReqData {
             bizBodyCrc = 0;
             status = STATUS_INIT;
             parsedBytes = 0;
+            tmpBuffer.clear();
         }
 
         @Override
         protected boolean doDecode(ByteBuffer buffer, int notUsedBodyLen, int notUsedCurrentPos) {
             while (true) {
+                int remaining = buffer.remaining();
+                if (remaining == 0) {
+                    return true;
+                }
                 switch (status) {
-                    case STATUS_INIT:
-                        if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                    case STATUS_INIT: {
+                        if (remaining < LogHeader.ITEM_HEADER_SIZE - parsedBytes) {
+                            tmpBuffer.put(buffer);
+                            parsedBytes += remaining;
                             return true;
                         }
-                        if (!header.readAndCheckCrc(crc, buffer)) {
-                            log.error("header crc not match");
-                            return false;
-                        }
-                        status = STATUS_HEADER;
-                        // fall through
-                    case STATUS_HEADER:
-                        if (header.bizHeaderLen > 0) {
-                            int oldPos = buffer.position();
-                            bizHeader = parseNested(buffer, header.bizHeaderLen, parsedBytes, refBufferCallback);
-                            if (bizHeader == null) {
-                                parsedBytes += buffer.position() - oldPos;
-                                return true;
-                            } else {
-                                parsedBytes = 0;
+                        if (parsedBytes == 0) {
+                            if (!header.readAndCheckCrc(crc, buffer)) {
+                                log.error("header crc not match");
+                                reset();
+                                return false;
                             }
-                        }
-                        status = STATUS_BIZ_HEADER;
-                        // fall through
-                    case STATUS_BIZ_HEADER:
-                        if (header.bizHeaderLen > 0) {
-                            if (buffer.remaining() < 4) {
-                                return true;
+                        } else {
+                            int oldLimit = buffer.limit();
+                            buffer.limit(buffer.position() + LogHeader.ITEM_HEADER_SIZE - parsedBytes);
+                            tmpBuffer.put(buffer);
+                            buffer.limit(oldLimit);
+                            tmpBuffer.flip();
+                            if (!header.readAndCheckCrc(crc, tmpBuffer)) {
+                                log.error("header crc not match");
+                                reset();
+                                return false;
                             }
+                            parsedBytes = 0;
+                            tmpBuffer.clear();
+                        }
+                        if (header.bizHeaderLen > 0) {
+                            status = STATUS_FINISH_HEADER;
+                        } else if (header.bodyLen > 0) {
+                            status = STATUS_FINISH_BIZ_HEADER_CRC;
+                        } else {
+                            consumer.accept(new RaftLogData(header, null, 0, null, 0));
+                            reset();
+                        }
+                        continue;
+                    }
+                    case STATUS_FINISH_HEADER: {
+                        int oldPos = buffer.position();
+                        bizHeader = parseNested(buffer, header.bizHeaderLen, parsedBytes, refBufferCallback);
+                        if (bizHeader == null) {
+                            parsedBytes += buffer.position() - oldPos;
+                            return true;
+                        } else {
+                            parsedBytes = 0;
+                        }
+                        status = STATUS_FINISH_BIZ_HEADER;
+                        continue;
+                    }
+                    case STATUS_FINISH_BIZ_HEADER: {
+                        if (remaining < 4 - parsedBytes) {
+                            tmpBuffer.put(buffer);
+                            parsedBytes += remaining;
+                            return true;
+                        }
+                        if (parsedBytes > 0) {
+                            int oldLimit = buffer.limit();
+                            buffer.limit(buffer.position() + 4 - parsedBytes);
+                            tmpBuffer.put(buffer);
+                            buffer.limit(oldLimit);
+                            tmpBuffer.flip();
+                            bizHeaderCrc = tmpBuffer.getInt();
+                            parsedBytes = 0;
+                            tmpBuffer.clear();
+                        } else {
                             bizHeaderCrc = buffer.getInt();
                         }
-                        status = STATUS_BIZ_HEADER_CRC;
-                        // fall through
-                    case STATUS_BIZ_HEADER_CRC:
                         if (header.bodyLen > 0) {
-                            int oldPos = buffer.position();
-                            bizBody = parseNested(buffer, header.bodyLen, parsedBytes, refBufferCallback);
-                            if (bizBody == null) {
-                                parsedBytes += buffer.position() - oldPos;
-                                return true;
-                            } else {
-                                parsedBytes = 0;
-                            }
+                            status = STATUS_FINISH_BIZ_HEADER_CRC;
+                        } else {
+                            consumer.accept(new RaftLogData(header, bizHeader, bizHeaderCrc, null, 0));
+                            reset();
                         }
-                        status = STATUS_BIZ_BODY;
-                        // fall through
-
-                    case STATUS_BIZ_BODY:
-                        if (header.bodyLen > 0) {
-                            if (buffer.remaining() < 4) {
-                                return true;
-                            }
+                        continue;
+                    }
+                    case STATUS_FINISH_BIZ_HEADER_CRC: {
+                        int oldPos = buffer.position();
+                        bizBody = parseNested(buffer, header.bodyLen, parsedBytes, refBufferCallback);
+                        if (bizBody == null) {
+                            parsedBytes += buffer.position() - oldPos;
+                            return true;
+                        } else {
+                            parsedBytes = 0;
+                        }
+                        status = STATUS_FINISH_BIZ_BODY;
+                        continue;
+                    }
+                    case STATUS_FINISH_BIZ_BODY: {
+                        if (remaining < 4 - parsedBytes) {
+                            tmpBuffer.put(buffer);
+                            parsedBytes += remaining;
+                            return true;
+                        }
+                        if (parsedBytes > 0) {
+                            int oldLimit = buffer.limit();
+                            buffer.limit(buffer.position() + 4 - parsedBytes);
+                            tmpBuffer.put(buffer);
+                            buffer.limit(oldLimit);
+                            tmpBuffer.flip();
+                            bizBodyCrc = tmpBuffer.getInt();
+                            parsedBytes = 0;
+                            tmpBuffer.clear();
+                        } else {
                             bizBodyCrc = buffer.getInt();
                         }
-                        status = STATUS_BIZ_BODY_CRC;
+                        status = STATUS_FINISH_BIZ_BODY_CRC;
                         consumer.accept(new RaftLogData(header, bizHeader, bizHeaderCrc, bizBody, bizBodyCrc));
                         reset();
                         continue;
+                    }
                     default:
                         throw new CodecException("unknown status: " + status);
                 }
