@@ -98,7 +98,8 @@ public class KvClient extends AbstractLifeCircle {
         return new LockManager(this);
     }
 
-    private static boolean isSuccess(int cmd, int bizCode) {
+    // package-private for testing
+    static boolean isSuccess(int cmd, int bizCode) {
         switch (cmd) {
             case Commands.DTKV_PUT:
             case Commands.DTKV_PUT_TEMP_NODE:
@@ -132,8 +133,9 @@ public class KvClient extends AbstractLifeCircle {
                 asyncCallback(cmd, c, mapper, result, ex));
     }
 
-    private <T> void asyncCallback(int cmd, FutureCallback<T> c, Function<ReadPacket<KvResp>, T> mapper,
-                                   ReadPacket<KvResp> result, Throwable ex) {
+    // package-private for testing
+    <T> void asyncCallback(int cmd, FutureCallback<T> c, Function<ReadPacket<KvResp>, T> mapper,
+                           ReadPacket<KvResp> result, Throwable ex) {
         if (ex != null) {
             FutureCallback.callFail(c, ex);
         } else {
