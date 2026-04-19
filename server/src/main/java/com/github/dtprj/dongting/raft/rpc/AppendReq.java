@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLogData;
+import com.github.dtprj.dongting.raft.store.RaftLogDataCallback;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -80,7 +81,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
     // re-used
     public static class Callback extends PbCallback<AppendReq> {
 
-        private final RaftLogData.Callback logDataCallback;
+        private final RaftLogDataCallback logDataCallback;
 
         private final Decoder headerBodyDecoder;
         private final DecodeContext headerBodyContext;
@@ -92,7 +93,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
             this.headerBodyDecoder = new Decoder();
             this.headerBodyContext = DecodeContext.factory.apply(heapPool, threadLocalBuffer);
 
-            this.logDataCallback = new RaftLogData.Callback(logData -> {
+            this.logDataCallback = new RaftLogDataCallback(logData -> {
                 if (logData != null) {
                     if (result.logs == null) {
                         result.logs = new ArrayList<>();
