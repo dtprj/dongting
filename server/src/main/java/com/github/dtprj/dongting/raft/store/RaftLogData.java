@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.nio.ByteBuffer;
@@ -142,10 +143,17 @@ public class RaftLogData extends RaftReqData {
                         continue;
                     }
                     case STATUS_FINISH_HEADER: {
+                        if (parsedBytes == 0) {
+                            crc.reset();
+                        }
                         int oldPos = buffer.position();
                         bizHeader = parseNested(buffer, header.bizHeaderLen, parsedBytes, refBufferCallback);
+                        int consumed = buffer.position() - oldPos;
+                        if (consumed > 0) {
+                            RaftUtil.updateCrc(crc, buffer, oldPos, consumed);
+                        }
                         if (bizHeader == null) {
-                            parsedBytes += buffer.position() - oldPos;
+                            parsedBytes += consumed;
                             return true;
                         } else {
                             parsedBytes = 0;
@@ -171,6 +179,11 @@ public class RaftLogData extends RaftReqData {
                         } else {
                             bizHeaderCrc = buffer.getInt();
                         }
+                        if (bizHeaderCrc != ((int) crc.getValue())) {
+                            log.error("bizHeader crc not match, index={}, expected={}, actual={}",
+                                    header.index, bizHeaderCrc, (int) crc.getValue());
+                            return false;
+                        }
                         if (header.bodyLen > 0) {
                             status = STATUS_FINISH_BIZ_HEADER_CRC;
                         } else {
@@ -180,10 +193,17 @@ public class RaftLogData extends RaftReqData {
                         continue;
                     }
                     case STATUS_FINISH_BIZ_HEADER_CRC: {
+                        if (parsedBytes == 0) {
+                            crc.reset();
+                        }
                         int oldPos = buffer.position();
                         bizBody = parseNested(buffer, header.bodyLen, parsedBytes, refBufferCallback);
+                        int consumed = buffer.position() - oldPos;
+                        if (consumed > 0) {
+                            RaftUtil.updateCrc(crc, buffer, oldPos, consumed);
+                        }
                         if (bizBody == null) {
-                            parsedBytes += buffer.position() - oldPos;
+                            parsedBytes += consumed;
                             return true;
                         } else {
                             parsedBytes = 0;
@@ -208,6 +228,11 @@ public class RaftLogData extends RaftReqData {
                             tmpBuffer.clear();
                         } else {
                             bizBodyCrc = buffer.getInt();
+                        }
+                        if (bizBodyCrc != ((int) crc.getValue())) {
+                            log.error("bizBody crc not match, index={}, expected={}, actual={}",
+                                    header.index, bizBodyCrc, (int) crc.getValue());
+                            return false;
                         }
                         status = STATUS_FINISH_BIZ_BODY_CRC;
                         consumer.accept(new RaftLogData(header, bizHeader, bizHeaderCrc, bizBody, bizBodyCrc));
