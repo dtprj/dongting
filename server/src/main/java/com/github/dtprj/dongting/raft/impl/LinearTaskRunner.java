@@ -187,7 +187,11 @@ public class LinearTaskRunner {
 
             newIndex++;
 
-            rt.init(currentTerm, prevTerm, newIndex, ts.wallClockMillis, ts.nanoTime);
+            rt.term = currentTerm;
+            rt.prevLogTerm = prevTerm;
+            rt.index = newIndex;
+            rt.timestamp = ts.wallClockMillis;
+            rt.init(ts.nanoTime);
             prevTerm = currentTerm;
 
             if (filterInputs != null) {

@@ -34,8 +34,7 @@ public class LogHeaderTest {
     public void testWriteAndRead() {
         RaftReqData reqData = new RaftReqData(RefBuffer.wrap(ByteBuffer.wrap(new byte[200])), 0,
                 RefBuffer.wrap(ByteBuffer.wrap(new byte[300])), 0);
-        RaftTask rt = new RaftTask(1, 2, reqData, null, null, null, false, null);
-        rt.init(1000, 2000, 3000, Long.MAX_VALUE, 0);
+        RaftTask rt = new RaftTask(1, 1000, 2000, 3000, Long.MAX_VALUE, 2, reqData, null, null, false);
 
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         CRC32C crc32C = new CRC32C();

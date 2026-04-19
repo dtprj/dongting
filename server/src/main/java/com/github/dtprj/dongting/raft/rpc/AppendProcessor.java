@@ -319,7 +319,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
                 return Fiber.frameReturn();
             }
 
-            li.init(li.term, li.prevLogTerm, li.index, li.timestamp, raftStatus.ts.nanoTime);
+            li.init(raftStatus.ts.nanoTime);
             if (li.index < raftStatus.groupReadyIndex && raftStatus.getRole() != RaftRole.none) {
                 log.info("set groupReadyIndex to {}, groupId={}", li.index, raftStatus.groupId);
                 raftStatus.groupReadyIndex = li.index;

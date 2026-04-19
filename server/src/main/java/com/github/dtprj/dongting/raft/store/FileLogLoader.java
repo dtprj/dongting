@@ -365,8 +365,9 @@ class FileLogLoader implements RaftLog.LogIterator {
             RaftReqData reqData = new RaftReqData(bizHeader, bizHeaderCrc, bizBody, bizBodyCrc);
             Object decodeBizHeader = decodeData(header.type, bizHeader, true);
             Object decodeBizBody = decodeData(header.type, bizBody, false);
-            RaftTask rt = new RaftTask(header.type, header.bizType, reqData, decodeBizHeader, decodeBizBody,
-                    null, header.type == LogHeader.TYPE_LOG_READ, null);
+            RaftTask rt = new RaftTask(header.type, header.term, header.prevLogTerm,
+                    header.index, header.timestamp, header.bizType, reqData,
+                    decodeBizHeader, decodeBizBody, header.type == LogHeader.TYPE_LOG_READ);
 
             // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
             // this method only used to load logs that not apply after restart.
@@ -375,7 +376,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 costTimeMillis = 0;
             }
             long localCreateNanos = groupConfig.ts.nanoTime - costTimeMillis * 1_000_000L;
-            rt.init(header.term, header.prevLogTerm, header.index, header.timestamp, localCreateNanos);
+            rt.init(localCreateNanos);
 
             result.add(rt);
 

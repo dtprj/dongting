@@ -52,19 +52,25 @@ public class RaftTask extends RaftInput implements Encodable {
 
     boolean addPending;
 
+    public RaftTask(int type, int term, int prevLogTerm, long index, long timestamp,
+                    int bizType, RaftReqData reqData, Object bizHeader, Object bizBody,
+                    boolean readOnly) {
+        super(bizType, reqData, bizHeader, bizBody, null, readOnly, null);
+        this.type = type;
+        this.term = term;
+        this.prevLogTerm = prevLogTerm;
+        this.index = index;
+        this.timestamp = timestamp;
+    }
+
     public RaftTask(int type, int bizType, RaftReqData reqData, Object bizHeader, Object bizBody, DtTime deadline,
                     boolean readOnly, RaftCallback callback) {
         super(bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
         this.type = type;
     }
 
-    // TODO optimise RaftTask.init()
-    public void init(int term, int prevLogTerm, long index, long timestamp, long localCreateNanos) {
+    public void init(long localCreateNanos) {
         this.localCreateNanos = localCreateNanos;
-        this.term = term;
-        this.prevLogTerm = prevLogTerm;
-        this.index = index;
-        this.timestamp = timestamp;
     }
 
     public void callSuccess(Object r) {

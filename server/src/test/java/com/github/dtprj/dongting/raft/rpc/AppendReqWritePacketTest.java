@@ -136,11 +136,8 @@ public class AppendReqWritePacketTest {
             int bodyCrc = bizBody != null ? RaftUtil.calcCrc32c(bizBody) : 0;
             RaftReqData reqData = new RaftReqData(bizHeader, headerCrc, bizBody, bodyCrc);
 
-            RaftTask rt = new RaftTask(LogHeader.TYPE_NORMAL, 1, reqData, null, null, null, false, null);
-            rt.index = 200+i;
-            rt.term = 4;
-            rt.prevLogTerm = 3;
-            rt.timestamp = System.currentTimeMillis();
+            RaftTask rt = new RaftTask(LogHeader.TYPE_NORMAL, 4, 3, 200 + i,
+                    System.currentTimeMillis(), 1, reqData, null, null, false);
 
             logs.add(rt);
         }

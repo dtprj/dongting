@@ -451,10 +451,9 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             tailCache.cleanAll();
             for (int j = list.size() - i; j < list.size(); j++) {
                 RaftReqData rd = new RaftReqData(null, 0, null, 0);
-                RaftTask t = new RaftTask(LogHeader.TYPE_NORMAL,0, rd, null, null,
-                        null, false, null);
                 RaftTask li = list.get(j);
-                t.init(li.term, li.prevLogTerm, li.index, li.timestamp, raftStatus.ts.nanoTime);
+                RaftTask t = new RaftTask(LogHeader.TYPE_NORMAL, li.term, li.prevLogTerm,
+                        li.index, li.timestamp, 0, rd, null, null, false);
                 tailCache.put(li.index, t);
             }
             testMatch();

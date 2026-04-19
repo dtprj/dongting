@@ -105,14 +105,9 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     }
                     Object bizHeader = decode(true, codecFactory, logData.bizHeader, logData);
                     Object bizBody = decode(false, codecFactory, logData.bizBody, logData);
-                    RaftTask task = new RaftTask(logData.type, logData.bizType, logData, bizHeader, bizBody,
-                            null, logData.type == LogHeader.TYPE_LOG_READ, null);
-
-                    // TODO optimise RaftTask.init()
-                    task.term = logData.term;
-                    task.prevLogTerm = logData.prevLogTerm;
-                    task.index = logData.index;
-                    task.timestamp = logData.timestamp;
+                    RaftTask task = new RaftTask(logData.type, logData.term, logData.prevLogTerm,
+                            logData.index, logData.timestamp, logData.bizType, logData,
+                            bizHeader, bizBody, logData.type == LogHeader.TYPE_LOG_READ);
 
                     result.logs.add(task);
                 }

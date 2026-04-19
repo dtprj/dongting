@@ -179,13 +179,8 @@ public class LogFileQueueTest extends BaseFiberTest {
 
         RaftReqData reqData = new RaftReqData(bizHeaderBuffer, headerCrc, bizBodyBuffer, bodyCrc);
 
-        RaftTask rt = new RaftTask(1, 2, reqData, null, null, null, false, null);
-        rt.term = term;
-        rt.prevLogTerm = prevTerm;
-        rt.index = index;
-        rt.timestamp = config.ts.wallClockMillis;
-
-        return rt;
+        return new RaftTask(1, term, prevTerm, index, config.ts.wallClockMillis,
+                2, reqData, null, null, false);
     }
 
     private void append(boolean check, long startPos, int... totalSizes) throws Exception {
