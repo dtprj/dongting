@@ -105,9 +105,10 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     }
                     Object bizHeader = decode(true, codecFactory, logData.bizHeader, logData);
                     Object bizBody = decode(false, codecFactory, logData.bizBody, logData);
-                    RaftTask task = new RaftTask(logData.type, logData.term, logData.prevLogTerm,
-                            logData.index, logData.timestamp, logData.bizType, logData,
-                            bizHeader, bizBody, logData.type == LogHeader.TYPE_LOG_READ);
+                    LogHeader lh = logData.logHeader;
+                    RaftTask task = new RaftTask(lh.type, lh.term, lh.prevLogTerm,
+                            lh.index, lh.timestamp, lh.bizType, logData,
+                            bizHeader, bizBody, lh.type == LogHeader.TYPE_LOG_READ);
 
                     result.logs.add(task);
                 }
@@ -177,7 +178,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
             if (rb == null) {
                 return null;
             }
-            if (logData.type != LogHeader.TYPE_NORMAL) {
+            if (logData.logHeader.type != LogHeader.TYPE_NORMAL) {
                 ByteBuffer buf = rb.getBuffer();
                 byte[] b = new byte[buf.remaining()];
                 int p = buf.position();
@@ -186,8 +187,8 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                 return b;
             }
             DecoderCallback<? extends Object> c = header ?
-                    codecFactory.createHeaderCallback(logData.bizType, headerBodyContext) :
-                    codecFactory.createBodyCallback(logData.bizType, headerBodyContext);
+                    codecFactory.createHeaderCallback(logData.logHeader.bizType, headerBodyContext) :
+                    codecFactory.createBodyCallback(logData.logHeader.bizType, headerBodyContext);
             if (c == null) {
                 return null;
             }

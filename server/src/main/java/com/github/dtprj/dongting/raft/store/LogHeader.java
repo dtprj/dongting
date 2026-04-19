@@ -48,16 +48,16 @@ public class LogHeader {
     // negative value means end of file
     private static final int END_LEN_MAGIC = 0xF19A7BCB;
 
-    int totalLen;
-    int bizHeaderLen;
-    int bodyLen;
-    int type;
-    int bizType;
-    int term;
-    int prevLogTerm;
-    long index;
-    long timestamp;
-    int headerCrc;
+    public int totalLen;
+    public int bizHeaderLen;
+    public int bodyLen;
+    public int type;
+    public int bizType;
+    public int term;
+    public int prevLogTerm;
+    public long index;
+    public long timestamp;
+    public int headerCrc;
 
     public LogHeader() {
     }

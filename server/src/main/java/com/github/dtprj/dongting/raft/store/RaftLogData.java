@@ -22,29 +22,11 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
  * @author huangli
  */
 public class RaftLogData extends RaftReqData {
-    public int totalLen;
-    public int bizHeaderLen;
-    public int bodyLen;
-    public int type;
-    public int bizType;
-    public int term;
-    public int prevLogTerm;
-    public long index;
-    public long timestamp;
-    public int crc;
+    public final LogHeader logHeader;
 
-    public RaftLogData(LogHeader header, RefBuffer bizHeader, int bizHeaderCrc, RefBuffer bizBody, int bizBodyCrc) {
+    public RaftLogData(LogHeader logHeader, RefBuffer bizHeader, int bizHeaderCrc, RefBuffer bizBody, int bizBodyCrc) {
         super(bizHeader, bizHeaderCrc, bizBody, bizBodyCrc);
-        this.totalLen = header.totalLen;
-        this.bizHeaderLen = header.bizHeaderLen;
-        this.bodyLen = header.bodyLen;
-        this.type = header.type;
-        this.bizType = header.bizType;
-        this.term = header.term;
-        this.prevLogTerm = header.prevLogTerm;
-        this.index = header.index;
-        this.timestamp = header.timestamp;
-        this.crc = header.headerCrc;
+        this.logHeader = logHeader;
     }
 
 }

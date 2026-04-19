@@ -34,7 +34,6 @@ import java.util.zip.CRC32C;
 public class RaftLogDataCallback extends DecoderCallback<Void> {
     private static final DtLog log = DtLogs.getLogger(RaftLogDataCallback.class);
 
-    private final LogHeader header = new LogHeader();
     private final RefBufferDecoderCallback refBufferCallback = new RefBufferDecoderCallback();
     private final Consumer<RaftLogData> consumer;
 
@@ -43,6 +42,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
     private RefBuffer bizBody;
     private int bizBodyCrc;
 
+    private LogHeader header;
     private int status;
     private int parsedBytes;
 
@@ -65,6 +65,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
         bizBody = null;
         bizHeaderCrc = 0;
         bizBodyCrc = 0;
+        header = null;
         status = STATUS_INIT;
         parsedBytes = 0;
         tmpBuffer.clear();
@@ -84,6 +85,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
                         parsedBytes += remaining;
                         return true;
                     }
+                    header = new LogHeader();
                     if (parsedBytes == 0) {
                         if (!header.readAndCheckCrc(crc, buffer)) {
                             log.error("header crc not match");
