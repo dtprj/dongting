@@ -125,7 +125,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     private void append(List<RaftTask> list) throws Exception {
-        long lastIdx = list.get(list.size() - 1).index;
+        long lastIdx = list.get(list.size() - 1).logHeader.index;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -444,7 +444,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         list.add(createItem(config, 5, 4, 11, 256, 50));// change term
         list.add(createItem(config, 5, 5, 12, 256, 50));
         append(list);
-        raftStatus.lastLogIndex = list.get(list.size() - 1).index;
+        raftStatus.lastLogIndex = list.get(list.size() - 1).logHeader.index;
 
         TailCache tailCache = raftStatus.tailCache;
         for (int i = 0; i <= list.size(); i++) {
@@ -452,9 +452,15 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             for (int j = list.size() - i; j < list.size(); j++) {
                 RaftReqData rd = new RaftReqData(null, 0, null, 0);
                 RaftTask li = list.get(j);
-                RaftTask t = new RaftTask(LogHeader.TYPE_NORMAL, li.term, li.prevLogTerm,
-                        li.index, li.timestamp, 0, rd, null, null, false);
-                tailCache.put(li.index, t);
+                LogHeader lh3 = new LogHeader();
+                lh3.type = LogHeader.TYPE_NORMAL;
+                lh3.term = li.logHeader.term;
+                lh3.prevLogTerm = li.logHeader.prevLogTerm;
+                lh3.index = li.logHeader.index;
+                lh3.timestamp = li.logHeader.timestamp;
+                RaftTask t = new RaftTask(lh3,
+                        rd, null, null, false);
+                tailCache.put(li.logHeader.index, t);
             }
             testMatch();
         }

@@ -102,7 +102,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         if (task == null) {
             return null;
         }
-        int lt = task.term;
+        int lt = task.logHeader.term;
         if (!valid(lt, li)) {
             return null;
         }
@@ -114,7 +114,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
                 BugLog.log("middle index not in tail cache: {}", mi);
                 break;
             }
-            int mt = task.term;
+            int mt = task.logHeader.term;
             if (valid(mt, mi)) {
                 li = mi;
                 lt = mt;

@@ -163,7 +163,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
         raftStatus.lastApplying = index;
-        switch (rt.type) {
+        switch (rt.logHeader.type) {
             case LogHeader.TYPE_PREPARE_CONFIG_CHANGE:
             case LogHeader.TYPE_DROP_CONFIG_CHANGE:
             case LogHeader.TYPE_COMMIT_CONFIG_CHANGE:
@@ -183,7 +183,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                     FiberFuture<Object> f = null;
                     Throwable execEx = null;
                     try {
-                        f = stateMachine.exec(index, rt.timestamp, rt.localCreateNanos, rt);
+                        f = stateMachine.exec(index, rt.logHeader.timestamp, rt.localCreateNanos, rt);
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;
@@ -286,7 +286,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
-        raftStatus.lastAppliedTerm = rt.term;
+        raftStatus.lastAppliedTerm = rt.logHeader.term;
 
         updateApplyLagNanos(index, raftStatus);
 
@@ -345,7 +345,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     private void tryApplyHeartBeat(long appliedIndex) {
         RaftTask t = heartBeatQueue.peekFirst();
-        if (t != null && t.index == appliedIndex + 1) {
+        if (t != null && t.logHeader.index == appliedIndex + 1) {
             heartBeatQueue.pollFirst();
             afterExec(appliedIndex + 1, t, null, null);
         }
@@ -481,7 +481,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             }
             RaftTask rt = items.get(listIndex++);
 
-            return exec(rt, rt.index, this);
+            return exec(rt, rt.logHeader.index, this);
         }
 
     }
@@ -529,19 +529,19 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
         @Override
         public FrameCallResult execute(Void v) {
-            return Fiber.call(new WaitApplyFrame(rt.index - 1), this::afterSync);
+            return Fiber.call(new WaitApplyFrame(rt.logHeader.index - 1), this::afterSync);
         }
 
         private FrameCallResult afterSync(Void v) {
             StatusManager statusManager = gc.statusManager;
             statusManager.persistAsync();
-            switch (rt.type) {
+            switch (rt.logHeader.type) {
                 case LogHeader.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);
                 case LogHeader.TYPE_DROP_CONFIG_CHANGE:
-                    return gc.memberManager.doAbort(rt.index);
+                    return gc.memberManager.doAbort(rt.logHeader.index);
                 case LogHeader.TYPE_COMMIT_CONFIG_CHANGE:
-                    return gc.memberManager.doCommit(rt.index);
+                    return gc.memberManager.doCommit(rt.logHeader.index);
                 default:
                     throw Fiber.fatal(new RaftException("unknown config change type"));
             }
@@ -563,7 +563,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
                         oldObserverIds, raftStatus.nodeIdOfObservers, raftStatus.groupId);
             }
-            return gc.memberManager.doPrepare(rt.index, newMemberIds, newObserverIds);
+            return gc.memberManager.doPrepare(rt.logHeader.index, newMemberIds, newObserverIds);
         }
 
         private Set<Integer> parseSet(String s) {

@@ -179,8 +179,15 @@ public class LogFileQueueTest extends BaseFiberTest {
 
         RaftReqData reqData = new RaftReqData(bizHeaderBuffer, headerCrc, bizBodyBuffer, bodyCrc);
 
-        return new RaftTask(1, term, prevTerm, index, config.ts.wallClockMillis,
-                2, reqData, null, null, false);
+        LogHeader lh = new LogHeader();
+        lh.type = 1;
+        lh.term = term;
+        lh.prevLogTerm = prevTerm;
+        lh.index = index;
+        lh.timestamp = config.ts.wallClockMillis;
+        lh.bizType = 2;
+        return new RaftTask(lh,
+                reqData, null, null, false);
     }
 
     private void append(boolean check, long startPos, int... totalSizes) throws Exception {
@@ -209,7 +216,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             }
         });
 
-        assertEquals(items[items.length - 1].index, raftStatus.lastForceLogIndex);
+        assertEquals(items[items.length - 1].logHeader.index, raftStatus.lastForceLogIndex);
 
         if (!check) {
             return;
@@ -229,12 +236,12 @@ public class LogFileQueueTest extends BaseFiberTest {
             RaftTask item = items[i];
             LogHeader header = new LogHeader();
             assertTrue(header.readAndCheckCrc(new CRC32C(), buf));
-            assertEquals(item.type, header.type);
+            assertEquals(item.logHeader.type, header.type);
             assertEquals(item.bizType, header.bizType);
-            assertEquals(item.term, header.term);
-            assertEquals(item.prevLogTerm, header.prevLogTerm);
-            assertEquals(item.index, header.index);
-            assertEquals(item.timestamp, header.timestamp);
+            assertEquals(item.logHeader.term, header.term);
+            assertEquals(item.logHeader.prevLogTerm, header.prevLogTerm);
+            assertEquals(item.logHeader.index, header.index);
+            assertEquals(item.logHeader.timestamp, header.timestamp);
 
             if (bizHeaderLen > 0) {
                 ByteBuffer expect = item.reqData.bizHeader.getBuffer();

@@ -63,7 +63,6 @@ class FileLogLoader implements RaftLog.LogIterator {
 
     private final Supplier<Boolean> cancelIndicator;
     private final CRC32C crc32c = new CRC32C();
-    private final LogHeader header = new LogHeader();
     private final RaftCodecFactory codecFactory;
     private final DecodeContext decodeContext;
     private final Decoder decoder;
@@ -139,6 +138,8 @@ class FileLogLoader implements RaftLog.LogIterator {
         private final List<RaftTask> result = new LinkedList<>();
         private int state = STATE_ITEM_HEADER;
         private long itemStartPos;
+
+        private LogHeader header;
 
         private RefBuffer bizHeader;
         private int bizHeaderCrc;
@@ -287,6 +288,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         }
 
         private boolean extractHeader(ByteBuffer readBuffer) {
+            header = new LogHeader();
             LogHeader h = header;
             itemStartPos = bufferStartPos + readBuffer.position();
             if (!h.readAndCheckCrc(crc32c, readBuffer)) {
@@ -365,8 +367,8 @@ class FileLogLoader implements RaftLog.LogIterator {
             RaftReqData reqData = new RaftReqData(bizHeader, bizHeaderCrc, bizBody, bizBodyCrc);
             Object decodeBizHeader = decodeData(header.type, bizHeader, true);
             Object decodeBizBody = decodeData(header.type, bizBody, false);
-            RaftTask rt = new RaftTask(header.type, header.term, header.prevLogTerm,
-                    header.index, header.timestamp, header.bizType, reqData,
+            RaftTask rt = new RaftTask(header,
+                    reqData,
                     decodeBizHeader, decodeBizBody, header.type == LogHeader.TYPE_LOG_READ);
 
             // nanos can't persist, use wallClockMillis, so has week dependence on system clock.
@@ -385,6 +387,8 @@ class FileLogLoader implements RaftLog.LogIterator {
 
             bizHeader = null;
             bizBody = null;
+
+            header = null;
         }
 
         private Object decodeData(int type, RefBuffer data, boolean isHeader) {

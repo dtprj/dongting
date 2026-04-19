@@ -187,10 +187,10 @@ public class LinearTaskRunner {
 
             newIndex++;
 
-            rt.term = currentTerm;
-            rt.prevLogTerm = prevTerm;
-            rt.index = newIndex;
-            rt.timestamp = ts.wallClockMillis;
+            rt.logHeader.term = currentTerm;
+            rt.logHeader.prevLogTerm = prevTerm;
+            rt.logHeader.index = newIndex;
+            rt.logHeader.timestamp = ts.wallClockMillis;
             rt.init(ts.nanoTime);
             prevTerm = currentTerm;
 
@@ -206,7 +206,7 @@ public class LinearTaskRunner {
         if (rt.deadline != null && rt.deadline.isTimeout(ts)) {
             return new RaftTimeoutException("timeout " + rt.deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
-        if (rt.type == LogHeader.TYPE_NORMAL || rt.type == LogHeader.TYPE_LOG_READ) {
+        if (rt.logHeader.type == LogHeader.TYPE_NORMAL || rt.logHeader.type == LogHeader.TYPE_LOG_READ) {
             if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {
                 log.warn("reject task, pendingRequests={}, maxPendingRaftTasks={}",
                         raftStatus.tailCache.pendingCount, groupConfig.maxPendingTasks);
@@ -225,14 +225,14 @@ public class LinearTaskRunner {
         TailCache tailCache = raftStatus.tailCache;
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
-            long index = rt.index;
+            long index = rt.logHeader.index;
 
             // successful change owner to TailCache and release in TailCache.release(RaftTask)
             tailCache.put(index, rt);
 
             if (i == len - 1) {
                 raftStatus.lastLogIndex = index;
-                raftStatus.lastLogTerm = rt.term;
+                raftStatus.lastLogTerm = rt.logHeader.term;
             }
         }
         raftStatus.needRepCondition.signalAll();

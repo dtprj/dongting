@@ -50,7 +50,6 @@ public abstract class RaftInput {
 
     public static RaftInput create(int bizType, RaftReqData reqData, Object bizHeader, Object bizBody,
                                    DtTime deadline, boolean readOnly, RaftCallback callback) {
-        return new RaftTask(readOnly ? LogHeader.TYPE_LOG_READ : LogHeader.TYPE_NORMAL,
-                bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
+        return new RaftTask(readOnly ? LogHeader.TYPE_LOG_READ : LogHeader.TYPE_NORMAL, bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
     }
 }

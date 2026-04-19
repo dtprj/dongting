@@ -106,8 +106,8 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     Object bizHeader = decode(true, codecFactory, logData.bizHeader, logData);
                     Object bizBody = decode(false, codecFactory, logData.bizBody, logData);
                     LogHeader lh = logData.logHeader;
-                    RaftTask task = new RaftTask(lh.type, lh.term, lh.prevLogTerm,
-                            lh.index, lh.timestamp, lh.bizType, logData,
+                    RaftTask task = new RaftTask(lh,
+                            logData,
                             bizHeader, bizBody, lh.type == LogHeader.TYPE_LOG_READ);
 
                     result.logs.add(task);

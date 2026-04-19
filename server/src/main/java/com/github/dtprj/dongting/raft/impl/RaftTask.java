@@ -41,32 +41,23 @@ public class RaftTask extends RaftInput implements Encodable {
 
     public long localCreateNanos;
 
-    public final int type;
-
-    public int term;
-    public int prevLogTerm;
-    public long index;
-    public long timestamp;
+    public final LogHeader logHeader;
 
     private boolean invokeCallback;
 
     boolean addPending;
 
-    public RaftTask(int type, int term, int prevLogTerm, long index, long timestamp,
-                    int bizType, RaftReqData reqData, Object bizHeader, Object bizBody,
+    public RaftTask(LogHeader logHeader, RaftReqData reqData, Object bizHeader, Object bizBody,
                     boolean readOnly) {
-        super(bizType, reqData, bizHeader, bizBody, null, readOnly, null);
-        this.type = type;
-        this.term = term;
-        this.prevLogTerm = prevLogTerm;
-        this.index = index;
-        this.timestamp = timestamp;
+        super(logHeader.bizType, reqData, bizHeader, bizBody, null, readOnly, null);
+        this.logHeader = logHeader;
     }
 
     public RaftTask(int type, int bizType, RaftReqData reqData, Object bizHeader, Object bizBody, DtTime deadline,
                     boolean readOnly, RaftCallback callback) {
         super(bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
-        this.type = type;
+        this.logHeader = new LogHeader(type);
+        this.logHeader.bizType = bizType;
     }
 
     public void init(long localCreateNanos) {
@@ -76,7 +67,7 @@ public class RaftTask extends RaftInput implements Encodable {
     public void callSuccess(Object r) {
         if (!invokeCallback) {
             try {
-                RaftCallback.callSuccess(callback, index, r);
+                RaftCallback.callSuccess(callback, logHeader.index, r);
             } finally {
                 callback = null;
                 invokeCallback = true;

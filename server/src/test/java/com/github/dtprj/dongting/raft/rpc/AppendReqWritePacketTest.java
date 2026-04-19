@@ -136,8 +136,14 @@ public class AppendReqWritePacketTest {
             int bodyCrc = bizBody != null ? RaftUtil.calcCrc32c(bizBody) : 0;
             RaftReqData reqData = new RaftReqData(bizHeader, headerCrc, bizBody, bodyCrc);
 
-            RaftTask rt = new RaftTask(LogHeader.TYPE_NORMAL, 4, 3, 200 + i,
-                    System.currentTimeMillis(), 1, reqData, null, null, false);
+            LogHeader lh = new LogHeader();
+            lh.type = LogHeader.TYPE_NORMAL;
+            lh.term = 4;
+            lh.prevLogTerm = 3;
+            lh.index = 200 + i;
+            lh.timestamp = System.currentTimeMillis();
+            lh.bizType = 1;
+            RaftTask rt = new RaftTask(lh, reqData, null, null, false);
 
             logs.add(rt);
         }
@@ -156,10 +162,10 @@ public class AppendReqWritePacketTest {
             RaftTask l1 = f.logs.get(i);
             RaftTask l2 = c.logs.get(i);
             assertEquals(l1.bizType, l2.bizType);
-            assertEquals(l1.index, l2.index);
-            assertEquals(l1.term, l2.term);
-            assertEquals(l1.timestamp, l2.timestamp);
-            assertEquals(l1.type, l2.type);
+            assertEquals(l1.logHeader.index, l2.logHeader.index);
+            assertEquals(l1.logHeader.term, l2.logHeader.term);
+            assertEquals(l1.logHeader.timestamp, l2.logHeader.timestamp);
+            assertEquals(l1.logHeader.type, l2.logHeader.type);
             if (l1.reqData.bizHeader != null) {
                 assertArrayEquals(l1.reqData.bizHeader.getBuffer().array(),
                         l2.reqData.bizHeader.getBuffer().array());

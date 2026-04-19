@@ -62,6 +62,10 @@ public class LogHeader {
     public LogHeader() {
     }
 
+    public LogHeader(int type) {
+        this.type = type;
+    }
+
     public boolean isEndMagic() {
         return totalLen == END_LEN_MAGIC;
     }
@@ -92,7 +96,8 @@ public class LogHeader {
     }
 
     public static int writeHeader(CRC32C crc, ByteBuffer buffer, RaftTask rt) {
-        boolean read = rt.type == TYPE_LOG_READ;
+        LogHeader lh = rt.logHeader;
+        boolean read = lh.type == TYPE_LOG_READ;
         int len;
         int bizHeaderSize;
         int bizBodySize;
@@ -110,12 +115,12 @@ public class LogHeader {
         buffer.putInt(len);
         buffer.putInt(bizHeaderSize);
         buffer.putInt(bizBodySize);
-        buffer.put((byte) rt.type);
-        buffer.put((byte) rt.bizType);
-        buffer.putInt(rt.term);
-        buffer.putInt(rt.prevLogTerm);
-        buffer.putLong(rt.index);
-        buffer.putLong(rt.timestamp);
+        buffer.put((byte) lh.type);
+        buffer.put((byte) lh.bizType);
+        buffer.putInt(lh.term);
+        buffer.putInt(lh.prevLogTerm);
+        buffer.putLong(lh.index);
+        buffer.putLong(lh.timestamp);
         crc.reset();
         RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);
         buffer.putInt((int) crc.getValue());

@@ -156,7 +156,7 @@ class LogAppender {
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
                 RaftTask li = taskList.get(i);
                 int len;
-                if (li.type == LogHeader.TYPE_LOG_READ) {
+                if (li.logHeader.type == LogHeader.TYPE_LOG_READ) {
                     len = LogHeader.ITEM_HEADER_SIZE;
                 } else {
                     len = LogHeader.computeTotalLen(li.reqData.bizHeaderSize, li.reqData.bizBodySize);
@@ -219,15 +219,16 @@ class LogAppender {
             long dataPos = file.startPos + writeStartPosInFile;
             for (int i = 0; i < count; i++) {
                 RaftTask li = taskList.get(startTaskIndex + i);
+                LogHeader lh = li.logHeader;
                 if (file.firstIndex == 0) {
-                    file.firstIndex = li.index;
-                    file.firstTerm = li.term;
-                    file.firstTimestamp = li.timestamp;
+                    file.firstIndex = lh.index;
+                    file.firstTerm = lh.term;
+                    file.firstTimestamp = lh.timestamp;
                 }
 
                 int len = li.actualSize();
                 buffer = encodeData(len, li, buffer, file);
-                idxOps.put(li.index, dataPos, len);
+                idxOps.put(lh.index, dataPos, len);
                 dataPos += len;
                 lastItem = li;
                 writeCount++;
@@ -262,7 +263,7 @@ class LogAppender {
             buffer.flip();
             int bytes = buffer.remaining();
 
-            long lastIndex = lastItem != null ? lastItem.index : -1;
+            long lastIndex = lastItem != null ? lastItem.logHeader.index : -1;
             long writeStartPosInFile = nextPersistPos & fileLenMask;
             chainWriter.submitWrite(file, logFileQueue.initialized, buffer, writeStartPosInFile,
                     lastItem != null, writeCount, lastIndex);

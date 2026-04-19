@@ -362,7 +362,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             closeIterator();
             return Fiber.resume(null, this);
         }
-        if (member.nextIndex != items.get(0).index) {
+        if (member.nextIndex != items.get(0).logHeader.index) {
             log.error("the first load item index not match nextIndex, ignore load result");
             RaftUtil.releaseInputs(items);
             closeIterator();
@@ -383,9 +383,9 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         if (!items.isEmpty()) {
             RaftTask firstItem = items.get(0);
-            long prevLogIndex = firstItem.index - 1;
+            long prevLogIndex = firstItem.logHeader.index - 1;
             req.prevLogIndex = prevLogIndex;
-            req.prevLogTerm = firstItem.prevLogTerm;
+            req.prevLogTerm = firstItem.logHeader.prevLogTerm;
             req.logs = items;
             member.nextIndex = prevLogIndex + 1 + items.size();
         }
