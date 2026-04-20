@@ -155,12 +155,7 @@ class LogAppender {
             int count = 0;
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
                 RaftTask li = taskList.get(i);
-                int len;
-                if (li.logHeader.type == LogHeader.TYPE_LOG_READ) {
-                    len = LogHeader.ITEM_HEADER_SIZE;
-                } else {
-                    len = LogHeader.computeTotalLen(li.reqData.bizHeaderSize, li.reqData.bizBodySize);
-                }
+                int len = li.logHeader.totalLen;
                 if (len <= fileRestBytes) {
                     bytesToWrite += len;
                     fileRestBytes -= len;
@@ -239,7 +234,6 @@ class LogAppender {
         private ByteBuffer encodeData(int actualSize, RaftTask src, ByteBuffer dest, LogFile file) {
             try {
                 int totalEncodeLen = 0;
-                encodeContext.status = crc32c;
                 while (true) {
                     int startPos = dest.position();
                     boolean finish = src.encode(encodeContext, dest);

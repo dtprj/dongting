@@ -37,9 +37,11 @@ import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.ArrayList;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.CRC32C;
 
 /**
  * @author huangli
@@ -59,6 +61,9 @@ public class LinearTaskRunner {
     private FiberChannel<RaftTask> taskChannel;
 
     private final PerfCallback perfCallback;
+
+    private final CRC32C crc32c = new CRC32C();
+    private final ByteBuffer crcBuf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE - 4);
 
     public LinearTaskRunner(GroupComponents gc) {
         this.gc = gc;
@@ -187,10 +192,17 @@ public class LinearTaskRunner {
 
             newIndex++;
 
-            rt.logHeader.term = currentTerm;
-            rt.logHeader.prevLogTerm = prevTerm;
-            rt.logHeader.index = newIndex;
-            rt.logHeader.timestamp = ts.wallClockMillis;
+            LogHeader lh = rt.logHeader;
+            lh.term = currentTerm;
+            lh.prevLogTerm = prevTerm;
+            lh.index = newIndex;
+            lh.timestamp = ts.wallClockMillis;
+            if (lh.type == LogHeader.TYPE_LOG_READ) {
+                lh.setLens(0, 0);
+            } else {
+                lh.setLens(rt.reqData.bizHeaderSize, rt.reqData.bizBodySize);
+            }
+            lh.computeCrc(crc32c, crcBuf);
             rt.init(ts.nanoTime);
             prevTerm = currentTerm;
 

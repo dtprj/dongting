@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.nio.ByteBuffer;
-import java.util.zip.CRC32C;
 
 /**
  * @author huangli
@@ -95,8 +94,7 @@ public class RaftTask extends RaftInput implements Encodable {
                 if (destBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
                     return false;
                 } else {
-                    CRC32C crc = (CRC32C) context.status; // require the caller set the crc as status
-                    LogHeader.writeHeader(crc, destBuffer, this);
+                    logHeader.writeTo(destBuffer);
                     context.stage = HEADER_FINISHED;
                 }
                 sub = context.createOrGetNestedContext(true);
@@ -155,6 +153,6 @@ public class RaftTask extends RaftInput implements Encodable {
 
     @Override
     public int actualSize() {
-        return LogHeader.ITEM_HEADER_SIZE + reqData.totalSize;
+        return logHeader.totalLen;
     }
 }

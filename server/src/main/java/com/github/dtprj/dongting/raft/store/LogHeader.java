@@ -15,9 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
@@ -95,36 +93,40 @@ public class LogHeader {
         return ITEM_HEADER_SIZE + (bizHeaderLen == 0 ? 0 : bizHeaderLen + 4) + (bodyLen == 0 ? 0 : bodyLen + 4);
     }
 
-    public static int writeHeader(CRC32C crc, ByteBuffer buffer, RaftTask rt) {
-        LogHeader lh = rt.logHeader;
-        boolean read = lh.type == TYPE_LOG_READ;
-        int len;
-        int bizHeaderSize;
-        int bizBodySize;
-        if (read) {
-            len = ITEM_HEADER_SIZE;
-            bizHeaderSize = 0;
-            bizBodySize = 0;
-        } else {
-            RaftReqData reqData = rt.reqData;
-            bizHeaderSize = reqData.bizHeaderSize;
-            bizBodySize = reqData.bizBodySize;
-            len = computeTotalLen(bizHeaderSize, bizBodySize);
-        }
-        int startPos = buffer.position();
-        buffer.putInt(len);
-        buffer.putInt(bizHeaderSize);
-        buffer.putInt(bizBodySize);
-        buffer.put((byte) lh.type);
-        buffer.put((byte) lh.bizType);
-        buffer.putInt(lh.term);
-        buffer.putInt(lh.prevLogTerm);
-        buffer.putLong(lh.index);
-        buffer.putLong(lh.timestamp);
-        crc.reset();
-        RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);
-        buffer.putInt((int) crc.getValue());
-        return len;
+    public void setLens(int bizHeaderLen, int bodyLen) {
+        this.bizHeaderLen = bizHeaderLen;
+        this.bodyLen = bodyLen;
+        this.totalLen = computeTotalLen(bizHeaderLen, bodyLen);
+    }
+
+    public void computeCrc(CRC32C crc32c, ByteBuffer buf) {
+        buf.clear();
+        buf.putInt(totalLen);
+        buf.putInt(bizHeaderLen);
+        buf.putInt(bodyLen);
+        buf.put((byte) type);
+        buf.put((byte) bizType);
+        buf.putInt(term);
+        buf.putInt(prevLogTerm);
+        buf.putLong(index);
+        buf.putLong(timestamp);
+        buf.flip();
+        crc32c.reset();
+        crc32c.update(buf);
+        this.headerCrc = (int) crc32c.getValue();
+    }
+
+    public void writeTo(ByteBuffer buffer) {
+        buffer.putInt(totalLen);
+        buffer.putInt(bizHeaderLen);
+        buffer.putInt(bodyLen);
+        buffer.put((byte) type);
+        buffer.put((byte) bizType);
+        buffer.putInt(term);
+        buffer.putInt(prevLogTerm);
+        buffer.putLong(index);
+        buffer.putLong(timestamp);
+        buffer.putInt(headerCrc);
     }
 
     public static void writeEndHeader(CRC32C crc, ByteBuffer buffer) {

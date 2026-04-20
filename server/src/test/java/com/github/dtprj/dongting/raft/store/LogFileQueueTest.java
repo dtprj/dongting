@@ -186,6 +186,10 @@ public class LogFileQueueTest extends BaseFiberTest {
         lh.index = index;
         lh.timestamp = config.ts.wallClockMillis;
         lh.bizType = 2;
+        lh.setLens(reqData.bizHeaderSize, reqData.bizBodySize);
+        CRC32C crc32c = new CRC32C();
+        ByteBuffer crcBuf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE - 4);
+        lh.computeCrc(crc32c, crcBuf);
         return new RaftTask(lh,
                 reqData, null, null, false);
     }

@@ -143,6 +143,8 @@ public class AppendReqWritePacketTest {
             lh.index = 200 + i;
             lh.timestamp = System.currentTimeMillis();
             lh.bizType = 1;
+            lh.setLens(reqData.bizHeaderSize, reqData.bizBodySize);
+            lh.computeCrc(new java.util.zip.CRC32C(), ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE - 4));
             RaftTask rt = new RaftTask(lh, reqData, null, null, false);
 
             logs.add(rt);

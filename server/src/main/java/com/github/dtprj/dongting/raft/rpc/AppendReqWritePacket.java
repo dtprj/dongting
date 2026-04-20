@@ -20,11 +20,9 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.zip.CRC32C;
 
 /**
  * @author huangli
@@ -56,8 +54,6 @@ public class AppendReqWritePacket extends WritePacket {
     private int writeStatus;
     private int encodeLogIndex;
 
-    private final CRC32C crc = new CRC32C();
-
     public AppendReqWritePacket() {
     }
 
@@ -76,7 +72,7 @@ public class AppendReqWritePacket extends WritePacket {
             for (int size = logs.size(), i = 0; i < size; i++) {
                 // assert itemSize > 0
                 RaftTask item = logs.get(i);
-                bodySize += LogHeader.computeTotalLen(item.reqData.bizHeaderSize, item.reqData.bizBodySize);
+                bodySize += item.logHeader.totalLen;
             }
         }
 
@@ -111,7 +107,6 @@ public class AppendReqWritePacket extends WritePacket {
                     } else {
                         return true;
                     }
-                    context.status = crc;
                     if (currentItem.encode(context, dest)) {
                         context.reset();
                         encodeLogIndex++;
