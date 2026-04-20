@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.util;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -92,6 +94,36 @@ public class CodecTestUtil {
 
         Assertions.assertEquals(size, encodedSize);
         Assertions.assertNotNull(o);
+        return o;
+    }
+
+    public static Object smallBufferEncodeAndDecode(Encodable e, DecoderCallback<?> callback) {
+        EncodeContext c = CodecTestUtil.encodeContext();
+        int size = e.actualSize();
+        Decoder decoder = new Decoder();
+        decoder.prepareNext(CodecTestUtil.decodeContext(), callback);
+
+        ByteBuffer smallBuf = ByteBuffer.allocate(1);
+        ByteBuffer buf = smallBuf;
+        int encodedSize = 0;
+        boolean encodeFinished;
+        Object o = null;
+        do {
+            encodeFinished = e.encode(c, buf);
+            if (buf.position() == 0) {
+                buf = ByteBuffer.allocate(buf.capacity() + 1);
+                continue;
+            }
+            buf.flip();
+            int chunkStart = encodedSize;
+            encodedSize += buf.remaining();
+            o = decoder.decode(buf, size, chunkStart);
+            buf = smallBuf;
+            buf.clear();
+        } while (!encodeFinished);
+
+        Assertions.assertEquals(size, encodedSize);
+        Assertions.assertTrue(decoder.isFinished());
         return o;
     }
 
