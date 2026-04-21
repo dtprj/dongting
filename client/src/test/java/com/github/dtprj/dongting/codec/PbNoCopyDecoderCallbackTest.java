@@ -57,9 +57,9 @@ public class PbNoCopyDecoderCallbackTest {
         PbCallback<Object> callback = new PbCallback<>() {
 
             @Override
-            public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+            public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
                 count.increment();
-                return false;
+                throw new CodecException("cancel");
             }
 
             @Override
@@ -72,22 +72,24 @@ public class PbNoCopyDecoderCallbackTest {
         PbUtil.writeAsciiField(buf, 1, "12313213213123");
         buf.flip();
         int limit = buf.limit();
-        assertNull(decoder.decode(buf, limit, 0));
-        assertEquals(1, count.getValue());
-        assertTrue(decoder.isFinished());
+        try {
+            decoder.decode(buf, limit, 0);
+            fail();
+        } catch (CodecException e) {
+            assertEquals(1, count.getValue());
+            assertTrue(decoder.isFinished());
+        }
 
         count.setValue(0);
         decoder.prepareNext(c, c.toDecoderCallback(callback));
         buf.position(0);
         buf.limit(5);
-        assertNull(decoder.decode(buf, limit, 0));
-        assertEquals(1, count.getValue());
-        assertFalse(decoder.isFinished());
-        assertTrue(decoder.shouldSkip());
-        buf.position(5);
-        buf.limit(limit);
-        assertNull(decoder.decode(buf, limit, 5));
-        assertEquals(1, count.getValue());
-        assertTrue(decoder.isFinished());
+        try {
+            decoder.decode(buf, limit, 0);
+            fail();
+        } catch (CodecException e) {
+            assertEquals(1, count.getValue());
+            assertTrue(decoder.isFinished());
+        }
     }
 }

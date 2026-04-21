@@ -25,11 +25,10 @@ public class PbBytesCallback extends PbCallback<byte[]> {
     private byte[] bs;
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 1) {
             bs = parseBytes(buf, fieldLen, currentPos);
         }
-        return true;
     }
 
     @Override

@@ -35,7 +35,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     private int keysIndex = 0;
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         switch (index) {
             case WatchReq.IDX_GROUP_ID:
                 this.groupId = (int) value;
@@ -52,26 +52,23 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
                 this.keys = new ByteArray[len];
                 break;
         }
-        return true;
     }
 
     @Override
-    public boolean readFix64(int index, long value) {
+    public void readFix64(int index, long value) {
         if (index == WatchReq.IDX_KNOWN_RAFT_INDEXES) {
             knownRaftIndexes[knownRaftIndexesIndex++] = value;
         }
-        return true;
     }
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == WatchReq.IDX_KEYS) {
             byte[] b = parseBytes(buf, fieldLen, currentPos);
             if (b != null) {
                 this.keys[keysIndex++] = new ByteArray(b);
             }
         }
-        return true;
     }
 
     @Override

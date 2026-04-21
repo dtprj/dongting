@@ -148,21 +148,19 @@ public class RaftNode implements Encodable, Comparable<RaftNode> {
         private int port;
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == IDX_NODE_ID) {
                 nodeId = (int) value;
             } else if (index == IDX_PORT) {
                 port = (int) value;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_HOST) {
                 host = parseUTF8(buf, fieldLen, currentPos);
             }
-            return true;
         }
 
         @Override

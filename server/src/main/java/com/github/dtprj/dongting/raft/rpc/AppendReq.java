@@ -129,7 +129,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     result.groupId = (int) value;
@@ -147,11 +147,10 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     result.logs = createArrayList((int) value);
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             switch (index) {
                 case IDX_PREV_LOG_INDEX:
                     result.prevLogIndex = value;
@@ -160,18 +159,13 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     result.leaderCommit = value;
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_ENTRIES) {
                 parseNested(buf, len, currentPos, logDataCallback);
-                if (context.createOrGetNestedDecoder().shouldSkip()) {
-                    return false;
-                }
             }
-            return true;
         }
 
         private Object decode(boolean header, RaftCodecFactory codecFactory, RefBuffer rb, RaftLogData logData) {

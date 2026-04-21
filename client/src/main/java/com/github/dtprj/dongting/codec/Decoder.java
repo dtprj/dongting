@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 public class Decoder {
     private boolean beginCalled = false;
     private boolean endCalled = false;
-    private boolean skip = false;
 
     private DecodeContext context;
     private DecoderCallback<?> callback;
@@ -47,16 +46,11 @@ public class Decoder {
         } finally {
             context.status = null;
             callback.context = null;
-            skip = !success;
         }
     }
 
     public boolean isFinished() {
         return endCalled;
-    }
-
-    public boolean shouldSkip() {
-        return skip;
     }
 
     public void prepareNext(DecodeContext context, DecoderCallback<?> callback) {
@@ -68,7 +62,6 @@ public class Decoder {
 
         this.beginCalled = false;
         this.endCalled = false;
-        this.skip = false;
     }
 
     public final Object decode(ByteBuffer buffer, int bodyLen, int currentPos) {
@@ -83,36 +76,29 @@ public class Decoder {
         int recordEndPos = buffer.position() + bodyLen - currentPos;
         boolean allDataAvailable = oldLimit >= recordEndPos;
         try {
-            if (skip) {
-                buffer.position(Math.min(oldLimit, recordEndPos));
-                return null;
-            }
             if (oldLimit > recordEndPos) {
                 buffer.limit(recordEndPos);
             }
-            try {
-                skip = !callback.doDecode(buffer, bodyLen, currentPos);
-                if (!skip && buffer.position() != (allDataAvailable ? recordEndPos : oldLimit)) {
-                    throw new CodecException("doDecode returned true but didn't consume all bytes. "
-                            + "bodyLen=" + bodyLen + ", currentPos=" + currentPos
-                            + ", class=" + callback.getClass().getName());
-                }
-            } finally {
-                if (oldLimit > recordEndPos) {
-                    buffer.limit(oldLimit);
-                }
-                if (skip) {
-                    buffer.position(allDataAvailable ? recordEndPos : oldLimit);
-                }
+            callback.doDecode(buffer, bodyLen, currentPos);
+            if (buffer.position() != (allDataAvailable ? recordEndPos : oldLimit)) {
+                throw new CodecException("doDecode didn't consume all bytes. "
+                        + "bodyLen=" + bodyLen + ", currentPos=" + currentPos
+                        + ", class=" + callback.getClass().getName());
             }
             return allDataAvailable ? callback.getResult() : null;
         } catch (RuntimeException | Error e) {
-            skip = true;
+            if (oldLimit > recordEndPos) {
+                buffer.limit(oldLimit);
+            }
+            buffer.position(allDataAvailable ? recordEndPos : oldLimit);
             callEndAndReset(false);
             throw e;
         } finally {
+            if (oldLimit > recordEndPos) {
+                buffer.limit(oldLimit);
+            }
             if (allDataAvailable) {
-                callEndAndReset(!skip);
+                callEndAndReset(true);
             }
         }
     }

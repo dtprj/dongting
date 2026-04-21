@@ -192,7 +192,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     req.groupId = (int) value;
@@ -204,11 +204,10 @@ public class KvReq extends RaftRpcData implements Encodable {
                     keysSize = (int) value;
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             switch (index) {
                 case IDX_KEY:
                     req.key = parseBytes(buf, fieldLen, currentPos);
@@ -238,11 +237,10 @@ public class KvReq extends RaftRpcData implements Encodable {
                     req.expectValue = parseBytes(buf, fieldLen, currentPos);
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             switch (index) {
                 case IDX_OWNER_UUID1:
                     uuid1 = value;
@@ -251,7 +249,6 @@ public class KvReq extends RaftRpcData implements Encodable {
                     uuid2 = value;
                     break;
             }
-            return true;
         }
 
         @Override

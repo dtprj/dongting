@@ -171,9 +171,8 @@ public class ByteArray implements Encodable, Comparable<ByteArray> {
     public static final class Callback extends DecoderCallback<ByteArray> {
 
         @Override
-        public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+        public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
             parseBytes(buffer, bodyLen, currentPos);
-            return true;
         }
 
         @Override

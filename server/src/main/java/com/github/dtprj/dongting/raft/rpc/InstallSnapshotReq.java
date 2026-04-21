@@ -93,7 +93,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         private final RefBufferDecoderCallback refBufferCallback = new RefBufferDecoderCallback();
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     result.groupId = (int) value;
@@ -111,11 +111,10 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
                     result.done = value != 0;
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             switch (index) {
                 case IDX_LAST_INCLUDED_INDEX:
                     result.lastIncludedIndex = value;
@@ -130,10 +129,9 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
                     result.lastConfigChangeIndex = value;
                     break;
             }
-            return true;
         }
 
-        public boolean readFix32(int index, int value) {
+        public void readFix32(int index, int value) {
             switch (index) {
                 case IDX_MEMBERS:
                     if (result.members == Collections.EMPTY_SET) {
@@ -160,18 +158,16 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
                     result.preparedObservers.add(value);
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_DATA) {
                 RefBuffer rb = parseNested(buf, len, currentPos, refBufferCallback);
                 if (rb != null) {
                     result.data = rb;
                 }
             }
-            return true;
         }
 
         @Override

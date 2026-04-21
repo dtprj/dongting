@@ -31,7 +31,6 @@ public class PbParser {
     private static final int STATUS_PARSE_TAG = 4;
     private static final int STATUS_PARSE_FILED_LEN = 5;
     private static final int STATUS_PARSE_FILED_BODY = 6;
-    private static final int STATUS_SKIP_REST = 7;
 
     PbCallback<?> callback;
 
@@ -96,10 +95,6 @@ public class PbParser {
         return status == STATUS_END || status == STATUS_END_SKIP;
     }
 
-    public boolean shouldSkip() {
-        return status == STATUS_END_SKIP || status == STATUS_SKIP_REST;
-    }
-
     public Object parse(ByteBuffer buf) {
         if (status == STATUS_END || status == STATUS_END_SKIP) {
             throw new PbException("parser is finished");
@@ -132,19 +127,9 @@ public class PbParser {
                     // go down to ensure empty body will invoke callEnd()
                 case STATUS_PARSE_FILED_BODY:
                     remain = onStatusParseFieldBody(buf, callback, remain);
-                    if (size == parsedBytes && (status == STATUS_PARSE_TAG || status == STATUS_SKIP_REST)) {
-                        return callEnd(callback, status == STATUS_PARSE_TAG);
+                    if (size == parsedBytes && status == STATUS_PARSE_TAG) {
+                        return callEnd(callback, true);
                     }
-                    break;
-                case STATUS_SKIP_REST:
-                    int skipCount = Math.min(this.size - this.parsedBytes, buf.remaining());
-                    buf.position(buf.position() + skipCount);
-                    if (this.parsedBytes + skipCount == this.size) {
-                        return callEnd(callback, false);
-                    } else {
-                        this.parsedBytes += skipCount;
-                    }
-                    remain -= skipCount;
                     break;
                 default:
                     throw new PbException("invalid status: " + status);
@@ -303,11 +288,8 @@ public class PbParser {
                     throw new PbException("size exceed " + size);
                 }
 
-                if (callback.readVarNumber(this.fieldIndex, value)) {
-                    this.status = STATUS_PARSE_TAG;
-                } else {
-                    this.status = STATUS_SKIP_REST;
-                }
+                callback.readVarNumber(this.fieldIndex, value);
+                this.status = STATUS_PARSE_TAG;
 
                 this.pendingBytes = 0;
                 this.parsedBytes = parsedBytes;
@@ -363,9 +345,9 @@ public class PbParser {
         if (oldLimit > end) {
             buf.limit(end);
         }
-        boolean result = callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
-        if (result && buf.position() != end) {
-            throw new PbException("readBytes returned true but didn't consume all bytes. "
+        callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
+        if (buf.position() != end) {
+            throw new PbException("readBytes didn't consume all bytes. "
                     + "fieldIndex=" + this.fieldIndex + ", fieldLen=" + fieldLen
                     + ", currentPos=" + pendingBytes + ", class=" + callback.getClass().getName());
         }
@@ -373,17 +355,11 @@ public class PbParser {
             buf.limit(oldLimit);
         }
         parsedBytes += actualRead;
-        if (result) {
-            if (needRead == actualRead) {
-                pendingBytes = 0;
-                status = STATUS_PARSE_TAG;
-            } else {
-                pendingBytes += actualRead;
-            }
-        } else {
-            buf.position(end);
+        if (needRead == actualRead) {
             pendingBytes = 0;
-            status = STATUS_SKIP_REST;
+            status = STATUS_PARSE_TAG;
+        } else {
+            pendingBytes += actualRead;
         }
         return remain - actualRead;
     }
@@ -430,16 +406,11 @@ public class PbParser {
     }
 
     private void callbackOnReadFixNumber(PbCallback<?> callback, int len, long value) {
-        boolean r;
         if (len == 4) {
-            r = callback.readFix32(this.fieldIndex, (int) value);
+            callback.readFix32(this.fieldIndex, (int) value);
         } else {
-            r = callback.readFix64(this.fieldIndex, value);
+            callback.readFix64(this.fieldIndex, value);
         }
-        if (r) {
-            this.status = STATUS_PARSE_TAG;
-        } else {
-            this.status = STATUS_SKIP_REST;
-        }
+        this.status = STATUS_PARSE_TAG;
     }
 }

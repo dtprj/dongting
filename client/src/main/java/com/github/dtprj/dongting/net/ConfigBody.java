@@ -41,7 +41,7 @@ public class ConfigBody extends PbCallback<ConfigBody> implements SimpleEncodabl
     public long maxOutPendingBytes;
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         switch (index) {
             case IDX_MAX_PACKET_SIZE:
                 maxPacketSize = (int) value;
@@ -62,7 +62,6 @@ public class ConfigBody extends PbCallback<ConfigBody> implements SimpleEncodabl
                 maxOutPendingBytes = value;
                 break;
         }
-        return true;
     }
 
     @Override

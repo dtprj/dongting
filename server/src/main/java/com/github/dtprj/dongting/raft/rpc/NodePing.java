@@ -58,23 +58,21 @@ public class NodePing extends PbCallback<NodePing> implements SimpleEncodable {
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (index == 1) {
             this.localNodeId = (int) value;
         } else if (index == 2) {
             this.remoteNodeId = (int) value;
         }
-        return true;
     }
 
     @Override
-    public boolean readFix64(int index, long value) {
+    public void readFix64(int index, long value) {
         if (index == 3) {
             this.uuidHigh = value;
         } else if (index == 4) {
             this.uuidLow = value;
         }
-        return true;
     }
 
     @Override

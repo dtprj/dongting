@@ -49,18 +49,16 @@ public class AdminCommitOrAbortReq extends PbCallback<AdminCommitOrAbortReq> imp
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (index == 1) {
             this.groupId = (int) value;
         }
-        return true;
     }
 
     @Override
-    public boolean readFix64(int index, long value) {
+    public void readFix64(int index, long value) {
         if (index == 2) {
             this.prepareIndex = value;
         }
-        return true;
     }
 }

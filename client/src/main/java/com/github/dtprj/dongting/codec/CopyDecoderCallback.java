@@ -25,11 +25,12 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
     private ByteBuffer temp;
 
     @Override
-    public final boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+    public final void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean start = currentPos == 0;
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (start && end) {
-            return decode(buffer);
+            decode(buffer);
+            return;
         }
         if (start) {
             temp = context.heapPool.getPool().borrow(bodyLen);
@@ -37,9 +38,8 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
         temp.put(buffer);
         if (end) {
             temp.flip();
-            return decode(temp);
+            decode(temp);
         }
-        return true;
     }
 
     @Override
@@ -50,5 +50,5 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
         }
     }
 
-    protected abstract boolean decode(ByteBuffer buffer);
+    protected abstract void decode(ByteBuffer buffer);
 }

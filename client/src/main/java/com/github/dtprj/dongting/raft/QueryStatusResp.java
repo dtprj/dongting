@@ -246,7 +246,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
         private final QueryStatusResp resp = new QueryStatusResp();
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     resp.groupId = (int) value;
@@ -264,11 +264,10 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
                     resp.leaderId = (int) value;
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix32(int index, int value) {
+        public void readFix32(int index, int value) {
             switch (index) {
                 case IDX_MEMBERS:
                     if (resp.members == Collections.EMPTY_SET) {
@@ -295,11 +294,10 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
                     resp.preparedObservers.add(value);
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             switch (index) {
                 case IDX_COMMIT_INDEX:
                     resp.commitIndex = value;
@@ -320,15 +318,13 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
                     resp.lastConfigChangeIndex = value;
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_LAST_ERROR) {
                 resp.lastError = parseUTF8(buf, fieldLen, currentPos);
             }
-            return true;
         }
 
         @Override

@@ -70,15 +70,14 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == 1) {
                 req.groupId = (int) value;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix32(int index, int value) {
+        public void readFix32(int index, int value) {
             switch (index) {
                 case 2:
                     if (req.members == Collections.EMPTY_SET) {
@@ -105,7 +104,6 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
                     req.preparedObservers.add(value);
                     break;
             }
-            return true;
         }
     }
 }

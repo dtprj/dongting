@@ -44,18 +44,16 @@ public class AdminListGroupsResp extends PbCallback<AdminListGroupsResp> impleme
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (index == IDX_SIZE) {
             groupIds = new int[(int) value];
         } else if (index == IDX_GROUP_ID) {
             if (writePos < groupIds.length) {
                 groupIds[writePos++] = (int) value;
             } else {
-                log.error("group_id exceed size {}", groupIds.length);
-                return false;
+                throw new CodecException("group_id exceed size " + groupIds.length);
             }
         }
-        return true;
     }
 
     @Override

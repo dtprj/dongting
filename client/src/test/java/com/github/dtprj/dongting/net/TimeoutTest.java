@@ -220,7 +220,7 @@ public class TimeoutTest {
             public DecoderCallback<ByteBuffer> createDecoderCallback(int command, DecodeContext context) {
                 return new IoFullPackByteBufferDecoderCallback() {
                     @Override
-                    public boolean decode(ByteBuffer buffer) {
+                    public void decode(ByteBuffer buffer) {
                         latch1.countDown();
                         try {
                             latch2.await();
@@ -228,7 +228,7 @@ public class TimeoutTest {
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }
-                        return super.decode(buffer);
+                        super.decode(buffer);
                     }
                 };
             }

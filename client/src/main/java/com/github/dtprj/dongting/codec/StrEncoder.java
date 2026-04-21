@@ -51,12 +51,11 @@ public final class StrEncoder extends ByteArray {
         private StrEncoder r;
 
         @Override
-        protected boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+        protected void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
             byte[] bytes = parseBytes(buffer, bodyLen, currentPos);
             if (bytes != null) {
                 r = new StrEncoder(bytes);
             }
-            return true;
         }
 
         @Override

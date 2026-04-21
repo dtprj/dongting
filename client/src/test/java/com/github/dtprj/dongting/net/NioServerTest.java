@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.CopyDecoderCallback;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
@@ -465,7 +466,7 @@ public class NioServerTest {
             public DecoderCallback<Object> createDecoderCallback(int command, DecodeContext context) {
                 return new CopyDecoderCallback<>() {
                     @Override
-                    public boolean decode(ByteBuffer buffer) {
+                    public void decode(ByteBuffer buffer) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
 
@@ -485,12 +486,12 @@ public class NioServerTest {
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             handshake(in, out);
+
             assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING1, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(3, CMD_BIZ_PING2, 5000, in, out));
 
-            assertThrows(EOFException.class, () -> invoke(4, 10001, 5000, in, out));
+            assertEquals(CmdCodes.SYS_ERROR, invoke(2, 10001, 5000, in, out));
 
+            assertEquals(CmdCodes.SUCCESS, invoke(3, CMD_IO_PING, 5000, in, out));
         } finally {
             DtUtil.close(s);
         }
@@ -509,8 +510,8 @@ public class NioServerTest {
             public DecoderCallback<Object> createDecoderCallback(int command, DecodeContext context) {
                 return new CopyDecoderCallback<>() {
                     @Override
-                    public boolean decode(ByteBuffer buffer) {
-                        return false;
+                    public void decode(ByteBuffer buffer) {
+                        throw new CodecException("cancel decode");
                     }
 
                     @Override
@@ -535,6 +536,12 @@ public class NioServerTest {
             assertEquals(CmdCodes.SUCCESS, invoke(3, CMD_BIZ_PING2, 5000, in, out));
 
             sendReqOnly(4, 10001, 5000, out);
+            int len4 = in.readInt();
+            byte[] resp4 = new byte[len4];
+            in.readFully(resp4);
+            DtPacket.Packet packet4 = DtPacket.Packet.parseFrom(resp4);
+            assertEquals(PacketType.TYPE_RESP, packet4.getPacketType());
+            assertEquals(CmdCodes.SYS_ERROR, packet4.getRespCode());
 
             assertEquals(CmdCodes.SUCCESS, invoke(5, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING1, 5000, in, out));

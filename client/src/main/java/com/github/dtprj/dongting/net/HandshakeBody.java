@@ -48,7 +48,7 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
     }
 
     @Override
-    public boolean readFix64(int index, long value) {
+    public void readFix64(int index, long value) {
         switch (index) {
             case IDX_MAGIC1:
                 if (value != MAGIC1) {
@@ -61,11 +61,10 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
                 }
                 break;
         }
-        return true;
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         switch (index) {
             case IDX_MAJOR_VERSION:
                 majorVersion = (int) value;
@@ -74,11 +73,10 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
                 minorVersion = (int) value;
                 break;
         }
-        return true;
     }
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_CONFIG) {
             ConfigBody nestedCallback = currentPos == 0 ? new ConfigBody() : null;
             config = parseNested(buf, fieldLen, currentPos, nestedCallback);
@@ -86,7 +84,6 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
             ProcessInfoBody nestedCallback = currentPos == 0 ? new ProcessInfoBody() : null;
             processInfo = parseNested(buf, fieldLen, currentPos, nestedCallback);
         }
-        return true;
     }
 
     @Override
@@ -124,7 +121,7 @@ class ProcessInfoBody extends PbCallback<ProcessInfoBody> implements SimpleEncod
     }
 
     @Override
-    public boolean readFix64(int index, long value) {
+    public void readFix64(int index, long value) {
         switch (index) {
             case IDX_UUID1:
                 uuid1 = value;
@@ -133,7 +130,6 @@ class ProcessInfoBody extends PbCallback<ProcessInfoBody> implements SimpleEncod
                 uuid2 = value;
                 break;
         }
-        return true;
     }
 
     @Override

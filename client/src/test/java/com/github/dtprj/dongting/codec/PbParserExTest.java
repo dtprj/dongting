@@ -82,7 +82,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var int too long"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -97,7 +96,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var int too long"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -122,7 +120,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("size exceed"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -137,7 +134,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("size exceed"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -163,7 +159,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("field length overflow"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -189,7 +184,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("bad field len"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -213,7 +207,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("bad index:"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -241,7 +234,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var long too long"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -256,7 +248,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var long too long"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -281,7 +272,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("size exceed"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -296,7 +286,6 @@ public class PbParserExTest {
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("size exceed"));
             assertTrue(parser.isFinished());
-            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);

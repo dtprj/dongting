@@ -742,7 +742,7 @@ public class NioClientTest {
             DecoderCallback<Object> decoderCallback = new DecoderCallback<Object>() {
 
                 @Override
-                protected boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+                protected void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
                     throw new MockRuntimeException();
                 }
 
@@ -762,7 +762,9 @@ public class NioClientTest {
                 assertEquals(MockRuntimeException.class, e.getCause().getClass());
             }
         }
-        WaitUtil.waitUtil(() -> client.getPeers().get(0).status == PeerStatus.not_connect);
+
+        assertEquals(PeerStatus.connected, client.getPeers().get(0).status);
+        sendSync(5000, client, tick(1000));
     }
 
     @Test

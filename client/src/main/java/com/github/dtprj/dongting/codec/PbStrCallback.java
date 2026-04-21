@@ -25,11 +25,10 @@ public final class PbStrCallback extends PbCallback<String> {
     private String s;
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 1) {
             s = parseUTF8(buf, fieldLen, currentPos);
         }
-        return true;
     }
 
     @Override

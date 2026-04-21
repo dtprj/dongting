@@ -33,17 +33,16 @@ public class RaftPing extends PbCallback<RaftPing> implements SimpleEncodable {
     public String preparedObservers;
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (index == 1) {
             this.groupId = (int) value;
         } else if (index == 2) {
             this.nodeId = (int) value;
         }
-        return true;
     }
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 3) {
             members = parseUTF8(buf, fieldLen, currentPos);
         } else if (index == 4) {
@@ -53,7 +52,6 @@ public class RaftPing extends PbCallback<RaftPing> implements SimpleEncodable {
         } else if (index == 6) {
             preparedObservers = parseUTF8(buf, fieldLen, currentPos);
         }
-        return true;
     }
 
     @Override

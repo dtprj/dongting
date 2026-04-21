@@ -26,9 +26,8 @@ public class StrDecoderCallback extends DecoderCallback<String> {
     private String s;
 
     @Override
-    public boolean doDecode(ByteBuffer buf, int fieldLen, int currentPos) {
+    public void doDecode(ByteBuffer buf, int fieldLen, int currentPos) {
         s = parseUTF8(buf, fieldLen, currentPos);
-        return true;
     }
 
     @Override

@@ -67,16 +67,15 @@ public class PbParserTest {
         private int endCount;
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == 101) {
                 msg.f101 = (int) value;
                 set101Count++;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             boolean end = buf.remaining() >= len - currentPos;
             if (index == 102) {
                 byte[] bs = new byte[buf.remaining()];
@@ -90,7 +89,6 @@ public class PbParserTest {
                 begin102Count += currentPos == 0 ? 1 : 0;
                 end102Count += end ? 1 : 0;
             }
-            return true;
         }
 
         @Override
@@ -282,7 +280,7 @@ public class PbParserTest {
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == 1) {
                 readMsg.f1 = (int) value;
                 setF1Count++;
@@ -292,11 +290,10 @@ public class PbParserTest {
             } else {
                 fail();
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             boolean begin = currentPos == 0;
             boolean end = buf.remaining() >= len - currentPos;
             if (index == 3) {
@@ -321,23 +318,20 @@ public class PbParserTest {
             } else {
                 fail();
             }
-            return true;
         }
 
         @Override
-        public boolean readFix32(int index, int value) {
+        public void readFix32(int index, int value) {
             assertEquals(5, index);
             readMsg.f5 = value;
             setF5Count++;
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             assertEquals(6, index);
             readMsg.f6 = value;
             setF6Count++;
-            return true;
         }
 
         @Override
@@ -477,59 +471,59 @@ public class PbParserTest {
 
         Supplier<Callback> supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public boolean readVarNumber(int index, long value) {
+            public void readVarNumber(int index, long value) {
                 if (index == 2) {
-                    return false;
+                    throw new CodecException("test fail");
                 }
-                return super.readVarNumber(index, value);
-            }
-        };
-        testCallbackFail0(supplier, 1, 0, 1);
-
-        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
-            @Override
-            public boolean readVarNumber(int index, long value) {
-                if (index == 2) {
-                    throw new ArrayIndexOutOfBoundsException();
-                }
-                return super.readVarNumber(index, value);
+                super.readVarNumber(index, value);
             }
         };
         testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
-                if (index == 3) {
-                    return false;
+            public void readVarNumber(int index, long value) {
+                if (index == 2) {
+                    throw new ArrayIndexOutOfBoundsException();
                 }
-                return super.readBytes(index, buf, len, currentPos);
+                super.readVarNumber(index, value);
             }
         };
-        testCallbackFail0(supplier, 1, 0, 1);
+        testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+            public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+                if (index == 3) {
+                    throw new CodecException("test fail");
+                }
+                super.readBytes(index, buf, len, currentPos);
+            }
+        };
+        testCallbackEx(supplier, 1, 0, 1);
+
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
+            @Override
+            public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
                 if (index == 4000) {
                     throw new ArrayIndexOutOfBoundsException();
                 }
-                return super.readBytes(index, buf, len, currentPos);
+                super.readBytes(index, buf, len, currentPos);
             }
         };
         testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public boolean readFix32(int index, int value) {
-                return false;
+            public void readFix32(int index, int value) {
+                throw new CodecException("test fail");
             }
         };
-        testCallbackFail0(supplier, 1, 0, 1);
+        testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public boolean readFix32(int index, int value) {
+            public void readFix32(int index, int value) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
@@ -552,7 +546,7 @@ public class PbParserTest {
         testCallbackEx(supplier, 1, 0, 0);
 
         supplier = () -> new Callback(100, 200, "msg", "body", 100, 200, new NestedMsg(10000, "abc"));
-        testCallbackFail0(supplier, 1, 1, 0);
+        testCallbackSuccess0(supplier, 1, 1, 0);
     }
 
     private void testCallbackEx(Supplier<Callback> callbackBuilder,int expectBegin,
@@ -566,15 +560,14 @@ public class PbParserTest {
         try {
             parser.parse(buf);
             fail();
-        } catch (ArrayIndexOutOfBoundsException e) {
+        } catch (RuntimeException e) {
             assertEquals(expectBegin, callback.beginCount);
             assertEquals(expectEndSuccess, callback.endSuccessCount);
             assertEquals(expectEndFail, callback.endFailCount);
         }
     }
 
-
-    private void testCallbackFail0(Supplier<Callback> callbackBuilder, int expectBegin,
+    private void testCallbackSuccess0(Supplier<Callback> callbackBuilder, int expectBegin,
                                    int expectEndSuccess, int expectEndFail) {
         Callback callback = callbackBuilder.get();
         ByteBuffer buf = callback.buildPacket();

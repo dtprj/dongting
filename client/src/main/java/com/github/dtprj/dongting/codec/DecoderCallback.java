@@ -22,16 +22,12 @@ import java.nio.ByteBuffer;
  */
 public abstract class DecoderCallback<T> extends AbstractCodecCallback<T> {
 
-    /**
-     * @return whether the decoder should skip rest bytes
-     */
-    protected abstract boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos);
+    protected abstract void doDecode(ByteBuffer buffer, int bodyLen, int currentPos);
 
     public static final DecoderCallback<Void> VOID_DECODE_CALLBACK = new DecoderCallback<Void>() {
         @Override
-        protected boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+        protected void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
             buffer.position(buffer.limit());
-            return true;
         }
 
         @Override

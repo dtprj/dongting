@@ -147,15 +147,14 @@ public class KvNode implements Encodable {
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == IDX_FLAG) {
                 flag = (int) value;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             switch (index) {
                 case IDX_CREATE_INDEX:
                     createIndex = value;
@@ -170,15 +169,13 @@ public class KvNode implements Encodable {
                     updateTime = value;
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_DATA) {
                 data = parseBytes(buf, fieldLen, currentPos);
             }
-            return true;
         }
 
         @Override

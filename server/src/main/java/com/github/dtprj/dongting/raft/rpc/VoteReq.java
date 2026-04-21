@@ -63,7 +63,7 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
         private final VoteReq result = new VoteReq();
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             switch (index) {
                 case 1:
                     result.groupId = (int) value;
@@ -81,15 +81,13 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
                     result.preVote = value == 1;
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             if (index == 4) {
                 result.lastLogIndex = value;
             }
-            return true;
         }
 
         @Override

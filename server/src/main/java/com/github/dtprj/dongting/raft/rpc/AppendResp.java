@@ -72,7 +72,7 @@ public class AppendResp extends RaftRpcData implements SimpleEncodable {
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             switch (index) {
                 case 1:
                     result.term = (int) value;
@@ -87,15 +87,13 @@ public class AppendResp extends RaftRpcData implements SimpleEncodable {
                     result.suggestTerm = (int) value;
                     break;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             if (index == 5) {
                 result.suggestIndex = value;
             }
-            return true;
         }
 
         @Override

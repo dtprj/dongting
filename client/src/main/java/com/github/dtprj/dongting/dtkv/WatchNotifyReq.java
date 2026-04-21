@@ -81,17 +81,16 @@ public class WatchNotifyReq implements Encodable {
         private final WatchNotify.Callback notifyCallback = new WatchNotify.Callback();
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == IDX_GROUP_ID) {
                 groupId = (int) value;
             } else if (index == IDX_LIST_SIZE) {
                 notifyList = createArrayList((int) value);
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_NOTIFY_LIST) {
                 WatchNotify wn = parseNested(buf, fieldLen, currentPos, notifyCallback);
                 if (wn != null) {
@@ -101,7 +100,6 @@ public class WatchNotifyReq implements Encodable {
                     notifyList.add(wn);
                 }
             }
-            return true;
         }
 
         @Override

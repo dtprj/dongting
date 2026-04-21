@@ -123,14 +123,13 @@ public class PacketPbTest {
                     new NioClientConfig(), null, sc, 0, decodeContext) {
 
                 @Override
-                public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+                public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
                     if (index == Packet.IDX_BODY) {
                         byte[] readBytes = new byte[fieldLen];
                         buf.get(readBytes);
                         assertArrayEquals(bs, readBytes);
-                        return true;
                     } else {
-                        return super.readBytes(index, buf, fieldLen, currentPos);
+                        super.readBytes(index, buf, fieldLen, currentPos);
                     }
                 }
 

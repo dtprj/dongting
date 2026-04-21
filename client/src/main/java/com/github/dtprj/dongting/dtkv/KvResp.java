@@ -83,15 +83,14 @@ public class KvResp implements Encodable {
         private ArrayList<KvResult> results;
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == IDX_RESULTS_SIZE) {
                 resultsSize = (int) value;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_RESULTS) {
                 if (results == null) {
                     results = createArrayList(resultsSize);
@@ -101,15 +100,13 @@ public class KvResp implements Encodable {
                     results.add(r);
                 }
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             if (index == IDX_RAFT_INDEX) {
                 this.raftIndex = value;
             }
-            return true;
         }
 
         @Override

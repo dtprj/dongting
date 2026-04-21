@@ -97,21 +97,19 @@ public class KvResult implements Encodable {
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == IDX_BIZ_CODE) {
                 bizCode = (int) value;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_NODE) {
                 data = parseNested(buf, fieldLen, currentPos, nodeCallback);
             } else if (index == IDX_KEY_IN_DIR) {
                 keyInDir = parseByteArray(buf, fieldLen, currentPos);
             }
-            return true;
         }
 
         @Override

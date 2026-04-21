@@ -22,20 +22,16 @@ import java.nio.ByteBuffer;
  */
 public abstract class PbCallback<T> extends AbstractCodecCallback<T> {
 
-    public boolean readVarNumber(int index, long value) {
-        return true;
+    public void readVarNumber(int index, long value) {
     }
 
-    public boolean readFix32(int index, int value) {
-        return true;
+    public void readFix32(int index, int value) {
     }
 
-    public boolean readFix64(int index, long value) {
-        return true;
+    public void readFix64(int index, long value) {
     }
 
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         buf.position(buf.limit());
-        return true;
     }
 }

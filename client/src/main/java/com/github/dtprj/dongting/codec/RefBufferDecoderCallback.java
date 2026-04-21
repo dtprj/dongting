@@ -36,7 +36,7 @@ public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
     }
 
     @Override
-    public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (currentPos == 0) {
             if (plain) {
@@ -52,7 +52,6 @@ public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
             r.prepareForEncode();
             // release by user code
         }
-        return true;
     }
 
     @Override

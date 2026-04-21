@@ -27,11 +27,10 @@ class IoFullPackByteBufferDecoderCallback extends CopyDecoderCallback<ByteBuffer
     private ByteBuffer r;
 
     @Override
-    public boolean decode(ByteBuffer buffer) {
+    public void decode(ByteBuffer buffer) {
         r = ByteBuffer.allocate(buffer.remaining());
         r.put(buffer);
         r.flip();
-        return true;
     }
 
     @Override

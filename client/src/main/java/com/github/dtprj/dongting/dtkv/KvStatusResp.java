@@ -44,21 +44,18 @@ public class KvStatusResp extends PbCallback<KvStatusResp> implements Encodable 
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (index == IDX_WATCH_COUNT) {
             this.watchCount = (int) value;
         }
-        return true;
     }
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_RAFT_SERVER_STATUS) {
             raftServerStatus = parseNested(buf, fieldLen, currentPos,
                     currentPos == 0 ? new QueryStatusResp.Callback() : null);
-            return true;
         }
-        return true;
     }
 
     @Override

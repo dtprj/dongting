@@ -49,20 +49,18 @@ public class AdminAddGroupReq extends PbCallback<AdminAddGroupReq> implements Si
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (index == 1) {
             groupId = (int) value;
         }
-        return true;
     }
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 2) {
             nodeIdOfMembers = parseUTF8(buf, fieldLen, currentPos);
         } else if (index == 3) {
             nodeIdOfObservers = parseUTF8(buf, fieldLen, currentPos);
         }
-        return true;
     }
 }

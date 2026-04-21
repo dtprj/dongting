@@ -47,7 +47,7 @@ public class VoteResp extends RaftRpcData implements SimpleEncodable {
         private final VoteResp result = new VoteResp();
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             switch (index) {
                 case 1:
                     result.term = (int) value;
@@ -56,7 +56,6 @@ public class VoteResp extends RaftRpcData implements SimpleEncodable {
                     result.voteGranted = value != 0;
                     break;
             }
-            return true;
         }
 
         @Override

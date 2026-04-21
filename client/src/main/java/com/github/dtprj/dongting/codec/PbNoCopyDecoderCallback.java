@@ -47,7 +47,7 @@ final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
     }
 
     @Override
-    public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         if (currentPos == 0) {
             parser.prepareNext(context, callback, bodyLen);
         }
@@ -65,7 +65,6 @@ final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
                         + bodyLen + ", currentPos=" + currentPos + ", callback=" + parser.callback);
             }
         }
-        return !parser.shouldSkip();
     }
 
 }

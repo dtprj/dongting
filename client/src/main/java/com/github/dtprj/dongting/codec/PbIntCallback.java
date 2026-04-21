@@ -24,11 +24,10 @@ public final class PbIntCallback extends PbCallback<Integer> {
             ctx -> ctx.toDecoderCallback(ctx.cachedPbIntCallback());
 
     @Override
-    public boolean readFix32(int index, int value) {
+    public void readFix32(int index, int value) {
         if (index == 1) {
             this.context.status = value;
         }
-        return true;
     }
 
     @Override

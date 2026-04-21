@@ -94,29 +94,26 @@ public class WatchNotify implements Encodable {
         }
 
         @Override
-        public boolean readVarNumber(int index, long value) {
+        public void readVarNumber(int index, long value) {
             if (index == IDX_STATE) {
                 state = (int) value;
             }
-            return true;
         }
 
         @Override
-        public boolean readFix64(int index, long value) {
+        public void readFix64(int index, long value) {
             if (index == IDX_RAFT_INDEX) {
                 raftIndex = value;
             }
-            return true;
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_KEY) {
                 key = parseBytes(buf, fieldLen, currentPos);
             } else if (index == IDX_VALUE) {
                 value = parseBytes(buf, fieldLen, currentPos);
             }
-            return true;
         }
 
         @Override

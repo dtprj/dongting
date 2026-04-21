@@ -723,15 +723,13 @@ final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> 
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (index == IDX_RESULTS) {
             if (nextWriteIndex >= results.length) {
                 throw new RaftException("response results size exceed " + results.length);
             }
             results[nextWriteIndex] = (int) value;
             nextWriteIndex++;
-            return true;
         }
-        return false;
     }
 }

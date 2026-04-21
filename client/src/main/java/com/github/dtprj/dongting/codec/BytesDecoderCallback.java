@@ -25,9 +25,8 @@ public class BytesDecoderCallback extends DecoderCallback<byte[]> {
     private byte[] r;
 
     @Override
-    public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         r = parseBytes(buffer, bodyLen, currentPos);
-        return true;
     }
 
     @Override

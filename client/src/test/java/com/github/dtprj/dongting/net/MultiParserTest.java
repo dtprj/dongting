@@ -53,9 +53,8 @@ public class MultiParserTest {
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             f1 = parseUTF8(buf, fieldLen, currentPos);
-            return true;
         }
 
         @Override

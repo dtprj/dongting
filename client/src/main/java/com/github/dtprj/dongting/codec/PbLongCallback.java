@@ -24,11 +24,10 @@ public final class PbLongCallback extends PbCallback<Long> {
             ctx -> ctx.toDecoderCallback(ctx.cachedPbLongCallback());
 
     @Override
-    public boolean readFix64(int index, long value) {
+    public void readFix64(int index, long value) {
         if (index == 1) {
             this.context.status = value;
         }
-        return true;
     }
 
     @Override

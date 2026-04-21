@@ -49,20 +49,18 @@ public class AdminAddNodeReq extends PbCallback<AdminAddNodeReq> implements Simp
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (index == 1) {
             nodeId = (int) value;
         } else if (index == 3) {
             port = (int) value;
         }
-        return true;
     }
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 2) {
             host = parseUTF8(buf, fieldLen, currentPos);
         }
-        return true;
     }
 }

@@ -68,6 +68,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private int currentReadPacketSize;
     private DecoderCallback currentDecoderCallback;
 
+    private boolean skipBody;
+
     final IoChannelQueue subQueue;
 
     private boolean running = true;
@@ -119,6 +121,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.currentReadPacketSize = len;
         packet = new ReadPacket();
         readBody = false;
+        skipBody = false;
         requestForResp = null;
         processorForRequest = null;
         currentDecoderCallback = null;
@@ -127,6 +130,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     @Override
     protected void end(boolean success) {
         if (!success) {
+            return;
+        }
+        if (skipBody) {
             return;
         }
 
@@ -138,9 +144,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
         if (requestForResp == null && processorForRequest == null) {
             // empty body
-            if (!readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, true)) {
-                return;
-            }
+            readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, true);
         }
         currentDecoderCallback = null;
 
@@ -154,7 +158,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    public boolean readVarNumber(int index, long value) {
+    public void readVarNumber(int index, long value) {
         if (readBody) {
             throw new PbException("body has read");
         }
@@ -175,68 +179,74 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 packet.groupId = (int) value;
                 break;
         }
-        return true;
     }
 
     @Override
-    public boolean readFix32(int index, int value) {
+    public void readFix32(int index, int value) {
         if (this.readBody) {
             throw new PbException("body has read");
         }
         if (index == Packet.IDX_SEQ) {
             packet.seq = value;
         }
-        return true;
     }
 
     @Override
-    public boolean readFix64(int index, long value) {
+    public void readFix64(int index, long value) {
         if (this.readBody) {
             throw new PbException("body has read");
         }
         if (index == Packet.IDX_TIMEOUT) {
             packet.timeout = value;
         }
-        return true;
     }
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (this.readBody) {
             throw new PbException("body has read");
         }
         switch (index) {
             case Packet.IDX_MSG: {
                 this.packet.msg = parseUTF8(buf, fieldLen, currentPos);
-                return true;
+                return;
             }
             case Packet.IDX_EXTRA: {
                 this.packet.extra = parseBytes(buf, fieldLen, currentPos);
-                return true;
+                return;
             }
             case Packet.IDX_BODY: {
                 if (currentPos == 0 && currentDecoderCallback != null) {
                     throw new IllegalStateException("currentDecoder is not null");
                 }
+                if (skipBody) {
+                    buf.position(buf.limit());
+                    return;
+                }
                 boolean end = buf.remaining() >= fieldLen - currentPos;
-                return readBody(buf, fieldLen, currentPos, end);
+                readBody(buf, fieldLen, currentPos, end);
+                return;
             }
             default:
-                return true;
+                return;
         }
 
     }
 
-    private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {
+    private void readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {
         if (packet.command <= 0) {
             throw new NetException("command invalid :" + packet.command);
         }
         // the body field should encode as last field
         if (!initRelatedDataForPacket()) {
-            return false;
+            skipBody = true;
+            buf.position(buf.limit());
+            return;
         }
         if (currentDecoderCallback == null) {
-            return false;
+            skipBody = true;
+            buf.position(buf.limit());
+            return;
         }
 
         try {
@@ -246,22 +256,25 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 if (requestForResp != null) {
                     requestForResp.callFail(e);
                 }
+            } else {
+                if (packet.packetType == PacketType.TYPE_REQ) {
+                    writeErrorInIoThread(packet, CmdCodes.SYS_ERROR, null);
+                }
             }
-            throw e;
+            if (!handshake) {
+                throw e;
+            }
+            skipBody = true;
+            buf.position(buf.limit());
+            log.warn("skip body parse, command={}", packet.command, e);
         } finally {
             if (end) {
                 // so if the body is not last field, exception throws
                 readBody = true;
             }
         }
-        if (context.createOrGetNestedDecoder().shouldSkip()) {
-            log.warn("skip parse, command={}", packet.command);
-            return false;
-        }
-        return true;
     }
 
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean initRelatedDataForPacket() {
         ReadPacket packet = this.packet;
         if (packet.packetType == PacketType.TYPE_RESP) {
