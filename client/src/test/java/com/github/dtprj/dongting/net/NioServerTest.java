@@ -541,7 +541,7 @@ public class NioServerTest {
             in.readFully(resp4);
             DtPacket.Packet packet4 = DtPacket.Packet.parseFrom(resp4);
             assertEquals(PacketType.TYPE_RESP, packet4.getPacketType());
-            assertEquals(CmdCodes.SYS_ERROR, packet4.getRespCode());
+            assertEquals(CmdCodes.DECODE_ERROR, packet4.getRespCode());
 
             assertEquals(CmdCodes.SUCCESS, invoke(5, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING1, 5000, in, out));

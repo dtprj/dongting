@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -258,7 +259,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 }
             } else {
                 if (packet.packetType == PacketType.TYPE_REQ) {
-                    writeErrorInIoThread(packet, CmdCodes.SYS_ERROR, null);
+                    int code = e instanceof CodecException ? CmdCodes.DECODE_ERROR : CmdCodes.SYS_ERROR;
+                    writeErrorInIoThread(packet, code, null);
                 }
             }
             if (!handshake) {
