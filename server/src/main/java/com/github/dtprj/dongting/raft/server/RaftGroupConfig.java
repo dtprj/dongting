@@ -46,8 +46,6 @@ public class RaftGroupConfig {
     public int idxFlushThreshold = 8 * 1024;
     public long logFileSize = 1024 * 1024 * 1024;
 
-    public boolean ioCallbackUseGroupExecutor = false;
-
     public PerfCallback perfCallback = new DefaultRaftPerf();
 
     // leader replicate/install read concurrency, or recovering write concurrency.

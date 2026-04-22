@@ -396,7 +396,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             options.add(StandardOpenOption.CREATE_NEW);
             options.add(StandardOpenOption.WRITE);
             AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options,
-                    getFiberGroup().getExecutor());
+                    ioExecutor);
             this.newDataFile = new DtFile(dataFile, channel, groupConfig.fiberGroup);
 
             int readConcurrency = groupConfig.snapshotConcurrency;

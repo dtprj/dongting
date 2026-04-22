@@ -102,7 +102,7 @@ public class StatusFile {
                 options.add(StandardOpenOption.READ);
                 options.add(StandardOpenOption.WRITE);
                 AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), options,
-                        getFiberGroup().getExecutor());
+                        groupConfig.blockIoExecutor);
                 dtFile = new DtFile(file, channel, fiberGroup);
                 if (!needLoad) {
                     return Fiber.frameReturn();
