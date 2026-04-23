@@ -31,7 +31,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -39,8 +38,8 @@ import java.nio.file.OpenOption;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.CRC32C;
 
 /**
@@ -82,7 +81,7 @@ public class StatusFile {
                     getFiberGroup().dispatcher.thread.heapPool.getPool().release(buf);
                 }
                 if (dtFile != null) {
-                    DtUtil.close(dtFile.getChannel());
+                    dtFile.close();
                     dtFile = null;
                 }
                 return Fiber.frameReturn();
@@ -97,13 +96,8 @@ public class StatusFile {
                 fileLen = (int) l;
 
                 boolean needLoad = file.exists() && file.length() != 0;
-                HashSet<OpenOption> options = new HashSet<>();
-                options.add(StandardOpenOption.CREATE);
-                options.add(StandardOpenOption.READ);
-                options.add(StandardOpenOption.WRITE);
-                AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), options,
-                        groupConfig.blockIoExecutor);
-                dtFile = new DtFile(file, channel, fiberGroup);
+                Set<OpenOption> options = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
+                dtFile = new DtFile(file, fiberGroup, options, groupConfig.blockIoExecutor);
                 if (!needLoad) {
                     return Fiber.frameReturn();
                 }

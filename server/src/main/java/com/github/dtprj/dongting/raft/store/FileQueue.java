@@ -16,14 +16,12 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.BitUtil;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
@@ -35,12 +33,11 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -121,11 +118,8 @@ abstract class FileQueue {
                     throw new RaftException("file size error: " + f.getPath() + ", size=" + f.length());
                 }
                 long startPos = Long.parseLong(matcher.group(1));
-                HashSet<OpenOption> openOptions = new HashSet<>();
-                openOptions.add(StandardOpenOption.READ);
-                openOptions.add(StandardOpenOption.WRITE);
-                AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
-                queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f, groupConfig.fiberGroup));
+                Set<OpenOption> openOptions = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE);
+                queue.addLast(new LogFile(startPos, startPos + getFileSize(), f, groupConfig.fiberGroup, openOptions, ioExecutor));
                 count++;
             }
         }
@@ -184,7 +178,7 @@ abstract class FileQueue {
                 File f = files[i];
                 if (PATTERN.matcher(f.getName()).matches()) {
                     log.warn("delete unexpected file: {}", f.getPath());
-                    return Fiber.call(new DeleteFrame(f, null), this);
+                    return Fiber.call(new DeleteFrame(f), this);
                 } else {
                     return Fiber.resume(null, this);
                 }
@@ -239,18 +233,16 @@ abstract class FileQueue {
 
     private void closeChannel() {
         for (int i = 0; i < queue.size(); i++) {
-            DtUtil.close(queue.get(i).getChannel());
+            queue.get(i).close();
         }
     }
 
     private class DeleteFrame extends FiberFrame<Void> {
 
         private final File file;
-        private final AsynchronousFileChannel channel;
 
-        public DeleteFrame(File file, AsynchronousFileChannel channel) {
+        public DeleteFrame(File file) {
             this.file = file;
-            this.channel = channel;
         }
 
         @Override
@@ -259,10 +251,6 @@ abstract class FileQueue {
             try {
                 ioExecutor.execute(() -> {
                     try {
-                        if (channel != null) {
-                            log.debug("close log file: {}", file.getPath());
-                            DtUtil.close(channel);
-                        }
                         log.info("delete log file: {}", file.getPath());
                         Files.delete(file.toPath());
 
@@ -294,7 +282,8 @@ abstract class FileQueue {
                     first.deleteTimestamp = 1;
                 }
                 first.deleted = true;
-                return Fiber.call(new DeleteFrame(first.getFile(), first.getChannel()), this::justReturn);
+                first.close();
+                return Fiber.call(new DeleteFrame(first.getFile()), this::justReturn);
             }
         };
         f = new RetryFrame<>(f, groupConfig.ioRetryInterval, true,
@@ -344,8 +333,7 @@ abstract class FileQueue {
                     return Fiber.sleep(1000, this);
                 }
             }
-            LogFile logFile = new LogFile(f.fileStartPos, f.fileStartPos + getFileSize(), f.channel,
-                    f.file, FiberGroup.currentGroup());
+            LogFile logFile = f.logFile;
             queue.addLast(logFile);
             if (queue.size() == 1) {
                 queueStartPosition = logFile.startPos;
@@ -360,7 +348,7 @@ abstract class FileQueue {
         private long fileStartPos;
 
         private File file;
-        private AsynchronousFileChannel channel;
+        private LogFile logFile;
         private final int perfType;
         private final long perfStartTime;
         private boolean result;
@@ -383,11 +371,10 @@ abstract class FileQueue {
                     raf.setLength(getFileSize());
                     raf.getFD().sync();
                     raf.close();
-                    HashSet<OpenOption> openOptions = new HashSet<>();
-                    openOptions.add(StandardOpenOption.READ);
-                    openOptions.add(StandardOpenOption.WRITE);
-                    openOptions.add(StandardOpenOption.CREATE);
-                    channel = AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
+                    Set<OpenOption> options = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE,
+                            StandardOpenOption.CREATE);
+                    logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), file,
+                            groupConfig.fiberGroup, options, ioExecutor);
                     long time = System.currentTimeMillis() - startTime;
                     createFileFuture.fireComplete(null);
                     log.info("allocate file done, cost {} ms: {}", time, file.getPath());
@@ -409,9 +396,8 @@ abstract class FileQueue {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             log.error("allocate file fail: ", ex);
-            if (channel != null) {
-                DtUtil.close(channel);
-                channel = null;
+            if (logFile != null) {
+                logFile.close();
             }
             return Fiber.frameReturn();
         }

@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
@@ -42,12 +41,11 @@ import com.github.dtprj.dongting.raft.store.StatusFile;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
@@ -345,8 +343,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         @Override
         protected FrameCallResult doFinally() {
-            if (newDataFile != null && newDataFile.getChannel() != null) {
-                DtUtil.close(newDataFile.getChannel());
+            if (newDataFile != null) {
+                newDataFile.close();
             }
             if (readSnapshot != null) {
                 readSnapshot.close();
@@ -392,12 +390,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
             File dataFile = new File(snapshotDir, baseName + DATA_SUFFIX);
             this.newIdxFile = new File(snapshotDir, baseName + IDX_SUFFIX);
 
-            HashSet<StandardOpenOption> options = new HashSet<>();
-            options.add(StandardOpenOption.CREATE_NEW);
-            options.add(StandardOpenOption.WRITE);
-            AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options,
-                    ioExecutor);
-            this.newDataFile = new DtFile(dataFile, channel, groupConfig.fiberGroup);
+            Set<OpenOption> options = Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            this.newDataFile = new DtFile(dataFile, groupConfig.fiberGroup, options, ioExecutor);
 
             int readConcurrency = groupConfig.snapshotConcurrency;
             int writeConcurrency = groupConfig.diskSnapshotConcurrency;

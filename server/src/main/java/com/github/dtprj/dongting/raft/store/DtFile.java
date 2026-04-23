@@ -15,28 +15,39 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.log.BugLog;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.OpenOption;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author huangli
  */
 public class DtFile {
     private final File file;
-    private final AsynchronousFileChannel channel;
+    private AsynchronousFileChannel channel;
+    private final Set<OpenOption> openOptions;
+    private final ExecutorService executor;
 
     private int readers;
     private int writers;
 
     private final FiberCondition noRwCond;
 
-    public DtFile(File file, AsynchronousFileChannel channel, FiberGroup fiberGroup) {
+    public DtFile(File file, FiberGroup fiberGroup, Set<OpenOption> openOptions,
+                  ExecutorService executor) throws IOException {
         this.file = file;
-        this.channel = channel;
+        this.openOptions = openOptions;
+        this.executor = executor;
         this.noRwCond = fiberGroup.newCondition("noRw-" + file.getName());
+        open();
     }
 
     public File getFile() {
@@ -45,6 +56,24 @@ public class DtFile {
 
     public AsynchronousFileChannel getChannel() {
         return channel;
+    }
+
+    public void open() throws IOException {
+        if (channel != null) {
+            return;
+        }
+        this.channel = AsynchronousFileChannel.open(file.toPath(), openOptions, executor);
+    }
+
+    public void close() {
+        if (channel == null) {
+            return;
+        }
+        if (inUse()) {
+            BugLog.log(new IllegalStateException("close file while in use: " + file.getPath()));
+        }
+        DtUtil.close(channel);
+        channel = null;
     }
 
     public FiberCondition getNoRwCond() {

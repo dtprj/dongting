@@ -32,10 +32,8 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -68,12 +66,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     @BeforeEach
     public void setup() throws Exception {
         file = new File(dir, "testFile");
-        Set<OpenOption> s = new HashSet<>();
-        s.add(StandardOpenOption.CREATE);
-        s.add(StandardOpenOption.WRITE);
-        s.add(StandardOpenOption.READ);
-        AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), s, MockExecutors.ioExecutor());
-        dtFile = new DtFile(file, channel, fiberGroup);
+        Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
+        dtFile = new DtFile(file, fiberGroup, s, MockExecutors.ioExecutor());
         groupConfig = new RaftGroupConfigEx(1, "1", "");
         groupConfig.ioRetryInterval = new int[]{1};
         groupConfig.fiberGroup = fiberGroup;
@@ -82,9 +76,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
     @AfterEach
-    public void clean() throws Exception {
+    public void clean() {
         if (file != null && file.exists()) {
-            dtFile.getChannel().close();
+            dtFile.close();
             file.delete();
         }
     }

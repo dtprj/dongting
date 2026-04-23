@@ -18,7 +18,10 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 
 import java.io.File;
-import java.nio.channels.AsynchronousFileChannel;
+import java.io.IOException;
+import java.nio.file.OpenOption;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author huangli
@@ -35,8 +38,9 @@ class LogFile extends DtFile {
 
     boolean deleted;
 
-    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, File file, FiberGroup group) {
-        super(file, channel, group);
+    public LogFile(long startPos, long endPos, File file, FiberGroup group,
+                   Set<OpenOption> openOptions, ExecutorService executor) throws IOException {
+        super(file, group, openOptions, executor);
         this.startPos = startPos;
         this.endPos = endPos;
     }

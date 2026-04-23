@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -25,9 +24,9 @@ import com.github.dtprj.dongting.raft.store.DtFile;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
-import java.util.HashSet;
+import java.util.Set;
 
 /**
  * @author huangli
@@ -48,11 +47,8 @@ public class FileSnapshot extends Snapshot {
         this.fileSize = dataFile.length();
         this.bufferSize = bufferSize;
 
-        HashSet<StandardOpenOption> options = new HashSet<>();
-        options.add(StandardOpenOption.READ);
-        AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options,
-                groupConfig.blockIoExecutor);
-        this.dtFile = new DtFile(dataFile, channel, groupConfig.fiberGroup);
+        Set<OpenOption> options = Set.of(StandardOpenOption.READ);
+        this.dtFile = new DtFile(dataFile, groupConfig.fiberGroup, options, groupConfig.blockIoExecutor);
     }
 
     @Override
@@ -73,7 +69,7 @@ public class FileSnapshot extends Snapshot {
 
     @Override
     protected void doClose() {
-        DtUtil.close(dtFile.getChannel());
+        dtFile.close();
     }
 
     public int getBufferSize() {
