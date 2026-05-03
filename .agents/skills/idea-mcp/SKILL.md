@@ -45,6 +45,7 @@ For multi-module Maven projects, `get_file_problems` is significantly more accur
 
 - `rename_refactoring` & `replace_text_in_file` — Modify code globally, verify with `get_file_problems` after use
 - `reformat_file` — Modifies formatting without confirmation
+- The High-Risk Operations may be disabled and invisible.
 
 ## Troubleshooting
 
