@@ -18,10 +18,10 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.OpenOption;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -38,11 +38,37 @@ class LogFile extends DtFile {
 
     boolean deleted;
 
+    long lastAccessTime;
+    private final Consumer<LogFile> accessCallback;
+    LogFile lruPrev;
+    LogFile lruNext;
+
     public LogFile(long startPos, long endPos, File file, FiberGroup group,
-                   Set<OpenOption> openOptions, ExecutorService executor) throws IOException {
-        super(file, group, openOptions, executor);
+                   Set<OpenOption> openOptions, ExecutorService ioExecutor,
+                   Consumer<LogFile> accessCallback, long currentTimeMillis) {
+        super(file, group, openOptions, ioExecutor);
+        this.lastAccessTime = currentTimeMillis;
+        this.accessCallback = accessCallback;
         this.startPos = startPos;
         this.endPos = endPos;
+    }
+
+    @Override
+    public void incReaders() {
+        super.incReaders();
+        updateAccessTime();
+    }
+
+    @Override
+    public void incWriters() {
+        super.incWriters();
+        updateAccessTime();
+    }
+
+    public void updateAccessTime() {
+        if (accessCallback != null) {
+            accessCallback.accept(this);
+        }
     }
 
     public boolean shouldDelete() {

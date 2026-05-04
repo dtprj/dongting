@@ -34,7 +34,8 @@ public class DtFile {
     private final File file;
     private AsynchronousFileChannel channel;
     private final Set<OpenOption> openOptions;
-    private final ExecutorService executor;
+    private final ExecutorService ioExecutor;
+    final FiberGroup fiberGroup;
 
     private int readers;
     private int writers;
@@ -42,12 +43,12 @@ public class DtFile {
     private final FiberCondition noRwCond;
 
     public DtFile(File file, FiberGroup fiberGroup, Set<OpenOption> openOptions,
-                  ExecutorService executor) throws IOException {
+                  ExecutorService ioExecutor) {
         this.file = file;
         this.openOptions = openOptions;
-        this.executor = executor;
+        this.ioExecutor = ioExecutor;
+        this.fiberGroup = fiberGroup;
         this.noRwCond = fiberGroup.newCondition("noRw-" + file.getName());
-        open();
     }
 
     public File getFile() {
@@ -58,11 +59,15 @@ public class DtFile {
         return channel;
     }
 
+    public boolean isOpen() {
+        return channel != null;
+    }
+
     public void open() throws IOException {
         if (channel != null) {
             return;
         }
-        this.channel = AsynchronousFileChannel.open(file.toPath(), openOptions, executor);
+        channel = AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
     }
 
     public void close() {
@@ -110,7 +115,7 @@ public class DtFile {
         return writers;
     }
 
-    public boolean inUse(){
+    public boolean inUse() {
         return readers > 0 || writers > 0;
     }
 }

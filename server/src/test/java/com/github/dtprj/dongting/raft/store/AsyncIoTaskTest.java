@@ -68,6 +68,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         file = new File(dir, "testFile");
         Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
         dtFile = new DtFile(file, fiberGroup, s, MockExecutors.ioExecutor());
+        dtFile.open();
         groupConfig = new RaftGroupConfigEx(1, "1", "");
         groupConfig.ioRetryInterval = new int[]{1};
         groupConfig.fiberGroup = fiberGroup;

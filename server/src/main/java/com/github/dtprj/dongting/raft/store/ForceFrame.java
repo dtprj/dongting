@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -32,12 +31,12 @@ public class ForceFrame extends FiberFrame<Void> {
 
     private static final DtLog log = DtLogs.getLogger(ForceFrame.class);
 
-    private final AsynchronousFileChannel channel;
     private final Executor ioExecutor;
     private final boolean meta;
+    private final DtFile dtFile;
 
-    public ForceFrame(AsynchronousFileChannel channel, Executor ioExecutor, boolean meta) {
-        this.channel = channel;
+    public ForceFrame(DtFile dtFile, Executor ioExecutor, boolean meta) {
+        this.dtFile = dtFile;
         this.ioExecutor = ioExecutor;
         this.meta = meta;
     }
@@ -45,19 +44,28 @@ public class ForceFrame extends FiberFrame<Void> {
     @Override
     public final FrameCallResult execute(Void input) throws Throwable {
         FiberFuture<Void> f = getFiberGroup().newFuture("forceFile");
-        ioExecutor.execute(() -> {
-            try {
-                channel.force(meta);
-                f.fireComplete(null);
-            } catch (Throwable e) {
-                log.error("force file failed: {}", channel);
-                f.fireCompleteExceptionally(e);
-            }
-        });
-        return f.await(this::afterForce);
+        if (dtFile.getChannel() == null) {
+            // TODO may block or throw ex, refactor later
+            dtFile.open();
+        }
+        dtFile.incWriters();
+        AsynchronousFileChannel channel = dtFile.getChannel();
+        try {
+            ioExecutor.execute(() -> {
+                try {
+                    channel.force(meta);
+                    f.fireComplete(null);
+                } catch (Throwable e) {
+                    log.error("force file failed: {}", channel);
+                    f.fireCompleteExceptionally(e);
+                }
+            });
+        } catch (Throwable e) {
+            dtFile.decWriters();
+            throw e;
+        }
+        f.registerCallback((v, ex) -> dtFile.decWriters());
+        return f.await(this::justReturn);
     }
 
-    protected FrameCallResult afterForce(Void v) {
-        return Fiber.frameReturn();
-    }
 }

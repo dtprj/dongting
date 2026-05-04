@@ -98,6 +98,7 @@ public class StatusFile {
                 boolean needLoad = file.exists() && file.length() != 0;
                 Set<OpenOption> options = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
                 dtFile = new DtFile(file, fiberGroup, options, groupConfig.blockIoExecutor);
+                dtFile.open();
                 if (!needLoad) {
                     return Fiber.frameReturn();
                 }

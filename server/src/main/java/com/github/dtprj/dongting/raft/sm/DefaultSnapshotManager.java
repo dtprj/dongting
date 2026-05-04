@@ -392,6 +392,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
             Set<OpenOption> options = Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             this.newDataFile = new DtFile(dataFile, groupConfig.fiberGroup, options, ioExecutor);
+            // TODO may block
+            this.newDataFile.open();
 
             int readConcurrency = groupConfig.snapshotConcurrency;
             int writeConcurrency = groupConfig.diskSnapshotConcurrency;
@@ -442,7 +444,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
-            ForceFrame ff = new ForceFrame(newDataFile.getChannel(), ioExecutor, true);
+            ForceFrame ff = new ForceFrame(newDataFile, ioExecutor, true);
             return Fiber.call(ff, this::writeIdxFile);
         }
 

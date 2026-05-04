@@ -63,6 +63,7 @@ public class RaftGroupConfig {
     public int autoDeleteLogDelaySeconds = 60;
 
     public boolean deleteLogsAfterTakeSnapshot = true;
+    public int keepOpenFiles = 5;
 
     RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         DtUtil.checkPositive(groupId, "groupId");

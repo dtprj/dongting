@@ -31,7 +31,6 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
@@ -73,6 +72,11 @@ abstract class FileQueue {
     protected boolean markClose;
     private boolean stopAlloc;
 
+    private LogFile lruHead;
+    private LogFile lruTail;
+    private int openFileCount;
+    private static final long IDLE_CLOSE_MILLIS = 60_000;
+
     public FileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize, boolean mainLogFile) {
         if (BitUtil.nextHighestPowerOfTwo(fileSize) != fileSize) {
             throw new IllegalArgumentException("fileSize not power of 2: " + fileSize);
@@ -101,7 +105,7 @@ abstract class FileQueue {
         return pos & (~fileLenMask);
     }
 
-    protected void initQueue() throws IOException {
+    protected void initQueue() {
         File[] files = dir.listFiles();
         if (files == null || files.length == 0) {
             return;
@@ -119,7 +123,9 @@ abstract class FileQueue {
                 }
                 long startPos = Long.parseLong(matcher.group(1));
                 Set<OpenOption> openOptions = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE);
-                queue.addLast(new LogFile(startPos, startPos + getFileSize(), f, groupConfig.fiberGroup, openOptions, ioExecutor));
+                LogFile lf = new LogFile(startPos, startPos + getFileSize(), f,
+                        groupConfig.fiberGroup, openOptions, ioExecutor, this::lruTouch, raftStatus.ts.wallClockMillis);
+                queue.addLast(lf);
                 count++;
             }
         }
@@ -150,7 +156,7 @@ abstract class FileQueue {
         needAllocCond.signal();
         FiberFuture<Void> f = groupConfig.fiberGroup.newFuture("fileQueueClose");
         queueAllocFiber.join().registerCallback((v, ex) -> {
-            closeChannel();
+            closeAllChannel();
             if (ex != null) {
                 f.completeExceptionally(ex);
             } else {
@@ -231,10 +237,107 @@ abstract class FileQueue {
         };
     }
 
-    private void closeChannel() {
-        for (int i = 0; i < queue.size(); i++) {
-            queue.get(i).close();
+    private void lruAddLast(LogFile lf) {
+        if (lf.lruPrev != null || lf.lruNext != null || lruHead == lf) {
+            return; // already in list
         }
+        if (lruTail == null) {
+            lruHead = lruTail = lf;
+        } else {
+            lruTail.lruNext = lf;
+            lf.lruPrev = lruTail;
+            lruTail = lf;
+        }
+        openFileCount++;
+    }
+
+    private void lruRemove(LogFile lf) {
+        if (lf.lruPrev == null && lf.lruNext == null && lruHead != lf) {
+            return; // not in list
+        }
+        if (lf.lruPrev != null) {
+            lf.lruPrev.lruNext = lf.lruNext;
+        } else {
+            lruHead = lf.lruNext;
+        }
+        if (lf.lruNext != null) {
+            lf.lruNext.lruPrev = lf.lruPrev;
+        } else {
+            lruTail = lf.lruPrev;
+        }
+        lf.lruPrev = null;
+        lf.lruNext = null;
+        openFileCount--;
+    }
+
+    private void lruMoveToLast(LogFile lf) {
+        if (lf == lruTail) {
+            return;
+        }
+        lruRemove(lf);
+        lruAddLast(lf);
+    }
+
+    private void lruTouch(LogFile lf) {
+        lf.lastAccessTime = raftStatus.ts.wallClockMillis;
+        if (lf.lruPrev == null && lf.lruNext == null && lruHead != lf) {
+            lruAddLast(lf);
+        } else {
+            lruMoveToLast(lf);
+        }
+    }
+
+    void closeIdleFiles() {
+        long now = raftStatus.ts.wallClockMillis;
+        int size = queue.size();
+        if (size == 0 || openFileCount == 0) {
+            return;
+        }
+        if (groupConfig.keepOpenFiles >= size) {
+            return;
+        }
+        // the last 'keepOpenFiles' files are always kept open
+        long protectedStartPos;
+        if (groupConfig.keepOpenFiles <= 0) {
+            protectedStartPos = Long.MAX_VALUE;
+        } else {
+            protectedStartPos = queue.get(size - groupConfig.keepOpenFiles).startPos;
+        }
+
+        int maxIterations = openFileCount;
+        while (lruHead != null && maxIterations-- > 0) {
+            LogFile lf = lruHead;
+            if (lf.startPos >= protectedStartPos) {
+                // protected file at LRU head: move to tail and continue
+                lruMoveToLast(lf);
+                lf.lastAccessTime = raftStatus.ts.wallClockMillis;
+                continue;
+            }
+            if (now - lf.lastAccessTime < IDLE_CLOSE_MILLIS) {
+                break;
+            }
+            if (lf.inUse()) {
+                lruMoveToLast(lf);
+                lf.lastAccessTime = raftStatus.ts.wallClockMillis;
+                continue;
+            }
+            lruRemove(lf);
+            lf.close();
+            log.info("close idle file: {}", lf.getFile().getPath());
+        }
+    }
+
+    // shutdown path: queueAllocFiber has already joined, no concurrent access
+    private void closeAllChannel() {
+        for (int i = 0; i < queue.size(); i++) {
+            LogFile lf = queue.get(i);
+            lf.close();
+            lf.lruPrev = null;
+            lf.lruNext = null;
+        }
+        lruHead = null;
+        lruTail = null;
+        openFileCount = 0;
     }
 
     private class DeleteFrame extends FiberFrame<Void> {
@@ -282,6 +385,7 @@ abstract class FileQueue {
                     first.deleteTimestamp = 1;
                 }
                 first.deleted = true;
+                lruRemove(first);
                 first.close();
                 return Fiber.call(new DeleteFrame(first.getFile()), this::justReturn);
             }
@@ -334,6 +438,7 @@ abstract class FileQueue {
                 }
             }
             LogFile logFile = f.logFile;
+            lruAddLast(logFile);
             queue.addLast(logFile);
             if (queue.size() == 1) {
                 queueStartPosition = logFile.startPos;
@@ -374,7 +479,10 @@ abstract class FileQueue {
                     Set<OpenOption> options = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE,
                             StandardOpenOption.CREATE);
                     logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), file,
-                            groupConfig.fiberGroup, options, ioExecutor);
+                            groupConfig.fiberGroup, options, ioExecutor, FileQueue.this::lruTouch,
+                            raftStatus.ts.wallClockMillis);
+                    // access in io thread, but happens-before use
+                    logFile.open();
                     long time = System.currentTimeMillis() - startTime;
                     createFileFuture.fireComplete(null);
                     log.info("allocate file done, cost {} ms: {}", time, file.getPath());

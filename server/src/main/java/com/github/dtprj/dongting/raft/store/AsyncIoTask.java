@@ -85,6 +85,14 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
+        if (!dtFile.isOpen()) {
+            // TODO may block or throw ex, refactor later, and reader/write count not processed if fail
+            try {
+                dtFile.open();
+            } catch (IOException e) {
+                throw new RaftException("open file fail", e);
+            }
+        }
         exec(filePos);
         rwCalled = true;
         return future;
@@ -111,6 +119,14 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         this.write = true;
         this.force = force;
         this.flushMeta = syncMeta;
+        if (!dtFile.isOpen()) {
+            // TODO may block or throw ex, refactor later, and reader/write count not processed if fail
+            try {
+                dtFile.open();
+            } catch (IOException e) {
+                throw new RaftException("open file fail", e);
+            }
+        }
         exec(filePos);
         rwCalled = true;
         return future;

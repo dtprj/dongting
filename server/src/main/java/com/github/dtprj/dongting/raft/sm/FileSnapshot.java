@@ -49,6 +49,7 @@ public class FileSnapshot extends Snapshot {
 
         Set<OpenOption> options = Set.of(StandardOpenOption.READ);
         this.dtFile = new DtFile(dataFile, groupConfig.fiberGroup, options, groupConfig.blockIoExecutor);
+        this.dtFile.open();
     }
 
     @Override

@@ -312,6 +312,8 @@ public final class DefaultRaftLog implements RaftLog {
 
         @Override
         public FrameCallResult execute(Void input) {
+            logFiles.closeIdleFiles();
+            idxFiles.closeIdleFiles();
             if (requestDeleteAllAndExit) {
                 deleteAndExit = true;
                 return deleteLogs(null);
