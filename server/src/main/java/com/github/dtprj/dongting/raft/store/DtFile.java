@@ -34,7 +34,7 @@ public class DtFile {
     private final File file;
     private AsynchronousFileChannel channel;
     private final Set<OpenOption> openOptions;
-    private final ExecutorService ioExecutor;
+    final ExecutorService ioExecutor;
     final FiberGroup fiberGroup;
 
     private int readers;

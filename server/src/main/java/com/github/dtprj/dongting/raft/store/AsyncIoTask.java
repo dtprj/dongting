@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -45,8 +44,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
     private final int[] retryInterval;
     private final boolean retryForever;
     private final FiberGroup fiberGroup;
-
-    private Executor forceExecutor;
 
     private ByteBuffer ioBuffer;
     private long filePos;
@@ -102,8 +99,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         return write(ioBuffer, filePos, false, false);
     }
 
-    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos, boolean flushMeta, Executor forceExecutor) {
-        this.forceExecutor = forceExecutor;
+    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
         return write(ioBuffer, filePos, true, flushMeta);
     }
 
@@ -243,7 +239,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
 
     private void submitForceTask() {
         try {
-            forceExecutor.execute(() -> {
+            dtFile.ioExecutor.execute(() -> {
                 try {
                     doForce();
                     fireComplete(null);
