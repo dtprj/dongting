@@ -412,11 +412,13 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 throw new RaftException("file deleted: " + lf.getFile().getPath());
             }
             long filePos = pos & fileLenMask;
+            lf.incReaders();
             AsyncIoTask t = new AsyncIoTask(groupConfig.fiberGroup, lf);
-            return t.read(buffer, filePos).await(this::afterLoad);
+            return t.read(buffer, filePos).await(unused -> afterLoad(lf));
         }
 
-        private FrameCallResult afterLoad(Void unused) {
+        private FrameCallResult afterLoad(LogFile lf) {
+            lf.decReaders();
             buffer.flip();
             long pos = buffer.getLong();
             int size = buffer.getInt();
@@ -482,7 +484,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         return f.compose("idxAllocStop", v -> stopFileQueue());
     }
 
-    public FiberFrame<Void> finishInstall(long nextLogIndex) throws Exception {
+    public FiberFrame<Void> finishInstall(long nextLogIndex) {
         long newFileStartPos = startPosOfFile(indexToPos(nextLogIndex));
         queueStartPosition = newFileStartPos;
         queueEndPosition = newFileStartPos;

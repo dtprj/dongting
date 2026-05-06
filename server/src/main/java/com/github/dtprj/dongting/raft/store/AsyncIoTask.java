@@ -75,12 +75,12 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
         }
-        dtFile.incReaders();
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         if (!dtFile.isOpen()) {
-            // TODO may block or throw ex, refactor later, and reader/write count not processed if fail
+            // TODO may block or throw ex, refactor later.
+            // The caller can assert this method will not throw any exception
             try {
                 dtFile.open();
             } catch (IOException e) {
@@ -97,13 +97,13 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
         }
-        dtFile.incWriters();
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
         if (!dtFile.isOpen()) {
-            // TODO may block or throw ex, refactor later, and reader/write count not processed if fail
+            // TODO may block or throw ex, refactor later.
+            // The caller can assert this method will not throw any exception
             try {
                 dtFile.open();
             } catch (IOException e) {
@@ -118,11 +118,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
     @Override
     public void accept(Void unused, Throwable throwable) {
         ioBuffer = null;
-        if (write) {
-            dtFile.decWriters();
-        } else {
-            dtFile.decReaders();
-        }
     }
 
     protected void fireComplete(Throwable ex) {

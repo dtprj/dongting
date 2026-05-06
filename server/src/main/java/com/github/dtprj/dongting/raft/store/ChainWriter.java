@@ -112,7 +112,7 @@ public class ChainWriter {
         private long perfForceBytes;
 
 
-        public WriteTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval, boolean retryForever,
+        public WriteTask(FiberGroup fiberGroup, LogFile dtFile, int[] retryInterval, boolean retryForever,
                          Supplier<Boolean> cancelIndicator, ByteBuffer buf, long posInFile, boolean force,
                          int perfItemCount, long lastRaftIndex) {
             super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
@@ -129,16 +129,20 @@ public class ChainWriter {
         public long getLastRaftIndex() {
             return lastRaftIndex;
         }
+
+        public LogFile getLogFile() {
+            return (LogFile) getDtFile();
+        }
     }
 
-    public void submitWrite(DtFile dtFile, boolean initialized, ByteBuffer buf, long posInFile, boolean force,
+    public void submitWrite(LogFile logFile, boolean initialized, ByteBuffer buf, long posInFile, boolean force,
                             int perfItemCount, long lastRaftIndex) {
         if (error) {
             log.warn("in error state, ignore write");
             return;
         }
         int[] retryInterval = initialized ? config.ioRetryInterval : null;
-        WriteTask task = new WriteTask(config.fiberGroup, dtFile, retryInterval, true,
+        WriteTask task = new WriteTask(config.fiberGroup, logFile, retryInterval, true,
                 this::shouldCancelRetry, buf, posInFile, force, perfItemCount, lastRaftIndex);
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
@@ -150,8 +154,14 @@ public class ChainWriter {
         }
         long startTime = perfCallback.takeTimeAndRefresh(writePerfType2, config.ts);
         FiberFuture<Void> f = task.getFuture();
+        logFile.incWriters();
         if (buf != null && buf.remaining() > 0) {
-            task.write(buf, task.posInFile);
+            try {
+                task.write(buf, task.posInFile);
+            } catch (Throwable e) {
+                logFile.decWriters();
+                throw e;
+            }
         } else {
             f.complete(null);
         }
@@ -170,11 +180,13 @@ public class ChainWriter {
         }
         writeTaskCount--;
         if (error || raftStatus.installSnapshot) {
+            task.getLogFile().decWriters();
             return;
         }
         if (ioEx != null) {
             log.error("write file {} error: {}", task.getDtFile().getFile(), ioEx.toString());
             error = true;
+            task.getLogFile().decWriters();
             FiberGroup.currentGroup().requestShutdown();
             return;
         }
@@ -189,6 +201,8 @@ public class ChainWriter {
                 if (t.force) {
                     forceTasks.add(t);
                     forceTaskCount++;
+                } else {
+                    t.getLogFile().decWriters();
                 }
             } else {
                 break;
@@ -203,9 +217,16 @@ public class ChainWriter {
     }
 
     private class ForceLoopFrame extends FiberFrame<Void> {
+        private WriteTask currentForceTask;
+
         @Override
         protected FrameCallResult handle(Throwable ex) {
             error = true;
+            if (currentForceTask != null) {
+                currentForceTask.getLogFile().decWriters();
+                currentForceTask = null;
+            }
+            cleanPendingTasks();
             if (raftStatus.installSnapshot) {
                 log.info("install snapshot, force fiber exit: {}", forceFiber.name, ex);
                 return Fiber.frameReturn();
@@ -214,10 +235,19 @@ public class ChainWriter {
             }
         }
 
+        private void cleanPendingTasks() {
+            for (WriteTask ft : forceTasks) {
+                ft.getLogFile().decWriters();
+            }
+            forceTasks.clear();
+            forceTaskCount = 0;
+        }
+
         @Override
         public FrameCallResult execute(Void input) {
             if (error || raftStatus.installSnapshot) {
                 log.info("force fiber exit: {}", forceFiber.name);
+                cleanPendingTasks();
                 return Fiber.frameReturn();
             }
             if (markStop && writeTaskCount <= 0 && forceTaskCount <= 0) {
@@ -236,6 +266,7 @@ public class ChainWriter {
                     if (task.getDtFile() == nextTask.getDtFile()) {
                         nextTask.perfForceItemCount = nextTask.perfWriteItemCount + task.perfForceItemCount;
                         nextTask.perfForceBytes = nextTask.perfWriteBytes + task.perfForceBytes;
+                        task.getLogFile().decWriters();
                         task = nextTask;
                         forceTasks.removeFirst();
                         forceTaskCount--;
@@ -247,6 +278,7 @@ public class ChainWriter {
                 if (logFile.shouldDelete() || logFile.deleted) {
                     log.warn("file {} should delete or deleted, ignore force", logFile.getFile());
                     forceTaskCount--;
+                    logFile.decWriters();
                     forceCallback.accept(task);
                     return Fiber.resume(null, this);
                 }
@@ -255,18 +287,23 @@ public class ChainWriter {
                         true, ChainWriter.this::shouldCancelRetry);
                 WriteTask finalTask = task;
                 long perfStartTime = perfCallback.takeTimeAndRefresh(forcePerfType, config.ts);
+                currentForceTask = task;
                 return Fiber.call(rf, v -> afterForce(finalTask, perfStartTime));
             }
         }
 
         private FrameCallResult afterForce(WriteTask task, long perfStartTime) {
+            currentForceTask = null;
             perfCallback.fireTimeAndRefresh(forcePerfType, perfStartTime, task.perfForceItemCount, task.perfForceBytes, config.ts);
             forceTaskCount--;
 
             if (error || raftStatus.installSnapshot) {
+                task.getLogFile().decWriters();
+                cleanPendingTasks();
                 return Fiber.frameReturn();
             }
 
+            task.getLogFile().decWriters();
             forceCallback.accept(task);
             return Fiber.resume(null, this);
         }

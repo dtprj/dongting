@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -108,6 +109,7 @@ class Restorer {
                 firstItemPos = 0;
             }
             AsyncIoTask task = new AsyncIoTask(groupConfig.fiberGroup, lf);
+            // the restore process do not need to maintain readers count since the raft group is not init
             return task.read(buffer, firstItemPos).await(v -> afterReadFirstItemHeader(firstItemPos));
         }
 
@@ -163,7 +165,9 @@ class Restorer {
                     buffer.limit(buffer.position() + (int) fileRest);
                 }
                 int readBytes = buffer.remaining();
-                return task.read(buffer, readPos).await(unusedVoid -> afterRead(readBytes));
+                // the restore process do not need to maintain readers count since the raft group is not init
+                FiberFuture<Void> f = task.read(buffer, readPos);
+                return f.await(unusedVoid -> afterRead(readBytes));
             }
             // loop finished
             if (state == STATE_ITEM_HEADER) {

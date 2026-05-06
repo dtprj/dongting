@@ -15,7 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.log.BugLog;
 
 import java.io.File;
 import java.nio.file.OpenOption;
@@ -26,7 +28,7 @@ import java.util.function.Consumer;
 /**
  * @author huangli
  */
-class LogFile extends DtFile {
+public class LogFile extends DtFile {
     final long startPos;
     final long endPos;
 
@@ -43,6 +45,10 @@ class LogFile extends DtFile {
     LogFile lruPrev;
     LogFile lruNext;
 
+    private int readers;
+    private int writers;
+    private final FiberCondition noRwCond;
+
     public LogFile(long startPos, long endPos, File file, FiberGroup group,
                    Set<OpenOption> openOptions, ExecutorService ioExecutor,
                    Consumer<LogFile> accessCallback, long currentTimeMillis) {
@@ -51,18 +57,55 @@ class LogFile extends DtFile {
         this.accessCallback = accessCallback;
         this.startPos = startPos;
         this.endPos = endPos;
+        this.noRwCond = group.newCondition("noRw-" + file.getName());
     }
 
     @Override
+    public void close() {
+        if (inUse()) {
+            BugLog.log(new IllegalStateException("close file while in use: " + file.getPath()));
+        }
+        super.close();
+    }
+
     public void incReaders() {
-        super.incReaders();
+        readers++;
         updateAccessTime();
     }
 
-    @Override
+    public void decReaders() {
+        readers--;
+        if (readers <= 0 && writers <= 0) {
+            noRwCond.signalAll();
+        }
+    }
+
+    public int getReaders() {
+        return readers;
+    }
+
     public void incWriters() {
-        super.incWriters();
+        writers++;
         updateAccessTime();
+    }
+
+    public void decWriters() {
+        writers--;
+        if (readers <= 0 && writers <= 0) {
+            noRwCond.signalAll();
+        }
+    }
+
+    public int getWriters() {
+        return writers;
+    }
+
+    public boolean inUse() {
+        return readers > 0 || writers > 0;
+    }
+
+    public FiberCondition getNoRwCond() {
+        return noRwCond;
     }
 
     public void updateAccessTime() {

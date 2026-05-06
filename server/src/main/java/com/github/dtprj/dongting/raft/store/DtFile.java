@@ -16,9 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.log.BugLog;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,16 +29,11 @@ import java.util.concurrent.ExecutorService;
  * @author huangli
  */
 public class DtFile {
-    private final File file;
+    protected final File file;
     private AsynchronousFileChannel channel;
     private final Set<OpenOption> openOptions;
     final ExecutorService ioExecutor;
     final FiberGroup fiberGroup;
-
-    private int readers;
-    private int writers;
-
-    private final FiberCondition noRwCond;
 
     public DtFile(File file, FiberGroup fiberGroup, Set<OpenOption> openOptions,
                   ExecutorService ioExecutor) {
@@ -48,7 +41,6 @@ public class DtFile {
         this.openOptions = openOptions;
         this.ioExecutor = ioExecutor;
         this.fiberGroup = fiberGroup;
-        this.noRwCond = fiberGroup.newCondition("noRw-" + file.getName());
     }
 
     public File getFile() {
@@ -74,48 +66,7 @@ public class DtFile {
         if (channel == null) {
             return;
         }
-        if (inUse()) {
-            BugLog.log(new IllegalStateException("close file while in use: " + file.getPath()));
-        }
         DtUtil.close(channel);
         channel = null;
-    }
-
-    public FiberCondition getNoRwCond() {
-        return noRwCond;
-    }
-
-    public void incReaders() {
-        readers++;
-    }
-
-    public void decReaders() {
-        readers--;
-        if (readers <= 0 && writers <= 0) {
-            noRwCond.signalAll();
-        }
-    }
-
-    public int getReaders() {
-        return readers;
-    }
-
-    public void incWriters() {
-        writers++;
-    }
-
-    public void decWriters() {
-        writers--;
-        if (readers <= 0 && writers <= 0) {
-            noRwCond.signalAll();
-        }
-    }
-
-    public int getWriters() {
-        return writers;
-    }
-
-    public boolean inUse() {
-        return readers > 0 || writers > 0;
     }
 }

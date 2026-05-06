@@ -48,23 +48,16 @@ public class ForceFrame extends FiberFrame<Void> {
             // TODO may block or throw ex, refactor later
             dtFile.open();
         }
-        dtFile.incWriters();
         AsynchronousFileChannel channel = dtFile.getChannel();
-        try {
-            ioExecutor.execute(() -> {
-                try {
-                    channel.force(meta);
-                    f.fireComplete(null);
-                } catch (Throwable e) {
-                    log.error("force file failed: {}", channel);
-                    f.fireCompleteExceptionally(e);
-                }
-            });
-        } catch (Throwable e) {
-            dtFile.decWriters();
-            throw e;
-        }
-        f.registerCallback((v, ex) -> dtFile.decWriters());
+        ioExecutor.execute(() -> {
+            try {
+                channel.force(meta);
+                f.fireComplete(null);
+            } catch (Throwable e) {
+                log.error("force file failed: {}", channel);
+                f.fireCompleteExceptionally(e);
+            }
+        });
         return f.await(this::justReturn);
     }
 
