@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -50,8 +49,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
     private int position;
 
     private boolean write;
-    private boolean force;
-    private boolean flushMeta;
 
     private int retryCount = 0;
 
@@ -96,14 +93,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
-        return write(ioBuffer, filePos, false, false);
-    }
-
-    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
-        return write(ioBuffer, filePos, true, flushMeta);
-    }
-
-    private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, boolean force, boolean syncMeta) {
         if (rwCalled) {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
@@ -113,8 +102,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
-        this.force = force;
-        this.flushMeta = syncMeta;
         if (!dtFile.isOpen()) {
             // TODO may block or throw ex, refactor later, and reader/write count not processed if fail
             try {
@@ -142,7 +129,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         if (ex == null) {
             future.fireComplete(null);
         } else {
-            String op = ioBuffer == null ? "force" : write ? "write" : "read";
+            String op = write ? "write" : "read";
             String s = op + " file=" + dtFile.getFile().getPath() + ", filePos=" + filePos + " fail. " + ex.getMessage();
             future.fireCompleteExceptionally(new IOException(s, ex));
         }
@@ -173,12 +160,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
                     return Fiber.frameReturn();
                 }
                 retryCount++;
-                if (ioBuffer == null) {
-                    submitForceTask();
-                } else {
-                    ioBuffer.position(position);
-                    exec(filePos);
-                }
+                ioBuffer.position(position);
+                exec(filePos);
                 return Fiber.frameReturn();
             }
 
@@ -229,32 +212,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
             int bytes = ioBuffer.position() - position;
             exec(filePos + bytes);
         } else {
-            if (force) {
-                submitForceTask();
-            } else {
-                fireComplete(null);
-            }
-        }
-    }
-
-    private void submitForceTask() {
-        try {
-            dtFile.ioExecutor.execute(() -> {
-                try {
-                    doForce();
-                    fireComplete(null);
-                } catch (Throwable e) {
-                    try {
-                        // retry should run in fiber dispatcher thread
-                        fiberGroup.getExecutor().execute(() -> retry(e));
-                    } catch (RejectedExecutionException ee) {
-                        log.error("force retry rejected because shutdown: {}", fiberGroup.name);
-                        // can't complete future because fiber group is stopped
-                    }
-                }
-            });
-        } catch (Throwable e) {
-            retry(e);
+            fireComplete(null);
         }
     }
 
@@ -264,11 +222,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
 
     public DtFile getDtFile() {
         return dtFile;
-    }
-
-    // this method set to protected for mock error in unit test
-    protected void doForce() throws IOException {
-        dtFile.getChannel().force(flushMeta);
     }
 
     @Override

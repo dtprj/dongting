@@ -119,20 +119,20 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         });
     }
 
-    private void assertReadSuccess(Supplier<ReadFailTask> supplier) throws Exception {
+    private void assertReadSuccess(Supplier<IoFailTask> supplier) throws Exception {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 ByteBuffer buf = ByteBuffer.allocate(1);
-                ReadFailTask t = supplier.get();
+                IoFailTask t = supplier.get();
                 return t.read(buf, 0).await(1000, this::justReturn);
             }
         });
     }
 
-    private void assertReadFail(Supplier<ReadFailTask> supplier) throws Exception {
+    private void assertReadFail(Supplier<IoFailTask> supplier) throws Exception {
         doInFiber(new FiberFrame<>() {
-            ReadFailTask t;
+            IoFailTask t;
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -162,38 +162,38 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 AsyncIoTask wt = new AsyncIoTask(fiberGroup, dtFile);
-                return wt.writeAndForce(buf, 0, false)
+                return wt.write(buf, 0)
                         .await(1000, this::justReturn);
             }
         });
 
         // fail on first read
-        assertReadSuccess(() -> new ReadFailTask(1, true, false, null));
+        assertReadSuccess(() -> new IoFailTask(1, true, false, null));
 
         // fail twice, so retry failed
-        assertReadFail(() -> new ReadFailTask(2, true, false, null));
+        assertReadFail(() -> new IoFailTask(2, true, false, null));
 
         // fail twice but retry forever
-        assertReadSuccess(() -> new ReadFailTask(2, true, true, () -> false));
+        assertReadSuccess(() -> new IoFailTask(2, true, true, () -> false));
 
         // fail, cancel indicator return true
-        assertReadFail(() -> new ReadFailTask(2, true, true, () -> true));
+        assertReadFail(() -> new IoFailTask(2, true, true, () -> true));
 
         // fail, cancel indicator return true
         AtomicInteger cancelIndicatorCount = new AtomicInteger();
-        assertReadFail(() -> new ReadFailTask(2, true, true,
+        assertReadFail(() -> new IoFailTask(2, true, true,
                 () -> cancelIndicatorCount.getAndIncrement() == 1));
 
         // no retry
-        assertReadFail(() -> new ReadFailTask(2, false, false, null));
+        assertReadFail(() -> new IoFailTask(2, false, false, null));
     }
 
-    private class ReadFailTask extends AsyncIoTask {
+    private class IoFailTask extends AsyncIoTask {
         private final int failCount;
         private int count;
         IOException ex = new IOException("mock error");
 
-        public ReadFailTask(int failCount, boolean retry, boolean retryForever, Supplier<Boolean> cancelIndicator) {
+        public IoFailTask(int failCount, boolean retry, boolean retryForever, Supplier<Boolean> cancelIndicator) {
             super(groupConfig.fiberGroup, dtFile, retry ? groupConfig.ioRetryInterval : null,
                     retryForever, cancelIndicator);
             this.failCount = failCount;
@@ -217,33 +217,11 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) {
                 ByteBuffer buf = ByteBuffer.allocate(1);
                 // fail on first write
-                FlushFailTask t = new FlushFailTask(1, true, false, () -> false);
-                return t.writeAndForce(buf, 0, false)
+                IoFailTask t = new IoFailTask(1, true, false, () -> false);
+                return t.write(buf, 0)
                         .await(1000, this::justReturn);
             }
         });
 
-    }
-
-    private class FlushFailTask extends AsyncIoTask {
-        private final int failCount;
-        private int count;
-        IOException ex = new IOException("mock error");
-
-        public FlushFailTask(int failCount, boolean retry, boolean retryForever,
-                             Supplier<Boolean> cancelIndicator) {
-            super(groupConfig.fiberGroup, dtFile, retry ? groupConfig.ioRetryInterval : null,
-                    retryForever, cancelIndicator);
-            this.failCount = failCount;
-        }
-
-        @Override
-        protected void doForce() throws IOException {
-            if (count++ == failCount) {
-                super.doForce();
-            } else {
-                throw ex;
-            }
-        }
     }
 }
