@@ -79,7 +79,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     @AfterEach
     public void clean() {
         if (file != null && file.exists()) {
-            dtFile.close();
+            dtFile.destroy();
             file.delete();
         }
     }

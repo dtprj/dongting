@@ -331,7 +331,7 @@ abstract class FileQueue {
     private void closeAllChannel() {
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
-            lf.close();
+            lf.destroy();
             lf.lruPrev = null;
             lf.lruNext = null;
         }
@@ -386,7 +386,7 @@ abstract class FileQueue {
                 }
                 first.deleted = true;
                 lruRemove(first);
-                first.close();
+                first.destroy();
                 return Fiber.call(new DeleteFrame(first.getFile()), this::justReturn);
             }
         };
@@ -505,7 +505,7 @@ abstract class FileQueue {
         protected FrameCallResult handle(Throwable ex) {
             log.error("allocate file fail: ", ex);
             if (logFile != null) {
-                logFile.close();
+                logFile.destroy();
             }
             return Fiber.frameReturn();
         }

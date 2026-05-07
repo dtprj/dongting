@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.BugLog;
@@ -60,12 +61,16 @@ public class LogFile extends DtFile {
         this.noRwCond = group.newCondition("noRw-" + file.getName());
     }
 
-    @Override
     public void close() {
-        if (inUse()) {
+        if (inUse() || openFuture != null) {
             BugLog.log(new IllegalStateException("close file while in use: " + file.getPath()));
+            return;
         }
-        super.close();
+        if (channel == null) {
+            return;
+        }
+        DtUtil.close(channel);
+        channel = null;
     }
 
     public void incReaders() {

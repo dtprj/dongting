@@ -68,7 +68,7 @@ public class FileSnapshot extends Snapshot {
 
     @Override
     protected void doClose() {
-        dtFile.close();
+        dtFile.destroy();
     }
 
     public int getBufferSize() {

@@ -128,7 +128,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private int lastBufferSize;
 
         @Override
-        public FrameCallResult execute(Void input) throws Exception {
+        public FrameCallResult execute(Void input) {
             File dataDir = FileUtil.ensureDir(groupConfig.dataDir);
             snapshotDir = FileUtil.ensureDir(dataDir, SNAPSHOT_DIR);
             File[] files = snapshotDir.listFiles(f -> f.isFile() && f.getName().endsWith(IDX_SUFFIX));
@@ -181,7 +181,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
         }
 
-        private FrameCallResult afterStatusFileInit(Iterator<FileSnapshotInfo> it, FileSnapshotInfo fsi) throws Exception {
+        private FrameCallResult afterStatusFileInit(Iterator<FileSnapshotInfo> it, FileSnapshotInfo fsi) {
             Map<String, String> p = currentStatusFile.getProperties();
             fsi.lastIncludeIndex = Long.parseLong(p.get(KEY_LAST_INDEX));
 
@@ -344,7 +344,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         @Override
         protected FrameCallResult doFinally() {
             if (newDataFile != null) {
-                newDataFile.close();
+                newDataFile.destroy();
             }
             if (readSnapshot != null) {
                 readSnapshot.close();

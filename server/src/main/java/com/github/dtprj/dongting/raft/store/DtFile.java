@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.raft.RaftException;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,12 +32,13 @@ import java.util.concurrent.ExecutorService;
  */
 public class DtFile {
     protected final File file;
-    private AsynchronousFileChannel channel;
+    AsynchronousFileChannel channel;
     private final Set<OpenOption> openOptions;
     final ExecutorService ioExecutor;
     final FiberGroup fiberGroup;
 
-    private FiberFuture<Void> openFuture;
+    private boolean destroyed;
+    FiberFuture<Void> openFuture;
 
     public DtFile(File file, FiberGroup fiberGroup, Set<OpenOption> openOptions,
                   ExecutorService ioExecutor) {
@@ -69,23 +71,29 @@ public class DtFile {
         channel = AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
     }
 
-    public void close() {
-        if (channel == null && openFuture == null) {
-            return;
-        }
+    public void destroy() {
+        destroyed = true;
+        FiberFuture<Void> pendingFuture = openFuture;
         openFuture = null;
         DtUtil.close(channel);
         channel = null;
+        if (pendingFuture != null) {
+            pendingFuture.completeExceptionally(new RaftException("DtFile is destroyed: " + file.getPath()));
+        }
     }
 
     public FiberFuture<Void> ensureOpen() {
+        if (destroyed) {
+            return FiberFuture.failedFuture(fiberGroup, new RaftException("DtFile is destroyed: " + file.getPath()));
+        }
         if (channel != null) {
             return FiberFuture.completedFuture(fiberGroup, null);
         }
         if (openFuture != null) {
             return openFuture;
         }
-        openFuture = fiberGroup.newFuture("OpenFile-" + file.getName());
+        FiberFuture<Void> result = fiberGroup.newFuture("OpenFile-" + file.getName());
+        openFuture = result;
         FiberFuture<AsynchronousFileChannel> f = fiberGroup.newFuture("asyncOpenFile");
         try {
             ioExecutor.execute(() -> {
@@ -100,18 +108,26 @@ public class DtFile {
             f.completeExceptionally(e);
         }
         registerCallback(f);
-        return openFuture;
+        return result;
     }
 
     private void registerCallback(FiberFuture<AsynchronousFileChannel> f) {
         f.registerCallback((ch, ex) -> {
             FiberFuture<Void> oldOpenFuture = this.openFuture;
             this.openFuture = null;
+            if (destroyed) {
+                DtUtil.close(ch);
+                return;
+            }
             if (ex != null) {
-                oldOpenFuture.completeExceptionally(ex);
+                if (oldOpenFuture != null) {
+                    oldOpenFuture.completeExceptionally(ex);
+                }
             } else {
                 channel = ch;
-                oldOpenFuture.complete(null);
+                if (oldOpenFuture != null) {
+                    oldOpenFuture.complete(null);
+                }
             }
         });
     }

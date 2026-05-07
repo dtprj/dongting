@@ -81,7 +81,7 @@ public class StatusFile {
                     getFiberGroup().dispatcher.thread.heapPool.getPool().release(buf);
                 }
                 if (dtFile != null) {
-                    dtFile.close();
+                    dtFile.destroy();
                     dtFile = null;
                 }
                 return Fiber.frameReturn();
