@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 
 import java.io.File;
@@ -34,6 +35,8 @@ public class DtFile {
     private final Set<OpenOption> openOptions;
     final ExecutorService ioExecutor;
     final FiberGroup fiberGroup;
+
+    private FiberFuture<Void> openFuture;
 
     public DtFile(File file, FiberGroup fiberGroup, Set<OpenOption> openOptions,
                   ExecutorService ioExecutor) {
@@ -55,7 +58,11 @@ public class DtFile {
         return channel != null;
     }
 
-    public void open() throws IOException {
+    /**
+     * This method performs blocking IO, should only be used in IO thread or initialization code.
+     * For raft main thread, use ensureOpen() instead.
+     */
+    public void syncOpen() throws IOException {
         if (channel != null) {
             return;
         }
@@ -63,10 +70,50 @@ public class DtFile {
     }
 
     public void close() {
-        if (channel == null) {
+        if (channel == null && openFuture == null) {
             return;
         }
+        openFuture = null;
         DtUtil.close(channel);
         channel = null;
     }
+
+    public FiberFuture<Void> ensureOpen() {
+        if (channel != null) {
+            return FiberFuture.completedFuture(fiberGroup, null);
+        }
+        if (openFuture != null) {
+            return openFuture;
+        }
+        openFuture = fiberGroup.newFuture("OpenFile-" + file.getName());
+        FiberFuture<AsynchronousFileChannel> f = fiberGroup.newFuture("asyncOpenFile");
+        try {
+            ioExecutor.execute(() -> {
+                try {
+                    AsynchronousFileChannel ch = AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
+                    f.fireComplete(ch);
+                } catch (Throwable e) {
+                    f.fireCompleteExceptionally(e);
+                }
+            });
+        } catch (Throwable e) {
+            f.completeExceptionally(e);
+        }
+        registerCallback(f);
+        return openFuture;
+    }
+
+    private void registerCallback(FiberFuture<AsynchronousFileChannel> f) {
+        f.registerCallback((ch, ex) -> {
+            FiberFuture<Void> oldOpenFuture = this.openFuture;
+            this.openFuture = null;
+            if (ex != null) {
+                oldOpenFuture.completeExceptionally(ex);
+            } else {
+                channel = ch;
+                oldOpenFuture.complete(null);
+            }
+        });
+    }
+
 }

@@ -164,7 +164,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return loadIdxInfo(savedSnapshots.iterator());
         }
 
-        private FrameCallResult loadIdxInfo(Iterator<FileSnapshotInfo> it) throws Exception {
+        private FrameCallResult loadIdxInfo(Iterator<FileSnapshotInfo> it) {
             if (it.hasNext()) {
                 FileSnapshotInfo fsi = it.next();
                 log.info("load snapshot info: {}", fsi.idxFile);
@@ -379,7 +379,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return f.await(this::afterTakeSnapshot);
         }
 
-        private FrameCallResult afterTakeSnapshot(Snapshot snapshot) throws Exception {
+        private FrameCallResult afterTakeSnapshot(Snapshot snapshot) {
             this.readSnapshot = snapshot;
             SnapshotInfo snapshotInfo = snapshot.getSnapshotInfo();
             log.info("begin save snapshot {}. groupId={}, lastIndex={}, lastTerm={}", id,
@@ -392,9 +392,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
             Set<OpenOption> options = Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             this.newDataFile = new DtFile(dataFile, groupConfig.fiberGroup, options, ioExecutor);
-            // TODO may block
-            this.newDataFile.open();
+            return newDataFile.ensureOpen().await(this::afterDataFileOpen);
+        }
 
+        private FrameCallResult afterDataFileOpen(Void v) {
             int readConcurrency = groupConfig.snapshotConcurrency;
             int writeConcurrency = groupConfig.diskSnapshotConcurrency;
             SnapshotReader reader = new SnapshotReader(readSnapshot, readConcurrency, writeConcurrency,

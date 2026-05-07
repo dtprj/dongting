@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.DtFile;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
@@ -41,7 +40,7 @@ public class FileSnapshot extends Snapshot {
 
     private final int bufferSize;
 
-    public FileSnapshot(RaftGroupConfigEx groupConfig, SnapshotInfo si, File dataFile, int bufferSize) throws IOException {
+    public FileSnapshot(RaftGroupConfigEx groupConfig, SnapshotInfo si, File dataFile, int bufferSize) {
         super(si);
         this.fiberGroup = groupConfig.fiberGroup;
         this.fileSize = dataFile.length();
@@ -49,7 +48,6 @@ public class FileSnapshot extends Snapshot {
 
         Set<OpenOption> options = Set.of(StandardOpenOption.READ);
         this.dtFile = new DtFile(dataFile, groupConfig.fiberGroup, options, groupConfig.blockIoExecutor);
-        this.dtFile.open();
     }
 
     @Override

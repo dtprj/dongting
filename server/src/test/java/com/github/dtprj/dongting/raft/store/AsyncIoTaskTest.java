@@ -68,7 +68,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         file = new File(dir, "testFile");
         Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
         dtFile = new DtFile(file, fiberGroup, s, MockExecutors.ioExecutor());
-        dtFile.open();
+        dtFile.syncOpen();
         groupConfig = new RaftGroupConfigEx(1, "1", "");
         groupConfig.ioRetryInterval = new int[]{1};
         groupConfig.fiberGroup = fiberGroup;
@@ -207,6 +207,36 @@ public class AsyncIoTaskTest extends BaseFiberTest {
                 failed(ex, null);
             }
         }
+    }
+
+    @Test
+    public void testAsyncOpen() throws Exception {
+        file = new File(dir, "testAsyncOpen");
+        Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
+        dtFile = new DtFile(file, fiberGroup, s, MockExecutors.ioExecutor());
+
+        doInFiber(new FiberFrame<>() {
+            ByteBuffer buf = ByteBuffer.allocate(8);
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                assertTrue(!dtFile.isOpen());
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.write(buf, 0).await(1000, this::resume1);
+            }
+
+            private FrameCallResult resume1(Void unused) {
+                assertTrue(dtFile.isOpen());
+                buf = ByteBuffer.allocate(8);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.read(buf, 0).await(1000, this::resume2);
+            }
+
+            private FrameCallResult resume2(Void unused) {
+                assertTrue(dtFile.isOpen());
+                return Fiber.frameReturn();
+            }
+        });
     }
 
     @Test

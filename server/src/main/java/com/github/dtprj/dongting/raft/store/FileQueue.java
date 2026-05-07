@@ -482,7 +482,7 @@ abstract class FileQueue {
                             groupConfig.fiberGroup, options, ioExecutor, FileQueue.this::lruTouch,
                             raftStatus.ts.wallClockMillis);
                     // access in io thread, but happens-before use
-                    logFile.open();
+                    logFile.syncOpen();
                     long time = System.currentTimeMillis() - startTime;
                     createFileFuture.fireComplete(null);
                     log.info("allocate file done, cost {} ms: {}", time, file.getPath());
