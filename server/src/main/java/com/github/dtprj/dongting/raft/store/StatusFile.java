@@ -98,13 +98,13 @@ public class StatusFile {
                 boolean needLoad = file.exists() && file.length() != 0;
                 Set<OpenOption> options = Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
                 dtFile = new DtFile(file, fiberGroup, options, groupConfig.blockIoExecutor);
+                return dtFile.ensureOpen().await(v -> afterOpen(needLoad));
+            }
+
+            private FrameCallResult afterOpen(boolean needLoad) {
                 if (!needLoad) {
                     return Fiber.frameReturn();
                 }
-                return dtFile.ensureOpen().await(this::afterOpen);
-            }
-
-            private FrameCallResult afterOpen(Void input) {
                 AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
                 buf = getFiberGroup().dispatcher.thread.heapPool.getPool().borrow(fileLen);
                 buf.limit(fileLen);

@@ -40,6 +40,7 @@ import com.github.dtprj.dongting.raft.store.ForceFrame;
 import com.github.dtprj.dongting.raft.store.StatusFile;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
@@ -128,7 +129,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private int lastBufferSize;
 
         @Override
-        public FrameCallResult execute(Void input) {
+        public FrameCallResult execute(Void input) throws IOException {
             File dataDir = FileUtil.ensureDir(groupConfig.dataDir);
             snapshotDir = FileUtil.ensureDir(dataDir, SNAPSHOT_DIR);
             File[] files = snapshotDir.listFiles(f -> f.isFile() && f.getName().endsWith(IDX_SUFFIX));
@@ -164,7 +165,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return loadIdxInfo(savedSnapshots.iterator());
         }
 
-        private FrameCallResult loadIdxInfo(Iterator<FileSnapshotInfo> it) {
+        private FrameCallResult loadIdxInfo(Iterator<FileSnapshotInfo> it) throws IOException {
             if (it.hasNext()) {
                 FileSnapshotInfo fsi = it.next();
                 log.info("load snapshot info: {}", fsi.idxFile);
@@ -176,12 +177,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 FileSnapshotInfo last = savedSnapshots.getLast();
                 log.info("open snapshot file {}", last.dataFile);
                 FileSnapshot s = new FileSnapshot(groupConfig, last.si, last.dataFile, lastBufferSize);
+                s.syncOpen();
                 setResult(s);
                 return Fiber.frameReturn();
             }
         }
 
-        private FrameCallResult afterStatusFileInit(Iterator<FileSnapshotInfo> it, FileSnapshotInfo fsi) {
+        private FrameCallResult afterStatusFileInit(Iterator<FileSnapshotInfo> it, FileSnapshotInfo fsi) throws IOException {
             Map<String, String> p = currentStatusFile.getProperties();
             fsi.lastIncludeIndex = Long.parseLong(p.get(KEY_LAST_INDEX));
 
