@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "Intellij-IDEA": {
+      "url": "http://127.0.0.1:64342/sse",
+      "type": "sse"
+    }
+  }
+}
