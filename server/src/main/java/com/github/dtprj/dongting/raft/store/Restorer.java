@@ -108,9 +108,9 @@ class Restorer {
             } else {
                 firstItemPos = 0;
             }
-            AsyncIoTask task = new AsyncIoTask(groupConfig.fiberGroup, lf);
+            MmapIoTask task = new MmapIoTask(groupConfig.fiberGroup, lf);
             // the restore process do not need to maintain readers count since the raft group is not init
-            return task.read(buffer, firstItemPos).await(v -> afterReadFirstItemHeader(firstItemPos));
+            return task.run(new SingleBufferCallback(buffer, firstItemPos, false)).await(v -> afterReadFirstItemHeader(firstItemPos));
         }
 
         private FrameCallResult afterReadFirstItemHeader(long firstItemPos) {
@@ -159,14 +159,14 @@ class Restorer {
         private FrameCallResult loopRestoreFileBlock() {
             if (readPos < logFileQueue.fileLength()) { // loop begin
                 RaftUtil.checkStop(getFiberGroup());
-                AsyncIoTask task = new AsyncIoTask(groupConfig.fiberGroup, lf);
+                MmapIoTask task = new MmapIoTask(groupConfig.fiberGroup, lf);
                 long fileRest = logFileQueue.fileLength() - readPos;
                 if (buffer.remaining() > fileRest) {
                     buffer.limit(buffer.position() + (int) fileRest);
                 }
                 int readBytes = buffer.remaining();
                 // the restore process do not need to maintain readers count since the raft group is not init
-                FiberFuture<Void> f = task.read(buffer, readPos);
+                FiberFuture<Void> f = task.run(new SingleBufferCallback(buffer, readPos, false));
                 return f.await(unusedVoid -> afterRead(readBytes));
             }
             // loop finished

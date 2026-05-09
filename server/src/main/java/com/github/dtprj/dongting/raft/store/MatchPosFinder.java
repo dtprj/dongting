@@ -185,10 +185,10 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
             return Fiber.resume(null, this::loop);
         }
 
-        AsyncIoTask task = new AsyncIoTask(groupConfig.fiberGroup, logFile);
+        MmapIoTask task = new MmapIoTask(groupConfig.fiberGroup, logFile);
         buf.clear();
         logFile.incReaders();
-        FiberFuture<Void> f = task.read(buf, pos & fileLenMask);
+        FiberFuture<Void> f = task.run(new SingleBufferCallback(buf, pos & fileLenMask, false));
         return f.await(this::headerLoadComplete);
     }
 

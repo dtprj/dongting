@@ -98,7 +98,8 @@ public class ChainWriter {
         }
     }
 
-    public static class WriteTask extends AsyncIoTask {
+    public static class WriteTask {
+        private final MmapIoTask ioTask;
         private final long posInFile;
         private final long expectNextPos;
         private final boolean force;
@@ -112,10 +113,10 @@ public class ChainWriter {
         private long perfForceBytes;
 
 
-        public WriteTask(FiberGroup fiberGroup, LogFile dtFile, int[] retryInterval, boolean retryForever,
+        public WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval, boolean retryForever,
                          Supplier<Boolean> cancelIndicator, ByteBuffer buf, long posInFile, boolean force,
                          int perfItemCount, long lastRaftIndex) {
-            super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
+            this.ioTask = new MmapIoTask(fiberGroup, logFile, retryInterval, retryForever, cancelIndicator);
             this.posInFile = posInFile;
             this.force = force;
             this.buf = buf;
@@ -126,12 +127,24 @@ public class ChainWriter {
             this.lastRaftIndex = lastRaftIndex;
         }
 
+        public void submitWrite() {
+            if (buf != null && buf.remaining() > 0) {
+                ioTask.run(new SingleBufferCallback(buf, posInFile, true));
+            } else {
+                ioTask.getFuture().complete(null);
+            }
+        }
+
         public long getLastRaftIndex() {
             return lastRaftIndex;
         }
 
         public LogFile getLogFile() {
-            return (LogFile) getDtFile();
+            return ioTask.getLogFile();
+        }
+
+        public FiberFuture<Void> getFuture() {
+            return ioTask.getFuture();
         }
     }
 
@@ -146,7 +159,7 @@ public class ChainWriter {
                 this::shouldCancelRetry, buf, posInFile, force, perfItemCount, lastRaftIndex);
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
-            if (lastTask.getDtFile() == task.getDtFile()) {
+            if (lastTask.getLogFile() == task.getLogFile()) {
                 if (lastTask.expectNextPos != task.posInFile) {
                     throw Fiber.fatal(new RaftException("pos not continuous"));
                 }
@@ -155,15 +168,11 @@ public class ChainWriter {
         long startTime = perfCallback.takeTimeAndRefresh(writePerfType2, config.ts);
         FiberFuture<Void> f = task.getFuture();
         logFile.incWriters();
-        if (buf != null && buf.remaining() > 0) {
-            try {
-                task.write(buf, task.posInFile);
-            } catch (Throwable e) {
-                logFile.decWriters();
-                throw e;
-            }
-        } else {
-            f.complete(null);
+        try {
+            task.submitWrite();
+        } catch (Throwable e) {
+            logFile.decWriters();
+            throw e;
         }
         if (writePerfType1 > 0) {
             perfCallback.fireTime(writePerfType1, startTime, task.perfWriteItemCount, task.perfWriteBytes);
@@ -184,7 +193,7 @@ public class ChainWriter {
             return;
         }
         if (ioEx != null) {
-            log.error("write file {} error: {}", task.getDtFile().getFile(), ioEx.toString());
+            log.error("write file {} error: {}", task.getLogFile().getFile(), ioEx.toString());
             error = true;
             task.getLogFile().decWriters();
             FiberGroup.currentGroup().requestShutdown();
@@ -263,7 +272,7 @@ public class ChainWriter {
                 task.perfForceBytes = task.perfWriteBytes;
                 WriteTask nextTask;
                 while ((nextTask = forceTasks.peekFirst()) != null) {
-                    if (task.getDtFile() == nextTask.getDtFile()) {
+                    if (task.getLogFile() == nextTask.getLogFile()) {
                         nextTask.perfForceItemCount = nextTask.perfWriteItemCount + task.perfForceItemCount;
                         nextTask.perfForceBytes = nextTask.perfWriteBytes + task.perfForceBytes;
                         task.getLogFile().decWriters();
@@ -274,7 +283,7 @@ public class ChainWriter {
                         break;
                     }
                 }
-                LogFile logFile = (LogFile) task.getDtFile();
+                LogFile logFile = task.getLogFile();
                 if (logFile.shouldDelete() || logFile.deleted) {
                     log.warn("file {} should delete or deleted, ignore force", logFile.getFile());
                     forceTaskCount--;

@@ -33,11 +33,11 @@ import java.util.concurrent.ExecutorService;
 public class DtFile {
     protected final File file;
     AsynchronousFileChannel channel;
-    private final Set<OpenOption> openOptions;
+    final Set<OpenOption> openOptions;
     final ExecutorService ioExecutor;
     final FiberGroup fiberGroup;
 
-    private boolean destroyed;
+    boolean destroyed;
     FiberFuture<Void> openFuture;
 
     public DtFile(File file, FiberGroup fiberGroup, Set<OpenOption> openOptions,
@@ -64,21 +64,43 @@ public class DtFile {
      * This method performs blocking IO, should only be used in IO thread or initialization code.
      * For raft main thread, use ensureOpen() instead.
      */
-    public void syncOpen() throws IOException {
-        if (channel != null) {
+    public final void syncOpen() throws IOException {
+        if (isOpen()) {
             return;
         }
-        channel = AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
+        afterSyncOpen(doSyncOpen());
     }
 
-    public void destroy() {
+    protected Object doSyncOpen() throws IOException {
+        return AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
+    }
+
+    protected void afterSyncOpen(Object openResult) {
+        channel = (AsynchronousFileChannel) openResult;
+    }
+
+    public final void destroy() {
         destroyed = true;
         FiberFuture<Void> pendingFuture = openFuture;
         openFuture = null;
-        DtUtil.close(channel);
-        channel = null;
+        doClose();
         if (pendingFuture != null) {
             pendingFuture.completeExceptionally(new RaftException("DtFile is destroyed: " + file.getPath()));
+        }
+    }
+
+    protected void doClose() {
+        DtUtil.close(channel);
+        channel = null;
+    }
+
+    public void doForce(boolean meta) throws IOException {
+        channel.force(meta);
+    }
+
+    protected void dropOpenResult(Object o) {
+        if (o != null) {
+            DtUtil.close((AsynchronousFileChannel) o);
         }
     }
 
@@ -86,7 +108,7 @@ public class DtFile {
         if (destroyed) {
             return FiberFuture.failedFuture(fiberGroup, new RaftException("DtFile is destroyed: " + file.getPath()));
         }
-        if (channel != null) {
+        if (isOpen()) {
             return FiberFuture.completedFuture(fiberGroup, null);
         }
         if (openFuture != null) {
@@ -94,12 +116,11 @@ public class DtFile {
         }
         FiberFuture<Void> result = fiberGroup.newFuture("OpenFile-" + file.getName());
         openFuture = result;
-        FiberFuture<AsynchronousFileChannel> f = fiberGroup.newFuture("asyncOpenFile");
+        FiberFuture<Object> f = fiberGroup.newFuture("asyncOpenFile");
         try {
             ioExecutor.execute(() -> {
                 try {
-                    AsynchronousFileChannel ch = AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
-                    f.fireComplete(ch);
+                    f.fireComplete(doSyncOpen());
                 } catch (Throwable e) {
                     f.fireCompleteExceptionally(e);
                 }
@@ -111,12 +132,12 @@ public class DtFile {
         return result;
     }
 
-    private void registerCallback(FiberFuture<AsynchronousFileChannel> f) {
+    private void registerCallback(FiberFuture<Object> f) {
         f.registerCallback((ch, ex) -> {
             FiberFuture<Void> oldOpenFuture = this.openFuture;
             this.openFuture = null;
             if (destroyed) {
-                DtUtil.close(ch);
+                dropOpenResult(ch);
                 return;
             }
             if (ex != null) {
@@ -124,7 +145,7 @@ public class DtFile {
                     oldOpenFuture.completeExceptionally(ex);
                 }
             } else {
-                channel = ch;
+                afterSyncOpen(ch);
                 if (oldOpenFuture != null) {
                     oldOpenFuture.complete(null);
                 }

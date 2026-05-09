@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.nio.channels.AsynchronousFileChannel;
 import java.util.concurrent.Executor;
 
 /**
@@ -51,13 +50,12 @@ public class ForceFrame extends FiberFrame<Void> {
 
     private FrameCallResult doForce(Void v) {
         FiberFuture<Void> f = getFiberGroup().newFuture("forceFile");
-        AsynchronousFileChannel channel = dtFile.getChannel();
         ioExecutor.execute(() -> {
             try {
-                channel.force(meta);
+                dtFile.doForce(meta);
                 f.fireComplete(null);
             } catch (Throwable e) {
-                log.error("force file failed: {}", channel);
+                log.error("force file failed: {}", dtFile.getFile().getPath(), e);
                 f.fireCompleteExceptionally(e);
             }
         });

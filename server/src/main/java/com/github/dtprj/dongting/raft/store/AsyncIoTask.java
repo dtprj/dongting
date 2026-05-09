@@ -28,13 +28,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
-public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer<Void, Throwable> {
+public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
     private final DtFile dtFile;
     private final Supplier<Boolean> cancelRetryIndicator;
@@ -67,7 +66,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         this.retryForever = retryForever;
         this.cancelRetryIndicator = cancelRetryIndicator;
         this.future = fiberGroup.newFuture("asyncIoTaskFuture");
-        this.future.registerCallback(this);
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
@@ -117,11 +115,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         }
         rwCalled = true;
         return future;
-    }
-
-    @Override
-    public void accept(Void unused, Throwable throwable) {
-        ioBuffer = null;
     }
 
     protected void fireComplete(Throwable ex) {
