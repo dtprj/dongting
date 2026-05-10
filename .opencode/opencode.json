@@ -5,6 +5,18 @@
       "enabled": true,
       "type": "remote",
       "url": "http://localhost:64342/sse"
+    },
+    "MiniMax": {
+      "enabled": false
+    },
+    "web-reader": {
+      "enabled": false
+    },
+    "web-search-prime": {
+      "enabled": false
+    },
+    "zread": {
+      "enabled": false
     }
   }
 }
