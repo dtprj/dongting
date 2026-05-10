@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.util.Set;
@@ -36,7 +35,7 @@ import java.util.function.Consumer;
 /**
  * @author huangli
  */
-public class LogFile extends DtFile {
+public class LogFile extends AbstractFile<Pair<FileChannel, MappedByteBuffer>> {
     final long startPos;
     final long endPos;
 
@@ -77,7 +76,7 @@ public class LogFile extends DtFile {
     }
 
     @Override
-    protected Object doSyncOpen() throws IOException {
+    protected Pair<FileChannel, MappedByteBuffer> doSyncOpen() throws IOException {
         FileChannel fc = FileChannel.open(file.toPath(), openOptions);
         try {
             MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, fc.size());
@@ -89,19 +88,16 @@ public class LogFile extends DtFile {
     }
 
     @Override
-    protected void afterSyncOpen(Object openResult) {
-        Pair<FileChannel, MappedByteBuffer> result = (Pair<FileChannel, MappedByteBuffer>) openResult;
-        fileChannel = result.getLeft();
-        mappedBuffer = result.getRight();
+    protected void afterSyncOpen(Pair<FileChannel, MappedByteBuffer> openResult) {
+        fileChannel = openResult.getLeft();
+        mappedBuffer = openResult.getRight();
     }
 
     @Override
-    protected void dropOpenResult(Object o) {
+    protected void dropOpenResult(Pair<FileChannel, MappedByteBuffer> o) {
         if (o != null) {
-            @SuppressWarnings("unchecked")
-            Pair<FileChannel, MappedByteBuffer> p = (Pair<FileChannel, MappedByteBuffer>) o;
-            VersionFactory.getInstance().releaseDirectBuffer(p.getRight());
-            DtUtil.close(p.getLeft());
+            VersionFactory.getInstance().releaseDirectBuffer(o.getRight());
+            DtUtil.close(o.getLeft());
         }
     }
 
@@ -114,11 +110,6 @@ public class LogFile extends DtFile {
             DtUtil.close(fileChannel);
             fileChannel = null;
         }
-    }
-
-    @Override
-    public AsynchronousFileChannel getChannel() {
-        throw new UnsupportedOperationException("LogFile uses mmap, not AsynchronousFileChannel");
     }
 
     public ByteBuffer duplicateMmap() {

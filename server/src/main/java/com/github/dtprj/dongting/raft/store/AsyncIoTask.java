@@ -185,9 +185,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     protected void exec(long pos) {
         try {
             if (write) {
-                dtFile.getChannel().write(ioBuffer, pos, null, this);
+                dtFile.channel.write(ioBuffer, pos, null, this);
             } else {
-                dtFile.getChannel().read(ioBuffer, pos, null, this);
+                dtFile.channel.read(ioBuffer, pos, null, this);
             }
         } catch (Throwable e) {
             fireComplete(e);
@@ -210,10 +210,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     public FiberFuture<Void> getFuture() {
         return future;
-    }
-
-    public DtFile getDtFile() {
-        return dtFile;
     }
 
     @Override
