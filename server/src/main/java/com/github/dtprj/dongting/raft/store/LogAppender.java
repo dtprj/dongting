@@ -41,7 +41,7 @@ import java.util.zip.CRC32C;
  */
 class LogAppender {
     private static final DtLog log = DtLogs.getLogger(LogAppender.class);
-    private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
+    private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocateDirect(0);
 
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
@@ -50,7 +50,7 @@ class LogAppender {
     private final long fileLenMask;
     private final RaftStatusImpl raftStatus;
 
-    private final ByteBufferPool heapPool;
+    private final ByteBufferPool directPool;
 
     // update before write operation issued
     long nextPersistIndex = -1;
@@ -66,7 +66,7 @@ class LogAppender {
         this.chainWriter = chainWriter;
 
         DispatcherThread thread = groupConfig.fiberGroup.dispatcher.thread;
-        this.heapPool = thread.heapPool.getPool();
+        this.directPool = thread.directPool;
         this.encodeContext = new EncodeContext(thread.heapPool);
         this.fileLenMask = logFileQueue.fileLength() - 1;
         this.perfCallback = groupConfig.perfCallback;
@@ -277,7 +277,7 @@ class LogAppender {
                 return EMPTY_BUFFER;
             } else {
                 size = Math.min(size, logFileQueue.maxWriteBufferSize);
-                return heapPool.borrow(size);
+                return directPool.borrow(size);
             }
         }
     }
