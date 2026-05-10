@@ -16,7 +16,9 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.raft.RaftException;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,44 +30,127 @@ import java.util.concurrent.ExecutorService;
 /**
  * @author huangli
  */
-public class DtFile extends AbstractFile<AsynchronousFileChannel> {
+public class DtFile {
+    protected final File file;
     AsynchronousFileChannel channel;
+    final Set<OpenOption> openOptions;
+    final ExecutorService ioExecutor;
+    final FiberGroup fiberGroup;
+
+    boolean destroyed;
+    FiberFuture<Void> openFuture;
 
     public DtFile(File file, FiberGroup fiberGroup, Set<OpenOption> openOptions,
                   ExecutorService ioExecutor) {
-        super(file, fiberGroup, openOptions, ioExecutor);
+        this.file = file;
+        this.openOptions = openOptions;
+        this.ioExecutor = ioExecutor;
+        this.fiberGroup = fiberGroup;
     }
 
-    @Override
+    public File getFile() {
+        return file;
+    }
+
+    public AsynchronousFileChannel getChannel() {
+        return channel;
+    }
+
     public boolean isOpen() {
         return channel != null;
     }
 
-    @Override
-    protected AsynchronousFileChannel doSyncOpen() throws IOException {
+    /**
+     * This method performs blocking IO, should only be used in IO thread or initialization code.
+     * For raft main thread, use ensureOpen() instead.
+     */
+    public final void syncOpen() throws IOException {
+        if (isOpen()) {
+            return;
+        }
+        afterSyncOpen(doSyncOpen());
+    }
+
+    protected Object doSyncOpen() throws IOException {
         return AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
     }
 
-    @Override
-    protected void afterSyncOpen(AsynchronousFileChannel openResult) {
-        channel = openResult;
+    protected void afterSyncOpen(Object openResult) {
+        channel = (AsynchronousFileChannel) openResult;
     }
 
-    @Override
+    public final void destroy() {
+        destroyed = true;
+        FiberFuture<Void> pendingFuture = openFuture;
+        openFuture = null;
+        doClose();
+        if (pendingFuture != null) {
+            pendingFuture.completeExceptionally(new RaftException("DtFile is destroyed: " + file.getPath()));
+        }
+    }
+
     protected void doClose() {
         DtUtil.close(channel);
         channel = null;
     }
 
-    @Override
     public void doForce(boolean meta) throws IOException {
         channel.force(meta);
     }
 
-    @Override
-    protected void dropOpenResult(AsynchronousFileChannel o) {
+    protected void dropOpenResult(Object o) {
         if (o != null) {
-            DtUtil.close(o);
+            DtUtil.close((AsynchronousFileChannel) o);
         }
     }
+
+    public FiberFuture<Void> ensureOpen() {
+        if (destroyed) {
+            return FiberFuture.failedFuture(fiberGroup, new RaftException("DtFile is destroyed: " + file.getPath()));
+        }
+        if (isOpen()) {
+            return FiberFuture.completedFuture(fiberGroup, null);
+        }
+        if (openFuture != null) {
+            return openFuture;
+        }
+        FiberFuture<Void> result = fiberGroup.newFuture("OpenFile-" + file.getName());
+        openFuture = result;
+        FiberFuture<Object> f = fiberGroup.newFuture("asyncOpenFile");
+        try {
+            ioExecutor.execute(() -> {
+                try {
+                    f.fireComplete(doSyncOpen());
+                } catch (Throwable e) {
+                    f.fireCompleteExceptionally(e);
+                }
+            });
+        } catch (Throwable e) {
+            f.completeExceptionally(e);
+        }
+        registerCallback(f);
+        return result;
+    }
+
+    private void registerCallback(FiberFuture<Object> f) {
+        f.registerCallback((ch, ex) -> {
+            FiberFuture<Void> oldOpenFuture = this.openFuture;
+            this.openFuture = null;
+            if (destroyed) {
+                dropOpenResult(ch);
+                return;
+            }
+            if (ex != null) {
+                if (oldOpenFuture != null) {
+                    oldOpenFuture.completeExceptionally(ex);
+                }
+            } else {
+                afterSyncOpen(ch);
+                if (oldOpenFuture != null) {
+                    oldOpenFuture.complete(null);
+                }
+            }
+        });
+    }
+
 }

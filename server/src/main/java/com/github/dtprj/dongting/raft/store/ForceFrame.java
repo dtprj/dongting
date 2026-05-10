@@ -32,18 +32,18 @@ public class ForceFrame extends FiberFrame<Void> {
 
     private final Executor ioExecutor;
     private final boolean meta;
-    private final AbstractFile<?> file;
+    private final DtFile dtFile;
 
-    public ForceFrame(AbstractFile<?> file, Executor ioExecutor, boolean meta) {
-        this.file = file;
+    public ForceFrame(DtFile dtFile, Executor ioExecutor, boolean meta) {
+        this.dtFile = dtFile;
         this.ioExecutor = ioExecutor;
         this.meta = meta;
     }
 
     @Override
     public final FrameCallResult execute(Void input) throws Throwable {
-        if (!file.isOpen()) {
-            return file.ensureOpen().await(this::doForce);
+        if (!dtFile.isOpen()) {
+            return dtFile.ensureOpen().await(this::doForce);
         }
         return doForce(null);
     }
@@ -52,10 +52,10 @@ public class ForceFrame extends FiberFrame<Void> {
         FiberFuture<Void> f = getFiberGroup().newFuture("forceFile");
         ioExecutor.execute(() -> {
             try {
-                file.doForce(meta);
+                dtFile.doForce(meta);
                 f.fireComplete(null);
             } catch (Throwable e) {
-                log.error("force file failed: {}", file.getFile().getPath(), e);
+                log.error("force file failed: {}", dtFile.getFile().getPath(), e);
                 f.fireCompleteExceptionally(e);
             }
         });
