@@ -42,13 +42,9 @@ public class ForceFrame extends FiberFrame<Void> {
 
     @Override
     public final FrameCallResult execute(Void input) throws Throwable {
-        if (!dtFile.isOpen()) {
-            return dtFile.ensureOpen().await(this::doForce);
+        if (!dtFile.isRwChannelOpen()) {
+            return justReturn(null);
         }
-        return doForce(null);
-    }
-
-    private FrameCallResult doForce(Void v) {
         FiberFuture<Void> f = getFiberGroup().newFuture("forceFile");
         ioExecutor.execute(() -> {
             try {
@@ -61,5 +57,4 @@ public class ForceFrame extends FiberFrame<Void> {
         });
         return f.await(this::justReturn);
     }
-
 }

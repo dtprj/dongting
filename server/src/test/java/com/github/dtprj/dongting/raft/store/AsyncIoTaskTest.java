@@ -38,8 +38,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -220,20 +219,20 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
             @Override
             public FrameCallResult execute(Void input) {
-                assertTrue(!dtFile.isOpen());
+                assertFalse(dtFile.isRwChannelOpen());
                 AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
                 return t.write(buf, 0).await(1000, this::resume1);
             }
 
             private FrameCallResult resume1(Void unused) {
-                assertTrue(dtFile.isOpen());
+                assertTrue(dtFile.isRwChannelOpen());
                 buf = ByteBuffer.allocate(8);
                 AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
                 return t.read(buf, 0).await(1000, this::resume2);
             }
 
             private FrameCallResult resume2(Void unused) {
-                assertTrue(dtFile.isOpen());
+                assertTrue(dtFile.isRwChannelOpen());
                 return Fiber.frameReturn();
             }
         });

@@ -76,7 +76,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
-        if (!dtFile.isOpen()) {
+        if (!dtFile.isRwChannelOpen()) {
             FiberFuture<Void> openFut = dtFile.ensureOpen();
             openFut.registerCallback((v, ex) -> {
                 if (ex != null) {
@@ -101,7 +101,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
-        if (!dtFile.isOpen()) {
+        if (!dtFile.isRwChannelOpen()) {
             FiberFuture<Void> openFut = dtFile.ensureOpen();
             openFut.registerCallback((v, ex) -> {
                 if (ex != null) {

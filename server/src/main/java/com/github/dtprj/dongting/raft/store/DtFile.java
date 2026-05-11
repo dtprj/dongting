@@ -64,7 +64,7 @@ public class DtFile {
         return channel;
     }
 
-    public boolean isOpen() {
+    public boolean isRwChannelOpen() {
         return channel != null;
     }
 
@@ -77,18 +77,14 @@ public class DtFile {
      * For raft main thread, use ensureOpen() instead.
      */
     public final void syncOpen() throws IOException {
-        if (isOpen()) {
+        if (isRwChannelOpen()) {
             return;
         }
-        afterSyncOpen(doSyncOpen());
+        channel = doSyncOpen();
     }
 
-    protected Object doSyncOpen() throws IOException {
+    protected AsynchronousFileChannel doSyncOpen() throws IOException {
         return AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
-    }
-
-    protected void afterSyncOpen(Object openResult) {
-        channel = (AsynchronousFileChannel) openResult;
     }
 
     public final void destroy() {
@@ -126,7 +122,7 @@ public class DtFile {
         if (destroyed) {
             return FiberFuture.failedFuture(fiberGroup, new RaftException("DtFile is destroyed: " + file.getPath()));
         }
-        if (isOpen()) {
+        if (isRwChannelOpen()) {
             return FiberFuture.completedFuture(fiberGroup, null);
         }
         if (openFuture != null) {
@@ -134,7 +130,7 @@ public class DtFile {
         }
         FiberFuture<Void> result = fiberGroup.newFuture("OpenFile-" + file.getName());
         openFuture = result;
-        FiberFuture<Object> f = fiberGroup.newFuture("asyncOpenFile");
+        FiberFuture<AsynchronousFileChannel> f = fiberGroup.newFuture("asyncOpenFile");
         try {
             ioExecutor.execute(() -> {
                 try {
@@ -150,7 +146,7 @@ public class DtFile {
         return result;
     }
 
-    private void registerCallback(FiberFuture<Object> f) {
+    private void registerCallback(FiberFuture<AsynchronousFileChannel> f) {
         f.registerCallback((ch, ex) -> {
             FiberFuture<Void> oldOpenFuture = this.openFuture;
             this.openFuture = null;
@@ -163,7 +159,7 @@ public class DtFile {
                     oldOpenFuture.completeExceptionally(ex);
                 }
             } else {
-                afterSyncOpen(ch);
+                channel = ch;
                 if (oldOpenFuture != null) {
                     oldOpenFuture.complete(null);
                 }
