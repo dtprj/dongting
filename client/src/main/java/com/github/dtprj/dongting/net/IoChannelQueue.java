@@ -52,6 +52,7 @@ class IoChannelQueue {
 
     private final ArrayDeque<PacketInfo> subQueue = new ArrayDeque<>();
     private int subQueueBytes;
+    private final ArrayDeque<PacketInfoReq> oneWayCallbacks = new ArrayDeque<>();
     private boolean writing;
 
     private PacketInfo lastPacketInfo;
@@ -119,6 +120,10 @@ class IoChannelQueue {
             callFail(pi, true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.addPacketsToWrite(-1);
         }
+        PacketInfoReq pir;
+        while ((pir = oneWayCallbacks.pollFirst()) != null) {
+            callFail(pir, false, new NetException("channel closed, cancel request still in IoChannelQueue. 3"));
+        }
     }
 
     void afterBufferWriteFinish() {
@@ -127,6 +132,10 @@ class IoChannelQueue {
         directPool.release(writeBuffer);
         this.writeBuffer = null;
         packetsInBuffer = 0;
+        PacketInfoReq pi;
+        while ((pi = oneWayCallbacks.pollFirst()) != null) {
+            pi.callSuccess(null);
+        }
     }
 
     public ByteBuffer getWriteBuffer(Timestamp roundTime) {
@@ -176,9 +185,8 @@ class IoChannelQueue {
                             }
                             packetsInBuffer++;
                             if (f.packetType == PacketType.TYPE_ONE_WAY) {
-                                // TODO complete after write finished
                                 if (pi instanceof PacketInfoReq) {
-                                    ((PacketInfoReq) pi).callSuccess(null);
+                                    oneWayCallbacks.addLast((PacketInfoReq) pi);
                                 }
                             }
                         } else {
