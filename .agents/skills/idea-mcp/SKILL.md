@@ -15,6 +15,10 @@ description: |
 
 Getting this wrong is the #1 cause of "file not found" errors.
 
+## File Reading
+
+For reading Java source files, prefer IDEA's **`read_file`** over the system's `read` tool. It supports structured modes like `indentation` (reads by code structure/levels) and precise range reads.
+
 ## Gotchas and Tips
 
 ### Two Search API Families
