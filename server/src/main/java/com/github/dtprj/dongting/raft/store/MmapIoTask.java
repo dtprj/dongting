@@ -15,50 +15,31 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
+ * Performs mmap read operations without retry. Read failures are propagated to the caller.
+ * Unlike {@link AsyncIoTask} which retries on write failures (to prevent raft log stall),
+ * mmap reads can safely fail fast since the caller can retry at a higher level if needed.
+ *
  * @author huangli
  */
 public class MmapIoTask {
-    private static final DtLog log = DtLogs.getLogger(MmapIoTask.class);
-
     private final DtFile dtFile;
     private final FiberFuture<Void> future;
-    private final FiberGroup fiberGroup;
-    private final int[] retryInterval;
-    private final boolean retryForever;
-    private final Supplier<Boolean> cancelRetryIndicator;
 
     private IoCallback callback;
     private boolean used;
-    private int retryCount;
 
     public MmapIoTask(FiberGroup fiberGroup, DtFile dtFile) {
-        this(fiberGroup, dtFile, null, false, null);
-    }
-
-    public MmapIoTask(FiberGroup fiberGroup, DtFile dtFile,
-                      int[] retryInterval, boolean retryForever,
-                      Supplier<Boolean> cancelRetryIndicator) {
-        this.fiberGroup = Objects.requireNonNull(fiberGroup);
+        this.future = Objects.requireNonNull(fiberGroup).newFuture("mmapIoTask");
         Objects.requireNonNull(dtFile);
         this.dtFile = dtFile;
-        this.retryInterval = retryInterval;
-        this.retryForever = retryForever;
-        this.cancelRetryIndicator = cancelRetryIndicator;
-        this.future = fiberGroup.newFuture("mmapIoTask");
     }
 
     public FiberFuture<Void> run(IoCallback callback) {
@@ -94,60 +75,16 @@ public class MmapIoTask {
                     callback.run(dtFile.duplicateMmap());
                     future.fireComplete(null);
                 } catch (Throwable e) {
-                    retryOrComplete(e);
+                    completeWithError(e);
                 }
             });
         } catch (Throwable e) {
-            retryOrComplete(e);
-        }
-    }
-
-    private void retryOrComplete(Throwable ex) {
-        long sleepTime = StoreUtil.calcRetryInterval(retryCount, retryInterval);
-        if (sleepTime <= 0 || retryInterval == null) {
-            completeWithError(ex);
-            return;
-        }
-        if (retryCount >= retryInterval.length && !retryForever) {
-            completeWithError(ex);
-            return;
-        }
-        Fiber retryFiber = new Fiber("mmap-io-retry", fiberGroup, new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                log.warn("mmap io error, retry after {} ms", sleepTime, ex);
-                return Fiber.sleepUntilShouldStop(sleepTime, this::resume);
-            }
-
-            private FrameCallResult resume(Void v) {
-                if (shouldCancelRetry()) {
-                    completeWithError(ex);
-                    return Fiber.frameReturn();
-                }
-                retryCount++;
-                submitToIoExecutor();
-                return Fiber.frameReturn();
-            }
-
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                log.error("unexpected retry error", ex);
-                completeWithError(ex);
-                return Fiber.frameReturn();
-            }
-
-            private boolean shouldCancelRetry() {
-                if (isGroupShouldStopPlain()) return true;
-                return cancelRetryIndicator != null && cancelRetryIndicator.get();
-            }
-        });
-        if (!fiberGroup.fireFiber(retryFiber)) {
-            future.fireCompleteExceptionally(new RaftException("retry failed: fiber group stopped"));
+            completeWithError(e);
         }
     }
 
     private void completeWithError(Throwable ex) {
-        String s = "mmap io file=" + dtFile.getFile().getPath() + " fail. " + ex.toString();
+        String s = "mmap io file=" + dtFile.getFile().getPath() + " fail. " + ex;
         future.fireCompleteExceptionally(new IOException(s, ex));
     }
 }

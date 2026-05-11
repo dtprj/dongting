@@ -29,9 +29,7 @@ public interface IoCallback {
      * @param mmapBuffer a duplicate of the DtFile's MappedByteBuffer (READ_ONLY).
      *                   Each io thread gets its own duplicate with independent position/limit.
      *                   The callback sets position/limit as needed before reading.
-     * @throws IOException if IO error occurs (will trigger retry if configured)
-     * @apiNote This callback may be invoked multiple times when retries are configured.
-     * Implementations must be retry-safe: restore any mutable state before each invocation.
+     * @throws IOException if IO error occurs, which will be propagated to the caller
      */
     void run(ByteBuffer mmapBuffer) throws IOException;
 }
