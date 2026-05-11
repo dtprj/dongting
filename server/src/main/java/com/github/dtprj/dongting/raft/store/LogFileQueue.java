@@ -47,7 +47,7 @@ final class LogFileQueue extends FileQueue {
     private final RaftGroupConfigEx groupConfig;
     private final FiberGroup fiberGroup;
 
-    private final ByteBufferPool directPool;
+    private final ByteBufferPool heapPool;
 
     private final IdxOps idxOps;
 
@@ -64,7 +64,7 @@ final class LogFileQueue extends FileQueue {
         this.ts = groupConfig.ts;
         this.fiberGroup = groupConfig.fiberGroup;
         DispatcherThread t = fiberGroup.dispatcher.thread;
-        this.directPool = t.directPool;
+        this.heapPool = t.heapPool.getPool();
 
         ChainWriter chainWriter = new ChainWriter("LogForce", groupConfig, this::writeFinish, this::forceFinish);
         chainWriter.setWritePerfType1(PerfConsts.RAFT_D_LOG_WRITE1);
@@ -107,7 +107,7 @@ final class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
-            final ByteBuffer buffer = directPool.borrow(maxWriteBufferSize);
+            final ByteBuffer buffer = heapPool.borrow(maxWriteBufferSize);
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -159,7 +159,7 @@ final class LogFileQueue extends FileQueue {
 
             @Override
             protected FrameCallResult doFinally() {
-                directPool.release(buffer);
+                heapPool.release(buffer);
                 return super.doFinally();
             }
         };
@@ -244,7 +244,7 @@ final class LogFileQueue extends FileQueue {
         return logAppender.new WriteFiberFrame(inputs);
     }
 
-    public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) throws Exception {
+    public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) {
         long start = startPosOfFile(nextLogPos);
         queueStartPosition = start;
         queueEndPosition = start;

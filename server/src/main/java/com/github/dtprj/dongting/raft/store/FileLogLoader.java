@@ -59,7 +59,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private ByteBuffer readBuffer;
     private boolean loading;
     private final TailCache tailCache;
-    private final ByteBufferPool directPool;
+    private final ByteBufferPool heapPool;
 
     private final Supplier<Boolean> cancelIndicator;
     private final CRC32C crc32c = new CRC32C();
@@ -93,8 +93,8 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.tailCache = ((RaftStatusImpl) groupConfig.raftStatus).tailCache;
 
         DispatcherThread t = groupConfig.fiberGroup.dispatcher.thread;
-        this.directPool = t.directPool;
-        this.readBuffer = directPool.borrow(readBufferSize);
+        this.heapPool = t.heapPool.getPool();
+        this.readBuffer = heapPool.borrow(readBufferSize);
         this.decodeContext = DecodeContext.factory.apply(t.heapPool, t.threadLocalBuffer);
         this.decoder = new Decoder();
         reset();
@@ -472,7 +472,7 @@ class FileLogLoader implements RaftLog.LogIterator {
 
     private void releaseIfNecessary() {
         if (close && !loading) {
-            directPool.release(readBuffer);
+            heapPool.release(readBuffer);
             readBuffer = null;
         }
     }
