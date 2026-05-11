@@ -188,7 +188,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         MmapIoTask task = new MmapIoTask(groupConfig.fiberGroup, logFile);
         buf.clear();
         logFile.incReaders();
-        FiberFuture<Void> f = task.run(new SingleBufferCallback(buf, pos & fileLenMask, false));
+        FiberFuture<Void> f = task.run(new SingleBufferCallback(buf, pos & fileLenMask));
         return f.await(this::headerLoadComplete);
     }
 

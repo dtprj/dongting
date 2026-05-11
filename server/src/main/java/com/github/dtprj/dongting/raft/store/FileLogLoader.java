@@ -241,7 +241,7 @@ class FileLogLoader implements RaftLog.LogIterator {
             bufferEndPos = pos + buf.remaining();
             logFile.incReaders();
             MmapIoTask t = new MmapIoTask(groupConfig.fiberGroup, logFile);
-            return t.run(new SingleBufferCallback(buf, fileStartPos, false)).await(this::resumeAfterLoad);
+            return t.run(new SingleBufferCallback(buf, fileStartPos)).await(this::resumeAfterLoad);
         }
 
         private FrameCallResult resumeAfterLoad(Void v) {

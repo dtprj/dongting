@@ -414,7 +414,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             long filePos = pos & fileLenMask;
             lf.incReaders();
             MmapIoTask t = new MmapIoTask(groupConfig.fiberGroup, lf);
-            return t.run(new SingleBufferCallback(buffer, filePos, false)).await(unused -> afterLoad(lf));
+            return t.run(new SingleBufferCallback(buffer, filePos)).await(unused -> afterLoad(lf));
         }
 
         private FrameCallResult afterLoad(LogFile lf) {

@@ -39,9 +39,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -49,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class MmapIoTaskTest extends BaseFiberTest {
     private static File dir;
     private File file;
-    private LogFile logFile;
+    private DtFile dtFile;
     private RaftGroupConfigEx groupConfig;
 
     @BeforeAll
@@ -72,8 +70,8 @@ public class MmapIoTaskTest extends BaseFiberTest {
         raf.setLength(4096);
         raf.close();
         Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-        logFile = new LogFile(0, 4096, file, fiberGroup, s, MockExecutors.ioExecutor(), null, 0);
-        logFile.syncOpen();
+        dtFile = new DtFile(file, fiberGroup, s, MockExecutors.ioExecutor());
+        dtFile.syncOpenMmap();
         groupConfig = new RaftGroupConfigEx(1, "1", "");
         groupConfig.ioRetryInterval = new int[]{1};
         groupConfig.fiberGroup = fiberGroup;
@@ -84,35 +82,33 @@ public class MmapIoTaskTest extends BaseFiberTest {
     @AfterEach
     public void clean() {
         if (file != null && file.exists()) {
-            logFile.destroy();
+            dtFile.destroy();
             file.delete();
         }
     }
 
     @Test
-    public void testRW() throws Exception {
+    public void testRead() throws Exception {
+        // write data via AsyncIoTask first
         doInFiber(new FiberFrame<>() {
-            ByteBuffer writeBuf = ByteBuffer.allocate(100);
-            ByteBuffer readBuf;
+            final ByteBuffer writeBuf = ByteBuffer.allocate(100);
 
             @Override
             public FrameCallResult execute(Void input) {
                 writeBuf.putInt(12345);
                 writeBuf.flip();
-                MmapIoTask t = new MmapIoTask(fiberGroup, logFile);
-                return t.run(new SingleBufferCallback(writeBuf, 0, true)).await(1000, this::resume1);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.write(writeBuf, 0).await(1000, this::afterWrite);
             }
 
-            private FrameCallResult resume1(Void unused) {
-                readBuf = ByteBuffer.allocate(4);
-                MmapIoTask t = new MmapIoTask(fiberGroup, logFile);
-                return t.run(new SingleBufferCallback(readBuf, 0, false)).await(1000, this::resume2);
-            }
-
-            private FrameCallResult resume2(Void unused) {
-                readBuf.flip();
-                assertEquals(12345, readBuf.getInt());
-                return Fiber.frameReturn();
+            private FrameCallResult afterWrite(Void unused) {
+                ByteBuffer readBuf = ByteBuffer.allocate(4);
+                MmapIoTask t = new MmapIoTask(fiberGroup, dtFile);
+                return t.run(new SingleBufferCallback(readBuf, 0)).await(1000, v -> {
+                    readBuf.flip();
+                    assertEquals(12345, readBuf.getInt());
+                    return Fiber.frameReturn();
+                });
             }
         });
     }
@@ -171,40 +167,40 @@ public class MmapIoTaskTest extends BaseFiberTest {
     public void testRetry() throws Exception {
         // fail on first attempt, retry succeeds
         assertReadSuccess(
-                () -> new MmapIoTask(groupConfig.fiberGroup, logFile, groupConfig.ioRetryInterval, false, null),
+                () -> new MmapIoTask(groupConfig.fiberGroup, dtFile, groupConfig.ioRetryInterval, false, null),
                 new FailCallback(1));
 
         // fail twice, retry exhausted
         assertReadFail(
-                () -> new MmapIoTask(groupConfig.fiberGroup, logFile, groupConfig.ioRetryInterval, false, null),
+                () -> new MmapIoTask(groupConfig.fiberGroup, dtFile, groupConfig.ioRetryInterval, false, null),
                 new FailCallback(2));
 
         // fail twice but retry forever
         assertReadSuccess(
-                () -> new MmapIoTask(groupConfig.fiberGroup, logFile, groupConfig.ioRetryInterval, true, () -> false),
+                () -> new MmapIoTask(groupConfig.fiberGroup, dtFile, groupConfig.ioRetryInterval, true, () -> false),
                 new FailCallback(2));
 
         // fail, cancel indicator returns true
         assertReadFail(
-                () -> new MmapIoTask(groupConfig.fiberGroup, logFile, groupConfig.ioRetryInterval, true, () -> true),
+                () -> new MmapIoTask(groupConfig.fiberGroup, dtFile, groupConfig.ioRetryInterval, true, () -> true),
                 new FailCallback(2));
 
         // cancel indicator returns true on second check
         AtomicInteger cancelIndicatorCount = new AtomicInteger();
         assertReadFail(
-                () -> new MmapIoTask(groupConfig.fiberGroup, logFile, groupConfig.ioRetryInterval, true,
+                () -> new MmapIoTask(groupConfig.fiberGroup, dtFile, groupConfig.ioRetryInterval, true,
                         () -> cancelIndicatorCount.getAndIncrement() == 1),
                 new FailCallback(2));
 
         // no retry configured
         assertReadFail(
-                () -> new MmapIoTask(groupConfig.fiberGroup, logFile, null, false, null),
+                () -> new MmapIoTask(groupConfig.fiberGroup, dtFile, null, false, null),
                 new FailCallback(1));
     }
 
     @Test
     public void testAsyncOpen() throws Exception {
-        logFile.destroy();
+        dtFile.destroy();
         file.delete();
 
         file = new File(dir, "testAsyncOpen");
@@ -212,27 +208,20 @@ public class MmapIoTaskTest extends BaseFiberTest {
         raf.setLength(4096);
         raf.close();
         Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-        logFile = new LogFile(0, 4096, file, fiberGroup, s, MockExecutors.ioExecutor(), null, 0);
+        dtFile = new DtFile(file, fiberGroup, s, MockExecutors.ioExecutor());
 
         doInFiber(new FiberFrame<>() {
-            ByteBuffer buf = ByteBuffer.allocate(8);
+            final ByteBuffer buf = ByteBuffer.allocate(8);
 
             @Override
             public FrameCallResult execute(Void input) {
-                assertTrue(!logFile.isOpen());
-                MmapIoTask t = new MmapIoTask(fiberGroup, logFile);
-                return t.run(new SingleBufferCallback(buf, 0, true)).await(1000, this::resume1);
+                assertFalse(dtFile.isMmapOpen());
+                MmapIoTask t = new MmapIoTask(fiberGroup, dtFile);
+                return t.run(new SingleBufferCallback(buf, 0)).await(1000, this::resume1);
             }
 
             private FrameCallResult resume1(Void unused) {
-                assertTrue(logFile.isOpen());
-                buf = ByteBuffer.allocate(8);
-                MmapIoTask t = new MmapIoTask(fiberGroup, logFile);
-                return t.run(new SingleBufferCallback(buf, 0, false)).await(1000, this::resume2);
-            }
-
-            private FrameCallResult resume2(Void unused) {
-                assertTrue(logFile.isOpen());
+                assertTrue(dtFile.isMmapOpen());
                 return Fiber.frameReturn();
             }
         });

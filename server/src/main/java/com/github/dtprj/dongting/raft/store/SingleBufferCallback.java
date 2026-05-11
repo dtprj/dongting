@@ -23,25 +23,19 @@ import java.nio.ByteBuffer;
 public class SingleBufferCallback implements IoCallback {
     private final ByteBuffer buffer;
     private final long filePos;
-    private final boolean write;
     private final int oldBufferPos;
 
-    public SingleBufferCallback(ByteBuffer buffer, long filePos, boolean write) {
+    public SingleBufferCallback(ByteBuffer buffer, long filePos) {
         this.buffer = buffer;
         this.filePos = filePos;
         this.oldBufferPos = buffer.position();
-        this.write = write;
     }
 
     @Override
     public void run(ByteBuffer mmapBuffer) {
         buffer.position(oldBufferPos);
         mmapBuffer.position((int) filePos);
-        if (write) {
-            mmapBuffer.put(buffer);
-        } else {
-            mmapBuffer.limit((int) filePos + buffer.remaining());
-            buffer.put(mmapBuffer);
-        }
+        mmapBuffer.limit((int) filePos + buffer.remaining());
+        buffer.put(mmapBuffer);
     }
 }

@@ -110,7 +110,7 @@ class Restorer {
             }
             MmapIoTask task = new MmapIoTask(groupConfig.fiberGroup, lf);
             // the restore process do not need to maintain readers count since the raft group is not init
-            return task.run(new SingleBufferCallback(buffer, firstItemPos, false)).await(v -> afterReadFirstItemHeader(firstItemPos));
+            return task.run(new SingleBufferCallback(buffer, firstItemPos)).await(v -> afterReadFirstItemHeader(firstItemPos));
         }
 
         private FrameCallResult afterReadFirstItemHeader(long firstItemPos) {
@@ -166,7 +166,7 @@ class Restorer {
                 }
                 int readBytes = buffer.remaining();
                 // the restore process do not need to maintain readers count since the raft group is not init
-                FiberFuture<Void> f = task.run(new SingleBufferCallback(buffer, readPos, false));
+                FiberFuture<Void> f = task.run(new SingleBufferCallback(buffer, readPos));
                 return f.await(unusedVoid -> afterRead(readBytes));
             }
             // loop finished

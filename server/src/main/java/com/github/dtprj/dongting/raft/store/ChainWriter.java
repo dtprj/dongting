@@ -99,7 +99,7 @@ public class ChainWriter {
     }
 
     public static class WriteTask {
-        private final MmapIoTask ioTask;
+        private final AsyncIoTask ioTask;
         private final long posInFile;
         private final long expectNextPos;
         private final boolean force;
@@ -116,7 +116,7 @@ public class ChainWriter {
         public WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval, boolean retryForever,
                          Supplier<Boolean> cancelIndicator, ByteBuffer buf, long posInFile, boolean force,
                          int perfItemCount, long lastRaftIndex) {
-            this.ioTask = new MmapIoTask(fiberGroup, logFile, retryInterval, retryForever, cancelIndicator);
+            this.ioTask = new AsyncIoTask(fiberGroup, logFile, retryInterval, retryForever, cancelIndicator);
             this.posInFile = posInFile;
             this.force = force;
             this.buf = buf;
@@ -129,7 +129,7 @@ public class ChainWriter {
 
         public void submitWrite() {
             if (buf != null && buf.remaining() > 0) {
-                ioTask.run(new SingleBufferCallback(buf, posInFile, true));
+                ioTask.write(buf, posInFile);
             } else {
                 ioTask.getFuture().complete(null);
             }
@@ -140,7 +140,7 @@ public class ChainWriter {
         }
 
         public LogFile getLogFile() {
-            return ioTask.getLogFile();
+            return (LogFile) ioTask.getDtFile();
         }
 
         public FiberFuture<Void> getFuture() {

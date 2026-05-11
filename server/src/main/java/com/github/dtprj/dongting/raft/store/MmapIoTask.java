@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 public class MmapIoTask {
     private static final DtLog log = DtLogs.getLogger(MmapIoTask.class);
 
-    private final LogFile logFile;
+    private final DtFile dtFile;
     private final FiberFuture<Void> future;
     private final FiberGroup fiberGroup;
     private final int[] retryInterval;
@@ -45,16 +45,16 @@ public class MmapIoTask {
     private boolean used;
     private int retryCount;
 
-    public MmapIoTask(FiberGroup fiberGroup, LogFile logFile) {
-        this(fiberGroup, logFile, null, false, null);
+    public MmapIoTask(FiberGroup fiberGroup, DtFile dtFile) {
+        this(fiberGroup, dtFile, null, false, null);
     }
 
-    public MmapIoTask(FiberGroup fiberGroup, LogFile logFile,
+    public MmapIoTask(FiberGroup fiberGroup, DtFile dtFile,
                       int[] retryInterval, boolean retryForever,
                       Supplier<Boolean> cancelRetryIndicator) {
         this.fiberGroup = Objects.requireNonNull(fiberGroup);
-        Objects.requireNonNull(logFile);
-        this.logFile = logFile;
+        Objects.requireNonNull(dtFile);
+        this.dtFile = dtFile;
         this.retryInterval = retryInterval;
         this.retryForever = retryForever;
         this.cancelRetryIndicator = cancelRetryIndicator;
@@ -68,8 +68,8 @@ public class MmapIoTask {
         }
         this.callback = callback;
         used = true;
-        if (!logFile.isOpen()) {
-            FiberFuture<Void> openFut = logFile.ensureOpen();
+        if (!dtFile.isMmapOpen()) {
+            FiberFuture<Void> openFut = dtFile.ensureMmapOpen();
             openFut.registerCallback((v, ex) -> {
                 if (ex != null) {
                     future.fireCompleteExceptionally(ex);
@@ -87,15 +87,11 @@ public class MmapIoTask {
         return future;
     }
 
-    public LogFile getLogFile() {
-        return logFile;
-    }
-
     private void submitToIoExecutor() {
         try {
-            logFile.ioExecutor.execute(() -> {
+            dtFile.ioExecutor.execute(() -> {
                 try {
-                    callback.run(logFile.duplicateMmap());
+                    callback.run(dtFile.duplicateMmap());
                     future.fireComplete(null);
                 } catch (Throwable e) {
                     retryOrComplete(e);
@@ -142,8 +138,7 @@ public class MmapIoTask {
 
             private boolean shouldCancelRetry() {
                 if (isGroupShouldStopPlain()) return true;
-                if (cancelRetryIndicator != null && cancelRetryIndicator.get()) return true;
-                return false;
+                return cancelRetryIndicator != null && cancelRetryIndicator.get();
             }
         });
         if (!fiberGroup.fireFiber(retryFiber)) {
@@ -152,7 +147,7 @@ public class MmapIoTask {
     }
 
     private void completeWithError(Throwable ex) {
-        String s = "mmap io file=" + logFile.getFile().getPath() + " fail. " + ex.toString();
+        String s = "mmap io file=" + dtFile.getFile().getPath() + " fail. " + ex.toString();
         future.fireCompleteExceptionally(new IOException(s, ex));
     }
 }

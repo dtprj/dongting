@@ -15,19 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.BugLog;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
-import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -57,9 +49,6 @@ public class LogFile extends DtFile {
     private int writers;
     private final FiberCondition noRwCond;
 
-    private FileChannel fileChannel;
-    private MappedByteBuffer mappedBuffer;
-
     public LogFile(long startPos, long endPos, File file, FiberGroup group,
                    Set<OpenOption> openOptions, ExecutorService ioExecutor,
                    Consumer<LogFile> accessCallback, long currentTimeMillis) {
@@ -71,73 +60,13 @@ public class LogFile extends DtFile {
         this.noRwCond = group.newCondition("noRw-" + file.getName());
     }
 
-    @Override
-    public boolean isOpen() {
-        return mappedBuffer != null;
-    }
-
-    @Override
-    protected Object doSyncOpen() throws IOException {
-        FileChannel fc = FileChannel.open(file.toPath(), openOptions);
-        try {
-            MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_WRITE, 0, fc.size());
-            return new Pair<>(fc, buf);
-        } catch (Throwable t) {
-            DtUtil.close(fc);
-            throw t;
-        }
-    }
-
-    @Override
-    protected void afterSyncOpen(Object openResult) {
-        Pair<FileChannel, MappedByteBuffer> result = (Pair<FileChannel, MappedByteBuffer>) openResult;
-        fileChannel = result.getLeft();
-        mappedBuffer = result.getRight();
-    }
-
-    @Override
-    protected void dropOpenResult(Object o) {
-        if (o != null) {
-            @SuppressWarnings("unchecked")
-            Pair<FileChannel, MappedByteBuffer> p = (Pair<FileChannel, MappedByteBuffer>) o;
-            VersionFactory.getInstance().releaseDirectBuffer(p.getRight());
-            DtUtil.close(p.getLeft());
-        }
-    }
-
-    @Override
-    protected void doClose() {
-        if (isOpen()) {
-            MappedByteBuffer buf = mappedBuffer;
-            mappedBuffer = null;
-            VersionFactory.getInstance().releaseDirectBuffer(buf);
-            DtUtil.close(fileChannel);
-            fileChannel = null;
-        }
-    }
-
-    @Override
-    public AsynchronousFileChannel getChannel() {
-        throw new UnsupportedOperationException("LogFile uses mmap, not AsynchronousFileChannel");
-    }
-
-    public ByteBuffer duplicateMmap() {
-        return mappedBuffer.duplicate();
-    }
-
-    @Override
-    public void doForce(boolean meta) {
-        if (mappedBuffer != null) {
-            mappedBuffer.force();
-        }
-    }
-
     public void close() {
-        if (inUse() || openFuture != null) {
-            BugLog.log(new IllegalStateException("close file while in use: " + file.getPath()));
+        if (inUse() || openFuture != null || mmapOpenFuture != null) {
+            BugLog.log(new IllegalStateException("close file while in use or pending: " + file.getPath()));
             return;
         }
         doClose();
+        closeMmap();
     }
 
     public void incReaders() {

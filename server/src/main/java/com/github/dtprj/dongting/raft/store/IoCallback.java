@@ -24,13 +24,11 @@ import java.nio.ByteBuffer;
 @FunctionalInterface
 public interface IoCallback {
     /**
-     * Execute IO operation using the mapped byte buffer.
+     * Execute mmap read operation using the mapped byte buffer.
      * This method runs in the io thread pool, NOT the raft fiber thread.
-     * @param mmapBuffer a duplicate of the LogFile's MappedByteBuffer.
+     * @param mmapBuffer a duplicate of the DtFile's MappedByteBuffer (READ_ONLY).
      *                   Each io thread gets its own duplicate with independent position/limit.
-     *                   The callback sets position/limit as needed before reading/writing.
-     *                   Note: the underlying mapped memory is shared across all threads.
-     *                       Callers must ensure no concurrent access to overlapping regions.
+     *                   The callback sets position/limit as needed before reading.
      * @throws IOException if IO error occurs (will trigger retry if configured)
      * @apiNote This callback may be invoked multiple times when retries are configured.
      * Implementations must be retry-safe: restore any mutable state before each invocation.
