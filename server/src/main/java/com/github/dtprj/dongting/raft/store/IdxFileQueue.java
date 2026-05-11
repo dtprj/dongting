@@ -386,6 +386,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         final ByteBuffer buffer = ByteBuffer.allocate(16);
 
         private final long itemIndex;
+        private LogFile logFile;
+        private boolean readerPending;
 
         public LoadRaftIdxInfoFrame(long itemIndex) {
             this.itemIndex = itemIndex;
@@ -407,18 +409,18 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 throw new RaftException("index is too large");
             }
             long pos = indexToPos(itemIndex);
-            LogFile lf = getLogFile(pos);
-            if (lf.isDeleted()) {
-                throw new RaftException("file deleted: " + lf.getFile().getPath());
+            logFile = getLogFile(pos);
+            if (logFile.isDeleted()) {
+                throw new RaftException("file deleted: " + logFile.getFile().getPath());
             }
             long filePos = pos & fileLenMask;
-            lf.incReaders();
-            MmapIoTask t = new MmapIoTask(groupConfig.fiberGroup, lf);
-            return t.run(new SingleBufferCallback(buffer, filePos)).await(unused -> afterLoad(lf));
+            logFile.incReaders();
+            readerPending = true;
+            MmapIoTask t = new MmapIoTask(groupConfig.fiberGroup, logFile);
+            return t.run(new SingleBufferCallback(buffer, filePos)).await(unused -> afterLoad());
         }
 
-        private FrameCallResult afterLoad(LogFile lf) {
-            lf.decReaders();
+        private FrameCallResult afterLoad() {
             buffer.flip();
             long pos = buffer.getLong();
             int size = buffer.getInt();
@@ -433,6 +435,14 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 throw new RaftException("load log pos crc check fail");
             }
             setResult(new Pair<>(pos, size));
+            return Fiber.frameReturn();
+        }
+
+        @Override
+        protected FrameCallResult doFinally() {
+            if (readerPending) {
+                logFile.decReaders();
+            }
             return Fiber.frameReturn();
         }
     }

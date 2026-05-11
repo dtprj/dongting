@@ -146,6 +146,7 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private RefBuffer bizBody;
         private int bizBodyCrc;
+        private boolean readerPending;
 
         NextFrame(long startIndex, int limit, int bytesLimit) {
             this.startIndex = startIndex;
@@ -161,6 +162,9 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         @Override
         protected FrameCallResult doFinally() {
+            if (readerPending) {
+                logFile.decReaders();
+            }
             decodeContext.reset(decoder);
             loading = false;
             releaseIfNecessary();
@@ -240,12 +244,14 @@ class FileLogLoader implements RaftLog.LogIterator {
             bufferStartPos = pos - buf.position();
             bufferEndPos = pos + buf.remaining();
             logFile.incReaders();
+            readerPending = true;
             MmapIoTask t = new MmapIoTask(groupConfig.fiberGroup, logFile);
             return t.run(new SingleBufferCallback(buf, fileStartPos)).await(this::resumeAfterLoad);
         }
 
         private FrameCallResult resumeAfterLoad(Void v) {
             logFile.decReaders();
+            readerPending = false;
             if (cancelIndicator != null && cancelIndicator.get()) {
                 throw new RaftCancelException("canceled");
             } else {

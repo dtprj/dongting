@@ -47,6 +47,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private final long fileLenMask;
 
     private LogFile logFile;
+    private boolean readerPending;
 
     private long leftIndex;
     private int leftTerm;
@@ -188,12 +189,14 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         MmapIoTask task = new MmapIoTask(groupConfig.fiberGroup, logFile);
         buf.clear();
         logFile.incReaders();
+        readerPending = true;
         FiberFuture<Void> f = task.run(new SingleBufferCallback(buf, pos & fileLenMask));
         return f.await(this::headerLoadComplete);
     }
 
     private FrameCallResult headerLoadComplete(Void v) {
         logFile.decReaders();
+        readerPending = false;
         checkCancel();
 
         buf.flip();
@@ -213,4 +216,11 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         return Fiber.resume(null, this::loop);
     }
 
+    @Override
+    protected FrameCallResult doFinally() {
+        if (readerPending) {
+            logFile.decReaders();
+        }
+        return Fiber.frameReturn();
+    }
 }
