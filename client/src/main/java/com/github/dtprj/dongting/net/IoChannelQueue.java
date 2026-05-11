@@ -185,9 +185,8 @@ class IoChannelQueue {
                             }
                             packetsInBuffer++;
                             if (f.packetType == PacketType.TYPE_ONE_WAY) {
-                                if (pi instanceof PacketInfoReq) {
-                                    oneWayCallbacks.addLast((PacketInfoReq) pi);
-                                }
+                                // TYPE_ONE_WAY is always PacketInfoReq, see NioNet.send0()
+                                oneWayCallbacks.addLast((PacketInfoReq) pi);
                             }
                         } else {
                             // cancel
