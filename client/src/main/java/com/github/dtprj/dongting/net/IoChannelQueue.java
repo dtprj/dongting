@@ -149,14 +149,25 @@ class IoChannelQueue {
                 return writeBuffer;
             }
         }
-        int subQueueBytes = this.subQueueBytes;
         ArrayDeque<PacketInfo> subQueue = this.subQueue;
         if (subQueue.isEmpty() && lastPacketInfo == null) {
             // no packet to write
             return null;
         }
+        int subQueueBytes = this.subQueueBytes;
         ByteBuffer buf = subQueueBytes <= MAX_BUFFER_SIZE ? directPool.borrow(subQueueBytes) : directPool.borrow(MAX_BUFFER_SIZE);
 
+        try {
+            return encodePacketsToBuffer(buf, subQueue, roundTime);
+        } catch (RuntimeException | Error e) {
+            encodeContext.reset();
+            // channel will be closed, and cleanChannelQueue will be called
+            throw e;
+        }
+    }
+
+    private ByteBuffer encodePacketsToBuffer(ByteBuffer buf, ArrayDeque<PacketInfo> subQueue, Timestamp roundTime) {
+        int subQueueBytes = this.subQueueBytes;
         PacketInfo pi = this.lastPacketInfo;
         try {
             while (!subQueue.isEmpty() || pi != null) {
@@ -180,44 +191,44 @@ class IoChannelQueue {
                         continue;
                     }
                     return flipAndReturnBuffer(buf);
-                } else {
-                    try {
-                        if (encodeResult == ENCODE_FINISH) {
-                            WritePacket f = pi.packet;
-                            if (f.packetType == PacketType.TYPE_REQ) {
-                                workerStatus.addPendingReq((PacketInfoReq) pi);
-                            }
-                            packetsInBuffer++;
-                            if (f.packetType == PacketType.TYPE_ONE_WAY) {
-                                // TYPE_ONE_WAY is always PacketInfoReq, see NioNet.send0()
-                                oneWayCallbacks.addLast((PacketInfoReq) pi);
-                            }
-                        } else {
-                            // cancel
-                            workerStatus.addPacketsToWrite(-1);
-                            String msg = "timeout before send: " + pi.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                            callFail(pi, false, new NetTimeoutException(msg));
-                        }
-
-                        subQueueBytes = Math.max(0, subQueueBytes - pi.packet.calcMaxPacketSize());
-
-                        pi.packet.clean();
-                    } finally {
-                        encodeContext.reset();
-                        pi = null;
+                }
+                try {
+                    if (encodeResult == ENCODE_FINISH) {
+                        handleEncodeFinish(pi);
+                    } else {
+                        handleEncodeCancel(pi);
                     }
+                    subQueueBytes = Math.max(0, subQueueBytes - pi.packet.calcMaxPacketSize());
+                    pi.packet.clean();
+                } finally {
+                    encodeContext.reset();
+                    pi = null;
                 }
             }
             subQueueBytes = 0;
             return flipAndReturnBuffer(buf);
-        } catch (RuntimeException | Error e) {
-            encodeContext.reset();
-            // channel will be closed, and cleanChannelQueue will be called
-            throw e;
         } finally {
             this.lastPacketInfo = pi;
             this.subQueueBytes = subQueueBytes;
         }
+    }
+
+    private void handleEncodeFinish(PacketInfo pi) {
+        WritePacket f = pi.packet;
+        if (f.packetType == PacketType.TYPE_REQ) {
+            workerStatus.addPendingReq((PacketInfoReq) pi);
+        }
+        packetsInBuffer++;
+        if (f.packetType == PacketType.TYPE_ONE_WAY) {
+            // TYPE_ONE_WAY is always PacketInfoReq, see NioNet.send0()
+            oneWayCallbacks.addLast((PacketInfoReq) pi);
+        }
+    }
+
+    private void handleEncodeCancel(PacketInfo pi) {
+        workerStatus.addPacketsToWrite(-1);
+        String msg = "timeout before send: " + pi.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+        callFail(pi, false, new NetTimeoutException(msg));
     }
 
     private ByteBuffer flipAndReturnBuffer(ByteBuffer buf) {
