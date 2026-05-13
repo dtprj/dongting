@@ -126,7 +126,11 @@ class IoChannelQueue {
         }
     }
 
-    void afterBufferWriteFinish() {
+    void afterWrite(int bytes) {
+        if (writeBuffer.remaining() > 0) {
+            return;
+        }
+
         // current buffer write finished
         workerStatus.addPacketsToWrite(-packetsInBuffer);
         directPool.release(writeBuffer);
@@ -138,7 +142,7 @@ class IoChannelQueue {
         }
     }
 
-    public ByteBuffer getWriteBuffer(Timestamp roundTime) {
+    public ByteBuffer prepareWriteBuffer(Timestamp roundTime) {
         ByteBuffer writeBuffer = this.writeBuffer;
         if (writeBuffer != null) {
             if (writeBuffer.remaining() > 0) {
