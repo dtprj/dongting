@@ -143,10 +143,13 @@ class IoChannelQueue {
     }
 
     public ByteBuffer prepareWriteBuffer(Timestamp roundTime) {
-        ByteBuffer writeBuffer = this.writeBuffer;
         if (writeBuffer != null) {
             if (writeBuffer.remaining() > 0) {
                 return writeBuffer;
+            } else {
+                BugLog.log("writeBuffer is not null but remaining is 0");
+                directPool.release(writeBuffer);
+                this.writeBuffer = null;
             }
         }
         ArrayDeque<PacketInfo> subQueue = this.subQueue;
@@ -158,15 +161,24 @@ class IoChannelQueue {
         ByteBuffer buf = subQueueBytes <= MAX_BUFFER_SIZE ? directPool.borrow(subQueueBytes) : directPool.borrow(MAX_BUFFER_SIZE);
 
         try {
-            return encodePacketsToBuffer(buf, subQueue, roundTime);
+            encodePacketsToBuffer(buf, subQueue, roundTime);
         } catch (RuntimeException | Error e) {
             encodeContext.reset();
             // channel will be closed, and cleanChannelQueue will be called
+            directPool.release(buf);
             throw e;
+        }
+        buf.flip();
+        if (buf.remaining() == 0) {
+            directPool.release(buf);
+            return null;
+        } else {
+            this.writeBuffer = buf;
+            return buf;
         }
     }
 
-    private ByteBuffer encodePacketsToBuffer(ByteBuffer buf, ArrayDeque<PacketInfo> subQueue, Timestamp roundTime) {
+    private void encodePacketsToBuffer(ByteBuffer buf, ArrayDeque<PacketInfo> subQueue, Timestamp roundTime) {
         int subQueueBytes = this.subQueueBytes;
         PacketInfo pi = this.lastPacketInfo;
         try {
@@ -184,13 +196,13 @@ class IoChannelQueue {
                         workerStatus.addPacketsToWrite(-1);
                         subQueueBytes = Math.max(0, subQueueBytes - pi.packet.calcMaxPacketSize());
                         encodeContext.reset();
-                        Throwable ex = new NetException("encode fail when buffer is empty");
-                        callFail(pi, false, ex);
-                        pi = null;
+                        NetException ex = new NetException("encode fail when buffer is empty");
                         BugLog.log(ex);
-                        continue;
+                        callFail(pi, true, ex);
+                        pi = null;
+                        throw ex;
                     }
-                    return flipAndReturnBuffer(buf);
+                    return;
                 }
                 try {
                     if (encodeResult == ENCODE_FINISH) {
@@ -206,7 +218,6 @@ class IoChannelQueue {
                 }
             }
             subQueueBytes = 0;
-            return flipAndReturnBuffer(buf);
         } finally {
             this.lastPacketInfo = pi;
             this.subQueueBytes = subQueueBytes;
@@ -229,18 +240,6 @@ class IoChannelQueue {
         workerStatus.addPacketsToWrite(-1);
         String msg = "timeout before send: " + pi.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
         callFail(pi, false, new NetTimeoutException(msg));
-    }
-
-    private ByteBuffer flipAndReturnBuffer(ByteBuffer buf) {
-        buf.flip();
-        if (buf.remaining() == 0) {
-            directPool.release(buf);
-            this.writeBuffer = null;
-            return null;
-        } else {
-            this.writeBuffer = buf;
-            return buf;
-        }
     }
 
     private int encode(ByteBuffer buf, PacketInfo pi, Timestamp roundTime) {
