@@ -66,7 +66,8 @@ All Java files must include Apache 2.0 license header (17 lines)
 ### Comments
 - Java source code and comments: **English only**
 - All code must be in English
-- Comments only when necessary (avoid unless adding value)
+- Add comments only when necessary
+- Don't delete existing comments unless they are no longer relevant
 
 ### Field Access Pattern
 - Internal usage: Access public/package-private fields directly
