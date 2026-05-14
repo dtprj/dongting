@@ -28,6 +28,8 @@ class PacketInfo {
 
     long perfTimeOrAddOrder;
 
+    int encodedBytes;
+
     public PacketInfo(DtChannelImpl dtc, WritePacket packet, DtTime timeout) {
         this.dtc = dtc;
         this.packet = packet;

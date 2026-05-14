@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -28,7 +29,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -50,9 +50,8 @@ class IoChannelQueue {
     private ByteBuffer writeBuffer;
     private int packetsInBuffer;
 
-    private final ArrayDeque<PacketInfo> subQueue = new ArrayDeque<>();
-    private int subQueueBytes;
-    private final ArrayDeque<PacketInfoReq> oneWayCallbacks = new ArrayDeque<>();
+    private final IndexedQueue<PacketInfo> subQueue = new IndexedQueue<>(8);
+    private final IndexedQueue<PacketInfoReq> oneWayCallbacks = new IndexedQueue<>(4);
     private boolean writing;
 
     private PacketInfo lastPacketInfo;
@@ -93,9 +92,6 @@ class IoChannelQueue {
         packetInfo.perfTimeOrAddOrder = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_CHANNEL_QUEUE, workerStatus.ts);
         subQueue.addLast(packetInfo);
 
-        // the subQueueBytes is not accurate
-        // can't invoke actualSize() here because seq and timeout field is not set yet
-        subQueueBytes += packetInfo.packet.calcMaxPacketSize();
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
@@ -116,12 +112,12 @@ class IoChannelQueue {
             callFail(lastPacketInfo, true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
         PacketInfo pi;
-        while ((pi = subQueue.pollFirst()) != null) {
+        while ((pi = subQueue.removeFirst()) != null) {
             callFail(pi, true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.addPacketsToWrite(-1);
         }
         PacketInfoReq pir;
-        while ((pir = oneWayCallbacks.pollFirst()) != null) {
+        while ((pir = oneWayCallbacks.removeFirst()) != null) {
             callFail(pir, false, new NetException("channel closed, cancel request still in IoChannelQueue. 3"));
         }
     }
@@ -137,7 +133,7 @@ class IoChannelQueue {
         this.writeBuffer = null;
         packetsInBuffer = 0;
         PacketInfoReq pi;
-        while ((pi = oneWayCallbacks.pollFirst()) != null) {
+        while ((pi = oneWayCallbacks.removeFirst()) != null) {
             pi.callSuccess(null);
         }
     }
@@ -152,13 +148,13 @@ class IoChannelQueue {
                 this.writeBuffer = null;
             }
         }
-        ArrayDeque<PacketInfo> subQueue = this.subQueue;
-        if (subQueue.isEmpty() && lastPacketInfo == null) {
+        IndexedQueue<PacketInfo> subQueue = this.subQueue;
+        if (subQueue.size() == 0 && lastPacketInfo == null) {
             // no packet to write
             return null;
         }
-        int subQueueBytes = this.subQueueBytes;
-        ByteBuffer buf = subQueueBytes <= MAX_BUFFER_SIZE ? directPool.borrow(subQueueBytes) : directPool.borrow(MAX_BUFFER_SIZE);
+
+        ByteBuffer buf = alloc();
 
         try {
             encodePacketsToBuffer(buf, subQueue, roundTime);
@@ -178,23 +174,42 @@ class IoChannelQueue {
         }
     }
 
-    private void encodePacketsToBuffer(ByteBuffer buf, ArrayDeque<PacketInfo> subQueue, Timestamp roundTime) {
-        int subQueueBytes = this.subQueueBytes;
+    private ByteBuffer alloc() {
+        // not accurate
+        // can't invoke actualSize() here because seq and timeout field is not set yet
+        int totalSize = 0;
+        if (lastPacketInfo != null) {
+            totalSize += lastPacketInfo.packet.calcMaxPacketSize() - lastPacketInfo.encodedBytes;
+            if (totalSize > MAX_BUFFER_SIZE) {
+                return directPool.borrow(MAX_BUFFER_SIZE);
+            }
+        }
+        for (int size = subQueue.size(), i = 0; i < size; i++) {
+            totalSize += subQueue.get(i).packet.calcMaxPacketSize();
+            if (totalSize > MAX_BUFFER_SIZE) {
+                return directPool.borrow(MAX_BUFFER_SIZE);
+            }
+        }
+        return directPool.borrow(totalSize);
+    }
+
+    private void encodePacketsToBuffer(ByteBuffer buf, IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {
         PacketInfo pi = this.lastPacketInfo;
         try {
-            while (!subQueue.isEmpty() || pi != null) {
+            while (subQueue.size() > 0 || pi != null) {
                 int encodeResult;
+                int oldPos = buf.position();
                 if (pi == null) {
-                    pi = subQueue.pollFirst();
+                    pi = subQueue.removeFirst();
                     perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_CHANNEL_QUEUE, pi.perfTimeOrAddOrder, 1, 0, workerStatus.ts);
                     encodeResult = encode(buf, pi, roundTime);
                 } else {
                     encodeResult = doEncode(buf, pi);
                 }
+                pi.encodedBytes += buf.position() - oldPos;
                 if (encodeResult == ENCODE_NOT_FINISH) {
                     if (buf.position() == 0) {
                         workerStatus.addPacketsToWrite(-1);
-                        subQueueBytes = Math.max(0, subQueueBytes - pi.packet.calcMaxPacketSize());
                         encodeContext.reset();
                         NetException ex = new NetException("encode fail when buffer is empty");
                         BugLog.log(ex);
@@ -210,17 +225,14 @@ class IoChannelQueue {
                     } else {
                         handleEncodeCancel(pi);
                     }
-                    subQueueBytes = Math.max(0, subQueueBytes - pi.packet.calcMaxPacketSize());
                     pi.packet.clean();
                 } finally {
                     encodeContext.reset();
                     pi = null;
                 }
             }
-            subQueueBytes = 0;
         } finally {
             this.lastPacketInfo = pi;
-            this.subQueueBytes = subQueueBytes;
         }
     }
 
