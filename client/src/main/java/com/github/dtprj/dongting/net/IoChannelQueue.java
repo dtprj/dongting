@@ -112,12 +112,12 @@ class IoChannelQueue {
             callFail(lastPacketInfo, true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
         PacketInfo pi;
-        while ((pi = subQueue.removeFirst()) != null) {
+        while ((pi = subQueue.pollFirst()) != null) {
             callFail(pi, true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.addPacketsToWrite(-1);
         }
         PacketInfoReq pir;
-        while ((pir = oneWayCallbacks.removeFirst()) != null) {
+        while ((pir = oneWayCallbacks.pollFirst()) != null) {
             callFail(pir, false, new NetException("channel closed, cancel request still in IoChannelQueue. 3"));
         }
     }
@@ -133,7 +133,7 @@ class IoChannelQueue {
         this.writeBuffer = null;
         packetsInBuffer = 0;
         PacketInfoReq pi;
-        while ((pi = oneWayCallbacks.removeFirst()) != null) {
+        while ((pi = oneWayCallbacks.pollFirst()) != null) {
             pi.callSuccess(null);
         }
     }
@@ -200,7 +200,7 @@ class IoChannelQueue {
                 int encodeResult;
                 int oldPos = buf.position();
                 if (pi == null) {
-                    pi = subQueue.removeFirst();
+                    pi = subQueue.pollFirst();
                     perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_CHANNEL_QUEUE, pi.perfTimeOrAddOrder, 1, 0, workerStatus.ts);
                     encodeResult = encode(buf, pi, roundTime);
                 } else {

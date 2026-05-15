@@ -97,7 +97,7 @@ public class CommitManager {
             while (respQueue.size() > 0) {
                 AppendRespWriter writer = respQueue.get(0);
                 if (writer.writeResp(lastPersistIndex)) {
-                    respQueue.removeFirst();
+                    respQueue.pollFirst();
                 } else {
                     break;
                 }

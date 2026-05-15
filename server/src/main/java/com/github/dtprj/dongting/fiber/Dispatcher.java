@@ -196,7 +196,7 @@ public class Dispatcher extends AbstractLifeCircle {
         localData.clear();
 
         for (int len = readyGroups.size(), i = 0; i < len; i++) {
-            FiberGroup g = readyGroups.removeFirst();
+            FiberGroup g = readyGroups.pollFirst();
             execGroup(g);
             if (g.ready) {
                 readyGroups.addLast(g);
@@ -258,20 +258,20 @@ public class Dispatcher extends AbstractLifeCircle {
             IndexedQueue<Fiber> nextQueue2 = g.readyFibersNextRound2;
             if (nextQueue1.size() > 0) {
                 for (int i = 0, size = nextQueue1.size(); i < size; i++) {
-                    Fiber f = nextQueue1.removeFirst();
+                    Fiber f = nextQueue1.pollFirst();
                     readyQueue.addFirst(f);
                 }
             }
             if (nextQueue2.size() > 0) {
                 for (int i = 0, size = nextQueue2.size(); i < size; i++) {
-                    Fiber f = nextQueue2.removeFirst();
+                    Fiber f = nextQueue2.pollFirst();
                     readyQueue.addLast(f);
                 }
             }
-            Fiber fiber = readyQueue.removeFirst();
+            Fiber fiber = readyQueue.pollFirst();
             while (fiber != null) {
                 execFiber(g, fiber);
-                fiber = readyQueue.removeFirst();
+                fiber = readyQueue.pollFirst();
             }
 
             g.updateFinishStatus();

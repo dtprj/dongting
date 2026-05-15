@@ -42,38 +42,38 @@ public class IndexedQueueTest {
     }
 
     @Test
-    public void testRemoveFirst() {
+    public void testPollFirst() {
         deque.addLast(1);
         deque.addLast(2);
         deque.addLast(3);
 
-        assertEquals(Integer.valueOf(1), deque.removeFirst());
-        assertEquals(Integer.valueOf(2), deque.removeFirst());
-        assertEquals(Integer.valueOf(3), deque.removeFirst());
+        assertEquals(Integer.valueOf(1), deque.pollFirst());
+        assertEquals(Integer.valueOf(2), deque.pollFirst());
+        assertEquals(Integer.valueOf(3), deque.pollFirst());
 
-        assertNull(deque.removeFirst());
+        assertNull(deque.pollFirst());
     }
 
     @Test
-    public void testRemoveLast() {
+    public void testPollLast() {
         deque.addLast(1);
         deque.addLast(2);
-        assertEquals(Integer.valueOf(2), deque.removeLast());
+        assertEquals(Integer.valueOf(2), deque.pollLast());
         assertEquals(Integer.valueOf(1), deque.get(0));
-        assertEquals(Integer.valueOf(1), deque.removeLast());
-        assertNull(deque.removeLast());
+        assertEquals(Integer.valueOf(1), deque.pollLast());
+        assertNull(deque.pollLast());
         assertEquals(0, deque.size());
     }
 
     @Test
-    public void testRemoveLast2() {
+    public void testPollLast2() {
         deque.addFirst(1);
         deque.addFirst(2);
-        assertEquals(Integer.valueOf(1), deque.removeLast());
+        assertEquals(Integer.valueOf(1), deque.pollLast());
         assertEquals(Integer.valueOf(2), deque.get(0));
-        assertEquals(Integer.valueOf(2), deque.removeLast());
-        deque.removeLast();
-        assertNull(deque.removeLast());
+        assertEquals(Integer.valueOf(2), deque.pollLast());
+        deque.pollLast();
+        assertNull(deque.pollLast());
         assertEquals(0, deque.size());
     }
 
@@ -82,7 +82,7 @@ public class IndexedQueueTest {
         deque.addLast(1);
         deque.addLast(2);
         deque.addLast(3);
-        deque.removeFirst();
+        deque.pollFirst();
         deque.addFirst(1);
         assertEquals(3, deque.size());
         assertEquals(Integer.valueOf(1), deque.get(0));
@@ -119,7 +119,7 @@ public class IndexedQueueTest {
         }
 
         for (int i = 0; i < 5; i++) {
-            deque.removeFirst();
+            deque.pollFirst();
         }
 
         for (int i = 10; i < 20; i++) {
@@ -140,7 +140,7 @@ public class IndexedQueueTest {
         }
 
         for (int i = 0; i < 5; i++) {
-            deque.removeFirst();
+            deque.pollFirst();
         }
 
         for (int i = 10; i < 30; i++) {

@@ -109,7 +109,7 @@ class KvSnapshot extends Snapshot {
             KvNodeEx n;
             // should process parent dir first
             if (stack.size() > 0) {
-                h = stack.removeLast();
+                h = stack.pollLast();
                 // not check null, because parent path of an existing node must exist
                 n = getNode(h);
             } else {

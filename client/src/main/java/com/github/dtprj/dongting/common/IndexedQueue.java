@@ -51,7 +51,7 @@ public class IndexedQueue<T> {
         size++;
     }
 
-    public T removeFirst() {
+    public T pollFirst() {
         if (size == 0) {
             return null;
         }
@@ -63,7 +63,7 @@ public class IndexedQueue<T> {
         return element;
     }
 
-    public T removeLast() {
+    public T pollLast() {
         if (size == 0) {
             return null;
         }

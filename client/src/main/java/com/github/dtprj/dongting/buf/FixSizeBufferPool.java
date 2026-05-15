@@ -80,7 +80,7 @@ class FixSizeBufferPool {
     private ByteBuffer borrow0() {
         if (weakRefEnabled) {
             while (weakRefStack.size() > 0) {
-                WeakReference<ByteBuffer> ref = weakRefStack.removeLast();
+                WeakReference<ByteBuffer> ref = weakRefStack.pollLast();
                 ByteBuffer buf = ref.get();
                 if (buf != null) {
                     return buf;
@@ -88,7 +88,7 @@ class FixSizeBufferPool {
             }
         }
 
-        ByteBuffer buf = bufferStack.removeLast();
+        ByteBuffer buf = bufferStack.pollLast();
         if (buf != null) {
             updateCurrentUsedShareSizeAfterRemove();
             return buf;
@@ -150,7 +150,7 @@ class FixSizeBufferPool {
             if (buf.getLong(RETURN_TIME_INDEX) - expireNanos > 0) {
                 break;
             } else {
-                stack.removeFirst();
+                stack.pollFirst();
                 updateCurrentUsedShareSizeAfterRemove();
                 if (direct) {
                     SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
@@ -171,7 +171,7 @@ class FixSizeBufferPool {
             return;
         }
         while (ref.get() == null) {
-            weakRefStack.removeFirst();
+            weakRefStack.pollFirst();
             ref = weakRefStack.getFirst();
             if (ref == null) {
                 return;
@@ -179,7 +179,7 @@ class FixSizeBufferPool {
         }
         ref = weakRefStack.getLast();
         while (ref != null && ref.get() == null) {
-            weakRefStack.removeLast();
+            weakRefStack.pollLast();
             ref = weakRefStack.getLast();
         }
     }
@@ -188,7 +188,7 @@ class FixSizeBufferPool {
         IndexedQueue<ByteBuffer> stack = this.bufferStack;
         int size = stack.size();
         for (int i = 0; i < size; i++) {
-            ByteBuffer buf = stack.removeFirst();
+            ByteBuffer buf = stack.pollFirst();
             updateCurrentUsedShareSizeAfterRemove();
             if (direct) {
                 SimpleByteBufferPool.VF.releaseDirectBuffer(buf);

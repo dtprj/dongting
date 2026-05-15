@@ -395,7 +395,7 @@ abstract class FileQueue {
         f = new PostFiberFrame<>(f) {
             @Override
             protected FrameCallResult postProcess(Void v) {
-                queue.removeFirst();
+                queue.pollFirst();
                 if (queue.size() >= 1) {
                     queueStartPosition = queue.get(0).startPos;
                 } else {

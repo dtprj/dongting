@@ -136,7 +136,7 @@ public class FiberChannel<T> {
      */
     public FrameCallResult take(long millis, boolean returnOnShouldStop, FrameCall<T> resumePoint) {
         groupOfConsumer.checkGroup();
-        T data = queue.removeFirst();
+        T data = queue.pollFirst();
         if (data != null || (returnOnShouldStop && groupOfConsumer.isShouldStopPlain())) {
             return Fiber.resume(data, resumePoint);
         } else {
@@ -152,7 +152,7 @@ public class FiberChannel<T> {
     }
 
     private FrameCallResult afterTake(FrameCall<T> resumePoint) {
-        return Fiber.resume(queue.removeFirst(), resumePoint);
+        return Fiber.resume(queue.pollFirst(), resumePoint);
     }
 
     /**
@@ -203,7 +203,7 @@ public class FiberChannel<T> {
 
     private FrameCallResult afterTakeAll(Collection<T> c, FrameCall<Void> resumePoint) {
         T data;
-        while ((data = queue.removeFirst()) != null) {
+        while ((data = queue.pollFirst()) != null) {
             c.add(data);
         }
         return Fiber.resume(null, resumePoint);

@@ -337,7 +337,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 raftStatus.applyLagNanos = ts.nanoTime - a[1];
             }
             while (index >= a[0] && his.size() > 1) {
-                his.removeFirst();
+                his.pollFirst();
                 a = his.getFirst();
             }
         }

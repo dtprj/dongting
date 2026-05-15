@@ -212,7 +212,7 @@ class KvImpl {
         try {
             IndexedQueue<KvNodeHolder> q = updateQueue;
             for (int s = q.size(), i = 0; i < s; i++) {
-                KvNodeHolder h = q.removeFirst();
+                KvNodeHolder h = q.pollFirst();
                 h.inUpdateQueue = false;
                 watchManager.afterUpdate(h);
             }

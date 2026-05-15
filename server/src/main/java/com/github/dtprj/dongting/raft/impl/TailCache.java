@@ -110,7 +110,7 @@ public final class TailCache {
         log.info("truncate tail cache to {}(inclusive), old nextWriteIndex={}", index, nextWriteIndex);
         Throwable ex = null;
         while (size() > 0 && index < nextWriteIndex()) {
-            RaftTask raftTask = cache.removeLast();
+            RaftTask raftTask = cache.pollLast();
             if (cache.size() == 0) {
                 firstIndex = -1;
             }
@@ -135,7 +135,7 @@ public final class TailCache {
         if (index != firstIndex) {
             throw new IllegalArgumentException("index " + index + " is not firstIndex " + firstIndex);
         }
-        RaftTask t = cache.removeFirst();
+        RaftTask t = cache.pollFirst();
         if (t != null) {
             release(t);
         } else {
