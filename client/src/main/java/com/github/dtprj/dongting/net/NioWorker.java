@@ -385,24 +385,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         DecodeContext decodeContext = DecodeContext.factory.apply(workerStatus.heapPool, DtThread.currentDtThread().threadLocalBuffer);
         DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++, decodeContext);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
-        dtc.subQueue.setRegisterForWrite(new RegWriteRunner(selectionKey));
+        dtc.subQueue.setSelectionKey(selectionKey);
 
         log.info("new DtChannel init: {}", sc);
         return dtc;
-    }
-
-    private class RegWriteRunner implements Runnable {
-        SelectionKey key;
-
-        RegWriteRunner(SelectionKey key) {
-            this.key = key;
-        }
-
-        @Override
-        public void run() {
-            key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-            perfCallback.fire(PerfConsts.RPC_C_MARK_WRITE);
-        }
     }
 
     static class ConnectInfo {

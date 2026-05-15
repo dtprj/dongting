@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -45,7 +46,7 @@ class IoChannelQueue {
     private final ByteBufferPool directPool;
     private final WorkerStatus workerStatus;
     private final DtChannelImpl dtc;
-    private Runnable registerForWrite;
+    private SelectionKey selectionKey;
 
     private ByteBuffer writeBuffer;
     private int packetsInBuffer;
@@ -67,8 +68,8 @@ class IoChannelQueue {
         this.perfCallback = config.perfCallback;
     }
 
-    public void setRegisterForWrite(Runnable registerForWrite) {
-        this.registerForWrite = registerForWrite;
+    public void setSelectionKey(SelectionKey selectionKey) {
+        this.selectionKey = selectionKey;
     }
 
     private void callFail(PacketInfo pi, boolean callClean, Throwable ex) {
@@ -93,7 +94,8 @@ class IoChannelQueue {
         subQueue.addLast(packetInfo);
 
         if (subQueue.size() == 1 && !writing) {
-            registerForWrite.run();
+            selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+            perfCallback.fire(PerfConsts.RPC_C_MARK_WRITE);
         }
         workerStatus.addPacketsToWrite(1);
     }
