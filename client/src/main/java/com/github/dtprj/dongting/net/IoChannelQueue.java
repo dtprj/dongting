@@ -52,7 +52,8 @@ class IoChannelQueue {
     private int packetsInBuffer;
 
     private final IndexedQueue<PacketInfo> subQueue = new IndexedQueue<>(8);
-    private final IndexedQueue<PacketInfoReq> oneWayCallbacks = new IndexedQueue<>(4);
+    private PacketInfoReq oneWayCallback;
+    private IndexedQueue<PacketInfoReq> oneWayCallbacks;
     private boolean writing;
 
     private PacketInfo lastPacketInfo;
@@ -118,10 +119,7 @@ class IoChannelQueue {
             callFail(pi, true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.addPacketsToWrite(-1);
         }
-        PacketInfoReq pir;
-        while ((pir = oneWayCallbacks.pollFirst()) != null) {
-            callFail(pir, false, new NetException("channel closed, cancel request still in IoChannelQueue. 3"));
-        }
+        cleanOneWayCallbacks(new NetException("channel closed, cancel oneway request still in IoChannelQueue."));
     }
 
     void afterWrite(int bytes) {
@@ -134,9 +132,27 @@ class IoChannelQueue {
         directPool.release(writeBuffer);
         this.writeBuffer = null;
         packetsInBuffer = 0;
-        PacketInfoReq pi;
-        while ((pi = oneWayCallbacks.pollFirst()) != null) {
+        cleanOneWayCallbacks(null);
+    }
+
+    private void cleanOneWayCallbacks(Throwable ex) {
+        if (oneWayCallback != null) {
+            finishOneWayCallback(oneWayCallback, ex);
+            oneWayCallback = null;
+        }
+        if (oneWayCallbacks != null) {
+            PacketInfoReq pi;
+            while ((pi = oneWayCallbacks.pollFirst()) != null) {
+                finishOneWayCallback(pi, ex);
+            }
+        }
+    }
+
+    private void finishOneWayCallback(PacketInfoReq pi, Throwable ex) {
+        if (ex == null) {
             pi.callSuccess(null);
+        } else {
+            callFail(pi, false, ex);
         }
     }
 
@@ -246,7 +262,14 @@ class IoChannelQueue {
         packetsInBuffer++;
         if (f.packetType == PacketType.TYPE_ONE_WAY) {
             // TYPE_ONE_WAY is always PacketInfoReq, see NioNet.send0()
-            oneWayCallbacks.addLast((PacketInfoReq) pi);
+            if (oneWayCallback == null) {
+                oneWayCallback = (PacketInfoReq) pi;
+            } else {
+                if (oneWayCallbacks == null) {
+                    oneWayCallbacks = new IndexedQueue<>(4);
+                }
+                oneWayCallbacks.addLast((PacketInfoReq) pi);
+            }
         }
     }
 
