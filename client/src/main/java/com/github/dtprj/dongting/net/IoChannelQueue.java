@@ -197,7 +197,12 @@ class IoChannelQueue {
         // can't invoke actualSize() here because seq and timeout field is not set yet
         int totalSize = 0;
         if (lastPacketInfo != null) {
-            totalSize += lastPacketInfo.packet.calcMaxPacketSize() - lastPacketInfo.encodedBytes;
+            int rest = lastPacketInfo.packet.calcMaxPacketSize() - lastPacketInfo.encodedBytes;
+            if (rest <= 0) {
+                BugLog.log("rest is {}, packetClass={}", rest, lastPacketInfo.packet.getClass().getName());
+                return directPool.borrow(128);
+            }
+            totalSize += rest;
             if (totalSize > MAX_BUFFER_SIZE) {
                 return directPool.borrow(MAX_BUFFER_SIZE);
             }
@@ -207,6 +212,10 @@ class IoChannelQueue {
             if (totalSize > MAX_BUFFER_SIZE) {
                 return directPool.borrow(MAX_BUFFER_SIZE);
             }
+        }
+        if (totalSize <= 0) {
+            BugLog.log("totalSize is {}", totalSize);
+            return directPool.borrow(128);
         }
         return directPool.borrow(totalSize);
     }
