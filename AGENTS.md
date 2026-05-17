@@ -34,6 +34,9 @@
 - Generated protobuf code used only in tests
 - No external dependencies in production code
 
+### ID Constraints
+- Both **groupId** and **nodeId** must be positive integers (> 0). Zero and negative values are rejected.
+
 ### Fiber/Coroutines
 - Each raft group runs in a fiber group (single-threaded)
 - See com.github.dtprj.dongting.fiber package for more details

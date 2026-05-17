@@ -277,7 +277,7 @@ The following configurations in `config.properties` affect the behavior of Raft 
 
 This file configures cluster topology and Raft group:
 
-- **servers**: List of nodes, format is `nodeId,ip:replicatePort`. Multiple nodes are separated by semicolons. Examples:
+- **servers**: List of nodes, format is `nodeId,ip:replicatePort`. Multiple nodes are separated by semicolons. Both **groupId** and **nodeId** must be positive integers (> 0). Examples:
   ```properties
   # Single node example
   servers = 1,127.0.0.1:9331

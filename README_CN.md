@@ -272,7 +272,7 @@ kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) ->
 
 此文件配置集群拓扑和 Raft group：
 
-- **servers**：node 列表，格式为 `nodeId,ip:replicatePort`。多个 node 用分号分隔。示例：
+- **servers**：node 列表，格式为 `nodeId,ip:replicatePort`。多个 node 用分号分隔。**groupId** 和 **nodeId** 都必须是正整数（> 0）。示例：
   ```properties
   # 单节点示例
   servers = 1,127.0.0.1:9331

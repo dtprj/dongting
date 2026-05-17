@@ -678,6 +678,7 @@ public class RaftServer extends AbstractLifeCircle {
      * @see #queryRaftGroupStatus(int)
      */
     public CompletableFuture<Void> removeGroup(int groupId, boolean saveSnapshot, DtTime shutdownTimeout) {
+        DtUtil.checkPositive(groupId, "groupId");
         RaftGroupImpl g = raftGroups.get(groupId);
         if (g == null) {
             log.warn("group {} not exist", groupId);
@@ -716,6 +717,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     public RaftGroup getRaftGroup(int groupId) {
+        DtUtil.checkPositive(groupId, "groupId");
         return raftGroups.get(groupId);
     }
 
@@ -744,6 +746,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     public CompletableFuture<QueryStatusResp> queryRaftGroupStatus(int groupId) {
+        DtUtil.checkPositive(groupId, "groupId");
         RaftGroupImpl g = raftGroups.get(groupId);
         if (g == null) {
             return CompletableFuture.failedFuture(new NoSuchGroupException(groupId));
