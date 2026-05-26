@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftTaskTest;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.util.CodecTestUtil;
 import org.junit.jupiter.api.Test;
 
@@ -87,7 +88,7 @@ class RaftLogDataCallbackTest {
         combined.put(buf2);
         combined.flip();
 
-        List<RaftLogData> results = new ArrayList<>();
+        List<RaftReqData> results = new ArrayList<>();
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         Decoder decoder = new Decoder();
         decoder.prepareNext(CodecTestUtil.decodeContext(), callback);
@@ -105,7 +106,7 @@ class RaftLogDataCallbackTest {
         RaftTask task = RaftTaskTest.createTask(bizHeaderLen, bodyLen);
         ByteBuffer buf = CodecTestUtil.fullBufferEncode(task);
 
-        List<RaftLogData> results = new ArrayList<>();
+        List<RaftReqData> results = new ArrayList<>();
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         Decoder decoder = new Decoder();
         decoder.prepareNext(CodecTestUtil.decodeContext(), callback);
@@ -120,7 +121,7 @@ class RaftLogDataCallbackTest {
         RaftTask task = RaftTaskTest.createTask(bizHeaderLen, bodyLen);
         ByteBuffer encoded = CodecTestUtil.fullBufferEncode(task);
 
-        List<RaftLogData> results = new ArrayList<>();
+        List<RaftReqData> results = new ArrayList<>();
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         Decoder decoder = new Decoder();
         decoder.prepareNext(CodecTestUtil.decodeContext(), callback);

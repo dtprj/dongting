@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -24,6 +23,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
+import com.github.dtprj.dongting.raft.impl.RaftTaskTest;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -172,26 +172,16 @@ public class LogFileQueueTest extends BaseFiberTest {
             bizBody[i] = (byte) i;
         }
 
-        RefBuffer bizHeaderBuffer = RefBuffer.wrap(ByteBuffer.wrap(bizHeader));
-        int headerCrc = RaftUtil.calcCrc32c(bizHeaderBuffer);
-        RefBuffer bizBodyBuffer = RefBuffer.wrap(ByteBuffer.wrap(bizBody));
-        int bodyCrc = RaftUtil.calcCrc32c(bizBodyBuffer);
+        RaftReqData reqData = RaftTaskTest.buildTestReqData(1, 2, bizHeader, bizBody);
 
-        RaftReqData reqData = new RaftReqData(bizHeaderBuffer, headerCrc, bizBodyBuffer, bodyCrc);
-
-        LogHeader lh = new LogHeader();
-        lh.type = 1;
+        LogHeader lh = reqData.logHeader;
         lh.term = term;
         lh.prevLogTerm = prevTerm;
         lh.index = index;
         lh.timestamp = config.ts.wallClockMillis;
-        lh.bizType = 2;
-        lh.setLens(reqData.bizHeaderSize, reqData.bizBodySize);
-        CRC32C crc32c = new CRC32C();
-        ByteBuffer crcBuf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE - 4);
-        lh.computeCrc(crc32c, crcBuf);
-        return new RaftTask(lh,
-                reqData, null, null, false);
+        lh.writeAndComputeCrc(new CRC32C(), reqData.buffer.getBuffer(), 0);
+
+        return new RaftTask(reqData, null, null, false);
     }
 
     private void append(boolean check, long startPos, int... totalSizes) throws Exception {
@@ -248,9 +238,10 @@ public class LogFileQueueTest extends BaseFiberTest {
             assertEquals(item.logHeader.timestamp, header.timestamp);
 
             if (bizHeaderLen > 0) {
-                ByteBuffer expect = item.reqData.bizHeader.getBuffer();
+                ByteBuffer expect = item.reqData.prepareReadBizHeader();
+                int ePos = expect.position();
                 for (int j = 0; j < bizHeaderLen; j++) {
-                    assertEquals(expect.get(j), buf.get());
+                    assertEquals(expect.get(ePos + j), buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bizHeaderLen, bizHeaderLen);
@@ -259,14 +250,16 @@ public class LogFileQueueTest extends BaseFiberTest {
 
             if (header.bodyLen > 0) {
                 int bodyLen = header.bodyLen;
-                ByteBuffer expect = item.reqData.bizBody.getBuffer();
+                ByteBuffer expect = item.reqData.prepareReadBizBody();
+                int ePos = expect.position();
                 for (int j = 0; j < bodyLen; j++) {
-                    assertEquals(expect.get(j), buf.get());
+                    assertEquals(expect.get(ePos + j), buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bodyLen, bodyLen);
                 assertEquals((int) crc32C.getValue(), buf.getInt());
             }
+            item.reqData.reset();
         }
     }
 

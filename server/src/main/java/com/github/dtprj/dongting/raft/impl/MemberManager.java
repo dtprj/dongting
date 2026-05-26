@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
@@ -44,7 +43,6 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -481,10 +479,8 @@ public class MemberManager {
                 f.completeExceptionally(ex);
             }
         };
-        RefBuffer dataBuf = data == null ? null : RefBuffer.wrap(ByteBuffer.wrap(data));
-        RaftReqData reqData = new RaftReqData(null, 0,
-                dataBuf, RaftUtil.calcCrc32c(dataBuf));
-        RaftTask task = new RaftTask(type, 0, reqData, null, data, null, false, c);
+        RaftReqData reqData = data == null ? RaftReqData.build(type, 0) : RaftReqData.build(type, 0, data);
+        RaftTask task = new RaftTask(reqData, null, data, null, false, c);
         // use runner fiber to execute to avoid race condition
         gc.linearTaskRunner.submitRaftTaskInBizThread(task);
     }

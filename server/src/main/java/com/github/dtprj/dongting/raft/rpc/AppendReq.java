@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
@@ -28,9 +27,9 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftRpcData;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.LogHeader;
-import com.github.dtprj.dongting.raft.store.RaftLogData;
 import com.github.dtprj.dongting.raft.store.RaftLogDataCallback;
 
 import java.nio.ByteBuffer;
@@ -103,12 +102,12 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                         log.error("can't find raft group codecFactory: {}", result.groupId);
                         throw new RaftException("can't find raft group codecFactory: " + result.groupId);
                     }
-                    Object bizHeader = decode(true, codecFactory, logData.bizHeader, logData);
-                    Object bizBody = decode(false, codecFactory, logData.bizBody, logData);
-                    LogHeader lh = logData.logHeader;
-                    RaftTask task = new RaftTask(lh,
-                            logData,
-                            bizHeader, bizBody, lh.type == LogHeader.TYPE_LOG_READ);
+                    Object bizHeader = decode(true, codecFactory, logData.prepareReadBizHeader(), logData);
+                    logData.reset();
+                    Object bizBody = decode(false, codecFactory, logData.prepareReadBizBody(), logData);
+                    logData.reset();
+                    RaftTask task = new RaftTask(logData, bizHeader, bizBody,
+                            logData.logHeader.type == LogHeader.TYPE_LOG_READ);
 
                     result.logs.add(task);
                 }
@@ -168,16 +167,14 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
             }
         }
 
-        private Object decode(boolean header, RaftCodecFactory codecFactory, RefBuffer rb, RaftLogData logData) {
+        private Object decode(boolean header, RaftCodecFactory codecFactory, ByteBuffer rb, RaftReqData logData) {
             if (rb == null) {
                 return null;
             }
             if (logData.logHeader.type != LogHeader.TYPE_NORMAL) {
-                ByteBuffer buf = rb.getBuffer();
-                byte[] b = new byte[buf.remaining()];
-                int p = buf.position();
-                buf.get(b);
-                buf.position(p);
+                byte[] b = new byte[rb.remaining()];
+                rb.get(b);
+                rb.rewind();
                 return b;
             }
             DecoderCallback<? extends Object> c = header ?
@@ -186,13 +183,11 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
             if (c == null) {
                 return null;
             }
-            ByteBuffer buf = rb.getBuffer();
-            int oldPos = buf.position();
             try {
                 headerBodyDecoder.prepareNext(headerBodyContext, c);
-                return headerBodyDecoder.decode(buf, buf.remaining(), 0);
+                return headerBodyDecoder.decode(rb, rb.remaining(), 0);
             } finally {
-                buf.position(oldPos);
+                rb.rewind();
                 headerBodyContext.reset(headerBodyDecoder);
             }
         }

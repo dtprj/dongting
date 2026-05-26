@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.Pair;
@@ -34,7 +33,6 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
-import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -138,9 +136,8 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
-        RefBuffer rb = RaftUtil.encode(req);
-        RaftReqData reqData = new RaftReqData(null, 0, rb, RaftUtil.calcCrc32c(rb));
-        RaftTask rt = new RaftTask(LogHeader.TYPE_NORMAL, bizType, reqData, null, req,
+        RaftReqData reqData = RaftReqData.build(LogHeader.TYPE_NORMAL, bizType, req);
+        RaftTask rt = new RaftTask(reqData, null, req,
                 reqInfo.reqContext.getTimeout(), false, new RC(reqInfo));
         reqInfo.raftGroup.submitLinearTask(rt);
     }

@@ -70,7 +70,7 @@ public final class TailCache {
             }
         }
         cache.addLast(value);
-        long flowControlSize = value.reqData.totalSize;
+        long flowControlSize = value.reqData.totalLen;
         cacheCount++;
         cacheBytes += flowControlSize;
 
@@ -85,7 +85,7 @@ public final class TailCache {
     public void removePending(RaftTask rt) {
         if (rt.addPending) {
             pendingCount--;
-            pendingBytes -= rt.reqData.totalSize;
+            pendingBytes -= rt.reqData.totalLen;
         }
     }
 
@@ -125,7 +125,7 @@ public final class TailCache {
 
     private void release(RaftTask t) {
         cacheCount--;
-        cacheBytes = Math.max(cacheBytes - t.reqData.totalSize, 0);
+        cacheBytes = Math.max(cacheBytes - t.reqData.totalLen, 0);
         if (t.reqData != null) {
             t.reqData.release();
         }

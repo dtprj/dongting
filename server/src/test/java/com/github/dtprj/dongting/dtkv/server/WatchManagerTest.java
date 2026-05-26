@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -32,11 +31,11 @@ import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
-import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.Tick;
 import com.github.dtprj.dongting.test.WaitUtil;
@@ -121,9 +120,8 @@ public class WatchManagerTest implements KvListener {
                     f.completeExceptionally(ex);
                 }
             };
-            RefBuffer rb = RaftUtil.encode(req);
-            RaftReqData rd = new RaftReqData(null, 0, rb, RaftUtil.calcCrc32c(rb));
-            RaftInput i = RaftInput.create(DtKV.BIZ_TYPE_PUT, rd, null, req,
+            RaftReqData rd = RaftReqData.build(LogHeader.TYPE_NORMAL, DtKV.BIZ_TYPE_PUT, req);
+            RaftInput i = RaftInput.create(rd, null, req,
                     new DtTime(3, TimeUnit.SECONDS), false, c);
             leader.raftServer.getRaftGroup(groupId).submitLinearTask(i);
             long firstIndex = f.get();

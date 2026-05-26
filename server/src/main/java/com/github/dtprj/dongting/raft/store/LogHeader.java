@@ -93,14 +93,7 @@ public class LogHeader {
         return ITEM_HEADER_SIZE + (bizHeaderLen == 0 ? 0 : bizHeaderLen + 4) + (bodyLen == 0 ? 0 : bodyLen + 4);
     }
 
-    public void setLens(int bizHeaderLen, int bodyLen) {
-        this.bizHeaderLen = bizHeaderLen;
-        this.bodyLen = bodyLen;
-        this.totalLen = computeTotalLen(bizHeaderLen, bodyLen);
-    }
-
-    public void computeCrc(CRC32C crc32c, ByteBuffer buf) {
-        buf.clear();
+    private void writeFields(ByteBuffer buf) {
         buf.putInt(totalLen);
         buf.putInt(bizHeaderLen);
         buf.putInt(bodyLen);
@@ -110,23 +103,40 @@ public class LogHeader {
         buf.putInt(prevLogTerm);
         buf.putLong(index);
         buf.putLong(timestamp);
-        buf.flip();
-        crc32c.reset();
-        crc32c.update(buf);
-        this.headerCrc = (int) crc32c.getValue();
     }
 
     public void writeTo(ByteBuffer buffer) {
-        buffer.putInt(totalLen);
-        buffer.putInt(bizHeaderLen);
-        buffer.putInt(bodyLen);
-        buffer.put((byte) type);
-        buffer.put((byte) bizType);
-        buffer.putInt(term);
-        buffer.putInt(prevLogTerm);
-        buffer.putLong(index);
-        buffer.putLong(timestamp);
+        writeFields(buffer);
         buffer.putInt(headerCrc);
+    }
+
+    public void writeTo(ByteBuffer buffer, int offset) {
+        int oldPos = buffer.position();
+        int oldLimit = buffer.limit();
+        buffer.position(offset);
+        buffer.limit(offset + ITEM_HEADER_SIZE);
+        writeTo(buffer);
+        buffer.limit(oldLimit);
+        buffer.position(oldPos);
+    }
+
+    public void writeAndComputeCrc(CRC32C crc32c, ByteBuffer buffer) {
+        int start = buffer.position();
+        writeFields(buffer);
+        crc32c.reset();
+        RaftUtil.updateCrc(crc32c, buffer, start, ITEM_HEADER_SIZE - 4);
+        this.headerCrc = (int) crc32c.getValue();
+        buffer.putInt(headerCrc);
+    }
+
+    public void writeAndComputeCrc(CRC32C crc32c, ByteBuffer buffer, int offset) {
+        int oldPos = buffer.position();
+        int oldLimit = buffer.limit();
+        buffer.position(offset);
+        buffer.limit(offset + ITEM_HEADER_SIZE);
+        writeAndComputeCrc(crc32c, buffer);
+        buffer.limit(oldLimit);
+        buffer.position(oldPos);
     }
 
     public static void writeEndHeader(CRC32C crc, ByteBuffer buffer) {

@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.store.LogHeader;
-import com.github.dtprj.dongting.raft.store.RaftLogData;
 import com.github.dtprj.dongting.raft.store.RaftLogDataCallback;
 import com.github.dtprj.dongting.util.CodecTestUtil;
 import org.junit.jupiter.api.Test;
@@ -29,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.CRC32C;
 
+import static com.github.dtprj.dongting.raft.impl.RaftUtil.updateCrc;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class RaftTaskTest {
@@ -64,7 +64,7 @@ public class RaftTaskTest {
     @Test
     void testSmallBufferEncodeHeaderOnly() {
         RaftTask task = createTask(0, 0);
-        List<RaftLogData> results = new ArrayList<>();
+        List<RaftReqData> results = new ArrayList<>();
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         CodecTestUtil.smallBufferEncodeAndDecode(task, callback);
         assertEquals(1, results.size());
@@ -75,7 +75,7 @@ public class RaftTaskTest {
     @Test
     void testSmallBufferEncodeWithBizHeader() {
         RaftTask task = createTask(10, 0);
-        List<RaftLogData> results = new ArrayList<>();
+        List<RaftReqData> results = new ArrayList<>();
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         CodecTestUtil.smallBufferEncodeAndDecode(task, callback);
         assertEquals(1, results.size());
@@ -86,7 +86,7 @@ public class RaftTaskTest {
     @Test
     void testSmallBufferEncodeWithBizBody() {
         RaftTask task = createTask(0, 20);
-        List<RaftLogData> results = new ArrayList<>();
+        List<RaftReqData> results = new ArrayList<>();
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         CodecTestUtil.smallBufferEncodeAndDecode(task, callback);
         assertEquals(1, results.size());
@@ -97,7 +97,7 @@ public class RaftTaskTest {
     @Test
     void testSmallBufferEncodeWithBizHeaderAndBody() {
         RaftTask task = createTask(10, 20);
-        List<RaftLogData> results = new ArrayList<>();
+        List<RaftReqData> results = new ArrayList<>();
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         CodecTestUtil.smallBufferEncodeAndDecode(task, callback);
         assertEquals(1, results.size());
@@ -107,7 +107,7 @@ public class RaftTaskTest {
 
     private void decodeFull(ByteBuffer buf, int expectedHeaderLen, int expectedBodyLen) {
         buf.position(0);
-        List<RaftLogData> results = new ArrayList<>();
+        List<RaftReqData> results = new ArrayList<>();
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         Decoder decoder = new Decoder();
         decoder.prepareNext(CodecTestUtil.decodeContext(), callback);
@@ -128,41 +128,52 @@ public class RaftTaskTest {
             bodyBytes[i] = (byte) i;
         }
 
-        RefBuffer bizHeaderBuffer = bizHeaderLen > 0 ? RefBuffer.wrap(ByteBuffer.wrap(headerBytes)) : null;
-        int headerCrc = calcCrc(bizHeaderBuffer);
-        RefBuffer bizBodyBuffer = bodyLen > 0 ? RefBuffer.wrap(ByteBuffer.wrap(bodyBytes)) : null;
-        int bodyCrc = calcCrc(bizBodyBuffer);
-
-        RaftReqData reqData = new RaftReqData(bizHeaderBuffer, headerCrc, bizBodyBuffer, bodyCrc);
-
-        LogHeader lh = new LogHeader();
-        lh.type = LogHeader.TYPE_NORMAL;
-        lh.term = 1;
-        lh.prevLogTerm = 0;
-        lh.index = 100;
-        lh.timestamp = System.currentTimeMillis();
-        lh.bizType = 5;
-        lh.setLens(reqData.bizHeaderSize, reqData.bizBodySize);
-        CRC32C crc32c = new CRC32C();
-        ByteBuffer crcBuf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE - 4);
-        lh.computeCrc(crc32c, crcBuf);
-
-        return new RaftTask(lh, reqData, null, null, false);
+        RaftReqData reqData = buildTestReqData(LogHeader.TYPE_NORMAL, 5, headerBytes, bodyBytes);
+        return new RaftTask(reqData, null, null, false);
     }
 
-    private static int calcCrc(RefBuffer buf) {
-        if (buf == null) {
-            return 0;
+    public static RaftReqData buildTestReqData(int type, int bizType, byte[] bizHeader, byte[] bizBody) {
+        int bizHeaderLen = (bizHeader == null) ? 0 : bizHeader.length;
+        int bodyLen = (bizBody == null) ? 0 : bizBody.length;
+        int totalLen = LogHeader.computeTotalLen(bizHeaderLen, bodyLen);
+
+        LogHeader logHeader = new LogHeader();
+        logHeader.type = type;
+        logHeader.bizType = bizType;
+        logHeader.bizHeaderLen = bizHeaderLen;
+        logHeader.bodyLen = bodyLen;
+        logHeader.totalLen = totalLen;
+        logHeader.term = 1;
+        logHeader.prevLogTerm = 0;
+        logHeader.index = 100;
+        logHeader.timestamp = System.currentTimeMillis();
+
+        ByteBuffer buf = ByteBuffer.allocate(totalLen);
+        buf.position(LogHeader.ITEM_HEADER_SIZE);
+        if (bizHeaderLen > 0) {
+            buf.put(bizHeader);
+            CRC32C crc = new CRC32C();
+            updateCrc(crc, buf, LogHeader.ITEM_HEADER_SIZE, bizHeaderLen);
+            buf.putInt((int) crc.getValue());
         }
-        CRC32C c = new CRC32C();
-        ByteBuffer bb = buf.getBuffer();
-        int pos = bb.position();
-        c.update(bb);
-        bb.position(pos);
-        return (int) c.getValue();
+        if (bodyLen > 0) {
+            int bodyStart = buf.position();
+            buf.put(bizBody);
+            CRC32C crc = new CRC32C();
+            updateCrc(crc, buf, bodyStart, bodyLen);
+            buf.putInt((int) crc.getValue());
+        }
+        buf.flip();
+        CRC32C headerCrc = new CRC32C();
+        logHeader.writeAndComputeCrc(headerCrc, buf);
+        buf.position(0);
+        buf.limit(totalLen);
+        RefBuffer refBuffer = RefBuffer.wrap(buf);
+        refBuffer.prepareForEncode();
+        return new RaftReqData(logHeader, refBuffer);
     }
 
-    public static void assertData(RaftLogData data, int expectedHeaderLen, int expectedBodyLen) {
+    public static void assertData(RaftReqData data, int expectedHeaderLen, int expectedBodyLen) {
         assertNotNull(data);
         LogHeader lh = data.logHeader;
         assertEquals(LogHeader.TYPE_NORMAL, lh.type);
@@ -173,29 +184,28 @@ public class RaftTaskTest {
         assertEquals(LogHeader.computeTotalLen(expectedHeaderLen, expectedBodyLen), lh.totalLen);
 
         if (expectedHeaderLen > 0) {
-            assertNotNull(data.bizHeader);
-            ByteBuffer hb = data.bizHeader.getBuffer();
+            ByteBuffer hb = data.prepareReadBizHeader();
+            assertNotNull(hb);
             assertEquals(expectedHeaderLen, hb.remaining());
+            int pos = hb.position();
             for (int i = 0; i < expectedHeaderLen; i++) {
-                assertEquals((byte) i, hb.get(i));
+                assertEquals((byte) i, hb.get(pos + i));
             }
-            assertTrue(data.bizHeaderCrc != 0);
         } else {
-            assertNull(data.bizHeader);
-            assertEquals(0, data.bizHeaderCrc);
+            assertNull(data.prepareReadBizHeader());
         }
 
         if (expectedBodyLen > 0) {
-            assertNotNull(data.bizBody);
-            ByteBuffer bb = data.bizBody.getBuffer();
+            ByteBuffer bb = data.prepareReadBizBody();
+            assertNotNull(bb);
             assertEquals(expectedBodyLen, bb.remaining());
+            int pos = bb.position();
             for (int i = 0; i < expectedBodyLen; i++) {
-                assertEquals((byte) i, bb.get(i));
+                assertEquals((byte) i, bb.get(pos + i));
             }
-            assertTrue(data.bizBodyCrc != 0);
         } else {
-            assertNull(data.bizBody);
-            assertEquals(0, data.bizBodyCrc);
+            assertNull(data.prepareReadBizBody());
         }
+        data.reset();
     }
 }

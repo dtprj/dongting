@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
@@ -30,12 +29,12 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -129,9 +128,8 @@ public class DtKVTest extends BaseFiberTest {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private <T> FiberFuture<T> exec(long index, int bizType, KvReq req) {
-        RefBuffer rb = RaftUtil.encode(req);
-        RaftReqData rd = new RaftReqData(null, 0, rb, RaftUtil.calcCrc32c(rb));
-        RaftInput i = RaftInput.create(bizType, rd, null, req,
+        RaftReqData rd = RaftReqData.build(LogHeader.TYPE_NORMAL, bizType, req);
+        RaftInput i = RaftInput.create(rd, null, req,
                 new DtTime(1, TimeUnit.SECONDS), false, null);
         req.ownerUuid = uuid;
         return (FiberFuture) kv.exec(index, ts.wallClockMillis, ts.nanoTime, i);

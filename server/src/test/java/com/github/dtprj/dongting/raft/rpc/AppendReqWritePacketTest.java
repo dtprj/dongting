@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
@@ -23,7 +22,7 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
-import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.RaftTaskTest;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.LogHeader;
@@ -54,12 +53,6 @@ public class AppendReqWritePacketTest {
             return new ByteArray.Callback();
         }
     };
-
-    private static RefBuffer createBytes(int size) {
-        byte[] bytes = new byte[size];
-        new Random().nextBytes(bytes);
-        return RefBuffer.wrap(ByteBuffer.wrap(bytes));
-    }
 
     @Test
     public void testEncode() {
@@ -130,23 +123,25 @@ public class AppendReqWritePacketTest {
         ArrayList<RaftTask> logs = new ArrayList<>();
         f.logs = logs;
         for (int i = 0; i < 2; i++) {
-            RefBuffer bizHeader = addHeader ? createBytes(10) : null;
-            int headerCrc = bizHeader != null ? RaftUtil.calcCrc32c(bizHeader) : 0;
-            RefBuffer bizBody = addBody ? createBytes(20) : null;
-            int bodyCrc = bizBody != null ? RaftUtil.calcCrc32c(bizBody) : 0;
-            RaftReqData reqData = new RaftReqData(bizHeader, headerCrc, bizBody, bodyCrc);
+            byte[] bizHeader = addHeader ? new byte[10] : null;
+            if (bizHeader != null) {
+                new Random().nextBytes(bizHeader);
+            }
+            byte[] bizBody = addBody ? new byte[20] : null;
+            if (bizBody != null) {
+                new Random().nextBytes(bizBody);
+            }
+            RaftReqData reqData = RaftTaskTest.buildTestReqData(LogHeader.TYPE_NORMAL, 1,
+                    bizHeader, bizBody);
 
-            LogHeader lh = new LogHeader();
-            lh.type = LogHeader.TYPE_NORMAL;
+            LogHeader lh = reqData.logHeader;
             lh.term = 4;
             lh.prevLogTerm = 3;
             lh.index = 200 + i;
             lh.timestamp = System.currentTimeMillis();
-            lh.bizType = 1;
-            lh.setLens(reqData.bizHeaderSize, reqData.bizBodySize);
-            lh.computeCrc(new java.util.zip.CRC32C(), ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE - 4));
-            RaftTask rt = new RaftTask(lh, reqData, null, null, false);
+            lh.writeAndComputeCrc(new java.util.zip.CRC32C(), reqData.buffer.getBuffer(), 0);
 
+            RaftTask rt = new RaftTask(reqData, null, null, false);
             logs.add(rt);
         }
         return f;
@@ -168,18 +163,34 @@ public class AppendReqWritePacketTest {
             assertEquals(l1.logHeader.term, l2.logHeader.term);
             assertEquals(l1.logHeader.timestamp, l2.logHeader.timestamp);
             assertEquals(l1.logHeader.type, l2.logHeader.type);
-            if (l1.reqData.bizHeader != null) {
-                assertArrayEquals(l1.reqData.bizHeader.getBuffer().array(),
-                        l2.reqData.bizHeader.getBuffer().array());
+            ByteBuffer h1 = l1.reqData.prepareReadBizHeader();
+            ByteBuffer h2 = l2.reqData.prepareReadBizHeader();
+            if (h1 != null) {
+                assertNotNull(h2);
+                assertEquals(h1.remaining(), h2.remaining());
+                int pos1 = h1.position();
+                int pos2 = h2.position();
+                for (int j = 0; j < h1.remaining(); j++) {
+                    assertEquals(h1.get(pos1 + j), h2.get(pos2 + j));
+                }
             } else {
-                assertNull(l2.reqData.bizHeader);
+                assertNull(h2);
             }
-            if (l1.reqData.bizBody != null) {
-                assertArrayEquals(l1.reqData.bizBody.getBuffer().array(),
-                        l2.reqData.bizBody.getBuffer().array());
+            ByteBuffer b1 = l1.reqData.prepareReadBizBody();
+            ByteBuffer b2 = l2.reqData.prepareReadBizBody();
+            if (b1 != null) {
+                assertNotNull(b2);
+                assertEquals(b1.remaining(), b2.remaining());
+                int pos1 = b1.position();
+                int pos2 = b2.position();
+                for (int j = 0; j < b1.remaining(); j++) {
+                    assertEquals(b1.get(pos1 + j), b2.get(pos2 + j));
+                }
             } else {
-                assertNull(l2.reqData.bizBody);
+                assertNull(b2);
             }
+            l1.reqData.reset();
+            l2.reqData.reset();
         }
     }
 }

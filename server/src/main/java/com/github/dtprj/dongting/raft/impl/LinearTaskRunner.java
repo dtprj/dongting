@@ -37,7 +37,6 @@ import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.ArrayList;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -63,7 +62,6 @@ public class LinearTaskRunner {
     private final PerfCallback perfCallback;
 
     private final CRC32C crc32c = new CRC32C();
-    private final ByteBuffer crcBuf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE - 4);
 
     public LinearTaskRunner(GroupComponents gc) {
         this.gc = gc;
@@ -197,12 +195,8 @@ public class LinearTaskRunner {
             lh.prevLogTerm = prevTerm;
             lh.index = newIndex;
             lh.timestamp = ts.wallClockMillis;
-            if (lh.type == LogHeader.TYPE_LOG_READ) {
-                lh.setLens(0, 0);
-            } else {
-                lh.setLens(rt.reqData.bizHeaderSize, rt.reqData.bizBodySize);
-            }
-            lh.computeCrc(crc32c, crcBuf);
+            // bizHeaderLen, bodyLen, totalLen already set in RaftReqData.build()
+            lh.writeAndComputeCrc(crc32c, rt.reqData.buffer.getBuffer(), 0);
             rt.init(ts.nanoTime);
             prevTerm = currentTerm;
 
@@ -253,9 +247,8 @@ public class LinearTaskRunner {
 
     private RaftTask createHeartBeatInput() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        RaftReqData reqData = new RaftReqData(null, 0, null, 0);
-        return new RaftTask(LogHeader.TYPE_HEARTBEAT, 0, reqData,
-                null, null, deadline, false, null);
+        RaftReqData reqData = RaftReqData.build(LogHeader.TYPE_HEARTBEAT, 0);
+        return new RaftTask(reqData, null, null, deadline, false, null);
     }
 
     public void issueHeartBeat() {

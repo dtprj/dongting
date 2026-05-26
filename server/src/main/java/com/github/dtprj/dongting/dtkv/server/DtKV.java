@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
@@ -42,7 +41,6 @@ import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
-import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -417,9 +415,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
                 dtkvExecutor.submitTaskInAnyThread(() -> ttlManager.retry(ttlInfo, ex));
             }
         };
-        RefBuffer reqBuffer = RaftUtil.encode(req);
-        RaftReqData reqData = new RaftReqData(null, 0, reqBuffer, RaftUtil.calcCrc32c(reqBuffer));
-        RaftTask ri = new RaftTask(LogHeader.TYPE_NORMAL, DtKV.BIZ_TYPE_EXPIRE, reqData, null, req,
+        RaftReqData reqData = RaftReqData.build(LogHeader.TYPE_NORMAL, DtKV.BIZ_TYPE_EXPIRE, req);
+        RaftTask ri = new RaftTask(reqData, null, req,
                 null, false, callback);
         // no flow control here
         raftGroup.groupComponents.linearTaskRunner.submitRaftTaskInBizThread(ri);

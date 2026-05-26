@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
@@ -28,13 +27,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RaftTask extends RaftInput implements Encodable {
-
-    static final int HEADER_FINISHED = 1;
-    static final int BIZ_HEADER_FINISHED = 2;
-    static final int BIZ_HEADER_CRC_FINISHED = 3;
-    static final int BIZ_BODY_FINISHED = 4;
-    static final int BIZ_BODY_CRC_FINISHED = 5;
+public class RaftTask extends RaftInput implements com.github.dtprj.dongting.codec.Encodable {
 
     public long perfTime;
 
@@ -46,17 +39,16 @@ public class RaftTask extends RaftInput implements Encodable {
 
     boolean addPending;
 
-    public RaftTask(LogHeader logHeader, RaftReqData reqData, Object bizHeader, Object bizBody,
+    public RaftTask(RaftReqData reqData, Object bizHeader, Object bizBody,
                     boolean readOnly) {
-        super(logHeader.bizType, reqData, bizHeader, bizBody, null, readOnly, null);
-        this.logHeader = logHeader;
+        super(reqData.logHeader.bizType, reqData, bizHeader, bizBody, null, readOnly, null);
+        this.logHeader = reqData.logHeader;
     }
 
-    public RaftTask(int type, int bizType, RaftReqData reqData, Object bizHeader, Object bizBody, DtTime deadline,
+    public RaftTask(RaftReqData reqData, Object bizHeader, Object bizBody, DtTime deadline,
                     boolean readOnly, RaftCallback callback) {
-        super(bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
-        this.logHeader = new LogHeader(type);
-        this.logHeader.bizType = bizType;
+        super(reqData.logHeader.bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
+        this.logHeader = reqData.logHeader;
     }
 
     public void init(long localCreateNanos) {
@@ -87,68 +79,7 @@ public class RaftTask extends RaftInput implements Encodable {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-        EncodeContext sub = null;
-        RaftReqData reqData = this.reqData;
-        switch (context.stage) {
-            case EncodeContext.STAGE_BEGIN:
-                if (destBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                    return false;
-                } else {
-                    logHeader.writeTo(destBuffer);
-                    context.stage = HEADER_FINISHED;
-                }
-                sub = context.createOrGetNestedContext(true);
-                // fall through
-            case HEADER_FINISHED:
-                if (reqData.bizHeaderSize > 0) {
-                    if (sub == null) {
-                        sub = context.createOrGetNestedContext(false);
-                    }
-                    boolean finish = reqData.bizHeader.encode(sub, destBuffer);
-                    if (finish) {
-                        // the body's reset called by parent context.reset(),
-                        // if error occurred, the sub context will be reset by parent context.reset()
-                        sub.reset();
-                        context.stage = BIZ_HEADER_FINISHED;
-                    } else {
-                        return false;
-                    }
-                }
-                // fall through
-            case BIZ_HEADER_FINISHED:
-                if (reqData.bizHeaderSize > 0) {
-                    if (destBuffer.remaining() < 4) {
-                        return false;
-                    } else {
-                        destBuffer.putInt(reqData.bizHeaderCrc);
-                    }
-                }
-                context.stage = BIZ_HEADER_CRC_FINISHED;
-                // fall through
-            case BIZ_HEADER_CRC_FINISHED:
-                if (reqData.bizBodySize > 0) {
-                    if (sub == null) {
-                        sub = context.createOrGetNestedContext(false);
-                    }
-                    boolean finish = reqData.bizBody.encode(sub, destBuffer);
-                    if (finish) {
-                        context.stage = BIZ_BODY_FINISHED;
-                    } else {
-                        return false;
-                    }
-                }
-                // fall through
-            case BIZ_BODY_FINISHED:
-                if (reqData.bizBodySize > 0) {
-                    if (destBuffer.remaining() < 4) {
-                        return false;
-                    } else {
-                        destBuffer.putInt(reqData.bizBodyCrc);
-                    }
-                }
-                context.stage = BIZ_BODY_CRC_FINISHED;
-        }
-        return true;
+        return reqData.buffer.encode(context, destBuffer);
     }
 
     @Override

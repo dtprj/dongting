@@ -336,8 +336,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        RaftReqData rd = new RaftReqData(null, 0, null, 0);
-        RaftTask input = new RaftTask(LogHeader.TYPE_NORMAL, 0, rd, null, null,
+        RaftReqData rd = RaftReqData.build(LogHeader.TYPE_NORMAL, 0);
+        RaftTask input = new RaftTask(rd, null, null,
                 null, false, null);
         raftStatus.tailCache.put(3, input);
         // test cancel if tail cache has next item
@@ -450,16 +450,15 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         for (int i = 0; i <= list.size(); i++) {
             tailCache.cleanAll();
             for (int j = list.size() - i; j < list.size(); j++) {
-                RaftReqData rd = new RaftReqData(null, 0, null, 0);
+                RaftReqData rd = RaftReqData.build(LogHeader.TYPE_NORMAL, 0);
                 RaftTask li = list.get(j);
-                LogHeader lh3 = new LogHeader();
-                lh3.type = LogHeader.TYPE_NORMAL;
+                LogHeader lh3 = rd.logHeader;
                 lh3.term = li.logHeader.term;
                 lh3.prevLogTerm = li.logHeader.prevLogTerm;
                 lh3.index = li.logHeader.index;
                 lh3.timestamp = li.logHeader.timestamp;
-                RaftTask t = new RaftTask(lh3,
-                        rd, null, null, false);
+                lh3.writeAndComputeCrc(new java.util.zip.CRC32C(), rd.buffer.getBuffer(), 0);
+                RaftTask t = new RaftTask(rd, null, null, false);
                 tailCache.put(li.logHeader.index, t);
             }
             testMatch();
