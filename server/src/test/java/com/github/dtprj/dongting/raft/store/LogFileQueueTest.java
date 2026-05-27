@@ -67,7 +67,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
     private final IdxOps idxOps = new IdxOps() {
         @Override
-        public void put(long index, long position, int size) {
+        public void put(long index, long position, long timestamp, int size) {
             idxMap.put(index, position);
         }
 

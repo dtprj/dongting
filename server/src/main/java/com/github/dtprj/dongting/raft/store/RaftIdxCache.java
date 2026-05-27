@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
@@ -25,7 +26,7 @@ import java.util.zip.CRC32C;
  */
 class RaftIdxCache {
 
-    private static final int SLOT_SIZE = 12;
+    private static final int SLOT_SIZE = 20;
     private int capacity;
     private byte[] data;
     private ByteBuffer buffer;
@@ -45,7 +46,7 @@ class RaftIdxCache {
         lastRaftIndex = -1;
     }
 
-    public void put(long raftIndex, long pos, int itemSize) {
+    public void put(long raftIndex, long pos, long timestamp, int itemSize) {
         if (lastRaftIndex != -1 && raftIndex != lastRaftIndex + 1) {
             throw new IllegalArgumentException("raftIndex not continuous");
         }
@@ -58,16 +59,19 @@ class RaftIdxCache {
         lastRaftIndex = raftIndex;
         int index = bufIndex(raftIndex, capacity);
         buffer.putLong(index, pos);
-        buffer.putInt(index + 8, itemSize);
+        buffer.putLong(index + 8, timestamp);
+        buffer.putInt(index + 16, itemSize);
         size++;
     }
 
+    long lastGetTimestamp;
     int lastGetSize;
 
     public long get(long raftIndex) {
         if (raftIndex >= firstRaftIndex && raftIndex <= lastRaftIndex) {
             int slotIndex = bufIndex(raftIndex, capacity);
-            lastGetSize = buffer.getInt(slotIndex + 8);
+            lastGetTimestamp = buffer.getLong(slotIndex + 8);
+            lastGetSize = buffer.getInt(slotIndex + 16);
             return buffer.getLong(slotIndex);
         }
         throw new IllegalArgumentException("bad raftIndex " + raftIndex + ",first=" + firstRaftIndex + ",last=" + lastRaftIndex);
@@ -77,7 +81,8 @@ class RaftIdxCache {
         if (size > 0) {
             int index = bufIndex(firstRaftIndex, capacity);
             buffer.putLong(index, 0);
-            buffer.putInt(index + 8, 0);
+            buffer.putLong(index + 8, 0);
+            buffer.putInt(index + 16, 0);
             firstRaftIndex++;
             size--;
             if (size == 0) {
@@ -133,7 +138,8 @@ class RaftIdxCache {
         while (lastRaftIndex >= raftIndex) {
             int bufIndex = bufIndex(lastRaftIndex, capacity);
             buffer.putLong(bufIndex, 0);
-            buffer.putInt(bufIndex + 8, 0);
+            buffer.putLong(bufIndex + 8, 0);
+            buffer.putInt(bufIndex + 16, 0);
             lastRaftIndex--;
             size--;
         }
@@ -160,10 +166,15 @@ class RaftIdxCache {
         // the crc32c is a simple object, so here no need to cache
         CRC32C crc = new CRC32C();
         byte[] data = this.data;
+        int dataLen = IdxFileQueue.ITEM_LEN - 4;
         for (int i = 0; i < count; i++, index++) {
             int srcBufferIndex = bufIndex(index, capacity);
-            crc.update(data, srcBufferIndex, SLOT_SIZE);
-            destBuffer.put(data, srcBufferIndex, SLOT_SIZE);
+            // cache slot: pos(8)+timestamp(8)+itemSize(4)=20, disk: +reserved(8)+crc(4)=32
+            destBuffer.put(data, srcBufferIndex, 16);
+            destBuffer.putLong(0L);
+            destBuffer.put(data, srcBufferIndex + 16, 4);
+            int crcStart = destBuffer.position() - dataLen;
+            RaftUtil.updateCrc(crc, destBuffer, crcStart, dataLen);
             destBuffer.putInt((int) crc.getValue());
             crc.reset();
         }
@@ -171,4 +182,3 @@ class RaftIdxCache {
         return index;
     }
 }
-

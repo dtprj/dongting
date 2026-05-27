@@ -253,8 +253,8 @@ public final class DefaultRaftLog implements RaftLog {
                 return Fiber.call(idxFiles.loadRaftIdxInfo(index), this::afterLoadPos);
             }
 
-            private FrameCallResult afterLoadPos(Pair<Long, Integer> idxInfo) {
-                setResult(idxInfo.getLeft() + idxInfo.getRight());
+            private FrameCallResult afterLoadPos(IdxItem idxInfo) {
+                setResult(idxInfo.position + idxInfo.size);
                 return Fiber.frameReturn();
             }
         };

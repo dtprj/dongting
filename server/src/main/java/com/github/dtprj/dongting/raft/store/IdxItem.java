@@ -15,17 +15,17 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.fiber.FiberFrame;
-
 /**
  * @author huangli
  */
-interface IdxOps {
-    void put(long index, long position, long timestamp, int size);
+class IdxItem {
+    public final long position;
+    public final long timestamp;
+    public final int size;
 
-    boolean needWaitFlush();
-
-    FiberFrame<Void> waitFlush();
-
-    FiberFrame<Long> loadLogPos(long itemIndex);
+    IdxItem(long position, long timestamp, int size) {
+        this.position = position;
+        this.timestamp = timestamp;
+        this.size = size;
+    }
 }

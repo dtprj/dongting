@@ -45,7 +45,7 @@ import java.util.zip.CRC32C;
  */
 final class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
-    static final int ITEM_LEN = 16;
+    static final int ITEM_LEN = 32;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
     static final String KEY_FIRST_VALID_POS = "firstValidPos";
 
@@ -176,17 +176,17 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     public long indexToPos(long index) {
-        // each item 16 bytes
-        return index << 4;
+        // each item 32 bytes
+        return index << 5;
     }
 
     public long posToIndex(long pos) {
-        // each item 16 bytes
-        return pos >>> 4;
+        // each item 32 bytes
+        return pos >>> 5;
     }
 
     @Override
-    public void put(long itemIndex, long dataPosition, int size) {
+    public void put(long itemIndex, long dataPosition, long timestamp, int size) {
         if (itemIndex > nextIndex) {
             throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
         }
@@ -198,7 +198,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 throw new RaftException("put index!=nextIndex " + itemIndex + ", " + nextIndex);
             }
         }
-        cache.put(itemIndex, dataPosition, size);
+        cache.put(itemIndex, dataPosition, timestamp, size);
         nextIndex = itemIndex + 1;
         if (flushLoopFrame.waiting && getDiff() >= flushThreshold) {
             needFlushCondition.signal();
@@ -370,20 +370,20 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     public FiberFrame<Long> loadLogPos(long itemIndex) {
         return new PostFiberFrame<>(loadRaftIdxInfo(itemIndex)) {
             @Override
-            protected FrameCallResult postProcess(Pair<Long, Integer> result) {
-                setResult(result.getLeft());
+            protected FrameCallResult postProcess(IdxItem result) {
+                setResult(result.position);
                 return Fiber.frameReturn();
             }
         };
     }
 
-    public FiberFrame<Pair<Long, Integer>> loadRaftIdxInfo(long itemIndex) {
+    public FiberFrame<IdxItem> loadRaftIdxInfo(long itemIndex) {
         DtUtil.checkPositive(itemIndex, "index");
         return new LoadRaftIdxInfoFrame(itemIndex);
     }
 
-    private class LoadRaftIdxInfoFrame extends FiberFrame<Pair<Long, Integer>> {
-        final ByteBuffer buffer = ByteBuffer.allocate(16);
+    private class LoadRaftIdxInfoFrame extends FiberFrame<IdxItem> {
+        final ByteBuffer buffer = ByteBuffer.allocate(32);
 
         private final long itemIndex;
         private LogFile logFile;
@@ -402,7 +402,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             if (itemIndex > writeFinishIndex) {
                 if (itemIndex >= cache.getFirstRaftIndex() && itemIndex <= cache.getLastRaftIndex()) {
                     long pos = cache.get(itemIndex);
-                    setResult(new Pair<>(pos, cache.lastGetSize));
+                    setResult(new IdxItem(pos, cache.lastGetTimestamp, cache.lastGetSize));
                     return Fiber.frameReturn();
                 }
                 BugLog.log("load index too large: index={}, persistedIndex={}", itemIndex, persistedIndex);
@@ -423,6 +423,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         private FrameCallResult afterLoad() {
             buffer.flip();
             long pos = buffer.getLong();
+            long timestamp = buffer.getLong();
+            buffer.getLong();
             int size = buffer.getInt();
             int actualCrc = buffer.getInt();
             byte[] arr = buffer.array();
@@ -434,7 +436,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 // TODO restore use log file
                 throw new RaftException("load log pos crc check fail");
             }
-            setResult(new Pair<>(pos, size));
+            setResult(new IdxItem(pos, timestamp, size));
             return Fiber.frameReturn();
         }
 

@@ -238,7 +238,7 @@ class Restorer {
                     if (!restoreIndexChecked) {
                         restoreIndexChecked = true;
                     }
-                    idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, header.totalLen);
+                    idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, header.timestamp, header.totalLen);
                     itemStartPosOfFile += header.totalLen;
                 }
             } else {
