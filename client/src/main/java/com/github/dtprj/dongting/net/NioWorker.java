@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
@@ -119,23 +119,25 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.directPool = config.poolFactory.createPool(timestamp, true);
         this.heapPool = config.poolFactory.createPool(timestamp, false);
 
-        ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
-        RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 512);
+        ByteBufferPool releaseSafeHeapPool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
+        ByteBufferPool releaseSafeDirectPool = createReleaseSafePool((TwoLevelPool) directPool, ioWorkerQueue);
 
-        this.thread = new WorkerThread(this, workerName, timestamp, refBufferFactory);
+        Buffers buffers = new Buffers(heapPool, directPool, releaseSafeHeapPool, releaseSafeDirectPool);
 
-        workerStatus = new WorkerStatus(this, ioWorkerQueue, directPool,
-                refBufferFactory, timestamp, config.nearTimeoutThreshold);
+        this.thread = new WorkerThread(this, workerName, timestamp, buffers);
+
+        workerStatus = new WorkerStatus(this, ioWorkerQueue,
+                buffers, timestamp, config.nearTimeoutThreshold);
     }
 
-    private ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoWorkerQueue ioWorkerQueue) {
+    private ByteBufferPool createReleaseSafePool(TwoLevelPool pool, IoWorkerQueue ioWorkerQueue) {
         Consumer<ByteBuffer> callback = (buf) -> {
-            boolean b = ioWorkerQueue.scheduleFromBizThread(() -> heapPool.mixedRelease(buf));
+            boolean b = ioWorkerQueue.scheduleFromBizThread(() -> pool.mixedRelease(buf));
             if (!b) {
                 log.warn("schedule ReleaseBufferTask fail");
             }
         };
-        return heapPool.toReleaseInOtherThreadInstance(thread, callback);
+        return pool.toReleaseInOtherThreadInstance(thread, callback);
     }
 
     @Override
@@ -382,7 +384,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             channelIndex++;
         }
         // the worker thread is multiplexing, so can't use threadLocal DecodeContext
-        DecodeContext decodeContext = DecodeContext.factory.apply(workerStatus.heapPool, DtThread.currentDtThread().threadLocalBuffer);
+        DecodeContext decodeContext = DecodeContext.factory.apply(workerStatus.buffers, DtThread.currentDtThread().threadLocalBuffer);
         DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++, decodeContext);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.subQueue.setSelectionKey(selectionKey);

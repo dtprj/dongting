@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -51,7 +51,7 @@ public class ChainWriter {
     private int writePerfType2;
     private int forcePerfType;
 
-    private final ByteBufferPool directPool;
+    private final Buffers buffers;
     private final LinkedList<WriteTask> writeTasks = new LinkedList<>();
     private final LinkedList<WriteTask> forceTasks = new LinkedList<>();
 
@@ -74,7 +74,7 @@ public class ChainWriter {
         this.raftStatus = (RaftStatusImpl) config.raftStatus;
 
         DispatcherThread t = config.fiberGroup.dispatcher.thread;
-        this.directPool = t.directPool;
+        this.buffers = t.buffers;
         this.needForceCondition = config.fiberGroup.newCondition("needForceCond");
         this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.groupId, config.fiberGroup,
                 new ForceLoopFrame());
@@ -185,7 +185,7 @@ public class ChainWriter {
     private void afterWrite(Throwable ioEx, WriteTask task, long startTime) {
         perfCallback.fireTimeAndRefresh(writePerfType2, startTime, task.perfWriteItemCount, task.perfWriteBytes, config.ts);
         if (task.buf != null) {
-            directPool.release(task.buf);
+            buffers.release(task.buf);
         }
         writeTaskCount--;
         if (error || raftStatus.installSnapshot) {

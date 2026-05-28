@@ -15,9 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -310,7 +309,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private final int bufferSize = groupConfig.diskSnapshotBufferSize;
         private final long id;
-        private RefBufferFactory directBufferFactory;
+        private Buffers buffers;
 
 
         private DtFile newDataFile;
@@ -376,7 +375,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
-            this.directBufferFactory = new RefBufferFactory(getFiberGroup().dispatcher.thread.directPool, 0);
+            this.buffers = getFiberGroup().dispatcher.thread.buffers;
             FiberFuture<Snapshot> f = snapshotCreator.get();
             return f.await(this::afterTakeSnapshot);
         }
@@ -406,7 +405,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private RefBuffer createBuffer() {
-            RefBuffer buf = directBufferFactory.create(bufferSize);
+            RefBuffer buf = buffers.borrowDirectRefBuffer(bufferSize);
             buf.getBuffer().position(4);
             buf.getBuffer().limit(bufferSize - 4);
             return buf;
@@ -530,9 +529,8 @@ class RecoverFiberFrame extends FiberFrame<Void> {
         this.stateMachine = stateMachine;
         this.groupConfig = groupConfig;
         this.snapshot = snapshot;
-        ByteBufferPool p = groupConfig.fiberGroup.dispatcher.thread.directPool;
-        RefBufferFactory f = new RefBufferFactory(p, 0);
-        this.bufferCreator = () -> f.create(snapshot.getBufferSize());
+        Buffers buffers = groupConfig.fiberGroup.dispatcher.thread.buffers;
+        this.bufferCreator = () -> buffers.borrowDirectRefBuffer(snapshot.getBufferSize());
     }
 
     @Override

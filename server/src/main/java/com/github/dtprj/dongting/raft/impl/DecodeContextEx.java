@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.raft.rpc.AppendReq;
 import com.github.dtprj.dongting.raft.rpc.AppendResp;
@@ -31,18 +31,18 @@ public final class DecodeContextEx extends DecodeContext {
     private AppendReq.Callback appendReqCallback;
     private AppendResp.Callback appendRespCallback;
 
-    public DecodeContextEx(RefBufferFactory heapPool, byte[] threadLocalBuffer) {
-        super(heapPool, threadLocalBuffer);
+    public DecodeContextEx(Buffers buffers, byte[] threadLocalBuffer) {
+        super(buffers, threadLocalBuffer);
     }
 
     @Override
     protected DecodeContext createNestedInstance() {
-        return new DecodeContextEx(heapPool, threadLocalBuffer);
+        return new DecodeContextEx(buffers, threadLocalBuffer);
     }
 
     public AppendReq.Callback appendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {
         if (appendReqCallback == null) {
-            appendReqCallback = new AppendReq.Callback(decoderFactory, heapPool, threadLocalBuffer);
+            appendReqCallback = new AppendReq.Callback(decoderFactory, buffers, threadLocalBuffer);
         }
         return appendReqCallback;
     }

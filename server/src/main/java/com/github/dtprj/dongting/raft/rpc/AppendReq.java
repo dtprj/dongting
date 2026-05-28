@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
@@ -88,9 +88,9 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         private AppendReq result;
 
         public Callback(Function<Integer, RaftCodecFactory> decoderFactory,
-                        RefBufferFactory heapPool, byte[] threadLocalBuffer) {
+                        Buffers buffers, byte[] threadLocalBuffer) {
             this.headerBodyDecoder = new Decoder();
-            this.headerBodyContext = DecodeContext.factory.apply(heapPool, threadLocalBuffer);
+            this.headerBodyContext = DecodeContext.factory.apply(buffers, threadLocalBuffer);
 
             this.logDataCallback = new RaftLogDataCallback(logData -> {
                 if (logData != null) {

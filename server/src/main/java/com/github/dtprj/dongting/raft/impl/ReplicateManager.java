@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -613,7 +613,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     private final RaftServerConfig serverConfig;
     private final NioClient client;
     private final ReplicateManager replicateManager;
-    private final RefBufferFactory heapPool;
+    private final Buffers buffers;
 
     private Snapshot snapshot;
     private long nextPosAfterInstallFinish;
@@ -626,7 +626,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
-        this.heapPool = groupConfig.fiberGroup.dispatcher.thread.heapPool;
+        this.buffers = groupConfig.fiberGroup.dispatcher.thread.buffers;
     }
 
     @Override
@@ -681,7 +681,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        Supplier<RefBuffer> bufferCreator = () -> heapPool.create(groupConfig.replicateSnapshotBufferSize);
+        Supplier<RefBuffer> bufferCreator = () -> buffers.borrowRefBuffer(groupConfig.replicateSnapshotBufferSize);
 
         int readConcurrency = groupConfig.snapshotConcurrency;
         int writeConcurrency = groupConfig.replicateSnapshotConcurrency;

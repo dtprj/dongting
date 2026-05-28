@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
@@ -43,7 +41,6 @@ class IoChannelQueue {
     private static final int ENCODE_CANCEL = 3;
 
     private static final int MAX_BUFFER_SIZE = 256 * 1024;
-    private final ByteBufferPool directPool;
     private final WorkerStatus workerStatus;
     private final DtChannelImpl dtc;
     private SelectionKey selectionKey;
@@ -61,11 +58,10 @@ class IoChannelQueue {
 
     private final PerfCallback perfCallback;
 
-    public IoChannelQueue(NioConfig config, WorkerStatus workerStatus, DtChannelImpl dtc, RefBufferFactory heapPool) {
-        this.directPool = workerStatus.directPool;
+    public IoChannelQueue(NioConfig config, WorkerStatus workerStatus, DtChannelImpl dtc) {
         this.workerStatus = workerStatus;
         this.dtc = dtc;
-        this.encodeContext = new EncodeContext(heapPool);
+        this.encodeContext = new EncodeContext(workerStatus.buffers);
         this.perfCallback = config.perfCallback;
     }
 
@@ -106,7 +102,7 @@ class IoChannelQueue {
             workerStatus.addPacketsToWrite(-packetsInBuffer);
         }
         if (this.writeBuffer != null) {
-            directPool.release(this.writeBuffer);
+            workerStatus.buffers.release(this.writeBuffer);
             this.writeBuffer = null;
         }
 
@@ -129,7 +125,7 @@ class IoChannelQueue {
 
         // current buffer write finished
         workerStatus.addPacketsToWrite(-packetsInBuffer);
-        directPool.release(writeBuffer);
+        workerStatus.buffers.release(writeBuffer);
         this.writeBuffer = null;
         packetsInBuffer = 0;
         cleanOneWayCallbacks(null);
@@ -162,7 +158,7 @@ class IoChannelQueue {
                 return writeBuffer;
             } else {
                 BugLog.log("writeBuffer is not null but remaining is 0");
-                directPool.release(writeBuffer);
+                workerStatus.buffers.release(writeBuffer);
                 this.writeBuffer = null;
             }
         }
@@ -179,12 +175,12 @@ class IoChannelQueue {
         } catch (RuntimeException | Error e) {
             encodeContext.reset();
             // channel will be closed, and cleanChannelQueue will be called
-            directPool.release(buf);
+            workerStatus.buffers.release(buf);
             throw e;
         }
         buf.flip();
         if (buf.remaining() == 0) {
-            directPool.release(buf);
+            workerStatus.buffers.release(buf);
             return null;
         } else {
             this.writeBuffer = buf;
@@ -200,24 +196,24 @@ class IoChannelQueue {
             int rest = lastPacketInfo.packet.calcMaxPacketSize() - lastPacketInfo.encodedBytes;
             if (rest <= 0) {
                 BugLog.log("rest is {}, packetClass={}", rest, lastPacketInfo.packet.getClass().getName());
-                return directPool.borrow(128);
+                return workerStatus.buffers.borrowDirect(128);
             }
             totalSize += rest;
             if (totalSize > MAX_BUFFER_SIZE) {
-                return directPool.borrow(MAX_BUFFER_SIZE);
+                return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
             }
         }
         for (int size = subQueue.size(), i = 0; i < size; i++) {
             totalSize += subQueue.get(i).packet.calcMaxPacketSize();
             if (totalSize > MAX_BUFFER_SIZE) {
-                return directPool.borrow(MAX_BUFFER_SIZE);
+                return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
             }
         }
         if (totalSize <= 0) {
             BugLog.log("totalSize is {}", totalSize);
-            return directPool.borrow(128);
+            return workerStatus.buffers.borrowDirect(128);
         }
-        return directPool.borrow(totalSize);
+        return workerStatus.buffers.borrowDirect(totalSize);
     }
 
     private void encodePacketsToBuffer(ByteBuffer buf, IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {

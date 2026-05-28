@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.util;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
@@ -33,19 +33,23 @@ import org.junit.jupiter.api.Assertions;
 import java.nio.ByteBuffer;
 
 /**
+ * should test in single thread
+ *
  * @author huangli
  */
 public class CodecTestUtil {
 
-    private final static ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
-    private final static RefBufferFactory refBufferFactory = new RefBufferFactory(pool, 128);
+    private static final ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
+    private static final ByteBufferPool directPool = new DefaultPoolFactory().createPool(new Timestamp(), true);
+    // should test in single thread
+    private static final Buffers buffer = new Buffers(pool, directPool, pool, directPool);
 
     public static DecodeContextEx decodeContext() {
-        return new DecodeContextEx(refBufferFactory, new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
+        return new DecodeContextEx(buffer, new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
     }
 
     public static EncodeContext encodeContext() {
-        return new EncodeContext(refBufferFactory);
+        return new EncodeContext(buffer);
     }
 
     public static ByteBuffer fullBufferEncode(Encodable e) {

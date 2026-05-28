@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.log.DtLog;
@@ -56,11 +56,11 @@ public abstract class AbstractCodecCallback<T> {
         int remain = buf.remaining();
         if (currentPos == 0) {
             if (remain >= fieldLen) {
-                ByteBufferPool pool = null;
+                Buffers pool = null;
                 if (fieldLen < DtThread.THREAD_LOCAL_BUFFER_SIZE) {
                     arr = context.threadLocalBuffer;
                 } else {
-                    pool = context.heapPool.getPool();
+                    pool = context.buffers;
                     temp = pool.borrow(fieldLen);
                     arr = temp.array();
                 }
@@ -75,8 +75,7 @@ public abstract class AbstractCodecCallback<T> {
                 arr = new byte[fieldLen];
                 context.status = arr;
             } else {
-                ByteBufferPool pool = context.heapPool.getPool();
-                temp = pool.borrow(fieldLen);
+                temp = context.buffers.borrow(fieldLen);
                 context.status = temp;
                 arr = temp.array();
             }
@@ -96,8 +95,7 @@ public abstract class AbstractCodecCallback<T> {
             buf.get(arr, currentPos, needRead);
             String s = new String(arr, 0, fieldLen, StandardCharsets.UTF_8);
             if (temp != null) {
-                ByteBufferPool pool = context.heapPool.getPool();
-                pool.release(temp);
+                context.buffers.release(temp);
             }
             return s;
         }

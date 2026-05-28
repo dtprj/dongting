@@ -15,8 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -34,8 +33,7 @@ class WorkerStatus {
     private static final DtLog log = DtLogs.getLogger(WorkerStatus.class);
     final NioWorker worker;
     final IoWorkerQueue ioWorkerQueue;
-    final ByteBufferPool directPool;
-    final RefBufferFactory heapPool;
+    final Buffers buffers;
     final Timestamp ts;
 
     int retryConnect;
@@ -56,12 +54,11 @@ class WorkerStatus {
     int toReleaseCount;
     long toReleaseBytes;
 
-    public WorkerStatus(NioWorker worker, IoWorkerQueue ioWorkerQueue, ByteBufferPool directPool,
-                        RefBufferFactory heapPool, Timestamp ts, long nearTimeoutThresholdMillis) {
+    public WorkerStatus(NioWorker worker, IoWorkerQueue ioWorkerQueue, Buffers buffers,
+                        Timestamp ts, long nearTimeoutThresholdMillis) {
         this.worker = worker;
         this.ioWorkerQueue = ioWorkerQueue;
-        this.directPool = directPool;
-        this.heapPool = heapPool;
+        this.buffers = buffers;
         this.ts = ts;
         this.lastCleanTimeNanos = ts.nanoTime;
         this.nearTimeoutThresholdNanos = TimeUnit.MILLISECONDS.toNanos(nearTimeoutThresholdMillis);

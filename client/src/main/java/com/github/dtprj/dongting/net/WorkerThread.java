@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 
@@ -26,8 +26,8 @@ public final class WorkerThread extends DtThread {
 
     public final Timestamp ts;
 
-    WorkerThread(Runnable r, String name, Timestamp ts, RefBufferFactory refBufferFactory) {
-        super(r, name, refBufferFactory);
+    WorkerThread(Runnable r, String name, Timestamp ts, Buffers buffers) {
+        super(r, name, buffers);
         this.ts = ts;
     }
 

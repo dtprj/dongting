@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -50,7 +50,7 @@ class LogAppender {
     private final long fileLenMask;
     private final RaftStatusImpl raftStatus;
 
-    private final ByteBufferPool directPool;
+    private final Buffers buffers;
 
     // update before write operation issued
     long nextPersistIndex = -1;
@@ -66,8 +66,8 @@ class LogAppender {
         this.chainWriter = chainWriter;
 
         DispatcherThread thread = groupConfig.fiberGroup.dispatcher.thread;
-        this.directPool = thread.directPool;
-        this.encodeContext = new EncodeContext(thread.heapPool);
+        this.buffers = thread.buffers;
+        this.encodeContext = new EncodeContext(thread.buffers);
         this.fileLenMask = logFileQueue.fileLength() - 1;
         this.perfCallback = groupConfig.perfCallback;
     }
@@ -277,7 +277,7 @@ class LogAppender {
                 return EMPTY_BUFFER;
             } else {
                 size = Math.min(size, logFileQueue.maxWriteBufferSize);
-                return directPool.borrow(size);
+                return buffers.borrowDirect(size);
             }
         }
     }

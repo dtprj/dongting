@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 
@@ -29,12 +29,12 @@ public class DtThread extends Thread {
 
     public final DecodeContext decodeContext;
     public final PbParser parser = new PbParser();
-    public final RefBufferFactory heapPool;
+    public final Buffers buffers;
     
-    protected DtThread(Runnable r, String name, RefBufferFactory heapPool) {
+    protected DtThread(Runnable r, String name, Buffers pool) {
         super(r, name);
-        this.decodeContext = DecodeContext.factory.apply(heapPool, threadLocalBuffer);
-        this.heapPool = heapPool;
+        this.decodeContext = DecodeContext.factory.apply(pool, threadLocalBuffer);
+        this.buffers = pool;
     }
     
     public static DtThread currentDtThread() {

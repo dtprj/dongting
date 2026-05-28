@@ -234,7 +234,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             len = (int) (logFile.endPos - startIdxPos);
         }
         DispatcherThread t = groupConfig.fiberGroup.dispatcher.thread;
-        ByteBuffer buf = t.directPool.borrow(len);
+        ByteBuffer buf = t.buffers.borrowDirect(len);
         buf.limit(len);
         fillAndSubmit(buf, startIdx, logFile, suggestForce);
     }

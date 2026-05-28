@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -47,7 +47,7 @@ final class LogFileQueue extends FileQueue {
     private final RaftGroupConfigEx groupConfig;
     private final FiberGroup fiberGroup;
 
-    private final ByteBufferPool heapPool;
+    private final Buffers buffers;
 
     private final IdxOps idxOps;
 
@@ -64,7 +64,7 @@ final class LogFileQueue extends FileQueue {
         this.ts = groupConfig.ts;
         this.fiberGroup = groupConfig.fiberGroup;
         DispatcherThread t = fiberGroup.dispatcher.thread;
-        this.heapPool = t.heapPool.getPool();
+        this.buffers = t.buffers;
 
         ChainWriter chainWriter = new ChainWriter("LogForce", groupConfig, this::writeFinish, this::forceFinish);
         chainWriter.setWritePerfType1(PerfConsts.RAFT_D_LOG_WRITE1);
@@ -107,7 +107,7 @@ final class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
-            final ByteBuffer buffer = heapPool.borrow(maxWriteBufferSize);
+            final ByteBuffer buffer = buffers.borrow(maxWriteBufferSize);
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -159,7 +159,7 @@ final class LogFileQueue extends FileQueue {
 
             @Override
             protected FrameCallResult doFinally() {
-                heapPool.release(buffer);
+                buffers.release(buffer);
                 return super.doFinally();
             }
         };

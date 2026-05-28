@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.codec;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 
@@ -26,13 +26,17 @@ import com.github.dtprj.dongting.common.Timestamp;
  */
 public class CodecTestUtil {
     private static final ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
+    private static final ByteBufferPool directPool = new DefaultPoolFactory().createPool(new Timestamp(), true);
+    // should test in single thread
+    private static final Buffers buffer = new Buffers(pool, directPool, pool, directPool);
 
+    // should test in single thread
     public static DecodeContext createContext() {
-        return DecodeContext.factory.apply(new RefBufferFactory(pool, 128),
-                new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
+        return DecodeContext.factory.apply(buffer, new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
     }
 
+    // should test in single thread
     public static EncodeContext createEncodeContext() {
-        return new EncodeContext(new RefBufferFactory(pool, 128));
+        return new EncodeContext(buffer);
     }
 }

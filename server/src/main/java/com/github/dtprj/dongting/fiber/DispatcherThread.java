@@ -15,8 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.common.DtThread;
 
 /**
@@ -26,11 +25,8 @@ public final class DispatcherThread extends DtThread {
 
     FiberGroup currentGroup;
 
-    public final ByteBufferPool directPool;
-
-    DispatcherThread(Runnable r, String name, RefBufferFactory heapPool, ByteBufferPool directPool) {
-        super(r, name, heapPool);
-        this.directPool = directPool;
+    DispatcherThread(Runnable r, String name, Buffers buffers) {
+        super(r, name, buffers);
     }
 
     static DispatcherThread currentDispatcherThread() {

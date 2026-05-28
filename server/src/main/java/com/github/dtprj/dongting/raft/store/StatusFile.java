@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -78,7 +78,7 @@ public class StatusFile {
             @Override
             protected FrameCallResult doFinally() {
                 if (buf != null) {
-                    getFiberGroup().dispatcher.thread.heapPool.getPool().release(buf);
+                    getFiberGroup().dispatcher.thread.buffers.release(buf);
                 }
                 if (dtFile != null) {
                     dtFile.destroy();
@@ -106,7 +106,7 @@ public class StatusFile {
                     return Fiber.frameReturn();
                 }
                 AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
-                buf = getFiberGroup().dispatcher.thread.heapPool.getPool().borrow(fileLen);
+                buf = getFiberGroup().dispatcher.thread.buffers.borrow(fileLen);
                 buf.limit(fileLen);
                 FiberFuture<Void> f = task.read(buf, 0);
                 return f.await(this::resumeAfterRead);
@@ -176,10 +176,10 @@ public class StatusFile {
     }
 
     public FiberFuture<Void> update() {
-        ByteBufferPool directPool = fiberGroup.dispatcher.thread.directPool;
-        ByteBuffer buf = directPool.borrow(MAX_FILE_LEN);
+        Buffers buffers = fiberGroup.dispatcher.thread.buffers;
+        ByteBuffer buf = buffers.borrowDirect(MAX_FILE_LEN);
         FiberFuture<Void> f = fiberGroup.newFuture("update-status-file");
-        f.registerCallback((v, ex) -> directPool.release(buf));
+        f.registerCallback((v, ex) -> buffers.release(buf));
         try {
             writeToBuffer(properties, buf, crc32c);
 

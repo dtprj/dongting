@@ -113,7 +113,7 @@ public class PacketPbTest {
 
         DecodeContext decodeContext = CodecTestUtil.createContext();
         WorkerStatus workerStatus = new WorkerStatus(null, null,
-                null, decodeContext.heapPool, new Timestamp(), 1000);
+                decodeContext.buffers, new Timestamp(), 1000);
 
         SocketChannel sc = SocketChannel.open();
         sc.bind(new InetSocketAddress(19344));

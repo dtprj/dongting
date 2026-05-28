@@ -15,13 +15,13 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.Buffers;
 
 /**
  * @author huangli
  */
 public class EncodeContext {
-    private final RefBufferFactory heapPool;
+    public final Buffers buffers;
 
     public static final int STAGE_BEGIN = 0;
     public static final int STAGE_END = Integer.MAX_VALUE;
@@ -33,8 +33,8 @@ public class EncodeContext {
     private EncodeContext nested;
     private boolean nestedUse;
 
-    public EncodeContext(RefBufferFactory heapPool) {
-        this.heapPool = heapPool;
+    public EncodeContext(Buffers buffers) {
+        this.buffers = buffers;
     }
 
     public void reset() {
@@ -49,7 +49,7 @@ public class EncodeContext {
 
     public EncodeContext createOrGetNestedContext(boolean reset) {
         if (nested == null) {
-            nested = new EncodeContext(heapPool);
+            nested = new EncodeContext(buffers);
         }
         nestedUse = true;
         if (reset) {
@@ -58,8 +58,8 @@ public class EncodeContext {
         return nested;
     }
 
-    public RefBufferFactory getHeapPool() {
-        return heapPool;
+    public Buffers getBuffers() {
+        return buffers;
     }
 
 }

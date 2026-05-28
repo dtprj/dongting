@@ -69,7 +69,7 @@ public class AppendReqWritePacketTest {
         buf.clear();
 
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory, decodeContext.heapPool, decodeContext.threadLocalBuffer);
+        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory, decodeContext.buffers, decodeContext.threadLocalBuffer);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         AppendReq result = (AppendReq) p.parse(buf);
@@ -89,7 +89,7 @@ public class AppendReqWritePacketTest {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
         EncodeContext context = new EncodeContext(null);
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory, decodeContext.heapPool, decodeContext.threadLocalBuffer);
+        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory, decodeContext.buffers, decodeContext.threadLocalBuffer);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         Random r = new Random();

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -30,7 +30,7 @@ import java.util.function.BiFunction;
 public class DecodeContext {
     private static final DtLog log = DtLogs.getLogger(DecodeContext.class);
 
-    public final RefBufferFactory heapPool;
+    public final Buffers buffers;
     public final byte[] threadLocalBuffer;
 
     private PbParser nestedParser;
@@ -49,15 +49,15 @@ public class DecodeContext {
     private KvReq.KvReqCallback kvReqCallback;
 
     // replace in server side to create DecodeContextEx
-    public static BiFunction<RefBufferFactory, byte[], DecodeContext> factory = DecodeContext::new;
+    public static BiFunction<Buffers, byte[], DecodeContext> factory = DecodeContext::new;
 
-    protected DecodeContext(RefBufferFactory f, byte[] b) {
-        this.heapPool = f;
+    protected DecodeContext(Buffers f, byte[] b) {
+        this.buffers = f;
         this.threadLocalBuffer = b;
     }
 
     protected DecodeContext createNestedInstance() {
-        return new DecodeContext(heapPool, threadLocalBuffer);
+        return new DecodeContext(buffers, threadLocalBuffer);
     }
 
     public void reset(PbParser root) {
