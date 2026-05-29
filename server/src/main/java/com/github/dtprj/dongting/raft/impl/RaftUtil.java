@@ -57,10 +57,16 @@ public final class RaftUtil {
         }
         int oldPos = buf.position();
         int oldLimit = buf.limit();
-        buf.limit(startPos + len);
-        buf.position(startPos);
+        if (startPos + len != oldLimit) {
+            buf.limit(startPos + len);
+        }
+        if (startPos != oldPos) {
+            buf.position(startPos);
+        }
         crc32c.update(buf);
-        buf.limit(oldLimit);
+        if (startPos + len != oldLimit) {
+            buf.limit(oldLimit);
+        }
         buf.position(oldPos);
     }
 
@@ -103,16 +109,6 @@ public final class RaftUtil {
         obj.encode(c, buf);
         buf.flip();
         return RefBuffer.wrap(buf);
-    }
-
-    public static int calcCrc32c(RefBuffer buf) {
-        if (buf == null) {
-            return 0;
-        }
-        CRC32C c = new CRC32C(); // allocate in stack
-        ByteBuffer bb = buf.getBuffer();
-        updateCrc(c, bb, bb.position(), bb.remaining());
-        return (int) c.getValue();
     }
 
     public static void incrTerm(int remoteTerm, RaftStatusImpl raftStatus, int newLeaderId, String reason) {
