@@ -15,8 +15,10 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -136,7 +138,8 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
-        RaftReqData reqData = RaftReqData.build(LogHeader.TYPE_NORMAL, bizType, req);
+        Buffers buffers = DtThread.currentDtThread().buffers;
+        RaftReqData reqData = RaftReqData.build(buffers, LogHeader.TYPE_NORMAL, bizType, req);
         RaftTask rt = new RaftTask(reqData, null, req,
                 reqInfo.reqContext.getTimeout(), false, new RC(reqInfo));
         reqInfo.raftGroup.submitLinearTask(rt);

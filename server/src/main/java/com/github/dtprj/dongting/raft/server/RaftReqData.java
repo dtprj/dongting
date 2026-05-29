@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -85,6 +86,10 @@ public class RaftReqData extends RefCount {
     }
 
     public static RaftReqData build(int type, int bizType, Encodable bizBody) {
+        return build(null, type, bizType, bizBody);
+    }
+
+    public static RaftReqData build(Buffers buffers, int type, int bizType, Encodable bizBody) {
         if (bizBody == null) {
             return build(type, bizType);
         }
@@ -99,21 +104,29 @@ public class RaftReqData extends RefCount {
         logHeader.bodyLen = bodyLen;
         logHeader.totalLen = totalLen;
 
-        ByteBuffer buf = ByteBuffer.allocate(totalLen);
+        ByteBuffer buf;
+        RefBuffer refBuffer = null;
+        if (buffers == null) {
+            buf = ByteBuffer.allocate(totalLen);
+        } else {
+            refBuffer = buffers.borrowRefBuffer(totalLen);
+            buf = refBuffer.getBuffer();
+        }
         buf.position(LogHeader.ITEM_HEADER_SIZE);
-        int dataStart = LogHeader.ITEM_HEADER_SIZE;
         EncodeContext c = new EncodeContext(null);
         boolean finished = bizBody.encode(c, buf);
         if (!finished) {
             throw new IllegalStateException("encode not finished, actualSize=" + bodyLen);
         }
-        buf.position(dataStart + bodyLen);
+        buf.position(LogHeader.ITEM_HEADER_SIZE + bodyLen);
         CRC32C crc = new CRC32C();
-        RaftUtil.updateCrc(crc, buf, dataStart, bodyLen);
+        RaftUtil.updateCrc(crc, buf, LogHeader.ITEM_HEADER_SIZE, bodyLen);
         buf.putInt((int) crc.getValue());
 
         buf.flip();
-        RefBuffer refBuffer = RefBuffer.wrap(buf);
+        if (buffers == null) {
+            refBuffer = RefBuffer.wrap(buf);
+        }
         refBuffer.prepareForEncode();
         return new RaftReqData(logHeader, refBuffer);
     }
