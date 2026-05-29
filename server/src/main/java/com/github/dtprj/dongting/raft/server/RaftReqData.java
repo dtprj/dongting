@@ -118,14 +118,6 @@ public class RaftReqData extends RefCount {
         return new RaftReqData(logHeader, refBuffer);
     }
 
-    public static RaftReqData build(int type, int bizType, byte[] bizBody) {
-        if (bizBody == null) {
-            return build(type, bizType);
-        }
-        RefBuffer refBuffer = RefBuffer.wrap(ByteBuffer.wrap(bizBody));
-        return build(type, bizType, refBuffer);
-    }
-
     @Override
     protected void doClean() {
         if (buffer != null) {

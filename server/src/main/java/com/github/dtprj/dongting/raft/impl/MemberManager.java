@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.VersionFactory;
@@ -479,7 +480,8 @@ public class MemberManager {
                 f.completeExceptionally(ex);
             }
         };
-        RaftReqData reqData = data == null ? RaftReqData.build(type, 0) : RaftReqData.build(type, 0, data);
+        ByteArray ba = data == null ? null : new ByteArray(data);
+        RaftReqData reqData = RaftReqData.build(type, 0, ba);
         RaftTask task = new RaftTask(reqData, null, data, null, false, c);
         // use runner fiber to execute to avoid race condition
         gc.linearTaskRunner.submitRaftTaskInBizThread(task);
