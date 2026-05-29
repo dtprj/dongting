@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.common;
 
 import com.github.dtprj.dongting.buf.Buffers;
-import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 
 /**
@@ -27,13 +26,11 @@ public class DtThread extends Thread {
     
     public final byte[] threadLocalBuffer = new byte[THREAD_LOCAL_BUFFER_SIZE];
 
-    public final DecodeContext decodeContext;
     public final PbParser parser = new PbParser();
     public final Buffers buffers;
     
     protected DtThread(Runnable r, String name, Buffers pool) {
         super(r, name);
-        this.decodeContext = DecodeContext.factory.apply(pool, threadLocalBuffer);
         this.buffers = pool;
     }
     
