@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.store.LogHeader;
@@ -30,6 +31,8 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 public class RaftReqData extends RefCount {
+    private static final int ENCODE_CHUNK_SIZE = 8192;
+
     public final RefBuffer buffer;
     public final LogHeader logHeader;
     public final int totalLen;
@@ -112,17 +115,35 @@ public class RaftReqData extends RefCount {
             refBuffer = buffers.borrowRefBuffer(totalLen);
             buf = refBuffer.getBuffer();
         }
-        buf.position(LogHeader.ITEM_HEADER_SIZE);
+        int bodyStart = LogHeader.ITEM_HEADER_SIZE;
+        int bodyEnd = bodyStart + bodyLen;
+        buf.position(bodyStart);
         EncodeContext c = new EncodeContext(null);
-        boolean finished = bizBody.encode(c, buf);
-        if (!finished) {
-            throw new IllegalStateException("encode not finished, actualSize=" + bodyLen);
-        }
-        buf.position(LogHeader.ITEM_HEADER_SIZE + bodyLen);
         CRC32C crc = new CRC32C();
-        RaftUtil.updateCrc(crc, buf, LogHeader.ITEM_HEADER_SIZE, bodyLen);
+        int chunkStart = bodyStart;
+        while (true) {
+            int chunkEnd = chunkStart + ENCODE_CHUNK_SIZE;
+            buf.limit(Math.min(chunkEnd, bodyEnd));
+            boolean finished = bizBody.encode(c, buf);
+            int pos = buf.position();
+            RaftUtil.updateCrc(crc, buf, chunkStart, pos - chunkStart);
+            if (finished) {
+                if (pos != bodyEnd) {
+                    throw new DtBugException("encode finished at wrong position: " + pos);
+                }
+                break;
+            } else {
+                if (pos >= bodyEnd) {
+                    throw new DtBugException("encode not finished at expected position: " + bodyEnd);
+                }
+                if (chunkEnd >= bodyEnd) {
+                    throw new DtBugException("encode not finished when dest buffer has enough space");
+                }
+            }
+            chunkStart = pos;
+        }
+        buf.limit(totalLen);
         buf.putInt((int) crc.getValue());
-
         buf.flip();
         if (buffers == null) {
             refBuffer = RefBuffer.wrap(buf);
