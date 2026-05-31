@@ -19,6 +19,8 @@ package com.github.dtprj.dongting.raft.server;
  * @author huangli
  */
 public class RaftServerConfig {
+    public static final int ENCODE_CHUNK_SIZE = 8192;
+
     public String servers;
     // internal use for raft log replication (server to server), and admin commands
     public int replicatePort;

@@ -31,7 +31,6 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 public class RaftReqData extends RefCount {
-    private static final int ENCODE_CHUNK_SIZE = 8192;
 
     public final RefBuffer buffer;
     public final LogHeader logHeader;
@@ -122,7 +121,7 @@ public class RaftReqData extends RefCount {
         CRC32C crc = new CRC32C();
         int chunkStart = bodyStart;
         while (true) {
-            int chunkEnd = chunkStart + ENCODE_CHUNK_SIZE;
+            int chunkEnd = chunkStart + RaftServerConfig.ENCODE_CHUNK_SIZE;
             buf.limit(Math.min(chunkEnd, bodyEnd));
             boolean finished = bizBody.encode(c, buf);
             int pos = buf.position();

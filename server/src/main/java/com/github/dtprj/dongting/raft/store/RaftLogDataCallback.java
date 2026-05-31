@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.nio.ByteBuffer;
 import java.util.function.Consumer;
@@ -160,22 +161,29 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
         if (parsedBytes == 0) {
             crc.reset();
         }
-        int oldDestPos = fullBuffer.position();
-        int needRead = bizHeader ? header.bizHeaderLen - parsedBytes : header.bodyLen - parsedBytes;
-        if (remaining < needRead) {
+        int total = bizHeader ? header.bizHeaderLen : header.bodyLen;
+        int needRead = total - parsedBytes;
+        int toRead = Math.min(remaining, needRead);
+
+        int oldLimit = buffer.limit();
+        while (toRead > 0) {
+            int chunkSize = Math.min(toRead, RaftServerConfig.ENCODE_CHUNK_SIZE);
+            int oldDestPos = fullBuffer.position();
+
+            buffer.limit(buffer.position() + chunkSize);
             fullBuffer.put(buffer);
-            parsedBytes += remaining;
-            RaftUtil.updateCrc(crc, fullBuffer, oldDestPos, remaining);
-            return false;
-        } else {
-            int oldLimit = buffer.limit();
-            buffer.limit(buffer.position() + needRead);
-            fullBuffer.put(buffer);
-            buffer.limit(oldLimit);
+
+            RaftUtil.updateCrc(crc, fullBuffer, oldDestPos, chunkSize);
+            parsedBytes += chunkSize;
+            toRead -= chunkSize;
+        }
+        buffer.limit(oldLimit);
+
+        if (parsedBytes >= total) {
             parsedBytes = 0;
-            RaftUtil.updateCrc(crc, fullBuffer, oldDestPos, needRead);
             return true;
         }
+        return false;
     }
 
     private boolean parseCrc(int remaining, ByteBuffer buffer) {
