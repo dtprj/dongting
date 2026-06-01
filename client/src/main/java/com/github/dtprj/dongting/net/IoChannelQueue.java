@@ -170,7 +170,7 @@ class IoChannelQueue {
             return null;
         }
 
-        ByteBuffer buf = alloc();
+        ByteBuffer buf = alloc(roundTime);
 
         try {
             encodePacketsToBuffer(buf, subQueue, roundTime);
@@ -190,7 +190,7 @@ class IoChannelQueue {
         }
     }
 
-    private ByteBuffer alloc() {
+    private ByteBuffer alloc(Timestamp roundTime) {
         // not accurate
         // can't invoke actualSize() here because seq and timeout field is not set yet
         int totalSize = 0;
@@ -206,13 +206,16 @@ class IoChannelQueue {
             }
         }
         for (int size = subQueue.size(), i = 0; i < size; i++) {
-            totalSize += subQueue.get(i).packet.calcMaxPacketSize();
+            PacketInfo pi = subQueue.get(i);
+            if (pi.timeout.deadlineNanos - roundTime.nanoTime <= 0) {//keep same with encode method
+                continue;
+            }
+            totalSize += pi.packet.calcMaxPacketSize();
             if (totalSize > MAX_BUFFER_SIZE) {
                 return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
             }
         }
         if (totalSize <= 0) {
-            BugLog.log("totalSize is {}", totalSize);
             return workerStatus.buffers.borrowDirect(128);
         }
         return workerStatus.buffers.borrowDirect(totalSize);
