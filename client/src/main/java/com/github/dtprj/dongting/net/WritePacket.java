@@ -114,24 +114,10 @@ public abstract class WritePacket extends Packet implements Encodable {
     public final boolean encode(EncodeContext context, ByteBuffer buf) {
         int step = context.stage;
         if (step == STATUS_INIT) {
-            int totalSize = actualSize();
-            int headerSize = totalSize - actualBodySize();
-            if (buf.remaining() < headerSize) {
+            if (buf.remaining() < actualSize() - actualBodySize()) {
                 return false;
             } else {
-                buf.putInt(totalSize - 4); //not include total length
-                PbUtil.writeInt32Field(buf, IDX_TYPE, packetType);
-                PbUtil.writeInt32Field(buf, IDX_COMMAND, command);
-                PbUtil.writeFix32Field(buf, IDX_SEQ, seq);
-                PbUtil.writeInt32Field(buf, IDX_RESP_CODE, respCode);
-                PbUtil.writeInt32Field(buf, IDX_BIZ_CODE, bizCode);
-                PbUtil.writeBytesField(buf, IDX_MSG, getMsgBytes());
-                PbUtil.writeFix64Field(buf, IDX_TIMEOUT, timeout);
-                PbUtil.writeBytesField(buf, IDX_EXTRA, extra);
-                PbUtil.writeInt32Field(buf, IDX_GROUP_ID, groupId);
-                if (bodySize > 0) {
-                    PbUtil.writeLenFieldPrefix(buf, Packet.IDX_BODY, bodySize);
-                }
+                writeHeader(buf);
                 step = STATUS_HEADER_ENCODE_FINISHED;
             }
         }
@@ -165,6 +151,22 @@ public abstract class WritePacket extends Packet implements Encodable {
         return finish;
     }
 
+    public final void writeHeader(ByteBuffer buf) {
+        buf.putInt(actualSize() - 4); //not include self
+        PbUtil.writeInt32Field(buf, IDX_TYPE, packetType);
+        PbUtil.writeInt32Field(buf, IDX_COMMAND, command);
+        PbUtil.writeFix32Field(buf, IDX_SEQ, seq);
+        PbUtil.writeInt32Field(buf, IDX_RESP_CODE, respCode);
+        PbUtil.writeInt32Field(buf, IDX_BIZ_CODE, bizCode);
+        PbUtil.writeBytesField(buf, IDX_MSG, getMsgBytes());
+        PbUtil.writeFix64Field(buf, IDX_TIMEOUT, timeout);
+        PbUtil.writeBytesField(buf, IDX_EXTRA, extra);
+        PbUtil.writeInt32Field(buf, IDX_GROUP_ID, groupId);
+        if (bodySize > 0) {
+            PbUtil.writeLenFieldPrefix(buf, Packet.IDX_BODY, bodySize);
+        }
+    }
+
     /**
      * may be called in io thread (or other thread).
      */
@@ -178,6 +180,20 @@ public abstract class WritePacket extends Packet implements Encodable {
 
     public boolean canRetry() {
         return false;
+    }
+
+    public boolean isPreEncoded() {
+        return false;
+    }
+
+    /**
+     * Returns the pre-encoded body buffer for zero-copy write.
+     * The framework ensures this buffer is not used after {@link #doClean()} is called.
+     *
+     * @return the pre-encoded body buffer, or null if not pre-encoded
+     */
+    public ByteBuffer getPreEncodedBuffer() {
+        return null;
     }
 
 }

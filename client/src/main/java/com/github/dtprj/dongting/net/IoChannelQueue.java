@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,7 +49,12 @@ class IoChannelQueue {
     private SelectionKey selectionKey;
 
     private ByteBuffer writeBuffer;
+    private final ArrayList<ByteBuffer> writeBufList = new ArrayList<>();
+    private ByteBuffer[] gatheringWriteArray;
+    private int bytesToWrite;
     private int packetsInBuffer;
+
+    private final ArrayList<WritePacket> pendingCleanPackets = new ArrayList<>();
 
     private final IndexedQueue<PacketInfo> subQueue = new IndexedQueue<>(8);
     private PacketInfoReq oneWayCallback;
@@ -100,8 +106,12 @@ class IoChannelQueue {
     }
 
     public void cleanChannelQueue() {
+        this.writeBufList.clear();
+        this.bytesToWrite = 0;
+        cleanPendingPackets();
         if (packetsInBuffer > 0) {
             workerStatus.addPacketsToWrite(-packetsInBuffer);
+            packetsInBuffer = 0;
         }
         if (this.writeBuffer != null) {
             workerStatus.buffers.release(this.writeBuffer);
@@ -120,12 +130,33 @@ class IoChannelQueue {
         cleanOneWayCallbacks(new NetException("channel closed, cancel oneway request still in IoChannelQueue."));
     }
 
+    private void cleanPendingPackets() {
+        if (!pendingCleanPackets.isEmpty()) {
+            for (WritePacket wp : pendingCleanPackets) {
+                wp.clean();
+            }
+            pendingCleanPackets.clear();
+        }
+    }
+
     private void afterWrite(int bytes) {
-        if (writeBuffer.remaining() > 0) {
+        bytesToWrite -= bytes;
+        if (bytesToWrite < 0) {
+            BugLog.log("bytesToWrite is negative: {}", bytesToWrite);
+            bytesToWrite = 0;
+        }
+        if (bytesToWrite > 0) {
             return;
         }
 
-        // current buffer write finished
+        // all data fully written
+        if (!writeBufList.isEmpty()) {
+            for (int size = writeBufList.size(), i = 0; i < size; i++) {
+                gatheringWriteArray[i] = null;
+            }
+            writeBufList.clear();
+        }
+        cleanPendingPackets();
         workerStatus.addPacketsToWrite(-packetsInBuffer);
         workerStatus.buffers.release(writeBuffer);
         this.writeBuffer = null;
@@ -154,20 +185,26 @@ class IoChannelQueue {
         }
     }
 
-    public ByteBuffer prepareWriteBuffer(Timestamp roundTime) {
+    public boolean prepareWriteBuffer(Timestamp roundTime) {
+        // writeBufList still has unwritten segments
+        if (!writeBufList.isEmpty()) {
+            return true;
+        }
+
         if (writeBuffer != null) {
             if (writeBuffer.remaining() > 0) {
-                return writeBuffer;
+                return true;
             } else {
                 BugLog.log("writeBuffer is not null but remaining is 0");
                 workerStatus.buffers.release(writeBuffer);
                 this.writeBuffer = null;
             }
         }
+
         IndexedQueue<PacketInfo> subQueue = this.subQueue;
         if (subQueue.size() == 0 && lastPacketInfo == null) {
             // no packet to write
-            return null;
+            return false;
         }
 
         ByteBuffer buf = alloc(roundTime);
@@ -181,12 +218,22 @@ class IoChannelQueue {
             throw e;
         }
         buf.flip();
-        if (buf.remaining() == 0) {
-            workerStatus.buffers.release(buf);
-            return null;
+
+        if (writeBufList.isEmpty()) {
+            if (buf.remaining() == 0) {
+                workerStatus.buffers.release(buf);
+                return false;
+            }
+            this.writeBuffer = buf;
+            bytesToWrite = buf.remaining();
+            return true;
         } else {
             this.writeBuffer = buf;
-            return buf;
+            bytesToWrite = 0;
+            for (int size = writeBufList.size(), i = 0; i < size; i++) {
+                bytesToWrite += writeBufList.get(i).remaining();
+            }
+            return true;
         }
     }
 
@@ -195,9 +242,10 @@ class IoChannelQueue {
         // can't invoke actualSize() here because seq and timeout field is not set yet
         int totalSize = 0;
         if (lastPacketInfo != null) {
-            int rest = lastPacketInfo.packet.calcMaxPacketSize() - lastPacketInfo.encodedBytes;
+            WritePacket lastPacket = lastPacketInfo.packet;
+            int rest = lastPacket.calcMaxPacketSize() - lastPacketInfo.encodedBytes;
             if (rest <= 0) {
-                BugLog.log("rest is {}, packetClass={}", rest, lastPacketInfo.packet.getClass().getName());
+                BugLog.log("rest is {}, packetClass={}", rest, lastPacket.getClass().getName());
                 return workerStatus.buffers.borrowDirect(128);
             }
             totalSize += rest;
@@ -210,9 +258,19 @@ class IoChannelQueue {
             if (pi.timeout.deadlineNanos - roundTime.nanoTime <= 0) {//keep same with encode method
                 continue;
             }
-            totalSize += pi.packet.calcMaxPacketSize();
-            if (totalSize > MAX_BUFFER_SIZE) {
-                return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
+            if (pi.packet.isPreEncoded()) {
+                // use calcMaxPacketSize() instead of actualSize(), because seq/timeout are not set yet
+                // only header is written to writeBuffer, body goes to writeBufList via gathering write
+                totalSize += pi.packet.calcMaxPacketSize() - pi.packet.actualBodySize();
+                if (totalSize >= MAX_BUFFER_SIZE) {
+                    break;
+                }
+            } else {
+                totalSize += pi.packet.calcMaxPacketSize();
+                // only normal packet may be "truncated"
+                if (totalSize >= MAX_BUFFER_SIZE) {
+                    return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
+                }
             }
         }
         if (totalSize <= 0) {
@@ -222,6 +280,8 @@ class IoChannelQueue {
     }
 
     private void encodePacketsToBuffer(ByteBuffer buf, IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {
+        int lastSlicePos = 0;
+        writeBufList.clear();
         PacketInfo pi = this.lastPacketInfo;
         try {
             while (subQueue.size() > 0 || pi != null) {
@@ -245,23 +305,62 @@ class IoChannelQueue {
                         pi = null;
                         throw ex;
                     }
+                    // ensure writeBufList covers all encoded data in writeBuffer
+                    if (!writeBufList.isEmpty()) {
+                        sliceBuf(buf, lastSlicePos, writeBufList);
+                    }
                     return;
                 }
+                boolean isPreEncoded = false;
+                ByteBuffer preEncodedBuf = null;
                 try {
                     if (encodeResult == ENCODE_FINISH) {
                         handleEncodeFinish(pi);
+                        isPreEncoded = pi.packet.isPreEncoded();
+                        if (isPreEncoded) {
+                            preEncodedBuf = pi.packet.getPreEncodedBuffer();
+                            pendingCleanPackets.add(pi.packet);
+                        } else {
+                            pi.packet.clean();
+                        }
                     } else {
                         handleEncodeCancel(pi);
+                        pi.packet.clean();
                     }
-                    pi.packet.clean();
                 } finally {
                     encodeContext.reset();
                     pi = null;
+                }
+                if (isPreEncoded) {
+                    // slice writeBuffer data before the preEncoded body
+                    sliceBuf(buf, lastSlicePos, writeBufList);
+                    // add preEncoded body buffer
+                    if (preEncodedBuf != null) {
+                        writeBufList.add(preEncodedBuf);
+                    }
+                    lastSlicePos = buf.position();
                 }
             }
         } finally {
             this.lastPacketInfo = pi;
         }
+        // slice the last segment if there was any preEncoded packet
+        if (lastSlicePos > 0) {
+            sliceBuf(buf, lastSlicePos, writeBufList);
+        }
+    }
+
+    private static void sliceBuf(ByteBuffer buf, int from, ArrayList<ByteBuffer> list) {
+        int pos = buf.position();
+        if (from >= pos) {
+            return;
+        }
+        int oldLimit = buf.limit();
+        buf.position(from);
+        buf.limit(pos);
+        list.add(buf.slice());
+        buf.limit(oldLimit);
+        buf.position(pos);
     }
 
     private void handleEncodeFinish(PacketInfo pi) {
@@ -316,15 +415,28 @@ class IoChannelQueue {
 
     private int doEncode(ByteBuffer buf, PacketInfo pi) {
         WritePacket wf = pi.packet;
+        if (wf.isPreEncoded()) {
+            wf.writeHeader(buf);
+            return ENCODE_FINISH;
+        }
         return wf.encode(encodeContext, buf) ? ENCODE_FINISH : ENCODE_NOT_FINISH;
     }
 
     public void processWriteEvent(SocketChannel sc, SelectionKey key, Timestamp roundTime) throws IOException {
-        ByteBuffer buf = prepareWriteBuffer(roundTime);
-        if (buf != null) {
+        if (prepareWriteBuffer(roundTime)) {
             writing = true;
             long startTime = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_WRITE, roundTime);
-            int bytes = sc.write(buf);
+            int bytes;
+            if (!writeBufList.isEmpty()) {
+                int listSize = writeBufList.size();
+                if (gatheringWriteArray == null || gatheringWriteArray.length < listSize) {
+                    gatheringWriteArray = new ByteBuffer[Math.max(listSize, 8)];
+                }
+                writeBufList.toArray(gatheringWriteArray);
+                bytes = (int) sc.write(gatheringWriteArray, 0, listSize);
+            } else {
+                bytes = sc.write(writeBuffer);
+            }
             perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_WRITE, startTime, 1, bytes, roundTime);
             afterWrite(bytes);
         } else {
