@@ -26,8 +26,10 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
+import java.nio.channels.SocketChannel;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -118,7 +120,7 @@ class IoChannelQueue {
         cleanOneWayCallbacks(new NetException("channel closed, cancel oneway request still in IoChannelQueue."));
     }
 
-    void afterWrite(int bytes) {
+    private void afterWrite(int bytes) {
         if (writeBuffer.remaining() > 0) {
             return;
         }
@@ -314,7 +316,19 @@ class IoChannelQueue {
         return wf.encode(encodeContext, buf) ? ENCODE_FINISH : ENCODE_NOT_FINISH;
     }
 
-    public void setWriting(boolean writing) {
-        this.writing = writing;
+    public void processWriteEvent(SocketChannel sc, SelectionKey key, Timestamp roundTime) throws IOException {
+        ByteBuffer buf = prepareWriteBuffer(roundTime);
+        if (buf != null) {
+            writing = true;
+            long startTime = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_WRITE, roundTime);
+            int bytes = sc.write(buf);
+            perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_WRITE, startTime, 1, bytes, roundTime);
+            afterWrite(bytes);
+        } else {
+            // no data to write
+            writing = false;
+            key.interestOps(SelectionKey.OP_READ);
+            perfCallback.fire(PerfConsts.RPC_C_MARK_READ);
+        }
     }
 }

@@ -336,20 +336,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             stage = "process socket write";
             if (key.isWritable()) {
-                IoChannelQueue subQueue = dtc.subQueue;
-                ByteBuffer buf = subQueue.prepareWriteBuffer(roundTime);
-                if (buf != null) {
-                    subQueue.setWriting(true);
-                    long startTime = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_WRITE, roundTime);
-                    int bytes = sc.write(buf);
-                    perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_WRITE, startTime, 1, bytes, roundTime);
-                    subQueue.afterWrite(bytes);
-                } else {
-                    // no data to write
-                    subQueue.setWriting(false);
-                    key.interestOps(SelectionKey.OP_READ);
-                    perfCallback.fire(PerfConsts.RPC_C_MARK_READ);
-                }
+                dtc.subQueue.processWriteEvent(sc, key, roundTime);
             }
         } catch (NetException | IOException e) {
             log.warn("{} error, channel will close: {}", stage, e.toString());
