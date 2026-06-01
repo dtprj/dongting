@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.common.DtCleanable;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +26,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public abstract class WritePacket extends Packet implements Encodable, DtCleanable {
+public abstract class WritePacket extends Packet implements Encodable {
 
     static final int STATUS_INIT = 0;
     private static final int STATUS_HEADER_ENCODE_FINISHED = 1;
