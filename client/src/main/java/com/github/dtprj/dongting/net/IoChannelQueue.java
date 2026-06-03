@@ -113,10 +113,7 @@ class IoChannelQueue {
             workerStatus.addPacketsToWrite(-packetsInBuffer);
             packetsInBuffer = 0;
         }
-        if (this.writeBuffer != null) {
-            workerStatus.buffers.release(this.writeBuffer);
-            this.writeBuffer = null;
-        }
+        releaseWriteBuffer();
 
         if (lastPacketInfo != null) {
             workerStatus.addPacketsToWrite(-1);
@@ -158,8 +155,7 @@ class IoChannelQueue {
         }
         cleanPendingPackets();
         workerStatus.addPacketsToWrite(-packetsInBuffer);
-        workerStatus.buffers.release(writeBuffer);
-        this.writeBuffer = null;
+        releaseWriteBuffer();
         packetsInBuffer = 0;
         cleanOneWayCallbacks(null);
     }
@@ -196,8 +192,7 @@ class IoChannelQueue {
                 return true;
             } else {
                 BugLog.log("writeBuffer is not null but remaining is 0");
-                workerStatus.buffers.release(writeBuffer);
-                this.writeBuffer = null;
+                releaseWriteBuffer();
             }
         }
 
@@ -207,34 +202,31 @@ class IoChannelQueue {
             return false;
         }
 
-        ByteBuffer buf = alloc(roundTime);
+        writeBuffer = alloc(roundTime);
 
         try {
-            encodePacketsToBuffer(buf, subQueue, roundTime);
+            encodePacketsToBuffer(subQueue, roundTime);
         } catch (RuntimeException | Error e) {
             encodeContext.reset();
             // channel will be closed, and cleanChannelQueue will be called
-            workerStatus.buffers.release(buf);
+            releaseWriteBuffer();
             throw e;
         }
-        buf.flip();
+        writeBuffer.flip();
 
         if (writeBufList.isEmpty()) {
-            if (buf.remaining() == 0) {
-                workerStatus.buffers.release(buf);
+            if (writeBuffer.remaining() == 0) {
+                releaseWriteBuffer();
                 return false;
             }
-            this.writeBuffer = buf;
-            bytesToWrite = buf.remaining();
-            return true;
+            bytesToWrite = writeBuffer.remaining();
         } else {
-            this.writeBuffer = buf;
             bytesToWrite = 0;
             for (int size = writeBufList.size(), i = 0; i < size; i++) {
                 bytesToWrite += writeBufList.get(i).remaining();
             }
-            return true;
         }
+        return true;
     }
 
     private ByteBuffer alloc(Timestamp roundTime) {
@@ -279,7 +271,8 @@ class IoChannelQueue {
         return workerStatus.buffers.borrowDirect(totalSize);
     }
 
-    private void encodePacketsToBuffer(ByteBuffer buf, IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {
+    private void encodePacketsToBuffer(IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {
+        ByteBuffer buf = writeBuffer;
         int lastSlicePos = 0;
         writeBufList.clear();
         PacketInfo pi = this.lastPacketInfo;
@@ -444,6 +437,13 @@ class IoChannelQueue {
             writing = false;
             key.interestOps(SelectionKey.OP_READ);
             perfCallback.fire(PerfConsts.RPC_C_MARK_READ);
+        }
+    }
+
+    private void releaseWriteBuffer() {
+        if (writeBuffer != null) {
+            workerStatus.buffers.release(writeBuffer);
+            writeBuffer = null;
         }
     }
 }
