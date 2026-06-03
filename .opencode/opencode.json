@@ -4,7 +4,8 @@
     "IntelliJ-IDEA": {
       "enabled": true,
       "type": "remote",
-      "url": "http://localhost:64342/sse"
+      "url": "http://127.0.0.1:64342/stream",
+      "headers": {}
     },
     "MiniMax": {
       "enabled": false
