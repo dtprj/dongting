@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
@@ -202,24 +203,25 @@ class IoChannelQueue {
             return false;
         }
 
-        writeBuffer = alloc(roundTime);
+        ByteBuffer buf = alloc(roundTime);
+        this.writeBuffer = buf;
 
         try {
-            encodePacketsToBuffer(subQueue, roundTime);
+            encodePacketsToBuffer(buf, subQueue, roundTime);
         } catch (RuntimeException | Error e) {
             encodeContext.reset();
             // channel will be closed, and cleanChannelQueue will be called
             releaseWriteBuffer();
             throw e;
         }
-        writeBuffer.flip();
+        buf.flip();
 
         if (writeBufList.isEmpty()) {
-            if (writeBuffer.remaining() == 0) {
+            if (buf.remaining() == 0) {
                 releaseWriteBuffer();
                 return false;
             }
-            bytesToWrite = writeBuffer.remaining();
+            bytesToWrite = buf.remaining();
         } else {
             bytesToWrite = 0;
             for (int size = writeBufList.size(), i = 0; i < size; i++) {
@@ -238,7 +240,7 @@ class IoChannelQueue {
             int rest = lastPacket.calcMaxPacketSize() - lastPacketInfo.encodedBytes;
             if (rest <= 0) {
                 BugLog.log("rest is {}, packetClass={}", rest, lastPacket.getClass().getName());
-                return workerStatus.buffers.borrowDirect(128);
+                return SimpleByteBufferPool.EMPTY_BUFFER;
             }
             totalSize += rest;
             if (totalSize > MAX_BUFFER_SIZE) {
@@ -266,13 +268,14 @@ class IoChannelQueue {
             }
         }
         if (totalSize <= 0) {
-            return workerStatus.buffers.borrowDirect(128);
+            // all packet timeout, not bug
+            log.info("total size is {}", totalSize);
+            return SimpleByteBufferPool.EMPTY_BUFFER;
         }
         return workerStatus.buffers.borrowDirect(totalSize);
     }
 
-    private void encodePacketsToBuffer(IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {
-        ByteBuffer buf = writeBuffer;
+    private void encodePacketsToBuffer(ByteBuffer buf, IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {
         int lastSlicePos = 0;
         writeBufList.clear();
         PacketInfo pi = this.lastPacketInfo;
@@ -441,8 +444,11 @@ class IoChannelQueue {
     }
 
     private void releaseWriteBuffer() {
-        if (writeBuffer != null) {
-            workerStatus.buffers.release(writeBuffer);
+        ByteBuffer bb = this.writeBuffer;
+        if (bb != null) {
+            if (bb.capacity() > 0) {
+                workerStatus.buffers.release(bb);
+            }
             writeBuffer = null;
         }
     }
