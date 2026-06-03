@@ -45,13 +45,15 @@ class IoChannelQueue {
     private static final int ENCODE_CANCEL = 3;
 
     private static final int MAX_BUFFER_SIZE = 256 * 1024;
+    private static final int MAX_GATHER_SIZE = 64;
     private final WorkerStatus workerStatus;
     private final DtChannelImpl dtc;
     private SelectionKey selectionKey;
 
     private ByteBuffer writeBuffer;
     private final ArrayList<ByteBuffer> writeBufList = new ArrayList<>();
-    private ByteBuffer[] gatheringWriteArray;
+    private ByteBuffer[] gatheringBufferCache;
+    private int gatheringBufferCacheOffset = -1;
     private int bytesToWrite;
     private int packetsInBuffer;
 
@@ -106,8 +108,10 @@ class IoChannelQueue {
         workerStatus.addPacketsToWrite(1);
     }
 
+    // called when channel is closing
     public void cleanChannelQueue() {
         this.writeBufList.clear();
+        this.gatheringBufferCacheOffset = -1;
         this.bytesToWrite = 0;
         cleanPendingPackets();
         if (packetsInBuffer > 0) {
@@ -150,9 +154,10 @@ class IoChannelQueue {
         // all data fully written
         if (!writeBufList.isEmpty()) {
             for (int size = writeBufList.size(), i = 0; i < size; i++) {
-                gatheringWriteArray[i] = null;
+                gatheringBufferCache[i] = null;
             }
             writeBufList.clear();
+            gatheringBufferCacheOffset = -1;
         }
         cleanPendingPackets();
         workerStatus.addPacketsToWrite(-packetsInBuffer);
@@ -425,11 +430,32 @@ class IoChannelQueue {
             int bytes;
             if (!writeBufList.isEmpty()) {
                 int listSize = writeBufList.size();
-                if (gatheringWriteArray == null || gatheringWriteArray.length < listSize) {
-                    gatheringWriteArray = new ByteBuffer[Math.max(listSize, 8)];
+                int offset = gatheringBufferCacheOffset;
+                ByteBuffer[] arr = this.gatheringBufferCache;
+                if (offset < 0) {
+                    if (arr == null || arr.length < listSize) {
+                        arr = new ByteBuffer[Math.max(listSize, 8)];
+                        this.gatheringBufferCache = arr;
+                    }
+                    writeBufList.toArray(arr);
+                    offset = 0;
                 }
-                writeBufList.toArray(gatheringWriteArray);
-                bytes = (int) sc.write(gatheringWriteArray, 0, listSize);
+                bytes = 0;
+                WRITE_LOOP:
+                while (offset < listSize) {
+                    // split into multiple calls because gathering write may has limit (jdk11 not split internally)
+                    int batchSize = Math.min(MAX_GATHER_SIZE, listSize - offset);
+                    int written = (int) sc.write(arr, offset, batchSize);
+                    bytes += written;
+                    for (int i = offset, limit = offset + batchSize; i < limit; i++) {
+                        if (arr[i].remaining() > 0) {
+                            offset = i;
+                            break WRITE_LOOP;
+                        }
+                    }
+                    offset += batchSize;
+                }
+                gatheringBufferCacheOffset = offset;
             } else {
                 bytes = sc.write(writeBuffer);
             }
