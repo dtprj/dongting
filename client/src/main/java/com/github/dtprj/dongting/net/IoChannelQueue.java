@@ -141,31 +141,6 @@ class IoChannelQueue {
         }
     }
 
-    private void afterWrite(int bytes) {
-        bytesToWrite -= bytes;
-        if (bytesToWrite < 0) {
-            BugLog.log("bytesToWrite is negative: {}", bytesToWrite);
-            bytesToWrite = 0;
-        }
-        if (bytesToWrite > 0) {
-            return;
-        }
-
-        // all data fully written
-        if (!writeBufList.isEmpty()) {
-            for (int size = writeBufList.size(), i = 0; i < size; i++) {
-                gatheringBufferCache[i] = null;
-            }
-            writeBufList.clear();
-            gatheringBufferCacheOffset = -1;
-        }
-        cleanPendingPackets();
-        workerStatus.addPacketsToWrite(-packetsInBuffer);
-        releaseWriteBuffer();
-        packetsInBuffer = 0;
-        cleanOneWayCallbacks(null);
-    }
-
     private void cleanOneWayCallbacks(Throwable ex) {
         if (oneWayCallback != null) {
             finishOneWayCallback(oneWayCallback, ex);
@@ -460,7 +435,29 @@ class IoChannelQueue {
                 bytes = sc.write(writeBuffer);
             }
             perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_WRITE, startTime, 1, bytes, roundTime);
-            afterWrite(bytes);
+
+            bytesToWrite -= bytes;
+            if (bytesToWrite < 0) {
+                BugLog.log("bytesToWrite is negative: {}", bytesToWrite);
+                bytesToWrite = 0;
+            }
+            if (bytesToWrite > 0) {
+                return;
+            }
+
+            // all data fully written
+            if (!writeBufList.isEmpty()) {
+                for (int size = writeBufList.size(), i = 0; i < size; i++) {
+                    gatheringBufferCache[i] = null;
+                }
+                writeBufList.clear();
+                gatheringBufferCacheOffset = -1;
+            }
+            cleanPendingPackets();
+            workerStatus.addPacketsToWrite(-packetsInBuffer);
+            releaseWriteBuffer();
+            packetsInBuffer = 0;
+            cleanOneWayCallbacks(null);
         } else {
             // no data to write
             writing = false;
