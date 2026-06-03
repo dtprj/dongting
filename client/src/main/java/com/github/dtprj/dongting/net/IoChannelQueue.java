@@ -81,12 +81,12 @@ class IoChannelQueue {
     }
 
     private void callFail(PacketInfo pi, boolean callClean, Throwable ex) {
-        if (callClean) {
-            pi.packet.clean();
-        }
         if (pi instanceof PacketInfoReq) {
             PacketInfoReq req = (PacketInfoReq) pi;
             req.callFail(ex);
+        }
+        if (callClean) {
+            pi.packet.clean();
         }
     }
 
@@ -123,6 +123,7 @@ class IoChannelQueue {
         if (lastPacketInfo != null) {
             workerStatus.addPacketsToWrite(-1);
             callFail(lastPacketInfo, true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
+            lastPacketInfo = null;
         }
         PacketInfo pi;
         while ((pi = subQueue.pollFirst()) != null) {
@@ -155,6 +156,9 @@ class IoChannelQueue {
     }
 
     private void finishOneWayCallback(PacketInfoReq pi, Throwable ex) {
+        // clean is called
+        // normal packet: after encode finish in encodePacketsToBuffer()
+        // pre-encoded packet: in cleanPendingPackets(), called in cleanChannelQueue()/processWriteEvent()
         if (ex == null) {
             pi.callSuccess(null);
         } else {
@@ -232,19 +236,10 @@ class IoChannelQueue {
             if (pi.timeout.deadlineNanos - roundTime.nanoTime <= 0) {//keep same with encode method
                 continue;
             }
-            if (pi.packet.isPreEncoded()) {
-                // use calcMaxPacketSize() instead of actualSize(), because seq/timeout are not set yet
-                // only header is written to writeBuffer, body goes to writeBufList via gathering write
-                totalSize += pi.packet.calcMaxPacketSize() - pi.packet.actualBodySize();
-                if (totalSize >= MAX_BUFFER_SIZE) {
-                    break;
-                }
-            } else {
-                totalSize += pi.packet.calcMaxPacketSize();
-                // only normal packet may be "truncated"
-                if (totalSize >= MAX_BUFFER_SIZE) {
-                    return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
-                }
+            int packetSize = pi.packet.calcMaxPacketSize() - pi.packet.getTotalPreEncodedBufferSize();
+            totalSize += packetSize;
+            if (totalSize >= MAX_BUFFER_SIZE) {
+                return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
             }
         }
         if (totalSize <= 0) {
@@ -260,7 +255,7 @@ class IoChannelQueue {
         writeBufList.clear();
         PacketInfo pi = this.lastPacketInfo;
         try {
-            while (subQueue.size() > 0 || pi != null) {
+            while (pi != null || subQueue.size() > 0) {
                 int encodeResult;
                 int oldPos = buf.position();
                 if (pi == null) {
@@ -272,64 +267,77 @@ class IoChannelQueue {
                 }
                 pi.encodedBytes += buf.position() - oldPos;
                 if (encodeResult == ENCODE_NOT_FINISH) {
-                    if (buf.position() == 0) {
-                        workerStatus.addPacketsToWrite(-1);
-                        encodeContext.reset();
-                        NetException ex = new NetException("encode fail when buffer is empty");
-                        BugLog.log(ex);
-                        callFail(pi, true, ex);
-                        pi = null;
-                        throw ex;
+                    if (pi.packet.hasPreEncodedBuffer()) {
+                        // encode() stopped because next item is a preEncoded buffer
+                        lastSlicePos = sliceBuf(buf, lastSlicePos, writeBufList);
+                        ByteBuffer preBuf = pi.packet.getPreEncodedBuffer();
+                        if (preBuf == null || preBuf.remaining() == 0) {
+                            PacketInfo oldPi = pi;
+                            pi = null;
+                            throw createBugEx(oldPi, "preEncoded buffer is null or empty");
+                        }
+                        writeBufList.add(preBuf);
+
+                        // see WritePacket.encode(), it will check pending field after encode finish
+                        encodeContext.pending += preBuf.remaining();
+
+                        pi.encodedBytes += preBuf.remaining();
+                        // pi stays set, loop continues to re-encode same packet
+                        continue;
                     }
-                    // ensure writeBufList covers all encoded data in writeBuffer
+                    if (buf.position() == 0) {
+                        PacketInfo oldPi = pi;
+                        pi = null;
+                        throw createBugEx(oldPi, "encode fail when buffer is empty");
+                    }
                     if (!writeBufList.isEmpty()) {
                         sliceBuf(buf, lastSlicePos, writeBufList);
                     }
                     return;
                 }
-                boolean isPreEncoded = false;
-                ByteBuffer preEncodedBuf = null;
                 try {
                     if (encodeResult == ENCODE_FINISH) {
                         handleEncodeFinish(pi);
-                        isPreEncoded = pi.packet.isPreEncoded();
-                        if (isPreEncoded) {
-                            preEncodedBuf = pi.packet.getPreEncodedBuffer();
-                            pendingCleanPackets.add(pi.packet);
-                        } else {
+                        if (pi.packet.hasPreEncodedBuffer()) {
+                            DtBugException ex = new DtBugException("hasPreEncodedBuffer should be false after encode finished");
+                            callFail(pi, true, ex);
+                            BugLog.log(ex);
+                            throw ex;
+                        }
+                        if (pi.packet.getTotalPreEncodedBufferSize() <= 0) {
                             pi.packet.clean();
+                        } else {
+                            pendingCleanPackets.add(pi.packet);
+                        }
+                        if (!writeBufList.isEmpty()) {
+                            lastSlicePos = sliceBuf(buf, lastSlicePos, writeBufList);
                         }
                     } else {
                         handleEncodeCancel(pi);
-                        pi.packet.clean();
                     }
                 } finally {
                     encodeContext.reset();
                     pi = null;
                 }
-                if (isPreEncoded) {
-                    // slice writeBuffer data before the preEncoded body
-                    sliceBuf(buf, lastSlicePos, writeBufList);
-                    // add preEncoded body buffer
-                    if (preEncodedBuf != null) {
-                        writeBufList.add(preEncodedBuf);
-                    }
-                    lastSlicePos = buf.position();
-                }
             }
         } finally {
             this.lastPacketInfo = pi;
         }
-        // slice the last segment if there was any preEncoded packet
-        if (lastSlicePos > 0) {
-            sliceBuf(buf, lastSlicePos, writeBufList);
-        }
     }
 
-    private static void sliceBuf(ByteBuffer buf, int from, ArrayList<ByteBuffer> list) {
+    private DtBugException createBugEx(PacketInfo pi, String msg) {
+        workerStatus.addPacketsToWrite(-1);
+        encodeContext.reset();
+        DtBugException ex = new DtBugException(msg);
+        BugLog.log(ex);
+        callFail(pi, true, ex);
+        return ex;
+    }
+
+    private static int sliceBuf(ByteBuffer buf, int from, ArrayList<ByteBuffer> list) {
         int pos = buf.position();
         if (from >= pos) {
-            return;
+            return from;
         }
         int oldLimit = buf.limit();
         buf.position(from);
@@ -337,6 +345,7 @@ class IoChannelQueue {
         list.add(buf.slice());
         buf.limit(oldLimit);
         buf.position(pos);
+        return pos;
     }
 
     private void handleEncodeFinish(PacketInfo pi) {
@@ -361,7 +370,7 @@ class IoChannelQueue {
     private void handleEncodeCancel(PacketInfo pi) {
         workerStatus.addPacketsToWrite(-1);
         String msg = "timeout before send: " + pi.timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-        callFail(pi, false, new NetTimeoutException(msg));
+        callFail(pi, true, new NetTimeoutException(msg));
     }
 
     private int encode(ByteBuffer buf, PacketInfo pi, Timestamp roundTime) {
@@ -390,12 +399,7 @@ class IoChannelQueue {
     }
 
     private int doEncode(ByteBuffer buf, PacketInfo pi) {
-        WritePacket wf = pi.packet;
-        if (wf.isPreEncoded()) {
-            wf.writeHeader(buf);
-            return ENCODE_FINISH;
-        }
-        return wf.encode(encodeContext, buf) ? ENCODE_FINISH : ENCODE_NOT_FINISH;
+        return pi.packet.encode(encodeContext, buf) ? ENCODE_FINISH : ENCODE_NOT_FINISH;
     }
 
     public void processWriteEvent(SocketChannel sc, SelectionKey key, Timestamp roundTime) throws IOException {

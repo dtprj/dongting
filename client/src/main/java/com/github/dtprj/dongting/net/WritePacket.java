@@ -182,12 +182,36 @@ public abstract class WritePacket extends Packet implements Encodable {
         return false;
     }
 
-    public boolean isPreEncoded() {
+    /**
+     * Returns true when the next item to encode is a pre-encoded buffer.
+     * This method is query-only relative to the iterator position of {@link #getPreEncodedBuffer()}:
+     * it checks whether a subsequent call to {@code getPreEncodedBuffer()} would return a non-null buffer,
+     * without advancing the iterator.
+     *
+     * @return true if the next call to {@link #getPreEncodedBuffer()} would return a non-null buffer
+     */
+    public boolean hasPreEncodedBuffer() {
         return false;
     }
 
     /**
+     * Returns the total size of all pre-encoded buffers for writeBuffer estimation.
+     * Subclasses with pre-encoded buffers should override this.
+     * The framework uses calcMaxPacketSize() - getTotalPreEncodedBufferSize() to estimate
+     * the writeBuffer size needed for header and inline body data.
+     *
+     * <p>The subclass should ensure each call of this method return same value.
+     *
+     * @return the total size of all pre-encoded buffers
+     */
+    public int getTotalPreEncodedBufferSize() {
+        return 0;
+    }
+
+    /**
      * Returns the pre-encoded body buffer for zero-copy write.
+     * This method has iterator semantics: each call returns the next buffer,
+     * and the WritePacket subclass maintains an internal index.
      * The framework ensures this buffer is not used after {@link #doClean()} is called.
      *
      * @return the pre-encoded body buffer, or null if not pre-encoded
