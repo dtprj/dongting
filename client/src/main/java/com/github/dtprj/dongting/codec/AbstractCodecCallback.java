@@ -64,8 +64,9 @@ public abstract class AbstractCodecCallback<T> {
                     temp = pool.borrow(fieldLen);
                     arr = temp.array();
                 }
-                buf.get(arr, 0, fieldLen);
-                String s = new String(arr, 0, fieldLen, StandardCharsets.UTF_8);
+                int off = temp != null ? temp.arrayOffset() : 0;
+                buf.get(arr, off, fieldLen);
+                String s = new String(arr, off, fieldLen, StandardCharsets.UTF_8);
                 if (pool != null) {
                     pool.release(temp);
                 }
@@ -87,13 +88,19 @@ public abstract class AbstractCodecCallback<T> {
                 arr = temp.array();
             }
         }
+        int off;
+        if (fieldLen < 64) {
+            off = 0;
+        } else {
+            off = temp.arrayOffset();
+        }
         int needRead = fieldLen - currentPos;
         if (remain < needRead) {
-            buf.get(arr, currentPos, remain);
+            buf.get(arr, off + currentPos, remain);
             return null;
         } else {
-            buf.get(arr, currentPos, needRead);
-            String s = new String(arr, 0, fieldLen, StandardCharsets.UTF_8);
+            buf.get(arr, off + currentPos, needRead);
+            String s = new String(arr, off, fieldLen, StandardCharsets.UTF_8);
             if (temp != null) {
                 context.buffers.release(temp);
             }

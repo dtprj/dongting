@@ -77,6 +77,9 @@ All Java files must include Apache 2.0 license header (17 lines)
 - External API: Use getter/setter methods when additional logic is needed
 - Encapsulation: Some classes use single-child pattern for hiding internals (e.g., `DtChannel` -> `DtChannelImpl`, `RaftGroup` -> `RaftGroupImpl`)
 
+### ByteBuffer.array() Usage
+- If the ByteBuffer is external (not allocated/wrapped within the current class), always include `arrayOffset()` in index calculations — it may have been sliced.
+
 ### Logging
 - Logger: `com.github.dtprj.dongting.log.DtLog`
 - Factory: `com.github.dtprj.dongting.log.DtLogs`

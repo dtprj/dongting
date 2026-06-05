@@ -38,7 +38,7 @@ public class ByteBufferWritePacket extends RetryableWritePacket {
 
     public static int copyFromHeapBuffer(ByteBuffer src, ByteBuffer dest, int readBytes) {
         int len = Math.min(src.remaining() - readBytes, dest.remaining());
-        dest.put(src.array(), src.position() + readBytes, len);
+        dest.put(src.array(), src.arrayOffset() + src.position() + readBytes, len);
         return readBytes + len;
     }
 

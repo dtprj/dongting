@@ -115,9 +115,10 @@ public class StatusFile {
             private FrameCallResult resumeAfterRead(Void input) {
                 crc32c.reset();
                 byte[] arr = buf.array();
-                crc32c.update(arr, CRC_HEX_LENGTH, fileLen - CRC_HEX_LENGTH);
+                int off = buf.arrayOffset();
+                crc32c.update(arr, off + CRC_HEX_LENGTH, fileLen - CRC_HEX_LENGTH);
                 int expectCrc = (int) crc32c.getValue();
-                int actualCrc = Integer.parseUnsignedInt(new String(arr, 0, CRC_HEX_LENGTH,
+                int actualCrc = Integer.parseUnsignedInt(new String(arr, off, CRC_HEX_LENGTH,
                         StandardCharsets.UTF_8), 16);
 
                 if (actualCrc != expectCrc) {
@@ -125,7 +126,7 @@ public class StatusFile {
                 }
 
                 String key = null;
-                for (int i = CRC_HEX_LENGTH + 1, s = i; i < fileLen; i++) {
+                for (int i = off + CRC_HEX_LENGTH + 1, s = i, end = off + fileLen; i < end; i++) {
                     if (key == null) {
                         if (arr[i] == '=') {
                             key = new String(arr, s, i - s, StandardCharsets.UTF_8);
