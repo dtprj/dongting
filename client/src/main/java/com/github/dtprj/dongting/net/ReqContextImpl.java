@@ -74,8 +74,7 @@ class ReqContextImpl extends PacketInfo implements ReqContext, Runnable {
             }
             req.responseHasWrite = true;
 
-            worker.workerStatus.ioWorkerQueue.writeFromBizThread(this);
-            worker.wakeup();
+            worker.writeReqInBizThreads(this);
         }
     }
 

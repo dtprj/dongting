@@ -348,7 +348,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    void wakeup() {
+    private void wakeup() {
         if (Thread.currentThread() == thread) {
             wakeupCalled = true;
             return;
