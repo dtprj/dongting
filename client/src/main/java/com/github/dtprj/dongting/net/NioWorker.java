@@ -191,14 +191,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void run0(Selector selector, Timestamp ts) {
         long workStartTime = 0;
         try {
-            boolean selOk;
+            int selResult;
             try {
-                selOk = sel(selector, ts);
+                selResult = sel(selector, ts);
             } finally {
                 workStartTime = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_WORK, ts);
             }
-            if (selOk) {
+            if (selResult >= 0) {
                 ioWorkerQueue.dispatchActions();
+            }
+            if (selResult > 0) {
                 Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
                 while (iterator.hasNext()) {
                     SelectionKey key = iterator.next();
@@ -256,27 +258,28 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         c.fireTime(PerfConsts.RPC_D_WORKER_WORK, startTime, 1, 0, ts);
     }
 
-    private boolean sel(Selector selector, Timestamp ts) {
+    private int sel(Selector selector, Timestamp ts) {
         PerfCallback c = perfCallback;
         boolean selNow = this.wakeupCalled || wakeupCalledInOtherThreads.get() > 0;
         long start = selNow ? 0 : c.takeTime(PerfConsts.RPC_D_WORKER_SEL, ts);
         try {
             if (selNow) {
-                selector.selectNow();
+                return selector.selectNow();
             } else {
                 long selectTimeoutMillis = config.selectTimeout;
                 if (selectTimeoutMillis > 0) {
-                    selector.select(selectTimeoutMillis);
+                    return selector.select(selectTimeoutMillis);
                 } else {
                     // for unit test find more problem
-                    selector.select();
+                    return selector.select();
                 }
             }
-            return true;
         } catch (Exception e) {
             log.error("select failed: {}", workerName, e);
-            return false;
+            return -1;
         } finally {
+            wakeupCalledInOtherThreads.lazySet(0);
+            wakeupCalled = false;
             if ((c.accept(PerfConsts.RPC_D_WORKER_WORK) || c.accept(PerfConsts.RPC_D_WORKER_SEL)) && !selNow) {
                 perfCallback.refresh(ts);
             } else {
@@ -285,8 +288,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (!selNow) {
                 c.fireTime(PerfConsts.RPC_D_WORKER_SEL, start, 1, 0, ts);
             }
-            wakeupCalledInOtherThreads.lazySet(0);
-            wakeupCalled = false;
         }
     }
 
@@ -352,7 +353,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             wakeupCalled = true;
             return;
         }
-        if (wakeupCalledInOtherThreads.incrementAndGet() == 1) {
+        if (wakeupCalledInOtherThreads.get() == 0 && wakeupCalledInOtherThreads.incrementAndGet() == 1) {
             selector.wakeup();
         }
     }
