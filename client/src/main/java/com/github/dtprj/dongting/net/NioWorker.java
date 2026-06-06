@@ -784,13 +784,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     @Override
     public CompletableFuture<Void> doPrepareStop(DtTime timeout) {
-        wakeup();
+        selector.wakeup();
         return prepareStopFuture;
     }
 
     @Override
     public void doStop(DtTime timeout, boolean force) {
-        wakeup();
+        selector.wakeup();
     }
 
     protected void logWorkerStatus() {
