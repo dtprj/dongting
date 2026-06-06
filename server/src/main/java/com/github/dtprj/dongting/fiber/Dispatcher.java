@@ -112,7 +112,7 @@ public class Dispatcher extends AbstractLifeCircle {
                     }
                 });
                 if (!b) {
-                    log.warn("schedule ReleaseBufferTask fail");
+                    pool.releaseAfterDtThreadShutdown(byteBuffer);
                 }
             }
         });

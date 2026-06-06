@@ -134,7 +134,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         Consumer<ByteBuffer> callback = (buf) -> {
             boolean b = ioWorkerQueue.scheduleFromBizThread(() -> pool.mixedRelease(buf));
             if (!b) {
-                log.warn("schedule ReleaseBufferTask fail");
+                pool.releaseAfterDtThreadShutdown(buf);
             }
         };
         return pool.toReleaseInOtherThreadInstance(thread, callback);

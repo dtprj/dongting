@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.VersionFactory;
 
 import java.nio.ByteBuffer;
 import java.util.function.Consumer;
@@ -112,6 +113,14 @@ public class TwoLevelPool extends ByteBufferPool {
             if (!smallPool.release0(buf)) {
                 largePool.release(buf);
             }
+        }
+    }
+
+    public void releaseAfterDtThreadShutdown(ByteBuffer buf) {
+        if (buf.capacity() >= largePoolMin) {
+            largePool.release(buf);
+        } else if (direct) {
+            VersionFactory.getInstance().releaseDirectBuffer(buf);
         }
     }
 
