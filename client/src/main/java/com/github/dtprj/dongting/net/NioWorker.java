@@ -262,6 +262,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         PerfCallback c = perfCallback;
         boolean selNow = this.wakeupCalled || wakeupCalledInOtherThreads.get() > 0;
         long start = selNow ? 0 : c.takeTime(PerfConsts.RPC_D_WORKER_SEL, ts);
+        wakeupCalledInOtherThreads.set(0);
         try {
             if (selNow) {
                 return selector.selectNow();
@@ -278,8 +279,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             log.error("select failed: {}", workerName, e);
             return -1;
         } finally {
-            wakeupCalledInOtherThreads.lazySet(0);
-            wakeupCalled = false;
             if ((c.accept(PerfConsts.RPC_D_WORKER_WORK) || c.accept(PerfConsts.RPC_D_WORKER_SEL)) && !selNow) {
                 perfCallback.refresh(ts);
             } else {
@@ -288,6 +287,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (!selNow) {
                 c.fireTime(PerfConsts.RPC_D_WORKER_SEL, start, 1, 0, ts);
             }
+            wakeupCalled = false;
         }
     }
 
