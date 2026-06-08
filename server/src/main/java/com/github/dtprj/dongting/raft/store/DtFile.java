@@ -25,7 +25,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
@@ -37,7 +36,7 @@ import java.util.concurrent.ExecutorService;
  */
 public class DtFile {
     protected final File file;
-    AsynchronousFileChannel channel;
+    FileChannel channel;
     private MappedByteBuffer mappedBuffer;
 
     final Set<OpenOption> openOptions;
@@ -60,7 +59,7 @@ public class DtFile {
         return file;
     }
 
-    public AsynchronousFileChannel getChannel() {
+    public FileChannel getChannel() {
         return channel;
     }
 
@@ -83,8 +82,8 @@ public class DtFile {
         channel = doSyncOpen();
     }
 
-    protected AsynchronousFileChannel doSyncOpen() throws IOException {
-        return AsynchronousFileChannel.open(file.toPath(), openOptions, ioExecutor);
+    protected FileChannel doSyncOpen() throws IOException {
+        return FileChannel.open(file.toPath(), openOptions);
     }
 
     public final void destroy() {
@@ -114,7 +113,7 @@ public class DtFile {
 
     protected void dropOpenResult(Object o) {
         if (o != null) {
-            DtUtil.close((AsynchronousFileChannel) o);
+            DtUtil.close((FileChannel) o);
         }
     }
 
@@ -130,7 +129,7 @@ public class DtFile {
         }
         FiberFuture<Void> result = fiberGroup.newFuture("OpenFile-" + file.getName());
         openFuture = result;
-        FiberFuture<AsynchronousFileChannel> f = fiberGroup.newFuture("asyncOpenFile");
+        FiberFuture<FileChannel> f = fiberGroup.newFuture("asyncOpenFile");
         try {
             ioExecutor.execute(() -> {
                 try {
@@ -166,12 +165,17 @@ public class DtFile {
         if (mappedBuffer != null) {
             return;
         }
-        FileChannel fc = null;
-        try {
-            fc = FileChannel.open(file.toPath(), StandardOpenOption.READ);
-            mappedBuffer = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
-        } finally {
-            DtUtil.close(fc);
+        FileChannel existingChannel = channel;
+        if (existingChannel != null && openOptions.contains(StandardOpenOption.READ)) {
+            mappedBuffer = existingChannel.map(FileChannel.MapMode.READ_ONLY, 0, existingChannel.size());
+        } else {
+            FileChannel fc = null;
+            try {
+                fc = FileChannel.open(file.toPath(), StandardOpenOption.READ);
+                mappedBuffer = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
+            } finally {
+                DtUtil.close(fc);
+            }
         }
     }
 
@@ -189,15 +193,23 @@ public class DtFile {
         mmapOpenFuture = result;
         FiberFuture<Object> f = fiberGroup.newFuture("asyncOpenMmap");
         try {
+            FileChannel existingChannel = channel;
             ioExecutor.execute(() -> {
-                FileChannel fc = null;
                 try {
-                    fc = FileChannel.open(file.toPath(), StandardOpenOption.READ);
-                    MappedByteBuffer buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
-                    DtUtil.close(fc);
+                    MappedByteBuffer buf;
+                    if (existingChannel != null && openOptions.contains(StandardOpenOption.READ)) {
+                        buf = existingChannel.map(FileChannel.MapMode.READ_ONLY, 0, existingChannel.size());
+                    } else {
+                        FileChannel fc = null;
+                        try {
+                            fc = FileChannel.open(file.toPath(), StandardOpenOption.READ);
+                            buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
+                        } finally {
+                            DtUtil.close(fc);
+                        }
+                    }
                     f.fireComplete(buf);
                 } catch (Throwable e) {
-                    DtUtil.close(fc);
                     f.fireCompleteExceptionally(e);
                 }
             });

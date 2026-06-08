@@ -203,7 +203,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             if (count++ == failCount) {
                 super.exec(filePos);
             } else {
-                failed(ex, null);
+                retry(ex);
             }
         }
     }

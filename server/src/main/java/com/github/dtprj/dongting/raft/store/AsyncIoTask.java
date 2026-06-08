@@ -26,14 +26,13 @@ import com.github.dtprj.dongting.raft.RaftException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.CompletionHandler;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
-public class AsyncIoTask implements CompletionHandler<Integer, Void> {
+public class AsyncIoTask {
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
     private final DtFile dtFile;
     private final Supplier<Boolean> cancelRetryIndicator;
@@ -127,7 +126,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         }
     }
 
-    private void retry(Throwable ioEx) {
+    void retry(Throwable ioEx) {
         long sleepTime = StoreUtil.calcRetryInterval(retryCount, retryInterval);
         if (sleepTime <= 0) {
             fireComplete(ioEx);
@@ -184,27 +183,33 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     // this method set to protected for mock error in unit test
     protected void exec(long pos) {
         try {
-            if (write) {
-                dtFile.getChannel().write(ioBuffer, pos, null, this);
-            } else {
-                dtFile.getChannel().read(ioBuffer, pos, null, this);
-            }
+            dtFile.ioExecutor.execute(() -> doExec(pos));
         } catch (Throwable e) {
             fireComplete(e);
         }
     }
 
-    @Override
-    public void completed(Integer result, Void v) {
-        if (result < 0) {
-            fireComplete(new RaftException("read end of file"));
-            return;
-        }
-        if (ioBuffer.hasRemaining()) {
-            int bytes = ioBuffer.position() - position;
-            exec(filePos + bytes);
-        } else {
+    private void doExec(long pos) {
+        try {
+            while (ioBuffer.hasRemaining()) {
+                int n;
+                if (write) {
+                    n = dtFile.getChannel().write(ioBuffer, pos);
+                } else {
+                    n = dtFile.getChannel().read(ioBuffer, pos);
+                }
+                if (n < 0) {
+                    fireComplete(new RaftException("read end of file"));
+                    return;
+                }
+                if (n == 0) {
+                    throw new IOException((write ? "write" : "read") + " returned 0");
+                }
+                pos = filePos + ioBuffer.position() - position;
+            }
             fireComplete(null);
+        } catch (Throwable e) {
+            retry(e);
         }
     }
 
@@ -214,10 +219,5 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     public DtFile getDtFile() {
         return dtFile;
-    }
-
-    @Override
-    public void failed(Throwable exc, Void v) {
-        retry(exc);
     }
 }
