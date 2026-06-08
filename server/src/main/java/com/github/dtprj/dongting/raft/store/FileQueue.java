@@ -155,12 +155,14 @@ abstract class FileQueue {
         stopAlloc = true;
         needAllocCond.signal();
         FiberFuture<Void> f = groupConfig.fiberGroup.newFuture("fileQueueClose");
-        queueAllocFiber.join().registerCallback((v, ex) -> {
-            closeAllChannel();
-            if (ex != null) {
-                f.completeExceptionally(ex);
-            } else {
-                f.complete(null);
+        queueAllocFiber.join().registerCallback(new FiberFuture.FiberFutureCallback<>() {
+            @Override
+            protected FrameCallResult afterDone(Void v, Throwable ex) {
+                if (ex != null) {
+                    f.completeExceptionally(ex);
+                    return Fiber.frameReturn();
+                }
+                return Fiber.call(new WaitNoRwAndCloseFrame(f), this::justReturn);
             }
         });
         return f;
@@ -338,6 +340,39 @@ abstract class FileQueue {
         lruHead = null;
         lruTail = null;
         openFileCount = 0;
+    }
+
+    /**
+     * Waits until all LogFiles in the queue have no active readers or writers,
+     * then closes all channels. Used during shutdown and install snapshot.
+     */
+    private class WaitNoRwAndCloseFrame extends FiberFrame<Void> {
+        private final FiberFuture<Void> resultFuture;
+
+        WaitNoRwAndCloseFrame(FiberFuture<Void> resultFuture) {
+            this.resultFuture = resultFuture;
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            for (int i = 0; i < queue.size(); i++) {
+                LogFile lf = queue.get(i);
+                if (lf.inUse()) {
+                    log.info("file in use during close, wait. reader={}, writer={}, file={}",
+                            lf.getReaders(), lf.getWriters(), lf.getFile().getPath());
+                    return lf.getNoRwCond().await(this);
+                }
+            }
+            closeAllChannel();
+            resultFuture.complete(null);
+            return Fiber.frameReturn();
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            resultFuture.completeExceptionally(ex);
+            return Fiber.frameReturn();
+        }
     }
 
     private class DeleteFrame extends FiberFrame<Void> {
