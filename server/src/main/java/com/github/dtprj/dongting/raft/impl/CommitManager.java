@@ -49,7 +49,7 @@ public class CommitManager {
 
     public void startCommitFiber() {
         Fiber fiber = new Fiber("commit" + raftStatus.groupId, FiberGroup.currentGroup(),
-                new CommitFiberFrame(), true, 50);
+                new CommitFiberFrame()).setDaemon(true).setSignalCountInEachRound(50);
         fiber.start();
     }
 

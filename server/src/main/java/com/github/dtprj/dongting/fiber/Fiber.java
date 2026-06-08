@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class Fiber extends WaitSource {
     private static final DtLog log = DtLogs.getLogger(Fiber.class);
-    protected final boolean daemon;
+    protected boolean daemon;
 
     long scheduleTimeout;
     long scheduleNanoTime;
@@ -46,26 +46,35 @@ public class Fiber extends WaitSource {
     Object inputObj;
     Throwable inputEx;
 
-    final short signalCountInEachRound;
+    short signalCountInEachRound;
     // (round << 16) | signalCountInCurrentRound
     int roundInfo;
 
     public Fiber(String name, FiberGroup fiberGroup, FiberFrame<Void> entryFrame) {
-        this(name, fiberGroup, entryFrame, false, 1);
-    }
-
-    public Fiber(String name, FiberGroup fiberGroup, FiberFrame<Void> entryFrame, boolean daemon) {
-        this(name, fiberGroup, entryFrame, daemon, 1);
-    }
-
-    public Fiber(String name, FiberGroup fiberGroup, FiberFrame<Void> entryFrame, boolean daemon,
-                 int signalCountInEachRound) {
         super(name, fiberGroup);
         this.stackTop = entryFrame;
+        this.signalCountInEachRound = 1;
+        this.roundInfo = 1;
+        entryFrame.init(this);
+    }
+
+    public Fiber setDaemon(boolean daemon) {
+        checkBeforeStart();
         this.daemon = daemon;
+        return this;
+    }
+
+    public Fiber setSignalCountInEachRound(int signalCountInEachRound) {
+        checkBeforeStart();
         this.signalCountInEachRound = (short) signalCountInEachRound;
         this.roundInfo = this.signalCountInEachRound;
-        entryFrame.init(this);
+        return this;
+    }
+
+    private void checkBeforeStart() {
+        if (started) {
+            throw new FiberException("fiber already started: " + name);
+        }
     }
 
     public static <T> FrameCallResult call(FiberFrame<T> subFrame, FrameCall<T> resumePoint) {
@@ -186,7 +195,7 @@ public class Fiber extends WaitSource {
                 return Fiber.frameReturn();
             }
         };
-        Fiber f = new Fiber("wait-finish", group, entryFrame, true) {
+        Fiber f = new Fiber("wait-finish", group, entryFrame) {
             private String toStr;
 
             @Override
@@ -196,7 +205,7 @@ public class Fiber extends WaitSource {
                 }
                 return toStr;
             }
-        };
+        }.setDaemon(true);
         group.start(f, false);
         return fu;
     }

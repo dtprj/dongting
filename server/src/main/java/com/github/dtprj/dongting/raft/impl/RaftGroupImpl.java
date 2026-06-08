@@ -188,7 +188,7 @@ public final class RaftGroupImpl extends RaftGroup {
         CompletableFuture<Long> f = new CompletableFuture<>();
         FiberFrame<Void> ff = groupComponents.memberManager.leaderPrepareJointConsensus(
                 members, observers, preparedMembers, prepareObservers, f);
-        Fiber fiber = new Fiber("leaderPrepareJointConsensus", groupComponents.fiberGroup, ff, true);
+        Fiber fiber = new Fiber("leaderPrepareJointConsensus", groupComponents.fiberGroup, ff).setDaemon(true);
         groupComponents.fiberGroup.fireFiber(fiber);
         return f;
     }
@@ -198,7 +198,7 @@ public final class RaftGroupImpl extends RaftGroup {
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
         FiberFrame<Void> ff = groupComponents.memberManager.leaderAbortJointConsensus(f);
-        Fiber fiber = new Fiber("leaderAbortJointConsensus", groupComponents.fiberGroup, ff, true);
+        Fiber fiber = new Fiber("leaderAbortJointConsensus", groupComponents.fiberGroup, ff).setDaemon(true);
         groupComponents.fiberGroup.fireFiber(fiber);
         return f;
     }
@@ -208,7 +208,7 @@ public final class RaftGroupImpl extends RaftGroup {
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
         FiberFrame<Void> ff = groupComponents.memberManager.leaderCommitJointConsensus(f, prepareIndex);
-        Fiber fiber = new Fiber("leaderCommitJointConsensus", groupComponents.fiberGroup, ff, true);
+        Fiber fiber = new Fiber("leaderCommitJointConsensus", groupComponents.fiberGroup, ff).setDaemon(true);
         groupComponents.fiberGroup.fireFiber(fiber);
         return f;
     }

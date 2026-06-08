@@ -126,7 +126,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                     return applyMonitorCond.await(100, this);
                 }
             }
-        }, true).start();
+        }).setDaemon(true).start();
         if (raftStatus.getLastApplied() >= raftStatus.commitIndex) {
             log.info("apply manager init complete");
             raftStatus.markInit(false);
@@ -141,7 +141,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     }
 
     private void startApplyFiber(FiberGroup fiberGroup) {
-        applyFiber = new Fiber("apply", fiberGroup, new ApplyFrame(), true, 50);
+        applyFiber = new Fiber("apply", fiberGroup, new ApplyFrame()).setDaemon(true).setSignalCountInEachRound(50);
         applyFiber.start();
     }
 

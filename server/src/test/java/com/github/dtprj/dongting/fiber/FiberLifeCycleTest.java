@@ -42,7 +42,7 @@ public class FiberLifeCycleTest extends AbstractFiberTest {
                 }
                 return Fiber.sleep(1, this);
             }
-        }, true);
+        }).setDaemon(true);
         fiberGroup.fireFiber(f);
         // wait daemon fiber exec
         countDownLatch.await();

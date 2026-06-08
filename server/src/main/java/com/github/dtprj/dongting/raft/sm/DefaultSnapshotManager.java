@@ -226,7 +226,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     @Override
     public void startFiber() {
         Fiber f = new Fiber("save-snapshot-" + groupConfig.groupId, groupConfig.fiberGroup,
-                saveLoopFrame, true);
+                saveLoopFrame).setDaemon(true);
         f.start();
     }
 

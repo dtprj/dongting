@@ -151,7 +151,7 @@ public final class DefaultRaftLog implements RaftLog {
     private void startQueueDeleteFiber() {
         deleteFrame = new QueueDeleteFiberFrame();
         Fiber deleteFiber = new Fiber("delete-" + groupConfig.groupId,
-                fiberGroup, deleteFrame, true);
+                fiberGroup, deleteFrame).setDaemon(true);
         deleteFiber.start();
     }
 

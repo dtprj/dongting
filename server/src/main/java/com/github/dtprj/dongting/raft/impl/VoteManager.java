@@ -80,7 +80,7 @@ public class VoteManager {
 
     public void startVoteFiber() {
         VoteFiberFrame ff = new VoteFiberFrame();
-        Fiber f = new Fiber("vote-" + groupId, groupConfig.fiberGroup, ff, true);
+        Fiber f = new Fiber("vote-" + groupId, groupConfig.fiberGroup, ff).setDaemon(true);
         f.start();
     }
 

@@ -78,7 +78,7 @@ public class FiberChannelTest extends BenchBase {
                         return Fiber.frameReturn();
                     }
                 }
-            }, true);
+            }).setDaemon(true);
             group.fireFiber(c);
         }
     }

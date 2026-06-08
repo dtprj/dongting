@@ -98,7 +98,7 @@ class DtKVExecutor {
                         return Fiber.frameReturn();
                     }
                 }
-            }, true);
+            }).setDaemon(true);
             return fiberGroup.fireFiber(f);
         } else {
             try {

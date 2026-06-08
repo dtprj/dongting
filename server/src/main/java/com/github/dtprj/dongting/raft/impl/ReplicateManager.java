@@ -113,11 +113,11 @@ public class ReplicateManager {
                 if (m.installSnapshot) {
                     LeaderInstallFrame ff = new LeaderInstallFrame(this, m);
                     f = new Fiber("install-" + m.node.nodeId + "-" + m.replicateEpoch,
-                            groupConfig.fiberGroup, ff, true);
+                            groupConfig.fiberGroup, ff).setDaemon(true);
                 } else {
                     LeaderRepFrame ff = new LeaderRepFrame(this, commitManager, m);
                     f = new Fiber("replicate-" + m.node.nodeId + "-" + m.replicateEpoch,
-                            groupConfig.fiberGroup, ff, true);
+                            groupConfig.fiberGroup, ff).setDaemon(true);
                 }
                 f.start();
                 replicateFibers.put(m.node.nodeId, new Pair<>(m, f));
@@ -525,7 +525,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         FiberFrame<Void> ff = new LeaderFindMatchPosFrame(replicateManager, member,
                 body.suggestTerm, body.suggestIndex);
         Fiber f = new Fiber("find-match-pos-" + member.node.nodeId
-                + "-" + member.replicateEpoch, groupConfig.fiberGroup, ff, true);
+                + "-" + member.replicateEpoch, groupConfig.fiberGroup, ff).setDaemon(true);
         raftStatus.replicateTasks.put(member.node.nodeId, new Pair<>(member, f));
         f.start();
     }

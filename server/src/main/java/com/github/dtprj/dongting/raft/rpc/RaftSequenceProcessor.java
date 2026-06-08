@@ -57,7 +57,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
     public void startProcessFiber(FiberChannel<ReqInfoEx<T>> channel) {
         FiberFrame<Void> ff = new ProcessorFiberFrame(channel);
         Fiber f = new Fiber("Processor" + getClass().getSimpleName(),
-                FiberGroup.currentGroup(), ff, false);
+                FiberGroup.currentGroup(), ff);
         f.start();
     }
 

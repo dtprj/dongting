@@ -310,7 +310,7 @@ class GroupExecutor implements ScheduledExecutorService {
 
 
     private <V> ScheduledFuture<V> doSchedule(SF<V> sf) {
-        Fiber fiber = new Fiber("schedule-task", group, sf, sf.delayNanos != 0);
+        Fiber fiber = new Fiber("schedule-task", group, sf).setDaemon(sf.delayNanos != 0);
         if (group.fireFiber(fiber)) {
             return sf;
         } else {

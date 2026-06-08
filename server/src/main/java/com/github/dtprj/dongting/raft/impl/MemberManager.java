@@ -188,7 +188,7 @@ public class MemberManager {
             }
         };
         // daemon fiber
-        return new Fiber("raftPing", groupConfig.fiberGroup, fiberFrame, true);
+        return new Fiber("raftPing", groupConfig.fiberGroup, fiberFrame).setDaemon(true);
     }
 
     public void ensureRaftMemberStatus() {
@@ -468,7 +468,7 @@ public class MemberManager {
                     // the prepared members are ready.
                     gc.linearTaskRunner.issueHeartBeat();
                     Fiber fiber = new Fiber("finishPrepareFuture", groupConfig.fiberGroup,
-                            finishPrepareFuture(f, raftIndex), true);
+                            finishPrepareFuture(f, raftIndex)).setDaemon(true);
                     fiber.start();
                 } else {
                     f.complete(raftIndex);
@@ -675,7 +675,7 @@ public class MemberManager {
                         if (repTask != null && !repTask.getRight().isFinished()) {
                             RemoveLegacyFrame ff = new RemoveLegacyFrame(raftIndex, repTask);
                             Fiber f = new Fiber("remove-legacy-" + m.node.nodeId,
-                                    groupConfig.fiberGroup, ff, true);
+                                    groupConfig.fiberGroup, ff).setDaemon(true);
                             f.start();
                         }
                     }
