@@ -68,30 +68,14 @@ public class AsyncIoTask {
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
-        if (rwCalled) {
-            future.completeExceptionally(new RaftException("io task can't reused"));
-            return future;
-        }
-        this.ioBuffer = ioBuffer;
-        this.filePos = filePos;
-        this.position = ioBuffer.position();
-        if (!dtFile.isRwChannelOpen()) {
-            FiberFuture<Void> openFut = dtFile.ensureOpen();
-            openFut.registerCallback((v, ex) -> {
-                if (ex != null) {
-                    future.fireCompleteExceptionally(ex);
-                } else {
-                    exec(filePos);
-                }
-            });
-        } else {
-            exec(filePos);
-        }
-        rwCalled = true;
-        return future;
+        return exec(ioBuffer, filePos, false);
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
+        return exec(ioBuffer, filePos, true);
+    }
+
+    private FiberFuture<Void> exec(ByteBuffer ioBuffer, long filePos, boolean write) {
         if (rwCalled) {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
@@ -99,7 +83,7 @@ public class AsyncIoTask {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
-        this.write = true;
+        this.write = write;
         if (!dtFile.isRwChannelOpen()) {
             FiberFuture<Void> openFut = dtFile.ensureOpen();
             openFut.registerCallback((v, ex) -> {
@@ -180,8 +164,7 @@ public class AsyncIoTask {
         }
     }
 
-    // this method set to protected for mock error in unit test
-    protected void exec(long pos) {
+    private void exec(long pos) {
         try {
             dtFile.ioExecutor.execute(() -> doExec(pos));
         } catch (Throwable e) {
@@ -189,7 +172,8 @@ public class AsyncIoTask {
         }
     }
 
-    private void doExec(long pos) {
+    // this method set to protected for mock error in unit test
+    protected void doExec(long pos) {
         try {
             while (ioBuffer.hasRemaining()) {
                 int n;

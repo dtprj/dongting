@@ -199,9 +199,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         }
 
         @Override
-        protected void exec(long filePos) {
+        protected void doExec(long pos) {
             if (count++ == failCount) {
-                super.exec(filePos);
+                super.doExec(pos);
             } else {
                 retry(ex);
             }
