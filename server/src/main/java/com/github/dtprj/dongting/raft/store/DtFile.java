@@ -142,29 +142,20 @@ public class DtFile {
         } catch (Throwable e) {
             f.completeExceptionally(e);
         }
-        registerCallback(f);
-        return result;
-    }
-
-    private void registerCallback(FiberFuture<AsynchronousFileChannel> f) {
         f.registerCallback((ch, ex) -> {
-            FiberFuture<Void> oldOpenFuture = this.openFuture;
             this.openFuture = null;
             if (destroyed) {
                 dropOpenResult(ch);
                 return;
             }
             if (ex != null) {
-                if (oldOpenFuture != null) {
-                    oldOpenFuture.completeExceptionally(ex);
-                }
+                result.completeExceptionally(ex);
             } else {
                 channel = ch;
-                if (oldOpenFuture != null) {
-                    oldOpenFuture.complete(null);
-                }
+                result.complete(null);
             }
         });
+        return result;
     }
 
     /**
@@ -213,13 +204,7 @@ public class DtFile {
         } catch (Throwable e) {
             f.completeExceptionally(e);
         }
-        registerMmapCallback(f);
-        return result;
-    }
-
-    private void registerMmapCallback(FiberFuture<Object> f) {
         f.registerCallback((buf, ex) -> {
-            FiberFuture<Void> oldMmapFuture = this.mmapOpenFuture;
             this.mmapOpenFuture = null;
             if (destroyed) {
                 if (buf instanceof MappedByteBuffer) {
@@ -228,16 +213,13 @@ public class DtFile {
                 return;
             }
             if (ex != null) {
-                if (oldMmapFuture != null) {
-                    oldMmapFuture.completeExceptionally(ex);
-                }
+                result.completeExceptionally(ex);
             } else {
                 mappedBuffer = (MappedByteBuffer) buf;
-                if (oldMmapFuture != null) {
-                    oldMmapFuture.complete(null);
-                }
+                result.complete(null);
             }
         });
+        return result;
     }
 
     public ByteBuffer duplicateMmap() {
