@@ -94,7 +94,7 @@ abstract class FileQueue {
         this.needAllocCond = groupConfig.fiberGroup.newCondition("needAllocCond");
         this.allocDoneCond = groupConfig.fiberGroup.newCondition("allocDoneCond");
         this.queueAllocFiber = new Fiber("queueAlloc" + groupConfig.groupId,
-                groupConfig.fiberGroup, new QueueAllocFrame()).setDaemon(true);
+                groupConfig.fiberGroup, new QueueAllocFrame());
     }
 
     protected final long getFileSize() {

@@ -441,11 +441,11 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         }
 
         @Override
-        protected FrameCallResult doFinally() {
+        protected void cleanup() {
             if (readerPending) {
                 logFile.decReaders();
+                readerPending = false;
             }
-            return Fiber.frameReturn();
         }
     }
 

@@ -133,11 +133,10 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
     }
 
     @Override
-    protected FrameCallResult doFinally() {
+    protected void cleanup() {
         if (needRelease) {
             reqInfo.reqFrame.clean();
         }
-        return Fiber.frameReturn();
     }
 
     protected abstract int getLeaderId();

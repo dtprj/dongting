@@ -76,15 +76,15 @@ public class StatusFile {
             private DtFile dtFile;
 
             @Override
-            protected FrameCallResult doFinally() {
+            protected void cleanup() {
                 if (buf != null) {
                     getFiberGroup().dispatcher.thread.buffers.release(buf);
+                    buf = null;
                 }
                 if (dtFile != null) {
                     dtFile.destroy();
                     dtFile = null;
                 }
-                return Fiber.frameReturn();
             }
 
             @Override

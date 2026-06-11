@@ -217,10 +217,10 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     }
 
     @Override
-    protected FrameCallResult doFinally() {
+    protected void cleanup() {
         if (readerPending) {
             logFile.decReaders();
+            readerPending = false;
         }
-        return Fiber.frameReturn();
     }
 }
