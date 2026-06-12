@@ -64,6 +64,10 @@ public class Fiber extends WaitSource {
         return this;
     }
 
+    public boolean isDaemon() {
+        return daemon;
+    }
+
     public Fiber setSignalCountInEachRound(int signalCountInEachRound) {
         checkBeforeStart();
         this.signalCountInEachRound = (short) signalCountInEachRound;

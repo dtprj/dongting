@@ -50,6 +50,7 @@ public class SnapshotReader extends FiberFrame<Void> {
 
     private final FiberCondition cond;
 
+    // don't release buffers in readList when io operation not finished
     private final LinkedList<Pair<RefBuffer, FiberFuture<Integer>>> readList = new LinkedList<>();
     private final LinkedList<FiberFuture<Void>> writeList = new LinkedList<>();
 
@@ -73,6 +74,9 @@ public class SnapshotReader extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
+        if (getFiber().isDaemon()) {
+            throw new RaftException("should not be daemon");
+        }
         int oldSize = readList.size();
         processReadResult();
         boolean readListProcessed = oldSize != readList.size();

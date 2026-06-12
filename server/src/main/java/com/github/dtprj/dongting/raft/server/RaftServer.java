@@ -556,6 +556,7 @@ public class RaftServer extends AbstractLifeCircle {
             }
 
             private FrameCallResult afterSaveSnapshot(Long notUsed) {
+                gc.snapshotManager.stopFiber();
                 gc.applyManager.shutdown(timeout);
                 return gc.raftLog.close().await(this::afterRaftLogClose);
             }

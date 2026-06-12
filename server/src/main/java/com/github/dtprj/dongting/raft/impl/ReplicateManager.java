@@ -97,6 +97,9 @@ public class ReplicateManager {
         if (raftStatus.getRole() != RaftRole.leader) {
             return;
         }
+        if (raftStatus.isShouldStop()) {
+            return;
+        }
         List<RaftMember> list = raftStatus.replicateList;
         IntObjMap<Pair<RaftMember, Fiber>> replicateFibers = raftStatus.replicateTasks;
         for (int size = list.size(), i = 0; i < size; i++) {
@@ -113,7 +116,7 @@ public class ReplicateManager {
                 if (m.installSnapshot) {
                     LeaderInstallFrame ff = new LeaderInstallFrame(this, m);
                     f = new Fiber("install-" + m.node.nodeId + "-" + m.replicateEpoch,
-                            groupConfig.fiberGroup, ff).setDaemon(true);
+                            groupConfig.fiberGroup, ff);
                 } else {
                     LeaderRepFrame ff = new LeaderRepFrame(this, commitManager, m);
                     f = new Fiber("replicate-" + m.node.nodeId + "-" + m.replicateEpoch,
@@ -658,6 +661,9 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
             return Fiber.frameReturn();
         }
         this.snapshot = snapshot;
+        if (shouldStopReplicate()) {
+            return Fiber.frameReturn();
+        }
         FiberFrame<Long> f = raftLog.loadNextItemPos(snapshot.getSnapshotInfo().lastIncludedIndex);
         return Fiber.call(f, result -> afterLoadNextItemPos(result, snapshot));
     }
@@ -689,6 +695,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     }
 
     private FiberFuture<Void> readerCallback(RefBuffer buf, Integer readBytes) {
+        // SnapshotReader will check cancel indicator and not call this method if group shouldStopReplicate
         buf.getBuffer().clear();
         buf.getBuffer().limit(readBytes);
         buf.prepareForEncode();
