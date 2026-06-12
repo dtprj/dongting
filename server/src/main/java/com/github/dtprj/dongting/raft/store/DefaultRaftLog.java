@@ -84,7 +84,7 @@ public final class DefaultRaftLog implements RaftLog {
     public FiberFrame<Pair<Integer, Long>> init() {
         return new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Exception {
+            public FrameCallResult execute(Void input) {
                 createFiles();
                 logFiles.initQueue();
                 idxFiles.initQueue();
@@ -265,11 +265,11 @@ public final class DefaultRaftLog implements RaftLog {
         createFiles();
         return new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Exception {
+            public FrameCallResult execute(Void input) {
                 return Fiber.call(idxFiles.finishInstall(nextLogIndex), this::afterIdxFinishInstall);
             }
 
-            private FrameCallResult afterIdxFinishInstall(Void unused) throws Exception {
+            private FrameCallResult afterIdxFinishInstall(Void unused) {
                 return Fiber.call(logFiles.finishInstall(nextLogIndex, nextLogPos), this::afterLogFinishInstall);
             }
 

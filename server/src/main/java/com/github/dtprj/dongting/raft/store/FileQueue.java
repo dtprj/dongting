@@ -228,7 +228,7 @@ abstract class FileQueue {
                     if (queueAllocFiber.isFinished()) {
                         throw new RaftException("ensureWritePosReady " + pos + " failed because queueAllocFiber is finished");
                     }
-                    return allocDoneCond.await(this);
+                    return allocDoneCond.await(5000, this);
                 } else {
                     if (block) {
                         groupConfig.perfCallback.fireTimeAndRefresh(perfType, blockPerfStartTime, 1, 0, groupConfig.ts);
@@ -459,7 +459,7 @@ abstract class FileQueue {
                 FileAllocFrame f = new FileAllocFrame();
                 return Fiber.call(f, v -> afterAlloc(f));
             } else {
-                return needAllocCond.await(1000, this);
+                return needAllocCond.await(5000, this);
             }
         }
 
@@ -469,7 +469,7 @@ abstract class FileQueue {
                     allocDoneCond.signalAll();
                     return Fiber.resume(null, this);
                 } else {
-                    return Fiber.sleep(1000, this);
+                    return Fiber.sleep(5000, this);
                 }
             }
             LogFile logFile = f.logFile;
