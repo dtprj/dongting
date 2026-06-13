@@ -53,6 +53,8 @@ public class FiberGroup {
     private final GroupExecutor executor;
     Fiber currentFiber;
 
+    public FiberFrame<Void> shutdownCallback;
+
     public FiberGroup(String name, Dispatcher dispatcher, ShareStatusSource sss) {
         this.name = name;
         this.dispatcher = dispatcher;
@@ -115,6 +117,9 @@ public class FiberGroup {
         shareStatusSource.shouldStop = true;
         shareStatusSource.copy(true);
         shouldStopCondition.signalAll();
+        if (shutdownCallback != null) {
+            start(new Fiber("shutdown-callback", this, shutdownCallback), false);
+        }
     }
 
     public static FiberGroup currentGroup() {

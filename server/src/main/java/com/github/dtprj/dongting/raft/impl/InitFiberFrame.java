@@ -40,12 +40,14 @@ public class InitFiberFrame extends FiberFrame<Void> {
     private static final DtLog log = DtLogs.getLogger(InitFiberFrame.class);
 
     private final GroupComponents gc;
+    private final RaftGroupImpl raftGroup;
     private final RaftStatusImpl raftStatus;
     private final RaftGroupConfigEx groupConfig;
     private final Set<RaftSequenceProcessor<?>> raftSequenceProcessors;
 
-    public InitFiberFrame(GroupComponents gc, Set<RaftSequenceProcessor<?>> raftSequenceProcessors) {
-        this.gc = gc;
+    public InitFiberFrame(RaftGroupImpl raftGroup, Set<RaftSequenceProcessor<?>> raftSequenceProcessors) {
+        this.gc = raftGroup.groupComponents;
+        this.raftGroup = raftGroup;
         this.raftStatus = gc.raftStatus;
         this.groupConfig = gc.groupConfig;
         this.raftSequenceProcessors = raftSequenceProcessors;
@@ -217,6 +219,8 @@ public class InitFiberFrame extends FiberFrame<Void> {
         gc.voteManager.startVoteFiber();
         gc.applyManager.init(getFiberGroup());
         gc.snapshotManager.startFiber();
+
+        groupConfig.fiberGroup.shutdownCallback = new ShutdownFiberFrame(raftGroup);
         return Fiber.frameReturn();
     }
 

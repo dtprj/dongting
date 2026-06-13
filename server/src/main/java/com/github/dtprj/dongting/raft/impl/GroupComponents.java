@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.raft.server.RaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
@@ -49,5 +50,7 @@ public class GroupComponents {
     public FiberGroup fiberGroup;
 
     public final IntObjMap<FiberChannel<Object>> processorChannels = new IntObjMap<>();
+
+    public RaftFactory raftFactory;
 
 }

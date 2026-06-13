@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
@@ -54,6 +53,7 @@ import com.github.dtprj.dongting.raft.impl.RaftShareStatus;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
+import com.github.dtprj.dongting.raft.impl.ShutdownFiberFrame;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AdminConfigChangeProcessor;
@@ -299,6 +299,7 @@ public class RaftServer extends AbstractLifeCircle {
         gc.snapshotManager = raftFactory.createSnapshotManager(rgcEx, stateMachine, applyManager::requestTakeSnapshot, raftLog);
         gc.statusManager = statusManager;
         gc.linearTaskRunner = linearTaskRunner;
+        gc.raftFactory = raftFactory;
 
         applyManager.postInit();
         commitManager.postInit();
@@ -406,7 +407,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private void initRaftGroup(RaftGroupImpl g) {
         GroupComponents gc = g.groupComponents;
-        InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftSequenceProcessors);
+        InitFiberFrame initFiberFrame = new InitFiberFrame(g, raftSequenceProcessors);
         Fiber initFiber = new Fiber("init-raft-group-" + g.getGroupId(),
                 gc.fiberGroup, initFiberFrame);
         if (!gc.fiberGroup.fireFiber(initFiber)) {
@@ -534,50 +535,24 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void stopGroup(RaftGroupImpl g, DtTime timeout, boolean saveSnapshot) {
-        FiberGroup fiberGroup = g.fiberGroup;
-        GroupComponents gc = g.groupComponents;
-        fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
+        g.fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 if (isGroupShouldStopPlain()) {
                     return Fiber.frameReturn();
                 }
 
+                if (g.fiberGroup.shutdownCallback != null) {
+                    ShutdownFiberFrame f = (ShutdownFiberFrame) g.fiberGroup.shutdownCallback;
+                    f.timeout = timeout;
+                    f.saveSnapshot = saveSnapshot;
+                }
+
                 // fireFiber run in current thread, so shouldStop set immediately here
-                fiberGroup.requestShutdown();
-
-                FiberFuture<Long> f;
-                if (saveSnapshot) {
-                    f = gc.snapshotManager.saveSnapshot();
-                } else {
-                    f = FiberFuture.completedFuture(getFiberGroup(), 0L);
-                }
-                return f.await(this::afterSaveSnapshot);
-            }
-
-            private FrameCallResult afterSaveSnapshot(Long notUsed) {
-                gc.snapshotManager.stopFiber();
-                gc.applyManager.shutdown(timeout);
-                return gc.raftLog.close().await(this::afterRaftLogClose);
-            }
-
-            private FrameCallResult afterRaftLogClose(Void unused) {
-                g.groupComponents.raftStatus.tailCache.cleanAll();
-                return g.groupComponents.statusManager.close().await(this::afterStatusManagerClose);
-            }
-
-            private FrameCallResult afterStatusManagerClose(Void unused) {
-                if (!raftFactory.useSharedIoExecutor()) {
-                    raftFactory.shutdownBlockIoExecutor(serverConfig, gc.groupConfig,
-                            gc.groupConfig.blockIoExecutor);
-                }
-                gc.groupConfig.perfCallback.shutdown();
+                g.fiberGroup.requestShutdown();
                 return Fiber.frameReturn();
             }
         });
-
-        // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
-        raftFactory.stopDispatcher(fiberGroup.dispatcher, timeout);
 
     }
 
