@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.RaftFactory;
 
 import java.util.concurrent.TimeUnit;
@@ -29,6 +31,8 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class ShutdownFiberFrame extends FiberFrame<Void> {
+
+    private static final DtLog log = DtLogs.getLogger(ShutdownFiberFrame.class);
 
     private final RaftGroupImpl g;
     private final FiberGroup fiberGroup;
@@ -50,9 +54,16 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
     }
 
     @Override
+    protected FrameCallResult handle(Throwable ex) {
+        log.error("shutdown step failed, groupId={}", g.getGroupId(), ex);
+        return Fiber.frameReturn();
+    }
+
+    @Override
     public FrameCallResult execute(Void input) {
         FiberFuture<Long> f;
-        if (saveSnapshot) {
+        if (gc.snapshotManager != null && saveSnapshot
+                && gc.raftStatus.isInitFinished() && !gc.raftStatus.isInitFailed()) {
             f = gc.snapshotManager.saveSnapshot();
         } else {
             f = FiberFuture.completedFuture(getFiberGroup(), 0L);
@@ -61,7 +72,9 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterSaveSnapshot(Long notUsed) {
-        gc.snapshotManager.stopFiber();
+        if (gc.snapshotManager != null) {
+            gc.snapshotManager.stopFiber();
+        }
         gc.applyManager.shutdown(timeout);
         return gc.raftLog.close().await(this::afterRaftLogClose);
     }

@@ -241,6 +241,10 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     private void submitForceOnlyTask() {
         LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
+        if (logFile == null) {
+            log.warn("submitForceOnlyTask: logFile is null, nextPersistIndex={}, skip force", nextPersistIndex);
+            return;
+        }
         long filePos = indexToPos(nextPersistIndex) & fileLenMask;
         chainWriter.submitWrite(logFile, initialized, null, filePos, true, 0, nextPersistIndex - 1);
     }

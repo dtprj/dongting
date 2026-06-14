@@ -139,12 +139,6 @@ public final class DefaultRaftLog implements RaftLog {
                 }
                 return Fiber.frameReturn();
             }
-
-            @Override
-            protected FrameCallResult handle(Throwable ex) throws Throwable {
-                close();
-                throw ex;
-            }
         };
     }
 
@@ -285,6 +279,10 @@ public final class DefaultRaftLog implements RaftLog {
 
     @Override
     public FiberFuture<Void> close() {
+        if (logFiles == null || idxFiles == null) {
+            // init() was not called or failed before createFiles()
+            return FiberFuture.completedFuture(fiberGroup, null);
+        }
         FiberFuture<Void> f1 = logFiles.close();
         FiberFuture<Void> f2 = idxFiles.close();
         // delete fiber is daemon
