@@ -343,27 +343,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         @Override
-        protected void cleanup() {
-            if (!success) {
-                if (newDataFile != null) {
-                    deleteInIoExecutor(newDataFile.getFile());
-                }
-                if (newIdxFile != null) {
-                    deleteInIoExecutor(newIdxFile);
-                }
-            }
+        protected FrameCallResult doFinally() {
             if (newDataFile != null) {
                 newDataFile.destroy();
-                newDataFile = null;
             }
             if (readSnapshot != null) {
                 readSnapshot.close();
-                readSnapshot = null;
             }
-        }
-
-        @Override
-        protected FrameCallResult doFinally() {
             if (!success) {
                 if (cancel) {
                     complete(new RaftCancelException("save snapshot task is cancelled"));
@@ -371,6 +357,12 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 if (!currentProcessSaveRequests.isEmpty()) {
                     // should not happen
                     complete(new RaftException("save snapshot task failed"));
+                }
+                if (newDataFile != null) {
+                    deleteInIoExecutor(newDataFile.getFile());
+                }
+                if (newIdxFile != null) {
+                    deleteInIoExecutor(newIdxFile);
                 }
             } else {
                 complete(null);
@@ -542,10 +534,11 @@ class RecoverFiberFrame extends FiberFrame<Void> {
     }
 
     @Override
-    protected void cleanup() {
+    protected FrameCallResult doFinally() {
         if (snapshot != null) {
             snapshot.close();
         }
+        return Fiber.frameReturn();
     }
 
     @Override

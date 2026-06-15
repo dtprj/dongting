@@ -240,7 +240,6 @@ public class FiberGroup {
                 lock.unlock();
             }
             if (finished) {
-                cleanDaemonFibers();
                 shutdownFuture.complete(null);
             }
         }
@@ -248,32 +247,6 @@ public class FiberGroup {
 
     boolean isShouldStopPlain() {
         return shareStatusSource.shouldStop;
-    }
-
-    // Note: this method only calls cleanup() on each frame, NOT doFinally().
-    // doFinally() is for business logic (complete futures, etc.) which is not
-    // appropriate during forced cleanup. Only resource release is performed.
-    private void cleanDaemonFibers() {
-        if (daemonFibers.isEmpty()) {
-            return;
-        }
-        log.info("cleaning up {} daemon fibers in group {}", daemonFibers.size(), name);
-        for (Fiber f : daemonFibers.keySet()) {
-            f.finished = true;
-            dispatcher.removeFromScheduleQueue(f);
-            // walk frame stack and call cleanup
-            FiberFrame<?> frame = f.stackTop;
-            f.stackTop = null;
-            while (frame != null) {
-                try {
-                    frame.cleanup();
-                } catch (Throwable e) {
-                    log.error("cleanup daemon fiber error, group={}, fiber={}", name, f.name, e);
-                }
-                frame = frame.prev;
-            }
-        }
-        daemonFibers.clear();
     }
 
     public void fireLogGroupInfo(String msg) {

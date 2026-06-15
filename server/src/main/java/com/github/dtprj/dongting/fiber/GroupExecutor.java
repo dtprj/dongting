@@ -185,8 +185,9 @@ class GroupExecutor implements ScheduledExecutorService {
         }
 
         @Override
-        protected void cleanup() {
+        protected FrameCallResult doFinally() {
             finish(false);
+            return Fiber.frameReturn();
         }
 
         private void run() {

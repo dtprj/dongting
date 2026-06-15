@@ -393,13 +393,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         }
 
         @Override
-        protected void cleanup() {
-            closeIterator();
-        }
-
-        @Override
         protected FrameCallResult doFinally() {
             log.info("apply fiber exit: groupId={}", raftStatus.groupId);
+            closeIterator();
             return Fiber.frameReturn();
         }
 
@@ -461,7 +457,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     private class ExecLoadResultFrame extends FiberFrame<Void> {
 
-        private List<RaftTask> items;
+        private final List<RaftTask> items;
         private int listIndex;
 
         public ExecLoadResultFrame(List<RaftTask> items) {
@@ -473,14 +469,14 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         }
 
         @Override
-        protected void cleanup() {
+        protected FrameCallResult doFinally() {
             if (items != null) {
                 for (int size = items.size(), i = 0; i < size; i++) {
                     RaftInput ri = items.get(i);
                     ri.reqData.release();
                 }
-                items = null;
             }
+            return Fiber.frameReturn();
         }
 
         @Override

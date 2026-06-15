@@ -31,31 +31,6 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     O frameResult;
     Throwable frameEx;
 
-    /**
-     * Release resources held by this frame. This method exists because daemon
-     * fibers are not guaranteed to finish when the fiber group shuts down:
-     * {@code cleanup()} is called unconditionally on every daemon fiber frame
-     * during group termination, while {@link #doFinally()} may be skipped.
-     * On the normal exit path, {@code cleanup()} is called after
-     * {@link #doFinally()} has fully completed (including any suspended
-     * callbacks), and is guaranteed to run even if {@code doFinally()} throws.
-     *
-     * <p>Contract:
-     * <ul>
-     *   <li>Must NOT call any fiber API ({@code Fiber.sleep}, {@code awaitOn}, {@code yield},
-     *       {@code Fiber.call}, etc.) — cleanup is synchronous and immediately followed by
-     *       {@code popFrame()}, so suspension would corrupt the frame stack.</li>
-     *   <li>Should only release resources (close files, release buffers, decrement
-     *       counters).</li>
-     *   <li>Should be null-safe and reentrant as a defensive measure.</li>
-     *   <li>Exceptions are logged and swallowed; they do not affect the exit process.</li>
-     * </ul>
-     *
-     * <p>The default implementation is empty. Override in subclasses that hold resources.
-     */
-    protected void cleanup() {
-    }
-
     protected FrameCallResult doFinally() {
         return FrameCallResult.RETURN;
     }

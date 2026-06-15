@@ -295,9 +295,6 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void execFiber(FiberGroup g, Fiber fiber) {
-        if (fiber.finished) {
-            return; // already cleaned up by cleanDaemonFibers()
-        }
         try {
             g.currentFiber = fiber;
             FiberFrame currentFrame = fiber.stackTop;
@@ -320,11 +317,6 @@ public class Dispatcher extends AbstractLifeCircle {
                     if (currentFrame.resumePoint != null) {
                         // call Fiber.resume
                         continue;
-                    }
-                    try {
-                        currentFrame.cleanup();
-                    } catch (Throwable e) {
-                        log.error("error in frame cleanup", e);
                     }
                     fiber.inputObj = currentFrame.frameResult;
                     fiber.inputEx = currentFrame.frameEx;

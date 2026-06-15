@@ -265,8 +265,9 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     }
 
     @Override
-    protected void cleanup() {
+    protected FrameCallResult doFinally() {
         closeIterator();
+        return Fiber.frameReturn();
     }
 
     private FrameCallResult await() {
@@ -649,11 +650,12 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     }
 
     @Override
-    protected void cleanup() {
+    protected FrameCallResult doFinally() {
         if (snapshot != null) {
             snapshot.close();
             snapshot = null;
         }
+        return Fiber.frameReturn();
     }
 
     @Override

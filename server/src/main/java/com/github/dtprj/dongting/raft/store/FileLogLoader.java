@@ -154,14 +154,14 @@ class FileLogLoader implements RaftLog.LogIterator {
         }
 
         @Override
-        protected void cleanup() {
+        protected FrameCallResult doFinally() {
             if (readerPending) {
                 logFile.decReaders();
-                readerPending = false;
             }
             decodeContext.reset(decoder);
             loading = false;
             releaseIfNecessary();
+            return Fiber.frameReturn();
         }
 
         @Override
