@@ -242,6 +242,11 @@ public class Fiber extends WaitSource {
         scheduleNanoTime = 0;
     }
 
+    public static Fiber currentFiber() {
+        FiberGroup g = DispatcherThread.currentGroup();
+        return g == null ? null : g.currentFiber;
+    }
+
     @Override
     public String toString() {
         return "Fiber:" + name + "@" + Integer.toHexString(hashCode());

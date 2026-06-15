@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -46,6 +47,10 @@ public class MmapIoTask {
         if (used) {
             future.completeExceptionally(new RaftException("io task can't be reused"));
             return future;
+        }
+        Fiber f = Fiber.currentFiber();
+        if (f == null || f.isDaemon()) {
+            throw new RaftException("io task should not run in daemon fiber");
         }
         this.callback = callback;
         used = true;

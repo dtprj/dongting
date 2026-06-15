@@ -80,6 +80,10 @@ public class AsyncIoTask {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
         }
+        Fiber f = Fiber.currentFiber();
+        if (f == null || f.isDaemon()) {
+            throw new RaftException("io task should not run in daemon fiber");
+        }
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
