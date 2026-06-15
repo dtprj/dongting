@@ -120,7 +120,7 @@ public class ReplicateManager {
                 } else {
                     LeaderRepFrame ff = new LeaderRepFrame(this, commitManager, m);
                     f = new Fiber("replicate-" + m.node.nodeId + "-" + m.replicateEpoch,
-                            groupConfig.fiberGroup, ff).setDaemon(true);
+                            groupConfig.fiberGroup, ff);
                 }
                 f.start();
                 replicateFibers.put(m.node.nodeId, new Pair<>(m, f));
@@ -346,7 +346,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return Fiber.resume(null, this);
         } else {
             if (replicateIterator == null) {
-                replicateIterator = raftLog.openIterator(this::epochChange);
+                replicateIterator = raftLog.openIterator(this::shouldStopReplicate);
             }
             FiberFrame<List<RaftTask>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
                     groupConfig.singleReplicateLimit);
@@ -419,6 +419,11 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         repDoneCondition.signalAll();
         if (epochChange()) {
             log.info("receive outdated append result, replicateEpoch not match. ignore.");
+            // no need to desc since the frame will exit
+            return;
+        }
+        if (shouldStopReplicate()) {
+            // no need to desc since the frame will exit
             return;
         }
 
@@ -527,7 +532,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         FiberFrame<Void> ff = new LeaderFindMatchPosFrame(replicateManager, member,
                 body.suggestTerm, body.suggestIndex);
         Fiber f = new Fiber("find-match-pos-" + member.node.nodeId
-                + "-" + member.replicateEpoch, groupConfig.fiberGroup, ff).setDaemon(true);
+                + "-" + member.replicateEpoch, groupConfig.fiberGroup, ff);
         raftStatus.replicateTasks.put(member.node.nodeId, new Pair<>(member, f));
         f.start();
     }
@@ -571,21 +576,26 @@ class LeaderFindMatchPosFrame extends AbstractLeaderRepFrame {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
-        int epoch = member.replicateEpoch;
+        if (shouldStopReplicate()) {
+            return Fiber.frameReturn();
+        }
         FiberFrame<Pair<Integer, Long>> f = replicateManager.raftLog.tryFindMatchPos(
-                suggestTerm, suggestIndex, () -> member.replicateEpoch != epoch);
+                suggestTerm, suggestIndex, this::shouldStopReplicate);
         return Fiber.call(f, this::resumeAfterFindReplicatePos);
     }
 
     @Override
     protected FrameCallResult handle(Throwable ex) throws Throwable {
-        log.error("tryFindMatchPos fail", ex);
+        if (ex instanceof RaftCancelException) {
+            log.info("find match pos cancelled");
+        } else {
+            log.error("tryFindMatchPos fail", ex);
+        }
         return Fiber.frameReturn();
     }
 
     private FrameCallResult resumeAfterFindReplicatePos(Pair<Integer, Long> result) {
-        if (epochChange()) {
-            log.info("epoch not match. ignore result of nextIndexToReplicate call");
+        if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
         if (result == null) {
