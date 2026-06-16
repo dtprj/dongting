@@ -452,6 +452,7 @@ abstract class FileQueue {
         @Override
         public FrameCallResult execute(Void input) {
             if (raftStatus.installSnapshot || stopAlloc) {
+                allocDoneCond.signalAll();
                 log.info("{} queue alloc fiber exit", FileQueue.this instanceof IdxFileQueue ? "idx" : "log");
                 return Fiber.frameReturn();
             }
