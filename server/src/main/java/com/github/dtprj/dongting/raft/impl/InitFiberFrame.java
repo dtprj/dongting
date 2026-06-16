@@ -156,6 +156,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     private FrameCallResult afterApplyConfigChange(Snapshot snapshot) {
         if (cancelInit()) {
+            snapshot.close();
             return Fiber.frameReturn();
         }
         FiberFrame<Void> f = gc.snapshotManager.recover(snapshot);
