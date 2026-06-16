@@ -145,7 +145,7 @@ public final class DefaultRaftLog implements RaftLog {
     private void startQueueDeleteFiber() {
         deleteFrame = new QueueDeleteFiberFrame();
         Fiber deleteFiber = new Fiber("delete-" + groupConfig.groupId,
-                fiberGroup, deleteFrame).setDaemon(true);
+                fiberGroup, deleteFrame);
         deleteFiber.start();
     }
 
@@ -285,14 +285,22 @@ public final class DefaultRaftLog implements RaftLog {
         }
         FiberFuture<Void> f1 = logFiles.close();
         FiberFuture<Void> f2 = idxFiles.close();
-        // delete fiber is daemon
-        return FiberFuture.allOf("logClose", f1, f2);
+        if (deleteFrame != null) {
+            return FiberFuture.allOf("logClose", f1, f2).compose("deleteFiberJoin", v -> {
+                deleteFrame.stopRequested = true;
+                deleteFrame.delCond.signal();
+                return deleteFrame.getFiber().join();
+            });
+        } else {
+            return FiberFuture.allOf("logClose", f1, f2);
+        }
     }
 
     private class QueueDeleteFiberFrame extends FiberFrame<Void> {
 
         boolean requestDeleteAllAndExit;
         boolean deleteAndExit;
+        boolean stopRequested;
         final FiberCondition delCond = FiberGroup.currentGroup().newCondition("delCond");
 
         public QueueDeleteFiberFrame() {
@@ -310,6 +318,9 @@ public final class DefaultRaftLog implements RaftLog {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (stopRequested) {
+                return Fiber.frameReturn();
+            }
             logFiles.closeIdleFiles();
             idxFiles.closeIdleFiles();
             if (requestDeleteAllAndExit) {
@@ -342,6 +353,9 @@ public final class DefaultRaftLog implements RaftLog {
         }
 
         private FrameCallResult deleteLogs(Void unused) {
+            if (stopRequested) {
+                return Fiber.frameReturn();
+            }
             if (deleteAndExit) {
                 if (logFiles.queue.size() > 0) {
                     return Fiber.call(logFiles.deleteFirstFile(), this::deleteLogs);
@@ -376,6 +390,9 @@ public final class DefaultRaftLog implements RaftLog {
         }
 
         private FrameCallResult deleteIdx(Void unused) {
+            if (stopRequested) {
+                return Fiber.frameReturn();
+            }
             if (deleteAndExit) {
                 if (idxFiles.queue.size() > 0) {
                     return Fiber.call(idxFiles.deleteFirstFile(), this::deleteIdx);

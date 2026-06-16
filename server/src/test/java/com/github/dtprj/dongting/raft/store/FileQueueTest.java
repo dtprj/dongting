@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.TestDir;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +53,16 @@ public class FileQueueTest extends BaseFiberTest {
         fileQueue = new MockFileQueue(dir, c, 1024);
     }
 
+    @AfterEach
+    public void cleanup() throws Exception {
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return fileQueue.stopFileQueue().await(this::justReturn);
+            }
+        });
+    }
+
     private static class MockFileQueue extends FileQueue {
         public MockFileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize) {
             super(dir, groupConfig, fileSize, false);
@@ -59,7 +70,7 @@ public class FileQueueTest extends BaseFiberTest {
     }
 
     @Test
-    public void testInit1() throws Exception {
+    public void testInit1() {
         fileQueue.initQueue();
         assertEquals(0, fileQueue.queue.size());
     }
