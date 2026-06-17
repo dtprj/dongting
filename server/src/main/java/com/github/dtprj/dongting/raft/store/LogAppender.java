@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.Buffers;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -41,7 +42,6 @@ import java.util.zip.CRC32C;
  */
 class LogAppender {
     private static final DtLog log = DtLogs.getLogger(LogAppender.class);
-    private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocateDirect(0);
 
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
@@ -82,10 +82,14 @@ class LogAppender {
 
     class WriteFiberFrame extends FiberFrame<Void> {
 
-        // 3 temp status fields, should reset in encodeAndWriteItems()
+        // lastItem/writeCount/bytesToWrite are reset in encodeAndWriteItems();
         private RaftTask lastItem;
         private int writeCount;
         private int bytesToWrite;
+
+        // bufRef/buffer are reassigned on every entry to encodeAndWriteItems()
+        private RefBuffer bufRef;
+        private ByteBuffer buffer;
 
         private final List<RaftTask> taskList;
 
@@ -171,20 +175,29 @@ class LogAppender {
                 }
             }
 
-            ByteBuffer buffer = borrowBuffer(bytesToWrite);
-            buffer = encodeItems(taskIndex, count, file, buffer);
+            bufRef = borrowBuffer(bytesToWrite);
+            buffer = bufRef.getBuffer();
+            try {
+                encodeItems(taskIndex, count, file);
 
-            if (writeEndHeader) {
-                if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                    buffer = doWrite(file, buffer);
+                if (writeEndHeader) {
+                    if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                        doWrite(file);
+                    }
+                    LogHeader.writeEndHeader(crc32c, buffer);
                 }
-                LogHeader.writeEndHeader(crc32c, buffer);
-            }
-            if (buffer.position() > 0) {
-                doWrite(file, buffer);
-            } else {
-                if (buffer.capacity() > 0) {
-                    BugLog.log("buffer capacity > 0", buffer.capacity());
+                if (buffer.position() > 0) {
+                    doWrite(file);
+                } else {
+                    if (buffer.capacity() > 0) {
+                        BugLog.log("buffer capacity > 0", buffer.capacity());
+                    }
+                }
+            } finally {
+                if (bufRef != null) {
+                    bufRef.release();
+                    bufRef = null;
+                    buffer = null;
                 }
             }
 
@@ -209,7 +222,7 @@ class LogAppender {
             }
         }
 
-        private ByteBuffer encodeItems(int startTaskIndex, int count, LogFile file, ByteBuffer buffer) {
+        private void encodeItems(int startTaskIndex, int count, LogFile file) {
             long writeStartPosInFile = nextPersistPos & fileLenMask;
             long dataPos = file.startPos + writeStartPosInFile;
             for (int i = 0; i < count; i++) {
@@ -222,44 +235,48 @@ class LogAppender {
                 }
 
                 int len = li.actualSize();
-                buffer = encodeData(len, li, buffer, file);
+                encodeData(len, li, file);
                 idxOps.put(lh.index, dataPos, lh.timestamp, len);
                 dataPos += len;
                 lastItem = li;
                 writeCount++;
             }
-            return buffer;
         }
 
-        private ByteBuffer encodeData(int actualSize, RaftTask src, ByteBuffer dest, LogFile file) {
+        private void encodeData(int actualSize, RaftTask src, LogFile file) {
             try {
                 int totalEncodeLen = 0;
                 while (true) {
-                    int startPos = dest.position();
-                    boolean finish = src.encode(encodeContext, dest);
-                    totalEncodeLen += dest.position() - startPos;
+                    int startPos = buffer.position();
+                    boolean finish = src.encode(encodeContext, buffer);
+                    totalEncodeLen += buffer.position() - startPos;
                     if (finish) {
                         if (totalEncodeLen != actualSize) {
                             throw new RaftException("encode problem, totalEncodeLen != actualSize");
                         }
                         break;
                     } else {
-                        dest = doWrite(file, dest);
+                        doWrite(file);
                     }
                 }
             } finally {
                 encodeContext.reset();
             }
-            return dest;
         }
 
-        private ByteBuffer doWrite(LogFile file, ByteBuffer buffer) {
+        private void doWrite(LogFile file) {
             buffer.flip();
             int bytes = buffer.remaining();
 
             long lastIndex = lastItem != null ? lastItem.logHeader.index : -1;
             long writeStartPosInFile = nextPersistPos & fileLenMask;
-            chainWriter.submitWrite(file, logFileQueue.initialized, buffer, writeStartPosInFile,
+
+            RefBuffer refBufferCopy = this.bufRef;
+            this.bufRef = null;
+            this.buffer = null;
+
+            // ownership transferred
+            chainWriter.submitWrite(file, logFileQueue.initialized, refBufferCopy, writeStartPosInFile,
                     lastItem != null, writeCount, lastIndex);
 
             nextPersistPos += bytes;
@@ -269,16 +286,16 @@ class LogAppender {
             lastItem = null;
             writeCount = 0;
 
-            return borrowBuffer(bytesToWrite);
+            bufRef = borrowBuffer(bytesToWrite);
+            buffer = bufRef.getBuffer();
         }
 
-        private ByteBuffer borrowBuffer(int size) {
+        private RefBuffer borrowBuffer(int size) {
             if (size == 0) {
-                return EMPTY_BUFFER;
-            } else {
-                size = Math.min(size, logFileQueue.maxWriteBufferSize);
-                return buffers.borrowDirect(size);
+                return RefBuffer.EMPTY;
             }
+            size = Math.min(size, logFileQueue.maxWriteBufferSize);
+            return buffers.borrowDirectRefBuffer(size, true, false, 0);
         }
     }
 

@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.Buffers;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -33,7 +34,6 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
@@ -107,7 +107,7 @@ final class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
-            final ByteBuffer buffer = buffers.borrow(maxWriteBufferSize);
+            final RefBuffer bufferRef = buffers.borrowRefBuffer(maxWriteBufferSize, true, false, 0);
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -117,7 +117,7 @@ final class LogFileQueue extends FileQueue {
                     return finish();
                 }
                 LogFile lf = queue.get(i);
-                return Fiber.call(restorer.restoreFile(buffer, lf), this::afterRestoreSingleFile);
+                return Fiber.call(restorer.restoreFile(bufferRef.getBuffer(), lf), this::afterRestoreSingleFile);
             }
 
             private FrameCallResult afterRestoreSingleFile(Pair<Boolean, Long> r) {
@@ -159,7 +159,7 @@ final class LogFileQueue extends FileQueue {
 
             @Override
             protected FrameCallResult doFinally() {
-                buffers.release(buffer);
+                bufferRef.release();
                 return super.doFinally();
             }
         };

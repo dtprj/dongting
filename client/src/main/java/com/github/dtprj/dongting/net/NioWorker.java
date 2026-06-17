@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
@@ -87,6 +88,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     final WorkerStatus workerStatus;
 
+    private RefBuffer readBufferRef;
     private ByteBuffer readBuffer;
     private long readBufferUseTime;
 
@@ -293,14 +295,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void prepareReadBuffer(Timestamp roundTime) {
         if (readBuffer == null) {
-            readBuffer = directPool.borrow(config.readBufferSize);
+            readBufferRef = workerStatus.buffers.borrowDirectRefBuffer(config.readBufferSize, true, false, 0);
+            readBuffer = readBufferRef.getBuffer();
         }
         readBuffer.clear();
         readBufferUseTime = roundTime.nanoTime;
     }
 
     private void releaseReadBuffer() {
-        directPool.release(readBuffer);
+        readBufferRef.release();
+        readBufferRef = null;
         this.readBuffer = null;
         readBufferUseTime = 0;
     }

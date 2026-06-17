@@ -15,9 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.Buffers;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.PerfCallback;
-import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -30,7 +29,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
-import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -51,7 +49,6 @@ public class ChainWriter {
     private int writePerfType2;
     private int forcePerfType;
 
-    private final Buffers buffers;
     private final LinkedList<WriteTask> writeTasks = new LinkedList<>();
     private final LinkedList<WriteTask> forceTasks = new LinkedList<>();
 
@@ -73,8 +70,6 @@ public class ChainWriter {
         this.forceCallback = forceCallback;
         this.raftStatus = (RaftStatusImpl) config.raftStatus;
 
-        DispatcherThread t = config.fiberGroup.dispatcher.thread;
-        this.buffers = t.buffers;
         this.needForceCondition = config.fiberGroup.newCondition("needForceCond");
         this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.groupId, config.fiberGroup,
                 new ForceLoopFrame());
@@ -103,7 +98,7 @@ public class ChainWriter {
         private final long posInFile;
         private final long expectNextPos;
         private final boolean force;
-        private final ByteBuffer buf;
+        private final RefBuffer buf;
 
         private final int perfWriteItemCount;
         private final int perfWriteBytes;
@@ -114,22 +109,22 @@ public class ChainWriter {
 
 
         public WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval, boolean retryForever,
-                         Supplier<Boolean> cancelIndicator, ByteBuffer buf, long posInFile, boolean force,
+                         Supplier<Boolean> cancelIndicator, RefBuffer buf, long posInFile, boolean force,
                          int perfItemCount, long lastRaftIndex) {
             this.ioTask = new AsyncIoTask(fiberGroup, logFile, retryInterval, retryForever, cancelIndicator);
             this.posInFile = posInFile;
             this.force = force;
             this.buf = buf;
             this.perfWriteItemCount = perfItemCount;
-            int remaining = buf == null ? 0 : buf.remaining();
+            int remaining = buf == null ? 0 : buf.getBuffer().remaining();
             this.perfWriteBytes = remaining;
             this.expectNextPos = posInFile + remaining;
             this.lastRaftIndex = lastRaftIndex;
         }
 
         public void submitWrite() {
-            if (buf != null && buf.remaining() > 0) {
-                ioTask.write(buf, posInFile);
+            if (buf != null && perfWriteBytes > 0) {
+                ioTask.write(buf.getBuffer(), posInFile);
             } else {
                 ioTask.getFuture().complete(null);
             }
@@ -148,10 +143,13 @@ public class ChainWriter {
         }
     }
 
-    public void submitWrite(LogFile logFile, boolean initialized, ByteBuffer buf, long posInFile, boolean force,
+    public void submitWrite(LogFile logFile, boolean initialized, RefBuffer buf, long posInFile, boolean force,
                             int perfItemCount, long lastRaftIndex) {
         if (error) {
             log.warn("in error state, ignore write");
+            if (buf != null) {
+                buf.release();
+            }
             return;
         }
         int[] retryInterval = initialized ? config.ioRetryInterval : null;
@@ -161,6 +159,9 @@ public class ChainWriter {
             WriteTask lastTask = writeTasks.getLast();
             if (lastTask.getLogFile() == task.getLogFile()) {
                 if (lastTask.expectNextPos != task.posInFile) {
+                    if (buf != null) {
+                        buf.release();
+                    }
                     throw Fiber.fatal(new RaftException("pos not continuous"));
                 }
             }
@@ -171,6 +172,9 @@ public class ChainWriter {
         try {
             task.submitWrite();
         } catch (Throwable e) {
+            if (buf != null) {
+                buf.release();
+            }
             logFile.decWriters();
             throw e;
         }
@@ -185,7 +189,7 @@ public class ChainWriter {
     private void afterWrite(Throwable ioEx, WriteTask task, long startTime) {
         perfCallback.fireTimeAndRefresh(writePerfType2, startTime, task.perfWriteItemCount, task.perfWriteBytes, config.ts);
         if (task.buf != null) {
-            buffers.release(task.buf);
+            task.buf.release();
         }
         writeTaskCount--;
         if (error || raftStatus.installSnapshot) {

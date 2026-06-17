@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.Buffers;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -70,15 +71,15 @@ public class StatusFile {
 
     public FiberFrame<Void> init() {
         return new FiberFrame<>() {
-            private ByteBuffer buf;
+            private RefBuffer bufRef;
 
             private int fileLen;
             private DtFile dtFile;
 
             @Override
             protected FrameCallResult doFinally() {
-                if (buf != null) {
-                    getFiberGroup().dispatcher.thread.buffers.release(buf);
+                if (bufRef != null) {
+                    bufRef.release();
                 }
                 if (dtFile != null) {
                     dtFile.destroy();
@@ -106,13 +107,15 @@ public class StatusFile {
                     return Fiber.frameReturn();
                 }
                 AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
-                buf = getFiberGroup().dispatcher.thread.buffers.borrow(fileLen);
+                bufRef = getFiberGroup().dispatcher.thread.buffers.borrowRefBuffer(fileLen, true, false, 0);
+                ByteBuffer buf = bufRef.getBuffer();
                 buf.limit(fileLen);
                 FiberFuture<Void> f = task.read(buf, 0);
                 return f.await(this::resumeAfterRead);
             }
 
             private FrameCallResult resumeAfterRead(Void input) {
+                ByteBuffer buf = bufRef.getBuffer();
                 crc32c.reset();
                 byte[] arr = buf.array();
                 int off = buf.arrayOffset();
@@ -178,9 +181,10 @@ public class StatusFile {
 
     public FiberFuture<Void> update() {
         Buffers buffers = fiberGroup.dispatcher.thread.buffers;
-        ByteBuffer buf = buffers.borrowDirect(MAX_FILE_LEN);
+        RefBuffer bufRef = buffers.borrowDirectRefBuffer(MAX_FILE_LEN, true, false, 0);
+        ByteBuffer buf = bufRef.getBuffer();
         FiberFuture<Void> f = fiberGroup.newFuture("update-status-file");
-        f.registerCallback((v, ex) -> buffers.release(buf));
+        f.registerCallback((v, ex) -> bufRef.release());
         try {
             writeToBuffer(properties, buf, crc32c);
 

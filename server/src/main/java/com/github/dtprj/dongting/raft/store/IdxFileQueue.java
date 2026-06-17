@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
@@ -234,9 +235,9 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             len = (int) (logFile.endPos - startIdxPos);
         }
         DispatcherThread t = groupConfig.fiberGroup.dispatcher.thread;
-        ByteBuffer buf = t.buffers.borrowDirect(len);
-        buf.limit(len);
-        fillAndSubmit(buf, startIdx, logFile, suggestForce);
+        RefBuffer bufRef = t.buffers.borrowDirectRefBuffer(len, true, false, 0);
+        bufRef.getBuffer().limit(len);
+        fillAndSubmit(bufRef, startIdx, logFile, suggestForce);
     }
 
     private void submitForceOnlyTask() {
@@ -249,14 +250,24 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         chainWriter.submitWrite(logFile, initialized, null, filePos, true, 0, nextPersistIndex - 1);
     }
 
-    private void fillAndSubmit(ByteBuffer buf, long startIndex, LogFile logFile, boolean suggestForce) {
-        nextPersistIndex = cache.fill(startIndex, buf);
+    private void fillAndSubmit(RefBuffer bufRef, long startIndex, LogFile logFile, boolean suggestForce) {
+        ByteBuffer buf = bufRef.getBuffer();
+        boolean submitCalled = false;
+        try {
+            nextPersistIndex = cache.fill(startIndex, buf);
 
-        long filePos = indexToPos(startIndex) & fileLenMask;
-        boolean fileEnd = filePos + buf.remaining() == fileSize;
-        boolean force = fileEnd || suggestForce;
-        int items = (int) (nextPersistIndex - startIndex);
-        chainWriter.submitWrite(logFile, initialized, buf, filePos, force, items, nextPersistIndex - 1);
+            long filePos = indexToPos(startIndex) & fileLenMask;
+            boolean fileEnd = filePos + buf.remaining() == fileSize;
+            boolean force = fileEnd || suggestForce;
+            int items = (int) (nextPersistIndex - startIndex);
+            submitCalled = true;
+            chainWriter.submitWrite(logFile, initialized, bufRef, filePos, force, items, nextPersistIndex - 1);
+        } catch (Throwable e) {
+            if (!submitCalled) {
+                bufRef.release();
+            }
+            throw e;
+        }
         removeHead();
     }
 

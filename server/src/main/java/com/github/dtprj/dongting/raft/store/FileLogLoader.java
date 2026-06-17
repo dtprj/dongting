@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
@@ -55,10 +54,10 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final IdxOps idxFiles;
     private final LogFileQueue logFiles;
     private final RaftGroupConfigEx groupConfig;
+    private RefBuffer readBufferRef;
     private ByteBuffer readBuffer;
     private boolean loading;
     private final TailCache tailCache;
-    private final Buffers buffers;
 
     private final Supplier<Boolean> cancelIndicator;
     private final CRC32C crc32c = new CRC32C();
@@ -90,8 +89,8 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.tailCache = ((RaftStatusImpl) groupConfig.raftStatus).tailCache;
 
         DispatcherThread t = groupConfig.fiberGroup.dispatcher.thread;
-        this.buffers = t.buffers;
-        this.readBuffer = buffers.borrow(readBufferSize);
+        this.readBufferRef = t.buffers.borrowRefBuffer(readBufferSize, true, false, 0);
+        this.readBuffer = readBufferRef.getBuffer();
         this.decodeContext = DecodeContext.factory.apply(t.buffers, t.threadLocalBuffer);
         this.decoder = new Decoder();
         reset();
@@ -457,8 +456,11 @@ class FileLogLoader implements RaftLog.LogIterator {
 
     private void releaseIfNecessary() {
         if (close && !loading) {
-            buffers.release(readBuffer);
-            readBuffer = null;
+            if (readBufferRef != null) {
+                readBufferRef.release();
+                readBufferRef = null;
+                readBuffer = null;
+            }
         }
     }
 }

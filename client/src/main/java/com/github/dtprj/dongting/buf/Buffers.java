@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
@@ -33,22 +31,6 @@ public class Buffers {
         this.directPool = directPool;
         this.threadSafeReleaseHeapPool = threadSafeReleaseHeapPool;
         this.threadSafeReleaseDirectPool = threadSafeReleaseDirectPool;
-    }
-
-    public ByteBuffer borrow(int requestSize) {
-        return heapPool.borrow(requestSize);
-    }
-
-    public ByteBuffer borrowDirect(int requestSize) {
-        return directPool.borrow(requestSize);
-    }
-
-    public void release(ByteBuffer buffer) {
-        if (buffer.isDirect()) {
-            directPool.release(buffer);
-        } else {
-            heapPool.release(buffer);
-        }
     }
 
     public RefBuffer borrowRefBuffer(int requestSize) {

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.Buffers;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.log.DtLog;
@@ -52,23 +52,21 @@ public abstract class AbstractCodecCallback<T> {
             return "";
         }
         byte[] arr;
-        ByteBuffer temp = null;
+        RefBuffer tempRef = null;
         int remain = buf.remaining();
         if (currentPos == 0) {
             if (remain >= fieldLen) {
-                Buffers pool = null;
                 if (fieldLen < DtThread.THREAD_LOCAL_BUFFER_SIZE) {
                     arr = context.threadLocalBuffer;
                 } else {
-                    pool = context.buffers;
-                    temp = pool.borrow(fieldLen);
-                    arr = temp.array();
+                    tempRef = context.buffers.borrowRefBuffer(fieldLen, true, false, 0);
+                    arr = tempRef.getBuffer().array();
                 }
-                int off = temp != null ? temp.arrayOffset() : 0;
+                int off = tempRef != null ? tempRef.getBuffer().arrayOffset() : 0;
                 buf.get(arr, off, fieldLen);
                 String s = new String(arr, off, fieldLen, StandardCharsets.UTF_8);
-                if (pool != null) {
-                    pool.release(temp);
+                if (tempRef != null) {
+                    tempRef.release();
                 }
                 return s;
             }
@@ -76,23 +74,23 @@ public abstract class AbstractCodecCallback<T> {
                 arr = new byte[fieldLen];
                 context.status = arr;
             } else {
-                temp = context.buffers.borrow(fieldLen);
-                context.status = temp;
-                arr = temp.array();
+                tempRef = context.buffers.borrowRefBuffer(fieldLen, true, false, 0);
+                context.status = tempRef;
+                arr = tempRef.getBuffer().array();
             }
         } else {
             if (fieldLen < 64) {
                 arr = (byte[]) context.status;
             } else {
-                temp = (ByteBuffer) context.status;
-                arr = temp.array();
+                tempRef = (RefBuffer) context.status;
+                arr = tempRef.getBuffer().array();
             }
         }
         int off;
         if (fieldLen < 64) {
             off = 0;
         } else {
-            off = temp.arrayOffset();
+            off = tempRef.getBuffer().arrayOffset();
         }
         int needRead = fieldLen - currentPos;
         if (remain < needRead) {
@@ -101,8 +99,9 @@ public abstract class AbstractCodecCallback<T> {
         } else {
             buf.get(arr, off + currentPos, needRead);
             String s = new String(arr, off, fieldLen, StandardCharsets.UTF_8);
-            if (temp != null) {
-                context.buffers.release(temp);
+            if (tempRef != null) {
+                tempRef.release();
+                context.status = null;
             }
             return s;
         }

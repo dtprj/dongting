@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
@@ -50,7 +50,7 @@ class IoChannelQueue {
     private final DtChannelImpl dtc;
     private SelectionKey selectionKey;
 
-    private ByteBuffer writeBuffer;
+    private RefBuffer writeBuffer;
     private final ArrayList<ByteBuffer> writeBufList = new ArrayList<>();
     private ByteBuffer[] gatheringBufferCache;
     private int gatheringBufferCacheOffset = -1;
@@ -173,7 +173,7 @@ class IoChannelQueue {
         }
 
         if (writeBuffer != null) {
-            if (writeBuffer.remaining() > 0) {
+            if (writeBuffer.getBuffer().remaining() > 0) {
                 return true;
             } else {
                 BugLog.log("writeBuffer is not null but remaining is 0");
@@ -187,8 +187,9 @@ class IoChannelQueue {
             return false;
         }
 
-        ByteBuffer buf = alloc(roundTime);
-        this.writeBuffer = buf;
+        RefBuffer bufRef = alloc(roundTime);
+        this.writeBuffer = bufRef;
+        ByteBuffer buf = bufRef.getBuffer();
 
         try {
             encodePacketsToBuffer(buf, subQueue, roundTime);
@@ -215,7 +216,7 @@ class IoChannelQueue {
         return true;
     }
 
-    private ByteBuffer alloc(Timestamp roundTime) {
+    private RefBuffer alloc(Timestamp roundTime) {
         // not accurate
         // can't invoke actualSize() here because seq and timeout field is not set yet
         int totalSize = 0;
@@ -224,11 +225,11 @@ class IoChannelQueue {
             int rest = lastPacket.calcMaxPacketSize() - lastPacketInfo.encodedBytes;
             if (rest <= 0) {
                 BugLog.log("rest is {}, packetClass={}", rest, lastPacket.getClass().getName());
-                return SimpleByteBufferPool.EMPTY_BUFFER;
+                return RefBuffer.EMPTY;
             }
             totalSize += rest;
             if (totalSize > MAX_BUFFER_SIZE) {
-                return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
+                return workerStatus.buffers.borrowDirectRefBuffer(MAX_BUFFER_SIZE, true, false, 0);
             }
         }
         for (int size = subQueue.size(), i = 0; i < size; i++) {
@@ -239,15 +240,15 @@ class IoChannelQueue {
             int packetSize = pi.packet.calcMaxPacketSize() - pi.packet.getTotalPreEncodedBufferSize();
             totalSize += packetSize;
             if (totalSize >= MAX_BUFFER_SIZE) {
-                return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE);
+                return workerStatus.buffers.borrowDirectRefBuffer(MAX_BUFFER_SIZE, true, false, 0);
             }
         }
         if (totalSize <= 0) {
             // all packet timeout, not bug
             log.info("total size is {}", totalSize);
-            return SimpleByteBufferPool.EMPTY_BUFFER;
+            return RefBuffer.EMPTY;
         }
-        return workerStatus.buffers.borrowDirect(totalSize);
+        return workerStatus.buffers.borrowDirectRefBuffer(totalSize, true, false, 0);
     }
 
     private void encodePacketsToBuffer(ByteBuffer buf, IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {
@@ -436,7 +437,7 @@ class IoChannelQueue {
                 }
                 gatheringBufferCacheOffset = offset;
             } else {
-                bytes = sc.write(writeBuffer);
+                bytes = sc.write(writeBuffer.getBuffer());
             }
             perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_WRITE, startTime, 1, bytes, roundTime);
 
@@ -471,11 +472,9 @@ class IoChannelQueue {
     }
 
     private void releaseWriteBuffer() {
-        ByteBuffer bb = this.writeBuffer;
+        RefBuffer bb = this.writeBuffer;
         if (bb != null) {
-            if (bb.capacity() > 0) {
-                workerStatus.buffers.release(bb);
-            }
+            bb.release();
             writeBuffer = null;
         }
     }

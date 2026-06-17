@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.codec;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -22,7 +24,7 @@ import java.nio.ByteBuffer;
  */
 public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
 
-    private ByteBuffer temp;
+    private RefBuffer tempRef;
 
     @Override
     public final void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
@@ -33,8 +35,9 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
             return;
         }
         if (start) {
-            temp = context.buffers.borrow(bodyLen);
+            tempRef = context.buffers.borrowRefBuffer(bodyLen, true, false, 0);
         }
+        ByteBuffer temp = tempRef.getBuffer();
         temp.put(buffer);
         if (end) {
             temp.flip();
@@ -44,9 +47,9 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
 
     @Override
     public void end(boolean success) {
-        if (temp != null) {
-            context.buffers.release(temp);
-            temp = null;
+        if (tempRef != null) {
+            tempRef.release();
+            tempRef = null;
         }
     }
 
