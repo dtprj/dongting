@@ -47,6 +47,7 @@ public class DecodeContext {
     private PbStrCallback pbStrCallback;
     private PbBytesCallback pbBytesCallback;
     private KvReq.KvReqCallback kvReqCallback;
+    private StrDecoderCallback strDecoderCallback;
 
     // replace in server side to create DecodeContextEx
     public static BiFunction<Buffers, byte[], DecodeContext> factory = DecodeContext::new;
@@ -155,6 +156,13 @@ public class DecodeContext {
             kvReqCallback = new KvReq.KvReqCallback();
         }
         return kvReqCallback;
+    }
+
+    public StrDecoderCallback strDecoderCallback() {
+        if (strDecoderCallback == null) {
+            strDecoderCallback = new StrDecoderCallback();
+        }
+        return strDecoderCallback;
     }
 
 }

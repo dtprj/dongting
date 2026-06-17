@@ -15,14 +15,11 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 /**
@@ -51,60 +48,10 @@ public abstract class AbstractCodecCallback<T> {
         if (fieldLen == 0) {
             return "";
         }
-        byte[] arr;
-        RefBuffer tempRef = null;
-        int remain = buf.remaining();
-        if (currentPos == 0) {
-            if (remain >= fieldLen) {
-                if (fieldLen < DtThread.THREAD_LOCAL_BUFFER_SIZE) {
-                    arr = context.threadLocalBuffer;
-                } else {
-                    tempRef = context.buffers.borrowRefBuffer(fieldLen, true, false, 0);
-                    arr = tempRef.getBuffer().array();
-                }
-                int off = tempRef != null ? tempRef.getBuffer().arrayOffset() : 0;
-                buf.get(arr, off, fieldLen);
-                String s = new String(arr, off, fieldLen, StandardCharsets.UTF_8);
-                if (tempRef != null) {
-                    tempRef.release();
-                }
-                return s;
-            }
-            if (fieldLen < 64) {
-                arr = new byte[fieldLen];
-                context.status = arr;
-            } else {
-                tempRef = context.buffers.borrowRefBuffer(fieldLen, true, false, 0);
-                context.status = tempRef;
-                arr = tempRef.getBuffer().array();
-            }
-        } else {
-            if (fieldLen < 64) {
-                arr = (byte[]) context.status;
-            } else {
-                tempRef = (RefBuffer) context.status;
-                arr = tempRef.getBuffer().array();
-            }
+        if (currentPos == 0 && buf.remaining() >= fieldLen) {
+            return StrDecoderCallback.decodeSingleBuffer(buf, fieldLen, context);
         }
-        int off;
-        if (fieldLen < 64) {
-            off = 0;
-        } else {
-            off = tempRef.getBuffer().arrayOffset();
-        }
-        int needRead = fieldLen - currentPos;
-        if (remain < needRead) {
-            buf.get(arr, off + currentPos, remain);
-            return null;
-        } else {
-            buf.get(arr, off + currentPos, needRead);
-            String s = new String(arr, off, fieldLen, StandardCharsets.UTF_8);
-            if (tempRef != null) {
-                tempRef.release();
-                context.status = null;
-            }
-            return s;
-        }
+        return parseNested(buf, fieldLen, currentPos, context.strDecoderCallback());
     }
 
     protected final ByteArray parseByteArray(ByteBuffer buf, int fieldLen, int currentPos) {
