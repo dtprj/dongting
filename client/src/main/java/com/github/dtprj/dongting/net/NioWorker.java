@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -133,12 +134,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private ByteBufferPool createReleaseSafePool(TwoLevelPool pool, IoWorkerQueue ioWorkerQueue) {
-        Consumer<ByteBuffer> callback = (buf) -> {
-            boolean b = ioWorkerQueue.scheduleFromBizThread(() -> pool.mixedRelease(buf));
-            if (!b) {
-                pool.releaseAfterDtThreadShutdown(buf);
-            }
-        };
+        BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> callback = (buf, c) ->
+                ioWorkerQueue.scheduleFromBizThread(() -> c.accept(buf));
         return pool.toReleaseInOtherThreadInstance(thread, callback);
     }
 

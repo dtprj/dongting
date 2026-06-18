@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.VersionFactory;
 
 import java.nio.ByteBuffer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -30,15 +31,17 @@ public class TwoLevelPool extends ByteBufferPool {
     private final int largePoolMin;
     private final int smallPoolMax;
     private final boolean releaseInOtherThread;
-    private final Consumer<ByteBuffer> releaseCallback;
+    private final BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> releaseCallback;
     private final Thread owner;
+
+    private final Consumer<ByteBuffer> mixedReleasor = this::mixedRelease;
 
     public TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool) {
         this(direct, smallPool, largePool, false, null, null);
     }
 
     private TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool,
-                         boolean releaseInOtherThread, Consumer<ByteBuffer> releaseCallback, Thread owner) {
+                         boolean releaseInOtherThread, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> releaseCallback, Thread owner) {
         super(direct);
         this.smallPool = smallPool;
         this.largePool = largePool;
@@ -98,14 +101,21 @@ public class TwoLevelPool extends ByteBufferPool {
             largePool.release(buf);
         } else {
             if (releaseInOtherThread && owner != Thread.currentThread()) {
-                releaseCallback.accept(buf);
+                if (!releaseCallback.apply(buf, mixedReleasor)) {
+                    // release after dt thread shutdown
+                    if (c >= largePoolMin) {
+                        largePool.release(buf);
+                    } else if (direct) {
+                        VersionFactory.getInstance().releaseDirectBuffer(buf);
+                    }
+                }
             } else {
                 mixedRelease(buf);
             }
         }
     }
 
-    public void mixedRelease(ByteBuffer buf) {
+    private void mixedRelease(ByteBuffer buf) {
         int c = buf.capacity();
         if (c < largePoolMin) {
             smallPool.release(buf);
@@ -113,14 +123,6 @@ public class TwoLevelPool extends ByteBufferPool {
             if (!smallPool.release0(buf)) {
                 largePool.release(buf);
             }
-        }
-    }
-
-    public void releaseAfterDtThreadShutdown(ByteBuffer buf) {
-        if (buf.capacity() >= largePoolMin) {
-            largePool.release(buf);
-        } else if (direct) {
-            VersionFactory.getInstance().releaseDirectBuffer(buf);
         }
     }
 
@@ -139,7 +141,7 @@ public class TwoLevelPool extends ByteBufferPool {
         return smallPool.formatStat();
     }
 
-    public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, Consumer<ByteBuffer> releaseCallback) {
+    public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> releaseCallback) {
         return new TwoLevelPool(direct, smallPool, largePool, true, releaseCallback, owner);
     }
 

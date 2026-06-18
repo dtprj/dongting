@@ -103,19 +103,12 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private ByteBufferPool createReleaseSafePool(TwoLevelPool pool) {
-        return pool.toReleaseInOtherThreadInstance(thread, byteBuffer -> {
-            if (byteBuffer != null) {
-                boolean b = shareQueue.offer(new FiberQueueTask(null) {
-                    @Override
-                    protected void run() {
-                        pool.mixedRelease(byteBuffer);
-                    }
-                });
-                if (!b) {
-                    pool.releaseAfterDtThreadShutdown(byteBuffer);
-                }
+        return pool.toReleaseInOtherThreadInstance(thread, (buf, c) -> shareQueue.offer(new FiberQueueTask(null) {
+            @Override
+            protected void run() {
+                c.accept(buf);
             }
-        });
+        }));
     }
 
     public CompletableFuture<Void> startGroup(FiberGroup fiberGroup) {
