@@ -405,7 +405,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private RefBuffer createBuffer() {
-            RefBuffer buf = buffers.borrowDirectRefBuffer(bufferSize);
+            RefBuffer buf = buffers.borrowDirect(bufferSize);
             buf.getBuffer().position(4);
             buf.getBuffer().limit(bufferSize - 4);
             return buf;
@@ -530,7 +530,7 @@ class RecoverFiberFrame extends FiberFrame<Void> {
         this.groupConfig = groupConfig;
         this.snapshot = snapshot;
         Buffers buffers = groupConfig.fiberGroup.dispatcher.thread.buffers;
-        this.bufferCreator = () -> buffers.borrowDirectRefBuffer(snapshot.getBufferSize());
+        this.bufferCreator = () -> buffers.borrowDirect(snapshot.getBufferSize());
     }
 
     @Override

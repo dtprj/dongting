@@ -295,7 +295,7 @@ class LogAppender {
                 return RefBuffer.EMPTY;
             }
             size = Math.min(size, logFileQueue.maxWriteBufferSize);
-            return buffers.borrowDirectRefBuffer(size, true, false, 0);
+            return buffers.borrowDirect(size, true, false, 0);
         }
     }
 

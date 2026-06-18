@@ -33,27 +33,27 @@ public class Buffers {
         this.threadSafeReleaseDirectPool = threadSafeReleaseDirectPool;
     }
 
-    public RefBuffer borrowRefBuffer(int requestSize) {
+    public RefBuffer borrow(int requestSize) {
         return new RefBuffer(false, threadSafeReleaseHeapPool, requestSize, 0);
     }
 
-    public RefBuffer borrowRefBuffer(int requestSize, boolean plain) {
+    public RefBuffer borrow(int requestSize, boolean plain) {
         return new RefBuffer(plain, threadSafeReleaseHeapPool, requestSize, 0);
     }
 
-    public RefBuffer borrowRefBuffer(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
+    public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
         return new RefBuffer(plain, threadSafeRelease ? threadSafeReleaseHeapPool : heapPool, requestSize, threshold);
     }
 
-    public RefBuffer borrowDirectRefBuffer(int requestSize) {
+    public RefBuffer borrowDirect(int requestSize) {
         return new RefBuffer(false, threadSafeReleaseDirectPool, requestSize, 0);
     }
 
-    public RefBuffer borrowDirectRefBuffer(int requestSize, boolean plain) {
+    public RefBuffer borrowDirect(int requestSize, boolean plain) {
         return new RefBuffer(plain, threadSafeReleaseDirectPool, requestSize, 0);
     }
 
-    public RefBuffer borrowDirectRefBuffer(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
+    public RefBuffer borrowDirect(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
         return new RefBuffer(plain, threadSafeRelease ? threadSafeReleaseDirectPool : directPool, requestSize, threshold);
     }
 

@@ -89,7 +89,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.tailCache = ((RaftStatusImpl) groupConfig.raftStatus).tailCache;
 
         DispatcherThread t = groupConfig.fiberGroup.dispatcher.thread;
-        this.readBufferRef = t.buffers.borrowRefBuffer(readBufferSize, true, false, 0);
+        this.readBufferRef = t.buffers.borrow(readBufferSize, true, false, 0);
         this.readBuffer = readBufferRef.getBuffer();
         this.decodeContext = DecodeContext.factory.apply(t.buffers, t.threadLocalBuffer);
         this.decoder = new Decoder();

@@ -35,7 +35,7 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
             return;
         }
         if (start) {
-            tempRef = context.buffers.borrowRefBuffer(bodyLen, true, false, 0);
+            tempRef = context.buffers.borrow(bodyLen, true, false, 0);
         }
         ByteBuffer temp = tempRef.getBuffer();
         temp.put(buffer);

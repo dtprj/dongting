@@ -27,9 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -209,8 +207,8 @@ public class StrDecoderCallbackTest {
         ByteBufferPool direct = new DefaultPoolFactory().createPool(new Timestamp(), true);
         Buffers buffers = new Buffers(heap, direct, heap, direct) {
             @Override
-            public RefBuffer borrowRefBuffer(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-                RefBuffer rb = super.borrowRefBuffer(requestSize, plain, threadSafeRelease, threshold);
+            public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
+                RefBuffer rb = super.borrow(requestSize, plain, threadSafeRelease, threshold);
                 borrowed.add(rb);
                 return rb;
             }

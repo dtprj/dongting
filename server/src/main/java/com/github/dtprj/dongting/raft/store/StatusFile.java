@@ -107,7 +107,7 @@ public class StatusFile {
                     return Fiber.frameReturn();
                 }
                 AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
-                bufRef = getFiberGroup().dispatcher.thread.buffers.borrowRefBuffer(fileLen, true, false, 0);
+                bufRef = getFiberGroup().dispatcher.thread.buffers.borrow(fileLen, true, false, 0);
                 ByteBuffer buf = bufRef.getBuffer();
                 buf.limit(fileLen);
                 FiberFuture<Void> f = task.read(buf, 0);
@@ -181,7 +181,7 @@ public class StatusFile {
 
     public FiberFuture<Void> update() {
         Buffers buffers = fiberGroup.dispatcher.thread.buffers;
-        RefBuffer bufRef = buffers.borrowDirectRefBuffer(MAX_FILE_LEN, true, false, 0);
+        RefBuffer bufRef = buffers.borrowDirect(MAX_FILE_LEN, true, false, 0);
         ByteBuffer buf = bufRef.getBuffer();
         FiberFuture<Void> f = fiberGroup.newFuture("update-status-file");
         f.registerCallback((v, ex) -> bufRef.release());

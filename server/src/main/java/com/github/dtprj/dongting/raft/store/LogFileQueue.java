@@ -107,7 +107,7 @@ final class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
-            final RefBuffer bufferRef = buffers.borrowRefBuffer(maxWriteBufferSize, true, false, 0);
+            final RefBuffer bufferRef = buffers.borrow(maxWriteBufferSize, true, false, 0);
 
             @Override
             public FrameCallResult execute(Void input) {

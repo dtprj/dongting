@@ -111,7 +111,7 @@ public class RaftReqData extends RefCount {
         if (buffers == null) {
             buf = ByteBuffer.allocate(totalLen);
         } else {
-            refBuffer = buffers.borrowRefBuffer(totalLen);
+            refBuffer = buffers.borrow(totalLen);
             buf = refBuffer.getBuffer();
         }
         int bodyStart = LogHeader.ITEM_HEADER_SIZE;

@@ -295,7 +295,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void prepareReadBuffer(Timestamp roundTime) {
         if (readBuffer == null) {
-            readBufferRef = workerStatus.buffers.borrowDirectRefBuffer(config.readBufferSize, true, false, 0);
+            readBufferRef = workerStatus.buffers.borrowDirect(config.readBufferSize, true, false, 0);
             readBuffer = readBufferRef.getBuffer();
         }
         readBuffer.clear();

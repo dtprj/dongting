@@ -93,7 +93,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
                         }
                         parsedBytes = 0;
                     }
-                    fullRefBuffer = context.buffers.borrowRefBuffer(header.totalLen, false, true, 512);
+                    fullRefBuffer = context.buffers.borrow(header.totalLen, false, true, 512);
                     fullBuffer = fullRefBuffer.getBuffer();
                     header.writeTo(fullBuffer);
                     if (header.bizHeaderLen > 0) {

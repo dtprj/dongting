@@ -17,8 +17,8 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 import org.junit.jupiter.api.Test;
 
@@ -158,7 +158,7 @@ class RaftReqDataTest {
         Encodable body = new FixedEncodable(payload);
         Buffers buffers = new Buffers(null, null, null, null) {
             @Override
-            public RefBuffer borrowRefBuffer(int requestSize) {
+            public RefBuffer borrow(int requestSize) {
                 ByteBuffer buf = ByteBuffer.allocate(requestSize);
                 return RefBuffer.wrap(buf);
             }
