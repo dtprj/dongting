@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.Buffers;
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -203,12 +203,16 @@ public class StrDecoderCallbackTest {
     }
 
     private static DecodeContext countingContext(List<RefBuffer> borrowed) {
-        ByteBufferPool heap = new DefaultPoolFactory().createPool(new Timestamp(), false);
-        ByteBufferPool direct = new DefaultPoolFactory().createPool(new Timestamp(), true);
-        Buffers buffers = new Buffers(heap, direct, heap, direct) {
+        // use a real pool so the borrowed RefBuffers can be released properly,
+        // but override borrow() to track every RefBuffer handed out.
+        PoolFactory factory = new DefaultPoolFactory();
+        Buffers delegate = factory.createPool(new Timestamp());
+        factory.initPool(delegate, Thread.currentThread(),
+                (buf, c) -> { c.accept(buf); return true; });
+        Buffers buffers = new Buffers(null, null) {
             @Override
             public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-                RefBuffer rb = super.borrow(requestSize, plain, threadSafeRelease, threshold);
+                RefBuffer rb = delegate.borrow(requestSize, plain, threadSafeRelease, threshold);
                 borrowed.add(rb);
                 return rb;
             }

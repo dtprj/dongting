@@ -20,17 +20,24 @@ package com.github.dtprj.dongting.buf;
  */
 public class Buffers {
 
-    private final ByteBufferPool heapPool;
-    private final ByteBufferPool directPool;
-    private final ByteBufferPool threadSafeReleaseHeapPool;
-    private final ByteBufferPool threadSafeReleaseDirectPool;
+    final TwoLevelPool heapPool;
+    final TwoLevelPool directPool;
+    private ByteBufferPool threadSafeReleaseHeapPool;
+    private ByteBufferPool threadSafeReleaseDirectPool;
 
-    public Buffers(ByteBufferPool heapPool, ByteBufferPool directPool,
-                   ByteBufferPool threadSafeReleaseHeapPool, ByteBufferPool threadSafeReleaseDirectPool) {
+    public Buffers(TwoLevelPool heapPool, TwoLevelPool directPool) {
         this.heapPool = heapPool;
         this.directPool = directPool;
+    }
+
+    public void init(ByteBufferPool threadSafeReleaseHeapPool, ByteBufferPool threadSafeReleaseDirectPool) {
         this.threadSafeReleaseHeapPool = threadSafeReleaseHeapPool;
         this.threadSafeReleaseDirectPool = threadSafeReleaseDirectPool;
+    }
+
+    public void clean() {
+        heapPool.clean();
+        directPool.clean();
     }
 
     public RefBuffer borrow(int requestSize) {

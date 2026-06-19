@@ -141,8 +141,8 @@ public class TwoLevelPool extends ByteBufferPool {
         return smallPool.formatStat();
     }
 
-    public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> releaseCallback) {
-        return new TwoLevelPool(direct, smallPool, largePool, true, releaseCallback, owner);
+    public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> crossThreadReleaseCallback) {
+        return new TwoLevelPool(direct, smallPool, largePool, true, crossThreadReleaseCallback, owner);
     }
 
     public ByteBufferPool getSmallPool() {

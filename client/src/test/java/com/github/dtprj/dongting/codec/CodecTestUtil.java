@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.Buffers;
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 
@@ -25,10 +25,18 @@ import com.github.dtprj.dongting.common.Timestamp;
  * @author huangli
  */
 public class CodecTestUtil {
-    private static final ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
-    private static final ByteBufferPool directPool = new DefaultPoolFactory().createPool(new Timestamp(), true);
-    // should test in single thread
-    private static final Buffers buffer = new Buffers(pool, directPool, pool, directPool);
+    // single-threaded: init threadSafeRelease* pools to point at the owner thread,
+    // so borrow(..., threadSafeRelease=true, ...) does not NPE. The cross-thread
+    // callback is never invoked because tests always run in the owner thread.
+    private static final Buffers buffer = createBuffers();
+
+    private static Buffers createBuffers() {
+        PoolFactory factory = new DefaultPoolFactory();
+        Buffers buffers = factory.createPool(new Timestamp());
+        factory.initPool(buffers, Thread.currentThread(),
+                (buf, c) -> { c.accept(buf); return true; });
+        return buffers;
+    }
 
     // should test in single thread
     public static DecodeContext createContext() {

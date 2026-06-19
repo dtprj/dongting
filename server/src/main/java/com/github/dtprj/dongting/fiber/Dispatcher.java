@@ -16,10 +16,8 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.buf.Buffers;
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
@@ -33,10 +31,13 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -44,8 +45,7 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class Dispatcher extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
-    private final TwoLevelPool heapPool;
-    private final TwoLevelPool directPool;
+    private final Buffers buffers;
 
     public final Timestamp ts = new Timestamp();
 
@@ -93,22 +93,18 @@ public class Dispatcher extends AbstractLifeCircle {
         this.poolFactory = poolFactory;
         this.perfCallback = perfCallback;
 
-        this.heapPool = (TwoLevelPool) poolFactory.createPool(ts, false);
-        this.directPool = (TwoLevelPool) poolFactory.createPool(ts, true);
-        ByteBufferPool releaseSafeHeapPool = createReleaseSafePool(heapPool);
-        ByteBufferPool releaseSafeDirectPool = createReleaseSafePool(directPool);
-        Buffers buffers = new Buffers(heapPool, directPool, releaseSafeHeapPool, releaseSafeDirectPool);
 
+        BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> crossThreadReleaseCallback =
+                (buf, c) -> shareQueue.offer(new FiberQueueTask(null) {
+                    @Override
+                    protected void run() {
+                        c.accept(buf);
+                    }
+                });
+
+        this.buffers = poolFactory.createPool(ts);
         this.thread = new DispatcherThread(this::run, name, buffers);
-    }
-
-    private ByteBufferPool createReleaseSafePool(TwoLevelPool pool) {
-        return pool.toReleaseInOtherThreadInstance(thread, (buf, c) -> shareQueue.offer(new FiberQueueTask(null) {
-            @Override
-            protected void run() {
-                c.accept(buf);
-            }
-        }));
+        poolFactory.initPool(buffers, thread, crossThreadReleaseCallback);
     }
 
     public CompletableFuture<Void> startGroup(FiberGroup fiberGroup) {
@@ -175,8 +171,7 @@ public class Dispatcher extends AbstractLifeCircle {
             SHOULD_STOP.setVolatile(this, true);
             log.info("fiber dispatcher exit exceptionally: {}", thread.getName(), e);
         } finally {
-            poolFactory.destroyPool(heapPool);
-            poolFactory.destroyPool(directPool);
+            poolFactory.destroyPool(buffers);
         }
     }
 
@@ -245,8 +240,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private void cleanPool(long timeoutNanos) {
         if (ts.nanoTime - lastCleanNanos > timeoutNanos) {
             lastCleanNanos = ts.nanoTime;
-            heapPool.clean();
-            directPool.clean();
+            buffers.clean();
         }
     }
 

@@ -17,8 +17,13 @@ package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.calcTotalSize;
 
@@ -26,6 +31,8 @@ import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.calcTotalSize;
  * @author huangli
  */
 public class DefaultPoolFactory implements PoolFactory {
+
+    private static final DtLog log = DtLogs.getLogger(DefaultPoolFactory.class);
 
     public static final int[] DEFAULT_GLOBAL_SIZE = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024,
             1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
@@ -64,7 +71,13 @@ public class DefaultPoolFactory implements PoolFactory {
     }
 
     @Override
-    public ByteBufferPool createPool(Timestamp ts, boolean direct) {
+    public Buffers createPool(Timestamp ts) {
+        TwoLevelPool heapPool = (TwoLevelPool) createPool(ts, false);
+        TwoLevelPool directPool = (TwoLevelPool) createPool(ts, true);
+        return new Buffers(heapPool, directPool);
+    }
+
+    private ByteBufferPool createPool(Timestamp ts, boolean direct) {
         int[] minCount = calcByMem(DEFAULT_SMALL_MIN_COUNT);
         int[] maxCount = calcByMem(DEFAULT_SMALL_MAX_COUNT);
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(ts, direct,
@@ -93,8 +106,18 @@ public class DefaultPoolFactory implements PoolFactory {
     }
 
     @Override
-    public void destroyPool(ByteBufferPool pool) {
-        TwoLevelPool p = (TwoLevelPool) pool;
-        ((SimpleByteBufferPool) p.getSmallPool()).cleanAll();
+    public void initPool(Buffers buffers, Thread owner, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> crossThreadReleaseCallback) {
+        TwoLevelPool crossReleaseHeapPool = buffers.heapPool.toReleaseInOtherThreadInstance(owner, crossThreadReleaseCallback);
+        TwoLevelPool crossReleaseDirectPool = buffers.directPool.toReleaseInOtherThreadInstance(owner, crossThreadReleaseCallback);
+        buffers.init(crossReleaseHeapPool, crossReleaseDirectPool);
+    }
+
+    @Override
+    public void destroyPool(Buffers buffers) {
+        if (DtUtil.DEBUG >= 2) {
+            log.info("direct pool stat: {}\nheap pool stat: {}", buffers.directPool.formatStat(), buffers.heapPool.formatStat());
+        }
+        ((SimpleByteBufferPool) buffers.heapPool.getSmallPool()).cleanAll();
+        ((SimpleByteBufferPool) buffers.directPool.getSmallPool()).cleanAll();
     }
 }

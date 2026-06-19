@@ -16,9 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.Buffers;
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtThread;
@@ -84,8 +82,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final LinkedList<DtChannelImpl> incomingConnects;//server side only
     private final LinkedList<ConnectInfo> outgoingConnects;//client side only
 
-    private final ByteBufferPool directPool;
-    private final ByteBufferPool heapPool;
+    private final Buffers buffers;
 
     final WorkerStatus workerStatus;
 
@@ -119,24 +116,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.incomingConnects = null;
         }
 
-        this.directPool = config.poolFactory.createPool(timestamp, true);
-        this.heapPool = config.poolFactory.createPool(timestamp, false);
-
-        ByteBufferPool releaseSafeHeapPool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
-        ByteBufferPool releaseSafeDirectPool = createReleaseSafePool((TwoLevelPool) directPool, ioWorkerQueue);
-
-        Buffers buffers = new Buffers(heapPool, directPool, releaseSafeHeapPool, releaseSafeDirectPool);
-
+        BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> callback = (buf, c) ->
+                ioWorkerQueue.scheduleFromBizThread(() -> c.accept(buf));
+        this.buffers = config.poolFactory.createPool(timestamp);
         this.thread = new WorkerThread(this, workerName, timestamp, buffers);
+        config.poolFactory.initPool(buffers, thread, callback);
 
         workerStatus = new WorkerStatus(this, ioWorkerQueue,
                 buffers, timestamp, config.nearTimeoutThreshold);
-    }
-
-    private ByteBufferPool createReleaseSafePool(TwoLevelPool pool, IoWorkerQueue ioWorkerQueue) {
-        BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> callback = (buf, c) ->
-                ioWorkerQueue.scheduleFromBizThread(() -> c.accept(buf));
-        return pool.toReleaseInOtherThreadInstance(thread, callback);
     }
 
     @Override
@@ -175,13 +162,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 releaseReadBuffer();
             }
 
-            config.poolFactory.destroyPool(directPool);
-            config.poolFactory.destroyPool(heapPool);
+            config.poolFactory.destroyPool(buffers);
 
             log.info("worker thread [{}] finished.", thread.getName());
-            if (DtUtil.DEBUG >= 2) {
-                log.info("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
-            }
         } catch (Throwable e) {
             log.error("close error. {}", e);
         }
@@ -236,8 +219,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                         tryReconnect(ts);
                     }
                 }
-                directPool.clean();
-                heapPool.clean();
+                buffers.clean();
                 lastCleanNanos = ts.nanoTime;
             }
         } catch (Throwable e) {

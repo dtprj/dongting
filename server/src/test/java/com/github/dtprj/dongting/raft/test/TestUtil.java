@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.test;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -46,10 +44,6 @@ public class TestUtil {
     public static void plus(Timestamp ts, int value, TimeUnit unit) {
         ts.nanoTime += unit.toNanos(value);
         ts.wallClockMillis += unit.toMillis(value);
-    }
-
-    public static ByteBufferPool directPool() {
-        return new DefaultPoolFactory().createPool(new Timestamp(), true);
     }
 
     public static String randomStr(int length) {
