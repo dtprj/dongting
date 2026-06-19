@@ -18,6 +18,9 @@
     },
     "zread": {
       "enabled": false
+    },
+    "zai-mcp-server": {
+      "enabled": false
     }
   }
 }
