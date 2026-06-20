@@ -78,6 +78,7 @@ class FixSizeBufferPool {
     }
 
     private ByteBuffer borrow0() {
+        IndexedQueue<WeakReference<ByteBuffer>> weakRefStack = this.weakRefStack;
         if (weakRefEnabled) {
             while (weakRefStack.size() > 0) {
                 WeakReference<ByteBuffer> ref = weakRefStack.pollLast();
@@ -143,6 +144,9 @@ class FixSizeBufferPool {
     }
 
     public void clean(long expireNanos) {
+        if (weakRefEnabled) {
+            cleanWeakRefHeadAndTail();
+        }
         IndexedQueue<ByteBuffer> stack = this.bufferStack;
         int size = stack.size();
         for (int i = 0; i < size - minCount; i++) {
@@ -160,12 +164,10 @@ class FixSizeBufferPool {
                 }
             }
         }
-        if (weakRefEnabled) {
-            cleanWeakRefHeadAndTail();
-        }
     }
 
     private void cleanWeakRefHeadAndTail() {
+        IndexedQueue<WeakReference<ByteBuffer>> weakRefStack = this.weakRefStack;
         WeakReference<ByteBuffer> ref = weakRefStack.getFirst();
         if (ref == null) {
             return;
