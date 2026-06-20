@@ -31,14 +31,12 @@ public final class RefBuffer extends RefCount implements Encodable {
 
     private ByteBuffer buffer;
     private final ByteBufferPool pool;
-    private final boolean direct;
     private final RefBuffer root;
 
     private int encodeSize;
 
     RefBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain, !pool.isDirect() && requestSize < threshold);
-        this.direct = pool.isDirect();
         if (requestSize < threshold) {
             this.buffer = pool.allocate(requestSize);
             this.pool = null;
@@ -54,7 +52,6 @@ public final class RefBuffer extends RefCount implements Encodable {
         super(false, root.updater == null);
         this.root = root;
         this.pool = null;
-        this.direct = root.direct;
         this.buffer = root.buffer.slice();
         this.encodeSize = absoluteLimit - absolutePos;
         this.buffer.limit(absoluteLimit);
@@ -68,7 +65,6 @@ public final class RefBuffer extends RefCount implements Encodable {
         }
         this.buffer = buf;
         this.pool = null;
-        this.direct = buf.isDirect();
         this.encodeSize = buf.remaining();
         this.root = null;
     }
@@ -77,6 +73,10 @@ public final class RefBuffer extends RefCount implements Encodable {
         return new RefBuffer(buf);
     }
 
+    /**
+     * this method is preserve for biz code usage.
+     */
+    @SuppressWarnings("unused")
     public RefBuffer slice(int absolutePos, int absoluteLimit) {
         RefBuffer r = this.root == null ? this : this.root;
         return new RefBuffer(r, absolutePos, absoluteLimit);
