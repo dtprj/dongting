@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.buf;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.IndexedQueue;
 
-import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 
 /**
@@ -36,7 +35,7 @@ class FixSizeBufferPool {
     private static final int MAGIC = 0xEA1D9C07;
 
     private final IndexedQueue<ByteBuffer> bufferStack;
-    private final IndexedQueue<WeakReference<ByteBuffer>> weakRefStack;
+    private final WeakRefCache<ByteBuffer> weakRefCache;
 
     long statBorrowCount;
     long statBorrowHitCount;
@@ -58,7 +57,7 @@ class FixSizeBufferPool {
         // Enable weak reference feature for heap buffers with size >= threshold
         // Direct buffers are excluded because they create "iceberg" objects
         boolean weakRefEnabled = !direct && bufferSize >= weakRefThreshold;
-        this.weakRefStack = weakRefEnabled ? new IndexedQueue<>(16) : null;
+        this.weakRefCache = weakRefEnabled ? new WeakRefCache<>(16) : null;
     }
 
     public ByteBuffer borrow() {
@@ -77,14 +76,10 @@ class FixSizeBufferPool {
     }
 
     private ByteBuffer borrow0() {
-        IndexedQueue<WeakReference<ByteBuffer>> weakRefStack = this.weakRefStack;
-        if (weakRefStack != null) {
-            while (weakRefStack.size() > 0) {
-                WeakReference<ByteBuffer> ref = weakRefStack.pollLast();
-                ByteBuffer buf = ref.get();
-                if (buf != null) {
-                    return buf;
-                }
+        if (weakRefCache != null) {
+            ByteBuffer buf = weakRefCache.borrow();
+            if (buf != null) {
+                return buf;
             }
         }
 
@@ -121,10 +116,10 @@ class FixSizeBufferPool {
         if (bufferStack.size() >= maxCount) {
             long newUsedShareSize = config.currentUsedShareSize + bufferSize;
             if (newUsedShareSize > shareSize) {
-                if (weakRefStack != null) {
+                if (weakRefCache != null) {
                     // only write magic, return time is not needed
                     buf.putInt(MAGIC_INDEX, MAGIC);
-                    weakRefStack.addLast(new WeakReference<>(buf));
+                    weakRefCache.releaseToCache(buf);
                 }
                 return false;
             } else {
@@ -143,8 +138,9 @@ class FixSizeBufferPool {
     }
 
     public void clean(long expireNanos) {
-        if (weakRefStack != null) {
-            cleanWeakRefHeadAndTail();
+        WeakRefCache<ByteBuffer> weakRefCache = this.weakRefCache;
+        if (weakRefCache != null) {
+            weakRefCache.cleanHeadAndTail();
         }
         IndexedQueue<ByteBuffer> stack = this.bufferStack;
         int size = stack.size();
@@ -157,31 +153,10 @@ class FixSizeBufferPool {
                 updateCurrentUsedShareSizeAfterRemove();
                 if (direct) {
                     SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
-                } else if (weakRefStack != null) {
-                    // the buffer is not used recently, add to bottom
-                    weakRefStack.addFirst(new WeakReference<>(buf));
+                } else if (weakRefCache != null) {
+                    weakRefCache.moveIdleElementsToCache(buf);
                 }
             }
-        }
-    }
-
-    private void cleanWeakRefHeadAndTail() {
-        IndexedQueue<WeakReference<ByteBuffer>> weakRefStack = this.weakRefStack;
-        WeakReference<ByteBuffer> ref = weakRefStack.getFirst();
-        if (ref == null) {
-            return;
-        }
-        while (ref.get() == null) {
-            weakRefStack.pollFirst();
-            ref = weakRefStack.getFirst();
-            if (ref == null) {
-                return;
-            }
-        }
-        ref = weakRefStack.getLast();
-        while (ref != null && ref.get() == null) {
-            weakRefStack.pollLast();
-            ref = weakRefStack.getLast();
         }
     }
 
