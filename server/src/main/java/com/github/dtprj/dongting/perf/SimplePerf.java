@@ -32,7 +32,7 @@ public abstract class SimplePerf extends PerfCallback {
     protected static final DtLog log = DtLogs.getLogger(SimplePerf.class);
     private final boolean useCollectExecutor;
 
-    private ScheduledExecutorService ses = DtUtil.SCHEDULED_SERVICE;
+    private ScheduledExecutorService ses = DtUtil.LOW_PRIORITY_SCHEDULER;
     private ScheduledFuture<?> future;
     private boolean started;
     private volatile boolean shutdown;

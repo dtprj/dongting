@@ -49,6 +49,12 @@ public class DtUtil {
         return t;
     });
 
+    public final static ScheduledExecutorService LOW_PRIORITY_SCHEDULER = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "DtLowPriorityScheduler");
+        t.setDaemon(true);
+        return t;
+    });
+
     public static void close(AutoCloseable... resources) {
         for (AutoCloseable res : resources) {
             close(res);

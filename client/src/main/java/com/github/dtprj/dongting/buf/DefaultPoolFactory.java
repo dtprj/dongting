@@ -57,7 +57,7 @@ public class DefaultPoolFactory implements PoolFactory {
             GLOBAL_DIRECT_POOL.clean();
             GLOBAL_HEAP_POOL.clean();
         };
-        DtUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(r, 1, 1, TimeUnit.SECONDS);
+        DtUtil.LOW_PRIORITY_SCHEDULER.scheduleWithFixedDelay(r, 1, 1, TimeUnit.SECONDS);
     }
 
     private static SimpleByteBufferPool createGlobalPool(boolean direct) {
