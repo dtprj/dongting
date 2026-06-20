@@ -37,7 +37,6 @@ class FixSizeBufferPool {
 
     private final IndexedQueue<ByteBuffer> bufferStack;
     private final IndexedQueue<WeakReference<ByteBuffer>> weakRefStack;
-    private final boolean weakRefEnabled;
 
     long statBorrowCount;
     long statBorrowHitCount;
@@ -58,7 +57,7 @@ class FixSizeBufferPool {
         this.bufferStack = new IndexedQueue<>(maxCount);
         // Enable weak reference feature for heap buffers with size >= threshold
         // Direct buffers are excluded because they create "iceberg" objects
-        this.weakRefEnabled = !direct && bufferSize >= weakRefThreshold;
+        boolean weakRefEnabled = !direct && bufferSize >= weakRefThreshold;
         this.weakRefStack = weakRefEnabled ? new IndexedQueue<>(16) : null;
     }
 
@@ -79,7 +78,7 @@ class FixSizeBufferPool {
 
     private ByteBuffer borrow0() {
         IndexedQueue<WeakReference<ByteBuffer>> weakRefStack = this.weakRefStack;
-        if (weakRefEnabled) {
+        if (weakRefStack != null) {
             while (weakRefStack.size() > 0) {
                 WeakReference<ByteBuffer> ref = weakRefStack.pollLast();
                 ByteBuffer buf = ref.get();
@@ -122,7 +121,7 @@ class FixSizeBufferPool {
         if (bufferStack.size() >= maxCount) {
             long newUsedShareSize = config.currentUsedShareSize + bufferSize;
             if (newUsedShareSize > shareSize) {
-                if (weakRefEnabled) {
+                if (weakRefStack != null) {
                     // only write magic, return time is not needed
                     buf.putInt(MAGIC_INDEX, MAGIC);
                     weakRefStack.addLast(new WeakReference<>(buf));
@@ -144,7 +143,7 @@ class FixSizeBufferPool {
     }
 
     public void clean(long expireNanos) {
-        if (weakRefEnabled) {
+        if (weakRefStack != null) {
             cleanWeakRefHeadAndTail();
         }
         IndexedQueue<ByteBuffer> stack = this.bufferStack;
@@ -158,7 +157,7 @@ class FixSizeBufferPool {
                 updateCurrentUsedShareSizeAfterRemove();
                 if (direct) {
                     SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
-                } else if (weakRefEnabled) {
+                } else if (weakRefStack != null) {
                     // the buffer is not used recently, add to bottom
                     weakRefStack.addFirst(new WeakReference<>(buf));
                 }
