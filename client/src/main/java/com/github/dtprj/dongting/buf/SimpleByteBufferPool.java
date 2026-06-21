@@ -110,15 +110,11 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     RefBuffer borrow0(boolean plain, int requestSize, int threshold,
                       ByteBufferPool returnPool, boolean allocateIfNotInPool) {
         if (requestSize < threshold) {
-            return allocateIfNotInPool
-                    ? new RefBuffer(plain, allocate(requestSize), null, !direct)
-                    : null;
+            return allocateIfNotInPool ? newUnpooledRefBuffer(plain, requestSize) : null;
         }
         if (requestSize <= this.threshold) {
             incBorrowTooSmall();
-            return allocateIfNotInPool
-                    ? new RefBuffer(plain, allocate(requestSize), returnPool, false)
-                    : null;
+            return allocateIfNotInPool ? newUnpooledRefBuffer(plain, requestSize) : null;
         }
         int[] bufSizes = this.bufSizes;
         int poolCount = bufSizes.length;
@@ -130,9 +126,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         }
         if (poolIndex >= poolCount) {
             incBorrowTooLarge();
-            return allocateIfNotInPool
-                    ? new RefBuffer(plain, allocate(requestSize), returnPool, false)
-                    : null;
+            return allocateIfNotInPool ? newUnpooledRefBuffer(plain, requestSize) : null;
         }
         ByteBuffer result;
         if (threadSafe) {
@@ -148,6 +142,10 @@ public class SimpleByteBufferPool extends ByteBufferPool {
                     : null;
         }
         return new RefBuffer(plain, result, returnPool, false);
+    }
+
+    private RefBuffer newUnpooledRefBuffer(boolean plain, int requestSize) {
+        return new RefBuffer(plain, allocate(requestSize), null, !direct);
     }
 
     private void incBorrowTooSmall() {
