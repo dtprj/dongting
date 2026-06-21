@@ -81,21 +81,17 @@ public class TwoLevelPool extends ByteBufferPool {
         if (owner != null && owner != Thread.currentThread()) {
             throw new DtException("borrow in other thread");
         }
-        if (requestSize < threshold) {
-            return new RefBuffer(plain, allocate(requestSize), null, !direct);
-        }
-        ByteBuffer buf;
         if (requestSize > smallPoolMax) {
-            buf = largePool.borrow0(requestSize, true);
+            return largePool.borrow0(plain, requestSize, threshold, this, true);
         } else if (requestSize < largePoolMin) {
-            buf = smallPool.borrow0(requestSize, true);
+            return smallPool.borrow0(plain, requestSize, threshold, this, true);
         } else {
-            buf = smallPool.borrow0(requestSize, false);
-            if (buf == null) {
-                buf = largePool.borrow0(requestSize, true);
+            RefBuffer rb = smallPool.borrow0(plain, requestSize, threshold, this, false);
+            if (rb == null) {
+                return largePool.borrow0(plain, requestSize, threshold, this, true);
             }
+            return rb;
         }
-        return new RefBuffer(plain, buf, this, false);
     }
 
     @Override

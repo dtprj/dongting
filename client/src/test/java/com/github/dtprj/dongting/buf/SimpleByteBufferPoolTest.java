@@ -76,7 +76,7 @@ public class SimpleByteBufferPoolTest {
     }
 
     private ByteBuffer borrowBuf(int size) {
-        return pool.borrow0(size, true);
+        return pool.borrow(false, size, 0).getBuffer();
     }
 
     @Test

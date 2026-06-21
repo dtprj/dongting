@@ -104,23 +104,21 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     @Override
     public RefBuffer borrow(boolean plain, int requestSize, int threshold) {
-        if (requestSize < threshold) {
-            return new RefBuffer(plain, allocate(requestSize), null, !direct);
-        }
-        ByteBuffer buf = borrow0(requestSize, true);
-        return new RefBuffer(plain, buf, this, false);
+        return borrow0(plain, requestSize, threshold, this, true);
     }
 
-    ByteBuffer borrow0(int requestSize, boolean allocateIfNotInPool) {
-        if (requestSize <= threshold) {
-            if (threadSafe) {
-                synchronized (this) {
-                    statBorrowTooSmallCount++;
-                }
-            } else {
-                statBorrowTooSmallCount++;
-            }
-            return allocateIfNotInPool ? allocate(requestSize) : null;
+    RefBuffer borrow0(boolean plain, int requestSize, int threshold,
+                      ByteBufferPool returnPool, boolean allocateIfNotInPool) {
+        if (requestSize < threshold) {
+            return allocateIfNotInPool
+                    ? new RefBuffer(plain, allocate(requestSize), null, !direct)
+                    : null;
+        }
+        if (requestSize <= this.threshold) {
+            incBorrowTooSmall();
+            return allocateIfNotInPool
+                    ? new RefBuffer(plain, allocate(requestSize), returnPool, false)
+                    : null;
         }
         int[] bufSizes = this.bufSizes;
         int poolCount = bufSizes.length;
@@ -130,19 +128,12 @@ public class SimpleByteBufferPool extends ByteBufferPool {
                 break;
             }
         }
-
         if (poolIndex >= poolCount) {
-            // request buffer too large, allocate without pool
-            if (threadSafe) {
-                synchronized (this) {
-                    statBorrowTooLargeCount++;
-                }
-            } else {
-                statBorrowTooLargeCount++;
-            }
-            return allocateIfNotInPool ? allocate(requestSize) : null;
+            incBorrowTooLarge();
+            return allocateIfNotInPool
+                    ? new RefBuffer(plain, allocate(requestSize), returnPool, false)
+                    : null;
         }
-
         ByteBuffer result;
         if (threadSafe) {
             synchronized (this) {
@@ -151,11 +142,31 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         } else {
             result = pools[poolIndex].borrow();
         }
-        if (result != null) {
-            return result;
+        if (result == null) {
+            return allocateIfNotInPool
+                    ? new RefBuffer(plain, allocate(bufSizes[poolIndex]), returnPool, false)
+                    : null;
+        }
+        return new RefBuffer(plain, result, returnPool, false);
+    }
+
+    private void incBorrowTooSmall() {
+        if (threadSafe) {
+            synchronized (this) {
+                statBorrowTooSmallCount++;
+            }
         } else {
-            int size = bufSizes[poolIndex];
-            return allocateIfNotInPool ? allocate(size) : null;
+            statBorrowTooSmallCount++;
+        }
+    }
+
+    private void incBorrowTooLarge() {
+        if (threadSafe) {
+            synchronized (this) {
+                statBorrowTooLargeCount++;
+            }
+        } else {
+            statBorrowTooLargeCount++;
         }
     }
 
