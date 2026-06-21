@@ -31,17 +31,17 @@ public class TwoLevelPool extends ByteBufferPool {
     private final int largePoolMin;
     private final int smallPoolMax;
     private final boolean releaseInOtherThread;
-    private final BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> releaseCallback;
+    private final BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> releaseCallback;
     private final Thread owner;
 
-    private final Consumer<ByteBuffer> mixedReleasor = this::mixedRelease;
+    private final Consumer<RefBuffer> refBufferReleasor = this::mixedRelease;
 
     public TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool) {
         this(direct, smallPool, largePool, false, null, null);
     }
 
     private TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool,
-                         boolean releaseInOtherThread, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> releaseCallback, Thread owner) {
+                         boolean releaseInOtherThread, BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> releaseCallback, Thread owner) {
         super(direct);
         this.smallPool = smallPool;
         this.largePool = largePool;
@@ -76,53 +76,67 @@ public class TwoLevelPool extends ByteBufferPool {
     }
 
     @Override
-    public ByteBuffer borrow(int requestSize) {
+    public RefBuffer borrow(boolean plain, int requestSize, int threshold) {
         Thread owner = this.owner;
         if (owner != null && owner != Thread.currentThread()) {
             throw new DtException("borrow in other thread");
         }
-        if (requestSize > smallPoolMax) {
-            return largePool.borrow(requestSize);
-        } else if (requestSize < largePoolMin) {
-            return smallPool.borrow(requestSize);
-        } else {
-            ByteBuffer b = smallPool.borrow0(requestSize, false);
-            if (b == null) {
-                return largePool.borrow(requestSize);
-            }
-            return b;
+        if (requestSize < threshold) {
+            return new RefBuffer(plain, allocate(requestSize), null, !direct);
         }
+        ByteBuffer buf;
+        if (requestSize > smallPoolMax) {
+            buf = largePool.borrow0(requestSize, true);
+        } else if (requestSize < largePoolMin) {
+            buf = smallPool.borrow0(requestSize, true);
+        } else {
+            buf = smallPool.borrow0(requestSize, false);
+            if (buf == null) {
+                buf = largePool.borrow0(requestSize, true);
+            }
+        }
+        return new RefBuffer(plain, buf, this, false);
     }
 
     @Override
-    public void release(ByteBuffer buf) {
+    public void release(RefBuffer rb) {
+        ByteBuffer buf = rb.buffer;
         int c = buf.capacity();
         if (c > smallPoolMax) {
-            largePool.release(buf);
+            largePool.release(rb);
+        } else if (releaseInOtherThread && owner != Thread.currentThread()) {
+            if (!releaseCallback.apply(rb, refBufferReleasor)) {
+                // release after dt thread shutdown
+                releaseAfterShutdown(rb);
+            }
         } else {
-            if (releaseInOtherThread && owner != Thread.currentThread()) {
-                if (!releaseCallback.apply(buf, mixedReleasor)) {
-                    // release after dt thread shutdown
-                    if (c >= largePoolMin) {
-                        largePool.release(buf);
-                    } else if (direct) {
-                        VersionFactory.getInstance().releaseDirectBuffer(buf);
-                    }
-                }
+            mixedRelease(rb);
+        }
+    }
+
+    private void mixedRelease(RefBuffer rb) {
+        ByteBuffer buf = rb.buffer;
+        int c = buf.capacity();
+        if (c < largePoolMin) {
+            smallPool.release(rb);
+        } else {
+            if (!smallPool.release0(buf)) {
+                largePool.release(rb);
             } else {
-                mixedRelease(buf);
+                rb.buffer = null;
             }
         }
     }
 
-    private void mixedRelease(ByteBuffer buf) {
-        int c = buf.capacity();
-        if (c < largePoolMin) {
-            smallPool.release(buf);
+    private void releaseAfterShutdown(RefBuffer rb) {
+        int c = rb.buffer.capacity();
+        if (c >= largePoolMin) {
+            largePool.release(rb);
+        } else if (direct) {
+            VersionFactory.getInstance().releaseDirectBuffer(rb.buffer);
+            rb.buffer = null;
         } else {
-            if (!smallPool.release0(buf)) {
-                largePool.release(buf);
-            }
+            rb.buffer = null;
         }
     }
 
@@ -141,7 +155,7 @@ public class TwoLevelPool extends ByteBufferPool {
         return smallPool.formatStat();
     }
 
-    public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> crossThreadReleaseCallback) {
+    public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadReleaseCallback) {
         return new TwoLevelPool(direct, smallPool, largePool, true, crossThreadReleaseCallback, owner);
     }
 

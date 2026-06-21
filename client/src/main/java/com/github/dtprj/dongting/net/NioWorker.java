@@ -116,8 +116,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.incomingConnects = null;
         }
 
-        BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> callback = (buf, c) ->
-                ioWorkerQueue.scheduleFromBizThread(() -> c.accept(buf));
+        BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> callback = (rb, c) ->
+                ioWorkerQueue.scheduleFromBizThread(() -> c.accept(rb));
         this.buffers = config.poolFactory.createPool(timestamp);
         this.thread = new WorkerThread(this, workerName, timestamp, buffers);
         config.poolFactory.initPool(buffers, thread, callback);

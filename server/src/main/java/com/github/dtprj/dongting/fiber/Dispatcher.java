@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
@@ -94,11 +95,11 @@ public class Dispatcher extends AbstractLifeCircle {
         this.perfCallback = perfCallback;
 
 
-        BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> crossThreadReleaseCallback =
-                (buf, c) -> shareQueue.offer(new FiberQueueTask(null) {
+        BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadReleaseCallback =
+                (rb, c) -> shareQueue.offer(new FiberQueueTask(null) {
                     @Override
                     protected void run() {
-                        c.accept(buf);
+                        c.accept(rb);
                     }
                 });
 

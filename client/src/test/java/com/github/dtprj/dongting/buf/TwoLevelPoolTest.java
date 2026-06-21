@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,37 +48,37 @@ public class TwoLevelPoolTest {
     @Test
     public void test() {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2);
-        ByteBuffer b1 = p.borrow(31);
-        ByteBuffer b2 = p.borrow(32);
-        ByteBuffer b3 = p.borrow(33);
-        assertEquals(32, b1.capacity());
-        assertEquals(32, b2.capacity());
-        assertEquals(128, b3.capacity());
-        p.release(b1);
-        p.release(b2);
-        p.release(b3);
+        RefBuffer b1 = p.borrow(false, 31, 0);
+        RefBuffer b2 = p.borrow(false, 32, 0);
+        RefBuffer b3 = p.borrow(false, 33, 0);
+        assertEquals(32, b1.getBuffer().capacity());
+        assertEquals(32, b2.getBuffer().capacity());
+        assertEquals(128, b3.getBuffer().capacity());
+        b1.release();
+        b2.release();
+        b3.release();
     }
 
     @Test
     public void testBorrowInOtherThread() {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         //noinspection InstantiatingAThreadWithDefaultRunMethod
-        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(new Thread(), (buf, c) -> true);
-        assertThrows(DtException.class, () -> p2.borrow(1));
+        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(new Thread(), (rb, c) -> true);
+        assertThrows(DtException.class, () -> p2.borrow(false, 1, 0));
     }
 
     @Test
     public void testReleaseInOtherThread1() {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         AtomicInteger releaseCount = new AtomicInteger(0);
-        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), (buf, c) -> {
+        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), (rb, c) -> {
             releaseCount.incrementAndGet();
-            c.accept(buf);
+            c.accept(rb);
             return true;
         });
-        ByteBuffer b1 = p2.borrow(1);
+        RefBuffer b1 = p2.borrow(false, 16, 0);
         // release in same thread, not invoke callback
-        p2.release(b1);
+        b1.release();
         assertEquals(0, releaseCount.get());
     }
 
@@ -87,13 +86,13 @@ public class TwoLevelPoolTest {
     public void testReleaseInOtherThread2() throws Exception {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         AtomicInteger releaseCount = new AtomicInteger(0);
-        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), (buf, c) -> {
+        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), (rb, c) -> {
             releaseCount.incrementAndGet();
-            c.accept(buf);
+            c.accept(rb);
             return true;
         });
-        ByteBuffer b1 = p2.borrow(1);
-        Thread t = new Thread(() -> p2.release(b1));
+        RefBuffer b1 = p2.borrow(false, 16, 0);
+        Thread t = new Thread(b1::release);
         t.start();
         t.join();
         assertEquals(1, releaseCount.get());
@@ -103,14 +102,14 @@ public class TwoLevelPoolTest {
     public void testReleaseInOtherThread3() throws Exception {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2);
         AtomicInteger releaseCount = new AtomicInteger(0);
-        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), (buf, c) -> {
+        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), (rb, c) -> {
             releaseCount.incrementAndGet();
-            c.accept(buf);
+            c.accept(rb);
             return true;
         });
-        ByteBuffer b1 = p2.borrow(128);
+        RefBuffer b1 = p2.borrow(false, 128, 0);
         // large buffer not invoke callback when release
-        Thread t = new Thread(() -> p2.release(b1));
+        Thread t = new Thread(b1::release);
         t.start();
         t.join();
         assertEquals(0, releaseCount.get());

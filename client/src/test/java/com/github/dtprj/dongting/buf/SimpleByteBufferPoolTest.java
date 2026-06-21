@@ -75,25 +75,29 @@ public class SimpleByteBufferPoolTest {
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c7));
     }
 
+    private ByteBuffer borrowBuf(int size) {
+        return pool.borrow0(size, true);
+    }
+
     @Test
     public void testBorrow1() {
         pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
-        ByteBuffer buf1 = pool.borrow(1);
-        ByteBuffer buf2 = pool.borrow(1024);
+        ByteBuffer buf1 = borrowBuf(1);
+        ByteBuffer buf2 = borrowBuf(1024);
         assertEquals(1, buf1.capacity());
         assertEquals(1024, buf2.capacity());
         assertNotSame(buf1, buf2);
-        pool.release(buf1);
-        pool.release(buf2);
-        ByteBuffer buf3 = pool.borrow(1024);
+        pool.releaseBuffer(buf1);
+        pool.releaseBuffer(buf2);
+        ByteBuffer buf3 = borrowBuf(1024);
         assertSame(buf3, buf2);
     }
 
     @Test
     public void testBorrow2() {
         pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
-        ByteBuffer buf1 = pool.borrow(1024);
-        ByteBuffer buf2 = pool.borrow(1025);
+        ByteBuffer buf1 = borrowBuf(1024);
+        ByteBuffer buf2 = borrowBuf(1025);
         assertEquals(1024, buf1.capacity());
         assertEquals(2048, buf2.capacity());
     }
@@ -103,9 +107,9 @@ public class SimpleByteBufferPoolTest {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
                 new int[]{100, 200}, new int[]{10, 10}, new int[]{10, 10});
         pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(300);
-        pool.release(buf1);
-        assertNotSame(buf1, pool.borrow(300));
+        ByteBuffer buf1 = borrowBuf(300);
+        pool.releaseBuffer(buf1);
+        assertNotSame(buf1, borrowBuf(300));
     }
 
     @Test
@@ -113,33 +117,33 @@ public class SimpleByteBufferPoolTest {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
                 new int[]{100, 200}, new int[]{1, 1}, new int[]{2, 2});
         pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(100);
-        ByteBuffer buf2 = pool.borrow(100);
-        ByteBuffer buf3 = pool.borrow(100);
-        pool.release(buf1);
-        pool.release(buf2);
-        pool.release(buf3);
-        assertSame(buf2, pool.borrow(100));
-        assertSame(buf1, pool.borrow(100));
+        ByteBuffer buf1 = borrowBuf(100);
+        ByteBuffer buf2 = borrowBuf(100);
+        ByteBuffer buf3 = borrowBuf(100);
+        pool.releaseBuffer(buf1);
+        pool.releaseBuffer(buf2);
+        pool.releaseBuffer(buf3);
+        assertSame(buf2, borrowBuf(100));
+        assertSame(buf1, borrowBuf(100));
     }
 
     @Test
     public void testThreshold() {
         pool = new SimpleByteBufferPool(createDefaultConfig(2048));
-        ByteBuffer buf = pool.borrow(2047);
+        ByteBuffer buf = borrowBuf(2047);
         assertEquals(2047, buf.capacity());
-        pool.release(buf);
-        assertNotSame(buf, pool.borrow(2047));
+        pool.releaseBuffer(buf);
+        assertNotSame(buf, borrowBuf(2047));
 
-        buf = pool.borrow(2048);
+        buf = borrowBuf(2048);
         assertEquals(2048, buf.capacity());
-        pool.release(buf);
-        assertNotSame(buf, pool.borrow(2048));
+        pool.releaseBuffer(buf);
+        assertNotSame(buf, borrowBuf(2048));
 
-        buf = pool.borrow(2049);
+        buf = borrowBuf(2049);
         assertEquals(4096, buf.capacity());
-        pool.release(buf);
-        assertSame(buf, pool.borrow(4096));
+        pool.releaseBuffer(buf);
+        assertSame(buf, borrowBuf(4096));
     }
 
     @Test
@@ -159,14 +163,15 @@ public class SimpleByteBufferPoolTest {
                 try {
                     for (int i = 0; i < 1000; i++) {
                         Random r = new Random();
-                        ByteBuffer bb = pool.borrow(r.nextInt(maxCapacity) + 1);
+                        RefBuffer rb = pool.borrow(false, r.nextInt(maxCapacity) + 1, 0);
+                        ByteBuffer bb = rb.getBuffer();
                         int pos = bb.position();
                         if (pos > 0) {
                             throw new IllegalStateException();
                         } else {
                             bb.position(1);
                         }
-                        pool.release(bb);
+                        rb.release();
                         pool.clean();
                     }
                     countDownLatch.countDown();
@@ -186,17 +191,17 @@ public class SimpleByteBufferPoolTest {
     @Test
     public void testBadUsage() {
         pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
-        ByteBuffer buf1 = pool.borrow(400);
-        pool.release(buf1);
-        assertThrows(DtException.class, () -> pool.release(buf1));
-        ByteBuffer buf2 = pool.borrow(400);
-        pool.release(buf2);
+        ByteBuffer buf1 = borrowBuf(400);
+        pool.releaseBuffer(buf1);
+        assertThrows(DtException.class, () -> pool.releaseBuffer(buf1));
+        ByteBuffer buf2 = borrowBuf(400);
+        pool.releaseBuffer(buf2);
         buf2.putInt(0, buf2.getInt(0) + 1);
-        assertThrows(DtException.class, () -> pool.borrow(400));
-        ByteBuffer buf3 = pool.borrow(400);
+        assertThrows(DtException.class, () -> borrowBuf(400));
+        ByteBuffer buf3 = borrowBuf(400);
         // buf2 is dropped
         Assertions.assertNotSame(buf2, buf3);
-        pool.release(buf3);
+        pool.releaseBuffer(buf3);
     }
 
     @Test
@@ -204,17 +209,17 @@ public class SimpleByteBufferPoolTest {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false,
                 new int[]{1024}, new int[]{1}, new int[]{2}, 1000, 0);
         pool = new SimpleByteBufferPool(c);
-        ByteBuffer buf1 = pool.borrow(1024);
-        ByteBuffer buf2 = pool.borrow(1024);
-        pool.release(buf1);
-        pool.release(buf2);
-        
+        ByteBuffer buf1 = borrowBuf(1024);
+        ByteBuffer buf2 = borrowBuf(1024);
+        pool.releaseBuffer(buf1);
+        pool.releaseBuffer(buf2);
+
         plus(pool, 1001);
         pool.clean();
-        
-        ByteBuffer buf3 = pool.borrow(1024);
+
+        ByteBuffer buf3 = borrowBuf(1024);
         assertSame(buf2, buf3);
-        assertNotSame(pool.borrow(1024), buf1);
+        assertNotSame(borrowBuf(1024), buf1);
     }
 
     public static void main(String[] args) {

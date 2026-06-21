@@ -32,9 +32,9 @@ public abstract class ByteBufferPool {
         return direct;
     }
 
-    public abstract ByteBuffer borrow(int requestSize);
+    public abstract RefBuffer borrow(boolean plain, int requestSize, int threshold);
 
-    public abstract void release(ByteBuffer buf);
+    public abstract void release(RefBuffer rb);
 
     abstract ByteBuffer allocate(int requestSize);
 

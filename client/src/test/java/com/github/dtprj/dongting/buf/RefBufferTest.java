@@ -34,7 +34,7 @@ public class RefBufferTest {
     @Test
     public void testCreate1() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(createDefaultConfig());
-        RefBuffer refBuffer = new RefBuffer(false, pool, 127, 128);
+        RefBuffer refBuffer = pool.borrow(false, 127, 128);
         refBuffer.retain();
         refBuffer.release();
         refBuffer.release();
@@ -45,7 +45,7 @@ public class RefBufferTest {
     @Test
     public void testCreate2() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(createDefaultConfig());
-        RefBuffer refBuffer = new RefBuffer(false, pool, 128, 128);
+        RefBuffer refBuffer = pool.borrow(false, 128, 128);
         refBuffer.retain();
         refBuffer.release();
         refBuffer.release();
@@ -55,7 +55,7 @@ public class RefBufferTest {
     @Test
     public void testCreatePlain1() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(createDefaultConfig());
-        RefBuffer refBuffer = new RefBuffer(true, pool, 127, 128);
+        RefBuffer refBuffer = pool.borrow(true, 127, 128);
         refBuffer.retain();
         refBuffer.release();
         refBuffer.release();
@@ -66,7 +66,7 @@ public class RefBufferTest {
     @Test
     public void testCreatePlain2() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(createDefaultConfig());
-        RefBuffer refBuffer = new RefBuffer(true, pool, 128, 128);
+        RefBuffer refBuffer = pool.borrow(true, 128, 128);
         refBuffer.retain();
         refBuffer.release();
         refBuffer.release();

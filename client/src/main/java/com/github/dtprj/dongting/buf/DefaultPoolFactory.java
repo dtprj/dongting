@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -106,7 +105,7 @@ public class DefaultPoolFactory implements PoolFactory {
     }
 
     @Override
-    public void initPool(Buffers buffers, Thread owner, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> crossThreadReleaseCallback) {
+    public void initPool(Buffers buffers, Thread owner, BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadReleaseCallback) {
         TwoLevelPool crossReleaseHeapPool = buffers.heapPool.toReleaseInOtherThreadInstance(owner, crossThreadReleaseCallback);
         TwoLevelPool crossReleaseDirectPool = buffers.directPool.toReleaseInOtherThreadInstance(owner, crossThreadReleaseCallback);
         buffers.init(crossReleaseHeapPool, crossReleaseDirectPool);

@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.Timestamp;
 
-import java.nio.ByteBuffer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -28,7 +27,7 @@ public interface PoolFactory {
 
     Buffers createPool(Timestamp ts);
 
-    void initPool(Buffers buffers, Thread owner, BiFunction<ByteBuffer, Consumer<ByteBuffer>, Boolean> crossThreadReleaseCallback);
+    void initPool(Buffers buffers, Thread owner, BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadReleaseCallback);
 
     void destroyPool(Buffers pool);
 }

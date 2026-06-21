@@ -29,21 +29,16 @@ public final class RefBuffer extends RefCount implements Encodable {
 
     public static final RefBuffer EMPTY = new RefBuffer(ByteBuffer.allocate(0));
 
-    private ByteBuffer buffer;
+    ByteBuffer buffer;
     private final ByteBufferPool pool;
     private final RefBuffer root;
 
     private int encodeSize;
 
-    RefBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
-        super(plain, !pool.isDirect() && requestSize < threshold);
-        if (requestSize < threshold) {
-            this.buffer = pool.allocate(requestSize);
-            this.pool = null;
-        } else {
-            this.buffer = pool.borrow(requestSize);
-            this.pool = pool;
-        }
+    RefBuffer(boolean plain, ByteBuffer buffer, ByteBufferPool pool, boolean dummy) {
+        super(plain, dummy);
+        this.buffer = buffer;
+        this.pool = pool;
         this.encodeSize = -1;
         this.root = null;
     }
@@ -128,13 +123,14 @@ public final class RefBuffer extends RefCount implements Encodable {
     @Override
     protected void doClean() {
         // not called if this RefBuffer is a sliced buffer
-        if (pool != null) {
-            pool.release(buffer);
+        ByteBufferPool p = this.pool;
+        if (p != null) {
+            p.release(this);
         } else {
             // should be direct, see constructor, the heap buffer less than threshold is dummy and not call doClean
             SimpleByteBufferPool.VF.releaseDirectBuffer(buffer);
+            this.buffer = null;
         }
-        this.buffer = null;
     }
 
     public ByteBuffer getBuffer() {

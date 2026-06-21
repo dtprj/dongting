@@ -41,15 +41,16 @@ public class Buffers {
     }
 
     public RefBuffer borrow(int requestSize) {
-        return new RefBuffer(false, threadSafeReleaseHeapPool, requestSize, 0);
+        return threadSafeReleaseHeapPool.borrow(false, requestSize, 0);
     }
 
     public RefBuffer borrow(int requestSize, boolean plain) {
-        return new RefBuffer(plain, threadSafeReleaseHeapPool, requestSize, 0);
+        return threadSafeReleaseHeapPool.borrow(plain, requestSize, 0);
     }
 
     public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-        return new RefBuffer(plain, threadSafeRelease ? threadSafeReleaseHeapPool : heapPool, requestSize, threshold);
+        ByteBufferPool pool = threadSafeRelease ? threadSafeReleaseHeapPool : heapPool;
+        return pool.borrow(plain, requestSize, threshold);
     }
 
     /**
@@ -57,19 +58,20 @@ public class Buffers {
      * Equivalent to {@code borrow(requestSize, true, false, 0)}.
      */
     public RefBuffer borrowLocal(int requestSize) {
-        return new RefBuffer(true, heapPool, requestSize, 0);
+        return heapPool.borrow(true, requestSize, 0);
     }
 
     public RefBuffer borrowDirect(int requestSize) {
-        return new RefBuffer(false, threadSafeReleaseDirectPool, requestSize, 0);
+        return threadSafeReleaseDirectPool.borrow(false, requestSize, 0);
     }
 
     public RefBuffer borrowDirect(int requestSize, boolean plain) {
-        return new RefBuffer(plain, threadSafeReleaseDirectPool, requestSize, 0);
+        return threadSafeReleaseDirectPool.borrow(plain, requestSize, 0);
     }
 
     public RefBuffer borrowDirect(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-        return new RefBuffer(plain, threadSafeRelease ? threadSafeReleaseDirectPool : directPool, requestSize, threshold);
+        ByteBufferPool pool = threadSafeRelease ? threadSafeReleaseDirectPool : directPool;
+        return pool.borrow(plain, requestSize, threshold);
     }
 
     /**
@@ -77,7 +79,7 @@ public class Buffers {
      * Equivalent to {@code borrowDirect(requestSize, true, false, 0)}.
      */
     public RefBuffer borrowDirectLocal(int requestSize) {
-        return new RefBuffer(true, directPool, requestSize, 0);
+        return directPool.borrow(true, requestSize, 0);
     }
 
 }

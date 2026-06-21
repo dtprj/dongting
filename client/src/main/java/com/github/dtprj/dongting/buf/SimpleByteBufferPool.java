@@ -103,8 +103,12 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     @Override
-    public ByteBuffer borrow(int requestSize) {
-        return borrow0(requestSize, true);
+    public RefBuffer borrow(boolean plain, int requestSize, int threshold) {
+        if (requestSize < threshold) {
+            return new RefBuffer(plain, allocate(requestSize), null, !direct);
+        }
+        ByteBuffer buf = borrow0(requestSize, true);
+        return new RefBuffer(plain, buf, this, false);
     }
 
     ByteBuffer borrow0(int requestSize, boolean allocateIfNotInPool) {
@@ -156,7 +160,15 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     @Override
-    public void release(ByteBuffer buf) {
+    public void release(RefBuffer rb) {
+        ByteBuffer buf = rb.buffer;
+        if (buf != null) {
+            releaseBuffer(buf);
+        }
+        rb.buffer = null;
+    }
+
+    void releaseBuffer(ByteBuffer buf) {
         boolean released;
         if (threadSafe) {
             synchronized (this) {
