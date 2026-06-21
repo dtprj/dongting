@@ -58,7 +58,7 @@ public class StrDecoderCallback extends DecoderCallback<String> {
                 arr = smallArr;
                 off = 0;
             } else {
-                tempRef = context.buffers.borrow(fieldLen, true, false, 0);
+                tempRef = context.buffers.borrowLocal(fieldLen);
                 ByteBuffer destBuf = tempRef.getBuffer();
                 arr = destBuf.array();
                 off = destBuf.arrayOffset();
@@ -99,7 +99,7 @@ public class StrDecoderCallback extends DecoderCallback<String> {
                 arr = context.threadLocalBuffer;
                 off = 0;
             } else {
-                tempRef = context.buffers.borrow(fieldLen, true, false, 0);
+                tempRef = context.buffers.borrowLocal(fieldLen);
                 ByteBuffer destBuf = tempRef.getBuffer();
                 arr = destBuf.array();
                 off = destBuf.arrayOffset();

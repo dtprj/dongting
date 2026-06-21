@@ -204,15 +204,15 @@ public class StrDecoderCallbackTest {
 
     private static DecodeContext countingContext(List<RefBuffer> borrowed) {
         // use a real pool so the borrowed RefBuffers can be released properly,
-        // but override borrow() to track every RefBuffer handed out.
+        // but override borrowLocal() to track every RefBuffer handed out.
         PoolFactory factory = new DefaultPoolFactory();
         Buffers delegate = factory.createPool(new Timestamp());
         factory.initPool(delegate, Thread.currentThread(),
                 (buf, c) -> { c.accept(buf); return true; });
         Buffers buffers = new Buffers(null, null) {
             @Override
-            public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-                RefBuffer rb = delegate.borrow(requestSize, plain, threadSafeRelease, threshold);
+            public RefBuffer borrowLocal(int requestSize) {
+                RefBuffer rb = delegate.borrowLocal(requestSize);
                 borrowed.add(rb);
                 return rb;
             }

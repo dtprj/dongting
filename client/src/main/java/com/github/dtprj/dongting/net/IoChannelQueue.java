@@ -229,7 +229,7 @@ class IoChannelQueue {
             }
             totalSize += rest;
             if (totalSize > MAX_BUFFER_SIZE) {
-                return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE, true, false, 0);
+                return workerStatus.buffers.borrowDirectLocal(MAX_BUFFER_SIZE);
             }
         }
         for (int size = subQueue.size(), i = 0; i < size; i++) {
@@ -240,7 +240,7 @@ class IoChannelQueue {
             int packetSize = pi.packet.calcMaxPacketSize() - pi.packet.getTotalPreEncodedBufferSize();
             totalSize += packetSize;
             if (totalSize >= MAX_BUFFER_SIZE) {
-                return workerStatus.buffers.borrowDirect(MAX_BUFFER_SIZE, true, false, 0);
+                return workerStatus.buffers.borrowDirectLocal(MAX_BUFFER_SIZE);
             }
         }
         if (totalSize <= 0) {
@@ -248,7 +248,7 @@ class IoChannelQueue {
             log.info("total size is {}", totalSize);
             return RefBuffer.EMPTY;
         }
-        return workerStatus.buffers.borrowDirect(totalSize, true, false, 0);
+        return workerStatus.buffers.borrowDirectLocal(totalSize);
     }
 
     private void encodePacketsToBuffer(ByteBuffer buf, IndexedQueue<PacketInfo> subQueue, Timestamp roundTime) {

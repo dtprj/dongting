@@ -52,6 +52,14 @@ public class Buffers {
         return new RefBuffer(plain, threadSafeRelease ? threadSafeReleaseHeapPool : heapPool, requestSize, threshold);
     }
 
+    /**
+     * Borrow a heap buffer for single-thread (local) usage: both borrow and release happen in the same thread.
+     * Equivalent to {@code borrow(requestSize, true, false, 0)}.
+     */
+    public RefBuffer borrowLocal(int requestSize) {
+        return new RefBuffer(true, heapPool, requestSize, 0);
+    }
+
     public RefBuffer borrowDirect(int requestSize) {
         return new RefBuffer(false, threadSafeReleaseDirectPool, requestSize, 0);
     }
@@ -62,6 +70,14 @@ public class Buffers {
 
     public RefBuffer borrowDirect(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
         return new RefBuffer(plain, threadSafeRelease ? threadSafeReleaseDirectPool : directPool, requestSize, threshold);
+    }
+
+    /**
+     * Borrow a direct buffer for single-thread (local) usage: both borrow and release happen in the same thread.
+     * Equivalent to {@code borrowDirect(requestSize, true, false, 0)}.
+     */
+    public RefBuffer borrowDirectLocal(int requestSize) {
+        return new RefBuffer(true, directPool, requestSize, 0);
     }
 
 }
