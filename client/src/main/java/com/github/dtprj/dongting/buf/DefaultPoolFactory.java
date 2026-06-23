@@ -63,9 +63,10 @@ public class DefaultPoolFactory implements PoolFactory {
     private static SimpleByteBufferPool createGlobalPool(boolean direct) {
         int[] minCount = calcByMem(DEFAULT_GLOBAL_MIN_COUNT);
         int[] maxCount = calcByMem(DEFAULT_GLOBAL_MAX_COUNT);
+        int threshold = DEFAULT_GLOBAL_SIZE[0] / 2;
         // Thread safe pool should use a dedicated timestamp, pass null, SimpleByteBufferPool will create one
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(
-                null, direct, 0, true, DEFAULT_GLOBAL_SIZE, minCount,
+                null, direct, threshold, true, DEFAULT_GLOBAL_SIZE, minCount,
                 maxCount, 60000, calcTotalSize(DEFAULT_GLOBAL_SIZE, maxCount) / 2);
         return new SimpleByteBufferPool(c);
     }
@@ -115,9 +116,9 @@ public class DefaultPoolFactory implements PoolFactory {
     public void destroyPool(Buffers pool) {
         if (DtUtil.DEBUG >= 2) {
             log.info("direct pool stat: {}\nheap pool stat: {}",
-                    pool.getDirectPool().formatStat(), pool.getHeapPool().formatStat());
+                    pool.directPool.formatStat(), pool.heapPool.formatStat());
         }
-        pool.getHeapPool().cleanAll();
-        pool.getDirectPool().cleanAll();
+        pool.heapPool.cleanAll();
+        pool.directPool.cleanAll();
     }
 }

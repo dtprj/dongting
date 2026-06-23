@@ -33,8 +33,8 @@ import java.util.function.Consumer;
  */
 public class Buffers {
 
-    private final SimpleByteBufferPool heapPool;
-    private final SimpleByteBufferPool directPool;
+    final SimpleByteBufferPool heapPool;
+    final SimpleByteBufferPool directPool;
 
     private Thread owner;
     private BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadCallback;
@@ -47,19 +47,9 @@ public class Buffers {
     public Buffers(SimpleByteBufferPool heapPool, SimpleByteBufferPool directPool) {
         this.heapPool = heapPool;
         this.directPool = directPool;
-        this.heapLocalReleasor = heapPool::release;
-        this.directLocalReleasor = directPool::release;
-    }
-
-    /**
-     * Constructor for test mocks that override the {@code borrow*} entry points and do not need
-     * real pools. A non-overridden borrow will fail fast with an NPE.
-     */
-    protected Buffers() {
-        this.heapPool = null;
-        this.directPool = null;
-        this.heapLocalReleasor = null;
-        this.directLocalReleasor = null;
+        // heapPool/directPool is null only in unit test
+        this.heapLocalReleasor = heapPool == null ? null : heapPool::release;
+        this.directLocalReleasor = directPool == null ? null : directPool::release;
     }
 
     /**
@@ -136,15 +126,5 @@ public class Buffers {
      */
     public RefBuffer borrowDirectLocal(int requestSize) {
         return directPool.borrow0(true, requestSize, 0, directLocalReleasor);
-    }
-
-    // visible for PoolFactory
-    SimpleByteBufferPool getHeapPool() {
-        return heapPool;
-    }
-
-    // visible for PoolFactory
-    SimpleByteBufferPool getDirectPool() {
-        return directPool;
     }
 }

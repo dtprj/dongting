@@ -73,6 +73,19 @@ public class SimpleByteBufferPoolTest {
 
         SimpleByteBufferPoolConfig c7 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, false, new int[]{1024, 2048}, new int[]{10, 10}, new int[]{9, 9});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c7));
+
+        // threshold must not exceed the smallest bucket
+        SimpleByteBufferPoolConfig c8 = new SimpleByteBufferPoolConfig(TS, false, 512, false,
+                new int[]{128, 256, 512, 1024}, new int[]{1, 1, 1, 1}, new int[]{2, 2, 2, 2});
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c8));
+
+        // next pool: any next bucket not exceeding this pool's max must also exist in this pool
+        SimpleByteBufferPool largeOverlap = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
+                null, false, 0, true, new int[]{256, 1024}, new int[]{1, 1}, new int[]{2, 2}));
+        SimpleByteBufferPoolConfig c9 = new SimpleByteBufferPoolConfig(TS, false, 0, false,
+                new int[]{128, 512}, new int[]{1, 1}, new int[]{2, 2});
+        // 256 is in next, <= this max(512), but not in this pool -> fail
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c9, largeOverlap));
     }
 
     private ByteBuffer borrowBuf(int size) {
@@ -129,21 +142,22 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testThreshold() {
-        pool = new SimpleByteBufferPool(createDefaultConfig(2048));
-        ByteBuffer buf = borrowBuf(2047);
-        assertEquals(2047, buf.capacity());
+        // threshold equals the smallest bucket: requests <= threshold are not pooled
+        pool = new SimpleByteBufferPool(createDefaultConfig(128));
+        ByteBuffer buf = borrowBuf(127);
+        assertEquals(127, buf.capacity());
         pool.releaseBuffer(buf);
-        assertNotSame(buf, borrowBuf(2047));
+        assertNotSame(buf, borrowBuf(127));
 
-        buf = borrowBuf(2048);
-        assertEquals(2048, buf.capacity());
+        buf = borrowBuf(128);
+        assertEquals(128, buf.capacity());
         pool.releaseBuffer(buf);
-        assertNotSame(buf, borrowBuf(2048));
+        assertNotSame(buf, borrowBuf(128));
 
-        buf = borrowBuf(2049);
-        assertEquals(4096, buf.capacity());
+        buf = borrowBuf(129);
+        assertEquals(256, buf.capacity());
         pool.releaseBuffer(buf);
-        assertSame(buf, borrowBuf(4096));
+        assertSame(buf, borrowBuf(256));
     }
 
     @Test
@@ -225,8 +239,10 @@ public class SimpleByteBufferPoolTest {
     @Test
     public void testChainBorrowAndFallback() {
         // small pool: buckets {16, 32}; large pool (thread-safe): buckets {128, 256}
+        // large threshold=32 so that small-bucket misses don't fall through to large, while
+        // out-of-range requests (33+) do get pooled by large
         SimpleByteBufferPool large = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
-                null, false, 0, true, new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0));
+                null, false, 32, true, new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0));
         pool = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(TS, false, 0, false,
                 new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0), large);
 
@@ -250,9 +266,9 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testChainReleaseFallback() {
-        // small buckets {16, 32} (maxCount=1 each); large buckets {128} (thread-safe)
+        // small buckets {16, 32} (maxCount=1 each); large buckets {128} (thread-safe, threshold=32)
         SimpleByteBufferPool large = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
-                null, false, 0, true, new int[]{128}, new int[]{1}, new int[]{2}, 1000, 0));
+                null, false, 32, true, new int[]{128}, new int[]{1}, new int[]{2}, 1000, 0));
         pool = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(TS, false, 0, false,
                 new int[]{16, 32}, new int[]{1, 1}, new int[]{1, 1}, 1000, 0), large);
 

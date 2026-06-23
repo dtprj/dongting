@@ -23,6 +23,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link Buffers} cross-thread release routing, superseding the old TwoLevelPoolTest.
@@ -32,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class BuffersTest {
 
     private static SimpleByteBufferPool largePool() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(null, false, 0, true,
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(null, false, 32, true,
                 new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0);
         return new SimpleByteBufferPool(c);
     }
@@ -112,5 +113,64 @@ public class BuffersTest {
         t.start();
         t.join();
         assertEquals(0, releaseCount.get());
+    }
+
+    @Test
+    public void testLocalReleaseSkipsCallback() {
+        AtomicInteger releaseCount = new AtomicInteger(0);
+        // callback returns false to simulate owner thread queue shut down
+        Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> {
+            releaseCount.incrementAndGet();
+            return false;
+        });
+        RefBuffer b1 = buffers.borrow(16, false, false, 0);
+        // local release: no callback, no cross-thread
+        assertEquals(16, b1.getBuffer().capacity());
+        b1.release();
+        assertEquals(0, releaseCount.get());
+    }
+
+    @Test
+    public void testReleaseAfterShutdownHeapFromOtherThread() throws Exception {
+        AtomicInteger releaseCount = new AtomicInteger(0);
+        // callback returns false to simulate owner thread queue shut down
+        Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> {
+            releaseCount.incrementAndGet();
+            return false;
+        });
+        RefBuffer b1 = buffers.borrow(16, false, true, 0);
+        // release from non-owner thread with shut-down queue: buffer should be discarded locally
+        Thread t = new Thread(b1::release);
+        t.start();
+        t.join();
+        assertEquals(1, releaseCount.get());
+    }
+
+    @Test
+    public void testDirectBorrowAndCrossThreadRelease() throws Exception {
+        AtomicInteger releaseCount = new AtomicInteger(0);
+        SimpleByteBufferPool large = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
+                null, true, 32, true, new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0));
+        SimpleByteBufferPool directSmall = new SimpleByteBufferPool(
+                new SimpleByteBufferPoolConfig(new Timestamp(), true, 0, false,
+                        new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0), large);
+        Buffers buffers = new Buffers(
+                new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(new Timestamp(), false, 0, false,
+                        new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0),
+                        new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
+                                null, false, 32, true, new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0))),
+                directSmall);
+        buffers.init(Thread.currentThread(), (rb, c) -> {
+            releaseCount.incrementAndGet();
+            c.accept(rb);
+            return true;
+        });
+        RefBuffer b1 = buffers.borrowDirect(16, false, true, 0);
+        assertEquals(16, b1.getBuffer().capacity());
+        assertTrue(b1.getBuffer().isDirect());
+        Thread t = new Thread(b1::release);
+        t.start();
+        t.join();
+        assertEquals(1, releaseCount.get());
     }
 }

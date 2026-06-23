@@ -47,6 +47,8 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private Timestamp ts;
     private final FixSizeBufferPool[] pools;
 
+    private final Consumer<RefBuffer> defaultReleasor = this::release;
+
     public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
         this(config, null);
     }
@@ -72,6 +74,10 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         int[] bufSizes = this.bufSizes;
         int[] minCount = config.minCount;
         int[] maxCount = config.maxCount;
+
+        if (threshold > bufSizes[0]) {
+            throw new IllegalArgumentException();
+        }
 
         int bufferTypeCount = bufSizes.length;
         if (bufferTypeCount != minCount.length || bufferTypeCount != maxCount.length) {
@@ -104,6 +110,24 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             this.pools[i] = new FixSizeBufferPool(config, direct, config.shareSize,
                     minCount[i], maxCount[i], bufSizes[i], config.weakRefThreshold);
         }
+
+        if (next != null) {
+            for (int s : next.bufSizes) {
+                if (s > bufSizeMax) {
+                    break;
+                }
+                boolean found = false;
+                for (int smallSize : bufSizes) {
+                    if (s == smallSize) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    throw new IllegalArgumentException();
+                }
+            }
+        }
     }
 
     @Override
@@ -116,19 +140,15 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         return borrow0(plain, requestSize, threshold, defaultReleasor);
     }
 
-    private final Consumer<RefBuffer> defaultReleasor = this::release;
-
     RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
         if (requestSize > bufSizeMax) {
             if (next != null) {
-                // delegate to next, which uses its own releasor: the large pool is thread-safe, so its
-                // buffers can be released directly from any thread without a queue hop back to owner
-                return next.borrow0(plain, requestSize, threshold, next.defaultReleasor);
+                return borrowFromNext(plain, requestSize, threshold, releasor);
             }
             incBorrowTooLarge();
             return newUnpooledRefBuffer(plain, requestSize);
         }
-        if (requestSize < threshold) {
+        if (requestSize <= threshold) {
             return newUnpooledRefBuffer(plain, requestSize);
         }
         if (requestSize <= this.threshold) {
@@ -152,9 +172,19 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             result = pools[poolIndex].borrow();
         }
         if (result == null) {
+            if (next != null && requestSize > next.threshold) {
+                return borrowFromNext(plain, requestSize, threshold, releasor);
+            }
+            // create new ByteBuffer
             return new RefBuffer(plain, allocate(bufSizes[poolIndex]), releasor, false);
         }
+        // use pooled ByteBuffer
         return new RefBuffer(plain, result, releasor, false);
+    }
+
+    private RefBuffer borrowFromNext(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
+        Consumer<RefBuffer> r = next.threadSafe && requestSize > bufSizeMax ? next.defaultReleasor : releasor;
+        return next.borrow0(plain, requestSize, threshold, r);
     }
 
     private RefBuffer newUnpooledRefBuffer(boolean plain, int requestSize) {
@@ -205,11 +235,8 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     private boolean tryOffer(ByteBuffer buf) {
-        if (buf.isDirect() != direct) {
-            throw new DtException("the buffer not belong to this pool, direct=" + buf.isDirect());
-        }
         int capacity = buf.capacity();
-        if (capacity <= threshold) {
+        if (capacity < bufSizes[0] || capacity > bufSizeMax) {
             return false;
         }
         int[] bufSizes = this.bufSizes;
@@ -221,15 +248,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             }
         }
         if (poolIndex >= poolCount) {
-            int bufSizeMin = bufSizes[0];
-            if (capacity < bufSizeMin) {
-                // belongs to an upstream pool in the chain; let the chain / tail handle it
-                return false;
-            }
-            if (capacity < bufSizeMax) {
-                throw new DtException("the buffer not belong to this pool, capacity=" + capacity);
-            }
-            return false;
+            throw new DtException("the buffer not belong to this pool, capacity=" + capacity);
         }
         if (threadSafe) {
             synchronized (this) {

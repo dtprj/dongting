@@ -156,7 +156,7 @@ class RaftReqDataTest {
     void testBuildWithBodyWithBuffers() {
         byte[] payload = "test data for buffers".getBytes();
         Encodable body = new FixedEncodable(payload);
-        Buffers buffers = new Buffers() {
+        Buffers buffers = new Buffers(null, null) {
             @Override
             public RefBuffer borrow(int requestSize) {
                 ByteBuffer buf = ByteBuffer.allocate(requestSize);
