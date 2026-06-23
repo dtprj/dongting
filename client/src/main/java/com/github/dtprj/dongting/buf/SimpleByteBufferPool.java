@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Simple ByteBuffer pool, not thread safe.
@@ -35,6 +36,8 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     final int threshold;
     final int[] bufSizes;
+    final int bufSizeMax;
+    final SimpleByteBufferPool next;
     private final long timeoutNanos;
     private final boolean threadSafe;
 
@@ -45,6 +48,10 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private final FixSizeBufferPool[] pools;
 
     public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
+        this(config, null);
+    }
+
+    public SimpleByteBufferPool(SimpleByteBufferPoolConfig config, SimpleByteBufferPool next) {
         super(config.direct);
         Objects.requireNonNull(config.bufSizes);
         Objects.requireNonNull(config.minCount);
@@ -58,6 +65,8 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         }
         this.threshold = config.threshold;
         this.bufSizes = config.bufSizes;
+        this.bufSizeMax = bufSizes[bufSizes.length - 1];
+        this.next = next;
         this.timeoutNanos = config.timeoutMillis * 1000 * 1000;
 
         int[] bufSizes = this.bufSizes;
@@ -104,17 +113,27 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     @Override
     public RefBuffer borrow(boolean plain, int requestSize, int threshold) {
-        return borrow0(plain, requestSize, threshold, this, true);
+        return borrow0(plain, requestSize, threshold, defaultReleasor);
     }
 
-    RefBuffer borrow0(boolean plain, int requestSize, int threshold,
-                      ByteBufferPool returnPool, boolean allocateIfNotInPool) {
+    private final Consumer<RefBuffer> defaultReleasor = this::release;
+
+    RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
+        if (requestSize > bufSizeMax) {
+            if (next != null) {
+                // delegate to next, which uses its own releasor: the large pool is thread-safe, so its
+                // buffers can be released directly from any thread without a queue hop back to owner
+                return next.borrow0(plain, requestSize, threshold, next.defaultReleasor);
+            }
+            incBorrowTooLarge();
+            return newUnpooledRefBuffer(plain, requestSize);
+        }
         if (requestSize < threshold) {
-            return allocateIfNotInPool ? newUnpooledRefBuffer(plain, requestSize) : null;
+            return newUnpooledRefBuffer(plain, requestSize);
         }
         if (requestSize <= this.threshold) {
             incBorrowTooSmall();
-            return allocateIfNotInPool ? newUnpooledRefBuffer(plain, requestSize) : null;
+            return newUnpooledRefBuffer(plain, requestSize);
         }
         int[] bufSizes = this.bufSizes;
         int poolCount = bufSizes.length;
@@ -123,10 +142,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             if (bufSizes[poolIndex] >= requestSize) {
                 break;
             }
-        }
-        if (poolIndex >= poolCount) {
-            incBorrowTooLarge();
-            return allocateIfNotInPool ? newUnpooledRefBuffer(plain, requestSize) : null;
         }
         ByteBuffer result;
         if (threadSafe) {
@@ -137,11 +152,9 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             result = pools[poolIndex].borrow();
         }
         if (result == null) {
-            return allocateIfNotInPool
-                    ? new RefBuffer(plain, allocate(bufSizes[poolIndex]), returnPool, false)
-                    : null;
+            return new RefBuffer(plain, allocate(bufSizes[poolIndex]), releasor, false);
         }
-        return new RefBuffer(plain, result, returnPool, false);
+        return new RefBuffer(plain, result, releasor, false);
     }
 
     private RefBuffer newUnpooledRefBuffer(boolean plain, int requestSize) {
@@ -178,22 +191,20 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     void releaseBuffer(ByteBuffer buf) {
-        boolean released;
-        if (threadSafe) {
-            synchronized (this) {
-                ts.refresh(1);
-                released = release0(buf);
-            }
-        } else {
-            released = release0(buf);
+        if (tryOffer(buf)) {
+            return;
         }
-        if (!released && direct) {
-            // buffer too small or too large, release it without pool
+        if (next != null) {
+            next.releaseBuffer(buf);
+            return;
+        }
+        if (direct) {
+            // chain tail: buffer not poolable, release directly
             VF.releaseDirectBuffer(buf);
         }
     }
 
-    boolean release0(ByteBuffer buf) {
+    private boolean tryOffer(ByteBuffer buf) {
         if (buf.isDirect() != direct) {
             throw new DtException("the buffer not belong to this pool, direct=" + buf.isDirect());
         }
@@ -210,12 +221,24 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             }
         }
         if (poolIndex >= poolCount) {
-            if (buf.capacity() < bufSizes[bufSizes.length - 1]) {
-                throw new DtException("the buffer not belong to this pool, capacity=" + buf.capacity());
+            int bufSizeMin = bufSizes[0];
+            if (capacity < bufSizeMin) {
+                // belongs to an upstream pool in the chain; let the chain / tail handle it
+                return false;
+            }
+            if (capacity < bufSizeMax) {
+                throw new DtException("the buffer not belong to this pool, capacity=" + capacity);
             }
             return false;
         }
-        return pools[poolIndex].release(buf, ts.nanoTime);
+        if (threadSafe) {
+            synchronized (this) {
+                ts.refresh(1);
+                return pools[poolIndex].release(buf, ts.nanoTime);
+            }
+        } else {
+            return pools[poolIndex].release(buf, ts.nanoTime);
+        }
     }
 
     @Override

@@ -27,7 +27,13 @@ public interface PoolFactory {
 
     Buffers createPool(Timestamp ts);
 
-    void initPool(Buffers buffers, Thread owner, BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadReleaseCallback);
+    /**
+     * Second-phase wiring: binds the owner thread and cross-thread release callback.
+     * The callback should submit {@code releasor.accept(rb)} to the owner thread and return {@code true}
+     * on success, or {@code false} if the owner thread queue is shut down.
+     */
+    void initPool(Buffers buffers, Thread owner,
+                  BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadCallback);
 
     void destroyPool(Buffers pool);
 }

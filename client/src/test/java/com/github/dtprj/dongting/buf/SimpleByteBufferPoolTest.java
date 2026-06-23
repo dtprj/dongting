@@ -222,6 +222,53 @@ public class SimpleByteBufferPoolTest {
         assertNotSame(borrowBuf(1024), buf1);
     }
 
+    @Test
+    public void testChainBorrowAndFallback() {
+        // small pool: buckets {16, 32}; large pool (thread-safe): buckets {128, 256}
+        SimpleByteBufferPool large = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
+                null, false, 0, true, new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0));
+        pool = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(TS, false, 0, false,
+                new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0), large);
+
+        // size within small buckets -> served by small
+        RefBuffer b1 = pool.borrow(false, 31, 0);
+        RefBuffer b2 = pool.borrow(false, 32, 0);
+        assertEquals(32, b1.getBuffer().capacity());
+        assertEquals(32, b2.getBuffer().capacity());
+
+        // size beyond small buckets -> delegated to next (large)
+        RefBuffer b3 = pool.borrow(false, 33, 0);
+        RefBuffer b4 = pool.borrow(false, 128, 0);
+        assertEquals(128, b3.getBuffer().capacity());
+        assertEquals(128, b4.getBuffer().capacity());
+
+        b1.release();
+        b2.release();
+        b3.release();
+        b4.release();
+    }
+
+    @Test
+    public void testChainReleaseFallback() {
+        // small buckets {16, 32} (maxCount=1 each); large buckets {128} (thread-safe)
+        SimpleByteBufferPool large = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
+                null, false, 0, true, new int[]{128}, new int[]{1}, new int[]{2}, 1000, 0));
+        pool = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(TS, false, 0, false,
+                new int[]{16, 32}, new int[]{1, 1}, new int[]{1, 1}, 1000, 0), large);
+
+        // fill the small 32-byte bucket (maxCount=1) then overflow: a 32-byte buffer released while
+        // the small bucket is full should fall through to... nowhere (no matching large bucket), so
+        // it is released via the chain tail (heap buffer -> dropped, no error).
+        RefBuffer b1 = pool.borrow(false, 32, 0);
+        RefBuffer b2 = pool.borrow(false, 32, 0); // small allocates a new one (bucket empty after b1)
+        assertEquals(32, b1.getBuffer().capacity());
+        assertEquals(32, b2.getBuffer().capacity());
+
+        b1.release(); // back to small bucket (now full)
+        // releasing b2: small bucket full -> next has no 32-byte bucket -> tail, dropped
+        b2.release();
+    }
+
     public static void main(String[] args) {
         System.out.println("default two level global");
         System.out.printf("max:%,d\nmin:%,d\n\n",

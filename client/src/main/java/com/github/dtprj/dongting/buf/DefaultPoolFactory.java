@@ -48,6 +48,7 @@ public class DefaultPoolFactory implements PoolFactory {
 
     public static final int DEFAULT_THRESHOLD = 64;
 
+    // Shared global large pools; thread-safe, reused as the {@code next} of every per-thread small pool.
     private static final SimpleByteBufferPool GLOBAL_DIRECT_POOL = createGlobalPool(true);
     private static final SimpleByteBufferPool GLOBAL_HEAP_POOL = createGlobalPool(false);
 
@@ -71,20 +72,20 @@ public class DefaultPoolFactory implements PoolFactory {
 
     @Override
     public Buffers createPool(Timestamp ts) {
-        TwoLevelPool heapPool = (TwoLevelPool) createPool(ts, false);
-        TwoLevelPool directPool = (TwoLevelPool) createPool(ts, true);
+        SimpleByteBufferPool heapPool = createPool(ts, false);
+        SimpleByteBufferPool directPool = createPool(ts, true);
         return new Buffers(heapPool, directPool);
     }
 
-    private ByteBufferPool createPool(Timestamp ts, boolean direct) {
+    private SimpleByteBufferPool createPool(Timestamp ts, boolean direct) {
         int[] minCount = calcByMem(DEFAULT_SMALL_MIN_COUNT);
         int[] maxCount = calcByMem(DEFAULT_SMALL_MAX_COUNT);
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(ts, direct,
                 direct ? 0 : DEFAULT_THRESHOLD, false,
                 DEFAULT_SMALL_SIZE, minCount, maxCount, 20000,
                 calcTotalSize(DEFAULT_SMALL_SIZE, maxCount) / 2);
-        SimpleByteBufferPool p1 = new SimpleByteBufferPool(c);
-        return new TwoLevelPool(direct, p1, direct ? GLOBAL_DIRECT_POOL : GLOBAL_HEAP_POOL);
+        SimpleByteBufferPool largePool = direct ? GLOBAL_DIRECT_POOL : GLOBAL_HEAP_POOL;
+        return new SimpleByteBufferPool(c, largePool);
     }
 
     private static int[] calcByMem(int[] defaultSizes) {
@@ -105,18 +106,18 @@ public class DefaultPoolFactory implements PoolFactory {
     }
 
     @Override
-    public void initPool(Buffers buffers, Thread owner, BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadReleaseCallback) {
-        TwoLevelPool crossReleaseHeapPool = buffers.heapPool.toReleaseInOtherThreadInstance(owner, crossThreadReleaseCallback);
-        TwoLevelPool crossReleaseDirectPool = buffers.directPool.toReleaseInOtherThreadInstance(owner, crossThreadReleaseCallback);
-        buffers.init(crossReleaseHeapPool, crossReleaseDirectPool);
+    public void initPool(Buffers buffers, Thread owner,
+                         BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadCallback) {
+        buffers.init(owner, crossThreadCallback);
     }
 
     @Override
-    public void destroyPool(Buffers buffers) {
+    public void destroyPool(Buffers pool) {
         if (DtUtil.DEBUG >= 2) {
-            log.info("direct pool stat: {}\nheap pool stat: {}", buffers.directPool.formatStat(), buffers.heapPool.formatStat());
+            log.info("direct pool stat: {}\nheap pool stat: {}",
+                    pool.getDirectPool().formatStat(), pool.getHeapPool().formatStat());
         }
-        ((SimpleByteBufferPool) buffers.heapPool.getSmallPool()).cleanAll();
-        ((SimpleByteBufferPool) buffers.directPool.getSmallPool()).cleanAll();
+        pool.getHeapPool().cleanAll();
+        pool.getDirectPool().cleanAll();
     }
 }

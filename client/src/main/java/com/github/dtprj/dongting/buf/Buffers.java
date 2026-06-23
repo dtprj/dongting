@@ -15,24 +15,80 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.VersionFactory;
+
+import java.nio.ByteBuffer;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+
 /**
+ * Entry point for borrowing heap/direct buffers. Each instance is owned by a single thread
+ * (dispatcher / NIO worker) and holds a pool chain (small thread-local pool with a shared global
+ * large pool as its {@code next}).
+ *
+ * <p>Construction is two-phase: build via {@code new Buffers(heapPool, directPool)}, then call
+ * {@link #init(Thread, BiFunction)} before any borrow that may release cross-thread.
+ *
  * @author huangli
  */
 public class Buffers {
 
-    final TwoLevelPool heapPool;
-    final TwoLevelPool directPool;
-    private ByteBufferPool threadSafeReleaseHeapPool;
-    private ByteBufferPool threadSafeReleaseDirectPool;
+    private final SimpleByteBufferPool heapPool;
+    private final SimpleByteBufferPool directPool;
 
-    public Buffers(TwoLevelPool heapPool, TwoLevelPool directPool) {
+    private Thread owner;
+    private BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadCallback;
+
+    private final Consumer<RefBuffer> heapLocalReleasor;
+    private Consumer<RefBuffer> heapThreadSafeReleasor;
+    private final Consumer<RefBuffer> directLocalReleasor;
+    private Consumer<RefBuffer> directThreadSafeReleasor;
+
+    public Buffers(SimpleByteBufferPool heapPool, SimpleByteBufferPool directPool) {
         this.heapPool = heapPool;
         this.directPool = directPool;
+        this.heapLocalReleasor = heapPool::release;
+        this.directLocalReleasor = directPool::release;
     }
 
-    public void init(ByteBufferPool threadSafeReleaseHeapPool, ByteBufferPool threadSafeReleaseDirectPool) {
-        this.threadSafeReleaseHeapPool = threadSafeReleaseHeapPool;
-        this.threadSafeReleaseDirectPool = threadSafeReleaseDirectPool;
+    /**
+     * Constructor for test mocks that override the {@code borrow*} entry points and do not need
+     * real pools. A non-overridden borrow will fail fast with an NPE.
+     */
+    protected Buffers() {
+        this.heapPool = null;
+        this.directPool = null;
+        this.heapLocalReleasor = null;
+        this.directLocalReleasor = null;
+    }
+
+    /**
+     * Second-phase initialization: wires the owner thread and cross-thread release callback.
+     */
+    public void init(Thread owner, BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadCallback) {
+        this.owner = owner;
+        this.crossThreadCallback = crossThreadCallback;
+        this.heapThreadSafeReleasor = rb -> threadSafeRelease(rb, heapLocalReleasor, false);
+        this.directThreadSafeReleasor = rb -> threadSafeRelease(rb, directLocalReleasor, true);
+    }
+
+    private void threadSafeRelease(RefBuffer rb, Consumer<RefBuffer> localReleasor, boolean direct) {
+        if (Thread.currentThread() == owner) {
+            localReleasor.accept(rb);
+        } else if (!crossThreadCallback.apply(rb, localReleasor)) {
+            // owner thread queue is shut down; release locally
+            releaseAfterShutdown(rb, direct);
+        }
+    }
+
+    private void releaseAfterShutdown(RefBuffer rb, boolean direct) {
+        ByteBuffer buf = rb.buffer;
+        if (buf != null) {
+            if (direct) {
+                VersionFactory.getInstance().releaseDirectBuffer(buf);
+            }
+            rb.buffer = null;
+        }
     }
 
     public void clean() {
@@ -41,45 +97,54 @@ public class Buffers {
     }
 
     public RefBuffer borrow(int requestSize) {
-        return threadSafeReleaseHeapPool.borrow(false, requestSize, 0);
+        return heapPool.borrow0(false, requestSize, 0, heapThreadSafeReleasor);
     }
 
     public RefBuffer borrow(int requestSize, boolean plain) {
-        return threadSafeReleaseHeapPool.borrow(plain, requestSize, 0);
+        return heapPool.borrow0(plain, requestSize, 0, heapThreadSafeReleasor);
     }
 
     public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-        ByteBufferPool pool = threadSafeRelease ? threadSafeReleaseHeapPool : heapPool;
-        return pool.borrow(plain, requestSize, threshold);
+        Consumer<RefBuffer> releasor = threadSafeRelease ? heapThreadSafeReleasor : heapLocalReleasor;
+        return heapPool.borrow0(plain, requestSize, threshold, releasor);
     }
 
     /**
-     * Borrow a heap buffer for single-thread (local) usage: both borrow and release happen in the same thread.
-     * Equivalent to {@code borrow(requestSize, true, false, 0)}.
+     * Borrow a heap buffer for single-thread (local) usage: both borrow and release happen in the
+     * same thread. Equivalent to {@code borrow(requestSize, true, false, 0)}.
      */
     public RefBuffer borrowLocal(int requestSize) {
-        return heapPool.borrow(true, requestSize, 0);
+        return heapPool.borrow0(true, requestSize, 0, heapLocalReleasor);
     }
 
     public RefBuffer borrowDirect(int requestSize) {
-        return threadSafeReleaseDirectPool.borrow(false, requestSize, 0);
+        return directPool.borrow0(false, requestSize, 0, directThreadSafeReleasor);
     }
 
     public RefBuffer borrowDirect(int requestSize, boolean plain) {
-        return threadSafeReleaseDirectPool.borrow(plain, requestSize, 0);
+        return directPool.borrow0(plain, requestSize, 0, directThreadSafeReleasor);
     }
 
     public RefBuffer borrowDirect(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-        ByteBufferPool pool = threadSafeRelease ? threadSafeReleaseDirectPool : directPool;
-        return pool.borrow(plain, requestSize, threshold);
+        Consumer<RefBuffer> releasor = threadSafeRelease ? directThreadSafeReleasor : directLocalReleasor;
+        return directPool.borrow0(plain, requestSize, threshold, releasor);
     }
 
     /**
-     * Borrow a direct buffer for single-thread (local) usage: both borrow and release happen in the same thread.
-     * Equivalent to {@code borrowDirect(requestSize, true, false, 0)}.
+     * Borrow a direct buffer for single-thread (local) usage: both borrow and release happen in the
+     * same thread. Equivalent to {@code borrowDirect(requestSize, true, false, 0)}.
      */
     public RefBuffer borrowDirectLocal(int requestSize) {
-        return directPool.borrow(true, requestSize, 0);
+        return directPool.borrow0(true, requestSize, 0, directLocalReleasor);
     }
 
+    // visible for PoolFactory
+    SimpleByteBufferPool getHeapPool() {
+        return heapPool;
+    }
+
+    // visible for PoolFactory
+    SimpleByteBufferPool getDirectPool() {
+        return directPool;
+    }
 }

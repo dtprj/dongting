@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.net.ByteBufferWritePacket;
 
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -30,15 +31,15 @@ public final class RefBuffer extends RefCount implements Encodable {
     public static final RefBuffer EMPTY = new RefBuffer(ByteBuffer.allocate(0));
 
     ByteBuffer buffer;
-    private final ByteBufferPool pool;
+    private final Consumer<RefBuffer> releasor;
     private final RefBuffer root;
 
     private int encodeSize;
 
-    RefBuffer(boolean plain, ByteBuffer buffer, ByteBufferPool pool, boolean dummy) {
+    RefBuffer(boolean plain, ByteBuffer buffer, Consumer<RefBuffer> releasor, boolean dummy) {
         super(plain, dummy);
         this.buffer = buffer;
-        this.pool = pool;
+        this.releasor = releasor;
         this.encodeSize = -1;
         this.root = null;
     }
@@ -46,7 +47,7 @@ public final class RefBuffer extends RefCount implements Encodable {
     private RefBuffer(RefBuffer root, int absolutePos, int absoluteLimit) {
         super(false, root.updater == null);
         this.root = root;
-        this.pool = null;
+        this.releasor = null;
         this.buffer = root.buffer.slice();
         this.encodeSize = absoluteLimit - absolutePos;
         this.buffer.limit(absoluteLimit);
@@ -59,7 +60,7 @@ public final class RefBuffer extends RefCount implements Encodable {
             throw new IllegalArgumentException();
         }
         this.buffer = buf;
-        this.pool = null;
+        this.releasor = null;
         this.encodeSize = buf.remaining();
         this.root = null;
     }
@@ -123,9 +124,9 @@ public final class RefBuffer extends RefCount implements Encodable {
     @Override
     protected void doClean() {
         // not called if this RefBuffer is a sliced buffer
-        ByteBufferPool p = this.pool;
-        if (p != null) {
-            p.release(this);
+        Consumer<RefBuffer> r = this.releasor;
+        if (r != null) {
+            r.accept(this);
         } else {
             // should be direct, SimpleByteBufferPool.newUnpooledRefBuffer(),
             // the heap buffer less than threshold is dummy and not call doClean
