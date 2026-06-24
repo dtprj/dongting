@@ -73,12 +73,10 @@ public class Buffers {
 
     private void releaseAfterShutdown(RefBuffer rb, boolean direct) {
         ByteBuffer buf = rb.buffer;
-        if (buf != null) {
-            if (direct) {
-                VersionFactory.getInstance().releaseDirectBuffer(buf);
-            }
-            rb.buffer = null;
+        if (direct) {
+            VersionFactory.getInstance().releaseDirectBuffer(buf);
         }
+        rb.buffer = null;
     }
 
     public void clean() {

@@ -213,10 +213,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     @Override
     public void release(RefBuffer rb) {
-        ByteBuffer buf = rb.buffer;
-        if (buf != null) {
-            releaseBuffer(buf);
-        }
+        releaseBuffer(rb.buffer);
         rb.buffer = null;
     }
 
