@@ -48,10 +48,24 @@ public final class RefBuffer extends RefCount implements Encodable {
         super(false, root.updater == null);
         this.root = root;
         this.releasor = null;
-        this.buffer = root.buffer.slice();
         this.encodeSize = absoluteLimit - absolutePos;
-        this.buffer.limit(absoluteLimit);
-        this.buffer.position(absolutePos);
+
+        ByteBuffer rootBuffer = root.buffer;
+        int oldLimit = rootBuffer.limit();
+        int oldPos = rootBuffer.position();
+        if (oldLimit != absoluteLimit) {
+            rootBuffer.limit(absoluteLimit);
+        }
+        if (oldPos != absolutePos) {
+            rootBuffer.position(absolutePos);
+        }
+        this.buffer = rootBuffer.slice();
+        if (oldLimit != absoluteLimit) {
+            rootBuffer.limit(oldLimit);
+        }
+        if (oldPos != absolutePos) {
+            rootBuffer.position(oldPos);
+        }
     }
 
     private RefBuffer(ByteBuffer buf) {
@@ -70,7 +84,7 @@ public final class RefBuffer extends RefCount implements Encodable {
     }
 
     /**
-     * this method is preserve for biz code usage.
+     * this method is preserved for biz code usage.
      */
     @SuppressWarnings("unused")
     public RefBuffer slice(int absolutePos, int absoluteLimit) {
@@ -121,9 +135,11 @@ public final class RefBuffer extends RefCount implements Encodable {
         }
     }
 
+    /**
+     * This method is not called if this RefBuffer is dummy or sliced.
+     */
     @Override
     protected void doClean() {
-        // not called if this RefBuffer is a sliced buffer
         Consumer<RefBuffer> r = this.releasor;
         if (r != null) {
             r.accept(this);
