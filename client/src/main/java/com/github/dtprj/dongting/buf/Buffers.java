@@ -44,6 +44,10 @@ public class Buffers {
     private final Consumer<RefBuffer> directLocalReleasor;
     private Consumer<RefBuffer> directThreadSafeReleasor;
 
+    private static final long CLEAN_INTERVAL_MILLIS = 1000;
+    private long lastHeapCleanTime = System.currentTimeMillis();
+    private long lastDirectCleanTime = lastHeapCleanTime - 500;
+
     public Buffers(SimpleByteBufferPool heapPool, SimpleByteBufferPool directPool) {
         this.heapPool = heapPool;
         this.directPool = directPool;
@@ -80,8 +84,15 @@ public class Buffers {
     }
 
     public void clean() {
-        heapPool.clean();
-        directPool.clean();
+        long now = System.currentTimeMillis();
+        if (now - lastHeapCleanTime > CLEAN_INTERVAL_MILLIS) {
+            heapPool.clean();
+            lastHeapCleanTime = now;
+        }
+        if (now - lastDirectCleanTime > CLEAN_INTERVAL_MILLIS) {
+            directPool.clean();
+            lastDirectCleanTime = now;
+        }
     }
 
     public RefBuffer borrow(int requestSize) {
