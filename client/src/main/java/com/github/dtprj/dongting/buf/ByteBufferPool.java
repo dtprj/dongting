@@ -28,10 +28,6 @@ public abstract class ByteBufferPool {
         this.direct = direct;
     }
 
-    public boolean isDirect() {
-        return direct;
-    }
-
     public abstract RefBuffer borrow(boolean plain, int requestSize, int threshold);
 
     public abstract void release(RefBuffer rb);
