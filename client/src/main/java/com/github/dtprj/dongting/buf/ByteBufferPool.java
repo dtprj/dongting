@@ -15,7 +15,10 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.Timestamp;
+
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -23,19 +26,46 @@ import java.nio.ByteBuffer;
 public abstract class ByteBufferPool {
 
     protected final boolean direct;
+    protected final boolean threadSafe;
+    // a request with size <= threshold is not worth pooling in this pool; also used by an upstream
+    // pool to decide whether to forward a miss (requestSize > next.threshold)
+    protected final int threshold;
+    // non-final so tests can advance the clock via setTs
+    protected Timestamp ts;
 
-    public ByteBufferPool(boolean direct) {
+    public ByteBufferPool(boolean direct, boolean threadSafe, int threshold, Timestamp ts) {
         this.direct = direct;
+        this.threadSafe = threadSafe;
+        this.threshold = threshold;
+        this.ts = ts;
     }
 
     public abstract RefBuffer borrow(boolean plain, int requestSize, int threshold);
 
-    public abstract void release(RefBuffer rb);
+    public void release(RefBuffer rb) {
+        releaseBuffer(rb.buffer);
+        rb.buffer = null;
+    }
 
-    abstract ByteBuffer allocate(int requestSize);
+    protected ByteBuffer allocate(int size) {
+        return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+    }
+
+    // releasor=null, dummy=!direct: heap unpooled relies on GC, direct unpooled is released via
+    // RefBuffer.doClean -> VF.releaseDirectBuffer
+    protected RefBuffer newUnpooledRefBuffer(boolean plain, int requestSize) {
+        return new RefBuffer(plain, allocate(requestSize), null, !direct);
+    }
 
     public abstract void clean();
 
-    // TODO return a stat object, not a string
     public abstract String formatStat();
+
+    // Chain protocol: a pool may delegate borrow/release to its `next` pool via these hooks.
+    abstract RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor);
+
+    abstract void releaseBuffer(ByteBuffer buf);
+
+    // getter rather than field so subclasses can avoid referencing `this::method` in super(...)
+    abstract Consumer<RefBuffer> getDefaultReleasor();
 }

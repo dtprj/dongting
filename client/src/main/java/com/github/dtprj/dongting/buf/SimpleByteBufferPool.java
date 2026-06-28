@@ -34,17 +34,14 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     static final VersionFactory VF = VersionFactory.getInstance();
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
-    final int threshold;
     final int[] bufSizes;
     final int bufSizeMax;
-    final SimpleByteBufferPool next;
+    final ByteBufferPool next;
     private final long timeoutNanos;
-    private final boolean threadSafe;
 
     private long statBorrowTooSmallCount;
     private long statBorrowTooLargeCount;
 
-    private Timestamp ts;
     private final FixSizeBufferPool[] pools;
 
     private final Consumer<RefBuffer> defaultReleasor = this::release;
@@ -53,19 +50,11 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         this(config, null);
     }
 
-    public SimpleByteBufferPool(SimpleByteBufferPoolConfig config, SimpleByteBufferPool next) {
-        super(config.direct);
+    public SimpleByteBufferPool(SimpleByteBufferPoolConfig config, ByteBufferPool next) {
+        super(config.direct, config.threadSafe, config.threshold, config.threadSafe ? new Timestamp() : config.ts);
         Objects.requireNonNull(config.bufSizes);
         Objects.requireNonNull(config.minCount);
         Objects.requireNonNull(config.maxCount);
-        this.threadSafe = config.threadSafe;
-        if (threadSafe) {
-            // Thread safe pool should use a dedicated Timestamp
-            this.ts = new Timestamp();
-        } else {
-            this.ts = config.ts;
-        }
-        this.threshold = config.threshold;
         this.bufSizes = config.bufSizes;
         this.bufSizeMax = bufSizes[bufSizes.length - 1];
         this.next = next;
@@ -111,8 +100,9 @@ public class SimpleByteBufferPool extends ByteBufferPool {
                     minCount[i], maxCount[i], bufSizes[i], config.weakRefThreshold);
         }
 
-        if (next != null) {
-            for (int s : next.bufSizes) {
+        if (next instanceof SimpleByteBufferPool) {
+            SimpleByteBufferPool sbNext = (SimpleByteBufferPool) next;
+            for (int s : sbNext.bufSizes) {
                 if (s > bufSizeMax) {
                     break;
                 }
@@ -131,15 +121,16 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     @Override
-    public ByteBuffer allocate(int size) {
-        return this.direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
-    }
-
-    @Override
     public RefBuffer borrow(boolean plain, int requestSize, int threshold) {
         return borrow0(plain, requestSize, threshold, defaultReleasor);
     }
 
+    @Override
+    Consumer<RefBuffer> getDefaultReleasor() {
+        return defaultReleasor;
+    }
+
+    @Override
     RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
         if (requestSize > bufSizeMax) {
             if (next != null) {
@@ -183,12 +174,12 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     private RefBuffer borrowFromNext(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
-        Consumer<RefBuffer> r = next.threadSafe && requestSize > bufSizeMax ? next.defaultReleasor : releasor;
+        // when next is thread-safe, bind next's releasor so the buffer returns to next (release
+        // routing follows borrow origin, not capacity matching). A non-thread-safe next keeps the
+        // caller's releasor: such buffers are released by the caller, so they won't be pooled by
+        // next — a non-thread-safe next only saves allocation, not pooling.
+        Consumer<RefBuffer> r = next.threadSafe ? next.getDefaultReleasor() : releasor;
         return next.borrow0(plain, requestSize, threshold, r);
-    }
-
-    private RefBuffer newUnpooledRefBuffer(boolean plain, int requestSize) {
-        return new RefBuffer(plain, allocate(requestSize), null, !direct);
     }
 
     private void incBorrowTooSmall() {
@@ -212,21 +203,13 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     @Override
-    public void release(RefBuffer rb) {
-        releaseBuffer(rb.buffer);
-        rb.buffer = null;
-    }
-
     void releaseBuffer(ByteBuffer buf) {
         if (tryOffer(buf)) {
             return;
         }
-        if (next != null) {
-            next.releaseBuffer(buf);
-            return;
-        }
+        // bucket full: release directly. Each pool owns the buffers it lent (routed via the
+        // releasor bound at borrow time), so never forward to next.
         if (direct) {
-            // chain tail: buffer not poolable, release directly
             VF.releaseDirectBuffer(buf);
         }
     }

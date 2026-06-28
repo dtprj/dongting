@@ -33,13 +33,6 @@ public class DefaultPoolFactory implements PoolFactory {
 
     private static final DtLog log = DtLogs.getLogger(DefaultPoolFactory.class);
 
-    public static final int[] DEFAULT_GLOBAL_SIZE = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024,
-            1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
-    // 18,874,368 bytes
-    public static final int[] DEFAULT_GLOBAL_MIN_COUNT = new int[]{32, 32, 24, 16, 2, 1, 1, 1};
-    // 104,857,600 bytes
-    public static final int[] DEFAULT_GLOBAL_MAX_COUNT = new int[]{128, 128, 64, 64, 32, 16, 8, 4};
-
     public static final int[] DEFAULT_SMALL_SIZE = new int[]{128, 256, 512, 1024, 2048, 4096, 8192, 16384};
     // 557,056 bytes
     public static final int[] DEFAULT_SMALL_MIN_COUNT = new int[]{128, 64, 32, 16, 16, 16, 16, 16};
@@ -48,9 +41,11 @@ public class DefaultPoolFactory implements PoolFactory {
 
     public static final int DEFAULT_THRESHOLD = 64;
 
-    // Shared global large pools; thread-safe, reused as the {@code next} of every per-thread small pool.
-    private static final SimpleByteBufferPool GLOBAL_DIRECT_POOL = createGlobalPool(true);
-    private static final SimpleByteBufferPool GLOBAL_HEAP_POOL = createGlobalPool(false);
+    public static final int[] DEFAULT_GLOBAL_MIN_CHUNK_COUNT = new int[]{1};
+    public static final int[] DEFAULT_GLOBAL_MAX_CHUNK_COUNT = new int[]{16};
+
+    private static final BuddyBufferPool GLOBAL_DIRECT_POOL = createGlobalPool(true);
+    private static final BuddyBufferPool GLOBAL_HEAP_POOL = createGlobalPool(false);
 
     static {
         Runnable r = () -> {
@@ -60,15 +55,14 @@ public class DefaultPoolFactory implements PoolFactory {
         DtUtil.LOW_PRIORITY_SCHEDULER.scheduleWithFixedDelay(r, 1, 1, TimeUnit.SECONDS);
     }
 
-    private static SimpleByteBufferPool createGlobalPool(boolean direct) {
-        int[] minCount = calcByMem(DEFAULT_GLOBAL_MIN_COUNT);
-        int[] maxCount = calcByMem(DEFAULT_GLOBAL_MAX_COUNT);
-        int threshold = DEFAULT_GLOBAL_SIZE[0] / 2;
-        // Thread safe pool should use a dedicated timestamp, pass null, SimpleByteBufferPool will create one
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(
-                null, direct, threshold, true, DEFAULT_GLOBAL_SIZE, minCount,
-                maxCount, 60000, calcTotalSize(DEFAULT_GLOBAL_SIZE, maxCount) / 2);
-        return new SimpleByteBufferPool(c);
+    private static BuddyBufferPool createGlobalPool(boolean direct) {
+        int minChunk = calcByMem(DEFAULT_GLOBAL_MIN_CHUNK_COUNT)[0];
+        int maxChunk = calcByMem(DEFAULT_GLOBAL_MAX_CHUNK_COUNT)[0];
+        BuddyBufferPoolConfig c = new BuddyBufferPoolConfig(
+                direct, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
+                BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE,
+                minChunk, maxChunk, 60000);
+        return new BuddyBufferPool(c);
     }
 
     @Override
@@ -85,7 +79,7 @@ public class DefaultPoolFactory implements PoolFactory {
                 direct ? 0 : DEFAULT_THRESHOLD, false,
                 DEFAULT_SMALL_SIZE, minCount, maxCount, 20000,
                 calcTotalSize(DEFAULT_SMALL_SIZE, maxCount) / 2);
-        SimpleByteBufferPool largePool = direct ? GLOBAL_DIRECT_POOL : GLOBAL_HEAP_POOL;
+        BuddyBufferPool largePool = direct ? GLOBAL_DIRECT_POOL : GLOBAL_HEAP_POOL;
         return new SimpleByteBufferPool(c, largePool);
     }
 
