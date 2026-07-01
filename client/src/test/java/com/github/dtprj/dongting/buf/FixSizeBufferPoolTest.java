@@ -31,7 +31,7 @@ public class FixSizeBufferPoolTest {
 
     private SimpleByteBufferPoolConfig createTestConfig() {
         // just use currentUsedShareSize field, so set other params to invalid value
-        return new SimpleByteBufferPoolConfig(TS, false, 0, false,
+        return new SimpleByteBufferPoolConfig(TS, false, 0,
                 null, null, null);
     }
 

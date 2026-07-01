@@ -27,7 +27,7 @@ public class RefBufferTest {
 
     private SimpleByteBufferPoolConfig createDefaultConfig() {
         return new SimpleByteBufferPoolConfig(new Timestamp(), false, DefaultPoolFactory.DEFAULT_THRESHOLD,
-                false, DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT,
+                DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT,
                 DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
     }
 

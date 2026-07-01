@@ -60,7 +60,7 @@ public class BuddyBufferPool extends ByteBufferPool {
     private long statChunkCleanCount;
 
     public BuddyBufferPool(BuddyBufferPoolConfig config) {
-        super(config.direct, true, config.minBlockSize / 2, new Timestamp());
+        super(config.direct, config.minBlockSize / 2, new Timestamp());
         this.chunkSize = config.chunkSize;
         this.minBlockSize = config.minBlockSize;
         this.minChunkCount = config.minChunkCount;
@@ -180,9 +180,8 @@ public class BuddyBufferPool extends ByteBufferPool {
         }
     }
 
-    // A buffer not found in bufMap. With releasor-based routing this is normally unreachable;
-    // kept as a defensive fallback for direct/misuse calls. If capacity falls in buddy's range it
-    // is treated as a double release of a buddy slice — fail loud. Otherwise release as chain tail.
+    // Normally unreachable (releasor ensures buffers return to origin pool). Defensive fallback
+    // for misuse: buddy-range capacity → double release → fail loud; otherwise drop the buffer.
     private void releaseForeignBuffer(ByteBuffer buf) {
         if (buf.capacity() >= minBlockSize) {
             throw new DtBugException("buffer does not belong to this pool or released twice, capacity="
@@ -217,11 +216,6 @@ public class BuddyBufferPool extends ByteBufferPool {
         } finally {
             lock.unlock();
         }
-    }
-
-    @Override
-    Consumer<RefBuffer> getDefaultReleasor() {
-        return defaultReleasor;
     }
 
     @Override

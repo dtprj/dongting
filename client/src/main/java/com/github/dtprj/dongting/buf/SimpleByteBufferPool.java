@@ -26,7 +26,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Simple ByteBuffer pool, not thread safe.
+ * Simple ByteBuffer pool, not thread safe. Routing between this small pool and the large pool
+ * (BuddyBufferPool) is handled by {@link Buffers}.
  *
  * @author huangli
  */
@@ -36,7 +37,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     final int[] bufSizes;
     final int bufSizeMax;
-    final ByteBufferPool next;
+
     private final long timeoutNanos;
 
     private long statBorrowTooSmallCount;
@@ -47,17 +48,12 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private final Consumer<RefBuffer> defaultReleasor = this::release;
 
     public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
-        this(config, null);
-    }
-
-    public SimpleByteBufferPool(SimpleByteBufferPoolConfig config, ByteBufferPool next) {
-        super(config.direct, config.threadSafe, config.threshold, config.threadSafe ? new Timestamp() : config.ts);
+        super(config.direct, config.threshold, config.ts);
         Objects.requireNonNull(config.bufSizes);
         Objects.requireNonNull(config.minCount);
         Objects.requireNonNull(config.maxCount);
         this.bufSizes = config.bufSizes;
         this.bufSizeMax = bufSizes[bufSizes.length - 1];
-        this.next = next;
         this.timeoutNanos = config.timeoutMillis * 1000 * 1000;
 
         int[] bufSizes = this.bufSizes;
@@ -99,25 +95,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             this.pools[i] = new FixSizeBufferPool(config, direct, config.shareSize,
                     minCount[i], maxCount[i], bufSizes[i], config.weakRefThreshold);
         }
-
-        if (next instanceof SimpleByteBufferPool) {
-            SimpleByteBufferPool sbNext = (SimpleByteBufferPool) next;
-            for (int s : sbNext.bufSizes) {
-                if (s > bufSizeMax) {
-                    break;
-                }
-                boolean found = false;
-                for (int smallSize : bufSizes) {
-                    if (s == smallSize) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    throw new IllegalArgumentException();
-                }
-            }
-        }
     }
 
     @Override
@@ -126,24 +103,16 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     @Override
-    Consumer<RefBuffer> getDefaultReleasor() {
-        return defaultReleasor;
-    }
-
-    @Override
     RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
         if (requestSize > bufSizeMax) {
-            if (next != null) {
-                return borrowFromNext(plain, requestSize, threshold, releasor);
-            }
-            incBorrowTooLarge();
+            statBorrowTooLargeCount++;
             return newUnpooledRefBuffer(plain, requestSize);
         }
         if (requestSize <= threshold) {
             return newUnpooledRefBuffer(plain, requestSize);
         }
         if (requestSize <= this.threshold) {
-            incBorrowTooSmall();
+            statBorrowTooSmallCount++;
             return newUnpooledRefBuffer(plain, requestSize);
         }
         int[] bufSizes = this.bufSizes;
@@ -154,18 +123,8 @@ public class SimpleByteBufferPool extends ByteBufferPool {
                 break;
             }
         }
-        ByteBuffer result;
-        if (threadSafe) {
-            synchronized (this) {
-                result = pools[poolIndex].borrow();
-            }
-        } else {
-            result = pools[poolIndex].borrow();
-        }
+        ByteBuffer result = pools[poolIndex].borrow();
         if (result == null) {
-            if (next != null && requestSize > next.threshold) {
-                return borrowFromNext(plain, requestSize, threshold, releasor);
-            }
             // create new ByteBuffer
             return new RefBuffer(plain, allocate(bufSizes[poolIndex]), releasor, false);
         }
@@ -173,42 +132,12 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         return new RefBuffer(plain, result, releasor, false);
     }
 
-    private RefBuffer borrowFromNext(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
-        // when next is thread-safe, bind next's releasor so the buffer returns to next (release
-        // routing follows borrow origin, not capacity matching). A non-thread-safe next keeps the
-        // caller's releasor: such buffers are released by the caller, so they won't be pooled by
-        // next — a non-thread-safe next only saves allocation, not pooling.
-        Consumer<RefBuffer> r = next.threadSafe ? next.getDefaultReleasor() : releasor;
-        return next.borrow0(plain, requestSize, threshold, r);
-    }
-
-    private void incBorrowTooSmall() {
-        if (threadSafe) {
-            synchronized (this) {
-                statBorrowTooSmallCount++;
-            }
-        } else {
-            statBorrowTooSmallCount++;
-        }
-    }
-
-    private void incBorrowTooLarge() {
-        if (threadSafe) {
-            synchronized (this) {
-                statBorrowTooLargeCount++;
-            }
-        } else {
-            statBorrowTooLargeCount++;
-        }
-    }
-
     @Override
     void releaseBuffer(ByteBuffer buf) {
         if (tryOffer(buf)) {
             return;
         }
-        // bucket full: release directly. Each pool owns the buffers it lent (routed via the
-        // releasor bound at borrow time), so never forward to next.
+        // bucket full: release directly
         if (direct) {
             VF.releaseDirectBuffer(buf);
         }
@@ -230,28 +159,11 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         if (poolIndex >= poolCount) {
             throw new DtException("the buffer not belong to this pool, capacity=" + capacity);
         }
-        if (threadSafe) {
-            synchronized (this) {
-                ts.refresh(1);
-                return pools[poolIndex].release(buf, ts.nanoTime);
-            }
-        } else {
-            return pools[poolIndex].release(buf, ts.nanoTime);
-        }
+        return pools[poolIndex].release(buf, ts.nanoTime);
     }
 
     @Override
     public void clean() {
-        if (threadSafe) {
-            synchronized (this) {
-                clean0();
-            }
-        } else {
-            clean0();
-        }
-    }
-
-    private void clean0() {
         long expireNanos = ts.nanoTime - this.timeoutNanos;
         for (FixSizeBufferPool pool : pools) {
             pool.clean(expireNanos);
@@ -265,16 +177,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     public String formatStat() {
-        if (threadSafe) {
-            synchronized (this) {
-                return formatStat0();
-            }
-        } else {
-            return formatStat0();
-        }
-    }
-
-    private String formatStat0() {
         StringBuilder sb = new StringBuilder(512);
         DecimalFormat f1 = new DecimalFormat("#,###");
         NumberFormat f2 = NumberFormat.getPercentInstance();
@@ -359,5 +261,3 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         return this.ts;
     }
 }
-
-

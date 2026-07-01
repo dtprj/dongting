@@ -25,7 +25,6 @@ public class SimpleByteBufferPoolConfig {
 
     public final Timestamp ts;
     public final boolean direct;
-    public final boolean threadSafe;
     public final int threshold;
     public final int weakRefThreshold;
     public final int[] bufSizes;
@@ -36,24 +35,23 @@ public class SimpleByteBufferPoolConfig {
 
     long currentUsedShareSize;
 
-    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, boolean threadSafe,
+    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold,
                                       int[] bufSizes, int[] minCount, int[] maxCount) {
-        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, threadSafe, bufSizes, minCount, maxCount, 10 * 1000, 0);
+        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, 10 * 1000, 0);
     }
 
-    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, boolean threadSafe, int[] bufSizes,
+    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, int[] bufSizes,
                                       int[] minCount, int[] maxCount, long timeoutMillis, long shareSize) {
-        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, threadSafe, bufSizes, minCount, maxCount, timeoutMillis, shareSize);
+        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, timeoutMillis, shareSize);
     }
 
     public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, int weakRefThreshold,
-                                      boolean threadSafe, int[] bufSizes, int[] minCount, int[] maxCount,
+                                      int[] bufSizes, int[] minCount, int[] maxCount,
                                       long timeoutMillis, long shareSize) {
         this.ts = ts;
         this.direct = direct;
         this.threshold = threshold;
         this.weakRefThreshold = weakRefThreshold;
-        this.threadSafe = threadSafe;
         this.bufSizes = bufSizes;
         this.minCount = minCount;
         this.maxCount = maxCount;

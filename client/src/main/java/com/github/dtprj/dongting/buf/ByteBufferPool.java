@@ -26,16 +26,13 @@ import java.util.function.Consumer;
 public abstract class ByteBufferPool {
 
     protected final boolean direct;
-    protected final boolean threadSafe;
-    // a request with size <= threshold is not worth pooling in this pool; also used by an upstream
-    // pool to decide whether to forward a miss (requestSize > next.threshold)
+    // a request with size <= threshold is not worth pooling in this pool
     protected final int threshold;
     // non-final so tests can advance the clock via setTs
     protected Timestamp ts;
 
-    public ByteBufferPool(boolean direct, boolean threadSafe, int threshold, Timestamp ts) {
+    public ByteBufferPool(boolean direct, int threshold, Timestamp ts) {
         this.direct = direct;
-        this.threadSafe = threadSafe;
         this.threshold = threshold;
         this.ts = ts;
     }
@@ -61,11 +58,8 @@ public abstract class ByteBufferPool {
 
     public abstract String formatStat();
 
-    // Chain protocol: a pool may delegate borrow/release to its `next` pool via these hooks.
+    // borrow with an explicit releasor so the caller (Buffers) can control release routing
     abstract RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor);
 
     abstract void releaseBuffer(ByteBuffer buf);
-
-    // getter rather than field so subclasses can avoid referencing `this::method` in super(...)
-    abstract Consumer<RefBuffer> getDefaultReleasor();
 }

@@ -26,28 +26,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link Buffers} cross-thread release routing, superseding the old TwoLevelPoolTest.
+ * Tests for {@link Buffers} cross-thread release routing and small/large pool dispatch.
  *
  * @author huangli
  */
 public class BuffersTest {
 
-    private static SimpleByteBufferPool largePool() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(null, false, 32, true,
-                new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0);
-        return new SimpleByteBufferPool(c);
+    private static BuddyBufferPool largePool(boolean direct) {
+        // minBlock=64 so threshold=32; small pool max bucket is 32, so requests > 32 go to large
+        return new BuddyBufferPool(new BuddyBufferPoolConfig(direct, 1024, 64, 1, 2, 60000));
+    }
+
+    private static SimpleByteBufferPool smallPool(Timestamp ts, boolean direct) {
+        return new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(ts, direct, 0,
+                new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0));
     }
 
     private static Buffers newBuffers(Thread owner,
                                       BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> cb) {
-        SimpleByteBufferPool large = largePool();
-        SimpleByteBufferPool heapSmall = new SimpleByteBufferPool(
-                new SimpleByteBufferPoolConfig(new Timestamp(), false, 0, false,
-                        new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0), large);
-        SimpleByteBufferPool directSmall = new SimpleByteBufferPool(
-                new SimpleByteBufferPoolConfig(new Timestamp(), true, 0, false,
-                        new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0));
-        Buffers buffers = new Buffers(heapSmall, directSmall);
+        SimpleByteBufferPool heapSmall = smallPool(new Timestamp(), false);
+        SimpleByteBufferPool directSmall = smallPool(new Timestamp(), true);
+        Buffers buffers = new Buffers(heapSmall, directSmall, largePool(false), largePool(true));
         buffers.init(owner, cb);
         return buffers;
     }
@@ -63,7 +62,7 @@ public class BuffersTest {
         RefBuffer b3 = buffers.borrow(33, false, true, 0);
         assertEquals(32, b1.getBuffer().capacity());
         assertEquals(32, b2.getBuffer().capacity());
-        assertEquals(128, b3.getBuffer().capacity());
+        assertEquals(64, b3.getBuffer().capacity());
         b1.release();
         b2.release();
         b3.release();
@@ -106,9 +105,27 @@ public class BuffersTest {
             c.accept(rb);
             return true;
         });
-        RefBuffer b1 = buffers.borrow(128, false, true, 0);
+        RefBuffer b1 = buffers.borrow(64, false, true, 0);
         // large buffer is borrowed from the shared large pool, whose releasor releases directly
         // (the large pool is thread-safe), so the cross-thread callback is never involved
+        Thread t = new Thread(b1::release);
+        t.start();
+        t.join();
+        assertEquals(0, releaseCount.get());
+    }
+
+    @Test
+    public void testDirectLargeBufferReleaseInOtherThreadSkipsCallback() throws Exception {
+        AtomicInteger releaseCount = new AtomicInteger(0);
+        Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> {
+            releaseCount.incrementAndGet();
+            c.accept(rb);
+            return true;
+        });
+        RefBuffer b1 = buffers.borrowDirect(64, false, true, 0);
+        assertTrue(b1.getBuffer().isDirect());
+        assertEquals(64, b1.getBuffer().capacity());
+        // large direct buffer: thread-safe pool, callback not involved
         Thread t = new Thread(b1::release);
         t.start();
         t.join();
@@ -149,18 +166,7 @@ public class BuffersTest {
     @Test
     public void testDirectBorrowAndCrossThreadRelease() throws Exception {
         AtomicInteger releaseCount = new AtomicInteger(0);
-        SimpleByteBufferPool large = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
-                null, true, 32, true, new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0));
-        SimpleByteBufferPool directSmall = new SimpleByteBufferPool(
-                new SimpleByteBufferPoolConfig(new Timestamp(), true, 0, false,
-                        new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0), large);
-        Buffers buffers = new Buffers(
-                new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(new Timestamp(), false, 0, false,
-                        new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0),
-                        new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
-                                null, false, 32, true, new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0))),
-                directSmall);
-        buffers.init(Thread.currentThread(), (rb, c) -> {
+        Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> {
             releaseCount.incrementAndGet();
             c.accept(rb);
             return true;

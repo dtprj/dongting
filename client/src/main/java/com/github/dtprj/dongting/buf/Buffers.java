@@ -23,10 +23,11 @@ import java.util.function.Consumer;
 
 /**
  * Entry point for borrowing heap/direct buffers. Each instance is owned by a single thread
- * (dispatcher / NIO worker) and holds a pool chain (small thread-local pool with a shared global
- * large pool as its {@code next}).
+ * (dispatcher / NIO worker) and holds a small thread-local pool plus a shared global large pool.
+ * Routing between the two is done here: requests within the small pool's bucket range are served
+ * by the small pool; oversized requests go to the large pool ({@link BuddyBufferPool}).
  *
- * <p>Construction is two-phase: build via {@code new Buffers(heapPool, directPool)}, then call
+ * <p>Construction is two-phase: build via {@code new Buffers(heapPool, directPool, ...)}, then call
  * {@link #init(Thread, BiFunction)} before any borrow that may release cross-thread.
  *
  * @author huangli
@@ -35,6 +36,8 @@ public class Buffers {
 
     final SimpleByteBufferPool heapPool;
     final SimpleByteBufferPool directPool;
+    final BuddyBufferPool heapLargePool;
+    final BuddyBufferPool directLargePool;
 
     private Thread owner;
     private BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> crossThreadCallback;
@@ -49,8 +52,15 @@ public class Buffers {
     private long lastDirectCleanTime = lastHeapCleanTime - 500;
 
     public Buffers(SimpleByteBufferPool heapPool, SimpleByteBufferPool directPool) {
+        this(heapPool, directPool, null, null);
+    }
+
+    public Buffers(SimpleByteBufferPool heapPool, SimpleByteBufferPool directPool,
+                   BuddyBufferPool heapLargePool, BuddyBufferPool directLargePool) {
         this.heapPool = heapPool;
         this.directPool = directPool;
+        this.heapLargePool = heapLargePool;
+        this.directLargePool = directLargePool;
         // heapPool/directPool is null only in unit test
         this.heapLocalReleasor = heapPool == null ? null : heapPool::release;
         this.directLocalReleasor = directPool == null ? null : directPool::release;
@@ -83,6 +93,9 @@ public class Buffers {
         rb.buffer = null;
     }
 
+    /**
+     * Only cleans small pools; large pools are global and cleaned by a background scheduler.
+     */
     public void clean() {
         long now = System.currentTimeMillis();
         if (now - lastHeapCleanTime > CLEAN_INTERVAL_MILLIS) {
@@ -95,45 +108,57 @@ public class Buffers {
         }
     }
 
+    // --- heap borrow ---
+
     public RefBuffer borrow(int requestSize) {
-        return heapPool.borrow0(false, requestSize, 0, heapThreadSafeReleasor);
+        return borrowHeap0(false, requestSize, 0, heapThreadSafeReleasor);
     }
 
     public RefBuffer borrow(int requestSize, boolean plain) {
-        return heapPool.borrow0(plain, requestSize, 0, heapThreadSafeReleasor);
+        return borrowHeap0(plain, requestSize, 0, heapThreadSafeReleasor);
     }
 
     public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
         Consumer<RefBuffer> releasor = threadSafeRelease ? heapThreadSafeReleasor : heapLocalReleasor;
+        return borrowHeap0(plain, requestSize, threshold, releasor);
+    }
+
+    /** Shortcut for {@code borrow(requestSize, true, false, 0)}. */
+    public RefBuffer borrowLocal(int requestSize) {
+        return borrowHeap0(true, requestSize, 0, heapLocalReleasor);
+    }
+
+    private RefBuffer borrowHeap0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
+        if (requestSize > heapPool.bufSizeMax && heapLargePool != null) {
+            return heapLargePool.borrow(plain, requestSize, threshold);
+        }
         return heapPool.borrow0(plain, requestSize, threshold, releasor);
     }
 
-    /**
-     * Borrow a heap buffer for single-thread (local) usage: both borrow and release happen in the
-     * same thread. Equivalent to {@code borrow(requestSize, true, false, 0)}.
-     */
-    public RefBuffer borrowLocal(int requestSize) {
-        return heapPool.borrow0(true, requestSize, 0, heapLocalReleasor);
-    }
+    // --- direct borrow ---
 
     public RefBuffer borrowDirect(int requestSize) {
-        return directPool.borrow0(false, requestSize, 0, directThreadSafeReleasor);
+        return borrowDirect0(false, requestSize, 0, directThreadSafeReleasor);
     }
 
     public RefBuffer borrowDirect(int requestSize, boolean plain) {
-        return directPool.borrow0(plain, requestSize, 0, directThreadSafeReleasor);
+        return borrowDirect0(plain, requestSize, 0, directThreadSafeReleasor);
     }
 
     public RefBuffer borrowDirect(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
         Consumer<RefBuffer> releasor = threadSafeRelease ? directThreadSafeReleasor : directLocalReleasor;
-        return directPool.borrow0(plain, requestSize, threshold, releasor);
+        return borrowDirect0(plain, requestSize, threshold, releasor);
     }
 
-    /**
-     * Borrow a direct buffer for single-thread (local) usage: both borrow and release happen in the
-     * same thread. Equivalent to {@code borrowDirect(requestSize, true, false, 0)}.
-     */
+    /** Shortcut for {@code borrowDirect(requestSize, true, false, 0)}. */
     public RefBuffer borrowDirectLocal(int requestSize) {
-        return directPool.borrow0(true, requestSize, 0, directLocalReleasor);
+        return borrowDirect0(true, requestSize, 0, directLocalReleasor);
+    }
+
+    private RefBuffer borrowDirect0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
+        if (requestSize > directPool.bufSizeMax && directLargePool != null) {
+            return directLargePool.borrow(plain, requestSize, threshold);
+        }
+        return directPool.borrow0(plain, requestSize, threshold, releasor);
     }
 }

@@ -123,7 +123,7 @@ public class BuddyBufferPoolTest {
     @Test
     public void testForeignSmallBuffer() {
         BuddyBufferPool directPool = newPool(true, 256, 16, 0, 1);
-        // a small direct buffer below minBlockSize forwarded by upstream: chain tail, no throw
+        // a small direct buffer below minBlockSize: defensive fallback, no throw
         directPool.releaseBuffer(ByteBuffer.allocateDirect(8));
 
         BuddyBufferPool heapPool = newPool(false, 256, 16, 0, 1);
@@ -176,21 +176,6 @@ public class BuddyBufferPoolTest {
     }
 
     @Test
-    public void testChainWithSimplePool() {
-        // buddy minBlock(32) must be > small bufSizeMax(16) to keep release routing correct
-        BuddyBufferPool buddy = newPool(false, 256, 32, 1, 2);
-        SimpleByteBufferPool small = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
-                new com.github.dtprj.dongting.common.Timestamp(), false, 0, false,
-                new int[]{16}, new int[]{1}, new int[]{2}), buddy);
-        RefBuffer s = small.borrow(false, 16, 0);
-        assertEquals(16, s.getBuffer().capacity());
-        s.release();
-        RefBuffer b = small.borrow(false, 64, 0);
-        assertEquals(64, b.getBuffer().capacity());
-        b.release();
-    }
-
-    @Test
     public void testNonPositiveRequest() {
         BuddyBufferPool pool = newPool(false, 256, 16, 1, 2);
         assertThrows(IllegalArgumentException.class, () -> pool.borrow(false, 0, 0));
@@ -205,28 +190,10 @@ public class BuddyBufferPoolTest {
     }
 
     @Test
-    public void testOverlappingRelease() {
-        // overlapping config allowed: small max(32) == buddy minBlock(32). A buffer borrowed from
-        // buddy must route back to buddy (not be absorbed by small's bucket).
-        BuddyBufferPool buddy = newPool(false, 256, 32, 1, 2);
-        SimpleByteBufferPool small = new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(
-                new com.github.dtprj.dongting.common.Timestamp(), false, 0, false,
-                new int[]{32}, new int[]{0}, new int[]{1}), buddy);
-        // small bucket empty (minCount=0) -> forwarded to buddy
-        RefBuffer b = small.borrow(false, 32, 0);
-        assertEquals(32, b.getBuffer().capacity());
-        b.release();
-        // buddy slice returned to buddy; available again for the next borrow
-        RefBuffer b2 = small.borrow(false, 32, 0);
-        assertEquals(32, b2.getBuffer().capacity());
-        b2.release();
-    }
-
-    @Test
     public void testConcurrent() throws Exception {
         BuddyBufferPool pool = newPool(false, 1024, 16, 1, 4);
         int threads = 4;
-        ExecutorService es = Executors.newFixedThreadPool(threads);
+        @SuppressWarnings("resource") ExecutorService es = Executors.newFixedThreadPool(threads);
         CountDownLatch latch = new CountDownLatch(threads);
         AtomicReference<Throwable> err = new AtomicReference<>();
         try {
