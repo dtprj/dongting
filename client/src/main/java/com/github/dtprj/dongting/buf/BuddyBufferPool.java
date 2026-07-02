@@ -169,9 +169,7 @@ public class BuddyBufferPool extends ByteBufferPool {
             statReleaseHitCount++;
             BuddyChunk chunk = info.chunk;
             chunk.free(info.offset, chunk.levelOfBlockSize(buf.capacity()));
-            // ts.nanoTime is only refreshed in clean(); this value may lag real release time by up to
-            // the scheduler interval, which is negligible vs timeoutNanos
-            if (chunk.freeBytes == chunkSize && chunk.lastFullFreeNanos == 0) {
+            if (chunk.freeBytes == chunkSize) {
                 chunk.lastFullFreeNanos = ts.nanoTime;
             }
         } finally {
@@ -184,15 +182,13 @@ public class BuddyBufferPool extends ByteBufferPool {
         lock.lock();
         try {
             ts.refresh(1);
-            long expireNanos = ts.nanoTime - timeoutNanos;
             Iterator<BuddyChunk> it = chunks.iterator();
             while (it.hasNext()) {
                 if (chunks.size() <= minChunkCount) {
                     break;
                 }
                 BuddyChunk c = it.next();
-                if (c.freeBytes == chunkSize && c.lastFullFreeNanos != 0
-                        && c.lastFullFreeNanos <= expireNanos) {
+                if (c.freeBytes == chunkSize && ts.nanoTime - c.lastFullFreeNanos > timeoutNanos) {
                     it.remove();
                     statChunkCleanCount++;
                     if (direct) {

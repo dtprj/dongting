@@ -33,7 +33,6 @@ class BuddyChunk {
     final int maxLevel;
     final BitSet[] freeLists;
     long freeBytes;
-    // 0 means not fully free; otherwise the nanoTime when the chunk became fully free.
     long lastFullFreeNanos;
 
     BuddyChunk(ByteBuffer rootBuffer, int chunkSize, int minBlockSize) {
@@ -73,7 +72,6 @@ class BuddyChunk {
                     blockIdx = blockIdx * 2;
                 }
                 freeBytes -= blockSize(targetLevel);
-                lastFullFreeNanos = 0;
                 return blockIdx * blockSize(targetLevel);
             }
         }
