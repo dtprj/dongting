@@ -163,8 +163,7 @@ public class BuddyBufferPool extends ByteBufferPool {
         try {
             BuddyChunk.BufInfo info = bufMap.remove(buf);
             if (info == null) {
-                releaseForeignBuffer(buf);
-                return;
+                throw new DtBugException("buffer does not belong to this pool or released twice");
             }
             statReleaseCount++;
             statReleaseHitCount++;
@@ -177,18 +176,6 @@ public class BuddyBufferPool extends ByteBufferPool {
             }
         } finally {
             lock.unlock();
-        }
-    }
-
-    // Normally unreachable (releasor ensures buffers return to origin pool). Defensive fallback
-    // for misuse: buddy-range capacity → double release → fail loud; otherwise drop the buffer.
-    private void releaseForeignBuffer(ByteBuffer buf) {
-        if (buf.capacity() >= minBlockSize) {
-            throw new DtBugException("buffer does not belong to this pool or released twice, capacity="
-                    + buf.capacity());
-        }
-        if (direct) {
-            VF.releaseDirectBuffer(buf);
         }
     }
 

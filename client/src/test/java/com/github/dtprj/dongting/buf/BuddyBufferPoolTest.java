@@ -121,13 +121,17 @@ public class BuddyBufferPoolTest {
     }
 
     @Test
-    public void testForeignSmallBuffer() {
+    public void testForeignBufferRejected() {
         BuddyBufferPool directPool = newPool(true, 256, 16, 0, 1);
-        // a small direct buffer below minBlockSize: defensive fallback, no throw
-        directPool.releaseBuffer(ByteBuffer.allocateDirect(8));
+        // foreign buffers (not from this pool) are always rejected, regardless of size or type
+        assertThrows(DtBugException.class,
+                () -> directPool.releaseBuffer(ByteBuffer.allocateDirect(8)));
+        assertThrows(DtBugException.class,
+                () -> directPool.releaseBuffer(ByteBuffer.allocateDirect(32)));
 
         BuddyBufferPool heapPool = newPool(false, 256, 16, 0, 1);
-        heapPool.releaseBuffer(ByteBuffer.allocate(8));
+        assertThrows(DtBugException.class, () -> heapPool.releaseBuffer(ByteBuffer.allocate(8)));
+        assertThrows(DtBugException.class, () -> heapPool.releaseBuffer(ByteBuffer.allocate(32)));
     }
 
     @Test
@@ -180,13 +184,6 @@ public class BuddyBufferPoolTest {
         BuddyBufferPool pool = newPool(false, 256, 16, 1, 2);
         assertThrows(IllegalArgumentException.class, () -> pool.borrow(false, 0, 0));
         assertThrows(IllegalArgumentException.class, () -> pool.borrow(false, -1, 0));
-    }
-
-    @Test
-    public void testForeignLargeBufferRejected() {
-        BuddyBufferPool pool = newPool(false, 256, 16, 1, 2);
-        ByteBuffer foreign = ByteBuffer.allocate(32);
-        assertThrows(DtBugException.class, () -> pool.releaseBuffer(foreign));
     }
 
     @Test
