@@ -29,9 +29,8 @@ class FixSizeBufferPool {
     private final int bufferSize;
     private final int maxCount;
     private final int minCount;
-    private final SimpleByteBufferPoolConfig config;
     private final boolean direct;
-    private final long shareSize;
+    private final ShareBudget shareBudget;
     private static final int MAGIC = 0xEA1D9C07;
 
     private final IndexedQueue<ByteBuffer> bufferStack;
@@ -42,11 +41,10 @@ class FixSizeBufferPool {
     long statReleaseCount;
     long statReleaseHitCount;
 
-    public FixSizeBufferPool(SimpleByteBufferPoolConfig config, boolean direct, long shareSize,
+    public FixSizeBufferPool(boolean direct, ShareBudget shareBudget,
                               int minCount, int maxCount, int bufferSize, int weakRefThreshold) {
-        this.config = config;
         this.direct = direct;
-        this.shareSize = shareSize;
+        this.shareBudget = shareBudget;
         if (bufferSize < 16) {
             throw new IllegalArgumentException("buffer size too small: " + bufferSize);
         }
@@ -94,7 +92,7 @@ class FixSizeBufferPool {
     private void updateCurrentUsedShareSizeAfterRemove() {
         int size = bufferStack.size();
         if (size >= maxCount) {
-            config.currentUsedShareSize -= bufferSize;
+            shareBudget.release(bufferSize);
         }
     }
 
@@ -114,16 +112,13 @@ class FixSizeBufferPool {
         }
 
         if (bufferStack.size() >= maxCount) {
-            long newUsedShareSize = config.currentUsedShareSize + bufferSize;
-            if (newUsedShareSize > shareSize) {
+            if (!shareBudget.borrow(bufferSize)) {
                 if (weakRefCache != null) {
                     // only write magic, return time is not needed
                     buf.putInt(MAGIC_INDEX, MAGIC);
                     weakRefCache.releaseToCache(buf);
                 }
                 return false;
-            } else {
-                config.currentUsedShareSize = newUsedShareSize;
             }
         }
         statReleaseHitCount++;

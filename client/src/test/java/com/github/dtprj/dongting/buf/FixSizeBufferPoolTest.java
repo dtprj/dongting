@@ -29,15 +29,8 @@ public class FixSizeBufferPoolTest {
     
     private static final Timestamp TS = new Timestamp();
 
-    private SimpleByteBufferPoolConfig createTestConfig() {
-        // just use currentUsedShareSize field, so set other params to invalid value
-        return new SimpleByteBufferPoolConfig(TS, false, 0,
-                null, null, null);
-    }
-
     private FixSizeBufferPool createFixPool(int bufferSize, int minCount, int maxCount, long shareSize) {
-        SimpleByteBufferPoolConfig config = createTestConfig();
-        return new FixSizeBufferPool(config, false, shareSize, minCount, maxCount, bufferSize, 4096);
+        return new FixSizeBufferPool(false, new ShareBudget(shareSize), minCount, maxCount, bufferSize, 4096);
     }
 
     private FixSizeBufferPool createFixPool(int bufferSize, int minCount, int maxCount) {
@@ -189,8 +182,7 @@ public class FixSizeBufferPoolTest {
 
     @Test
     public void testWeakRefNotEnabledForDirect() {
-        SimpleByteBufferPoolConfig config = createTestConfig();
-        FixSizeBufferPool pool = new FixSizeBufferPool(config, true, 0, 1, 2, 128, 128);
+        FixSizeBufferPool pool = new FixSizeBufferPool(true, new ShareBudget(0), 1, 2, 128, 128);
         ByteBuffer buf1 = ByteBuffer.allocateDirect(128);
         ByteBuffer buf2 = ByteBuffer.allocateDirect(128);
         ByteBuffer buf3 = ByteBuffer.allocateDirect(128);
@@ -204,8 +196,7 @@ public class FixSizeBufferPoolTest {
 
     @Test
     public void testWeakRefNotEnabledForSmallBuffer() {
-        SimpleByteBufferPoolConfig config = createTestConfig();
-        FixSizeBufferPool pool = new FixSizeBufferPool(config, false, 0, 1, 2, 128, 256);
+        FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0), 1, 2, 128, 256);
         ByteBuffer buf1 = ByteBuffer.allocate(128);
         ByteBuffer buf2 = ByteBuffer.allocate(128);
         ByteBuffer buf3 = ByteBuffer.allocate(128);
@@ -220,8 +211,7 @@ public class FixSizeBufferPoolTest {
     @Test
     public void testWeakRefReleaseToWeakStack() {
         for (int attempt = 0; attempt < 3; attempt++) {
-            SimpleByteBufferPoolConfig config = createTestConfig();
-            FixSizeBufferPool pool = new FixSizeBufferPool(config, false, 0, 1, 2, 128, 128);
+            FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0), 1, 2, 128, 128);
             ByteBuffer buf1 = ByteBuffer.allocate(128);
             ByteBuffer buf2 = ByteBuffer.allocate(128);
             ByteBuffer buf3 = ByteBuffer.allocate(128);
@@ -241,8 +231,7 @@ public class FixSizeBufferPoolTest {
     @Test
     public void testWeakRefCleanToWeakStack() {
         for (int attempt = 0; attempt < 3; attempt++) {
-            SimpleByteBufferPoolConfig config = createTestConfig();
-            FixSizeBufferPool pool = new FixSizeBufferPool(config, false, 0, 1, 3, 128, 128);
+            FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0), 1, 3, 128, 128);
             ByteBuffer buf1 = ByteBuffer.allocate(128);
             ByteBuffer buf2 = ByteBuffer.allocate(128);
             ByteBuffer buf3 = ByteBuffer.allocate(128);
@@ -266,8 +255,7 @@ public class FixSizeBufferPoolTest {
 
     @Test
     public void testWeakRefGCAndClean() {
-        SimpleByteBufferPoolConfig config = createTestConfig();
-        FixSizeBufferPool testPool = new FixSizeBufferPool(config, false, 1, 0, 1, 128, 128);
+        FixSizeBufferPool testPool = new FixSizeBufferPool(false, new ShareBudget(1), 0, 1, 128, 128);
 
         ByteBuffer buf1 = ByteBuffer.allocate(128);
         ByteBuffer buf2 = ByteBuffer.allocate(128);
