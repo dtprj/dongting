@@ -165,6 +165,25 @@ public class BuddyBufferPoolTest {
     }
 
     @Test
+    public void testHintClearedAfterClean() throws Exception {
+        // minChunk=0 so clean reclaims every chunk; direct=true so an uncleared hint would point
+        // at a freed direct buffer and corrupt the next borrow.
+        BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
+                true, 256, 16, 0, 2, 100));
+        RefBuffer b1 = pool.borrow(false, 256, 0);
+        RefBuffer b2 = pool.borrow(false, 256, 0);
+        b1.release();
+        b2.release();
+        Thread.sleep(200);
+        pool.clean();
+        assertTrue(pool.formatStat().contains("chunks 0("));
+        // after all chunks (including the hinted one) are reclaimed, borrow must allocate fresh
+        RefBuffer after = pool.borrow(false, 256, 0);
+        assertEquals(256, after.getBuffer().capacity());
+        after.release();
+    }
+
+    @Test
     public void testDirectSliceContent() {
         BuddyBufferPool pool = newPool(true, 256, 16, 1, 1);
         RefBuffer a = pool.borrow(false, 16, 0);

@@ -60,6 +60,7 @@ class BuddyChunk {
      * @return start offset of an allocated block, or -1 if no block can satisfy the request.
      */
     int allocate(int targetLevel) {
+        BitSet[] freeLists = this.freeLists;
         for (int lv = targetLevel; lv <= maxLevel; lv++) {
             BitSet fl = freeLists[lv];
             int blockIdx = fl.nextSetBit(0);
@@ -86,6 +87,7 @@ class BuddyChunk {
     void free(int offset, int targetLevel) {
         int lv = targetLevel;
         int blockIdx = offset / blockSize(lv);
+        BitSet[] freeLists = this.freeLists;
         while (lv < maxLevel) {
             int buddy = blockIdx ^ 1;
             if (freeLists[lv].get(buddy)) {

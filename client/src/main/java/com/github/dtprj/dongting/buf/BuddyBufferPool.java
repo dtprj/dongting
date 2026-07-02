@@ -24,7 +24,6 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
@@ -45,9 +44,12 @@ public class BuddyBufferPool extends ByteBufferPool {
     private final int maxChunkCount;
     private final long timeoutNanos;
 
-    private final List<BuddyChunk> chunks = new ArrayList<>();
+    private final ArrayList<BuddyChunk> chunks = new ArrayList<>();
     private final IdentityHashMap<ByteBuffer, BuddyChunk.BufInfo> bufMap = new IdentityHashMap<>();
     private final ReentrantLock lock = new ReentrantLock();
+    // last chunk that satisfied an allocate; tried first on the next borrow so the common case
+    // (same chunk still has room) stays O(1) instead of scanning the whole chunk list.
+    private BuddyChunk hintChunk;
 
     private final Consumer<RefBuffer> defaultReleasor = this::release;
 
@@ -108,12 +110,24 @@ public class BuddyBufferPool extends ByteBufferPool {
             statBorrowCount++;
             BuddyChunk chunk = null;
             int offset = -1;
-            for (BuddyChunk c : chunks) {
-                offset = c.allocate(targetLevel);
+            // fast path: the chunk that served the previous borrow usually still has room
+            if (hintChunk != null) {
+                offset = hintChunk.allocate(targetLevel);
                 if (offset >= 0) {
-                    chunk = c;
+                    chunk = hintChunk;
                     statBorrowHitCount++;
-                    break;
+                }
+            }
+            if (chunk == null) {
+                for (int size = chunks.size(), i = 0; i < size; i++) {
+                    BuddyChunk c = chunks.get(i);
+                    offset = c.allocate(targetLevel);
+                    if (offset >= 0) {
+                        chunk = c;
+                        hintChunk = chunk;
+                        statBorrowHitCount++;
+                        break;
+                    }
                 }
             }
             if (chunk == null && chunks.size() < maxChunkCount) {
@@ -121,6 +135,7 @@ public class BuddyBufferPool extends ByteBufferPool {
                 chunks.add(chunk);
                 statNewChunkCount++;
                 offset = chunk.allocate(targetLevel);
+                hintChunk = chunk;
             }
             if (chunk != null && offset >= 0) {
                 slice = sliceBlock(chunk.rootBuffer, offset, targetSize);
@@ -190,6 +205,9 @@ public class BuddyBufferPool extends ByteBufferPool {
                 BuddyChunk c = it.next();
                 if (c.freeBytes == chunkSize && ts.nanoTime - c.lastFullFreeNanos > timeoutNanos) {
                     it.remove();
+                    if (hintChunk == c) {
+                        hintChunk = null;
+                    }
                     statChunkCleanCount++;
                     if (direct) {
                         VF.releaseDirectBuffer(c.rootBuffer);
