@@ -48,7 +48,7 @@ class BuddyChunk {
         this.freeBytes = chunkSize;
     }
 
-    int blockSize(int level) {
+    private int blockSize(int level) {
         return minBlockSize << level;
     }
 
@@ -72,8 +72,9 @@ class BuddyChunk {
                     freeLists[lv].set(blockIdx * 2 + 1);
                     blockIdx = blockIdx * 2;
                 }
-                freeBytes -= blockSize(targetLevel);
-                return blockIdx * blockSize(targetLevel);
+                int bsz = blockSize(targetLevel);
+                freeBytes -= bsz;
+                return blockIdx * bsz;
             }
         }
         return -1;
