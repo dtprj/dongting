@@ -47,7 +47,7 @@ public class Buffers {
     private final Consumer<RefBuffer> directLocalReleasor;
     private Consumer<RefBuffer> directThreadSafeReleasor;
 
-    private static final long CLEAN_INTERVAL_MILLIS = 1000;
+    private static final long CLEAN_INTERVAL_MILLIS = 60_000;
     private long lastHeapCleanTime = System.currentTimeMillis();
     private long lastDirectCleanTime = lastHeapCleanTime - 500;
 

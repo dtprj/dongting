@@ -38,12 +38,10 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     final int[] bufSizes;
     final int bufSizeMax;
 
-    private final long timeoutNanos;
-
     private long statBorrowTooSmallCount;
     private long statBorrowTooLargeCount;
 
-    private final FixSizeBufferPool[] pools;
+    final FixSizeBufferPool[] pools;
 
     private final Consumer<RefBuffer> defaultReleasor = this::release;
 
@@ -54,7 +52,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         Objects.requireNonNull(config.maxCount);
         this.bufSizes = config.bufSizes;
         this.bufSizeMax = bufSizes[bufSizes.length - 1];
-        this.timeoutNanos = config.timeoutMillis * 1000 * 1000;
 
         int[] bufSizes = this.bufSizes;
         int[] minCount = config.minCount;
@@ -67,9 +64,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         int bufferTypeCount = bufSizes.length;
         if (bufferTypeCount != minCount.length || bufferTypeCount != maxCount.length) {
             throw new IllegalArgumentException();
-        }
-        if (config.timeoutMillis <= 0) {
-            throw new IllegalArgumentException("timeout<=0. timeout=" + config.timeoutMillis);
         }
         for (int i : bufSizes) {
             if (i <= 0) {
@@ -160,14 +154,13 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         if (poolIndex >= poolCount) {
             throw new DtException("the buffer not belong to this pool, capacity=" + capacity);
         }
-        return pools[poolIndex].release(buf, ts.nanoTime);
+        return pools[poolIndex].release(buf);
     }
 
     @Override
     public void clean() {
-        long expireNanos = ts.nanoTime - this.timeoutNanos;
         for (FixSizeBufferPool pool : pools) {
-            pool.clean(expireNanos);
+            pool.clean();
         }
     }
 

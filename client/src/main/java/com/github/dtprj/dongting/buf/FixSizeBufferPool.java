@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
  */
 class FixSizeBufferPool {
     private static final int MAGIC_INDEX = 0;
-    private static final int RETURN_TIME_INDEX = 4;
     private final int bufferSize;
     private final int maxCount;
     private final int minCount;
@@ -33,8 +32,12 @@ class FixSizeBufferPool {
     private final ShareBudget shareBudget;
     private static final int MAGIC = 0xEA1D9C07;
 
-    private final IndexedQueue<ByteBuffer> bufferStack;
+    final IndexedQueue<ByteBuffer> bufferStack;
     private final WeakRefCache<ByteBuffer> weakRefCache;
+
+    // min stack size observed within current shrink period; updated on borrow, reset to
+    // MAX_VALUE on clean(). Equals the count of bottom elements never borrowed (LIFO).
+    private int periodMinStackSize = Integer.MAX_VALUE;
 
     long statBorrowCount;
     long statBorrowHitCount;
@@ -83,6 +86,10 @@ class FixSizeBufferPool {
 
         ByteBuffer buf = bufferStack.pollLast();
         if (buf != null) {
+            int s = bufferStack.size();
+            if (s < periodMinStackSize) {
+                periodMinStackSize = s;
+            }
             updateCurrentUsedShareSizeAfterRemove();
             return buf;
         }
@@ -96,7 +103,7 @@ class FixSizeBufferPool {
         }
     }
 
-    public boolean release(ByteBuffer buf, long nanos) {
+    public boolean release(ByteBuffer buf) {
         statReleaseCount++;
         IndexedQueue<ByteBuffer> bufferStack = this.bufferStack;
         // so most operation on this buffer may fail (if the user use it after release)
@@ -114,7 +121,6 @@ class FixSizeBufferPool {
         if (bufferStack.size() >= maxCount) {
             if (!shareBudget.borrow(bufferSize)) {
                 if (weakRefCache != null) {
-                    // only write magic, return time is not needed
                     buf.putInt(MAGIC_INDEX, MAGIC);
                     weakRefCache.releaseToCache(buf);
                 }
@@ -124,33 +130,46 @@ class FixSizeBufferPool {
         statReleaseHitCount++;
 
         // return it to pool
-        // use the buffer to store return time and magic
         buf.putInt(MAGIC_INDEX, MAGIC);
-        buf.putLong(RETURN_TIME_INDEX, nanos);
-
         bufferStack.addLast(buf);
         return true;
     }
 
-    public void clean(long expireNanos) {
+    public void clean() {
         WeakRefCache<ByteBuffer> weakRefCache = this.weakRefCache;
         if (weakRefCache != null) {
             weakRefCache.cleanHeadAndTail();
         }
         IndexedQueue<ByteBuffer> stack = this.bufferStack;
         int size = stack.size();
-        for (int i = 0; i < size - minCount; i++) {
-            ByteBuffer buf = stack.get(0);
-            if (buf.getLong(RETURN_TIME_INDEX) - expireNanos > 0) {
-                break;
-            } else {
-                stack.pollFirst();
-                updateCurrentUsedShareSizeAfterRemove();
-                if (direct) {
-                    SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
-                } else if (weakRefCache != null) {
-                    weakRefCache.moveIdleElementsToCache(buf);
-                }
+        // minSize is the lowest stack size in this period; equals the count of bottom
+        // elements never borrowed (LIFO). If no borrow happened this period, the sentinel
+        // MAX_VALUE is clamped by size, meaning the whole stack is untouched.
+        int minSize = periodMinStackSize > size ? size : periodMinStackSize;
+        periodMinStackSize = Integer.MAX_VALUE;
+
+        if (minSize <= 0) {
+            return;
+        }
+        // shrink half of the untouched portion (floor). at least one so the last idle buffer
+        // is reachable when minCount==0. lower bound is minCount; no upper bound so borrowed
+        // ShareBudget returns naturally as usage drops.
+        int toClean = minSize / 2;
+        if (toClean == 0) {
+            toClean = 1;
+        }
+        int target = size - toClean;
+        if (target < minCount) {
+            target = minCount;
+        }
+        int cleanCount = size - target;
+        for (int i = 0; i < cleanCount; i++) {
+            ByteBuffer buf = stack.pollFirst();
+            updateCurrentUsedShareSizeAfterRemove();
+            if (direct) {
+                SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
+            } else if (weakRefCache != null) {
+                weakRefCache.moveIdleElementsToCache(buf);
             }
         }
     }

@@ -77,7 +77,7 @@ public class DefaultPoolFactory implements PoolFactory {
         int[] maxCount = calcByMem(DEFAULT_SMALL_MAX_COUNT);
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(ts, direct,
                 direct ? 0 : DEFAULT_THRESHOLD,
-                DEFAULT_SMALL_SIZE, minCount, maxCount, 20000,
+                DEFAULT_SMALL_SIZE, minCount, maxCount,
                 calcTotalSize(DEFAULT_SMALL_SIZE, maxCount) / 2);
         return new SimpleByteBufferPool(c);
     }

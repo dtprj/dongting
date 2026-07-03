@@ -39,7 +39,7 @@ public class BuffersTest {
 
     private static SimpleByteBufferPool smallPool(Timestamp ts, boolean direct) {
         return new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(ts, direct, 0,
-                new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000, 0));
+                new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 0));
     }
 
     private static Buffers newBuffers(Thread owner,

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -26,8 +25,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author huangli
  */
 public class FixSizeBufferPoolTest {
-    
-    private static final Timestamp TS = new Timestamp();
 
     private FixSizeBufferPool createFixPool(int bufferSize, int minCount, int maxCount, long shareSize) {
         return new FixSizeBufferPool(false, new ShareBudget(shareSize), minCount, maxCount, bufferSize, 4096);
@@ -51,133 +48,107 @@ public class FixSizeBufferPoolTest {
         ByteBuffer buf4 = ByteBuffer.allocate(200);
         ByteBuffer buf5 = ByteBuffer.allocate(200);
 
-        pool.release(buf1, TS.nanoTime);
-        pool.release(buf2, TS.nanoTime);
-        pool.release(buf3, TS.nanoTime);
-        pool.release(buf4, TS.nanoTime);
-        pool.release(buf5, TS.nanoTime);
+        pool.release(buf1);
+        pool.release(buf2);
+        pool.release(buf3);
+        pool.release(buf4);
+        pool.release(buf5);
 
         assertSame(buf4, pool.borrow());
-        TS.nanoTime += 1001;
-        pool.clean(TS.nanoTime);
+        pool.clean();
         assertSame(buf3, pool.borrow());
     }
 
     @Test
-    public void testClean1() {
-        // Test: no cleanup when time elapsed < timeout (500ms < 1000ms)
-        long timeoutMillis = 1000;
-        long timeoutNanos = timeoutMillis * 1000 * 1000;
-        
-        FixSizeBufferPool pool = createFixPool(128, 1, 2);
-        ByteBuffer buf1 = ByteBuffer.allocate(128);
-        ByteBuffer buf2 = ByteBuffer.allocate(128);
-        pool.release(buf1, TS.nanoTime);
-        pool.release(buf2, TS.nanoTime);
-
-        TS.nanoTime += 500 * 1000 * 1000;
-        long expireNanos = TS.nanoTime - timeoutNanos;
-        pool.clean(expireNanos);
-        
-        ByteBuffer buf3 = pool.borrow();
-        ByteBuffer buf4 = pool.borrow();
-        assertSame(buf2, buf3);
-        assertSame(buf1, buf4);
-        pool.release(buf1, TS.nanoTime);
-        pool.release(buf2, TS.nanoTime);
+    public void testShrinkHalfWhenIdle() {
+        FixSizeBufferPool pool = createFixPool(128, 0, 8);
+        for (int i = 0; i < 8; i++) {
+            pool.release(ByteBuffer.allocate(128));
+        }
+        // no borrow this period: shrink half of the untouched portion each clean
+        pool.clean();
+        assertEquals(4, pool.bufferStack.size());
+        pool.clean();
+        assertEquals(2, pool.bufferStack.size());
+        pool.clean();
+        assertEquals(1, pool.bufferStack.size());
+        pool.clean();
+        assertEquals(0, pool.bufferStack.size());
     }
 
     @Test
-    public void testClean2() {
-        // Test: cleanup to minCount when time elapsed > timeout (minCount=1, maxCount=3)
-        long timeoutMillis = 1000;
-        long timeoutNanos = timeoutMillis * 1000 * 1000;
-        
-        FixSizeBufferPool pool = createFixPool(128, 1, 3);
-        ByteBuffer buf1 = ByteBuffer.allocate(128);
-        ByteBuffer buf2 = ByteBuffer.allocate(128);
-        ByteBuffer buf3 = ByteBuffer.allocate(128);
-        pool.release(buf1, TS.nanoTime);
-        pool.release(buf2, TS.nanoTime);
-        pool.release(buf3, TS.nanoTime);
-
-        for (int i = 0; i < 5; i++) {
-            TS.nanoTime += 1001 * 1000 * 1000;
-            long expireNanos = TS.nanoTime - timeoutNanos;
-            pool.clean(expireNanos);
-            
-            ByteBuffer buf4 = borrowOrAllocate(pool, 128);
-            ByteBuffer buf5 = borrowOrAllocate(pool, 128);
-            ByteBuffer buf6 = borrowOrAllocate(pool, 128);
-            assertSame(buf3, buf4);
-            assertTrue(buf5 != buf1 && buf5 != buf2 && buf5 != buf3);
-            assertTrue(buf6 != buf1 && buf6 != buf2 && buf6 != buf3);
-            
-            buf1 = buf4;
-            buf2 = buf5;
-            buf3 = buf6;
-            pool.release(buf1, TS.nanoTime);
-            pool.release(buf2, TS.nanoTime);
-            pool.release(buf3, TS.nanoTime);
+    public void testShrinkToMinCount() {
+        FixSizeBufferPool pool = createFixPool(128, 2, 8);
+        for (int i = 0; i < 8; i++) {
+            pool.release(ByteBuffer.allocate(128));
         }
+        for (int i = 0; i < 10; i++) {
+            pool.clean();
+        }
+        assertEquals(2, pool.bufferStack.size());
     }
 
     @Test
-    public void testClean3() {
-        // Test: cleanup to minCount when time elapsed > timeout (minCount=1, maxCount=2)
-        long timeoutMillis = 1000;
-        long timeoutNanos = timeoutMillis * 1000 * 1000;
-        
-        FixSizeBufferPool pool = createFixPool(128, 1, 2);
-        ByteBuffer buf1 = ByteBuffer.allocate(128);
-        ByteBuffer buf2 = ByteBuffer.allocate(128);
-        pool.release(buf1, TS.nanoTime);
-        pool.release(buf2, TS.nanoTime);
-
-        for (int i = 0; i < 5; i++) {
-            TS.nanoTime += 1001 * 1000 * 1000;
-            long expireNanos = TS.nanoTime - timeoutNanos;
-            pool.clean(expireNanos);
-            
-            ByteBuffer buf3 = borrowOrAllocate(pool, 128);
-            ByteBuffer buf4 = borrowOrAllocate(pool, 128);
-            assertSame(buf2, buf3);
-            assertTrue(buf4 != buf1 && buf4 != buf2);
-            
-            buf1 = buf3;
-            buf2 = buf4;
-            pool.release(buf1, TS.nanoTime);
-            pool.release(buf2, TS.nanoTime);
+    public void testKeepUsedPortion() {
+        FixSizeBufferPool pool = createFixPool(128, 0, 8);
+        for (int i = 0; i < 8; i++) {
+            pool.release(ByteBuffer.allocate(128));
         }
+        // borrow 5: stack drops to 3, so periodMinStackSize==3 (only bottom 3 untouched)
+        for (int i = 0; i < 5; i++) {
+            assertNotNull(pool.borrow());
+        }
+        assertEquals(3, pool.bufferStack.size());
+        pool.clean();
+        // untouched=3, shrink floor(3/2)=1, target=3-1=2
+        assertEquals(2, pool.bufferStack.size());
     }
 
     @Test
-    public void testClean4() {
-        // Test: cleanup all buffers when minCount=0 and time elapsed > timeout
-        long timeoutMillis = 1000;
-        long timeoutNanos = timeoutMillis * 1000 * 1000;
-        
-        FixSizeBufferPool pool = createFixPool(128, 0, 2);
-        ByteBuffer buf1 = ByteBuffer.allocate(128);
-        ByteBuffer buf2 = ByteBuffer.allocate(128);
-        pool.release(buf1, TS.nanoTime);
-        pool.release(buf2, TS.nanoTime);
-
-        for (int i = 0; i < 5; i++) {
-            TS.nanoTime += 1001 * 1000 * 1000;
-            long expireNanos = TS.nanoTime - timeoutNanos;
-            pool.clean(expireNanos);
-            
-            ByteBuffer buf3 = borrowOrAllocate(pool, 128);
-            ByteBuffer buf4 = borrowOrAllocate(pool, 128);
-            assertTrue(buf3 != buf1 && buf3 != buf2);
-            assertTrue(buf4 != buf1 && buf4 != buf2);
-            
-            buf1 = buf3;
-            buf2 = buf4;
-            pool.release(buf1, TS.nanoTime);
-            pool.release(buf2, TS.nanoTime);
+    public void testNoShrinkWhenFullyDrained() {
+        FixSizeBufferPool pool = createFixPool(128, 0, 4);
+        for (int i = 0; i < 4; i++) {
+            pool.release(ByteBuffer.allocate(128));
         }
+        // drain the whole stack: minSize==0, nothing shrinks
+        for (int i = 0; i < 4; i++) {
+            assertNotNull(pool.borrow());
+        }
+        assertEquals(0, pool.bufferStack.size());
+        pool.clean();
+        assertEquals(0, pool.bufferStack.size());
+    }
+
+    @Test
+    public void testCleanOnEmptyPoolThenFill() {
+        // empty pool's first clean must not lock periodMinStackSize to 0
+        FixSizeBufferPool pool = createFixPool(128, 0, 8);
+        pool.clean();
+        for (int i = 0; i < 8; i++) {
+            pool.release(ByteBuffer.allocate(128));
+        }
+        // no borrow this period: should still shrink half
+        pool.clean();
+        assertEquals(4, pool.bufferStack.size());
+    }
+
+    @Test
+    public void testShrinkAfterReleaseOnlyGrowth() {
+        // after a clean, releasing more buffers without any borrow must shrink again
+        FixSizeBufferPool pool = createFixPool(128, 0, 16);
+        for (int i = 0; i < 8; i++) {
+            pool.release(ByteBuffer.allocate(128));
+        }
+        pool.clean();
+        assertEquals(4, pool.bufferStack.size());
+        // release-only growth in the next period (no borrow)
+        for (int i = 0; i < 10; i++) {
+            pool.release(ByteBuffer.allocate(128));
+        }
+        assertEquals(14, pool.bufferStack.size());
+        pool.clean();
+        // whole stack untouched this period: shrink half of 14
+        assertEquals(7, pool.bufferStack.size());
     }
 
     @Test
@@ -186,9 +157,9 @@ public class FixSizeBufferPoolTest {
         ByteBuffer buf1 = ByteBuffer.allocateDirect(128);
         ByteBuffer buf2 = ByteBuffer.allocateDirect(128);
         ByteBuffer buf3 = ByteBuffer.allocateDirect(128);
-        pool.release(buf1, TS.nanoTime);
-        pool.release(buf2, TS.nanoTime);
-        pool.release(buf3, TS.nanoTime);
+        pool.release(buf1);
+        pool.release(buf2);
+        pool.release(buf3);
         assertSame(buf2, pool.borrow());
         assertSame(buf1, pool.borrow());
         assertNotSame(buf3, pool.borrow());
@@ -200,9 +171,9 @@ public class FixSizeBufferPoolTest {
         ByteBuffer buf1 = ByteBuffer.allocate(128);
         ByteBuffer buf2 = ByteBuffer.allocate(128);
         ByteBuffer buf3 = ByteBuffer.allocate(128);
-        pool.release(buf1, TS.nanoTime);
-        pool.release(buf2, TS.nanoTime);
-        pool.release(buf3, TS.nanoTime);
+        pool.release(buf1);
+        pool.release(buf2);
+        pool.release(buf3);
         assertSame(buf2, pool.borrow());
         assertSame(buf1, pool.borrow());
         assertNotSame(buf3, pool.borrow());
@@ -215,9 +186,9 @@ public class FixSizeBufferPoolTest {
             ByteBuffer buf1 = ByteBuffer.allocate(128);
             ByteBuffer buf2 = ByteBuffer.allocate(128);
             ByteBuffer buf3 = ByteBuffer.allocate(128);
-            pool.release(buf1, TS.nanoTime);
-            pool.release(buf2, TS.nanoTime);
-            pool.release(buf3, TS.nanoTime);
+            pool.release(buf1);
+            pool.release(buf2);
+            pool.release(buf3);
             ByteBuffer b1 = pool.borrow();
             ByteBuffer b2 = pool.borrow();
             ByteBuffer b3 = pool.borrow();
@@ -235,18 +206,18 @@ public class FixSizeBufferPoolTest {
             ByteBuffer buf1 = ByteBuffer.allocate(128);
             ByteBuffer buf2 = ByteBuffer.allocate(128);
             ByteBuffer buf3 = ByteBuffer.allocate(128);
-            pool.release(buf1, TS.nanoTime);
-            pool.release(buf2, TS.nanoTime);
-            pool.release(buf3, TS.nanoTime);
+            pool.release(buf1);
+            pool.release(buf2);
+            pool.release(buf3);
 
-            TS.nanoTime += 1001;
-            pool.clean(TS.nanoTime);
+            // clean moves floor(untouched/2)=1 bottom buffer to weak ref cache
+            pool.clean();
 
             ByteBuffer buf4 = pool.borrow();
             ByteBuffer buf5 = pool.borrow();
             ByteBuffer buf6 = pool.borrow();
 
-            if (buf4 == buf1 && buf5 == buf2 && buf6 == buf3) {
+            if (buf4 == buf1 && buf5 == buf3 && buf6 == buf2) {
                 return;
             }
         }
@@ -260,9 +231,9 @@ public class FixSizeBufferPoolTest {
         ByteBuffer buf1 = ByteBuffer.allocate(128);
         ByteBuffer buf2 = ByteBuffer.allocate(128);
         ByteBuffer buf3 = ByteBuffer.allocate(128);
-        testPool.release(buf1, TS.nanoTime);
-        testPool.release(buf2, TS.nanoTime);
-        testPool.release(buf3, TS.nanoTime);
+        testPool.release(buf1);
+        testPool.release(buf2);
+        testPool.release(buf3);
 
         //noinspection UnusedAssignment
         buf2 = null;
@@ -270,8 +241,7 @@ public class FixSizeBufferPoolTest {
         System.gc();
         System.runFinalization();
 
-        TS.nanoTime += 1001;
-        testPool.clean(TS.nanoTime);
+        testPool.clean();
 
         ByteBuffer borrowed1 = testPool.borrow();
         ByteBuffer borrowed2 = testPool.borrow();

@@ -30,22 +30,20 @@ public class SimpleByteBufferPoolConfig {
     public final int[] bufSizes;
     public final int[] minCount;
     public final int[] maxCount;
-    public final long timeoutMillis;
     public final long shareSize;
 
     public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold,
                                       int[] bufSizes, int[] minCount, int[] maxCount) {
-        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, 10 * 1000, 0);
+        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, 0);
     }
 
     public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, int[] bufSizes,
-                                      int[] minCount, int[] maxCount, long timeoutMillis, long shareSize) {
-        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, timeoutMillis, shareSize);
+                                      int[] minCount, int[] maxCount, long shareSize) {
+        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, shareSize);
     }
 
     public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, int weakRefThreshold,
-                                      int[] bufSizes, int[] minCount, int[] maxCount,
-                                      long timeoutMillis, long shareSize) {
+                                      int[] bufSizes, int[] minCount, int[] maxCount, long shareSize) {
         this.ts = ts;
         this.direct = direct;
         this.threshold = threshold;
@@ -53,7 +51,6 @@ public class SimpleByteBufferPoolConfig {
         this.bufSizes = bufSizes;
         this.minCount = minCount;
         this.maxCount = maxCount;
-        this.timeoutMillis = timeoutMillis;
         this.shareSize = shareSize;
     }
 

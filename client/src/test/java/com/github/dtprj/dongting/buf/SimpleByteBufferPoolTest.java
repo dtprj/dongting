@@ -24,13 +24,6 @@ public class SimpleByteBufferPoolTest {
 
     private SimpleByteBufferPool pool;
 
-    private void plus(SimpleByteBufferPool pool, long millis) {
-        Timestamp ts = pool.getTs();
-        Timestamp tsNew = new Timestamp(ts.nanoTime + millis * 1000 * 1000,
-                ts.wallClockMillis + millis);
-        pool.setTs(tsNew);
-    }
-
     @AfterEach
     public void tearDown() {
         if (pool != null) {
@@ -62,9 +55,6 @@ public class SimpleByteBufferPoolTest {
 
         SimpleByteBufferPoolConfig c5 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, new int[]{128}, new int[]{1}, new int[]{-1});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c5));
-
-        SimpleByteBufferPoolConfig c6 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, new int[]{128}, new int[]{2}, new int[]{4}, -1, 0);
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c6));
 
         SimpleByteBufferPoolConfig c7 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, new int[]{1024, 2048}, new int[]{10, 10}, new int[]{9, 9});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c7));
@@ -166,19 +156,82 @@ public class SimpleByteBufferPoolTest {
     @Test
     public void testClean() {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
-                new int[]{1024}, new int[]{1}, new int[]{2}, 1000, 0);
+                new int[]{1024}, new int[]{1}, new int[]{2}, 0);
         pool = new SimpleByteBufferPool(c);
         ByteBuffer buf1 = borrowBuf(1024);
         ByteBuffer buf2 = borrowBuf(1024);
         pool.releaseBuffer(buf1);
         pool.releaseBuffer(buf2);
 
-        plus(pool, 1001);
+        // no borrow this period: minSize==size, shrink half (2 -> 1)
         pool.clean();
 
         ByteBuffer buf3 = borrowBuf(1024);
         assertSame(buf2, buf3);
         assertNotSame(borrowBuf(1024), buf1);
+    }
+
+    @Test
+    public void testCleanShrinkToMinGradually() {
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
+                new int[]{1024}, new int[]{1}, new int[]{8}, 0);
+        pool = new SimpleByteBufferPool(c);
+        ByteBuffer[] bufs = new ByteBuffer[8];
+        for (int i = 0; i < 8; i++) {
+            bufs[i] = borrowBuf(1024);
+        }
+        for (ByteBuffer buf : bufs) {
+            pool.releaseBuffer(buf);
+        }
+        // stack now holds 8 buffers, none borrowed this period.
+        // each clean shrinks half of the untouched portion, converging to minCount=1.
+        int prev = countPooled(1024);
+        for (int i = 0; i < 10; i++) {
+            pool.clean();
+            int now = countPooled(1024);
+            assertTrue(now <= prev);
+            prev = now;
+        }
+        assertEquals(1, countPooled(1024));
+    }
+
+    @Test
+    public void testCleanKeepUsedPortion() {
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
+                new int[]{1024}, new int[]{0}, new int[]{8}, 0);
+        pool = new SimpleByteBufferPool(c);
+        ByteBuffer[] bufs = new ByteBuffer[8];
+        for (int i = 0; i < 8; i++) {
+            bufs[i] = borrowBuf(1024);
+        }
+        for (ByteBuffer buf : bufs) {
+            pool.releaseBuffer(buf);
+        }
+        // borrow 5 of them this period: only bottom 3 are untouched
+        ByteBuffer b0 = borrowBuf(1024);
+        ByteBuffer b1 = borrowBuf(1024);
+        ByteBuffer b2 = borrowBuf(1024);
+        ByteBuffer b3 = borrowBuf(1024);
+        ByteBuffer b4 = borrowBuf(1024);
+        // stack size dropped to 3, so periodMinStackSize==3
+        pool.clean();
+        // untouched=3, shrink floor(3/2)=1, target=3-1=2; borrowed buffers not in stack
+        assertEquals(2, countPooled(1024));
+        pool.releaseBuffer(b0);
+        pool.releaseBuffer(b1);
+        pool.releaseBuffer(b2);
+        pool.releaseBuffer(b3);
+        pool.releaseBuffer(b4);
+    }
+
+    private int countPooled(int size) {
+        int idx = 0;
+        for (; idx < pool.bufSizes.length; idx++) {
+            if (pool.bufSizes[idx] == size) {
+                break;
+            }
+        }
+        return pool.pools[idx].bufferStack.size();
     }
 
     public static void main(String[] args) {
