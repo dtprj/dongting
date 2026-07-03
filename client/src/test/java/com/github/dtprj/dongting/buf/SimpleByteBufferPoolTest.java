@@ -154,7 +154,7 @@ public class SimpleByteBufferPoolTest {
     }
 
     @Test
-    public void testClean() {
+    public void testShrink() {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
                 new int[]{1024}, new int[]{1}, new int[]{2}, 0);
         pool = new SimpleByteBufferPool(c);
@@ -164,7 +164,7 @@ public class SimpleByteBufferPoolTest {
         pool.releaseBuffer(buf2);
 
         // no borrow this period: minSize==size, shrink half (2 -> 1)
-        pool.clean();
+        pool.shrink();
 
         ByteBuffer buf3 = borrowBuf(1024);
         assertSame(buf2, buf3);
@@ -172,7 +172,7 @@ public class SimpleByteBufferPoolTest {
     }
 
     @Test
-    public void testCleanShrinkToMinGradually() {
+    public void testShrinkToMinGradually() {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
                 new int[]{1024}, new int[]{1}, new int[]{8}, 0);
         pool = new SimpleByteBufferPool(c);
@@ -184,10 +184,10 @@ public class SimpleByteBufferPoolTest {
             pool.releaseBuffer(buf);
         }
         // stack now holds 8 buffers, none borrowed this period.
-        // each clean shrinks half of the untouched portion, converging to minCount=1.
+        // each shrink halves the untouched portion, converging to minCount=1.
         int prev = countPooled(1024);
         for (int i = 0; i < 10; i++) {
-            pool.clean();
+            pool.shrink();
             int now = countPooled(1024);
             assertTrue(now <= prev);
             prev = now;
@@ -196,7 +196,7 @@ public class SimpleByteBufferPoolTest {
     }
 
     @Test
-    public void testCleanKeepUsedPortion() {
+    public void testShrinkKeepUsedPortion() {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
                 new int[]{1024}, new int[]{0}, new int[]{8}, 0);
         pool = new SimpleByteBufferPool(c);
@@ -214,7 +214,7 @@ public class SimpleByteBufferPoolTest {
         ByteBuffer b3 = borrowBuf(1024);
         ByteBuffer b4 = borrowBuf(1024);
         // stack size dropped to 3, so periodMinStackSize==3
-        pool.clean();
+        pool.shrink();
         // untouched=3, shrink floor(3/2)=1, target=3-1=2; borrowed buffers not in stack
         assertEquals(2, countPooled(1024));
         pool.releaseBuffer(b0);

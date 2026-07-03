@@ -193,7 +193,7 @@ public class BuddyBufferPool extends ByteBufferPool {
     }
 
     @Override
-    public void clean() {
+    public void shrink() {
         lock.lock();
         try {
             ts.refresh(1);

@@ -47,9 +47,9 @@ public class Buffers {
     private final Consumer<RefBuffer> directLocalReleasor;
     private Consumer<RefBuffer> directThreadSafeReleasor;
 
-    private static final long CLEAN_INTERVAL_MILLIS = 60_000;
-    private long lastHeapCleanTime = System.currentTimeMillis();
-    private long lastDirectCleanTime = lastHeapCleanTime - 500;
+    private static final long SHRINK_INTERVAL_MILLIS = 60_000;
+    private long lastHeapShrinkTime = System.currentTimeMillis();
+    private long lastDirectShrinkTime = lastHeapShrinkTime - SHRINK_INTERVAL_MILLIS / 2;
 
     public Buffers(SimpleByteBufferPool heapPool, SimpleByteBufferPool directPool) {
         this(heapPool, directPool, null, null);
@@ -94,17 +94,20 @@ public class Buffers {
     }
 
     /**
-     * Only cleans small pools; large pools are global and cleaned by a background scheduler.
+     * Sweeps weak ref caches (call frequency is up to the caller) and shrinks idle
+     * buffers every minute. Large pools are global and shrunk by a background scheduler.
      */
     public void clean() {
         long now = System.currentTimeMillis();
-        if (now - lastHeapCleanTime > CLEAN_INTERVAL_MILLIS) {
-            heapPool.clean();
-            lastHeapCleanTime = now;
+        heapPool.clean();
+        directPool.clean();
+        if (now - lastHeapShrinkTime > SHRINK_INTERVAL_MILLIS) {
+            heapPool.shrink();
+            lastHeapShrinkTime = now;
         }
-        if (now - lastDirectCleanTime > CLEAN_INTERVAL_MILLIS) {
-            directPool.clean();
-            lastDirectCleanTime = now;
+        if (now - lastDirectShrinkTime > SHRINK_INTERVAL_MILLIS) {
+            directPool.shrink();
+            lastDirectShrinkTime = now;
         }
     }
 

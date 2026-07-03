@@ -55,7 +55,7 @@ public class FixSizeBufferPoolTest {
         pool.release(buf5);
 
         assertSame(buf4, pool.borrow());
-        pool.clean();
+        pool.shrink();
         assertSame(buf3, pool.borrow());
     }
 
@@ -65,14 +65,14 @@ public class FixSizeBufferPoolTest {
         for (int i = 0; i < 8; i++) {
             pool.release(ByteBuffer.allocate(128));
         }
-        // no borrow this period: shrink half of the untouched portion each clean
-        pool.clean();
+        // no borrow this period: shrink half of the untouched portion each shrink
+        pool.shrink();
         assertEquals(4, pool.bufferStack.size());
-        pool.clean();
+        pool.shrink();
         assertEquals(2, pool.bufferStack.size());
-        pool.clean();
+        pool.shrink();
         assertEquals(1, pool.bufferStack.size());
-        pool.clean();
+        pool.shrink();
         assertEquals(0, pool.bufferStack.size());
     }
 
@@ -83,7 +83,7 @@ public class FixSizeBufferPoolTest {
             pool.release(ByteBuffer.allocate(128));
         }
         for (int i = 0; i < 10; i++) {
-            pool.clean();
+            pool.shrink();
         }
         assertEquals(2, pool.bufferStack.size());
     }
@@ -99,7 +99,7 @@ public class FixSizeBufferPoolTest {
             assertNotNull(pool.borrow());
         }
         assertEquals(3, pool.bufferStack.size());
-        pool.clean();
+        pool.shrink();
         // untouched=3, shrink floor(3/2)=1, target=3-1=2
         assertEquals(2, pool.bufferStack.size());
     }
@@ -115,38 +115,38 @@ public class FixSizeBufferPoolTest {
             assertNotNull(pool.borrow());
         }
         assertEquals(0, pool.bufferStack.size());
-        pool.clean();
+        pool.shrink();
         assertEquals(0, pool.bufferStack.size());
     }
 
     @Test
-    public void testCleanOnEmptyPoolThenFill() {
-        // empty pool's first clean must not lock periodMinStackSize to 0
+    public void testShrinkOnEmptyPoolThenFill() {
+        // empty pool's first shrink must not lock periodMinStackSize to 0
         FixSizeBufferPool pool = createFixPool(128, 0, 8);
-        pool.clean();
+        pool.shrink();
         for (int i = 0; i < 8; i++) {
             pool.release(ByteBuffer.allocate(128));
         }
         // no borrow this period: should still shrink half
-        pool.clean();
+        pool.shrink();
         assertEquals(4, pool.bufferStack.size());
     }
 
     @Test
     public void testShrinkAfterReleaseOnlyGrowth() {
-        // after a clean, releasing more buffers without any borrow must shrink again
+        // after a shrink, releasing more buffers without any borrow must shrink again
         FixSizeBufferPool pool = createFixPool(128, 0, 16);
         for (int i = 0; i < 8; i++) {
             pool.release(ByteBuffer.allocate(128));
         }
-        pool.clean();
+        pool.shrink();
         assertEquals(4, pool.bufferStack.size());
         // release-only growth in the next period (no borrow)
         for (int i = 0; i < 10; i++) {
             pool.release(ByteBuffer.allocate(128));
         }
         assertEquals(14, pool.bufferStack.size());
-        pool.clean();
+        pool.shrink();
         // whole stack untouched this period: shrink half of 14
         assertEquals(7, pool.bufferStack.size());
     }
@@ -200,7 +200,7 @@ public class FixSizeBufferPoolTest {
     }
 
     @Test
-    public void testWeakRefCleanToWeakStack() {
+    public void testWeakRefShrinkToWeakStack() {
         for (int attempt = 0; attempt < 3; attempt++) {
             FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0), 1, 3, 128, 128);
             ByteBuffer buf1 = ByteBuffer.allocate(128);
@@ -210,8 +210,8 @@ public class FixSizeBufferPoolTest {
             pool.release(buf2);
             pool.release(buf3);
 
-            // clean moves floor(untouched/2)=1 bottom buffer to weak ref cache
-            pool.clean();
+            // shrink moves floor(untouched/2)=1 bottom buffer to weak ref cache
+            pool.shrink();
 
             ByteBuffer buf4 = pool.borrow();
             ByteBuffer buf5 = pool.borrow();

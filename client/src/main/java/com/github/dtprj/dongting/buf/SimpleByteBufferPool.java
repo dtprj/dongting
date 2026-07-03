@@ -157,10 +157,16 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         return pools[poolIndex].release(buf);
     }
 
-    @Override
     public void clean() {
         for (FixSizeBufferPool pool : pools) {
             pool.clean();
+        }
+    }
+
+    @Override
+    public void shrink() {
+        for (FixSizeBufferPool pool : pools) {
+            pool.shrink();
         }
     }
 

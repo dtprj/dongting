@@ -54,7 +54,7 @@ public abstract class ByteBufferPool {
         return new RefBuffer(plain, allocate(requestSize), null, !direct);
     }
 
-    public abstract void clean();
+    public abstract void shrink();
 
     public abstract String formatStat();
 

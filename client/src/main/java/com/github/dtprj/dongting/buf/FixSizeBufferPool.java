@@ -36,7 +36,7 @@ class FixSizeBufferPool {
     private final WeakRefCache<ByteBuffer> weakRefCache;
 
     // min stack size observed within current shrink period; updated on borrow, reset to
-    // MAX_VALUE on clean(). Equals the count of bottom elements never borrowed (LIFO).
+    // MAX_VALUE on shrink(). Equals the count of bottom elements never borrowed (LIFO).
     private int periodMinStackSize = Integer.MAX_VALUE;
 
     long statBorrowCount;
@@ -140,6 +140,10 @@ class FixSizeBufferPool {
         if (weakRefCache != null) {
             weakRefCache.cleanHeadAndTail();
         }
+    }
+
+    public void shrink() {
+        WeakRefCache<ByteBuffer> weakRefCache = this.weakRefCache;
         IndexedQueue<ByteBuffer> stack = this.bufferStack;
         int size = stack.size();
         // minSize is the lowest stack size in this period; equals the count of bottom

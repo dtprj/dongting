@@ -49,8 +49,8 @@ public class DefaultPoolFactory implements PoolFactory {
 
     static {
         Runnable r = () -> {
-            GLOBAL_DIRECT_POOL.clean();
-            GLOBAL_HEAP_POOL.clean();
+            GLOBAL_DIRECT_POOL.shrink();
+            GLOBAL_HEAP_POOL.shrink();
         };
         DtUtil.LOW_PRIORITY_SCHEDULER.scheduleWithFixedDelay(r, 1, 1, TimeUnit.SECONDS);
     }
