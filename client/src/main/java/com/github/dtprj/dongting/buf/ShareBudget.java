@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.log.BugLog;
+
 /**
  * @author huangli
  */
@@ -37,5 +39,9 @@ class ShareBudget {
 
     public void release(int size) {
         used -= size;
+        if (used < 0) {
+            BugLog.log("ShareBudget underflow: used={}, size={}", used, size);
+            used = 0;
+        }
     }
 }

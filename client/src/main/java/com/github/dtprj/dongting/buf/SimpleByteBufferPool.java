@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.common.VersionFactory;
 
 import java.nio.ByteBuffer;
@@ -249,15 +248,5 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             total += (long) bufSizes[i] * count[i];
         }
         return total;
-    }
-
-    // for unit test
-    void setTs(Timestamp ts) {
-        this.ts = ts;
-    }
-
-    // for unit test
-    Timestamp getTs() {
-        return this.ts;
     }
 }
