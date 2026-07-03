@@ -154,10 +154,8 @@ public class BuddyBufferPool extends ByteBufferPool {
     }
 
     private int normalizeSize(int requestSize) {
-        int s = minBlockSize;
-        while (s < requestSize) {
-            s <<= 1;
-        }
+        int s = Integer.highestOneBit(requestSize - 1) << 1;
+        if (s == 0) s = minBlockSize;
         return s;
     }
 
