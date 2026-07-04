@@ -15,15 +15,12 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import com.github.dtprj.dongting.common.Timestamp;
-
 /**
  * @author huangli
  */
 public class SimpleByteBufferPoolConfig {
     public static final int DEFAULT_WEAK_REF_THRESHOLD = 4096;
 
-    public final Timestamp ts;
     public final boolean direct;
     public final int threshold;
     public final int weakRefThreshold;
@@ -32,19 +29,18 @@ public class SimpleByteBufferPoolConfig {
     public final int[] maxCount;
     public final long shareSize;
 
-    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold,
+    public SimpleByteBufferPoolConfig(boolean direct, int threshold,
                                       int[] bufSizes, int[] minCount, int[] maxCount) {
-        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, 0);
+        this(direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, 0);
     }
 
-    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, int[] bufSizes,
+    public SimpleByteBufferPoolConfig(boolean direct, int threshold, int[] bufSizes,
                                       int[] minCount, int[] maxCount, long shareSize) {
-        this(ts, direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, shareSize);
+        this(direct, threshold, DEFAULT_WEAK_REF_THRESHOLD, bufSizes, minCount, maxCount, shareSize);
     }
 
-    public SimpleByteBufferPoolConfig(Timestamp ts, boolean direct, int threshold, int weakRefThreshold,
+    public SimpleByteBufferPoolConfig(boolean direct, int threshold, int weakRefThreshold,
                                       int[] bufSizes, int[] minCount, int[] maxCount, long shareSize) {
-        this.ts = ts;
         this.direct = direct;
         this.threshold = threshold;
         this.weakRefThreshold = weakRefThreshold;

@@ -38,6 +38,9 @@ import java.util.function.Consumer;
 public class BuddyBufferPool extends ByteBufferPool {
     static final VersionFactory VF = VersionFactory.getInstance();
 
+    // refresh periodically; package-private so tests can advance the clock
+    final Timestamp ts;
+
     final int chunkSize;
     final int minBlockSize;
     private final int minChunkCount;
@@ -62,7 +65,8 @@ public class BuddyBufferPool extends ByteBufferPool {
     private long statChunkCleanCount;
 
     public BuddyBufferPool(BuddyBufferPoolConfig config) {
-        super(config.direct, config.minBlockSize / 2, new Timestamp());
+        super(config.direct, config.minBlockSize / 2);
+        this.ts = new Timestamp();
         this.chunkSize = config.chunkSize;
         this.minBlockSize = config.minBlockSize;
         this.minChunkCount = config.minChunkCount;
@@ -197,14 +201,15 @@ public class BuddyBufferPool extends ByteBufferPool {
     public void shrink() {
         lock.lock();
         try {
-            ts.refresh(1);
+            ts.refresh(500);
+            long nanoTime = ts.nanoTime;
             Iterator<BuddyChunk> it = chunks.iterator();
             while (it.hasNext()) {
                 if (chunks.size() <= minChunkCount) {
                     break;
                 }
                 BuddyChunk c = it.next();
-                if (c.freeBytes == chunkSize && ts.nanoTime - c.lastFullFreeNanos > timeoutNanos) {
+                if (c.freeBytes == chunkSize && nanoTime - c.lastFullFreeNanos > timeoutNanos) {
                     it.remove();
                     if (hintChunk == c) {
                         hintChunk = null;

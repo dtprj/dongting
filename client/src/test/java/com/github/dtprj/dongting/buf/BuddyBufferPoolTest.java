@@ -132,7 +132,7 @@ public class BuddyBufferPoolTest {
     }
 
     @Test
-    public void testShrinkExpiredChunk() throws Exception {
+    public void testShrinkExpiredChunk() {
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, 256, 16, 1, 3, 100));
         RefBuffer b1 = pool.borrow(false, 256, 0);
@@ -141,28 +141,30 @@ public class BuddyBufferPoolTest {
         b1.release();
         b2.release();
         b3.release();
-        Thread.sleep(200);
+        // advance the pool clock past the timeout so shrink treats chunks as expired
+        pool.ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
         pool.shrink();
         // expired fully-free chunks beyond minChunkCount are released
         assertTrue(pool.formatStat().contains("chunks 1("));
     }
 
     @Test
-    public void testShrinkKeepsMinChunks() throws Exception {
+    public void testShrinkKeepsMinChunks() {
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, 256, 16, 2, 4, 100));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         b1.release();
         b2.release();
-        Thread.sleep(200);
+        // advance the pool clock past the timeout; minChunkCount chunks are still kept
+        pool.ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
         pool.shrink();
         // minChunkCount=2 preallocated chunks are never reclaimed
         assertTrue(pool.formatStat().contains("chunks 2("));
     }
 
     @Test
-    public void testHintClearedAfterShrink() throws Exception {
+    public void testHintClearedAfterShrink() {
         // minChunk=0 so shrink reclaims every chunk; direct=true so an uncleared hint would point
         // at a freed direct buffer and corrupt the next borrow.
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
@@ -171,7 +173,8 @@ public class BuddyBufferPoolTest {
         RefBuffer b2 = pool.borrow(false, 256, 0);
         b1.release();
         b2.release();
-        Thread.sleep(200);
+        // advance the pool clock past the timeout so shrink reclaims all chunks
+        pool.ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
         pool.shrink();
         assertTrue(pool.formatStat().contains("chunks 0("));
         // after all chunks (including the hinted one) are reclaimed, borrow must allocate fresh

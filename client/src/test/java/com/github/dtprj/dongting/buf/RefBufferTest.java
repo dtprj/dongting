@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +25,7 @@ import org.junit.jupiter.api.Test;
 public class RefBufferTest {
 
     private SimpleByteBufferPoolConfig createDefaultConfig() {
-        return new SimpleByteBufferPoolConfig(new Timestamp(), false, DefaultPoolFactory.DEFAULT_THRESHOLD,
+        return new SimpleByteBufferPoolConfig(false, DefaultPoolFactory.DEFAULT_THRESHOLD,
                 DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT,
                 DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
     }

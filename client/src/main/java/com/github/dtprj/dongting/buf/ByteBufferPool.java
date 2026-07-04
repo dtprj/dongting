@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import com.github.dtprj.dongting.common.Timestamp;
-
 import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
@@ -28,13 +26,10 @@ public abstract class ByteBufferPool {
     protected final boolean direct;
     // a request with size <= threshold is not worth pooling in this pool
     protected final int threshold;
-    // non-final so tests can advance the clock via setTs
-    protected Timestamp ts;
 
-    public ByteBufferPool(boolean direct, int threshold, Timestamp ts) {
+    public ByteBufferPool(boolean direct, int threshold) {
         this.direct = direct;
         this.threshold = threshold;
-        this.ts = ts;
     }
 
     public abstract RefBuffer borrow(boolean plain, int requestSize, int threshold);

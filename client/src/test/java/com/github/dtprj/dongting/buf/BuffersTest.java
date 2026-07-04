@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,15 +36,15 @@ public class BuffersTest {
         return new BuddyBufferPool(new BuddyBufferPoolConfig(direct, 1024, 64, 1, 2, 60000));
     }
 
-    private static SimpleByteBufferPool smallPool(Timestamp ts, boolean direct) {
-        return new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(ts, direct, 0,
+    private static SimpleByteBufferPool smallPool(boolean direct) {
+        return new SimpleByteBufferPool(new SimpleByteBufferPoolConfig(direct, 0,
                 new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 0));
     }
 
     private static Buffers newBuffers(Thread owner,
                                       BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> cb) {
-        SimpleByteBufferPool heapSmall = smallPool(new Timestamp(), false);
-        SimpleByteBufferPool directSmall = smallPool(new Timestamp(), true);
+        SimpleByteBufferPool heapSmall = smallPool(false);
+        SimpleByteBufferPool directSmall = smallPool(true);
         Buffers buffers = new Buffers(heapSmall, directSmall, largePool(false), largePool(true));
         buffers.init(owner, cb);
         return buffers;

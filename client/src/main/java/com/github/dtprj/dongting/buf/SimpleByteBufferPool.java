@@ -45,7 +45,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private final Consumer<RefBuffer> defaultReleasor = this::release;
 
     public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
-        super(config.direct, config.threshold, config.ts);
+        super(config.direct, config.threshold);
         Objects.requireNonNull(config.bufSizes);
         Objects.requireNonNull(config.minCount);
         Objects.requireNonNull(config.maxCount);

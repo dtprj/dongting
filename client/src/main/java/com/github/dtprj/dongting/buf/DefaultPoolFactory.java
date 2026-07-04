@@ -67,15 +67,15 @@ public class DefaultPoolFactory implements PoolFactory {
 
     @Override
     public Buffers createPool(Timestamp ts) {
-        SimpleByteBufferPool heapPool = createPool(ts, false);
-        SimpleByteBufferPool directPool = createPool(ts, true);
+        SimpleByteBufferPool heapPool = createPool(false);
+        SimpleByteBufferPool directPool = createPool(true);
         return new Buffers(heapPool, directPool, GLOBAL_HEAP_POOL, GLOBAL_DIRECT_POOL);
     }
 
-    private SimpleByteBufferPool createPool(Timestamp ts, boolean direct) {
+    private SimpleByteBufferPool createPool(boolean direct) {
         int[] minCount = calcByMem(DEFAULT_SMALL_MIN_COUNT);
         int[] maxCount = calcByMem(DEFAULT_SMALL_MAX_COUNT);
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(ts, direct,
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(direct,
                 direct ? 0 : DEFAULT_THRESHOLD,
                 DEFAULT_SMALL_SIZE, minCount, maxCount,
                 calcTotalSize(DEFAULT_SMALL_SIZE, maxCount) / 2);

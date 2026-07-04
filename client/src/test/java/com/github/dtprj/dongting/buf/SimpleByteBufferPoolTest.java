@@ -4,7 +4,6 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -20,8 +19,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class SimpleByteBufferPoolTest {
 
-    private static final Timestamp TS = new Timestamp();
-
     private SimpleByteBufferPool pool;
 
     @AfterEach
@@ -34,33 +31,33 @@ public class SimpleByteBufferPoolTest {
     }
 
     private SimpleByteBufferPoolConfig createDefaultConfig(int threshold) {
-        return new SimpleByteBufferPoolConfig(TS, false, threshold,
+        return new SimpleByteBufferPoolConfig(false, threshold,
                 DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT,
                 DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
     }
 
     @Test
     public void testConstructor() {
-        SimpleByteBufferPoolConfig c1 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, null, null, null);
+        SimpleByteBufferPoolConfig c1 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, null, null, null);
         assertThrows(NullPointerException.class, () -> new SimpleByteBufferPool(c1));
 
-        SimpleByteBufferPoolConfig c2 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, new int[]{100}, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT, DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
+        SimpleByteBufferPoolConfig c2 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, new int[]{100}, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT, DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c2));
 
-        SimpleByteBufferPoolConfig c3 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, new int[]{-1}, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT, DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
+        SimpleByteBufferPoolConfig c3 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, new int[]{-1}, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT, DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c3));
 
-        SimpleByteBufferPoolConfig c4 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, new int[]{128}, new int[]{-1}, new int[]{2});
+        SimpleByteBufferPoolConfig c4 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, new int[]{128}, new int[]{-1}, new int[]{2});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c4));
 
-        SimpleByteBufferPoolConfig c5 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, new int[]{128}, new int[]{1}, new int[]{-1});
+        SimpleByteBufferPoolConfig c5 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, new int[]{128}, new int[]{1}, new int[]{-1});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c5));
 
-        SimpleByteBufferPoolConfig c7 = new SimpleByteBufferPoolConfig(TS, false, DEFAULT_THRESHOLD, new int[]{1024, 2048}, new int[]{10, 10}, new int[]{9, 9});
+        SimpleByteBufferPoolConfig c7 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, new int[]{1024, 2048}, new int[]{10, 10}, new int[]{9, 9});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c7));
 
         // threshold must not exceed the smallest bucket
-        SimpleByteBufferPoolConfig c8 = new SimpleByteBufferPoolConfig(TS, false, 512,
+        SimpleByteBufferPoolConfig c8 = new SimpleByteBufferPoolConfig(false, 512,
                 new int[]{128, 256, 512, 1024}, new int[]{1, 1, 1, 1}, new int[]{2, 2, 2, 2});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c8));
     }
@@ -94,7 +91,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow3() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(false, 0,
                 new int[]{100, 200}, new int[]{10, 10}, new int[]{10, 10});
         pool = new SimpleByteBufferPool(c);
         ByteBuffer buf1 = borrowBuf(300);
@@ -104,7 +101,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testRelease() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(false, 0,
                 new int[]{100, 200}, new int[]{1, 1}, new int[]{2, 2});
         pool = new SimpleByteBufferPool(c);
         ByteBuffer buf1 = borrowBuf(100);
@@ -155,7 +152,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testShrink() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(false, 0,
                 new int[]{1024}, new int[]{1}, new int[]{2}, 0);
         pool = new SimpleByteBufferPool(c);
         ByteBuffer buf1 = borrowBuf(1024);
@@ -173,7 +170,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testShrinkToMinGradually() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(false, 0,
                 new int[]{1024}, new int[]{1}, new int[]{8}, 0);
         pool = new SimpleByteBufferPool(c);
         ByteBuffer[] bufs = new ByteBuffer[8];
@@ -197,7 +194,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testShrinkKeepUsedPortion() {
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0,
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(false, 0,
                 new int[]{1024}, new int[]{0}, new int[]{8}, 0);
         pool = new SimpleByteBufferPool(c);
         ByteBuffer[] bufs = new ByteBuffer[8];
