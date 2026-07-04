@@ -67,7 +67,7 @@ public class BuddyBufferPool extends ByteBufferPool {
 
     public BuddyBufferPool(BuddyBufferPoolConfig config) {
         super(config.direct, config.minBlockSize / 2);
-        this.ts = new Timestamp();
+        this.ts = config.ts;
         this.chunkSize = config.chunkSize;
         this.minBlockSize = config.minBlockSize;
         this.minChunkCount = config.minChunkCount;
@@ -215,7 +215,6 @@ public class BuddyBufferPool extends ByteBufferPool {
     public void shrink() {
         lock();
         try {
-            ts.refresh(500);
             long nanoTime = ts.nanoTime;
             Iterator<BuddyChunk> it = chunks.iterator();
             while (it.hasNext()) {

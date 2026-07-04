@@ -44,11 +44,14 @@ public class DefaultPoolFactory implements PoolFactory {
     public static final int[] DEFAULT_GLOBAL_MIN_CHUNK_COUNT = new int[]{1};
     public static final int[] DEFAULT_GLOBAL_MAX_CHUNK_COUNT = new int[]{16};
 
+    private static final Timestamp GLOBAL_TS = new Timestamp();
+
     private static final BuddyBufferPool GLOBAL_DIRECT_POOL = createGlobalPool(true);
     private static final BuddyBufferPool GLOBAL_HEAP_POOL = createGlobalPool(false);
 
     static {
         Runnable r = () -> {
+            GLOBAL_TS.refresh();
             GLOBAL_DIRECT_POOL.shrink();
             GLOBAL_HEAP_POOL.shrink();
         };
@@ -59,9 +62,9 @@ public class DefaultPoolFactory implements PoolFactory {
         int minChunk = calcByMem(DEFAULT_GLOBAL_MIN_CHUNK_COUNT)[0];
         int maxChunk = calcByMem(DEFAULT_GLOBAL_MAX_CHUNK_COUNT)[0];
         BuddyBufferPoolConfig c = new BuddyBufferPoolConfig(
-                direct, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
+                direct, true, GLOBAL_TS, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
                 BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE,
-                minChunk, maxChunk, 60000, true);
+                minChunk, maxChunk, 60000);
         return new BuddyBufferPool(c);
     }
 

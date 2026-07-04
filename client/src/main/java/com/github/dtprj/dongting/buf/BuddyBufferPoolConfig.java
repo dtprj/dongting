@@ -15,6 +15,10 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.Timestamp;
+
+import java.util.Objects;
+
 /**
  * @author huangli
  */
@@ -30,11 +34,15 @@ public class BuddyBufferPoolConfig {
     public final int maxChunkCount;
     public final long timeoutMillis;
     public final boolean threadSafe;
+    public final Timestamp ts;
 
-    public BuddyBufferPoolConfig(boolean direct, int chunkSize, int minBlockSize,
-                                  int minChunkCount, int maxChunkCount, long timeoutMillis,
-                                  boolean threadSafe) {
+    public BuddyBufferPoolConfig(boolean direct, boolean threadSafe, Timestamp ts,
+                                  int chunkSize, int minBlockSize,
+                                  int minChunkCount, int maxChunkCount, long timeoutMillis) {
         this.direct = direct;
+        this.threadSafe = threadSafe;
+        this.ts = ts;
+        Objects.requireNonNull(ts);
         if (chunkSize <= 0 || (chunkSize & (chunkSize - 1)) != 0) {
             throw new IllegalArgumentException("chunkSize must be a power of 2: " + chunkSize);
         }
@@ -61,6 +69,5 @@ public class BuddyBufferPoolConfig {
         this.minChunkCount = minChunkCount;
         this.maxChunkCount = maxChunkCount;
         this.timeoutMillis = timeoutMillis;
-        this.threadSafe = threadSafe;
     }
 }

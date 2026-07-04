@@ -33,7 +33,9 @@ public class BuffersTest {
 
     private static BuddyBufferPool largePool(boolean direct) {
         // minBlock=64 so threshold=32; small pool max bucket is 32, so requests > 32 go to large
-        return new BuddyBufferPool(new BuddyBufferPoolConfig(direct, 1024, 64, 1, 2, 60000, true));
+        return new BuddyBufferPool(new BuddyBufferPoolConfig(
+                direct, true, new com.github.dtprj.dongting.common.Timestamp(),
+                1024, 64, 1, 2, 60000));
     }
 
     private static SimpleByteBufferPool smallPool(boolean direct) {

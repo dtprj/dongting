@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtBugException;
+import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -34,7 +35,9 @@ import static org.junit.jupiter.api.Assertions.*;
 public class BuddyBufferPoolTest {
 
     private BuddyBufferPool newPool(boolean direct, int chunkSize, int minBlock, int minChunk, int maxChunk) {
-        return new BuddyBufferPool(new BuddyBufferPoolConfig(direct, chunkSize, minBlock, minChunk, maxChunk, 60000, true));
+        return new BuddyBufferPool(new BuddyBufferPoolConfig(
+                direct, true, new Timestamp(),
+                chunkSize, minBlock, minChunk, maxChunk, 60000));
     }
 
     @Test
@@ -133,8 +136,9 @@ public class BuddyBufferPoolTest {
 
     @Test
     public void testShrinkExpiredChunk() {
+        Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                false, 256, 16, 1, 3, 100, true));
+                false, true, ts, 256, 16, 1, 3, 100));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         RefBuffer b3 = pool.borrow(false, 256, 0);
@@ -142,7 +146,7 @@ public class BuddyBufferPoolTest {
         b2.release();
         b3.release();
         // advance the pool clock past the timeout so shrink treats chunks as expired
-        pool.ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
+        ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
         pool.shrink();
         // expired fully-free chunks beyond minChunkCount are released
         assertTrue(pool.formatStat().contains("chunks 1("));
@@ -150,14 +154,15 @@ public class BuddyBufferPoolTest {
 
     @Test
     public void testShrinkKeepsMinChunks() {
+        Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                false, 256, 16, 2, 4, 100, true));
+                false, true, ts, 256, 16, 2, 4, 100));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         b1.release();
         b2.release();
         // advance the pool clock past the timeout; minChunkCount chunks are still kept
-        pool.ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
+        ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
         pool.shrink();
         // minChunkCount=2 preallocated chunks are never reclaimed
         assertTrue(pool.formatStat().contains("chunks 2("));
@@ -167,14 +172,15 @@ public class BuddyBufferPoolTest {
     public void testHintClearedAfterShrink() {
         // minChunk=0 so shrink reclaims every chunk; direct=true so an uncleared hint would point
         // at a freed direct buffer and corrupt the next borrow.
+        Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                true, 256, 16, 0, 2, 100, true));
+                true, true, ts, 256, 16, 0, 2, 100));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         b1.release();
         b2.release();
         // advance the pool clock past the timeout so shrink reclaims all chunks
-        pool.ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
+        ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
         pool.shrink();
         assertTrue(pool.formatStat().contains("chunks 0("));
         // after all chunks (including the hinted one) are reclaimed, borrow must allocate fresh
