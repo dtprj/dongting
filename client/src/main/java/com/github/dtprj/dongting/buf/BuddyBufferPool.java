@@ -46,6 +46,7 @@ public class BuddyBufferPool extends ByteBufferPool {
     private final int minChunkCount;
     private final int maxChunkCount;
     private final long timeoutNanos;
+    private final boolean threadSafe;
 
     private final ArrayList<BuddyChunk> chunks = new ArrayList<>();
     private final IdentityHashMap<ByteBuffer, BuddyChunk.BufInfo> bufMap = new IdentityHashMap<>();
@@ -72,6 +73,7 @@ public class BuddyBufferPool extends ByteBufferPool {
         this.minChunkCount = config.minChunkCount;
         this.maxChunkCount = config.maxChunkCount;
         this.timeoutNanos = config.timeoutMillis * 1000 * 1000;
+        this.threadSafe = config.threadSafe;
         for (int i = 0; i < minChunkCount; i++) {
             chunks.add(newChunk());
         }
@@ -80,6 +82,18 @@ public class BuddyBufferPool extends ByteBufferPool {
     private BuddyChunk newChunk() {
         ByteBuffer root = allocate(chunkSize);
         return new BuddyChunk(root, chunkSize, minBlockSize);
+    }
+
+    private void lock() {
+        if (threadSafe) {
+            lock.lock();
+        }
+    }
+
+    private void unlock() {
+        if (threadSafe) {
+            lock.unlock();
+        }
     }
 
     @Override
@@ -95,12 +109,12 @@ public class BuddyBufferPool extends ByteBufferPool {
             throw new IllegalArgumentException("requestSize must be positive: " + requestSize);
         }
         if (requestSize > chunkSize || requestSize <= this.threshold) {
-            lock.lock();
+            lock();
             try {
                 statBorrowCount++;
                 statUnpooledCount++;
             } finally {
-                lock.unlock();
+                unlock();
             }
             return newUnpooledRefBuffer(plain, requestSize);
         }
@@ -109,7 +123,7 @@ public class BuddyBufferPool extends ByteBufferPool {
 
         ByteBuffer slice = null;
         boolean fallback = false;
-        lock.lock();
+        lock();
         try {
             statBorrowCount++;
             BuddyChunk chunk = null;
@@ -152,7 +166,7 @@ public class BuddyBufferPool extends ByteBufferPool {
                 fallback = true;
             }
         } finally {
-            lock.unlock();
+            unlock();
         }
         if (fallback) {
             return newUnpooledRefBuffer(plain, requestSize);
@@ -179,7 +193,7 @@ public class BuddyBufferPool extends ByteBufferPool {
 
     @Override
     void releaseBuffer(ByteBuffer buf) {
-        lock.lock();
+        lock();
         try {
             BuddyChunk.BufInfo info = bufMap.remove(buf);
             if (info == null) {
@@ -193,13 +207,13 @@ public class BuddyBufferPool extends ByteBufferPool {
                 chunk.lastFullFreeNanos = ts.nanoTime;
             }
         } finally {
-            lock.unlock();
+            unlock();
         }
     }
 
     @Override
     public void shrink() {
-        lock.lock();
+        lock();
         try {
             ts.refresh(500);
             long nanoTime = ts.nanoTime;
@@ -221,13 +235,13 @@ public class BuddyBufferPool extends ByteBufferPool {
                 }
             }
         } finally {
-            lock.unlock();
+            unlock();
         }
     }
 
     @Override
     public String formatStat() {
-        lock.lock();
+        lock();
         try {
             DecimalFormat f = new DecimalFormat("#,###");
             return "chunks " + chunks.size() + "(min=" + minChunkCount + ",max=" + maxChunkCount + ")"
@@ -239,7 +253,7 @@ public class BuddyBufferPool extends ByteBufferPool {
                     + ", unpooled " + f.format(statUnpooledCount)
                     + ", chunkClean " + f.format(statChunkCleanCount);
         } finally {
-            lock.unlock();
+            unlock();
         }
     }
 }

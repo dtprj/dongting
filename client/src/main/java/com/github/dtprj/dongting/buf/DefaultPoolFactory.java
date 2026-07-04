@@ -61,7 +61,7 @@ public class DefaultPoolFactory implements PoolFactory {
         BuddyBufferPoolConfig c = new BuddyBufferPoolConfig(
                 direct, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
                 BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE,
-                minChunk, maxChunk, 60000);
+                minChunk, maxChunk, 60000, true);
         return new BuddyBufferPool(c);
     }
 

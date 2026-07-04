@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class BuddyBufferPoolTest {
 
     private BuddyBufferPool newPool(boolean direct, int chunkSize, int minBlock, int minChunk, int maxChunk) {
-        return new BuddyBufferPool(new BuddyBufferPoolConfig(direct, chunkSize, minBlock, minChunk, maxChunk, 60000));
+        return new BuddyBufferPool(new BuddyBufferPoolConfig(direct, chunkSize, minBlock, minChunk, maxChunk, 60000, true));
     }
 
     @Test
@@ -134,7 +134,7 @@ public class BuddyBufferPoolTest {
     @Test
     public void testShrinkExpiredChunk() {
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                false, 256, 16, 1, 3, 100));
+                false, 256, 16, 1, 3, 100, true));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         RefBuffer b3 = pool.borrow(false, 256, 0);
@@ -151,7 +151,7 @@ public class BuddyBufferPoolTest {
     @Test
     public void testShrinkKeepsMinChunks() {
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                false, 256, 16, 2, 4, 100));
+                false, 256, 16, 2, 4, 100, true));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         b1.release();
@@ -168,7 +168,7 @@ public class BuddyBufferPoolTest {
         // minChunk=0 so shrink reclaims every chunk; direct=true so an uncleared hint would point
         // at a freed direct buffer and corrupt the next borrow.
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                true, 256, 16, 0, 2, 100));
+                true, 256, 16, 0, 2, 100, true));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         b1.release();
@@ -209,7 +209,7 @@ public class BuddyBufferPoolTest {
     public void testConcurrent() throws Exception {
         BuddyBufferPool pool = newPool(false, 1024, 16, 1, 4);
         int threads = 4;
-        @SuppressWarnings("resource") ExecutorService es = Executors.newFixedThreadPool(threads);
+        ExecutorService es = Executors.newFixedThreadPool(threads);
         CountDownLatch latch = new CountDownLatch(threads);
         AtomicReference<Throwable> err = new AtomicReference<>();
         try {

@@ -29,9 +29,11 @@ public class BuddyBufferPoolConfig {
     public final int minChunkCount;
     public final int maxChunkCount;
     public final long timeoutMillis;
+    public final boolean threadSafe;
 
     public BuddyBufferPoolConfig(boolean direct, int chunkSize, int minBlockSize,
-                                  int minChunkCount, int maxChunkCount, long timeoutMillis) {
+                                  int minChunkCount, int maxChunkCount, long timeoutMillis,
+                                  boolean threadSafe) {
         this.direct = direct;
         if (chunkSize <= 0 || (chunkSize & (chunkSize - 1)) != 0) {
             throw new IllegalArgumentException("chunkSize must be a power of 2: " + chunkSize);
@@ -59,5 +61,6 @@ public class BuddyBufferPoolConfig {
         this.minChunkCount = minChunkCount;
         this.maxChunkCount = maxChunkCount;
         this.timeoutMillis = timeoutMillis;
+        this.threadSafe = threadSafe;
     }
 }
