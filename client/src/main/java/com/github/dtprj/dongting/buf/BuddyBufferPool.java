@@ -28,10 +28,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /**
- * Thread-safe large buffer pool using buddy allocation. Each {@link BuddyChunk} is a big
- * {@code ByteBuffer} carved into power-of-two blocks via {@code slice()}. Outstanding slices are
- * tracked in an {@link IdentityHashMap} so release can recover the chunk/offset without storing
- * metadata in the buffer data area.
  *
  * @author huangli
  */
@@ -101,8 +97,6 @@ public class BuddyBufferPool extends ByteBufferPool {
         return borrow0(plain, requestSize, threshold, defaultReleasor);
     }
 
-    // the threshold parameter (caller's non-pooling hint) is ignored; buddy uses its own
-    // this.threshold (= minBlockSize/2) to decide whether to pool.
     @Override
     RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
         if (requestSize <= 0) {
