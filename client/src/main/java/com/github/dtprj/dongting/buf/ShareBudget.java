@@ -23,13 +23,25 @@ import com.github.dtprj.dongting.log.BugLog;
 class ShareBudget {
 
     private final long total;
+    private final boolean threadSafe;
     private long used;
 
-    ShareBudget(long total) {
+    ShareBudget(long total, boolean threadSafe) {
         this.total = total;
+        this.threadSafe = threadSafe;
     }
 
     public boolean borrow(int size) {
+        if (threadSafe) {
+            synchronized (this) {
+                return borrow0(size);
+            }
+        } else {
+            return borrow0(size);
+        }
+    }
+
+    private boolean borrow0(int size) {
         if (used + size <= total) {
             used += size;
             return true;
@@ -38,6 +50,16 @@ class ShareBudget {
     }
 
     public void release(int size) {
+        if (threadSafe) {
+            synchronized (this) {
+                release0(size);
+            }
+        } else {
+            release0(size);
+        }
+    }
+
+    private void release0(int size) {
         used -= size;
         if (used < 0) {
             BugLog.log("ShareBudget underflow: used={}, size={}", used, size);

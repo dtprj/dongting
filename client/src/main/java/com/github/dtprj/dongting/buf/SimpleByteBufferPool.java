@@ -83,7 +83,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             }
         }
 
-        ShareBudget shareBudget = new ShareBudget(config.shareSize);
+        ShareBudget shareBudget = new ShareBudget(config.shareSize, false);
         this.pools = new FixSizeBufferPool[bufferTypeCount];
         for (int i = 0; i < bufferTypeCount; i++) {
             this.pools[i] = new FixSizeBufferPool(direct, shareBudget,

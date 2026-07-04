@@ -27,16 +27,11 @@ import static org.junit.jupiter.api.Assertions.*;
 public class FixSizeBufferPoolTest {
 
     private FixSizeBufferPool createFixPool(int bufferSize, int minCount, int maxCount, long shareSize) {
-        return new FixSizeBufferPool(false, new ShareBudget(shareSize), minCount, maxCount, bufferSize, 4096);
+        return new FixSizeBufferPool(false, new ShareBudget(shareSize, false), minCount, maxCount, bufferSize, 4096);
     }
 
     private FixSizeBufferPool createFixPool(int bufferSize, int minCount, int maxCount) {
         return createFixPool(bufferSize, minCount, maxCount, 0);
-    }
-
-    private ByteBuffer borrowOrAllocate(FixSizeBufferPool pool, int size) {
-        ByteBuffer buf = pool.borrow();
-        return buf != null ? buf : ByteBuffer.allocate(size);
     }
 
     @Test
@@ -159,7 +154,7 @@ public class FixSizeBufferPoolTest {
 
     @Test
     public void testWeakRefNotEnabledForDirect() {
-        FixSizeBufferPool pool = new FixSizeBufferPool(true, new ShareBudget(0), 1, 2, 128, 128);
+        FixSizeBufferPool pool = new FixSizeBufferPool(true, new ShareBudget(0, false), 1, 2, 128, 128);
         ByteBuffer buf1 = ByteBuffer.allocateDirect(128);
         ByteBuffer buf2 = ByteBuffer.allocateDirect(128);
         ByteBuffer buf3 = ByteBuffer.allocateDirect(128);
@@ -173,7 +168,7 @@ public class FixSizeBufferPoolTest {
 
     @Test
     public void testWeakRefNotEnabledForSmallBuffer() {
-        FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0), 1, 2, 128, 256);
+        FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0, false), 1, 2, 128, 256);
         ByteBuffer buf1 = ByteBuffer.allocate(128);
         ByteBuffer buf2 = ByteBuffer.allocate(128);
         ByteBuffer buf3 = ByteBuffer.allocate(128);
@@ -188,7 +183,7 @@ public class FixSizeBufferPoolTest {
     @Test
     public void testWeakRefReleaseToWeakStack() {
         for (int attempt = 0; attempt < 3; attempt++) {
-            FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0), 1, 2, 128, 128);
+            FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0, false), 1, 2, 128, 128);
             ByteBuffer buf1 = ByteBuffer.allocate(128);
             ByteBuffer buf2 = ByteBuffer.allocate(128);
             ByteBuffer buf3 = ByteBuffer.allocate(128);
@@ -208,7 +203,7 @@ public class FixSizeBufferPoolTest {
     @Test
     public void testWeakRefShrinkToWeakStack() {
         for (int attempt = 0; attempt < 3; attempt++) {
-            FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0), 1, 3, 128, 128);
+            FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0, false), 1, 3, 128, 128);
             ByteBuffer buf1 = ByteBuffer.allocate(128);
             ByteBuffer buf2 = ByteBuffer.allocate(128);
             ByteBuffer buf3 = ByteBuffer.allocate(128);
@@ -232,7 +227,7 @@ public class FixSizeBufferPoolTest {
 
     @Test
     public void testWeakRefGCAndClean() {
-        FixSizeBufferPool testPool = new FixSizeBufferPool(false, new ShareBudget(1), 0, 1, 128, 128);
+        FixSizeBufferPool testPool = new FixSizeBufferPool(false, new ShareBudget(1, false), 0, 1, 128, 128);
 
         ByteBuffer buf1 = ByteBuffer.allocate(128);
         ByteBuffer buf2 = ByteBuffer.allocate(128);
