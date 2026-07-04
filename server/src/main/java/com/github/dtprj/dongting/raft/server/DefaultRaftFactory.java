@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  */
 public abstract class DefaultRaftFactory implements RaftFactory {
 
-    protected PoolFactory poolFactory;
+    protected final PoolFactory poolFactory;
 
     public DefaultRaftFactory() {
         this.poolFactory = createPoolFactory();
@@ -48,6 +48,11 @@ public abstract class DefaultRaftFactory implements RaftFactory {
 
     protected PoolFactory createPoolFactory() {
         return new DefaultPoolFactory();
+    }
+
+    @Override
+    public PoolFactory getPoolFactory() {
+        return poolFactory;
     }
 
     @Override

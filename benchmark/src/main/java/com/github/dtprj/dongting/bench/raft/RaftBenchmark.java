@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.bench.raft;
 import com.github.dtprj.dongting.bench.common.BenchBase;
 import com.github.dtprj.dongting.bench.common.PrometheusPerfCallback;
 import com.github.dtprj.dongting.bench.common.TestProps;
-import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
@@ -124,7 +123,7 @@ public class RaftBenchmark extends BenchBase {
             @Override
             public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
-                return new Dispatcher("node-" + nodeId + "-dispatcher", new DefaultPoolFactory(),
+                return new Dispatcher("node-" + nodeId + "-dispatcher", poolFactory,
                         groupConfig.perfCallback);
             }
         };

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
@@ -200,7 +199,7 @@ public class ServerTestBase {
             public Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
                 return new Dispatcher("n" + nodeId + "-g" + groupConfig.groupId +
-                        "-dispatcher", new DefaultPoolFactory(), groupConfig.perfCallback);
+                        "-dispatcher", poolFactory, groupConfig.perfCallback);
             }
 
             @Override

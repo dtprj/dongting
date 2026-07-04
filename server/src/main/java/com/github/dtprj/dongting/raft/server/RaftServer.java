@@ -154,6 +154,7 @@ public class RaftServer extends AbstractLifeCircle {
         repClientConfig.name = "RaftRepClient" + serverConfig.nodeId;
         repClientConfig.connectRetryIntervals = null; //use node ping
         setupNioConfig(repClientConfig);
+        repClientConfig.poolFactory = raftFactory.getPoolFactory();
         customReplicateNioClient(repClientConfig);
         nioClient = new NioClient(repClientConfig);
 
@@ -167,6 +168,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.bizThreads = 1;
         setupNioConfig(nioServerConfig);
         nioServerConfig.perfCallback = new DefaultRpcPerf();
+        nioServerConfig.poolFactory = raftFactory.getPoolFactory();
         customReplicateNioServer(nioServerConfig);
         nioServer = new NioServer(nioServerConfig);
 
