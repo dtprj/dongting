@@ -60,14 +60,20 @@ public class FixSizeBufferPoolTest {
     }
 
     @Test
-    public void testShrinkHalfWhenIdle() {
+    public void testShrinkQuarterWhenIdle() {
         FixSizeBufferPool pool = createFixPool(128, 0, 8);
         for (int i = 0; i < 8; i++) {
             pool.release(ByteBuffer.allocate(128));
         }
-        // no borrow this period: shrink half of the untouched portion each shrink
+        // no borrow this period: shrink a quarter of the untouched portion each shrink
+        pool.shrink();
+        assertEquals(6, pool.bufferStack.size());
+        pool.shrink();
+        assertEquals(5, pool.bufferStack.size());
         pool.shrink();
         assertEquals(4, pool.bufferStack.size());
+        pool.shrink();
+        assertEquals(3, pool.bufferStack.size());
         pool.shrink();
         assertEquals(2, pool.bufferStack.size());
         pool.shrink();
@@ -100,7 +106,7 @@ public class FixSizeBufferPoolTest {
         }
         assertEquals(3, pool.bufferStack.size());
         pool.shrink();
-        // untouched=3, shrink floor(3/2)=1, target=3-1=2
+        // untouched=3, shrink floor(3/4)=0->1, target=3-1=2
         assertEquals(2, pool.bufferStack.size());
     }
 
@@ -127,9 +133,9 @@ public class FixSizeBufferPoolTest {
         for (int i = 0; i < 8; i++) {
             pool.release(ByteBuffer.allocate(128));
         }
-        // no borrow this period: should still shrink half
+        // no borrow this period: should still shrink a quarter
         pool.shrink();
-        assertEquals(4, pool.bufferStack.size());
+        assertEquals(6, pool.bufferStack.size());
     }
 
     @Test
@@ -140,15 +146,15 @@ public class FixSizeBufferPoolTest {
             pool.release(ByteBuffer.allocate(128));
         }
         pool.shrink();
-        assertEquals(4, pool.bufferStack.size());
+        assertEquals(6, pool.bufferStack.size());
         // release-only growth in the next period (no borrow)
         for (int i = 0; i < 10; i++) {
             pool.release(ByteBuffer.allocate(128));
         }
-        assertEquals(14, pool.bufferStack.size());
+        assertEquals(16, pool.bufferStack.size());
         pool.shrink();
-        // whole stack untouched this period: shrink half of 14
-        assertEquals(7, pool.bufferStack.size());
+        // whole stack untouched this period: shrink a quarter of 16
+        assertEquals(12, pool.bufferStack.size());
     }
 
     @Test
@@ -210,7 +216,7 @@ public class FixSizeBufferPoolTest {
             pool.release(buf2);
             pool.release(buf3);
 
-            // shrink moves floor(untouched/2)=1 bottom buffer to weak ref cache
+            // shrink moves floor(untouched/4)=0->1 bottom buffer to weak ref cache
             pool.shrink();
 
             ByteBuffer buf4 = pool.borrow();

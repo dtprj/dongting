@@ -146,19 +146,13 @@ class FixSizeBufferPool {
         WeakRefCache<ByteBuffer> weakRefCache = this.weakRefCache;
         IndexedQueue<ByteBuffer> stack = this.bufferStack;
         int size = stack.size();
-        // minSize is the lowest stack size in this period; equals the count of bottom
-        // elements never borrowed (LIFO). If no borrow happened this period, the sentinel
-        // MAX_VALUE is clamped by size, meaning the whole stack is untouched.
-        int minSize = periodMinStackSize > size ? size : periodMinStackSize;
+        int minSize = Math.min(periodMinStackSize, size);
         periodMinStackSize = Integer.MAX_VALUE;
 
         if (minSize <= 0) {
             return;
         }
-        // shrink half of the untouched portion (floor). at least one so the last idle buffer
-        // is reachable when minCount==0. lower bound is minCount; no upper bound so borrowed
-        // ShareBudget returns naturally as usage drops.
-        int toClean = minSize / 2;
+        int toClean = minSize >> 2;
         if (toClean == 0) {
             toClean = 1;
         }
