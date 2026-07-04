@@ -111,7 +111,7 @@ public class BuddyBufferPool extends ByteBufferPool {
             BuddyChunk chunk = null;
             int offset = -1;
             // fast path: the chunk that served the previous borrow usually still has room
-            if (hintChunk != null) {
+            if (hintChunk != null && hintChunk.maxAvailableLevel >= targetLevel) {
                 offset = hintChunk.allocate(targetLevel);
                 if (offset >= 0) {
                     chunk = hintChunk;
@@ -121,6 +121,9 @@ public class BuddyBufferPool extends ByteBufferPool {
             if (chunk == null) {
                 for (int size = chunks.size(), i = 0; i < size; i++) {
                     BuddyChunk c = chunks.get(i);
+                    if (c.maxAvailableLevel < targetLevel) {
+                        continue;
+                    }
                     offset = c.allocate(targetLevel);
                     if (offset >= 0) {
                         chunk = c;

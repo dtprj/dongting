@@ -34,6 +34,7 @@ class BuddyChunk {
     final BitSet[] freeLists;
     long freeBytes;
     long lastFullFreeNanos;
+    int maxAvailableLevel;
 
     BuddyChunk(ByteBuffer rootBuffer, int chunkSize, int minBlockSize) {
         this.rootBuffer = rootBuffer;
@@ -46,6 +47,7 @@ class BuddyChunk {
         }
         freeLists[maxLevel].set(0);
         this.freeBytes = chunkSize;
+        this.maxAvailableLevel = maxLevel;
     }
 
     private int blockSize(int level) {
@@ -65,12 +67,22 @@ class BuddyChunk {
             BitSet fl = freeLists[lv];
             int blockIdx = fl.nextSetBit(0);
             if (blockIdx >= 0) {
+                int foundLevel = lv;
                 fl.clear(blockIdx);
                 // split down: keep left half (2*idx) for the request, free right buddy (2*idx+1)
                 while (lv > targetLevel) {
                     lv--;
-                    freeLists[lv].set(blockIdx * 2 + 1);
-                    blockIdx = blockIdx * 2;
+                    freeLists[lv].set((blockIdx << 1) + 1);
+                    blockIdx = blockIdx << 1;
+                }
+                if (foundLevel == maxAvailableLevel && freeLists[foundLevel].isEmpty()) {
+                    if (foundLevel > targetLevel) {
+                        maxAvailableLevel--;
+                    } else {
+                        while (maxAvailableLevel >= 0 && freeLists[maxAvailableLevel].isEmpty()) {
+                            maxAvailableLevel--;
+                        }
+                    }
                 }
                 int bsz = blockSize(targetLevel);
                 freeBytes -= bsz;
@@ -101,6 +113,9 @@ class BuddyChunk {
         }
         freeLists[lv].set(blockIdx);
         freeBytes += blockSize(targetLevel);
+        if (lv > maxAvailableLevel) {
+            maxAvailableLevel = lv;
+        }
     }
 
     /**
