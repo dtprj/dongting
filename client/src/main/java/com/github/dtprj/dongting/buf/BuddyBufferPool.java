@@ -115,57 +115,61 @@ public class BuddyBufferPool extends ByteBufferPool {
         int targetSize = normalizeSize(requestSize);
         int targetLevel = Integer.numberOfTrailingZeros(targetSize / minBlockSize);
 
-        ByteBuffer slice = null;
-        boolean fallback = false;
+        ByteBuffer slice;
         lock();
         try {
-            statBorrowCount++;
-            BuddyChunk chunk = null;
-            int offset = -1;
-            // fast path: the chunk that served the previous borrow usually still has room
-            if (hintChunk != null && hintChunk.maxAvailableLevel >= targetLevel) {
-                offset = hintChunk.allocate(targetLevel);
-                if (offset >= 0) {
-                    chunk = hintChunk;
-                    statBorrowHitCount++;
-                }
-            }
-            if (chunk == null) {
-                for (int size = chunks.size(), i = 0; i < size; i++) {
-                    BuddyChunk c = chunks.get(i);
-                    if (c.maxAvailableLevel < targetLevel) {
-                        continue;
-                    }
-                    offset = c.allocate(targetLevel);
-                    if (offset >= 0) {
-                        chunk = c;
-                        hintChunk = chunk;
-                        statBorrowHitCount++;
-                        break;
-                    }
-                }
-            }
-            if (chunk == null && chunks.size() < maxChunkCount) {
-                chunk = newChunk();
-                chunks.add(chunk);
-                statNewChunkCount++;
-                offset = chunk.allocate(targetLevel);
-                hintChunk = chunk;
-            }
-            if (chunk != null && offset >= 0) {
-                slice = sliceBlock(chunk.rootBuffer, offset, targetSize);
-                bufMap.put(slice, new BuddyChunk.BufInfo(chunk, offset));
-            } else {
-                statUnpooledCount++;
-                fallback = true;
-            }
+            slice = doBorrow(targetLevel, targetSize);
         } finally {
             unlock();
         }
-        if (fallback) {
+        if (slice == null) {
             return newUnpooledRefBuffer(plain, requestSize);
         }
         return new RefBuffer(plain, slice, releasor, false);
+    }
+
+    private ByteBuffer doBorrow(int targetLevel, int targetSize) {
+        statBorrowCount++;
+        BuddyChunk chunk = null;
+        int offset = -1;
+        // fast path: the chunk that served the previous borrow usually still has room
+        if (hintChunk != null && hintChunk.maxAvailableLevel >= targetLevel) {
+            offset = hintChunk.allocate(targetLevel);
+            if (offset >= 0) {
+                chunk = hintChunk;
+                statBorrowHitCount++;
+            }
+        }
+        if (chunk == null) {
+            for (int size = chunks.size(), i = 0; i < size; i++) {
+                BuddyChunk c = chunks.get(i);
+                if (c.maxAvailableLevel < targetLevel) {
+                    continue;
+                }
+                offset = c.allocate(targetLevel);
+                if (offset >= 0) {
+                    chunk = c;
+                    hintChunk = chunk;
+                    statBorrowHitCount++;
+                    break;
+                }
+            }
+        }
+        if (chunk == null && chunks.size() < maxChunkCount) {
+            chunk = newChunk();
+            chunks.add(chunk);
+            statNewChunkCount++;
+            offset = chunk.allocate(targetLevel);
+            hintChunk = chunk;
+        }
+        if (chunk != null && offset >= 0) {
+            ByteBuffer slice = sliceBlock(chunk.rootBuffer, offset, targetSize);
+            bufMap.put(slice, new BuddyChunk.BufInfo(chunk, offset));
+            return slice;
+        } else {
+            statUnpooledCount++;
+            return null;
+        }
     }
 
     private int normalizeSize(int requestSize) {
