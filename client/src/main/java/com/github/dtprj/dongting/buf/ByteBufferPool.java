@@ -34,6 +34,9 @@ public abstract class ByteBufferPool {
 
     public abstract RefBuffer borrow(boolean plain, int requestSize, int threshold);
 
+    // borrow with an explicit releasor so the caller (Buffers) can control release routing
+    abstract RefBuffer borrow(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor);
+
     public void release(RefBuffer rb) {
         releaseBuffer(rb.buffer);
         rb.buffer = null;
@@ -52,9 +55,6 @@ public abstract class ByteBufferPool {
     public abstract void shrink();
 
     public abstract String formatStat();
-
-    // borrow with an explicit releasor so the caller (Buffers) can control release routing
-    abstract RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor);
 
     abstract void releaseBuffer(ByteBuffer buf);
 }

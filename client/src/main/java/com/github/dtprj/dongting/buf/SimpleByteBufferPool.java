@@ -93,11 +93,11 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     @Override
     public RefBuffer borrow(boolean plain, int requestSize, int threshold) {
-        return borrow0(plain, requestSize, threshold, defaultReleasor);
+        return borrow(plain, requestSize, threshold, defaultReleasor);
     }
 
     @Override
-    RefBuffer borrow0(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
+    RefBuffer borrow(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
         if (requestSize > bufSizeMax) {
             statBorrowTooLargeCount++;
             return newUnpooledRefBuffer(plain, requestSize);

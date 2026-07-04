@@ -135,7 +135,7 @@ public class Buffers {
         if (requestSize > heapPool.bufSizeMax && heapLargePool != null) {
             return heapLargePool.borrow(plain, requestSize, threshold);
         }
-        return heapPool.borrow0(plain, requestSize, threshold, releasor);
+        return heapPool.borrow(plain, requestSize, threshold, releasor);
     }
 
     // --- direct borrow ---
@@ -162,6 +162,6 @@ public class Buffers {
         if (requestSize > directPool.bufSizeMax && directLargePool != null) {
             return directLargePool.borrow(plain, requestSize, threshold);
         }
-        return directPool.borrow0(plain, requestSize, threshold, releasor);
+        return directPool.borrow(plain, requestSize, threshold, releasor);
     }
 }
