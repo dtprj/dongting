@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.log.BugLog;
 /**
  * @author huangli
  */
-class ShareBudget {
+public class ShareBudget {
 
     private final long total;
     private final boolean threadSafe;

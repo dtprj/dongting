@@ -232,14 +232,8 @@ public class SimpleByteBufferPoolTest {
     }
 
     public static void main(String[] args) {
-        System.out.println("default global buddy pool");
-        System.out.printf("chunkSize:%,d, minChunk:%d, maxChunk:%d\n\n",
-                BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
-                DefaultPoolFactory.DEFAULT_GLOBAL_MIN_CHUNK_COUNT[0],
-                DefaultPoolFactory.DEFAULT_GLOBAL_MAX_CHUNK_COUNT[0]);
-
         System.out.println("default small pool");
-        System.out.printf("max:%,d\nmin:%,d\n\n",
+        System.out.printf("max:%,d\nmin:%,d\n",
                 calcTotalSize(DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT),
                 calcTotalSize(DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT));
     }

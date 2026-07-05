@@ -24,6 +24,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
@@ -42,7 +43,8 @@ public class BuddyBufferPool extends ByteBufferPool {
     private final int minChunkCount;
     private final int maxChunkCount;
     private final long timeoutNanos;
-    private final boolean threadSafe;
+    final boolean threadSafe;
+    private final ShareBudget shareBudget;
 
     private final ArrayList<BuddyChunk> chunks = new ArrayList<>();
     private final IdentityHashMap<ByteBuffer, BuddyChunk.BufInfo> bufMap = new IdentityHashMap<>();
@@ -61,8 +63,11 @@ public class BuddyBufferPool extends ByteBufferPool {
     private long statUnpooledCount;
     private long statChunkCleanCount;
 
-    public BuddyBufferPool(BuddyBufferPoolConfig config) {
+    private boolean destroyed;
+
+    public BuddyBufferPool(BuddyBufferPoolConfig config, ShareBudget shareBudget) {
         super(config.direct, config.minBlockSize / 2);
+        Objects.requireNonNull(shareBudget);
         this.ts = config.ts;
         this.chunkSize = config.chunkSize;
         this.minBlockSize = config.minBlockSize;
@@ -70,6 +75,7 @@ public class BuddyBufferPool extends ByteBufferPool {
         this.maxChunkCount = config.maxChunkCount;
         this.timeoutNanos = config.timeoutMillis * 1000 * 1000;
         this.threadSafe = config.threadSafe;
+        this.shareBudget = shareBudget;
         for (int i = 0; i < minChunkCount; i++) {
             chunks.add(newChunk());
         }
@@ -155,12 +161,14 @@ public class BuddyBufferPool extends ByteBufferPool {
                 }
             }
         }
-        if (chunk == null && chunks.size() < maxChunkCount) {
-            chunk = newChunk();
-            chunks.add(chunk);
-            statNewChunkCount++;
-            offset = chunk.allocate(targetLevel);
-            hintChunk = chunk;
+        if (chunk == null) {
+            if (chunks.size() < maxChunkCount || shareBudget.borrow(chunkSize)) {
+                chunk = newChunk();
+                chunks.add(chunk);
+                statNewChunkCount++;
+                offset = chunk.allocate(targetLevel);
+                hintChunk = chunk;
+            }
         }
         if (chunk != null && offset >= 0) {
             ByteBuffer slice = sliceBlock(chunk.rootBuffer, offset, targetSize);
@@ -202,7 +210,11 @@ public class BuddyBufferPool extends ByteBufferPool {
             BuddyChunk chunk = info.chunk;
             chunk.free(info.offset, chunk.levelOfBlockSize(buf.capacity()));
             if (chunk.freeBytes == chunkSize) {
-                chunk.lastFullFreeNanos = ts.nanoTime;
+                if (destroyed) {
+                    shrink();
+                } else {
+                    chunk.lastFullFreeNanos = ts.nanoTime;
+                }
             }
         } finally {
             unlock();
@@ -216,11 +228,11 @@ public class BuddyBufferPool extends ByteBufferPool {
             long nanoTime = ts.nanoTime;
             Iterator<BuddyChunk> it = chunks.iterator();
             while (it.hasNext()) {
-                if (chunks.size() <= minChunkCount) {
+                if (!destroyed && chunks.size() <= minChunkCount) {
                     break;
                 }
                 BuddyChunk c = it.next();
-                if (c.freeBytes == chunkSize && nanoTime - c.lastFullFreeNanos > timeoutNanos) {
+                if (c.freeBytes == chunkSize && (destroyed || (nanoTime - c.lastFullFreeNanos > timeoutNanos))) {
                     it.remove();
                     if (hintChunk == c) {
                         hintChunk = null;
@@ -229,8 +241,21 @@ public class BuddyBufferPool extends ByteBufferPool {
                     if (direct) {
                         VF.releaseDirectBuffer(c.rootBuffer);
                     }
+                    if (chunks.size() >= maxChunkCount) {
+                        shareBudget.release(chunkSize);
+                    }
                 }
             }
+        } finally {
+            unlock();
+        }
+    }
+
+    public void destroy() {
+        lock();
+        try {
+            destroyed = true;
+            shrink();
         } finally {
             unlock();
         }

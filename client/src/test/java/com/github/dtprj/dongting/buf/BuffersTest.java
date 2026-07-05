@@ -35,7 +35,7 @@ public class BuffersTest {
         // minBlock=64 so threshold=32; small pool max bucket is 32, so requests > 32 go to large
         return new BuddyBufferPool(new BuddyBufferPoolConfig(
                 direct, true, new com.github.dtprj.dongting.common.Timestamp(),
-                1024, 64, 1, 2, 60000));
+                1024, 64, 1, 2, 60000), new ShareBudget(Long.MAX_VALUE, true));
     }
 
     private static SimpleByteBufferPool smallPool(boolean direct) {
@@ -99,7 +99,7 @@ public class BuffersTest {
     }
 
     @Test
-    public void testLargeBufferReleaseInOtherThreadSkipsCallback() throws Exception {
+    public void testLargeBufferReleaseInOtherThreadInvokesCallback() throws Exception {
         AtomicInteger releaseCount = new AtomicInteger(0);
         Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> {
             releaseCount.incrementAndGet();
@@ -107,16 +107,16 @@ public class BuffersTest {
             return true;
         });
         RefBuffer b1 = buffers.borrow(64, false, true, 0);
-        // large buffer is borrowed from the shared large pool, whose releasor releases directly
-        // (the large pool is thread-safe), so the cross-thread callback is never involved
+        // large pool is not thread-safe; threadSafeRelease=true routes cross-thread release
+        // through the owner thread via callback
         Thread t = new Thread(b1::release);
         t.start();
         t.join();
-        assertEquals(0, releaseCount.get());
+        assertEquals(1, releaseCount.get());
     }
 
     @Test
-    public void testDirectLargeBufferReleaseInOtherThreadSkipsCallback() throws Exception {
+    public void testDirectLargeBufferReleaseInOtherThreadInvokesCallback() throws Exception {
         AtomicInteger releaseCount = new AtomicInteger(0);
         Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> {
             releaseCount.incrementAndGet();
@@ -126,11 +126,11 @@ public class BuffersTest {
         RefBuffer b1 = buffers.borrowDirect(64, false, true, 0);
         assertTrue(b1.getBuffer().isDirect());
         assertEquals(64, b1.getBuffer().capacity());
-        // large direct buffer: thread-safe pool, callback not involved
+        // large direct buffer: routed through owner thread via callback
         Thread t = new Thread(b1::release);
         t.start();
         t.join();
-        assertEquals(0, releaseCount.get());
+        assertEquals(1, releaseCount.get());
     }
 
     @Test
@@ -179,5 +179,35 @@ public class BuffersTest {
         t.start();
         t.join();
         assertEquals(1, releaseCount.get());
+    }
+
+    @Test
+    public void testLargeBufferReleaseAfterShutdown() throws Exception {
+        // callback returns false to simulate owner thread queue shut down
+        Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> false);
+        RefBuffer b1 = buffers.borrow(64, false, true, 0);
+        assertTrue(b1.getBuffer().capacity() >= 64);
+        // cross-thread release with shut-down queue: large buffer queued for deferred release
+        Thread t = new Thread(b1::release);
+        t.start();
+        t.join();
+        // destroy processes the waiting queue and releases queued large buffers
+        buffers.destroy();
+        // chunk should be fully reclaimed after destroy
+        assertTrue(buffers.heapLargePool.formatStat().contains("chunks 0("));
+    }
+
+    @Test
+    public void testLargeBufferSameThreadReleaseSkipsCallback() {
+        AtomicInteger releaseCount = new AtomicInteger(0);
+        Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> {
+            releaseCount.incrementAndGet();
+            c.accept(rb);
+            return true;
+        });
+        RefBuffer b1 = buffers.borrow(64, false, true, 0);
+        // release in owner thread invokes localReleasor directly, callback not involved
+        b1.release();
+        assertEquals(0, releaseCount.get());
     }
 }

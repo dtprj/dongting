@@ -209,7 +209,7 @@ public class StrDecoderCallbackTest {
         Buffers delegate = factory.createPool(new Timestamp());
         factory.initPool(delegate, Thread.currentThread(),
                 (buf, c) -> { c.accept(buf); return true; });
-        Buffers buffers = new Buffers(null, null) {
+        Buffers buffers = new Buffers() {
             @Override
             public RefBuffer borrowLocal(int requestSize) {
                 RefBuffer rb = delegate.borrowLocal(requestSize);
