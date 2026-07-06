@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.dtkv;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -177,7 +176,9 @@ class AutoRenewalLockImpl extends AbstractLifeCircle implements AutoRenewalLock 
             return;
         }
         if (!locked) {
-            BugLog.log("lock is not locked");
+            // underlying lock was held only briefly (lease exhausted during rpc round-trip)
+            // but never reported to the upper layer; nothing to lose, let the retry task recover.
+            log.info("lock lease expired before onAcquired, key: {}", key);
             return;
         }
         cancelTask();
