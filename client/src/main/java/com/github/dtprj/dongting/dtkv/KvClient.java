@@ -62,6 +62,9 @@ public class KvClient extends AbstractLifeCircle {
                     NioClientConfig nioConfig) {
         this.config = config;
         Objects.requireNonNull(config);
+        if (config.autoRenewalRetryMillis == null || config.autoRenewalRetryMillis.length == 0) {
+            throw new IllegalArgumentException("autoRenewalRetryMillis is empty");
+        }
         this.raftClient = new RaftClient(raftClientConfig, nioConfig);
         this.watchManager = createClientWatchManager();
         this.lockManager = createLockManager();
