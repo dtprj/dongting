@@ -32,6 +32,8 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
     private final boolean direct;
 
     private final LinkedList<BuddyChunk> idleChunks = new LinkedList<>();
+    // weak-ref overflow cache for heap chunks; null for direct buffers (iceberg objects)
+    private final WeakRefCache<BuddyChunk> weakRefCache;
     private final long timeoutNanos;
 
     GlobalIdleChunkList(long total, boolean direct, int chunkSize, int minBlockSize, long timeoutMillis) {
@@ -40,6 +42,7 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
         this.minBlockSize = minBlockSize;
         this.direct = direct;
         this.timeoutNanos = timeoutMillis * 1_000_000;
+        this.weakRefCache = direct ? null : new WeakRefCache<>(16);
     }
 
 
@@ -54,13 +57,34 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
                 if (now - chunk.lastFullFreeNanos > timeoutNanos) {
                     idleChunks.pollFirst();
                     release0(chunkSize);
-                    if (destroyList == null) {
-                        destroyList = new LinkedList<>();
+                    if (weakRefCache != null) {
+                        // park in weak-ref cache so the chunk can be reclaimed if still referenced
+                        weakRefCache.moveIdleElementsToCache(chunk);
+                    } else {
+                        if (destroyList == null) {
+                            destroyList = new LinkedList<>();
+                        }
+                        destroyList.add(chunk);
                     }
-                    destroyList.add(chunk);
                 } else {
                     break;
                 }
+            }
+            // reclaim cached chunks first so we avoid fresh allocation when possible
+            if (weakRefCache != null) {
+                while (idleChunks.size() < TARGET_SIZE) {
+                    if (!borrow0(chunkSize)) {
+                        break;
+                    }
+                    BuddyChunk cached = weakRefCache.borrow();
+                    if (cached == null) {
+                        release0(chunkSize);
+                        break;
+                    }
+                    cached.lastFullFreeNanos = now;
+                    idleChunks.addLast(cached);
+                }
+                weakRefCache.cleanHeadAndTail();
             }
             for (int i = 0; i < TARGET_SIZE - idleChunks.size(); i++) {
                 if (borrow0(chunkSize)) {
@@ -102,10 +126,17 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
     }
 
     public BuddyChunk borrowIdleChunk() {
-        BuddyChunk chunk = null;
+        BuddyChunk chunk;
         synchronized (this) {
             if (!idleChunks.isEmpty()) {
                 chunk = idleChunks.pollLast();
+            } else if (weakRefCache != null && borrow0(chunkSize)) {
+                chunk = weakRefCache.borrow();
+                if (chunk == null) {
+                    release0(chunkSize);
+                }
+            } else {
+                chunk = null;
             }
         }
         return chunk;

@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
@@ -55,16 +57,18 @@ public class GlobalIdleChunkListTest {
 
     @Test
     public void testRunEvictsTimedOutChunks() {
-        GlobalIdleChunkList list = newList(false);
+        // direct mode: weakRefCache is disabled, so idleChunks can exceed TARGET_SIZE and
+        // timed-out chunks are pruned by run()
+        GlobalIdleChunkList list = newList(true);
         long now = System.nanoTime();
         // fill with 3 chunks (more than TARGET_SIZE=2); the first one (head) is stale
-        BuddyChunk stale = new BuddyChunk(false, 256, 16);
+        BuddyChunk stale = new BuddyChunk(true, 256, 16);
         stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
         returnWithBudget(list, stale);
-        BuddyChunk fresh1 = new BuddyChunk(false, 256, 16);
+        BuddyChunk fresh1 = new BuddyChunk(true, 256, 16);
         fresh1.lastFullFreeNanos = now;
         returnWithBudget(list, fresh1);
-        BuddyChunk fresh2 = new BuddyChunk(false, 256, 16);
+        BuddyChunk fresh2 = new BuddyChunk(true, 256, 16);
         fresh2.lastFullFreeNanos = now;
         returnWithBudget(list, fresh2);
 
@@ -91,5 +95,120 @@ public class GlobalIdleChunkListTest {
         assertNotNull(list.borrowIdleChunk());
         assertNotNull(list.borrowIdleChunk());
         assertNotNull(list.borrowIdleChunk());
+    }
+
+    @Test
+    public void testHeapTimeoutGoesToWeakRefCache() {
+        // heap mode: timed-out chunks beyond TARGET_SIZE are moved to the weak-ref cache
+        // (instead of being destroyed) so they can be reclaimed if still referenced
+        GlobalIdleChunkList list = newList(false);
+        long now = System.nanoTime();
+        BuddyChunk stale = new BuddyChunk(false, 256, 16);
+        stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
+        returnWithBudget(list, stale);
+        BuddyChunk fresh1 = new BuddyChunk(false, 256, 16);
+        fresh1.lastFullFreeNanos = now;
+        returnWithBudget(list, fresh1);
+        BuddyChunk fresh2 = new BuddyChunk(false, 256, 16);
+        fresh2.lastFullFreeNanos = now;
+        returnWithBudget(list, fresh2);
+
+        list.run();
+        // two fresh chunks remain in the strong list
+        assertNotNull(list.borrowIdleChunk());
+        assertNotNull(list.borrowIdleChunk());
+        // stale is reclaimable from the weak-ref cache (strong ref held by test)
+        BuddyChunk cached = list.borrowIdleChunk();
+        assertSame(stale, cached);
+    }
+
+    @Test
+    public void testWeakRefCacheBudgetReleasedAndReacquired() {
+        // total budget allows 3 chunks (768 = 3 * 256)
+        GlobalIdleChunkList list = new GlobalIdleChunkList(768, false, 256, 16, 60000);
+        long now = System.nanoTime();
+        BuddyChunk stale = new BuddyChunk(false, 256, 16);
+        stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
+        returnWithBudget(list, stale);
+        BuddyChunk fresh1 = new BuddyChunk(false, 256, 16);
+        fresh1.lastFullFreeNanos = now;
+        returnWithBudget(list, fresh1);
+        BuddyChunk fresh2 = new BuddyChunk(false, 256, 16);
+        fresh2.lastFullFreeNanos = now;
+        returnWithBudget(list, fresh2);
+        // all 3 chunks in idleChunks, budget used = 768
+
+        list.run();
+        // stale moved to weak-ref cache, its budget released; budget used = 512
+        // the released budget allows one more borrow
+        assertTrue(list.borrow(256));
+        list.release(256);
+
+        // drain idleChunks so the next borrow comes from the weak-ref cache
+        list.borrowIdleChunk(); // fresh2
+        list.borrowIdleChunk(); // fresh1
+        // borrowing from weak-ref cache re-acquires budget
+        BuddyChunk cached = list.borrowIdleChunk();
+        assertSame(stale, cached);
+    }
+
+    @Test
+    public void testRunReclaimsFromWeakRefCache() {
+        // after timed-out chunks are moved to the weak-ref cache, a subsequent run() should
+        // reclaim them into idleChunks instead of allocating fresh chunks
+        // budget allows only 1 chunk (256), so the second run can only reclaim, not allocate
+        GlobalIdleChunkList list = new GlobalIdleChunkList(256, false, 256, 16, 60000);
+        long now = System.nanoTime();
+        BuddyChunk stale = new BuddyChunk(false, 256, 16);
+        stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
+        returnWithBudget(list, stale);
+        BuddyChunk fresh1 = new BuddyChunk(false, 256, 16);
+        fresh1.lastFullFreeNanos = now;
+        returnWithBudget(list, fresh1);
+        BuddyChunk fresh2 = new BuddyChunk(false, 256, 16);
+        fresh2.lastFullFreeNanos = now;
+        returnWithBudget(list, fresh2);
+
+        // first run: stale (beyond TARGET_SIZE) is moved to weak-ref cache
+        list.run();
+        // drain idleChunks so the reclaim path is exercised on the next run
+        list.borrowIdleChunk();
+        list.borrowIdleChunk();
+
+        // second run: idleChunks is empty, reclaims stale from weak-ref cache (budget allows 1)
+        list.run();
+        BuddyChunk reclaimed = list.borrowIdleChunk();
+        assertSame(stale, reclaimed);
+    }
+
+    @Test
+    public void testBorrowIdleChunkReturnsNullWhenBudgetExhausted() {
+        // when budget is insufficient, borrowIdleChunk must not take a chunk from weakRefCache
+        GlobalIdleChunkList list = new GlobalIdleChunkList(768, false, 256, 16, 60000);
+        long now = System.nanoTime();
+        BuddyChunk stale = new BuddyChunk(false, 256, 16);
+        stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
+        returnWithBudget(list, stale);
+        BuddyChunk fresh1 = new BuddyChunk(false, 256, 16);
+        fresh1.lastFullFreeNanos = now;
+        returnWithBudget(list, fresh1);
+        BuddyChunk fresh2 = new BuddyChunk(false, 256, 16);
+        fresh2.lastFullFreeNanos = now;
+        returnWithBudget(list, fresh2);
+
+        // run() moves stale (beyond TARGET_SIZE) to weak-ref cache, releasing its budget
+        list.run();
+        // drain idleChunks
+        list.borrowIdleChunk();
+        list.borrowIdleChunk();
+
+        // exhaust the budget so borrow0 inside borrowIdleChunk fails
+        list.borrow(256);
+        assertNull(list.borrowIdleChunk());
+
+        // after releasing budget, the cached chunk becomes available again
+        list.release(256);
+        BuddyChunk cached = list.borrowIdleChunk();
+        assertSame(stale, cached);
     }
 }
