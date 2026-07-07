@@ -34,14 +34,16 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class BuddyBufferPoolTest {
 
-    // large enough so existing tests are never constrained by the budget;
-    // dedicated budget-limit tests use their own small ShareBudget instances.
-    private static final ShareBudget UNLIMITED = new ShareBudget(Long.MAX_VALUE, true);
+    // each pool gets its own GlobalIdleChunkList with effectively unlimited budget so existing
+    // tests are never constrained; dedicated budget-limit tests pass their own small instance.
+    private static GlobalIdleChunkList unlimited(boolean direct, int chunkSize, int minBlock) {
+        return new GlobalIdleChunkList(Long.MAX_VALUE, direct, chunkSize, minBlock, 60000);
+    }
 
     private BuddyBufferPool newPool(boolean direct, int chunkSize, int minBlock, int minChunk, int maxChunk) {
         return new BuddyBufferPool(new BuddyBufferPoolConfig(
                 direct, true, new Timestamp(),
-                chunkSize, minBlock, minChunk, maxChunk, 60000), UNLIMITED);
+                chunkSize, minBlock, minChunk, maxChunk, 60000), unlimited(direct, chunkSize, minBlock));
     }
 
     @Test
@@ -142,7 +144,7 @@ public class BuddyBufferPoolTest {
     public void testShrinkExpiredChunk() {
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                false, true, ts, 256, 16, 1, 3, 100), UNLIMITED);
+                false, true, ts, 256, 16, 1, 3, 100), unlimited(false, 256, 16));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         RefBuffer b3 = pool.borrow(false, 256, 0);
@@ -160,7 +162,7 @@ public class BuddyBufferPoolTest {
     public void testShrinkKeepsMinChunks() {
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                false, true, ts, 256, 16, 2, 4, 100), UNLIMITED);
+                false, true, ts, 256, 16, 2, 4, 100), unlimited(false, 256, 16));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         b1.release();
@@ -168,17 +170,17 @@ public class BuddyBufferPoolTest {
         // advance the pool clock past the timeout; minChunkCount chunks are still kept
         ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
         pool.shrink();
-        // minChunkCount=2 preallocated chunks are never reclaimed
+        // minChunkCount=2 limits shrink, so both chunks are kept
         assertTrue(pool.formatStat().contains("chunks 2("));
     }
 
     @Test
     public void testHintClearedAfterShrink() {
-        // minChunk=0 so shrink reclaims every chunk; direct=true so an uncleared hint would point
-        // at a freed direct buffer and corrupt the next borrow.
+        // minChunk=0 so shrink reclaims every chunk; direct=true so any chunk returned to the
+        // idle list must be reusable by the next borrow without corruption.
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                true, true, ts, 256, 16, 0, 2, 100), UNLIMITED);
+                true, true, ts, 256, 16, 0, 2, 100), unlimited(true, 256, 16));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         b1.release();
@@ -250,7 +252,7 @@ public class BuddyBufferPoolTest {
     public void testShareBudgetLimit() {
         // maxChunkCount=2: the first 2 chunks are free; beyond that each chunk must borrow
         // from the shared budget. budget=256 allows exactly one extra chunk.
-        ShareBudget budget = new ShareBudget(256, true);
+        GlobalIdleChunkList budget = new GlobalIdleChunkList(256, false, 256, 16, 60000);
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, true, ts, 256, 16, 0, 2, 60000), budget);
@@ -269,7 +271,7 @@ public class BuddyBufferPoolTest {
         c3.release();
         ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(70000);
         pool.shrink();
-        // budget restored: a new borrow beyond maxChunkCount succeeds (pooled, not unpooled)
+        // c3's chunk moved to the idle list; the next borrow reuses it via chunkListHit
         RefBuffer c5 = pool.borrow(false, 256, 0);
         assertEquals(256, c5.getBuffer().capacity());
         assertTrue(pool.formatStat().contains("unpooled 1"));
@@ -282,8 +284,8 @@ public class BuddyBufferPoolTest {
     public void testDestroyReclaimsMinChunks() {
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                false, true, ts, 256, 16, 2, 4, 60000), UNLIMITED);
-        // minChunkCount=2 pre-allocated, both idle; normal shrink would keep them, destroy reclaims
+                false, true, ts, 256, 16, 2, 4, 60000), unlimited(false, 256, 16));
+        // no chunks are pre-allocated anymore; destroy on an empty pool is a no-op
         pool.destroy();
         assertTrue(pool.formatStat().contains("chunks 0("));
     }
@@ -292,7 +294,7 @@ public class BuddyBufferPoolTest {
     public void testReleaseAfterDestroyReclaimsChunk() {
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
-                false, true, ts, 256, 16, 0, 2, 60000), UNLIMITED);
+                false, true, ts, 256, 16, 0, 2, 60000), unlimited(false, 256, 16));
         RefBuffer b1 = pool.borrow(false, 256, 0);
         RefBuffer b2 = pool.borrow(false, 256, 0);
         // both chunks have outstanding buffers, destroy reclaims nothing
@@ -303,5 +305,31 @@ public class BuddyBufferPoolTest {
         assertTrue(pool.formatStat().contains("chunks 1("));
         b2.release();
         assertTrue(pool.formatStat().contains("chunks 0("));
+    }
+
+    @Test
+    public void testIdleChunkSharedAcrossPools() {
+        // two pools sharing one GlobalIdleChunkList: a chunk shrunk from poolA should be
+        // reused by poolB via borrowIdleChunk, avoiding a fresh allocation
+        GlobalIdleChunkList shared = new GlobalIdleChunkList(Long.MAX_VALUE, false, 256, 16, 60000);
+        Timestamp ts1 = new Timestamp();
+        BuddyBufferPool poolA = new BuddyBufferPool(new BuddyBufferPoolConfig(
+                false, true, ts1, 256, 16, 0, 2, 60000), shared);
+        Timestamp ts2 = new Timestamp();
+        BuddyBufferPool poolB = new BuddyBufferPool(new BuddyBufferPoolConfig(
+                false, true, ts2, 256, 16, 0, 2, 60000), shared);
+
+        // poolA allocates a chunk, then returns it to the shared idle list via shrink
+        RefBuffer a = poolA.borrow(false, 256, 0);
+        a.release();
+        ts1.nanoTime += TimeUnit.MILLISECONDS.toNanos(70000);
+        poolA.shrink();
+        assertTrue(poolA.formatStat().contains("chunks 0("));
+
+        // poolB borrow hits the shared idle list (chunkListHit) instead of allocating fresh
+        RefBuffer b = poolB.borrow(false, 256, 0);
+        assertEquals(256, b.getBuffer().capacity());
+        assertTrue(poolB.formatStat().contains("chunkListHit 1"));
+        b.release();
     }
 }

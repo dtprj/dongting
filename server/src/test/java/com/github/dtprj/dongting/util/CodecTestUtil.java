@@ -45,7 +45,7 @@ public class CodecTestUtil {
     private static final Buffers buffer = createBuffers();
 
     private static Buffers createBuffers() {
-        PoolFactory factory = new DefaultPoolFactory();
+        PoolFactory factory = DefaultPoolFactory.INSTANCE;
         Buffers buffers = factory.createPool(new Timestamp());
         factory.initPool(buffers, Thread.currentThread(),
                 (rb, c) -> { c.accept(rb); return true; });

@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
@@ -87,7 +86,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private DtTime stopTimeout;
 
     public Dispatcher(String name) {
-        this(name, new DefaultPoolFactory(), NoopPerfCallback.INSTANCE);
+        this(name, DefaultPoolFactory.INSTANCE, NoopPerfCallback.INSTANCE);
     }
 
     public Dispatcher(String name, PoolFactory poolFactory, PerfCallback perfCallback) {

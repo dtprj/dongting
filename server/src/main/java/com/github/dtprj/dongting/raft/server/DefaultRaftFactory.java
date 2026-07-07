@@ -47,7 +47,7 @@ public abstract class DefaultRaftFactory implements RaftFactory {
     }
 
     protected PoolFactory createPoolFactory() {
-        return new DefaultPoolFactory();
+        return DefaultPoolFactory.INSTANCE;
     }
 
     @Override

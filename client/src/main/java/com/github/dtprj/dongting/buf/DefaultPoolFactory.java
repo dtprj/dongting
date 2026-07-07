@@ -15,8 +15,13 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -26,6 +31,8 @@ import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.calcTotalSize;
  * @author huangli
  */
 public class DefaultPoolFactory implements PoolFactory {
+
+    private static final DtLog log = DtLogs.getLogger(DefaultPoolFactory.class);
 
     public static final int[] DEFAULT_SMALL_SIZE = new int[]{128, 256, 512, 1024, 2048, 4096, 8192, 16384};
     // 557,056 bytes
@@ -39,7 +46,29 @@ public class DefaultPoolFactory implements PoolFactory {
     private static final int DEFAULT_GLOBAL_MAX_CHUNK_COUNT = 8;
     private static final long DEFAULT_LARGE_SHARE = 400 * 1024 * 1024;
 
-    private final ShareBudget largeShare = new ShareBudget(DEFAULT_LARGE_SHARE, true);
+    private static final long LARGE_POOL_TIMEOUT_MILLIS = 60_000;
+
+    private final GlobalIdleChunkList heapChunkList =
+            new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, false, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
+                    BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_TIMEOUT_MILLIS);
+    private final GlobalIdleChunkList directChunkList =
+            new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, true, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
+                    BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_TIMEOUT_MILLIS);
+
+    public static final DefaultPoolFactory INSTANCE = new DefaultPoolFactory();
+
+    private final ScheduledFuture<?> scheduledFuture;
+
+    protected DefaultPoolFactory() {
+        scheduledFuture = DtUtil.LOW_PRIORITY_SCHEDULER.scheduleAtFixedRate(() -> {
+            try {
+                heapChunkList.run();
+                directChunkList.run();
+            } catch (Throwable t) {
+                log.error("", t);
+            }
+        }, 0, 10, TimeUnit.SECONDS);
+    }
 
     @Override
     public Buffers createPool(Timestamp ts) {
@@ -68,8 +97,8 @@ public class DefaultPoolFactory implements PoolFactory {
         BuddyBufferPoolConfig c = new BuddyBufferPoolConfig(
                 direct, false, ts, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
                 BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE,
-                minChunk, maxChunk, 60000);
-        return new BuddyBufferPool(c, largeShare);
+                minChunk, maxChunk, LARGE_POOL_TIMEOUT_MILLIS);
+        return new BuddyBufferPool(c, direct ? directChunkList : heapChunkList);
     }
 
     private static int[] calcByMem(long maxMemory, int[] size) {
@@ -101,5 +130,11 @@ public class DefaultPoolFactory implements PoolFactory {
     @Override
     public void destroyPool(Buffers pool) {
         pool.destroy();
+    }
+
+    public void close() {
+        scheduledFuture.cancel(false);
+        heapChunkList.clear();
+        directChunkList.clear();
     }
 }

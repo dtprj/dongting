@@ -26,7 +26,7 @@ import java.util.BitSet;
  *
  * @author huangli
  */
-class BuddyChunk {
+public class BuddyChunk {
     final ByteBuffer rootBuffer;
     final int chunkSize;
     final int minBlockSize;
@@ -36,8 +36,8 @@ class BuddyChunk {
     long lastFullFreeNanos;
     int maxAvailableLevel;
 
-    BuddyChunk(ByteBuffer rootBuffer, int chunkSize, int minBlockSize) {
-        this.rootBuffer = rootBuffer;
+    BuddyChunk(boolean direct, int chunkSize, int minBlockSize) {
+        this.rootBuffer = direct ? ByteBuffer.allocateDirect(chunkSize) : ByteBuffer.allocate(chunkSize);
         this.chunkSize = chunkSize;
         this.minBlockSize = minBlockSize;
         this.maxLevel = Integer.numberOfTrailingZeros(chunkSize / minBlockSize);

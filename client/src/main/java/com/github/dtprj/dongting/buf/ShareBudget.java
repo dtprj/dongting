@@ -41,7 +41,7 @@ public class ShareBudget {
         }
     }
 
-    private boolean borrow0(int size) {
+    protected boolean borrow0(int size) {
         if (used + size <= total) {
             used += size;
             return true;
@@ -59,7 +59,7 @@ public class ShareBudget {
         }
     }
 
-    private void release0(int size) {
+    protected void release0(int size) {
         used -= size;
         if (used < 0) {
             BugLog.log("ShareBudget underflow: used={}, size={}", used, size);

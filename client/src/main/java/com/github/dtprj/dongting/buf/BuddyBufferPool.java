@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtBugException;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.common.VersionFactory;
 
@@ -33,7 +34,6 @@ import java.util.function.Consumer;
  * @author huangli
  */
 public class BuddyBufferPool extends ByteBufferPool {
-    static final VersionFactory VF = VersionFactory.getInstance();
 
     // refresh periodically; package-private so tests can advance the clock
     final Timestamp ts;
@@ -44,7 +44,7 @@ public class BuddyBufferPool extends ByteBufferPool {
     private final int maxChunkCount;
     private final long timeoutNanos;
     final boolean threadSafe;
-    private final ShareBudget shareBudget;
+    private final GlobalIdleChunkList globalIdleChunkList;
 
     private final ArrayList<BuddyChunk> chunks = new ArrayList<>();
     private final IdentityHashMap<ByteBuffer, BuddyChunk.BufInfo> bufMap = new IdentityHashMap<>();
@@ -62,12 +62,13 @@ public class BuddyBufferPool extends ByteBufferPool {
     private long statNewChunkCount;
     private long statUnpooledCount;
     private long statChunkCleanCount;
+    private long statChunkListHitCount;
 
     private boolean destroyed;
 
-    public BuddyBufferPool(BuddyBufferPoolConfig config, ShareBudget shareBudget) {
+    public BuddyBufferPool(BuddyBufferPoolConfig config, GlobalIdleChunkList globalIdleChunkList) {
         super(config.direct, config.minBlockSize / 2);
-        Objects.requireNonNull(shareBudget);
+        Objects.requireNonNull(globalIdleChunkList);
         this.ts = config.ts;
         this.chunkSize = config.chunkSize;
         this.minBlockSize = config.minBlockSize;
@@ -75,15 +76,7 @@ public class BuddyBufferPool extends ByteBufferPool {
         this.maxChunkCount = config.maxChunkCount;
         this.timeoutNanos = config.timeoutMillis * 1000 * 1000;
         this.threadSafe = config.threadSafe;
-        this.shareBudget = shareBudget;
-        for (int i = 0; i < minChunkCount; i++) {
-            chunks.add(newChunk());
-        }
-    }
-
-    private BuddyChunk newChunk() {
-        ByteBuffer root = allocate(chunkSize);
-        return new BuddyChunk(root, chunkSize, minBlockSize);
+        this.globalIdleChunkList = globalIdleChunkList;
     }
 
     private void lock() {
@@ -162,12 +155,37 @@ public class BuddyBufferPool extends ByteBufferPool {
             }
         }
         if (chunk == null) {
-            if (chunks.size() < maxChunkCount || shareBudget.borrow(chunkSize)) {
-                chunk = newChunk();
+            BuddyChunk cached = globalIdleChunkList.borrowIdleChunk();
+            if (cached != null) {
+                statChunkListHitCount++;
+                chunks.add(cached);
+                if (chunks.size() <= maxChunkCount) {
+                    // If the value is less than or equal to maxChunkCount, no budget will be occupied.
+                    // However, the chunk has already had its budget allocated in globalIdleChunkList,
+                    // so the corresponding budget needs to be returned.
+                    globalIdleChunkList.release(chunkSize);
+                }
+                chunk = cached;
+                offset = chunk.allocate(targetLevel); // new chunk allocate should success
+                hintChunk = chunk;
+            }
+        }
+        if (chunk == null) {
+            if (chunks.size() < maxChunkCount || globalIdleChunkList.borrow(chunkSize)) {
+                try {
+                    chunk = new BuddyChunk(direct, chunkSize, minBlockSize);
+                } catch (OutOfMemoryError e) {
+                    if (chunks.size() >= maxChunkCount) {
+                        globalIdleChunkList.release(chunkSize);
+                    }
+                    statUnpooledCount++;
+                    return null;
+                }
                 chunks.add(chunk);
                 statNewChunkCount++;
-                offset = chunk.allocate(targetLevel);
+                offset = chunk.allocate(targetLevel); // new chunk allocate should success
                 hintChunk = chunk;
+                DtUtil.LOW_PRIORITY_SCHEDULER.execute(globalIdleChunkList);
             }
         }
         if (chunk != null && offset >= 0) {
@@ -238,11 +256,12 @@ public class BuddyBufferPool extends ByteBufferPool {
                         hintChunk = null;
                     }
                     statChunkCleanCount++;
-                    if (direct) {
-                        VF.releaseDirectBuffer(c.rootBuffer);
-                    }
-                    if (chunks.size() >= maxChunkCount) {
-                        shareBudget.release(chunkSize);
+                    if (chunks.size() >= maxChunkCount || globalIdleChunkList.borrow(chunkSize)) {
+                        c.lastFullFreeNanos = nanoTime;
+                        globalIdleChunkList.returnIdleChunk(c);
+                    } else if (direct) {
+                        // drop
+                        VersionFactory.getInstance().releaseDirectBuffer(c.rootBuffer);
                     }
                 }
             }
@@ -272,6 +291,7 @@ public class BuddyBufferPool extends ByteBufferPool {
                     + "borrow " + f.format(statBorrowCount) + "(hit=" + f.format(statBorrowHitCount) + ")"
                     + ", release " + f.format(statReleaseCount) + "(hit=" + f.format(statReleaseHitCount) + ")\n"
                     + "newChunk " + f.format(statNewChunkCount)
+                    + ", chunkListHit " + f.format(statChunkListHitCount)
                     + ", unpooled " + f.format(statUnpooledCount)
                     + ", chunkClean " + f.format(statChunkCleanCount);
         } finally {

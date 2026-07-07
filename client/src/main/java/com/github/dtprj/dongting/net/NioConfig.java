@@ -44,7 +44,7 @@ public abstract class NioConfig {
     public int maxPacketSize = 5 * 1024 * 1024;
     public int maxBodySize = 4 * 1024 * 1024;
 
-    public PoolFactory poolFactory = new DefaultPoolFactory();
+    public PoolFactory poolFactory = DefaultPoolFactory.INSTANCE;
 
     public int readBufferSize = 128 * 1024;
 
