@@ -241,12 +241,4 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         sb.deleteCharAt(sb.length() - 1);
         sb.deleteCharAt(sb.length() - 1);
     }
-
-    public static long calcTotalSize(int[] bufSizes, int[] count) {
-        long total = 0;
-        for (int i = 0; i < bufSizes.length; i++) {
-            total += (long) bufSizes[i] * count[i];
-        }
-        return total;
-    }
 }

@@ -19,15 +19,21 @@ import com.github.dtprj.dongting.common.DtException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+
 /**
  * @author huangli
  */
 public class RefBufferTest {
 
     private SimpleByteBufferPoolConfig createDefaultConfig() {
+        int[] sizes = DefaultPoolFactory.DEFAULT_SMALL_SIZE;
+        int[] minCount = new int[sizes.length];
+        int[] maxCount = new int[sizes.length];
+        Arrays.fill(minCount, 1);
+        Arrays.fill(maxCount, 16);
         return new SimpleByteBufferPoolConfig(false, DefaultPoolFactory.DEFAULT_THRESHOLD,
-                DefaultPoolFactory.DEFAULT_SMALL_SIZE, DefaultPoolFactory.DEFAULT_SMALL_MIN_COUNT,
-                DefaultPoolFactory.DEFAULT_SMALL_MAX_COUNT);
+                sizes, minCount, maxCount);
     }
 
     @Test

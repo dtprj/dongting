@@ -25,7 +25,7 @@ import java.util.Objects;
 public class BuddyBufferPoolConfig {
 
     public static final int DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
-    public static final int DEFAULT_MIN_BLOCK_SIZE = 32 * 1024;
+    public static final int DEFAULT_MIN_BLOCK_SIZE = 16 * 1024;
 
     public final boolean direct;
     public final int chunkSize;
