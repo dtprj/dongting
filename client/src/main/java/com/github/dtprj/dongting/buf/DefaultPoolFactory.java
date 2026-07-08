@@ -46,12 +46,15 @@ public class DefaultPoolFactory implements PoolFactory {
 
     private static final long LARGE_POOL_TIMEOUT_MILLIS = 60_000;
 
+    public static final int DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
+    public static final int DEFAULT_MIN_BLOCK_SIZE = 16 * 1024;
+
     private final GlobalIdleChunkList heapChunkList =
-            new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, false, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
-                    BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_TIMEOUT_MILLIS);
+            new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, false, DEFAULT_CHUNK_SIZE,
+                    DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_TIMEOUT_MILLIS);
     private final GlobalIdleChunkList directChunkList =
-            new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, true, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
-                    BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_TIMEOUT_MILLIS);
+            new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, true, DEFAULT_CHUNK_SIZE,
+                    DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_TIMEOUT_MILLIS);
 
     public static final DefaultPoolFactory INSTANCE = new DefaultPoolFactory();
 
@@ -98,8 +101,8 @@ public class DefaultPoolFactory implements PoolFactory {
         int minChunk = (int) calcByMem(maxMemory, DEFAULT_GLOBAL_MIN_CHUNK_COUNT);
         int maxChunk = (int) calcByMem(maxMemory, DEFAULT_GLOBAL_MAX_CHUNK_COUNT);
         BuddyBufferPoolConfig c = new BuddyBufferPoolConfig(
-                direct, false, ts, BuddyBufferPoolConfig.DEFAULT_CHUNK_SIZE,
-                BuddyBufferPoolConfig.DEFAULT_MIN_BLOCK_SIZE,
+                direct, false, ts, DEFAULT_CHUNK_SIZE,
+                DEFAULT_MIN_BLOCK_SIZE,
                 minChunk, maxChunk, LARGE_POOL_TIMEOUT_MILLIS);
         return new BuddyBufferPool(c, direct ? directChunkList : heapChunkList);
     }
