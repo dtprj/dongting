@@ -37,7 +37,7 @@ public class BuddyBufferPoolTest {
     // each pool gets its own GlobalIdleChunkList with effectively unlimited budget so existing
     // tests are never constrained; dedicated budget-limit tests pass their own small instance.
     private static GlobalIdleChunkList unlimited(boolean direct, int chunkSize, int minBlock) {
-        return new GlobalIdleChunkList(Long.MAX_VALUE, direct, chunkSize, minBlock, 60000);
+        return new GlobalIdleChunkList(Long.MAX_VALUE, direct, chunkSize, minBlock, 60000, 2);
     }
 
     private BuddyBufferPool newPool(boolean direct, int chunkSize, int minBlock, int minChunk, int maxChunk) {
@@ -252,7 +252,7 @@ public class BuddyBufferPoolTest {
     public void testShareBudgetLimit() {
         // maxChunkCount=2: the first 2 chunks are free; beyond that each chunk must borrow
         // from the shared budget. budget=256 allows exactly one extra chunk.
-        GlobalIdleChunkList budget = new GlobalIdleChunkList(256, false, 256, 16, 60000);
+        GlobalIdleChunkList budget = new GlobalIdleChunkList(256, false, 256, 16, 60000, 2);
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, true, ts, 256, 16, 0, 2, 60000), budget);
@@ -311,7 +311,7 @@ public class BuddyBufferPoolTest {
     public void testIdleChunkSharedAcrossPools() {
         // two pools sharing one GlobalIdleChunkList: a chunk shrunk from poolA should be
         // reused by poolB via borrowIdleChunk, avoiding a fresh allocation
-        GlobalIdleChunkList shared = new GlobalIdleChunkList(Long.MAX_VALUE, false, 256, 16, 60000);
+        GlobalIdleChunkList shared = new GlobalIdleChunkList(Long.MAX_VALUE, false, 256, 16, 60000, 2);
         Timestamp ts1 = new Timestamp();
         BuddyBufferPool poolA = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, true, ts1, 256, 16, 0, 2, 60000), shared);

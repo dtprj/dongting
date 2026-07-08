@@ -36,7 +36,7 @@ public class BuffersTest {
         return new BuddyBufferPool(new BuddyBufferPoolConfig(
                 direct, true, new com.github.dtprj.dongting.common.Timestamp(),
                 1024, 64, 1, 2, 60000),
-                new GlobalIdleChunkList(Long.MAX_VALUE, direct, 1024, 64, 60000));
+                new GlobalIdleChunkList(Long.MAX_VALUE, direct, 1024, 64, 60000, 2));
     }
 
     private static SimpleByteBufferPool smallPool(boolean direct) {

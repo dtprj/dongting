@@ -35,6 +35,7 @@ public class DefaultPoolFactoryConfig {
     public int largeMaxChunkCount = 8;
     public long largeShareSize = 400 * 1024 * 1024;
 
+    public int largeGlobalIdleTargetSize = 2;
     public long largeGlobalTimeoutMillis = 60_000;
     public long largeTimeoutMillis = 2000;
 

@@ -43,9 +43,9 @@ public class DefaultPoolFactory implements PoolFactory {
     protected DefaultPoolFactory(DefaultPoolFactoryConfig config) {
         this.config = config;
         this.heapChunkList = new GlobalIdleChunkList(config.largeShareSize, false, config.largeChunkSize,
-                config.largeMinBlockSize, config.largeGlobalTimeoutMillis);
+                config.largeMinBlockSize, config.largeGlobalTimeoutMillis, config.largeGlobalIdleTargetSize);
         this.directChunkList = new GlobalIdleChunkList(config.largeShareSize, true, config.largeChunkSize,
-                config.largeMinBlockSize, config.largeGlobalTimeoutMillis);
+                config.largeMinBlockSize, config.largeGlobalTimeoutMillis, config.largeGlobalIdleTargetSize);
         scheduledFuture = DtUtil.LOW_PRIORITY_SCHEDULER.scheduleAtFixedRate(() -> {
             try {
                 heapChunkList.run();

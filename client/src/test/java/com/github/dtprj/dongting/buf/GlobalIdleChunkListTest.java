@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class GlobalIdleChunkListTest {
 
     private static GlobalIdleChunkList newList(boolean direct) {
-        return new GlobalIdleChunkList(Long.MAX_VALUE, direct, 256, 16, 60000);
+        return new GlobalIdleChunkList(Long.MAX_VALUE, direct, 256, 16, 60000, 2);
     }
 
     // returnIdleChunk in production is always preceded by a budget borrow (in BuddyBufferPool.shrink),
@@ -44,24 +44,24 @@ public class GlobalIdleChunkListTest {
     @Test
     public void testRunAllocatesToTargetSize() {
         GlobalIdleChunkList list = newList(false);
-        // empty list: run() should pre-allocate exactly TARGET_SIZE chunks
+        // empty list: run() should pre-allocate exactly targetSize chunks
         list.run();
         BuddyChunk c1 = list.borrowIdleChunk();
         BuddyChunk c2 = list.borrowIdleChunk();
         assertNotNull(c1);
         assertNotNull(c2);
         assertEquals(256, c1.rootBuffer.capacity());
-        // only TARGET_SIZE chunks were pre-allocated
+        // only targetSize chunks were pre-allocated
         assertNull(list.borrowIdleChunk());
     }
 
     @Test
     public void testRunEvictsTimedOutChunks() {
-        // direct mode: weakRefCache is disabled, so idleChunks can exceed TARGET_SIZE and
+        // direct mode: weakRefCache is disabled, so idleChunks can exceed targetSize and
         // timed-out chunks are pruned by run()
         GlobalIdleChunkList list = newList(true);
         long now = System.nanoTime();
-        // fill with 3 chunks (more than TARGET_SIZE=2); the first one (head) is stale
+        // fill with 3 chunks (more than targetSize=2); the first one (head) is stale
         BuddyChunk stale = new BuddyChunk(true, 256, 16);
         stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
         returnWithBudget(list, stale);
@@ -82,7 +82,7 @@ public class GlobalIdleChunkListTest {
     @Test
     public void testRunKeepsFreshChunksWhenOverTarget() {
         // regression: the cleanup loop must break (not spin forever) when the head chunk
-        // has not timed out, even though idleChunks.size() > TARGET_SIZE
+        // has not timed out, even though idleChunks.size() > targetSize
         GlobalIdleChunkList list = newList(false);
         long now = System.nanoTime();
         for (int i = 0; i < 3; i++) {
@@ -99,7 +99,7 @@ public class GlobalIdleChunkListTest {
 
     @Test
     public void testHeapTimeoutGoesToWeakRefCache() {
-        // heap mode: timed-out chunks beyond TARGET_SIZE are moved to the weak-ref cache
+        // heap mode: timed-out chunks beyond targetSize are moved to the weak-ref cache
         // (instead of being destroyed) so they can be reclaimed if still referenced
         GlobalIdleChunkList list = newList(false);
         long now = System.nanoTime();
@@ -125,7 +125,7 @@ public class GlobalIdleChunkListTest {
     @Test
     public void testWeakRefCacheBudgetReleasedAndReacquired() {
         // total budget allows 3 chunks (768 = 3 * 256)
-        GlobalIdleChunkList list = new GlobalIdleChunkList(768, false, 256, 16, 60000);
+        GlobalIdleChunkList list = new GlobalIdleChunkList(768, false, 256, 16, 60000, 2);
         long now = System.nanoTime();
         BuddyChunk stale = new BuddyChunk(false, 256, 16);
         stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
@@ -157,7 +157,7 @@ public class GlobalIdleChunkListTest {
         // after timed-out chunks are moved to the weak-ref cache, a subsequent run() should
         // reclaim them into idleChunks instead of allocating fresh chunks
         // budget allows only 1 chunk (256), so the second run can only reclaim, not allocate
-        GlobalIdleChunkList list = new GlobalIdleChunkList(256, false, 256, 16, 60000);
+        GlobalIdleChunkList list = new GlobalIdleChunkList(256, false, 256, 16, 60000, 2);
         long now = System.nanoTime();
         BuddyChunk stale = new BuddyChunk(false, 256, 16);
         stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
@@ -169,7 +169,7 @@ public class GlobalIdleChunkListTest {
         fresh2.lastFullFreeNanos = now;
         returnWithBudget(list, fresh2);
 
-        // first run: stale (beyond TARGET_SIZE) is moved to weak-ref cache
+        // first run: stale (beyond targetSize) is moved to weak-ref cache
         list.run();
         // drain idleChunks so the reclaim path is exercised on the next run
         list.borrowIdleChunk();
@@ -184,7 +184,7 @@ public class GlobalIdleChunkListTest {
     @Test
     public void testBorrowIdleChunkReturnsNullWhenBudgetExhausted() {
         // when budget is insufficient, borrowIdleChunk must not take a chunk from weakRefCache
-        GlobalIdleChunkList list = new GlobalIdleChunkList(768, false, 256, 16, 60000);
+        GlobalIdleChunkList list = new GlobalIdleChunkList(768, false, 256, 16, 60000, 2);
         long now = System.nanoTime();
         BuddyChunk stale = new BuddyChunk(false, 256, 16);
         stale.lastFullFreeNanos = now - TimeUnit.MILLISECONDS.toNanos(120000);
@@ -196,7 +196,7 @@ public class GlobalIdleChunkListTest {
         fresh2.lastFullFreeNanos = now;
         returnWithBudget(list, fresh2);
 
-        // run() moves stale (beyond TARGET_SIZE) to weak-ref cache, releasing its budget
+        // run() moves stale (beyond targetSize) to weak-ref cache, releasing its budget
         list.run();
         // drain idleChunks
         list.borrowIdleChunk();

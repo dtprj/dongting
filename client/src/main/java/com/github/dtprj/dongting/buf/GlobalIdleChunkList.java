@@ -25,8 +25,7 @@ import java.util.LinkedList;
  */
 public class GlobalIdleChunkList extends ShareBudget implements Runnable {
 
-    static final int TARGET_SIZE = 2;
-
+    private final int targetSize;
     private final int chunkSize;
     private final int minBlockSize;
     private final boolean direct;
@@ -36,8 +35,10 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
     private final WeakRefCache<BuddyChunk> weakRefCache;
     private final long timeoutNanos;
 
-    GlobalIdleChunkList(long total, boolean direct, int chunkSize, int minBlockSize, long timeoutMillis) {
+    GlobalIdleChunkList(long total, boolean direct, int chunkSize, int minBlockSize, long timeoutMillis,
+                        int targetSize) {
         super(total, true);
+        this.targetSize = targetSize;
         this.chunkSize = chunkSize;
         this.minBlockSize = minBlockSize;
         this.direct = direct;
@@ -52,7 +53,7 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
         int needAllocate = 0;
         LinkedList<BuddyChunk> destroyList = null;
         synchronized (this) {
-            while (idleChunks.size() > TARGET_SIZE) {
+            while (idleChunks.size() > targetSize) {
                 BuddyChunk chunk = idleChunks.peekFirst();
                 if (now - chunk.lastFullFreeNanos > timeoutNanos) {
                     idleChunks.pollFirst();
@@ -72,7 +73,7 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
             }
             // reclaim cached chunks first so we avoid fresh allocation when possible
             if (weakRefCache != null) {
-                while (idleChunks.size() < TARGET_SIZE) {
+                while (idleChunks.size() < targetSize) {
                     if (!borrow0(chunkSize)) {
                         break;
                     }
@@ -86,7 +87,7 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
                 }
                 weakRefCache.cleanHeadAndTail();
             }
-            for (int i = 0; i < TARGET_SIZE - idleChunks.size(); i++) {
+            for (int i = 0; i < targetSize - idleChunks.size(); i++) {
                 if (borrow0(chunkSize)) {
                     needAllocate++;
                 }
