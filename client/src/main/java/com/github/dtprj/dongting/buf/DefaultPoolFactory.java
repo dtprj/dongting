@@ -93,13 +93,15 @@ public class DefaultPoolFactory implements PoolFactory {
         return new BuddyBufferPool(c, direct ? directChunkList : heapChunkList);
     }
 
-    private static long calcByMem(long maxMemory, long size) {
+    protected long calcByMem(long maxMemory, long size) {
         if (maxMemory < 1.01 * 1024 * 1024 * 1024) {
             return Math.max(size / 4, 1);
         } else if (maxMemory < 2.01 * 1024 * 1024 * 1024) {
             return Math.max(size / 2, 1);
         } else if (maxMemory >= 8L * 1000 * 1000 * 1000) {
             return size * 2;
+        } else if (maxMemory >= 16L * 1000 * 1000 * 1000) {
+            return size * 4;
         } else {
             return size;
         }
