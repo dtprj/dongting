@@ -44,17 +44,18 @@ public class DefaultPoolFactory implements PoolFactory {
     private static final int DEFAULT_GLOBAL_MAX_CHUNK_COUNT = 8;
     private static final long DEFAULT_LARGE_SHARE = 400 * 1024 * 1024;
 
-    private static final long LARGE_POOL_TIMEOUT_MILLIS = 60_000;
+    private static final long LARGE_POOL_GLOBAL_TIMEOUT_MILLIS = 60_000;
+    private static final long LARGE_POOL_TIMEOUT_MILLIS = 2000;
 
     public static final int DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
     public static final int DEFAULT_MIN_BLOCK_SIZE = 16 * 1024;
 
     private final GlobalIdleChunkList heapChunkList =
             new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, false, DEFAULT_CHUNK_SIZE,
-                    DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_TIMEOUT_MILLIS);
+                    DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_GLOBAL_TIMEOUT_MILLIS);
     private final GlobalIdleChunkList directChunkList =
             new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, true, DEFAULT_CHUNK_SIZE,
-                    DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_TIMEOUT_MILLIS);
+                    DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_GLOBAL_TIMEOUT_MILLIS);
 
     public static final DefaultPoolFactory INSTANCE = new DefaultPoolFactory();
 
