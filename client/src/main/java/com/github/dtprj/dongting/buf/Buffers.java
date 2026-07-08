@@ -185,10 +185,13 @@ public class Buffers {
     }
 
     private RefBuffer borrowHeap0(boolean plain, int requestSize, int threshold, boolean crossThreadRelease) {
+        if (requestSize <= threshold) {
+            return heapPool.newUnpooledRefBuffer(plain, requestSize);
+        }
         if (requestSize > heapPool.bufSizeMax) {
-            return heapLargePool.borrow(plain, requestSize, threshold, crossThreadRelease ? largeHeapThreadSafeReleasor : largeHeapLocalReleasor);
+            return heapLargePool.borrow(plain, requestSize, crossThreadRelease ? largeHeapThreadSafeReleasor : largeHeapLocalReleasor);
         } else {
-            return heapPool.borrow(plain, requestSize, threshold, crossThreadRelease ? heapThreadSafeReleasor : heapLocalReleasor);
+            return heapPool.borrow(plain, requestSize, crossThreadRelease ? heapThreadSafeReleasor : heapLocalReleasor);
         }
     }
 
@@ -214,10 +217,13 @@ public class Buffers {
     }
 
     private RefBuffer borrowDirect0(boolean plain, int requestSize, int threshold, boolean crossThreadRelease) {
+        if (requestSize <= threshold) {
+            return directPool.newUnpooledRefBuffer(plain, requestSize);
+        }
         if (requestSize > directPool.bufSizeMax) {
-            return directLargePool.borrow(plain, requestSize, threshold, crossThreadRelease ? largeDirectThreadSafeReleasor : largeDirectLocalReleasor);
+            return directLargePool.borrow(plain, requestSize, crossThreadRelease ? largeDirectThreadSafeReleasor : largeDirectLocalReleasor);
         } else {
-            return directPool.borrow(plain, requestSize, threshold, crossThreadRelease ? directThreadSafeReleasor : directLocalReleasor);
+            return directPool.borrow(plain, requestSize, crossThreadRelease ? directThreadSafeReleasor : directLocalReleasor);
         }
     }
 

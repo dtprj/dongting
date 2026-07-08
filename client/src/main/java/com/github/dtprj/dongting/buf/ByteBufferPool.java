@@ -32,10 +32,10 @@ public abstract class ByteBufferPool {
         this.threshold = threshold;
     }
 
-    public abstract RefBuffer borrow(boolean plain, int requestSize, int threshold);
+    public abstract RefBuffer borrow(boolean plain, int requestSize);
 
     // borrow with an explicit releasor so the caller (Buffers) can control release routing
-    abstract RefBuffer borrow(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor);
+    abstract RefBuffer borrow(boolean plain, int requestSize, Consumer<RefBuffer> releasor);
 
     public void release(RefBuffer rb) {
         releaseBuffer(rb.buffer);

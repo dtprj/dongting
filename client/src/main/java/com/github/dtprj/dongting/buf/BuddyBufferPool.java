@@ -91,12 +91,12 @@ public class BuddyBufferPool extends ByteBufferPool {
     }
 
     @Override
-    public RefBuffer borrow(boolean plain, int requestSize, int threshold) {
-        return borrow(plain, requestSize, threshold, defaultReleasor);
+    public RefBuffer borrow(boolean plain, int requestSize) {
+        return borrow(plain, requestSize, defaultReleasor);
     }
 
     @Override
-    RefBuffer borrow(boolean plain, int requestSize, int threshold, Consumer<RefBuffer> releasor) {
+    RefBuffer borrow(boolean plain, int requestSize, Consumer<RefBuffer> releasor) {
         if (requestSize <= 0) {
             throw new IllegalArgumentException("requestSize must be positive: " + requestSize);
         }

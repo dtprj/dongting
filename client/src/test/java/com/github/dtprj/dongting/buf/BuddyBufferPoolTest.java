@@ -50,11 +50,11 @@ public class BuddyBufferPoolTest {
     public void testBorrowSize() {
         BuddyBufferPool pool = newPool(false, 256, 16, 1, 2);
         // requestSize <= threshold(minBlock/2=8) goes unpooled with exact size
-        assertEquals(1, pool.borrow(false, 1, 0).getBuffer().capacity());
-        assertEquals(16, pool.borrow(false, 16, 0).getBuffer().capacity());
-        assertEquals(32, pool.borrow(false, 17, 0).getBuffer().capacity());
-        assertEquals(256, pool.borrow(false, 256, 0).getBuffer().capacity());
-        RefBuffer big = pool.borrow(false, 257, 0);
+        assertEquals(1, pool.borrow(false, 1).getBuffer().capacity());
+        assertEquals(16, pool.borrow(false, 16).getBuffer().capacity());
+        assertEquals(32, pool.borrow(false, 17).getBuffer().capacity());
+        assertEquals(256, pool.borrow(false, 256).getBuffer().capacity());
+        RefBuffer big = pool.borrow(false, 257);
         assertEquals(257, big.getBuffer().capacity());
         big.release();
     }
@@ -62,11 +62,11 @@ public class BuddyBufferPoolTest {
     @Test
     public void testSplitAndCoalesce() {
         BuddyBufferPool pool = newPool(false, 256, 16, 1, 1);
-        RefBuffer full = pool.borrow(false, 256, 0);
+        RefBuffer full = pool.borrow(false, 256);
         assertEquals(256, full.getBuffer().capacity());
         full.release();
         // after release the whole chunk coalesces back; a full-chunk borrow must succeed again
-        RefBuffer full2 = pool.borrow(false, 256, 0);
+        RefBuffer full2 = pool.borrow(false, 256);
         assertEquals(256, full2.getBuffer().capacity());
         full2.release();
     }
@@ -75,14 +75,14 @@ public class BuddyBufferPoolTest {
     public void testBuddyMergeAfterRelease() {
         BuddyBufferPool pool = newPool(false, 256, 16, 1, 1);
         // split chunk into two 128-byte halves
-        RefBuffer a = pool.borrow(false, 128, 0);
-        RefBuffer b = pool.borrow(false, 128, 0);
+        RefBuffer a = pool.borrow(false, 128);
+        RefBuffer b = pool.borrow(false, 128);
         assertEquals(128, a.getBuffer().capacity());
         assertEquals(128, b.getBuffer().capacity());
         a.release();
         b.release();
         // both halves freed -> coalesce -> a 256-byte block available again
-        RefBuffer full = pool.borrow(false, 256, 0);
+        RefBuffer full = pool.borrow(false, 256);
         assertEquals(256, full.getBuffer().capacity());
         full.release();
     }
@@ -92,11 +92,11 @@ public class BuddyBufferPoolTest {
         BuddyBufferPool pool = newPool(false, 256, 16, 1, 1);
         RefBuffer[] rbs = new RefBuffer[16];
         for (int i = 0; i < 16; i++) {
-            rbs[i] = pool.borrow(false, 16, 0);
+            rbs[i] = pool.borrow(false, 16);
             assertEquals(16, rbs[i].getBuffer().capacity());
         }
         // chunk full, maxChunk reached: a following pooled-size request falls back to unpooled
-        RefBuffer extra = pool.borrow(false, 64, 0);
+        RefBuffer extra = pool.borrow(false, 64);
         assertEquals(64, extra.getBuffer().capacity());
         for (RefBuffer rb : rbs) {
             rb.release();
@@ -107,9 +107,9 @@ public class BuddyBufferPoolTest {
     @Test
     public void testChunkGrowth() {
         BuddyBufferPool pool = newPool(false, 256, 16, 0, 2);
-        RefBuffer c1 = pool.borrow(false, 256, 0);
-        RefBuffer c2 = pool.borrow(false, 256, 0);
-        RefBuffer c3 = pool.borrow(false, 256, 0);
+        RefBuffer c1 = pool.borrow(false, 256);
+        RefBuffer c2 = pool.borrow(false, 256);
+        RefBuffer c3 = pool.borrow(false, 256);
         assertEquals(256, c1.getBuffer().capacity());
         assertEquals(256, c2.getBuffer().capacity());
         assertEquals(256, c3.getBuffer().capacity());
@@ -121,7 +121,7 @@ public class BuddyBufferPoolTest {
     @Test
     public void testDoubleRelease() {
         BuddyBufferPool pool = newPool(false, 256, 16, 1, 1);
-        ByteBuffer buf = pool.borrow(false, 16, 0).getBuffer();
+        ByteBuffer buf = pool.borrow(false, 16).getBuffer();
         pool.releaseBuffer(buf);
         assertThrows(DtBugException.class, () -> pool.releaseBuffer(buf));
     }
@@ -145,9 +145,9 @@ public class BuddyBufferPoolTest {
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, true, ts, 256, 16, 1, 3, 100), unlimited(false, 256, 16));
-        RefBuffer b1 = pool.borrow(false, 256, 0);
-        RefBuffer b2 = pool.borrow(false, 256, 0);
-        RefBuffer b3 = pool.borrow(false, 256, 0);
+        RefBuffer b1 = pool.borrow(false, 256);
+        RefBuffer b2 = pool.borrow(false, 256);
+        RefBuffer b3 = pool.borrow(false, 256);
         b1.release();
         b2.release();
         b3.release();
@@ -163,8 +163,8 @@ public class BuddyBufferPoolTest {
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, true, ts, 256, 16, 2, 4, 100), unlimited(false, 256, 16));
-        RefBuffer b1 = pool.borrow(false, 256, 0);
-        RefBuffer b2 = pool.borrow(false, 256, 0);
+        RefBuffer b1 = pool.borrow(false, 256);
+        RefBuffer b2 = pool.borrow(false, 256);
         b1.release();
         b2.release();
         // advance the pool clock past the timeout; minChunkCount chunks are still kept
@@ -181,8 +181,8 @@ public class BuddyBufferPoolTest {
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 true, true, ts, 256, 16, 0, 2, 100), unlimited(true, 256, 16));
-        RefBuffer b1 = pool.borrow(false, 256, 0);
-        RefBuffer b2 = pool.borrow(false, 256, 0);
+        RefBuffer b1 = pool.borrow(false, 256);
+        RefBuffer b2 = pool.borrow(false, 256);
         b1.release();
         b2.release();
         // advance the pool clock past the timeout so shrink reclaims all chunks
@@ -190,7 +190,7 @@ public class BuddyBufferPoolTest {
         pool.shrink();
         assertTrue(pool.formatStat().contains("chunks 0("));
         // after all chunks (including the hinted one) are reclaimed, borrow must allocate fresh
-        RefBuffer after = pool.borrow(false, 256, 0);
+        RefBuffer after = pool.borrow(false, 256);
         assertEquals(256, after.getBuffer().capacity());
         after.release();
     }
@@ -198,8 +198,8 @@ public class BuddyBufferPoolTest {
     @Test
     public void testDirectSliceContent() {
         BuddyBufferPool pool = newPool(true, 256, 16, 1, 1);
-        RefBuffer a = pool.borrow(false, 16, 0);
-        RefBuffer b = pool.borrow(false, 16, 0);
+        RefBuffer a = pool.borrow(false, 16);
+        RefBuffer b = pool.borrow(false, 16);
         ByteBuffer ba = a.getBuffer();
         ByteBuffer bb = b.getBuffer();
         ba.put(0, (byte) 0xA1);
@@ -213,8 +213,8 @@ public class BuddyBufferPoolTest {
     @Test
     public void testNonPositiveRequest() {
         BuddyBufferPool pool = newPool(false, 256, 16, 1, 2);
-        assertThrows(IllegalArgumentException.class, () -> pool.borrow(false, 0, 0));
-        assertThrows(IllegalArgumentException.class, () -> pool.borrow(false, -1, 0));
+        assertThrows(IllegalArgumentException.class, () -> pool.borrow(false, 0));
+        assertThrows(IllegalArgumentException.class, () -> pool.borrow(false, -1));
     }
 
     @Test
@@ -229,7 +229,7 @@ public class BuddyBufferPoolTest {
                 try {
                     Random rand = new Random();
                     for (int i = 0; i < 1000; i++) {
-                        RefBuffer rb = pool.borrow(false, rand.nextInt(1024) + 1, 0);
+                        RefBuffer rb = pool.borrow(false, rand.nextInt(1024) + 1);
                         rb.release();
                     }
                 } catch (Throwable t) {
@@ -257,13 +257,13 @@ public class BuddyBufferPoolTest {
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, true, ts, 256, 16, 0, 2, 60000), budget);
         // two chunks within maxChunkCount (no budget consumed)
-        RefBuffer c1 = pool.borrow(false, 256, 0);
-        RefBuffer c2 = pool.borrow(false, 256, 0);
+        RefBuffer c1 = pool.borrow(false, 256);
+        RefBuffer c2 = pool.borrow(false, 256);
         // third chunk: beyond maxChunkCount, budget allows one
-        RefBuffer c3 = pool.borrow(false, 256, 0);
+        RefBuffer c3 = pool.borrow(false, 256);
         assertEquals(256, c3.getBuffer().capacity());
         // fourth: budget exhausted -> falls back to unpooled
-        RefBuffer c4 = pool.borrow(false, 256, 0);
+        RefBuffer c4 = pool.borrow(false, 256);
         assertEquals(256, c4.getBuffer().capacity());
         assertTrue(pool.formatStat().contains("unpooled 1"));
         c4.release();
@@ -272,7 +272,7 @@ public class BuddyBufferPoolTest {
         ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(70000);
         pool.shrink();
         // c3's chunk moved to the idle list; the next borrow reuses it via chunkListHit
-        RefBuffer c5 = pool.borrow(false, 256, 0);
+        RefBuffer c5 = pool.borrow(false, 256);
         assertEquals(256, c5.getBuffer().capacity());
         assertTrue(pool.formatStat().contains("unpooled 1"));
         c1.release();
@@ -295,8 +295,8 @@ public class BuddyBufferPoolTest {
         Timestamp ts = new Timestamp();
         BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
                 false, true, ts, 256, 16, 0, 2, 60000), unlimited(false, 256, 16));
-        RefBuffer b1 = pool.borrow(false, 256, 0);
-        RefBuffer b2 = pool.borrow(false, 256, 0);
+        RefBuffer b1 = pool.borrow(false, 256);
+        RefBuffer b2 = pool.borrow(false, 256);
         // both chunks have outstanding buffers, destroy reclaims nothing
         pool.destroy();
         assertTrue(pool.formatStat().contains("chunks 2("));
@@ -320,14 +320,14 @@ public class BuddyBufferPoolTest {
                 false, true, ts2, 256, 16, 0, 2, 60000), shared);
 
         // poolA allocates a chunk, then returns it to the shared idle list via shrink
-        RefBuffer a = poolA.borrow(false, 256, 0);
+        RefBuffer a = poolA.borrow(false, 256);
         a.release();
         ts1.nanoTime += TimeUnit.MILLISECONDS.toNanos(70000);
         poolA.shrink();
         assertTrue(poolA.formatStat().contains("chunks 0("));
 
         // poolB borrow hits the shared idle list (chunkListHit) instead of allocating fresh
-        RefBuffer b = poolB.borrow(false, 256, 0);
+        RefBuffer b = poolB.borrow(false, 256);
         assertEquals(256, b.getBuffer().capacity());
         assertTrue(poolB.formatStat().contains("chunkListHit 1"));
         b.release();
