@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.bench.raft;
 import com.github.dtprj.dongting.bench.common.BenchBase;
 import com.github.dtprj.dongting.bench.common.PrometheusPerfCallback;
 import com.github.dtprj.dongting.bench.common.TestProps;
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
@@ -114,7 +115,7 @@ public class RaftBenchmark extends BenchBase {
     }
 
     private DefaultRaftFactory createRaftFactory(int nodeId) {
-        return new DefaultRaftFactory() {
+        return new DefaultRaftFactory(DefaultPoolFactory.INSTANCE) {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 return new DtKV(groupConfig, new KvServerConfig());

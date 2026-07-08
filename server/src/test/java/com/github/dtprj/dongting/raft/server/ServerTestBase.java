@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
@@ -187,7 +188,7 @@ public class ServerTestBase {
     }
 
     private DefaultRaftFactory createRaftFactory(int nodeId) {
-        return new DefaultRaftFactory() {
+        return new DefaultRaftFactory(DefaultPoolFactory.INSTANCE) {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 KvServerConfig config = new KvServerConfig();

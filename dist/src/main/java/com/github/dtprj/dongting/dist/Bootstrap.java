@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dist;
 
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
@@ -189,7 +190,7 @@ public class Bootstrap {
     }
 
     protected RaftFactory createRaftFactory() {
-        return new DefaultRaftFactory() {
+        return new DefaultRaftFactory(DefaultPoolFactory.INSTANCE) {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 KvServerConfig kvConfig = new KvServerConfig();

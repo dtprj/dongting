@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.demos.advanced.base;
 
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
@@ -52,7 +53,7 @@ public abstract class DemoKvServerBase {
             groupConfigs.add(raftConfig(nodeId, groupId, members, observers));
         }
 
-        DefaultRaftFactory raftFactory = new DefaultRaftFactory() {
+        DefaultRaftFactory raftFactory = new DefaultRaftFactory(DefaultPoolFactory.INSTANCE) {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 // the state machine can be customized, here use DtKV, a simple key-value store

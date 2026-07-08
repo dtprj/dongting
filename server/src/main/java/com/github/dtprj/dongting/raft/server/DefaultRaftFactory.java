@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
@@ -42,12 +41,8 @@ public abstract class DefaultRaftFactory implements RaftFactory {
 
     protected final PoolFactory poolFactory;
 
-    public DefaultRaftFactory() {
-        this.poolFactory = createPoolFactory();
-    }
-
-    protected PoolFactory createPoolFactory() {
-        return DefaultPoolFactory.INSTANCE;
+    public DefaultRaftFactory(PoolFactory poolFactory) {
+        this.poolFactory = poolFactory;
     }
 
     @Override
