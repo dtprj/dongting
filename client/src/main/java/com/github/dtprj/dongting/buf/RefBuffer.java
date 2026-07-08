@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 /**
  * @author huangli
  */
+// TODO cache RefBuffer
 public final class RefBuffer extends RefCount implements Encodable {
 
     public static final RefBuffer EMPTY = new RefBuffer(ByteBuffer.allocate(0));
