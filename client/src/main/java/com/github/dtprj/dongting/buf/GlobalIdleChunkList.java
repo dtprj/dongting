@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.VersionFactory;
 
 import java.util.ArrayList;
@@ -128,6 +129,7 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
 
     public BuddyChunk borrowIdleChunk() {
         BuddyChunk chunk;
+        boolean schedule;
         synchronized (this) {
             if (!idleChunks.isEmpty()) {
                 chunk = idleChunks.pollLast();
@@ -139,13 +141,22 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
             } else {
                 chunk = null;
             }
+            schedule = idleChunks.isEmpty();
+        }
+        if (schedule) {
+            DtUtil.LOW_PRIORITY_SCHEDULER.execute(this);
         }
         return chunk;
     }
 
     public void returnIdleChunk(BuddyChunk chunk) {
+        boolean schedule;
         synchronized (this) {
             idleChunks.addLast(chunk);
+            schedule = idleChunks.size() > targetSize;
+        }
+        if (schedule) {
+            DtUtil.LOW_PRIORITY_SCHEDULER.execute(this);
         }
     }
 

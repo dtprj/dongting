@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtBugException;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.common.VersionFactory;
 
@@ -185,7 +184,6 @@ public class BuddyBufferPool extends ByteBufferPool {
                 statNewChunkCount++;
                 offset = chunk.allocate(targetLevel); // new chunk allocate should success
                 hintChunk = chunk;
-                DtUtil.LOW_PRIORITY_SCHEDULER.execute(globalIdleChunkList);
             }
         }
         if (chunk != null && offset >= 0) {
