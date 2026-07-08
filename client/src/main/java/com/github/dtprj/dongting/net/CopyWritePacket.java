@@ -38,7 +38,7 @@ public abstract class CopyWritePacket extends WritePacket {
                 encodeBody(dest);
                 return true;
             } else {
-                tempRefBuffer = context.buffers.borrow(bodySize, false, true, 256);
+                tempRefBuffer = context.buffers.borrowLocal(bodySize);
                 ByteBuffer tempBuf = tempRefBuffer.getBuffer();
                 encodeBody(tempBuf);
                 tempBuf.flip();
