@@ -35,6 +35,9 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
     // weak-ref overflow cache for heap chunks; null for direct buffers (iceberg objects)
     private final WeakRefCache<BuddyChunk> weakRefCache;
     private final long timeoutNanos;
+    // true while a run() has been queued but not yet executed; prevents flooding
+    // the shared LOW_PRIORITY_SCHEDULER with duplicate tasks
+    private boolean scheduled;
 
     GlobalIdleChunkList(long total, boolean direct, int chunkSize, int minBlockSize, long timeoutMillis,
                         int targetSize) {
@@ -54,6 +57,7 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
         int needAllocate = 0;
         LinkedList<BuddyChunk> destroyList = null;
         synchronized (this) {
+            scheduled = false;
             while (idleChunks.size() > targetSize) {
                 BuddyChunk chunk = idleChunks.peekFirst();
                 if (now - chunk.lastFullFreeNanos > timeoutNanos) {
@@ -129,7 +133,7 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
 
     public BuddyChunk borrowIdleChunk() {
         BuddyChunk chunk;
-        boolean schedule;
+        boolean schedule = false;
         synchronized (this) {
             if (!idleChunks.isEmpty()) {
                 chunk = idleChunks.pollLast();
@@ -141,7 +145,10 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
             } else {
                 chunk = null;
             }
-            schedule = idleChunks.isEmpty();
+            if (idleChunks.isEmpty() && !scheduled) {
+                scheduled = true;
+                schedule = true;
+            }
         }
         if (schedule) {
             DtUtil.LOW_PRIORITY_SCHEDULER.execute(this);
@@ -150,10 +157,13 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
     }
 
     public void returnIdleChunk(BuddyChunk chunk) {
-        boolean schedule;
+        boolean schedule = false;
         synchronized (this) {
             idleChunks.addLast(chunk);
-            schedule = idleChunks.size() > targetSize;
+            if (idleChunks.size() > targetSize && !scheduled) {
+                scheduled = true;
+                schedule = true;
+            }
         }
         if (schedule) {
             DtUtil.LOW_PRIORITY_SCHEDULER.execute(this);
