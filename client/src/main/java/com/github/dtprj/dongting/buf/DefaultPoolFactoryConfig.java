@@ -27,17 +27,17 @@ public class DefaultPoolFactoryConfig {
     public int[] smallSize = new int[]{128, 192, 256, 384, 512, 768, 1024, 1536,
             2 * 1024, 3 * 1024, 4 * 1024, 6 * 1024, 8 * 1024, 12 * 1024};
 
-    public long smallPoolSlotMinSize = 768 * 1024; // 14 slots total 10752KB
-    public long smallPoolSlotMaxSize = smallPoolSlotMinSize * 2;
-    public long smallPoolShareSize = smallPoolSlotMinSize * smallSize.length;
+    public long smallSlotMinSize = 768 * 1024; // 14 slots total 10752KB
+    public long smallSlotMaxSize = smallSlotMinSize * 2;
+    public long smallShareSize = smallSlotMinSize * smallSize.length;
 
-    public int globalMinChunkCount = 4;
-    public int globalMaxChunkCount = 8;
-    public long largeShare = 400 * 1024 * 1024;
+    public int largeMinChunkCount = 4;
+    public int largeMaxChunkCount = 8;
+    public long largeShareSize = 400 * 1024 * 1024;
 
-    public long largePoolGlobalTimeoutMillis = 60_000;
-    public long largePoolTimeoutMillis = 2000;
+    public long largeGlobalTimeoutMillis = 60_000;
+    public long largeTimeoutMillis = 2000;
 
-    public int chunkSize = 4 * 1024 * 1024;
-    public int minBlockSize = 16 * 1024;
+    public int largeChunkSize = 4 * 1024 * 1024;
+    public int largeMinBlockSize = 16 * 1024;
 }
