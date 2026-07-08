@@ -26,13 +26,15 @@ import java.util.Arrays;
  */
 public class RefBufferTest {
 
+    private static final DefaultPoolFactoryConfig CFG = new DefaultPoolFactoryConfig();
+
     private SimpleByteBufferPoolConfig createDefaultConfig() {
-        int[] sizes = DefaultPoolFactory.DEFAULT_SMALL_SIZE;
+        int[] sizes = CFG.smallSize;
         int[] minCount = new int[sizes.length];
         int[] maxCount = new int[sizes.length];
         Arrays.fill(minCount, 1);
         Arrays.fill(maxCount, 16);
-        return new SimpleByteBufferPoolConfig(false, DefaultPoolFactory.DEFAULT_THRESHOLD,
+        return new SimpleByteBufferPoolConfig(false, CFG.threshold,
                 sizes, minCount, maxCount);
     }
 

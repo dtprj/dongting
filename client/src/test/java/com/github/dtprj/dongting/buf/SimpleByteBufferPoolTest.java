@@ -11,13 +11,14 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import static com.github.dtprj.dongting.buf.DefaultPoolFactory.DEFAULT_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
  */
 public class SimpleByteBufferPoolTest {
+
+    private static final DefaultPoolFactoryConfig CFG = new DefaultPoolFactoryConfig();
 
     private SimpleByteBufferPool pool;
 
@@ -31,7 +32,7 @@ public class SimpleByteBufferPoolTest {
     }
 
     private SimpleByteBufferPoolConfig createDefaultConfig(int threshold) {
-        int[] sizes = DefaultPoolFactory.DEFAULT_SMALL_SIZE;
+        int[] sizes = CFG.smallSize;
         int[] minCount = new int[sizes.length];
         int[] maxCount = new int[sizes.length];
         Arrays.fill(minCount, 1);
@@ -41,24 +42,24 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testConstructor() {
-        SimpleByteBufferPoolConfig c1 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, null, null, null);
+        SimpleByteBufferPoolConfig c1 = new SimpleByteBufferPoolConfig(false, CFG.threshold, null, null, null);
         assertThrows(NullPointerException.class, () -> new SimpleByteBufferPool(c1));
 
-        SimpleByteBufferPoolConfig c2 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD,
+        SimpleByteBufferPoolConfig c2 = new SimpleByteBufferPoolConfig(false, CFG.threshold,
                 new int[]{100}, new int[]{1, 1}, new int[]{2, 2});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c2));
 
-        SimpleByteBufferPoolConfig c3 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD,
+        SimpleByteBufferPoolConfig c3 = new SimpleByteBufferPoolConfig(false, CFG.threshold,
                 new int[]{-1}, new int[]{1}, new int[]{2});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c3));
 
-        SimpleByteBufferPoolConfig c4 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, new int[]{128}, new int[]{-1}, new int[]{2});
+        SimpleByteBufferPoolConfig c4 = new SimpleByteBufferPoolConfig(false, CFG.threshold, new int[]{128}, new int[]{-1}, new int[]{2});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c4));
 
-        SimpleByteBufferPoolConfig c5 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, new int[]{128}, new int[]{1}, new int[]{-1});
+        SimpleByteBufferPoolConfig c5 = new SimpleByteBufferPoolConfig(false, CFG.threshold, new int[]{128}, new int[]{1}, new int[]{-1});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c5));
 
-        SimpleByteBufferPoolConfig c7 = new SimpleByteBufferPoolConfig(false, DEFAULT_THRESHOLD, new int[]{1024, 2048}, new int[]{10, 10}, new int[]{9, 9});
+        SimpleByteBufferPoolConfig c7 = new SimpleByteBufferPoolConfig(false, CFG.threshold, new int[]{1024, 2048}, new int[]{10, 10}, new int[]{9, 9});
         assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c7));
 
         // threshold must not exceed the smallest bucket
@@ -73,7 +74,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow1() {
-        pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
+        pool = new SimpleByteBufferPool(createDefaultConfig(CFG.threshold));
         ByteBuffer buf1 = borrowBuf(1);
         ByteBuffer buf2 = borrowBuf(1024);
         assertEquals(1, buf1.capacity());
@@ -87,7 +88,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow2() {
-        pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
+        pool = new SimpleByteBufferPool(createDefaultConfig(CFG.threshold));
         ByteBuffer buf1 = borrowBuf(1024);
         ByteBuffer buf2 = borrowBuf(1025);
         assertEquals(1024, buf1.capacity());
@@ -141,7 +142,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBadUsage() {
-        pool = new SimpleByteBufferPool(createDefaultConfig(DEFAULT_THRESHOLD));
+        pool = new SimpleByteBufferPool(createDefaultConfig(CFG.threshold));
         ByteBuffer buf1 = borrowBuf(400);
         pool.releaseBuffer(buf1);
         assertThrows(DtException.class, () -> pool.releaseBuffer(buf1));

@@ -32,36 +32,20 @@ public class DefaultPoolFactory implements PoolFactory {
 
     private static final DtLog log = DtLogs.getLogger(DefaultPoolFactory.class);
 
-    static final int DEFAULT_THRESHOLD = 64;
-    static final int[] DEFAULT_SMALL_SIZE = new int[]{128, 192, 256, 384, 512, 768, 1024, 1536,
-            2 * 1024, 3 * 1024, 4 * 1024, 6 * 1024, 8 * 1024, 12 * 1024};
+    public static final DefaultPoolFactory INSTANCE = new DefaultPoolFactory(new DefaultPoolFactoryConfig());
 
-    private static final long SMALL_POOL_SLOT_MIN_SIZE = 768 * 1024; // 14 slots total 10752KB
-    private static final long SMALL_POOL_SLOT_MAX_SIZE = SMALL_POOL_SLOT_MIN_SIZE * 2;
-    private static final long SMALL_POOL_SHARE_SIZE = SMALL_POOL_SLOT_MIN_SIZE * DEFAULT_SMALL_SIZE.length;
-
-    private static final int DEFAULT_GLOBAL_MIN_CHUNK_COUNT = 4;
-    private static final int DEFAULT_GLOBAL_MAX_CHUNK_COUNT = 8;
-    private static final long DEFAULT_LARGE_SHARE = 400 * 1024 * 1024;
-
-    private static final long LARGE_POOL_GLOBAL_TIMEOUT_MILLIS = 60_000;
-    private static final long LARGE_POOL_TIMEOUT_MILLIS = 2000;
-
-    public static final int DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
-    public static final int DEFAULT_MIN_BLOCK_SIZE = 16 * 1024;
-
-    private final GlobalIdleChunkList heapChunkList =
-            new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, false, DEFAULT_CHUNK_SIZE,
-                    DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_GLOBAL_TIMEOUT_MILLIS);
-    private final GlobalIdleChunkList directChunkList =
-            new GlobalIdleChunkList(DEFAULT_LARGE_SHARE, true, DEFAULT_CHUNK_SIZE,
-                    DEFAULT_MIN_BLOCK_SIZE, LARGE_POOL_GLOBAL_TIMEOUT_MILLIS);
-
-    public static final DefaultPoolFactory INSTANCE = new DefaultPoolFactory();
+    private final DefaultPoolFactoryConfig config;
+    private final GlobalIdleChunkList heapChunkList;
+    private final GlobalIdleChunkList directChunkList;
 
     private final ScheduledFuture<?> scheduledFuture;
 
-    protected DefaultPoolFactory() {
+    protected DefaultPoolFactory(DefaultPoolFactoryConfig config) {
+        this.config = config;
+        this.heapChunkList = new GlobalIdleChunkList(config.largeShare, false, config.chunkSize,
+                config.minBlockSize, config.largePoolGlobalTimeoutMillis);
+        this.directChunkList = new GlobalIdleChunkList(config.largeShare, true, config.chunkSize,
+                config.minBlockSize, config.largePoolGlobalTimeoutMillis);
         scheduledFuture = DtUtil.LOW_PRIORITY_SCHEDULER.scheduleAtFixedRate(() -> {
             try {
                 heapChunkList.run();
@@ -83,28 +67,29 @@ public class DefaultPoolFactory implements PoolFactory {
     }
 
     private SimpleByteBufferPool createSmallPool(long maxMemory, boolean direct) {
-        int[] minCount = new int[DEFAULT_SMALL_SIZE.length];
+        int[] sizes = config.smallSize;
+        int[] minCount = new int[sizes.length];
         for (int i = 0; i < minCount.length; i++) {
-            long count = SMALL_POOL_SLOT_MIN_SIZE / DEFAULT_SMALL_SIZE[i];
+            long count = config.smallPoolSlotMinSize / sizes[i];
             minCount[i] = (int) calcByMem(maxMemory, count);
         }
-        int[] maxCount = new int[DEFAULT_SMALL_SIZE.length];
+        int[] maxCount = new int[sizes.length];
         for (int i = 0; i < maxCount.length; i++) {
-            long count = SMALL_POOL_SLOT_MAX_SIZE / DEFAULT_SMALL_SIZE[i];
+            long count = config.smallPoolSlotMaxSize / sizes[i];
             maxCount[i] = (int) calcByMem(maxMemory, count);
         }
-        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(direct, direct ? 0 : DEFAULT_THRESHOLD,
-                DEFAULT_SMALL_SIZE, minCount, maxCount, calcByMem(maxMemory, SMALL_POOL_SHARE_SIZE));
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(direct, direct ? 0 : config.threshold,
+                sizes, minCount, maxCount, calcByMem(maxMemory, config.smallPoolShareSize));
         return new SimpleByteBufferPool(c);
     }
 
     private BuddyBufferPool createLargePool(Timestamp ts, long maxMemory, boolean direct) {
-        int minChunk = (int) calcByMem(maxMemory, DEFAULT_GLOBAL_MIN_CHUNK_COUNT);
-        int maxChunk = (int) calcByMem(maxMemory, DEFAULT_GLOBAL_MAX_CHUNK_COUNT);
+        int minChunk = (int) calcByMem(maxMemory, config.globalMinChunkCount);
+        int maxChunk = (int) calcByMem(maxMemory, config.globalMaxChunkCount);
         BuddyBufferPoolConfig c = new BuddyBufferPoolConfig(
-                direct, false, ts, DEFAULT_CHUNK_SIZE,
-                DEFAULT_MIN_BLOCK_SIZE,
-                minChunk, maxChunk, LARGE_POOL_TIMEOUT_MILLIS);
+                direct, false, ts, config.chunkSize,
+                config.minBlockSize,
+                minChunk, maxChunk, config.largePoolTimeoutMillis);
         return new BuddyBufferPool(c, direct ? directChunkList : heapChunkList);
     }
 
