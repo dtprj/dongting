@@ -165,14 +165,17 @@ public class DtFile {
         if (mappedBuffer != null) {
             return;
         }
-        FileChannel existingChannel = channel;
-        if (existingChannel != null && openOptions.contains(StandardOpenOption.READ)) {
-            mappedBuffer = existingChannel.map(FileChannel.MapMode.READ_ONLY, 0, existingChannel.size());
+        mappedBuffer = mmap(channel);
+    }
+
+    private MappedByteBuffer mmap(FileChannel ch) throws IOException {
+        if (ch != null && openOptions.contains(StandardOpenOption.READ)) {
+            return ch.map(FileChannel.MapMode.READ_ONLY, 0, ch.size());
         } else {
             FileChannel fc = null;
             try {
                 fc = FileChannel.open(file.toPath(), StandardOpenOption.READ);
-                mappedBuffer = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
+                return fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
             } finally {
                 DtUtil.close(fc);
             }
@@ -196,18 +199,7 @@ public class DtFile {
             FileChannel existingChannel = channel;
             ioExecutor.execute(() -> {
                 try {
-                    MappedByteBuffer buf;
-                    if (existingChannel != null && openOptions.contains(StandardOpenOption.READ)) {
-                        buf = existingChannel.map(FileChannel.MapMode.READ_ONLY, 0, existingChannel.size());
-                    } else {
-                        FileChannel fc = null;
-                        try {
-                            fc = FileChannel.open(file.toPath(), StandardOpenOption.READ);
-                            buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
-                        } finally {
-                            DtUtil.close(fc);
-                        }
-                    }
+                    MappedByteBuffer buf = mmap(existingChannel);
                     f.fireComplete(buf);
                 } catch (Throwable e) {
                     f.fireCompleteExceptionally(e);
