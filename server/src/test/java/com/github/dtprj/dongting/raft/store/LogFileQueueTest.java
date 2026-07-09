@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -37,7 +38,6 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -115,7 +115,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 InitFiberFrame.initRaftStatus(raftStatus, fiberGroup, serverConfig);
                 logFileQueue.initQueue();
                 FiberFrame<Integer> f = logFileQueue.restore(1, 0, 0);
@@ -340,7 +340,7 @@ public class LogFileQueueTest extends BaseFiberTest {
                 return logFileQueue.close().await(this::afterClose);
             }
 
-            private FrameCallResult afterClose(Void unused) throws IOException {
+            private FrameCallResult afterClose(Void unused) {
                 logFileQueue = new LogFileQueue(dir, config, idxOps);
                 logFileQueue.initQueue();
                 assertThrows(RaftException.class, () -> logFileQueue.restore(1, -1, 0));
@@ -430,6 +430,41 @@ public class LogFileQueueTest extends BaseFiberTest {
     }
 
     @Test
+    public void testRestoreSmallMetaBuf() throws Exception {
+        // shrink the metadata buffer to 2 items per batch so one file is restored across several io
+        // scans; the result must match a normal restore.
+        setup(1024, 1024);
+        append(false, 0L, 200, 200, 200, 200, 200);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return logFileQueue.close().await(this::afterClose);
+            }
+
+            private FrameCallResult afterClose(Void unused) {
+                logFileQueue = new LogFileQueue(dir, config, idxOps);
+                logFileQueue.restoreMetaBufSize = Restorer.ITEM_STRIDE * 2;
+                logFileQueue.initQueue();
+                FiberFrame<Integer> f = logFileQueue.restore(1, 0, 0);
+                return Fiber.call(f, this::resume);
+            }
+
+            private FrameCallResult resume(Integer integer) {
+                assertEquals(6, logFileQueue.logAppender.nextPersistIndex);
+                assertEquals(1024, logFileQueue.logAppender.nextPersistPos);
+                // verify all 5 items were put to idx across the batched scans
+                assertEquals(5, idxMap.size());
+                long pos = 0;
+                for (long idx = 1; idx <= 5; idx++) {
+                    assertEquals(pos, idxMap.get(idx));
+                    pos += 200;
+                }
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
     public void testRestore7() throws Exception {
         setup(1024, 1024);
         append(false, 0L, 200, 200, 1024);
@@ -440,7 +475,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             ByteBuffer data = load(0);
             data.putInt(0, data.getInt(0) + 1);
             write(0, data.array());
-        }, ex -> assertInstanceOf(RaftException.class, ex));
+        }, ex -> assertInstanceOf(RaftException.class, DtUtil.rootCause(ex)));
     }
 
     private void closeUpdateRestore(long restoreIndex, long restoreIndexPos,
@@ -458,7 +493,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 logFileQueue = new LogFileQueue(dir, config, idxOps);
                 logFileQueue.initQueue();
                 return Fiber.frameReturn();
@@ -515,7 +550,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             // now length exceed file size
             h.totalLen++;
             h.bodyLen++;
-        }), e -> assertTrue(e.getMessage().startsWith("header check fail")));
+        }), e -> assertTrue(DtUtil.rootCause(e).getMessage().startsWith("header check fail")));
     }
 
     @Test
@@ -550,7 +585,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 1024);
         append(false, 0L, 200, 200);
         closeUpdateRestore(2, 0, null,
-                e -> assertTrue(e.getMessage().startsWith("restoreIndex not match")));
+                e -> assertTrue(DtUtil.rootCause(e).getMessage().startsWith("restoreIndex not match")));
     }
 
     @Test
@@ -558,7 +593,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 1024);
         append(false, 0L, 200, 200);
         closeUpdateRestore(1, 0, () -> updateHeader(0, 0, h -> h.term = 0),
-                e -> assertTrue(e.getMessage().startsWith("invalid term")));
+                e -> assertTrue(DtUtil.rootCause(e).getMessage().startsWith("invalid term")));
     }
 
     @Test

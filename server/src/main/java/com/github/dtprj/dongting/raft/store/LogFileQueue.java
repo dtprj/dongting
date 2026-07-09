@@ -15,12 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -47,8 +45,6 @@ final class LogFileQueue extends FileQueue {
     private final RaftGroupConfigEx groupConfig;
     private final FiberGroup fiberGroup;
 
-    private final Buffers buffers;
-
     private final IdxOps idxOps;
 
     private final Timestamp ts;
@@ -56,6 +52,7 @@ final class LogFileQueue extends FileQueue {
     final LogAppender logAppender;
 
     int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
+    int restoreMetaBufSize = 1024 * 1024; // 1MB
 
     public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
         super(dir, groupConfig, groupConfig.logFileSize, true);
@@ -63,8 +60,6 @@ final class LogFileQueue extends FileQueue {
         this.idxOps = idxOps;
         this.ts = groupConfig.ts;
         this.fiberGroup = groupConfig.fiberGroup;
-        DispatcherThread t = fiberGroup.dispatcher.thread;
-        this.buffers = t.buffers;
 
         ChainWriter chainWriter = new ChainWriter("LogForce", groupConfig, this::writeFinish, this::forceFinish);
         chainWriter.setWritePerfType1(PerfConsts.RAFT_D_LOG_WRITE1);
@@ -107,7 +102,7 @@ final class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
-            final RefBuffer bufferRef = buffers.borrowLocal(maxWriteBufferSize);
+            final RefBuffer bufferRef = fiberGroup.dispatcher.thread.buffers.borrowLocal(restoreMetaBufSize);
 
             @Override
             public FrameCallResult execute(Void input) {
