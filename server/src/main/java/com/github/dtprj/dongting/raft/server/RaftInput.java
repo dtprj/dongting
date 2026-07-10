@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
  * @author huangli
  */
 public abstract class RaftInput {
-    public final int bizType;
     public final DtTime deadline;
     public final boolean readOnly;
     public final RaftReqData reqData;
@@ -32,13 +31,8 @@ public abstract class RaftInput {
     public Object bizHeader;
     public Object bizBody;
 
-    protected RaftInput(int bizType, RaftReqData reqData, Object bizHeader, Object bizBody,
+    protected RaftInput(RaftReqData reqData, Object bizHeader, Object bizBody,
                         DtTime deadline, boolean readOnly, RaftCallback callback) {
-        if (bizType < 0 || bizType > 127) {
-            // we use 1 byte to store bizType in raft log
-            throw new IllegalArgumentException("bizType must be in [0, 127]");
-        }
-        this.bizType = bizType;
         this.reqData = reqData;
         this.deadline = deadline;
         this.readOnly = readOnly;

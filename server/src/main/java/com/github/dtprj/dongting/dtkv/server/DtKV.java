@@ -181,7 +181,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
         KvReq req = (KvReq) input.bizBody;
         KvImpl kv = kvStatus.kvImpl;
-        int bizType = input.bizType;
+        int bizType = input.reqData.logHeader.bizType;
         kv.opContext.init(bizType, req.ownerUuid, req.ttlMillis, leaderCreateTimeMillis, localCreateNanos);
         ByteArray key = req.key == null ? null : new ByteArray(req.key);
         switch (bizType) {
@@ -213,7 +213,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_UNLOCK:
                 return kv.unlock(index, key);
             default:
-                throw new IllegalArgumentException("unknown bizType " + input.bizType);
+                throw new IllegalArgumentException("unknown bizType " + bizType);
         }
     }
 

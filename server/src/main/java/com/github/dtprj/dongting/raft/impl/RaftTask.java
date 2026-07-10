@@ -41,13 +41,13 @@ public class RaftTask extends RaftInput implements com.github.dtprj.dongting.cod
 
     public RaftTask(RaftReqData reqData, Object bizHeader, Object bizBody,
                     boolean readOnly) {
-        super(reqData.logHeader.bizType, reqData, bizHeader, bizBody, null, readOnly, null);
+        super(reqData, bizHeader, bizBody, null, readOnly, null);
         this.logHeader = reqData.logHeader;
     }
 
     public RaftTask(RaftReqData reqData, Object bizHeader, Object bizBody, DtTime deadline,
                     boolean readOnly, RaftCallback callback) {
-        super(reqData.logHeader.bizType, reqData, bizHeader, bizBody, deadline, readOnly, callback);
+        super(reqData, bizHeader, bizBody, deadline, readOnly, callback);
         this.logHeader = reqData.logHeader;
     }
 

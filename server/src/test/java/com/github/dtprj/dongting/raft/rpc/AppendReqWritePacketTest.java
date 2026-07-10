@@ -158,7 +158,7 @@ public class AppendReqWritePacketTest {
         for (int i = 0; i < f.logs.size(); i++) {
             RaftTask l1 = f.logs.get(i);
             RaftTask l2 = c.logs.get(i);
-            assertEquals(l1.bizType, l2.bizType);
+            assertEquals(l1.logHeader.bizType, l2.logHeader.bizType);
             assertEquals(l1.logHeader.index, l2.logHeader.index);
             assertEquals(l1.logHeader.term, l2.logHeader.term);
             assertEquals(l1.logHeader.timestamp, l2.logHeader.timestamp);

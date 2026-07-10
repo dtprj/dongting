@@ -76,7 +76,15 @@ public class RaftReqData extends RefCount {
         buf.limit(totalLen);
     }
 
+    private static void checkBizType(int bizType) {
+        if (bizType < 0 || bizType > 127) {
+            // we use 1 byte to store bizType in raft log
+            throw new IllegalArgumentException("bizType must be in [0, 127]");
+        }
+    }
+
     public static RaftReqData build(int type, int bizType) {
+        checkBizType(bizType);
         LogHeader logHeader = new LogHeader(type);
         logHeader.bizType = bizType;
         logHeader.totalLen = LogHeader.ITEM_HEADER_SIZE;
@@ -92,6 +100,7 @@ public class RaftReqData extends RefCount {
     }
 
     public static RaftReqData build(Buffers buffers, int type, int bizType, Encodable bizBody) {
+        checkBizType(bizType);
         if (bizBody == null) {
             return build(type, bizType);
         }
