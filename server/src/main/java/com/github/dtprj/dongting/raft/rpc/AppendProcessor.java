@@ -37,6 +37,7 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -313,21 +314,21 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         List<RaftTask> logs = req.logs;
         for (int i = 0, len = logs.size(); i < len; i++) {
             RaftTask li = logs.get(i);
-            LogHeader lh = li.logHeader;
-            if (lh.index != ++expectLogIndex) {
+            RaftReqData rd = li.reqData;
+            if (rd.index != ++expectLogIndex) {
                 log.error("bad request: log index not continuous at pos {}, expected={}, actual={}, leaderId={}",
-                        i, expectLogIndex, lh.index, req.leaderId);
+                        i, expectLogIndex, rd.index, req.leaderId);
                 writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index " + i + " not continuous");
                 return Fiber.frameReturn();
             }
 
             li.init(raftStatus.ts.nanoTime);
-            if (lh.index < raftStatus.groupReadyIndex && raftStatus.getRole() != RaftRole.none) {
-                log.info("set groupReadyIndex to {}, groupId={}", lh.index, raftStatus.groupId);
-                raftStatus.groupReadyIndex = lh.index;
+            if (rd.index < raftStatus.groupReadyIndex && raftStatus.getRole() != RaftRole.none) {
+                log.info("set groupReadyIndex to {}, groupId={}", rd.index, raftStatus.groupId);
+                raftStatus.groupReadyIndex = rd.index;
             }
             if (i == len - 1) {
-                registerRespWriter(raftStatus, lh.index);
+                registerRespWriter(raftStatus, rd.index);
             }
         }
         gc.commitManager.updateCommitHistory(req.leaderCommit);

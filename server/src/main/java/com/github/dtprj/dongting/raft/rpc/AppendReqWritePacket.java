@@ -72,7 +72,7 @@ public class AppendReqWritePacket extends WritePacket {
             for (int size = logs.size(), i = 0; i < size; i++) {
                 // assert itemSize > 0
                 RaftTask item = logs.get(i);
-                bodySize += item.logHeader.totalLen;
+                bodySize += item.reqData.totalLen;
             }
         }
 

@@ -173,13 +173,11 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
 
         RaftReqData reqData = RaftTaskTest.buildTestReqData(1, 2, bizHeader, bizBody);
-
-        LogHeader lh = reqData.logHeader;
-        lh.term = term;
-        lh.prevLogTerm = prevTerm;
-        lh.index = index;
-        lh.timestamp = config.ts.wallClockMillis;
-        lh.writeAndComputeCrc(new CRC32C(), reqData.buffer.getBuffer(), 0);
+        reqData.term = term;
+        reqData.prevLogTerm = prevTerm;
+        reqData.index = index;
+        reqData.timestamp = config.ts.wallClockMillis;
+        LogHeader.writeAndComputeCrc(reqData, new CRC32C(), reqData.buffer.getBuffer(), 0);
 
         return new RaftTask(reqData, null, null, false);
     }
@@ -210,7 +208,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             }
         });
 
-        assertEquals(items[items.length - 1].logHeader.index, raftStatus.lastForceLogIndex);
+        assertEquals(items[items.length - 1].reqData.index, raftStatus.lastForceLogIndex);
 
         if (!check) {
             return;
@@ -230,12 +228,12 @@ public class LogFileQueueTest extends BaseFiberTest {
             RaftTask item = items[i];
             LogHeader header = new LogHeader();
             assertTrue(header.readAndCheckCrc(new CRC32C(), buf));
-            assertEquals(item.logHeader.type, header.type);
-            assertEquals(item.logHeader.bizType, header.bizType);
-            assertEquals(item.logHeader.term, header.term);
-            assertEquals(item.logHeader.prevLogTerm, header.prevLogTerm);
-            assertEquals(item.logHeader.index, header.index);
-            assertEquals(item.logHeader.timestamp, header.timestamp);
+            assertEquals(item.reqData.type, header.type);
+            assertEquals(item.reqData.bizType, header.bizType);
+            assertEquals(item.reqData.term, header.term);
+            assertEquals(item.reqData.prevLogTerm, header.prevLogTerm);
+            assertEquals(item.reqData.index, header.index);
+            assertEquals(item.reqData.timestamp, header.timestamp);
 
             if (bizHeaderLen > 0) {
                 ByteBuffer expect = item.reqData.prepareReadBizHeader();

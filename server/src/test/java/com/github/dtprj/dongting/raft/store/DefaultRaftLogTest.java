@@ -125,7 +125,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     private void append(List<RaftTask> list) throws Exception {
-        long lastIdx = list.get(list.size() - 1).logHeader.index;
+        long lastIdx = list.get(list.size() - 1).reqData.index;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -444,7 +444,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         list.add(createItem(config, 5, 4, 11, 256, 50));// change term
         list.add(createItem(config, 5, 5, 12, 256, 50));
         append(list);
-        raftStatus.lastLogIndex = list.get(list.size() - 1).logHeader.index;
+        raftStatus.lastLogIndex = list.get(list.size() - 1).reqData.index;
 
         TailCache tailCache = raftStatus.tailCache;
         for (int i = 0; i <= list.size(); i++) {
@@ -452,14 +452,13 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             for (int j = list.size() - i; j < list.size(); j++) {
                 RaftReqData rd = RaftReqData.build(LogHeader.TYPE_NORMAL, 0);
                 RaftTask li = list.get(j);
-                LogHeader lh3 = rd.logHeader;
-                lh3.term = li.logHeader.term;
-                lh3.prevLogTerm = li.logHeader.prevLogTerm;
-                lh3.index = li.logHeader.index;
-                lh3.timestamp = li.logHeader.timestamp;
-                lh3.writeAndComputeCrc(new java.util.zip.CRC32C(), rd.buffer.getBuffer(), 0);
+                rd.term = li.reqData.term;
+                rd.prevLogTerm = li.reqData.prevLogTerm;
+                rd.index = li.reqData.index;
+                rd.timestamp = li.reqData.timestamp;
+                LogHeader.writeAndComputeCrc(rd, new java.util.zip.CRC32C(), rd.buffer.getBuffer(), 0);
                 RaftTask t = new RaftTask(rd, null, null, false);
-                tailCache.put(li.logHeader.index, t);
+                tailCache.put(li.reqData.index, t);
             }
             testMatch();
         }

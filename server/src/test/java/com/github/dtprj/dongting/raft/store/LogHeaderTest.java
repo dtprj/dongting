@@ -34,14 +34,13 @@ public class LogHeaderTest {
         byte[] bizHeader = new byte[200];
         byte[] bizBody = new byte[300];
         RaftReqData reqData = RaftTaskTest.buildTestReqData(1, 2, bizHeader, bizBody);
-        LogHeader lh = reqData.logHeader;
-        lh.term = 1000;
-        lh.prevLogTerm = 2000;
-        lh.index = 3000;
-        lh.timestamp = Long.MAX_VALUE;
+        reqData.term = 1000;
+        reqData.prevLogTerm = 2000;
+        reqData.index = 3000;
+        reqData.timestamp = Long.MAX_VALUE;
 
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
-        lh.writeAndComputeCrc(new CRC32C(), buf);
+        LogHeader.writeAndComputeCrc(reqData, new CRC32C(), buf);
 
         buf.clear();
         LogHeader header = new LogHeader();

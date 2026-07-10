@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -159,7 +160,7 @@ class LogAppender {
             int count = 0;
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
                 RaftTask li = taskList.get(i);
-                int len = li.logHeader.totalLen;
+                int len = li.reqData.totalLen;
                 if (len <= fileRestBytes) {
                     bytesToWrite += len;
                     fileRestBytes -= len;
@@ -227,16 +228,16 @@ class LogAppender {
             long dataPos = file.startPos + writeStartPosInFile;
             for (int i = 0; i < count; i++) {
                 RaftTask li = taskList.get(startTaskIndex + i);
-                LogHeader lh = li.logHeader;
+                RaftReqData rd = li.reqData;
                 if (file.firstIndex == 0) {
-                    file.firstIndex = lh.index;
-                    file.firstTerm = lh.term;
-                    file.firstTimestamp = lh.timestamp;
+                    file.firstIndex = rd.index;
+                    file.firstTerm = rd.term;
+                    file.firstTimestamp = rd.timestamp;
                 }
 
                 int len = li.actualSize();
                 encodeData(len, li, file);
-                idxOps.put(lh.index, dataPos, lh.timestamp, len);
+                idxOps.put(rd.index, dataPos, rd.timestamp, len);
                 dataPos += len;
                 lastItem = li;
                 writeCount++;
@@ -268,7 +269,7 @@ class LogAppender {
             buffer.flip();
             int bytes = buffer.remaining();
 
-            long lastIndex = lastItem != null ? lastItem.logHeader.index : -1;
+            long lastIndex = lastItem != null ? lastItem.reqData.index : -1;
             long writeStartPosInFile = nextPersistPos & fileLenMask;
 
             RefBuffer refBufferCopy = this.bufRef;

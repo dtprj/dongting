@@ -33,18 +33,38 @@ import java.util.zip.CRC32C;
 public class RaftReqData extends RefCount {
 
     public final RefBuffer buffer;
-    public final LogHeader logHeader;
     public final int totalLen;
 
-    public RaftReqData(LogHeader logHeader, RefBuffer fullBuffer) {
+    public int bizHeaderLen;
+    public int bodyLen;
+    public int type;
+    public int bizType;
+    public int term;
+    public int prevLogTerm;
+    public long index;
+    public long timestamp;
+
+    public RaftReqData(RefBuffer fullBuffer) {
         super(false, fullBuffer.isDummy());
-        this.logHeader = logHeader;
         this.buffer = fullBuffer;
         this.totalLen = fullBuffer.actualSize();
     }
 
+    public RaftReqData(LogHeader header, RefBuffer fullBuffer) {
+        super(false, fullBuffer.isDummy());
+        this.buffer = fullBuffer;
+        this.totalLen = fullBuffer.actualSize();
+        this.bizHeaderLen = header.bizHeaderLen;
+        this.bodyLen = header.bodyLen;
+        this.type = header.type;
+        this.bizType = header.bizType;
+        this.term = header.term;
+        this.prevLogTerm = header.prevLogTerm;
+        this.index = header.index;
+        this.timestamp = header.timestamp;
+    }
+
     public ByteBuffer prepareReadBizHeader() {
-        int bizHeaderLen = logHeader.bizHeaderLen;
         if (bizHeaderLen == 0) {
             return null;
         }
@@ -56,8 +76,6 @@ public class RaftReqData extends RefCount {
     }
 
     public ByteBuffer prepareReadBizBody() {
-        int bizHeaderLen = logHeader.bizHeaderLen;
-        int bodyLen = logHeader.bodyLen;
         if (bodyLen == 0) {
             return null;
         }
@@ -85,14 +103,13 @@ public class RaftReqData extends RefCount {
 
     public static RaftReqData build(int type, int bizType) {
         checkBizType(bizType);
-        LogHeader logHeader = new LogHeader(type);
-        logHeader.bizType = bizType;
-        logHeader.totalLen = LogHeader.ITEM_HEADER_SIZE;
-
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         RefBuffer refBuffer = RefBuffer.wrap(buf);
         refBuffer.prepareForEncode();
-        return new RaftReqData(logHeader, refBuffer);
+        RaftReqData data = new RaftReqData(refBuffer);
+        data.type = type;
+        data.bizType = bizType;
+        return data;
     }
 
     public static RaftReqData build(int type, int bizType, Encodable bizBody) {
@@ -110,10 +127,6 @@ public class RaftReqData extends RefCount {
         }
 
         int totalLen = LogHeader.computeTotalLen(0, bodyLen);
-        LogHeader logHeader = new LogHeader(type);
-        logHeader.bizType = bizType;
-        logHeader.bodyLen = bodyLen;
-        logHeader.totalLen = totalLen;
 
         ByteBuffer buf;
         RefBuffer refBuffer = null;
@@ -157,7 +170,11 @@ public class RaftReqData extends RefCount {
             refBuffer = RefBuffer.wrap(buf);
         }
         refBuffer.prepareForEncode();
-        return new RaftReqData(logHeader, refBuffer);
+        RaftReqData data = new RaftReqData(refBuffer);
+        data.type = type;
+        data.bizType = bizType;
+        data.bodyLen = bodyLen;
+        return data;
     }
 
     @Override

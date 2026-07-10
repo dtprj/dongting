@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
@@ -120,23 +121,34 @@ public class LogHeader {
         buffer.position(oldPos);
     }
 
-    public void writeAndComputeCrc(CRC32C crc32c, ByteBuffer buffer) {
+    public static void writeAndComputeCrc(RaftReqData data, CRC32C crc32c, ByteBuffer buffer) {
         int start = buffer.position();
-        writeFields(buffer);
+        writeFields(data, buffer);
         crc32c.reset();
         RaftUtil.updateCrc(crc32c, buffer, start, ITEM_HEADER_SIZE - 4);
-        this.headerCrc = (int) crc32c.getValue();
-        buffer.putInt(headerCrc);
+        buffer.putInt((int) crc32c.getValue());
     }
 
-    public void writeAndComputeCrc(CRC32C crc32c, ByteBuffer buffer, int offset) {
+    public static void writeAndComputeCrc(RaftReqData data, CRC32C crc32c, ByteBuffer buffer, int offset) {
         int oldPos = buffer.position();
         int oldLimit = buffer.limit();
         buffer.position(offset);
         buffer.limit(offset + ITEM_HEADER_SIZE);
-        writeAndComputeCrc(crc32c, buffer);
+        writeAndComputeCrc(data, crc32c, buffer);
         buffer.limit(oldLimit);
         buffer.position(oldPos);
+    }
+
+    private static void writeFields(RaftReqData data, ByteBuffer buf) {
+        buf.putInt(data.totalLen);
+        buf.putInt(data.bizHeaderLen);
+        buf.putInt(data.bodyLen);
+        buf.put((byte) data.type);
+        buf.put((byte) data.bizType);
+        buf.putInt(data.term);
+        buf.putInt(data.prevLogTerm);
+        buf.putLong(data.index);
+        buf.putLong(data.timestamp);
     }
 
     public static void writeEndHeader(CRC32C crc, ByteBuffer buffer) {

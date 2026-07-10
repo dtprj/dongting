@@ -137,17 +137,6 @@ public class RaftTaskTest {
         int bodyLen = (bizBody == null) ? 0 : bizBody.length;
         int totalLen = LogHeader.computeTotalLen(bizHeaderLen, bodyLen);
 
-        LogHeader logHeader = new LogHeader();
-        logHeader.type = type;
-        logHeader.bizType = bizType;
-        logHeader.bizHeaderLen = bizHeaderLen;
-        logHeader.bodyLen = bodyLen;
-        logHeader.totalLen = totalLen;
-        logHeader.term = 1;
-        logHeader.prevLogTerm = 0;
-        logHeader.index = 100;
-        logHeader.timestamp = System.currentTimeMillis();
-
         ByteBuffer buf = ByteBuffer.allocate(totalLen);
         buf.position(LogHeader.ITEM_HEADER_SIZE);
         if (bizHeaderLen > 0) {
@@ -164,24 +153,32 @@ public class RaftTaskTest {
             buf.putInt((int) crc.getValue());
         }
         buf.flip();
-        CRC32C headerCrc = new CRC32C();
-        logHeader.writeAndComputeCrc(headerCrc, buf);
-        buf.position(0);
-        buf.limit(totalLen);
         RefBuffer refBuffer = RefBuffer.wrap(buf);
         refBuffer.prepareForEncode();
-        return new RaftReqData(logHeader, refBuffer);
+        RaftReqData data = new RaftReqData(refBuffer);
+        data.type = type;
+        data.bizType = bizType;
+        data.bizHeaderLen = bizHeaderLen;
+        data.bodyLen = bodyLen;
+        data.term = 1;
+        data.prevLogTerm = 0;
+        data.index = 100;
+        data.timestamp = System.currentTimeMillis();
+        CRC32C crc = new CRC32C();
+        LogHeader.writeAndComputeCrc(data, crc, buf);
+        buf.position(0);
+        buf.limit(totalLen);
+        return data;
     }
 
     public static void assertData(RaftReqData data, int expectedHeaderLen, int expectedBodyLen) {
         assertNotNull(data);
-        LogHeader lh = data.logHeader;
-        assertEquals(LogHeader.TYPE_NORMAL, lh.type);
-        assertEquals(5, lh.bizType);
-        assertEquals(1, lh.term);
-        assertEquals(0, lh.prevLogTerm);
-        assertEquals(100, lh.index);
-        assertEquals(LogHeader.computeTotalLen(expectedHeaderLen, expectedBodyLen), lh.totalLen);
+        assertEquals(LogHeader.TYPE_NORMAL, data.type);
+        assertEquals(5, data.bizType);
+        assertEquals(1, data.term);
+        assertEquals(0, data.prevLogTerm);
+        assertEquals(100, data.index);
+        assertEquals(LogHeader.computeTotalLen(expectedHeaderLen, expectedBodyLen), data.totalLen);
 
         if (expectedHeaderLen > 0) {
             ByteBuffer hb = data.prepareReadBizHeader();

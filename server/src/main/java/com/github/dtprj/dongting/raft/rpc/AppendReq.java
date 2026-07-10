@@ -107,7 +107,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     Object bizBody = decode(false, codecFactory, logData.prepareReadBizBody(), logData);
                     logData.reset();
                     RaftTask task = new RaftTask(logData, bizHeader, bizBody,
-                            logData.logHeader.type == LogHeader.TYPE_LOG_READ);
+                            logData.type == LogHeader.TYPE_LOG_READ);
 
                     result.logs.add(task);
                 }
@@ -171,15 +171,15 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
             if (rb == null) {
                 return null;
             }
-            if (logData.logHeader.type != LogHeader.TYPE_NORMAL) {
+            if (logData.type != LogHeader.TYPE_NORMAL) {
                 byte[] b = new byte[rb.remaining()];
                 rb.get(b);
                 rb.rewind();
                 return b;
             }
             DecoderCallback<? extends Object> c = header ?
-                    codecFactory.createHeaderCallback(logData.logHeader.bizType, headerBodyContext) :
-                    codecFactory.createBodyCallback(logData.logHeader.bizType, headerBodyContext);
+                    codecFactory.createHeaderCallback(logData.bizType, headerBodyContext) :
+                    codecFactory.createBodyCallback(logData.bizType, headerBodyContext);
             if (c == null) {
                 return null;
             }

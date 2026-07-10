@@ -134,12 +134,11 @@ public class AppendReqWritePacketTest {
             RaftReqData reqData = RaftTaskTest.buildTestReqData(LogHeader.TYPE_NORMAL, 1,
                     bizHeader, bizBody);
 
-            LogHeader lh = reqData.logHeader;
-            lh.term = 4;
-            lh.prevLogTerm = 3;
-            lh.index = 200 + i;
-            lh.timestamp = System.currentTimeMillis();
-            lh.writeAndComputeCrc(new java.util.zip.CRC32C(), reqData.buffer.getBuffer(), 0);
+            reqData.term = 4;
+            reqData.prevLogTerm = 3;
+            reqData.index = 200 + i;
+            reqData.timestamp = System.currentTimeMillis();
+            LogHeader.writeAndComputeCrc(reqData, new java.util.zip.CRC32C(), reqData.buffer.getBuffer(), 0);
 
             RaftTask rt = new RaftTask(reqData, null, null, false);
             logs.add(rt);
@@ -158,11 +157,11 @@ public class AppendReqWritePacketTest {
         for (int i = 0; i < f.logs.size(); i++) {
             RaftTask l1 = f.logs.get(i);
             RaftTask l2 = c.logs.get(i);
-            assertEquals(l1.logHeader.bizType, l2.logHeader.bizType);
-            assertEquals(l1.logHeader.index, l2.logHeader.index);
-            assertEquals(l1.logHeader.term, l2.logHeader.term);
-            assertEquals(l1.logHeader.timestamp, l2.logHeader.timestamp);
-            assertEquals(l1.logHeader.type, l2.logHeader.type);
+            assertEquals(l1.reqData.bizType, l2.reqData.bizType);
+            assertEquals(l1.reqData.index, l2.reqData.index);
+            assertEquals(l1.reqData.term, l2.reqData.term);
+            assertEquals(l1.reqData.timestamp, l2.reqData.timestamp);
+            assertEquals(l1.reqData.type, l2.reqData.type);
             ByteBuffer h1 = l1.reqData.prepareReadBizHeader();
             ByteBuffer h2 = l2.reqData.prepareReadBizHeader();
             if (h1 != null) {

@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
-import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.nio.ByteBuffer;
 
@@ -33,8 +32,6 @@ public class RaftTask extends RaftInput implements com.github.dtprj.dongting.cod
 
     public long localCreateNanos;
 
-    public final LogHeader logHeader;
-
     private boolean invokeCallback;
 
     boolean addPending;
@@ -42,13 +39,11 @@ public class RaftTask extends RaftInput implements com.github.dtprj.dongting.cod
     public RaftTask(RaftReqData reqData, Object bizHeader, Object bizBody,
                     boolean readOnly) {
         super(reqData, bizHeader, bizBody, null, readOnly, null);
-        this.logHeader = reqData.logHeader;
     }
 
     public RaftTask(RaftReqData reqData, Object bizHeader, Object bizBody, DtTime deadline,
                     boolean readOnly, RaftCallback callback) {
         super(reqData, bizHeader, bizBody, deadline, readOnly, callback);
-        this.logHeader = reqData.logHeader;
     }
 
     public void init(long localCreateNanos) {
@@ -58,7 +53,7 @@ public class RaftTask extends RaftInput implements com.github.dtprj.dongting.cod
     public void callSuccess(Object r) {
         if (!invokeCallback) {
             try {
-                RaftCallback.callSuccess(callback, logHeader.index, r);
+                RaftCallback.callSuccess(callback, reqData.index, r);
             } finally {
                 callback = null;
                 invokeCallback = true;
@@ -84,6 +79,6 @@ public class RaftTask extends RaftInput implements com.github.dtprj.dongting.cod
 
     @Override
     public int actualSize() {
-        return logHeader.totalLen;
+        return reqData.totalLen;
     }
 }

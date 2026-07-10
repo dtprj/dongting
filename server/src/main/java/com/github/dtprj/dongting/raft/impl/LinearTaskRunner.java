@@ -190,13 +190,13 @@ public class LinearTaskRunner {
 
             newIndex++;
 
-            LogHeader lh = rt.logHeader;
-            lh.term = currentTerm;
-            lh.prevLogTerm = prevTerm;
-            lh.index = newIndex;
-            lh.timestamp = ts.wallClockMillis;
+            RaftReqData rd = rt.reqData;
+            rd.term = currentTerm;
+            rd.prevLogTerm = prevTerm;
+            rd.index = newIndex;
+            rd.timestamp = ts.wallClockMillis;
             // bizHeaderLen, bodyLen, totalLen already set in RaftReqData.build()
-            lh.writeAndComputeCrc(crc32c, rt.reqData.buffer.getBuffer(), 0);
+            LogHeader.writeAndComputeCrc(rd, crc32c, rd.buffer.getBuffer(), 0);
             rt.init(ts.nanoTime);
             prevTerm = currentTerm;
 
@@ -212,7 +212,7 @@ public class LinearTaskRunner {
         if (rt.deadline != null && rt.deadline.isTimeout(ts)) {
             return new RaftTimeoutException("timeout " + rt.deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
-        if (rt.logHeader.type == LogHeader.TYPE_NORMAL || rt.logHeader.type == LogHeader.TYPE_LOG_READ) {
+        if (rt.reqData.type == LogHeader.TYPE_NORMAL || rt.reqData.type == LogHeader.TYPE_LOG_READ) {
             if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {
                 log.warn("reject task, pendingRequests={}, maxPendingRaftTasks={}",
                         raftStatus.tailCache.pendingCount, groupConfig.maxPendingTasks);
@@ -231,14 +231,14 @@ public class LinearTaskRunner {
         TailCache tailCache = raftStatus.tailCache;
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
-            long index = rt.logHeader.index;
+            long index = rt.reqData.index;
 
             // successful change owner to TailCache and release in TailCache.release(RaftTask)
             tailCache.put(index, rt);
 
             if (i == len - 1) {
                 raftStatus.lastLogIndex = index;
-                raftStatus.lastLogTerm = rt.logHeader.term;
+                raftStatus.lastLogTerm = rt.reqData.term;
             }
         }
         raftStatus.needRepCondition.signalAll();

@@ -95,9 +95,9 @@ class RaftReqDataTest {
         RaftReqData data = RaftReqData.build(null, TYPE, BIZ_TYPE, null);
         assertNotNull(data);
         assertEquals(LogHeader.ITEM_HEADER_SIZE, data.totalLen);
-        assertEquals(0, data.logHeader.bodyLen);
-        assertEquals(TYPE, data.logHeader.type);
-        assertEquals(BIZ_TYPE, data.logHeader.bizType);
+        assertEquals(0, data.bodyLen);
+        assertEquals(TYPE, data.type);
+        assertEquals(BIZ_TYPE, data.bizType);
         assertNull(data.prepareReadBizBody());
         data.release();
     }
@@ -108,7 +108,7 @@ class RaftReqDataTest {
         RaftReqData data = RaftReqData.build(null, TYPE, BIZ_TYPE, emptyBody);
         assertNotNull(data);
         assertEquals(LogHeader.ITEM_HEADER_SIZE, data.totalLen);
-        assertEquals(0, data.logHeader.bodyLen);
+        assertEquals(0, data.bodyLen);
         assertNull(data.prepareReadBizBody());
         data.release();
     }
@@ -123,9 +123,9 @@ class RaftReqDataTest {
 
         int expectedTotalLen = LogHeader.computeTotalLen(0, payload.length);
         assertEquals(expectedTotalLen, data.totalLen);
-        assertEquals(payload.length, data.logHeader.bodyLen);
-        assertEquals(TYPE, data.logHeader.type);
-        assertEquals(BIZ_TYPE, data.logHeader.bizType);
+        assertEquals(payload.length, data.bodyLen);
+        assertEquals(TYPE, data.type);
+        assertEquals(BIZ_TYPE, data.bizType);
 
         // verify body content
         ByteBuffer bizBuf = data.prepareReadBizBody();
@@ -169,7 +169,7 @@ class RaftReqDataTest {
 
         int expectedTotalLen = LogHeader.computeTotalLen(0, payload.length);
         assertEquals(expectedTotalLen, data.totalLen);
-        assertEquals(payload.length, data.logHeader.bodyLen);
+        assertEquals(payload.length, data.bodyLen);
 
         ByteBuffer bizBuf = data.prepareReadBizBody();
         assertNotNull(bizBuf);
@@ -206,7 +206,7 @@ class RaftReqDataTest {
 
         int expectedTotalLen = LogHeader.computeTotalLen(0, payload.length);
         assertEquals(expectedTotalLen, data.totalLen);
-        assertEquals(payload.length, data.logHeader.bodyLen);
+        assertEquals(payload.length, data.bodyLen);
 
         ByteBuffer bizBuf = data.prepareReadBizBody();
         assertNotNull(bizBuf);
@@ -243,9 +243,9 @@ class RaftReqDataTest {
         Encodable body = new FixedEncodable(payload);
 
         RaftReqData data = RaftReqData.build(null, LogHeader.TYPE_LOG_READ, 99, body);
-        assertEquals(LogHeader.TYPE_LOG_READ, data.logHeader.type);
-        assertEquals(99, data.logHeader.bizType);
-        assertEquals(payload.length, data.logHeader.bodyLen);
+        assertEquals(LogHeader.TYPE_LOG_READ, data.type);
+        assertEquals(99, data.bizType);
+        assertEquals(payload.length, data.bodyLen);
         data.release();
     }
 
