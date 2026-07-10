@@ -37,12 +37,13 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
     private ByteBuffer fullBuffer;
     private RefBuffer fullRefBuffer;
 
-    private LogHeader header;
     private int status;
     private int parsedBytes;
+    private int totalLen;
+    private int bizHeaderLen;
+    private int bodyLen;
 
     private final CRC32C crc = new CRC32C();
-    private final ByteBuffer tmpBuffer = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
 
     private static final int STATUS_INIT = 0;
     private static final int STATUS_FINISH_HEADER = 1;
@@ -57,10 +58,11 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
     private void reset() {
         fullBuffer = null;
         fullRefBuffer = null;
-        header = null;
         status = STATUS_INIT;
         parsedBytes = 0;
-        tmpBuffer.clear();
+        totalLen = 0;
+        bizHeaderLen = 0;
+        bodyLen = 0;
     }
 
     @Override
@@ -72,33 +74,42 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
             }
             switch (status) {
                 case STATUS_INIT: {
-                    if (remaining < LogHeader.ITEM_HEADER_SIZE - parsedBytes) {
-                        tmpBuffer.put(buffer);
-                        parsedBytes += remaining;
-                        return;
-                    }
-                    header = new LogHeader();
-                    if (parsedBytes == 0) {
-                        if (!header.readAndCheckCrc(crc, buffer)) {
-                            throw new CodecException("header crc not match, index unknown");
+                    if (fullRefBuffer == null) {
+                        if (parsedBytes == 0 && remaining >= 4) {
+                            totalLen = buffer.getInt();
+                        } else {
+                            while (parsedBytes < 4) {
+                                if (!buffer.hasRemaining()) {
+                                    return;
+                                }
+                                totalLen = (totalLen << 8) | (buffer.get() & 0xFF);
+                                parsedBytes++;
+                            }
                         }
-                    } else {
-                        int oldLimit = buffer.limit();
-                        buffer.limit(buffer.position() + LogHeader.ITEM_HEADER_SIZE - parsedBytes);
-                        tmpBuffer.put(buffer);
-                        buffer.limit(oldLimit);
-                        tmpBuffer.flip();
-                        if (!header.readAndCheckCrc(crc, tmpBuffer)) {
-                            throw new CodecException("header crc not match, index unknown");
-                        }
+                        fullRefBuffer = context.buffers.borrow(totalLen, false, true, 512);
+                        fullBuffer = fullRefBuffer.getBuffer();
+                        fullBuffer.putInt(totalLen);
                         parsedBytes = 0;
                     }
-                    fullRefBuffer = context.buffers.borrow(header.totalLen, false, true, 512);
-                    fullBuffer = fullRefBuffer.getBuffer();
-                    header.writeTo(fullBuffer);
-                    if (header.bizHeaderLen > 0) {
+                    int headerNeed = LogHeader.ITEM_HEADER_SIZE - fullBuffer.position();
+                    if (buffer.remaining() < headerNeed) {
+                        fullBuffer.put(buffer);
+                        return;
+                    }
+                    int oldLimit = buffer.limit();
+                    buffer.limit(buffer.position() + headerNeed);
+                    fullBuffer.put(buffer);
+                    buffer.limit(oldLimit);
+                    crc.reset();
+                    RaftUtil.updateCrc(crc, fullBuffer, 0, LogHeader.ITEM_HEADER_SIZE - 4);
+                    if (fullBuffer.getInt(LogHeader.ITEM_HEADER_SIZE - 4) != (int) crc.getValue()) {
+                        throw new CodecException("header crc not match, index unknown");
+                    }
+                    bizHeaderLen = fullBuffer.getInt(LogHeader.OFFSET_BIZ_HEADER_LEN);
+                    bodyLen = fullBuffer.getInt(LogHeader.OFFSET_BODY_LEN);
+                    if (bizHeaderLen > 0) {
                         status = STATUS_FINISH_HEADER;
-                    } else if (header.bodyLen > 0) {
+                    } else if (bodyLen > 0) {
                         status = STATUS_FINISH_BIZ_HEADER_CRC;
                     } else {
                         finishRaftReqData();
@@ -117,10 +128,10 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
                     if (parseCrc(remaining, buffer)) {
                         int crcValue = fullBuffer.getInt(fullBuffer.position() - 4);
                         if (crcValue != ((int) crc.getValue())) {
-                            throw new CodecException("bizHeader crc not match, index=" + header.index
+                            throw new CodecException("bizHeader crc not match, index=" + fullBuffer.getLong(LogHeader.OFFSET_INDEX)
                                     + ", expected=" + crcValue + ", actual=" + (int) crc.getValue());
                         }
-                        if (header.bodyLen > 0) {
+                        if (bodyLen > 0) {
                             status = STATUS_FINISH_BIZ_HEADER_CRC;
                         } else {
                             finishRaftReqData();
@@ -142,7 +153,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
                     if (parseCrc(remaining, buffer)) {
                         int crcValue = fullBuffer.getInt(fullBuffer.position() - 4);
                         if (crcValue != ((int) crc.getValue())) {
-                            throw new CodecException("bizBody crc not match, index=" + header.index
+                            throw new CodecException("bizBody crc not match, index=" + fullBuffer.getLong(LogHeader.OFFSET_INDEX)
                                     + ", expected=" + crcValue + ", actual=" + (int) crc.getValue());
                         }
                         finishRaftReqData();
@@ -161,7 +172,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
         if (parsedBytes == 0) {
             crc.reset();
         }
-        int total = bizHeader ? header.bizHeaderLen : header.bodyLen;
+        int total = bizHeader ? bizHeaderLen : bodyLen;
         int needRead = total - parsedBytes;
         int toRead = Math.min(remaining, needRead);
 
@@ -209,7 +220,8 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
     private void finishRaftReqData() {
         fullBuffer.flip();
         fullRefBuffer.prepareForEncode();
-        RaftReqData reqData = new RaftReqData(header, fullRefBuffer);
+        RaftReqData reqData = new RaftReqData(fullRefBuffer);
+        LogHeader.readFields(fullBuffer, reqData);
         consumer.accept(reqData);
         reset();
     }

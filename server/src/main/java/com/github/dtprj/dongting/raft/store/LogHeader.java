@@ -44,6 +44,10 @@ public class LogHeader {
     // header crc
     public static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 1 + 1 + 4 + 4 + 8 + 8 + 4;
 
+    public static final int OFFSET_BIZ_HEADER_LEN = 4;
+    public static final int OFFSET_BODY_LEN = 8;
+    public static final int OFFSET_INDEX = 22;
+
     // negative value means end of file
     private static final int END_LEN_MAGIC = 0xF19A7BCB;
 
@@ -88,6 +92,18 @@ public class LogHeader {
         read(buf);
         RaftUtil.updateCrc(crc32c, buf, start, ITEM_HEADER_SIZE - 4);
         return headerCrc == ((int) crc32c.getValue());
+    }
+
+    static void readFields(ByteBuffer buf, RaftReqData data) {
+        buf.getInt(); // skip totalLen, already set in data from buffer
+        data.bizHeaderLen = buf.getInt();
+        data.bodyLen = buf.getInt();
+        data.type = buf.get();
+        data.bizType = buf.get();
+        data.term = buf.getInt();
+        data.prevLogTerm = buf.getInt();
+        data.index = buf.getLong();
+        data.timestamp = buf.getLong();
     }
 
     public static int computeTotalLen(int bizHeaderLen, int bodyLen) {
