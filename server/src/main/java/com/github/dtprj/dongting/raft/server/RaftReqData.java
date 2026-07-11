@@ -129,9 +129,10 @@ public class RaftReqData extends RefCount {
         int totalLen = LogHeader.computeTotalLen(0, bodyLen);
 
         ByteBuffer buf;
-        RefBuffer refBuffer = null;
+        RefBuffer refBuffer;
         if (buffers == null) {
             buf = ByteBuffer.allocate(totalLen);
+            refBuffer = RefBuffer.wrap(buf);
         } else {
             refBuffer = buffers.borrow(totalLen);
             buf = refBuffer.getBuffer();
@@ -166,9 +167,6 @@ public class RaftReqData extends RefCount {
         buf.limit(totalLen);
         buf.putInt((int) crc.getValue());
         buf.flip();
-        if (buffers == null) {
-            refBuffer = RefBuffer.wrap(buf);
-        }
         refBuffer.prepareForEncode();
         RaftReqData data = new RaftReqData(refBuffer);
         data.type = type;
