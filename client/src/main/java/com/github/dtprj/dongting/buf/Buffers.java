@@ -41,6 +41,9 @@ public class Buffers {
 
     private static final DtLog log = DtLogs.getLogger(Buffers.class);
 
+    public final int heapSmallPoolMax;
+    public final int directSmallPoolMax;
+
     final SimpleByteBufferPool heapPool;
     final SimpleByteBufferPool directPool;
     final BuddyBufferPool heapLargePool;
@@ -80,6 +83,8 @@ public class Buffers {
         this.directLocalReleasor = null;
         this.largeHeapLocalReleasor = null;
         this.largeDirectLocalReleasor = null;
+        this.heapSmallPoolMax = 0;
+        this.directSmallPoolMax = 0;
     }
 
     public Buffers(SimpleByteBufferPool heapPool, SimpleByteBufferPool directPool,
@@ -92,6 +97,8 @@ public class Buffers {
         this.directLocalReleasor = directPool::release;
         this.largeHeapLocalReleasor = heapLargePool::release;
         this.largeDirectLocalReleasor = directLargePool::release;
+        this.heapSmallPoolMax = heapPool.bufSizeMax;
+        this.directSmallPoolMax = directPool.bufSizeMax;
     }
 
     /**
@@ -117,7 +124,7 @@ public class Buffers {
 
     private void releaseAfterShutdown(RefBuffer rb, boolean direct) {
         ByteBuffer buf = rb.buffer;
-        if ((direct && buf.capacity() > directPool.bufSizeMax) || (!direct && buf.capacity() > heapPool.bufSizeMax)) {
+        if ((direct && buf.capacity() > directSmallPoolMax) || (!direct && buf.capacity() > heapSmallPoolMax)) {
             BuddyBufferPool pool = direct ? directLargePool : heapLargePool;
             synchronized (this) {
                 if (destroyed) {
@@ -188,7 +195,7 @@ public class Buffers {
         if (requestSize <= threshold) {
             return heapPool.newUnpooledRefBuffer(plain, requestSize);
         }
-        if (requestSize > heapPool.bufSizeMax) {
+        if (requestSize > heapSmallPoolMax) {
             return heapLargePool.borrow(plain, requestSize, crossThreadRelease ? largeHeapThreadSafeReleasor : largeHeapLocalReleasor);
         } else {
             return heapPool.borrow(plain, requestSize, crossThreadRelease ? heapThreadSafeReleasor : heapLocalReleasor);
@@ -220,7 +227,7 @@ public class Buffers {
         if (requestSize <= threshold) {
             return directPool.newUnpooledRefBuffer(plain, requestSize);
         }
-        if (requestSize > directPool.bufSizeMax) {
+        if (requestSize > directSmallPoolMax) {
             return directLargePool.borrow(plain, requestSize, crossThreadRelease ? largeDirectThreadSafeReleasor : largeDirectLocalReleasor);
         } else {
             return directPool.borrow(plain, requestSize, crossThreadRelease ? directThreadSafeReleasor : directLocalReleasor);
