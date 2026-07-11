@@ -2,6 +2,8 @@
 
 - Before running compile/package/test commands or writing tests, see [build-and-test](.agents/skills/build-and-test/SKILL.md) skill for important details.
 - If `IntelliJ-IDEA` MCP is available, prioritize using the tools it provides. Usage skill: [idea-mcp](.agents/skills/idea-mcp/SKILL.md)
+  - The MCP `build_project`/`get_file_problems` tools report issues more accurately than LSP
+  - The MCP `read_file` tool is better than the built-in read tool
 
 ## Project Overview
 - **Multi-module Maven project** with Java 11 (Java 8 for client module)
