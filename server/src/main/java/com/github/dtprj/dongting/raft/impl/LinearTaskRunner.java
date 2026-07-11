@@ -212,6 +212,7 @@ public class LinearTaskRunner {
         if (rt.deadline != null && rt.deadline.isTimeout(ts)) {
             return new RaftTimeoutException("timeout " + rt.deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
+        rt.deadline = null;
         if (rt.reqData.type == LogHeader.TYPE_NORMAL || rt.reqData.type == LogHeader.TYPE_LOG_READ) {
             if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {
                 log.warn("reject task, pendingRequests={}, maxPendingRaftTasks={}",

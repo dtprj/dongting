@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
  * @author huangli
  */
 public abstract class RaftInput {
-    public final DtTime deadline;
+    public DtTime deadline;
     public final boolean readOnly;
     public final RaftReqData reqData;
     public RaftCallback callback;
