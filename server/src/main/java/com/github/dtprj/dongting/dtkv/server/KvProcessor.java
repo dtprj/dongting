@@ -140,18 +140,19 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     private void submitWriteTask(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
         Buffers buffers = DtThread.currentDtThread().buffers;
         RaftReqData reqData = RaftReqData.build(buffers, LogHeader.TYPE_NORMAL, bizType, req);
-        RaftTask rt = new RaftTask(reqData, null, req,
-                reqInfo.reqContext.getTimeout(), false, new RC(reqInfo));
-        reqInfo.raftGroup.submitLinearTask(rt);
+        KvRaftTask kvRaftTask = new KvRaftTask(reqInfo, reqData, req);
+        reqInfo.raftGroup.submitLinearTask(kvRaftTask);
     }
 
-    private class RC implements RaftCallback {
+    private class KvRaftTask extends RaftTask implements RaftCallback {
 
         private ReqInfo<KvReq> reqInfo;
         private final long startTime;
 
-        private RC(ReqInfo<KvReq> reqInfo) {
+        private KvRaftTask(ReqInfo<KvReq> reqInfo, RaftReqData reqData, KvReq req) {
+            super(reqData, null, req, reqInfo.reqContext.getTimeout(), false, null);
             this.reqInfo = reqInfo;
+            this.callback = this;
             this.startTime = perfCallback.takeTime(PerfConsts.DTKV_LINEARIZABLE_OP);
         }
 
