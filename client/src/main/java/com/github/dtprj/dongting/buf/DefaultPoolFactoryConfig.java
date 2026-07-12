@@ -31,11 +31,22 @@ public class DefaultPoolFactoryConfig {
 
     public long smallSlotMinSize = 768 * 1024; // 14 slots total 10752KB
     public long smallSlotMaxSize = smallSlotMinSize * 2;
-    public long smallShareSize = smallSlotMinSize * smallSize.length;
 
-    public int largeMinChunkCount = 4;
-    public int largeMaxChunkCount = 8;
+    public int[] smallMinCount = calcCounts(smallSize, smallSlotMinSize);
+    public int[] smallMaxCount = calcCounts(smallSize, smallSlotMaxSize);
+    public long smallShareSize = DtUtil.calcByMem(smallSlotMinSize * smallSize.length);
+
+    public int largeMinChunkCount = (int) DtUtil.calcByMem(4);
+    public int largeMaxChunkCount = (int) DtUtil.calcByMem(8);
     public long largeShareSize = 400 * 1024 * 1024;
+
+    private static int[] calcCounts(int[] sizes, long totalSize) {
+        int[] r = new int[sizes.length];
+        for (int i = 0; i < r.length; i++) {
+            r[i] = (int) DtUtil.calcByMem(totalSize / sizes[i]);
+        }
+        return r;
+    }
 
     public int largeGlobalIdleTargetSize = DtUtil.MAX_MEMORY >= 3L * 1024 * 1024 * 1024 ? 2 : 1;
     public long largeGlobalTimeoutMillis = 60_000;

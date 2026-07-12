@@ -66,34 +66,17 @@ public class DefaultPoolFactory implements PoolFactory {
     }
 
     private SimpleByteBufferPool createSmallPool(boolean direct) {
-        int[] sizes = config.smallSize;
-        int[] minCount = new int[sizes.length];
-        for (int i = 0; i < minCount.length; i++) {
-            long count = config.smallSlotMinSize / sizes[i];
-            minCount[i] = (int) calcByMem(count);
-        }
-        int[] maxCount = new int[sizes.length];
-        for (int i = 0; i < maxCount.length; i++) {
-            long count = config.smallSlotMaxSize / sizes[i];
-            maxCount[i] = (int) calcByMem(count);
-        }
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(direct, direct ? 0 : config.threshold,
-                sizes, minCount, maxCount, calcByMem(config.smallShareSize));
+                config.smallSize, config.smallMinCount, config.smallMaxCount, config.smallShareSize);
         return new SimpleByteBufferPool(c);
     }
 
     private BuddyBufferPool createLargePool(Timestamp ts, boolean direct) {
-        int minChunk = (int) calcByMem(config.largeMinChunkCount);
-        int maxChunk = (int) calcByMem(config.largeMaxChunkCount);
         BuddyBufferPoolConfig c = new BuddyBufferPoolConfig(
                 direct, false, ts, config.largeChunkSize,
                 config.largeMinBlockSize,
-                minChunk, maxChunk, config.largeTimeoutMillis);
+                config.largeMinChunkCount, config.largeMaxChunkCount, config.largeTimeoutMillis);
         return new BuddyBufferPool(c, direct ? directChunkList : heapChunkList);
-    }
-
-    protected long calcByMem(long size) {
-        return DtUtil.calcByMem(size);
     }
 
     @Override
