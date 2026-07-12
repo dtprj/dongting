@@ -20,6 +20,8 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -48,11 +50,13 @@ public class AppendReqWritePacket extends WritePacket {
 
     private int headerSize;
     private int bodySize;
+    private int totalPreEncodedSize;
 
     private static final int WRITE_HEADER = 0;
     private static final int WRITE_BODY = 1;
     private int writeStatus;
     private int encodeLogIndex;
+    private ByteBuffer preEncodedBuffer;
 
     public AppendReqWritePacket() {
     }
@@ -72,7 +76,11 @@ public class AppendReqWritePacket extends WritePacket {
             for (int size = logs.size(), i = 0; i < size; i++) {
                 // assert itemSize > 0
                 RaftTask item = logs.get(i);
-                bodySize += item.reqData.totalLen;
+                RaftReqData rrd = item.reqData;
+                bodySize += rrd.totalLen;
+                if (rrd.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
+                    totalPreEncodedSize += rrd.totalLen;
+                }
             }
         }
 
@@ -107,6 +115,11 @@ public class AppendReqWritePacket extends WritePacket {
                     } else {
                         return true;
                     }
+                    if (currentItem.reqData.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
+                        // slice for independent position, since the same reqData may be sent to multiple followers
+                        preEncodedBuffer = currentItem.reqData.buffer.getBuffer().slice();
+                        return false;
+                    }
                     if (currentItem.encode(context, dest)) {
                         context.reset();
                         encodeLogIndex++;
@@ -122,5 +135,26 @@ public class AppendReqWritePacket extends WritePacket {
     @Override
     protected void doClean() {
         RaftUtil.releaseInputs(logs);
+    }
+
+    @Override
+    public boolean hasPreEncodedBuffer() {
+        return preEncodedBuffer != null;
+    }
+
+    @Override
+    public int getTotalPreEncodedBufferSize() {
+        return totalPreEncodedSize;
+    }
+
+    @Override
+    public ByteBuffer getPreEncodedBuffer() {
+        ByteBuffer buf = preEncodedBuffer;
+        if (buf != null) {
+            preEncodedBuffer = null;
+            encodeLogIndex++;
+            return buf;
+        }
+        return null;
     }
 }

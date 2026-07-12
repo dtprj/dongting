@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPoolConfig;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.store.LogHeader;
@@ -133,11 +135,32 @@ public class RaftTaskTest {
     }
 
     public static RaftReqData buildTestReqData(int type, int bizType, byte[] bizHeader, byte[] bizBody) {
+        return buildTestReqData(type, bizType, bizHeader, bizBody, false);
+    }
+
+    public static RaftReqData buildTestReqDataDirect(int type, int bizType, byte[] bizHeader, byte[] bizBody) {
+        return buildTestReqData(type, bizType, bizHeader, bizBody, true);
+    }
+
+    private static RaftReqData buildTestReqData(int type, int bizType, byte[] bizHeader, byte[] bizBody,
+                                                boolean useDirect) {
         int bizHeaderLen = (bizHeader == null) ? 0 : bizHeader.length;
         int bodyLen = (bizBody == null) ? 0 : bizBody.length;
         int totalLen = LogHeader.computeTotalLen(bizHeaderLen, bodyLen);
 
-        ByteBuffer buf = ByteBuffer.allocate(totalLen);
+        ByteBuffer buf;
+        RefBuffer refBuffer;
+        if (useDirect) {
+            SimpleByteBufferPoolConfig poolConfig = new SimpleByteBufferPoolConfig(
+                    true, totalLen, new int[]{totalLen + 1}, new int[]{0}, new int[]{1});
+            SimpleByteBufferPool pool = new SimpleByteBufferPool(poolConfig);
+            refBuffer = pool.borrow(false, totalLen);
+            buf = refBuffer.getBuffer();
+        } else {
+            buf = ByteBuffer.allocate(totalLen);
+            refBuffer = RefBuffer.wrap(buf);
+        }
+
         buf.position(LogHeader.ITEM_HEADER_SIZE);
         if (bizHeaderLen > 0) {
             buf.put(bizHeader);
@@ -153,7 +176,6 @@ public class RaftTaskTest {
             buf.putInt((int) crc.getValue());
         }
         buf.flip();
-        RefBuffer refBuffer = RefBuffer.wrap(buf);
         refBuffer.prepareForEncode();
         RaftReqData data = new RaftReqData(refBuffer);
         data.type = type;

@@ -162,6 +162,11 @@ class RaftReqDataTest {
                 ByteBuffer buf = ByteBuffer.allocate(requestSize);
                 return RefBuffer.wrap(buf);
             }
+
+            @Override
+            public RefBuffer borrowDirect(int requestSize) {
+                return borrow(requestSize);
+            }
         };
 
         RaftReqData data = RaftReqData.build(buffers, TYPE, BIZ_TYPE, body);

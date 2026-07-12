@@ -134,7 +134,7 @@ public class RaftReqData extends RefCount {
             buf = ByteBuffer.allocate(totalLen);
             refBuffer = RefBuffer.wrap(buf);
         } else {
-            refBuffer = buffers.borrow(totalLen);
+            refBuffer = totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD ? buffers.borrowDirect(totalLen) : buffers.borrow(totalLen);
             buf = refBuffer.getBuffer();
         }
         int bodyStart = LogHeader.ITEM_HEADER_SIZE;
