@@ -172,10 +172,14 @@ public class DtUtil {
     }
 
     public static long calcByMem(long size) {
-        if (MAX_MEMORY < 1.01 * 1024 * 1024 * 1024) {
+        if (MAX_MEMORY < 513 * 1024 * 1024) {
+            return Math.max(size / 8, 1);
+        } else if (MAX_MEMORY < 1.01 * 1024 * 1024 * 1024) {
             return Math.max(size / 4, 1);
         } else if (MAX_MEMORY < 2.01 * 1024 * 1024 * 1024) {
             return Math.max(size / 2, 1);
+        } else if (MAX_MEMORY >= 32L * 1000 * 1000 * 1000) {
+            return size * 8;
         } else if (MAX_MEMORY >= 16L * 1000 * 1000 * 1000) {
             return size * 4;
         } else if (MAX_MEMORY >= 8L * 1000 * 1000 * 1000) {
