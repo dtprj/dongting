@@ -130,6 +130,9 @@ public class ConfigFileGenerator {
             configProps.setProperty("servicePort", String.valueOf(servicePort));
             configProps.setProperty("dataDir", dataDir.getAbsolutePath());
 
+            // calcIoThreads() may return 1 on small-heap JVMs (e.g. CI runners), force at least 2
+            configProps.setProperty(Bootstrap.NIO_SERVER_PREFIX + ".ioThreads", "2");
+
             // Add custom timeout settings if provided
             if (electTimeout != null) {
                 configProps.setProperty("electTimeout", String.valueOf(electTimeout));
@@ -162,18 +165,18 @@ public class ConfigFileGenerator {
             serversProps.setProperty("servers", serversStr);
             RaftGroupConfigEx protoType = new RaftGroupConfigEx(1, "", "");
             for (GroupDefinition group : groups) {
-                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
-                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".nodeIdOfMembers", group.nodeIdOfMembers);
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".nodeIdOfObservers", group.nodeIdOfObservers);
                 if (fullSize) {
-                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".saveSnapshotSeconds", "60");
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".saveSnapshotSeconds", "60");
                 } else {
-                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxItemsPerFile",
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".idxItemsPerFile",
                             String.valueOf(protoType.idxItemsPerFile / 64));
-                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxCacheSize",
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".idxCacheSize",
                             String.valueOf(protoType.idxCacheSize / 64));
-                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".idxFlushThreshold",
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".idxFlushThreshold",
                             String.valueOf(protoType.idxFlushThreshold / 64));
-                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".logFileSize",
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".logFileSize",
                             String.valueOf(protoType.logFileSize / 64));
                 }
                 String useSeparateExecutor = System.getProperty("useSeparateExecutor");
@@ -182,9 +185,9 @@ public class ConfigFileGenerator {
                 } else if (useSeparateExecutor == null) {
                     useSeparateExecutor = String.valueOf(new Random().nextBoolean());
                 }
-                serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".useSeparateExecutor", useSeparateExecutor);
+                serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".useSeparateExecutor", useSeparateExecutor);
                 if (watchTimeoutMillis != null) {
-                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + group.groupId + ".watchTimeoutMillis", String.valueOf(watchTimeoutMillis));
+                    serversProps.setProperty(Bootstrap.GROUP_PREFIX + "." + group.groupId + ".watchTimeoutMillis", String.valueOf(watchTimeoutMillis));
                 }
             }
             return serversProps;

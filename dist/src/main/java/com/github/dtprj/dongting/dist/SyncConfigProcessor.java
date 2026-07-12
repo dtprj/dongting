@@ -166,8 +166,8 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
                 continue; // already written
             }
 
-            if (key.startsWith(Bootstrap.GROUP_PREFIX)) {
-                String rest = key.substring(Bootstrap.GROUP_PREFIX.length());
+            if (key.startsWith(Bootstrap.GROUP_PREFIX + ".")) {
+                String rest = key.substring(Bootstrap.GROUP_PREFIX.length() + 1);
                 int dotIndex = rest.indexOf('.');
                 if (dotIndex > 0) {
                     String groupIdStr = rest.substring(0, dotIndex);
@@ -231,10 +231,10 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
     }
 
     private void writeMembersInfo(StringBuilder sb, int groupId, MembersInfo info) {
-        sb.append(Bootstrap.GROUP_PREFIX).append(groupId).append(".nodeIdOfMembers = ");
+        sb.append(Bootstrap.GROUP_PREFIX).append(".").append(groupId).append(".nodeIdOfMembers = ");
         sb.append(formatNodeIds(info.nodeIdOfMembers));
         sb.append("\n");
-        sb.append(Bootstrap.GROUP_PREFIX).append(groupId).append(".nodeIdOfObservers = ");
+        sb.append(Bootstrap.GROUP_PREFIX).append(".").append(groupId).append(".nodeIdOfObservers = ");
         sb.append(formatNodeIds(info.nodeIdOfObservers));
         sb.append("\n");
     }

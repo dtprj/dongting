@@ -107,8 +107,8 @@ public class DtAdminIT {
         File dtAdminServersFile = new File(tempDir, "dt-admin-servers.properties");
         Properties props = new Properties();
         props.setProperty("servers", ItUtil.formatReplicateServers(ALL_NODE_IDS));
-        props.setProperty(Bootstrap.GROUP_PREFIX + GROUP_ID + ".nodeIdOfMembers", MEMBER_IDS_STR);
-        props.setProperty(Bootstrap.GROUP_PREFIX + GROUP_ID + ".nodeIdOfObservers", OBSERVER_IDS_STR);
+        props.setProperty(Bootstrap.GROUP_PREFIX + "." + GROUP_ID + ".nodeIdOfMembers", MEMBER_IDS_STR);
+        props.setProperty(Bootstrap.GROUP_PREFIX + "." + GROUP_ID + ".nodeIdOfObservers", OBSERVER_IDS_STR);
         ConfigFileGenerator.writeConfigFile(props, dtAdminServersFile);
 
         validator = new ClusterValidator();

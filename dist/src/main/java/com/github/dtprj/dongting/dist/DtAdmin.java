@@ -41,8 +41,6 @@ public class DtAdmin {
     private static final int ERR_COMMAND_EXEC_FAIL = 104;
     private static final int ERR_COMMAND_SYS_ERROR = 105;
 
-    private static final String GROUP_PREFIX = "group.";
-
     private String serversFile;
     private long serversFileLastModified;
     private String subCommand;
@@ -187,8 +185,8 @@ public class DtAdmin {
             // parse and add groups
             Set<Integer> groupIds = new HashSet<>();
             for (String key : props.stringPropertyNames()) {
-                if (key.startsWith(GROUP_PREFIX)) {
-                    String rest = key.substring(GROUP_PREFIX.length());
+                if (key.startsWith(Bootstrap.GROUP_PREFIX + ".")) {
+                    String rest = key.substring(Bootstrap.GROUP_PREFIX.length() + 1);
                     int dotIndex = rest.indexOf('.');
                     if (dotIndex > 0) {
                         String idStr = rest.substring(0, dotIndex);
@@ -202,8 +200,8 @@ public class DtAdmin {
             }
 
             for (int groupId : groupIds) {
-                String members = props.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
-                String observers = props.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfObservers");
+                String members = props.getProperty(Bootstrap.GROUP_PREFIX + "." + groupId + ".nodeIdOfMembers");
+                String observers = props.getProperty(Bootstrap.GROUP_PREFIX + "." + groupId + ".nodeIdOfObservers");
                 if (members != null && !members.trim().isEmpty()) {
                     int[] memberIds = parseIntArray(members);
                     int[] observerIds = observers != null && !observers.trim().isEmpty() ?

@@ -55,7 +55,13 @@ public class Bootstrap {
     public static final int DEFAULT_REPLICATE_PORT = 9331;
     public static final int DEFAULT_SERVICE_PORT = 9332;
 
-    public static final String GROUP_PREFIX = "group.";
+    public static final String GROUP_PREFIX = "group";
+
+    // Advanced config: RaftServer already sets optimized defaults for replicate NioServer/NioClient,
+    // so these prefixes are intentionally undocumented in the config template. Settings here override
+    // the framework defaults (applied after RaftServer setup), use with caution.
+    public static final String NIO_SERVER_PREFIX = "nioServer";
+    public static final String NIO_CLIENT_PREFIX = "nioClient";
 
     private int exitCode;
 
@@ -119,11 +125,11 @@ public class Bootstrap {
             boolean logDataDir = false;
             this.groupConfigs = new ArrayList<>();
             for (int groupId : parseGroupIds(serversProps)) {
-                String nodeIdOfMembers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
-                String nodeIdOfObservers = serversProps.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfObservers");
+                String nodeIdOfMembers = serversProps.getProperty(GROUP_PREFIX + "." + groupId + ".nodeIdOfMembers");
+                String nodeIdOfObservers = serversProps.getProperty(GROUP_PREFIX + "." + groupId + ".nodeIdOfObservers");
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
                 PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
-                PropsUtil.setFieldsFromProps(groupConfig, serversProps, GROUP_PREFIX + groupId);
+                PropsUtil.setFieldsFromProps(groupConfig, serversProps, GROUP_PREFIX + "." + groupId);
                 groupConfigs.add(groupConfig);
                 if (!logDataDir) {
                     System.out.println("DATA_DIR=" + groupConfig.dataDir);
@@ -183,10 +189,12 @@ public class Bootstrap {
         }
     }
 
-    protected void customReplicateNioServer(@SuppressWarnings("unused") NioServerConfig c) {
+    protected void customReplicateNioServer(NioServerConfig c) {
+        PropsUtil.setFieldsFromProps(c, configProps, NIO_SERVER_PREFIX);
     }
 
-    protected void customReplicateNioClient(@SuppressWarnings("unused") NioClientConfig c) {
+    protected void customReplicateNioClient(NioClientConfig c) {
+        PropsUtil.setFieldsFromProps(c, configProps, NIO_CLIENT_PREFIX);
     }
 
     protected RaftFactory createRaftFactory() {
@@ -194,7 +202,7 @@ public class Bootstrap {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 KvServerConfig kvConfig = new KvServerConfig();
-                PropsUtil.setFieldsFromProps(kvConfig, serversProps, GROUP_PREFIX + groupConfig.groupId);
+                PropsUtil.setFieldsFromProps(kvConfig, serversProps, GROUP_PREFIX + "." + groupConfig.groupId);
                 return new DtKV(groupConfig, kvConfig);
             }
 
@@ -203,7 +211,7 @@ public class Bootstrap {
             public RaftGroupConfig createConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
                 RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(groupId, nodeIdOfMembers, nodeIdOfObservers);
                 PropsUtil.setFieldsFromProps(groupConfig, configProps, "");
-                PropsUtil.setFieldsFromProps(groupConfig, serversProps, GROUP_PREFIX + groupId);
+                PropsUtil.setFieldsFromProps(groupConfig, serversProps, GROUP_PREFIX + "." + groupId);
                 groupConfig.dataDir = groupConfig.dataDir + "/" + groupId;
                 String s = ensureDir(groupConfig.dataDir);
                 if (s != null) {
@@ -270,8 +278,8 @@ public class Bootstrap {
     private int[] parseGroupIds(Properties props) {
         HashSet<Integer> groupIds = new HashSet<>();
         for (String key : props.stringPropertyNames()) {
-            if (key.startsWith(GROUP_PREFIX)) {
-                String rest = key.substring(GROUP_PREFIX.length());
+            if (key.startsWith(GROUP_PREFIX + ".")) {
+                String rest = key.substring(GROUP_PREFIX.length() + 1);
                 int dotIndex = rest.indexOf('.');
                 if (dotIndex <= 0) {
                     updateExitCode(ERR_BAD_CONFIG);
@@ -288,7 +296,7 @@ public class Bootstrap {
             }
         }
         for (int groupId : groupIds) {
-            String nodeIdOfMembers = props.getProperty(GROUP_PREFIX + groupId + ".nodeIdOfMembers");
+            String nodeIdOfMembers = props.getProperty(GROUP_PREFIX + "." + groupId + ".nodeIdOfMembers");
             if (nodeIdOfMembers == null || nodeIdOfMembers.isEmpty()) {
                 updateExitCode(ERR_BAD_CONFIG);
                 throw new IllegalArgumentException("Missing nodeIdOfMembers for group " + groupId);
