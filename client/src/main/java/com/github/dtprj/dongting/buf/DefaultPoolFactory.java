@@ -58,34 +58,33 @@ public class DefaultPoolFactory implements PoolFactory {
 
     @Override
     public Buffers createPool(Timestamp ts) {
-        long maxMemory = Runtime.getRuntime().maxMemory();
-        SimpleByteBufferPool heapSmallPool = createSmallPool(maxMemory, false);
-        SimpleByteBufferPool directSmallPool = createSmallPool(maxMemory, true);
-        BuddyBufferPool heapLargePool = createLargePool(ts, maxMemory, false);
-        BuddyBufferPool directLargePool = createLargePool(ts, maxMemory, true);
+        SimpleByteBufferPool heapSmallPool = createSmallPool(false);
+        SimpleByteBufferPool directSmallPool = createSmallPool(true);
+        BuddyBufferPool heapLargePool = createLargePool(ts, false);
+        BuddyBufferPool directLargePool = createLargePool(ts, true);
         return new Buffers(heapSmallPool, directSmallPool, heapLargePool, directLargePool);
     }
 
-    private SimpleByteBufferPool createSmallPool(long maxMemory, boolean direct) {
+    private SimpleByteBufferPool createSmallPool(boolean direct) {
         int[] sizes = config.smallSize;
         int[] minCount = new int[sizes.length];
         for (int i = 0; i < minCount.length; i++) {
             long count = config.smallSlotMinSize / sizes[i];
-            minCount[i] = (int) calcByMem(maxMemory, count);
+            minCount[i] = (int) calcByMem(count);
         }
         int[] maxCount = new int[sizes.length];
         for (int i = 0; i < maxCount.length; i++) {
             long count = config.smallSlotMaxSize / sizes[i];
-            maxCount[i] = (int) calcByMem(maxMemory, count);
+            maxCount[i] = (int) calcByMem(count);
         }
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(direct, direct ? 0 : config.threshold,
-                sizes, minCount, maxCount, calcByMem(maxMemory, config.smallShareSize));
+                sizes, minCount, maxCount, calcByMem(config.smallShareSize));
         return new SimpleByteBufferPool(c);
     }
 
-    private BuddyBufferPool createLargePool(Timestamp ts, long maxMemory, boolean direct) {
-        int minChunk = (int) calcByMem(maxMemory, config.largeMinChunkCount);
-        int maxChunk = (int) calcByMem(maxMemory, config.largeMaxChunkCount);
+    private BuddyBufferPool createLargePool(Timestamp ts, boolean direct) {
+        int minChunk = (int) calcByMem(config.largeMinChunkCount);
+        int maxChunk = (int) calcByMem(config.largeMaxChunkCount);
         BuddyBufferPoolConfig c = new BuddyBufferPoolConfig(
                 direct, false, ts, config.largeChunkSize,
                 config.largeMinBlockSize,
@@ -93,18 +92,8 @@ public class DefaultPoolFactory implements PoolFactory {
         return new BuddyBufferPool(c, direct ? directChunkList : heapChunkList);
     }
 
-    protected long calcByMem(long maxMemory, long size) {
-        if (maxMemory < 1.01 * 1024 * 1024 * 1024) {
-            return Math.max(size / 4, 1);
-        } else if (maxMemory < 2.01 * 1024 * 1024 * 1024) {
-            return Math.max(size / 2, 1);
-        } else if (maxMemory >= 8L * 1000 * 1000 * 1000) {
-            return size * 2;
-        } else if (maxMemory >= 16L * 1000 * 1000 * 1000) {
-            return size * 4;
-        } else {
-            return size;
-        }
+    protected long calcByMem(long size) {
+        return DtUtil.calcByMem(size);
     }
 
     @Override

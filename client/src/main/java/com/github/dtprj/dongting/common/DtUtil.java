@@ -29,6 +29,7 @@ public class DtUtil {
     private static final DtLog log = DtLogs.getLogger(DtUtil.class);
 
     public static final int JAVA_VER = majorVersion(System.getProperty("java.specification.version", "1.8"));
+    public static final long MAX_MEMORY = Runtime.getRuntime().maxMemory();
 
     public static final int RPC_MAJOR_VER = 1;
     public static final int RPC_MINOR_VER = 0;
@@ -168,5 +169,19 @@ public class DtUtil {
             ex = ex.getCause();
         }
         throw new IllegalStateException("loop cause?");
+    }
+
+    public static long calcByMem(long size) {
+        if (MAX_MEMORY < 1.01 * 1024 * 1024 * 1024) {
+            return Math.max(size / 4, 1);
+        } else if (MAX_MEMORY < 2.01 * 1024 * 1024 * 1024) {
+            return Math.max(size / 2, 1);
+        } else if (MAX_MEMORY >= 16L * 1000 * 1000 * 1000) {
+            return size * 4;
+        } else if (MAX_MEMORY >= 8L * 1000 * 1000 * 1000) {
+            return size * 2;
+        } else {
+            return size;
+        }
     }
 }

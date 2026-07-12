@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.DtUtil;
+
 /**
  * @author huangli
  */
@@ -43,20 +45,20 @@ public class NioServerConfig extends NioConfig {
     }
 
     private int calcIoThreads() {
-        int p = Runtime.getRuntime().availableProcessors();
-        if (p <= 3) {
+        long m = DtUtil.MAX_MEMORY;
+        if (m <= 2.01 * 1024 * 1024) {
             return 1;
-        } else if (p <= 6) {
+        } else if (m <= 3.51 * 1024 * 1024) {
             return 2;
-        } else if (p <= 12) {
+        } else if (m <= 6.01 * 1024 * 1024) {
             return 3;
-        } else if (p <= 24) {
+        } else if (m <= 8.01 * 1024 * 1024) {
             return 4;
-        } else if (p <= 40) {
+        } else if (m <= 12.01 * 1024 * 1024) {
             return 5;
-        } else if (p <= 64) {
+        } else if (m <= 16.01 * 1024 * 1024) {
             return 6;
-        } else if (p <= 100) {
+        } else if (m <= 32.01 * 1024 * 1024) {
             return 7;
         } else {
             return 8;

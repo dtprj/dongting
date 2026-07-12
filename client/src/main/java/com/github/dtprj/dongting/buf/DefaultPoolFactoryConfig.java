@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtUtil;
+
 /**
  * @author huangli
  */
@@ -35,7 +37,7 @@ public class DefaultPoolFactoryConfig {
     public int largeMaxChunkCount = 8;
     public long largeShareSize = 400 * 1024 * 1024;
 
-    public int largeGlobalIdleTargetSize = 2;
+    public int largeGlobalIdleTargetSize = DtUtil.MAX_MEMORY >= 3L * 1024 * 1024 * 1024 ? 2 : 1;
     public long largeGlobalTimeoutMillis = 60_000;
     public long largeTimeoutMillis = 2000;
 
