@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtCleanable;
-import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftConfigRpcData;
 
 import java.nio.ByteBuffer;
@@ -183,13 +182,11 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         }
     }
 
-    public static class InstallReqWritePacket extends WritePacket {
+    public static class InstallReqWritePacket extends PreEncodedWritePacket {
 
         private final InstallSnapshotReq req;
         private final int headerSize;
-        private final int bufferSize;
         private boolean headerWritten = false;
-        private ByteBuffer preEncodedBuffer;
 
         public InstallReqWritePacket(InstallSnapshotReq req) {
             this.req = req;
@@ -209,17 +206,15 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
 
             RefBuffer rb = req.data;
             if (rb != null && rb.getBuffer().hasRemaining()) {
-                this.bufferSize = rb.getBuffer().remaining();
-                x += PbUtil.sizeOfLenFieldPrefix(IDX_DATA, bufferSize) + bufferSize;
-            } else {
-                this.bufferSize = 0;
+                totalPreEncodedSize = rb.getBuffer().remaining();
+                x += PbUtil.sizeOfLenFieldPrefix(IDX_DATA, totalPreEncodedSize) + totalPreEncodedSize;
             }
-            this.headerSize = x - bufferSize;
+            this.headerSize = x - totalPreEncodedSize;
         }
 
         @Override
         protected int calcActualBodySize() {
-            return headerSize + bufferSize;
+            return headerSize + totalPreEncodedSize;
         }
 
         @Override
@@ -239,8 +234,8 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
                     PbUtil.writeFix32Field(dest, IDX_PREPARED_MEMBERS, req.preparedMembers);
                     PbUtil.writeFix32Field(dest, IDX_PREPARED_OBSERVERS, req.preparedObservers);
                     PbUtil.writeFix64Field(dest, IDX_LAST_CONFIG_CHANGE_INDEX, req.lastConfigChangeIndex);
-                    if (bufferSize > 0) {
-                        PbUtil.writeLenFieldPrefix(dest, IDX_DATA, bufferSize);
+                    if (totalPreEncodedSize > 0) {
+                        PbUtil.writeLenFieldPrefix(dest, IDX_DATA, totalPreEncodedSize);
                         preEncodedBuffer = req.data.getBuffer().slice();
                     }
                     headerWritten = true;
@@ -248,29 +243,12 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
                     return false;
                 }
             }
-            return bufferSize == 0 || preEncodedBuffer == null;
+            return totalPreEncodedSize == 0 || preEncodedBuffer == null;
         }
 
         @Override
         protected void doClean() {
             req.clean();
-        }
-
-        @Override
-        public boolean hasPreEncodedBuffer() {
-            return preEncodedBuffer != null;
-        }
-
-        @Override
-        public int getTotalPreEncodedBufferSize() {
-            return bufferSize;
-        }
-
-        @Override
-        public ByteBuffer getPreEncodedBuffer() {
-            ByteBuffer buf = preEncodedBuffer;
-            preEncodedBuffer = null;
-            return buf;
         }
     }
 }

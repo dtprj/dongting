@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -39,7 +38,7 @@ import java.util.List;
 //int32 logs_size = 7;
 //bytes entries = 8;
 //}
-public class AppendReqWritePacket extends WritePacket {
+public class AppendReqWritePacket extends PreEncodedWritePacket {
 
     public int term;
     public int leaderId;
@@ -50,13 +49,11 @@ public class AppendReqWritePacket extends WritePacket {
 
     private int headerSize;
     private int bodySize;
-    private int totalPreEncodedSize;
 
     private static final int WRITE_HEADER = 0;
     private static final int WRITE_BODY = 1;
     private int writeStatus;
     private int encodeLogIndex;
-    private ByteBuffer preEncodedBuffer;
 
     public AppendReqWritePacket() {
     }
@@ -118,6 +115,7 @@ public class AppendReqWritePacket extends WritePacket {
                     if (currentItem.reqData.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
                         // slice for independent position, since the same reqData may be sent to multiple followers
                         preEncodedBuffer = currentItem.reqData.buffer.getBuffer().slice();
+                        encodeLogIndex++;
                         return false;
                     }
                     if (currentItem.encode(context, dest)) {
@@ -135,26 +133,5 @@ public class AppendReqWritePacket extends WritePacket {
     @Override
     protected void doClean() {
         RaftUtil.releaseInputs(logs);
-    }
-
-    @Override
-    public boolean hasPreEncodedBuffer() {
-        return preEncodedBuffer != null;
-    }
-
-    @Override
-    public int getTotalPreEncodedBufferSize() {
-        return totalPreEncodedSize;
-    }
-
-    @Override
-    public ByteBuffer getPreEncodedBuffer() {
-        ByteBuffer buf = preEncodedBuffer;
-        if (buf != null) {
-            preEncodedBuffer = null;
-            encodeLogIndex++;
-            return buf;
-        }
-        return null;
     }
 }
