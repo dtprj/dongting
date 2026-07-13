@@ -431,8 +431,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             long filePos = pos & fileLenMask;
             logFile.incReaders();
             readerPending = true;
-            MmapIoTask t = new MmapIoTask(groupConfig.fiberGroup, logFile);
-            return t.run(new SingleBufferCallback(buffer, filePos)).await(unused -> afterLoad());
+            AsyncIoTask t = new AsyncIoTask(groupConfig.fiberGroup, logFile);
+            return t.read(buffer, filePos).await(unused -> afterLoad());
         }
 
         private FrameCallResult afterLoad() {
