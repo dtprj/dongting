@@ -33,7 +33,6 @@ public abstract class Packet implements DtCleanable {
     public static final int IDX_MSG = 6;
     public static final int IDX_TIMEOUT = 7;
     public static final int IDX_EXTRA = 8;
-    public static final int IDX_GROUP_ID = 9;
     public static final int IDX_BODY = 15;
 
     public int packetType;
@@ -44,7 +43,6 @@ public abstract class Packet implements DtCleanable {
     public String msg;
     public long timeout;
     public byte[] extra;
-    public int groupId;
 
     boolean cleaned;
 
@@ -55,7 +53,6 @@ public abstract class Packet implements DtCleanable {
                 ",seq=" + seq +
                 ",respCode=" + respCode +
                 ",bizCode=" + bizCode +
-                ",groupId=" + groupId +
                 ")";
     }
 

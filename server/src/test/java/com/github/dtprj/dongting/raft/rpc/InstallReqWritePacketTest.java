@@ -56,7 +56,6 @@ public class InstallReqWritePacketTest {
     private void testEncode0(int dataSize, boolean useDirect) {
         InstallSnapshotReq req = createReq(dataSize, useDirect);
         InstallSnapshotReq.InstallReqWritePacket f = new InstallSnapshotReq.InstallReqWritePacket(req);
-        f.groupId = req.groupId;
 
         ByteBuffer body;
         if (dataSize > 0) {
@@ -97,7 +96,6 @@ public class InstallReqWritePacketTest {
     private void testSmallBufferEncode0(int dataSize, boolean useDirect) {
         InstallSnapshotReq req = createReq(dataSize, useDirect);
         InstallSnapshotReq.InstallReqWritePacket f = new InstallSnapshotReq.InstallReqWritePacket(req);
-        f.groupId = req.groupId;
 
         EncodeContext context = new EncodeContext(null);
         int actualBodySize = f.actualBodySize();

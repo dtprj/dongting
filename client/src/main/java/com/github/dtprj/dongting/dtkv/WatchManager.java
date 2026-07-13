@@ -351,7 +351,6 @@ public class WatchManager {
     protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(req);
         packet.command = Commands.DTKV_SYNC_WATCH;
-        packet.groupId = req.groupId;
         raftClient.getNioClient().sendRequest(n.peer, packet,
                 DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, raftClient.createDefaultTimeout(), c);
     }
@@ -502,7 +501,6 @@ public class WatchManager {
 
     protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> rpcCallback) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.DTKV_QUERY_STATUS, groupId);
-        p.groupId = groupId;
         DecoderCallbackCreator<KvStatusResp> d = ctx -> ctx.toDecoderCallback(new KvStatusResp());
         raftClient.getNioClient().sendRequest(n.peer, p, d, raftClient.createDefaultTimeout(), rpcCallback);
     }

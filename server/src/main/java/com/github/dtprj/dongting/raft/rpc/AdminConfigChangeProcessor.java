@@ -54,6 +54,16 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
         }
     }
 
+    @Override
+    protected int getGroupId(ReadPacket<Object> frame) {
+        Object body = frame.getBody();
+        if (frame.command == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
+            return ((AdminPrepareConfigChangeReq) body).groupId;
+        } else {
+            return ((AdminCommitOrAbortReq) body).groupId;
+        }
+    }
+
     @SuppressWarnings({"rawtypes"})
     @Override
     protected WritePacket doProcess(ReqInfo reqInfo) {

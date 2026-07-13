@@ -756,7 +756,6 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         // data buffer released in WritePacket
         InstallSnapshotReq.InstallReqWritePacket wf = new InstallSnapshotReq.InstallReqWritePacket(req);
         wf.command = Commands.RAFT_INSTALL_SNAPSHOT;
-        wf.groupId = groupId;
         FiberGroup fg = groupConfig.fiberGroup;
         FiberFuture<Void> f = fg.newFuture("install-" + groupId + "-" + req.offset);
         DtTime timeout = new DtTime(serverConfig.rpcTimeout, TimeUnit.MILLISECONDS);

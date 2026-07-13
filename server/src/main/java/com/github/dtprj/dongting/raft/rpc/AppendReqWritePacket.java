@@ -40,6 +40,7 @@ import java.util.List;
 //}
 public class AppendReqWritePacket extends PreEncodedWritePacket {
 
+    public int groupId;
     public int term;
     public int leaderId;
     public long prevLogIndex;

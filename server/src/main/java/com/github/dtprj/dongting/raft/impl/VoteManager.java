@@ -175,7 +175,6 @@ public class VoteManager {
         req.preVote = preVote;
         SimpleWritePacket wf = new SimpleWritePacket(req);
         wf.command = Commands.RAFT_REQUEST_VOTE;
-        wf.groupId = req.groupId;
         DtTime timeout = new DtTime(config.rpcTimeout, TimeUnit.MILLISECONDS);
 
         final int voteIdOfRequest = this.currentVoteId;

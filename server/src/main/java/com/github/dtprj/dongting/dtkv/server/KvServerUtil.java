@@ -187,7 +187,6 @@ public class KvServerUtil {
         req.value = ri.newOwner.data;
         req.ttlMillis = ri.newOwnerServerSideWaitNanos;
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_LOCK_PUSH, req);
-        packet.groupId = req.groupId;
         DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
 
         // Send one-way message, don't wait for response

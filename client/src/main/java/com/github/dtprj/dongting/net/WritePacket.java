@@ -50,9 +50,8 @@ public abstract class WritePacket extends Packet implements Encodable {
             + 1 + 5 // uint32 resp_code = 4;
             + 1 + 5 // uint32 biz_code = 5;
             // string resp_msg = 6;
-            + 1 + 8 // fixed32 timeout_millis = 7;
+            + 1 + 8; // fixed32 timeout_millis = 7;
             // string extra = 8;
-            + 1 + 5; // int32 group_id = 9;
 
 
     protected abstract int calcActualBodySize();
@@ -98,8 +97,7 @@ public abstract class WritePacket extends Packet implements Encodable {
                     + PbUtil.sizeOfInt32Field(IDX_BIZ_CODE, bizCode) // uint32 biz_code = 5;
                     + PbUtil.sizeOfBytesField(IDX_MSG, getMsgBytes()) // string resp_msg = 6;
                     + PbUtil.sizeOfFix64Field(IDX_TIMEOUT, timeout) // fixed64 timeout = 7;
-                    + PbUtil.sizeOfBytesField(IDX_EXTRA, extra) // bytes extra = 8;
-                    + PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId); // int32 group_id = 9;
+                    + PbUtil.sizeOfBytesField(IDX_EXTRA, extra); // bytes extra = 8;
             int bodySize = actualBodySize();
             if (bodySize > 0) {
                 // bytes body = 15;
@@ -161,7 +159,6 @@ public abstract class WritePacket extends Packet implements Encodable {
         PbUtil.writeBytesField(buf, IDX_MSG, getMsgBytes());
         PbUtil.writeFix64Field(buf, IDX_TIMEOUT, timeout);
         PbUtil.writeBytesField(buf, IDX_EXTRA, extra);
-        PbUtil.writeInt32Field(buf, IDX_GROUP_ID, groupId);
         if (bodySize > 0) {
             PbUtil.writeLenFieldPrefix(buf, Packet.IDX_BODY, bodySize);
         }

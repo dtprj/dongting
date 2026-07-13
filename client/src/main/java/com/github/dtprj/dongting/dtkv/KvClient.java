@@ -131,7 +131,6 @@ public class KvClient extends AbstractLifeCircle {
                                  Function<ReadPacket<KvResp>, T> mapper) {
         DtTime timeout = raftClient.createDefaultTimeout();
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(cmd, req);
-        wf.groupId = req.groupId;
         raftClient.sendRequest(groupId, wf, DECODER, timeout, (result, ex) ->
                 asyncCallback(cmd, c, mapper, result, ex));
     }
@@ -154,7 +153,6 @@ public class KvClient extends AbstractLifeCircle {
     protected ReadPacket<KvResp> sendSync(int groupId, int cmd, KvReq req) {
         DtTime timeout = raftClient.createDefaultTimeout();
         EncodableBodyWritePacket wf = new EncodableBodyWritePacket(cmd, req);
-        wf.groupId = req.groupId;
         ReadPacket<KvResp> p = raftClient.sendRequest(groupId, wf, DECODER, timeout);
         if (isSuccess(cmd, p.bizCode)) {
             return p;

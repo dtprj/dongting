@@ -47,4 +47,9 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPing> {
     public DecoderCallback<RaftPing> createDecoderCallback(int command, DecodeContext context) {
         return context.toDecoderCallback(new RaftPing());
     }
+
+    @Override
+    protected int getGroupId(ReadPacket<RaftPing> frame) {
+        return frame.getBody().groupId;
+    }
 }

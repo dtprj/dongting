@@ -94,7 +94,6 @@ public class AdminRaftClient extends RaftClient {
             req.newLeaderId = newLeader;
             SimpleWritePacket p = new SimpleWritePacket(req);
             p.command = Commands.RAFT_ADMIN_TRANSFER_LEADER;
-            p.groupId = leaderGroup.groupId;
             DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;
             CompletableFuture<ReadPacket<Void>> f = new CompletableFuture<>();
             nioClient.sendRequest(leaderGroup.leader.peer, p, dc, timeout, RpcCallback.fromFuture(f));
@@ -117,7 +116,6 @@ public class AdminRaftClient extends RaftClient {
         req.preparedMembers = new HashSet<>(newMembers);
         req.preparedObservers = new HashSet<>(newObservers);
         SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_PREPARE_CHANGE, req);
-        p.groupId = groupId;
         DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;
         CompletableFuture<Long> r = new CompletableFuture<>();
         sendRequest(groupId, p, dc, timeout, RpcCallback.fromUnwrapFuture(r));
@@ -133,7 +131,6 @@ public class AdminRaftClient extends RaftClient {
         req.groupId = groupId;
         req.prepareIndex = prepareIndex;
         SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_COMMIT_CHANGE, req);
-        p.groupId = groupId;
         DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;
         CompletableFuture<Long> r = new CompletableFuture<>();
         sendRequest(groupId, p, dc, timeout, RpcCallback.fromUnwrapFuture(r));
@@ -148,7 +145,6 @@ public class AdminRaftClient extends RaftClient {
         AdminCommitOrAbortReq req = new AdminCommitOrAbortReq();
         req.groupId = groupId;
         SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_ABORT_CHANGE, req);
-        p.groupId = groupId;
         DecoderCallbackCreator<Long> dc = PbLongCallback.CALLBACK_CREATOR;
         CompletableFuture<Long> r = new CompletableFuture<>();
         sendRequest(groupId, p, dc, timeout, RpcCallback.fromUnwrapFuture(r));
@@ -178,7 +174,6 @@ public class AdminRaftClient extends RaftClient {
         req.nodeIdOfMembers = members;
         req.nodeIdOfObservers = observers;
         SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_ADMIN_ADD_GROUP, req);
-        p.groupId = req.groupId;
         return sendByNodeId(nodeId, timeout, p);
     }
 
@@ -187,7 +182,6 @@ public class AdminRaftClient extends RaftClient {
      */
     public CompletableFuture<Void> serverRemoveGroup(int nodeId, int groupId, DtTime timeout) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_GROUP, groupId);
-        p.groupId = groupId;
         return sendByNodeId(nodeId, timeout, p);
     }
 

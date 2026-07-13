@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
@@ -37,12 +38,11 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
-import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
@@ -81,6 +81,16 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
             return context.toDecoderCallback(c);
         } else {
             return context.toDecoderCallback(new InstallSnapshotReq.Callback());
+        }
+    }
+
+    @Override
+    protected int getGroupId(ReadPacket<Object> frame) {
+        Object body = frame.getBody();
+        if (frame.command == Commands.RAFT_APPEND_ENTRIES) {
+            return ((AppendReq) body).groupId;
+        } else {
+            return ((InstallSnapshotReq) body).groupId;
         }
     }
 

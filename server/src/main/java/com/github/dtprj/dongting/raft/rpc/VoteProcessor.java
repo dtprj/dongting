@@ -194,5 +194,10 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     public DecoderCallback<VoteReq> createDecoderCallback(int command, DecodeContext context) {
         return context.toDecoderCallback(new VoteReq.Callback());
     }
+
+    @Override
+    protected int getGroupId(ReadPacket<VoteReq> frame) {
+        return frame.getBody().groupId;
+    }
 }
 

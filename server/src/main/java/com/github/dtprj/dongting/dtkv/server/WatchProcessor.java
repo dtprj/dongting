@@ -44,6 +44,11 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
     }
 
     @Override
+    protected int getGroupId(ReadPacket<WatchReqCallback> frame) {
+        return frame.getBody().groupId;
+    }
+
+    @Override
     protected WritePacket doProcess(ReqInfo<WatchReqCallback> reqInfo) {
         DtKV dtKV = KvServerUtil.getStateMachine(reqInfo);
         if (dtKV == null) {

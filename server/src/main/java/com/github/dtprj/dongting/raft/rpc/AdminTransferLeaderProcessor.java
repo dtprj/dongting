@@ -72,4 +72,9 @@ public class AdminTransferLeaderProcessor extends RaftProcessor<TransferLeaderRe
     public DecoderCallback<TransferLeaderReq> createDecoderCallback(int command, DecodeContext context) {
         return context.toDecoderCallback(new TransferLeaderReq.Callback());
     }
+
+    @Override
+    protected int getGroupId(ReadPacket<TransferLeaderReq> frame) {
+        return frame.getBody().groupId;
+    }
 }

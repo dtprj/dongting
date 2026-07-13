@@ -421,7 +421,6 @@ public class DistributedLockImpl implements DistributedLock {
 
         KvReq req = new KvReq(groupId, key.getData(), value, waitLockTimeoutMillis);
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_TRY_LOCK, req);
-        packet.groupId = groupId;
         packet.acquirePermitNoWait = true;
 
         newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(leaseMillis);
@@ -520,7 +519,6 @@ public class DistributedLockImpl implements DistributedLock {
 
         KvReq req = new KvReq(groupId, key.getData(), null);
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
-        packet.groupId = groupId;
         packet.acquirePermitNoWait = true;
 
         sendRpc(packet, op);
@@ -576,7 +574,6 @@ public class DistributedLockImpl implements DistributedLock {
 
         KvReq req = new KvReq(groupId, key.getData(), null, newLeaseMillis);
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UPDATE_LOCK_LEASE, req);
-        packet.groupId = groupId;
         packet.acquirePermitNoWait = true;
 
         newLeaseEndNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(newLeaseMillis);
@@ -624,7 +621,6 @@ public class DistributedLockImpl implements DistributedLock {
             if (needSendUnlock) {
                 KvReq req = new KvReq(groupId, key.getData(), null);
                 EncodableBodyWritePacket packet = new EncodableBodyWritePacket(Commands.DTKV_UNLOCK, req);
-                packet.groupId = groupId;
                 packet.acquirePermitNoWait = true;
                 sendRpc(packet, null);
             }

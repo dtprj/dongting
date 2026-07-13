@@ -64,6 +64,11 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         return context.toDecoderCallback(context.kvReqCallback());
     }
 
+    @Override
+    protected int getGroupId(ReadPacket<KvReq> frame) {
+        return frame.getBody().groupId;
+    }
+
     /**
      * run in io thread.
      */

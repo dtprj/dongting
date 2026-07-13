@@ -384,8 +384,6 @@ public final class RaftUtil {
         raftPing.observers = RaftNode.formatServers(raftStatus.observers, mapper);
         raftPing.preparedMembers = RaftNode.formatServers(raftStatus.preparedMembers, mapper);
         raftPing.preparedObservers = RaftNode.formatServers(raftStatus.preparedObservers, mapper);
-        SimpleWritePacket p = new SimpleWritePacket(raftPing);
-        p.groupId = raftPing.groupId;
-        return p;
+        return new SimpleWritePacket(raftPing);
     }
 }
