@@ -189,10 +189,11 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         private final int headerSize;
         private final int bufferSize;
         private boolean headerWritten = false;
+        private ByteBuffer preEncodedBuffer;
 
         public InstallReqWritePacket(InstallSnapshotReq req) {
             this.req = req;
-            int x = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, req.groupId)
+            int x = PbUtil.sizeOfInt32Field(InstallSnapshotReq.IDX_GROUP_ID, req.groupId)
                     + PbUtil.sizeOfInt32Field(IDX_TERM, req.term)
                     + PbUtil.sizeOfInt32Field(IDX_LEADER_ID, req.leaderId)
                     + PbUtil.sizeOfFix64Field(IDX_LAST_INCLUDED_INDEX, req.lastIncludedIndex)
@@ -225,7 +226,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
             if (!headerWritten) {
                 if (dest.remaining() >= headerSize) {
-                    PbUtil.writeInt32Field(dest, IDX_GROUP_ID, req.groupId);
+                    PbUtil.writeInt32Field(dest, InstallSnapshotReq.IDX_GROUP_ID, req.groupId);
                     PbUtil.writeInt32Field(dest, IDX_TERM, req.term);
                     PbUtil.writeInt32Field(dest, IDX_LEADER_ID, req.leaderId);
                     PbUtil.writeFix64Field(dest, IDX_LAST_INCLUDED_INDEX, req.lastIncludedIndex);
@@ -240,22 +241,36 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
                     PbUtil.writeFix64Field(dest, IDX_LAST_CONFIG_CHANGE_INDEX, req.lastConfigChangeIndex);
                     if (bufferSize > 0) {
                         PbUtil.writeLenFieldPrefix(dest, IDX_DATA, bufferSize);
+                        preEncodedBuffer = req.data.getBuffer().slice();
                     }
                     headerWritten = true;
                 } else {
                     return false;
                 }
             }
-            if (bufferSize == 0) {
-                return true;
-            }
-            dest.put(req.data.getBuffer());
-            return !req.data.getBuffer().hasRemaining();
+            return bufferSize == 0 || preEncodedBuffer == null;
         }
 
         @Override
         protected void doClean() {
             req.clean();
+        }
+
+        @Override
+        public boolean hasPreEncodedBuffer() {
+            return preEncodedBuffer != null;
+        }
+
+        @Override
+        public int getTotalPreEncodedBufferSize() {
+            return bufferSize;
+        }
+
+        @Override
+        public ByteBuffer getPreEncodedBuffer() {
+            ByteBuffer buf = preEncodedBuffer;
+            preEncodedBuffer = null;
+            return buf;
         }
     }
 }

@@ -697,7 +697,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        Supplier<RefBuffer> bufferCreator = () -> buffers.borrow(groupConfig.replicateSnapshotBufferSize);
+        Supplier<RefBuffer> bufferCreator = () -> buffers.borrowDirect(groupConfig.replicateSnapshotBufferSize);
 
         int readConcurrency = groupConfig.snapshotConcurrency;
         int writeConcurrency = groupConfig.replicateSnapshotConcurrency;
