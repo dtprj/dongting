@@ -54,6 +54,7 @@ final class LogFileQueue extends FileQueue {
     private final Timestamp ts;
 
     final LogAppender logAppender;
+    private final ChainWriter chainWriter;
 
     int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
 
@@ -66,11 +67,16 @@ final class LogFileQueue extends FileQueue {
         DispatcherThread t = fiberGroup.dispatcher.thread;
         this.buffers = t.buffers;
 
-        ChainWriter chainWriter = new ChainWriter("LogForce", groupConfig, this::writeFinish, this::forceFinish);
+        this.chainWriter = new ChainWriter("LogForce", groupConfig, this::writeFinish, this::forceFinish);
         chainWriter.setWritePerfType1(PerfConsts.RAFT_D_LOG_WRITE1);
         chainWriter.setWritePerfType2(PerfConsts.RAFT_D_LOG_WRITE2);
         chainWriter.setForcePerfType(PerfConsts.RAFT_D_LOG_SYNC);
         this.logAppender = new LogAppender(idxOps, this, groupConfig, chainWriter);
+    }
+
+    public void setInitialized(boolean initialized) {
+        this.initialized = initialized;
+        this.chainWriter.initialized = initialized;
     }
 
     private void writeFinish(ChainWriter.WriteTask writeTask) {

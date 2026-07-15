@@ -277,7 +277,7 @@ class LogAppender {
             this.buffer = null;
 
             // ownership transferred
-            chainWriter.submitWrite(file, logFileQueue.initialized, refBufferCopy, writeStartPosInFile,
+            chainWriter.submitWrite(file, refBufferCopy, writeStartPosInFile,
                     lastItem != null, writeCount, lastIndex);
 
             nextPersistPos += bytes;

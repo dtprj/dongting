@@ -75,7 +75,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private final FiberCondition needFlushCondition;
     final FiberCondition flushDoneCondition;
 
-    final ChainWriter chainWriter;
+    private final ChainWriter chainWriter;
 
     public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig) {
         super(dir, groupConfig, (long) ITEM_LEN * groupConfig.idxItemsPerFile, false);
@@ -101,6 +101,11 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         chainWriter.setWritePerfType1(0);
         chainWriter.setWritePerfType2(PerfConsts.RAFT_D_IDX_WRITE);
         chainWriter.setForcePerfType(PerfConsts.RAFT_D_IDX_FORCE);
+    }
+
+    public void setInitialized(boolean initialized) {
+        this.initialized = initialized;
+        this.chainWriter.initialized = initialized;
     }
 
     public FiberFrame<Pair<Long, Long>> initRestorePos() {
@@ -247,7 +252,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             return;
         }
         long filePos = indexToPos(nextPersistIndex) & fileLenMask;
-        chainWriter.submitWrite(logFile, initialized, null, filePos, true, 0, nextPersistIndex - 1);
+        chainWriter.submitWrite(logFile, null, filePos, true, 0, nextPersistIndex - 1);
     }
 
     private void fillAndSubmit(RefBuffer bufRef, long startIndex, LogFile logFile, boolean suggestForce) {
@@ -261,7 +266,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             boolean force = fileEnd || suggestForce;
             int items = (int) (nextPersistIndex - startIndex);
             submitCalled = true;
-            chainWriter.submitWrite(logFile, initialized, bufRef, filePos, force, items, nextPersistIndex - 1);
+            chainWriter.submitWrite(logFile, bufRef, filePos, force, items, nextPersistIndex - 1);
         } catch (Throwable e) {
             if (!submitCalled) {
                 bufRef.release();

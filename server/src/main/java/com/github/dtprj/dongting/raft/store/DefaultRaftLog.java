@@ -91,8 +91,8 @@ public final class DefaultRaftLog implements RaftLog {
                 RaftUtil.checkStop(fiberGroup);
 
                 if (raftStatus.installSnapshot) {
-                    idxFiles.initialized = true;
-                    logFiles.initialized = true;
+                    idxFiles.setInitialized(true);
+                    logFiles.setInitialized(true);
                     startQueueDeleteFiber();
                     deleteFrame.requestDeleteAllAndExit = true;
                     deleteFrame.delCond.signal();
@@ -126,8 +126,8 @@ public final class DefaultRaftLog implements RaftLog {
                 RaftUtil.checkStop(fiberGroup);
 
                 logFiles.startFibers();
-                idxFiles.initialized = true;
-                logFiles.initialized = true;
+                idxFiles.setInitialized(true);
+                logFiles.setInitialized(true);
 
                 startQueueDeleteFiber();
 
@@ -268,8 +268,8 @@ public final class DefaultRaftLog implements RaftLog {
             }
 
             private FrameCallResult afterLogFinishInstall(Void unused) {
-                idxFiles.initialized = true;
-                logFiles.initialized = true;
+                idxFiles.setInitialized(true);
+                logFiles.setInitialized(true);
                 startQueueDeleteFiber();
                 statusManager.getProperties().put(KEY_FIRST_VALID_POS, String.valueOf(nextLogPos));
                 return Fiber.frameReturn();

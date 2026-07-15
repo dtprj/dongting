@@ -78,7 +78,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 return Fiber.call(statusManager.initStatusFile(), this::afterStatusInit);
             }
 
-            private FrameCallResult afterStatusInit(Void unused) throws Exception {
+            private FrameCallResult afterStatusInit(Void unused) {
                 IdxFileQueue q = new IdxFileQueue(dir, statusManager, c);
                 if (init) {
                     q.initQueue();
@@ -91,7 +91,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
             private FrameCallResult afterInit(IdxFileQueue q) {
                 q.startFibers();
-                q.initialized = true;
+                q.setInitialized(true);
                 result.set(q);
                 return Fiber.frameReturn();
             }
@@ -264,7 +264,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
         idxFileQueue = createFileQueue();
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }
 
@@ -323,7 +323,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
         idxFileQueue = createFileQueue(false);
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 idxFileQueue.initQueue();
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }
@@ -379,7 +379,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
         idxFileQueue = createFileQueue(false);
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 idxFileQueue.initQueue();
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }

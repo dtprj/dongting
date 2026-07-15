@@ -61,6 +61,7 @@ public class ChainWriter {
     private int forceTaskCount;
 
     private boolean markStop;
+    boolean initialized;
 
     public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config, Consumer<WriteTask> writeCallback,
                        Consumer<WriteTask> forceCallback) {
@@ -143,7 +144,7 @@ public class ChainWriter {
         }
     }
 
-    public void submitWrite(LogFile logFile, boolean initialized, RefBuffer buf, long posInFile, boolean force,
+    public void submitWrite(LogFile logFile, RefBuffer buf, long posInFile, boolean force,
                             int perfItemCount, long lastRaftIndex) {
         if (error) {
             log.warn("in error state, ignore write");
