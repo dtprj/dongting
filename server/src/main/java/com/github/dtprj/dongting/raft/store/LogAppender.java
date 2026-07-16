@@ -133,7 +133,11 @@ class LogAppender {
             if (shouldReturn()) {
                 return Fiber.frameReturn();
             }
-            return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), v -> afterWritePosReady(taskIndex));
+            if (logFileQueue.isWritePosReady(nextPersistPos)) {
+                return afterWritePosReady(taskIndex);
+            } else {
+                return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), v -> afterWritePosReady(taskIndex));
+            }
         }
 
         private FrameCallResult afterWritePosReady(int taskIndex) {

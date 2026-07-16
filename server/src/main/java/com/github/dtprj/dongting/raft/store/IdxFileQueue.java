@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.BugLog;
@@ -356,32 +355,30 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             if (flushType > 0) {
                 lastForceNanos = ts.nanoTime;
             }
-            FrameCall<Void> resumePoint;
-            if (flushType == 0) {
-                resumePoint = v -> afterPosReady(false);
-            } else if (flushType == 1) {
-                resumePoint = v -> afterPosReady(true);
+            if (isWritePosReady(indexToPos(nextPersistIndex))) {
+                return afterPosReady(flushType);
             } else {
-                resumePoint = v -> {
-                    log.info("idx flush fiber exit, groupId={}", groupConfig.groupId);
-                    submitForceOnlyTask();
-                    return Fiber.frameReturn();
-                };
+                return Fiber.call(ensureWritePosReady(indexToPos(nextPersistIndex)), v -> afterPosReady(flushType));
             }
-            return Fiber.call(ensureWritePosReady(indexToPos(nextPersistIndex)), resumePoint);
         }
 
-        private FrameCallResult afterPosReady(boolean suggestForce) {
+        private FrameCallResult afterPosReady(int flushType) {
             if (raftStatus.installSnapshot) {
                 return Fiber.frameReturn();
             }
-            LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
-            if (logFile.shouldDelete()) {
-                BugLog.log("idx file deleted, flush fail: {}", logFile.getFile().getPath());
-                throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
+            if (flushType == 0 || flushType == 1) {
+                LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
+                if (logFile.shouldDelete()) {
+                    BugLog.log("idx file deleted, flush fail: {}", logFile.getFile().getPath());
+                    throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
+                }
+                flush(logFile, flushType == 1);
+                return Fiber.resume(null, this);
+            } else {
+                log.info("idx flush fiber exit, groupId={}", groupConfig.groupId);
+                submitForceOnlyTask();
+                return Fiber.frameReturn();
             }
-            flush(logFile, suggestForce);
-            return Fiber.resume(null, this);
         }
 
         @Override

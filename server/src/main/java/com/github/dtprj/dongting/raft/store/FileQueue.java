@@ -211,6 +211,11 @@ abstract class FileQueue {
         }
     }
 
+    protected boolean isWritePosReady(long pos) {
+        tryAllocateAsync(pos);
+        return pos < queueEndPosition;
+    }
+
     protected FiberFrame<Void> ensureWritePosReady(long pos) {
         return new FiberFrame<>() {
             boolean block;
