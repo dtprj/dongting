@@ -42,6 +42,15 @@ import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
 /**
+ * Persistent index queue for raft log entries. Each item occupies {@link #ITEM_LEN} bytes:
+ * <pre>
+ *   0..7   : data position in the log data file (long)
+ *   8..15  : timestamp when the entry was appended (long)
+ *  16..23  : reserved, always 0 (long)
+ *  24..27  : size of the log entry in bytes (int)
+ *  28..31  : CRC32C checksum of the preceding 28 bytes (int)
+ * </pre>
+ *
  * @author huangli
  */
 final class IdxFileQueue extends FileQueue implements IdxOps {

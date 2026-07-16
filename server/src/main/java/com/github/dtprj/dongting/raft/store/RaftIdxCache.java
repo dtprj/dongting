@@ -22,6 +22,15 @@ import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
 /**
+ * In-memory cache for raft index entries. Each cached slot occupies {@link #SLOT_SIZE} bytes:
+ * <pre>
+ *   0..7  : data position in the log data file (long)
+ *   8..15 : timestamp when the entry was appended (long)
+ *  16..19 : size of the log entry in bytes (int)
+ * </pre>
+ * When flushed to disk, a slot is padded with 8 reserved bytes and a 4-byte CRC32C
+ * checksum to form the 32-byte on-disk item format used by {@link IdxFileQueue}.
+ *
  * @author huangli
  */
 class RaftIdxCache {
