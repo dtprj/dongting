@@ -536,6 +536,6 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         persistedIndex = nextLogIndex - 1;
         initQueue();
         startFibers();
-        return ensureWritePosReady(nextLogIndex);
+        return ensureWritePosReady(indexToPos(nextLogIndex));
     }
 }
