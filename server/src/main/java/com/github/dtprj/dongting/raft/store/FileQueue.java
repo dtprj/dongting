@@ -205,7 +205,7 @@ abstract class FileQueue {
     protected void tryAllocateAsync(long pos) {
         if (pos > allocPos) {
             allocPos = pos;
-            if (pos >= queueEndPosition - fileSize) {
+            if (pos > queueEndPosition - fileSize) {
                 needAllocCond.signalAll();
             }
         }
@@ -456,7 +456,9 @@ abstract class FileQueue {
                 log.info("{} queue alloc fiber exit", FileQueue.this instanceof IdxFileQueue ? "idx" : "log");
                 return Fiber.frameReturn();
             }
-            if (allocPos >= queueEndPosition) {
+            // pre-allocate when allocPos enters the last file, so the next file is ready
+            // before writes actually reach the end of the current queue
+            if (allocPos > queueEndPosition - fileSize) {
                 FileAllocFrame f = new FileAllocFrame();
                 return Fiber.call(f, v -> afterAlloc(f));
             } else {
