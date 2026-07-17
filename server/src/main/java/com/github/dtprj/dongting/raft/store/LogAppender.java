@@ -160,26 +160,26 @@ class LogAppender {
 
             boolean writeEndHeader = false;
             boolean rollNextFile = false;
-            long fileRestBytes = file.endPos - nextPersistPos;
+            long pos = nextPersistPos;
             int count = 0;
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
                 RaftTask li = taskList.get(i);
                 int len = li.reqData.totalLen;
-                if (len <= fileRestBytes) {
-                    bytesToWrite += len;
-                    fileRestBytes -= len;
+                if (pos + len <= file.endPos) {
+                    pos += len;
                     count++;
                 } else {
                     rollNextFile = true;
                     // file rest bytes not enough
-                    if (fileRestBytes >= LogHeader.ITEM_HEADER_SIZE) {
+                    if (pos + LogHeader.ITEM_HEADER_SIZE <= file.endPos) {
                         writeEndHeader = true;
-                        bytesToWrite += LogHeader.ITEM_HEADER_SIZE;
+                        pos += LogHeader.ITEM_HEADER_SIZE;
                     }
                     break;
                 }
             }
 
+            bytesToWrite = (int) (pos - nextPersistPos); // should not overflow
             bufRef = borrowBuffer(bytesToWrite);
             buffer = bufRef.getBuffer();
             try {
