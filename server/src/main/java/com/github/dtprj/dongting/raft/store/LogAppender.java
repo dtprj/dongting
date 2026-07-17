@@ -164,8 +164,10 @@ class LogAppender {
             int count = 0;
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
                 RaftTask li = taskList.get(i);
-                int len = li.reqData.totalLen;
+                RaftReqData rd = li.reqData;
+                int len = rd.totalLen;
                 if (pos + len <= file.endPos) {
+                    idxOps.put(rd.index, pos, rd.timestamp, len);
                     pos += len;
                     count++;
                 } else {
@@ -228,8 +230,6 @@ class LogAppender {
         }
 
         private void encodeItems(int startTaskIndex, int count, LogFile file) {
-            long writeStartPosInFile = nextPersistPos & fileLenMask;
-            long dataPos = file.startPos + writeStartPosInFile;
             for (int i = 0; i < count; i++) {
                 RaftTask li = taskList.get(startTaskIndex + i);
                 RaftReqData rd = li.reqData;
@@ -241,8 +241,6 @@ class LogAppender {
 
                 int len = li.actualSize();
                 encodeData(len, li, file);
-                idxOps.put(rd.index, dataPos, rd.timestamp, len);
-                dataPos += len;
                 lastItem = li;
                 writeCount++;
             }
