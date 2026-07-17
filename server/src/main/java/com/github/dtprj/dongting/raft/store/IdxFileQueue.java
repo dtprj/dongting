@@ -173,20 +173,20 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     // run in Future callback
-    private void writeFinish(ChainWriter.WriteTask writeTask) {
-        writeFinishIndex = writeTask.getLastRaftIndex();
+    private void writeFinish(long writeFinishRaftIndex) {
+        writeFinishIndex = writeFinishRaftIndex;
     }
 
     // run in Future callback
-    private void forceFinish(ChainWriter.WriteTask writeTask) {
+    private void forceFinish(long forceFinishRaftIndex) {
         flushDoneCondition.signalAll();
-        // if we set syncForce to false, lastRaftIndex(committed) may less than lastForceLogIndex
-        long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.lastForceLogIndex);
+        // if we set syncForce to false, forceFinishRaftIndex(committed) may less than raftStatus.lastForceLogIndex
+        long idx = Math.min(forceFinishRaftIndex, raftStatus.lastForceLogIndex);
         if (idx > persistedIndexInStatusFile) {
             statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(idx));
             statusManager.persistAsync();
         }
-        persistedIndex = writeTask.getLastRaftIndex();
+        persistedIndex = forceFinishRaftIndex;
     }
 
     public long indexToPos(long index) {

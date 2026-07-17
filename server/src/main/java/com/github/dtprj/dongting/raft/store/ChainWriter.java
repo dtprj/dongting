@@ -30,7 +30,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.util.LinkedList;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -41,8 +41,8 @@ public class ChainWriter {
 
     private final PerfCallback perfCallback;
     private final RaftGroupConfigEx config;
-    private final Consumer<WriteTask> writeCallback;
-    private final Consumer<WriteTask> forceCallback;
+    private final LongConsumer writeCallback;
+    private final LongConsumer forceCallback;
     private final RaftStatusImpl raftStatus;
 
     private int writePerfType1;
@@ -63,8 +63,8 @@ public class ChainWriter {
     private boolean markStop;
     boolean initialized;
 
-    public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config, Consumer<WriteTask> writeCallback,
-                       Consumer<WriteTask> forceCallback) {
+    public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config, LongConsumer writeCallback,
+                       LongConsumer forceCallback) {
         this.config = config;
         this.perfCallback = config.perfCallback;
         this.writeCallback = writeCallback;
@@ -94,7 +94,7 @@ public class ChainWriter {
         }
     }
 
-    public static class WriteTask {
+    private static class WriteTask {
         private final AsyncIoTask ioTask;
         private final long posInFile;
         private final long expectNextPos;
@@ -109,7 +109,7 @@ public class ChainWriter {
         private long perfForceBytes;
 
 
-        public WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval, boolean retryForever,
+        WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval, boolean retryForever,
                          Supplier<Boolean> cancelIndicator, RefBuffer buf, long posInFile, boolean force,
                          int perfItemCount, long lastRaftIndex) {
             this.ioTask = new AsyncIoTask(fiberGroup, logFile, retryInterval, retryForever, cancelIndicator);
@@ -123,7 +123,7 @@ public class ChainWriter {
             this.lastRaftIndex = lastRaftIndex;
         }
 
-        public void submitWrite() {
+        void submitWrite() {
             if (buf != null && perfWriteBytes > 0) {
                 ioTask.write(buf.getBuffer(), posInFile);
             } else {
@@ -131,15 +131,11 @@ public class ChainWriter {
             }
         }
 
-        public long getLastRaftIndex() {
-            return lastRaftIndex;
-        }
-
-        public LogFile getLogFile() {
+        LogFile getLogFile() {
             return (LogFile) ioTask.getDtFile();
         }
 
-        public FiberFuture<Void> getFuture() {
+        FiberFuture<Void> getFuture() {
             return ioTask.getFuture();
         }
     }
@@ -225,7 +221,7 @@ public class ChainWriter {
         if (lastTaskNeedCallback != null) {
             needForceCondition.signal();
             if (writeCallback != null) {
-                writeCallback.accept(lastTaskNeedCallback);
+                writeCallback.accept(lastTaskNeedCallback.lastRaftIndex);
             }
         }
     }
@@ -293,7 +289,7 @@ public class ChainWriter {
                     log.warn("file {} should delete or deleted, ignore force", logFile.getFile());
                     forceTaskCount--;
                     logFile.decWriters();
-                    forceCallback.accept(task);
+                    forceCallback.accept(task.lastRaftIndex);
                     return Fiber.resume(null, this);
                 }
                 ForceFrame ff = new ForceFrame(logFile, config.blockIoExecutor, false);
@@ -318,7 +314,7 @@ public class ChainWriter {
             }
 
             task.getLogFile().decWriters();
-            forceCallback.accept(task);
+            forceCallback.accept(task.lastRaftIndex);
             return Fiber.resume(null, this);
         }
     }

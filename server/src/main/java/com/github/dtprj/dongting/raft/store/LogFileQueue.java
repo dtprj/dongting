@@ -79,16 +79,16 @@ final class LogFileQueue extends FileQueue {
         this.chainWriter.initialized = initialized;
     }
 
-    private void writeFinish(ChainWriter.WriteTask writeTask) {
-        if (writeTask.getLastRaftIndex() > 0) {
+    private void writeFinish(long writeFinishRaftIndex) {
+        if (writeFinishRaftIndex > 0) {
             raftStatus.logWriteFinishCondition.signalAll();
-            raftStatus.lastWriteLogIndex = writeTask.getLastRaftIndex();
+            raftStatus.lastWriteLogIndex = writeFinishRaftIndex;
         }
     }
 
-    private void forceFinish(ChainWriter.WriteTask writeTask) {
-        // assert lastRaftIndex > 0
-        raftStatus.lastForceLogIndex = writeTask.getLastRaftIndex();
+    private void forceFinish(long forceFinishRaftIndex) {
+        // assert forceFinishRaftIndex > 0
+        raftStatus.lastForceLogIndex = forceFinishRaftIndex;
         raftStatus.logForceFinishCondition.signalAll();
     }
 
