@@ -44,7 +44,6 @@ public class AsyncIoTask {
 
     private ByteBuffer ioBuffer;
     private long filePos;
-    private int position;
 
     private boolean write;
 
@@ -84,9 +83,11 @@ public class AsyncIoTask {
         if (f == null || f.isDaemon()) {
             throw new RaftException("io task should not run in daemon fiber");
         }
+        if (ioBuffer.position() != 0) {
+            throw new RaftException("buffer position must be 0: " + ioBuffer.position());
+        }
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
-        this.position = ioBuffer.position();
         this.write = write;
         if (!dtFile.isRwChannelOpen()) {
             FiberFuture<Void> openFut = dtFile.ensureOpen();
@@ -139,7 +140,7 @@ public class AsyncIoTask {
                     return Fiber.frameReturn();
                 }
                 retryCount++;
-                ioBuffer.position(position);
+                ioBuffer.rewind();
                 exec(filePos);
                 return Fiber.frameReturn();
             }
@@ -193,7 +194,7 @@ public class AsyncIoTask {
                 if (n == 0) {
                     throw new IOException((write ? "write" : "read") + " returned 0");
                 }
-                pos = filePos + ioBuffer.position() - position;
+                pos = filePos + ioBuffer.position();
             }
             fireComplete(null);
         } catch (Throwable e) {

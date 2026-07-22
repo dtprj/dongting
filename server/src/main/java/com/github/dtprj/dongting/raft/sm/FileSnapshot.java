@@ -64,10 +64,15 @@ public class FileSnapshot extends Snapshot {
             buffer.limit(buffer.position() + (int) rest);
         }
         int readBytes = buffer.remaining();
+        // AsyncIoTask require buffer position is 0
+        ByteBuffer readSlice = buffer.slice();
         AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
-        FiberFuture<Void> f = t.read(buffer, filePos);
+        FiberFuture<Void> f = t.read(readSlice, filePos);
         filePos += readBytes;
-        return f.convert("FileSnapshotReadNext", v -> readBytes);
+        return f.convert("FileSnapshotReadNext", v -> {
+            buffer.position(buffer.position() + readBytes);
+            return readBytes;
+        });
     }
 
     @Override

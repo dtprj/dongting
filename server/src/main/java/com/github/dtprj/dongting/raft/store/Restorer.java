@@ -165,9 +165,14 @@ class Restorer {
                     buffer.limit(buffer.position() + (int) fileRest);
                 }
                 int readBytes = buffer.remaining();
+                // AsyncIoTask require buffer position is 0
+                ByteBuffer readSlice = buffer.slice();
                 // the restore process do not need to maintain readers count since the raft group is not init
-                FiberFuture<Void> f = task.read(buffer, readPos);
-                return f.await(unusedVoid -> afterRead(readBytes));
+                FiberFuture<Void> f = task.read(readSlice, readPos);
+                return f.await(unusedVoid -> {
+                    buffer.position(buffer.position() + readBytes);
+                    return afterRead(readBytes);
+                });
             }
             // loop finished
             if (state == STATE_ITEM_HEADER) {
