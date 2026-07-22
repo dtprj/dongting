@@ -26,7 +26,9 @@ import com.github.dtprj.dongting.raft.RaftException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
 /**
@@ -43,6 +45,8 @@ public class AsyncIoTask {
     private final FiberGroup fiberGroup;
 
     private ByteBuffer ioBuffer;
+    // non-null only for gathering write
+    private ByteBuffer[] ioBuffers;
     private long filePos;
 
     private boolean write;
@@ -67,14 +71,33 @@ public class AsyncIoTask {
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
-        return exec(ioBuffer, filePos, false);
+        checkPosition(ioBuffer);
+        this.ioBuffer = ioBuffer;
+        return exec(filePos, false);
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
-        return exec(ioBuffer, filePos, true);
+        checkPosition(ioBuffer);
+        this.ioBuffer = ioBuffer;
+        return exec(filePos, true);
     }
 
-    private FiberFuture<Void> exec(ByteBuffer ioBuffer, long filePos, boolean write) {
+    public FiberFuture<Void> write(ByteBuffer[] ioBuffers, long filePos) {
+        Objects.requireNonNull(ioBuffers);
+        for (ByteBuffer buf : ioBuffers) {
+            checkPosition(buf);
+        }
+        this.ioBuffers = ioBuffers;
+        return exec(filePos, true);
+    }
+
+    private static void checkPosition(ByteBuffer buf) {
+        if (buf.position() != 0) {
+            throw new RaftException("buffer position must be 0: " + buf.position());
+        }
+    }
+
+    private FiberFuture<Void> exec(long filePos, boolean write) {
         if (rwCalled) {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
@@ -83,10 +106,6 @@ public class AsyncIoTask {
         if (f == null || f.isDaemon()) {
             throw new RaftException("io task should not run in daemon fiber");
         }
-        if (ioBuffer.position() != 0) {
-            throw new RaftException("buffer position must be 0: " + ioBuffer.position());
-        }
-        this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.write = write;
         if (!dtFile.isRwChannelOpen()) {
@@ -140,7 +159,13 @@ public class AsyncIoTask {
                     return Fiber.frameReturn();
                 }
                 retryCount++;
-                ioBuffer.rewind();
+                if (ioBuffers != null) {
+                    for (ByteBuffer buf : ioBuffers) {
+                        buf.rewind();
+                    }
+                } else {
+                    ioBuffer.rewind();
+                }
                 exec(filePos);
                 return Fiber.frameReturn();
             }
@@ -180,25 +205,95 @@ public class AsyncIoTask {
     // this method set to protected for mock error in unit test
     protected void doExec(long pos) {
         try {
-            while (ioBuffer.hasRemaining()) {
-                int n;
-                if (write) {
-                    n = dtFile.getChannel().write(ioBuffer, pos);
-                } else {
-                    n = dtFile.getChannel().read(ioBuffer, pos);
+            if (ioBuffers != null) {
+                doGatheringWrite(pos);
+            } else {
+                while (ioBuffer.hasRemaining()) {
+                    int n;
+                    if (write) {
+                        n = dtFile.getChannel().write(ioBuffer, pos);
+                    } else {
+                        n = dtFile.getChannel().read(ioBuffer, pos);
+                    }
+                    if (n < 0) {
+                        if (write) {
+                            throw new IOException("write returned " + n);
+                        }
+                        fireComplete(new RaftException("read end of file"));
+                        return;
+                    }
+                    if (n == 0) {
+                        // both read and write may return 0, just retry the syscall
+                        log.warn("{} returned 0 for file={}, pos={}",
+                                write ? "write" : "read", dtFile.getFile().getPath(), pos);
+                    }
+                    pos = filePos + ioBuffer.position();
                 }
-                if (n < 0) {
-                    fireComplete(new RaftException("read end of file"));
-                    return;
-                }
-                if (n == 0) {
-                    throw new IOException((write ? "write" : "read") + " returned 0");
-                }
-                pos = filePos + ioBuffer.position();
             }
             fireComplete(null);
         } catch (Throwable e) {
             retry(e);
+        }
+    }
+
+    private void doGatheringWrite(long pos) throws IOException {
+        FileChannel channel = dtFile.getChannel();
+        // gathering write is only used for raft log files
+        ReentrantLock lock = ((LogFile) dtFile).gatheringWriteLock;
+        int offset = 0;
+        int length = ioBuffers.length;
+        while (length > 0) {
+            if (!ioBuffers[offset].hasRemaining()) {
+                offset++;
+                length--;
+                continue;
+            }
+            // gathering write of a single buffer is no better than positional write,
+            // so only try the lock when at least 2 buffers remain
+            if (length >= 2 && lock.tryLock()) {
+                try {
+                    // non-positional gathering write mutates the channel position,
+                    // so it must be serialized with other gathering writes of the same file
+                    channel.position(pos);
+                    while (length > 0) {
+                        if (ioBuffers[offset].hasRemaining()) {
+                            long n = channel.write(ioBuffers, offset, length);
+                            if (n < 0) {
+                                throw new IOException("write returned " + n);
+                            }
+                            if (n == 0) {
+                                // write may return 0, just retry the syscall
+                                log.warn("gathering write returned 0 for file={}, pos={}",
+                                        dtFile.getFile().getPath(), pos);
+                            }
+                        } else {
+                            offset++;
+                            length--;
+                        }
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            } else {
+                // another gathering write of the same file is in progress,
+                // degrade this buffer to positional writes, and try the lock
+                // again for remaining buffers since tryLock is very cheap
+                ByteBuffer buf = ioBuffers[offset];
+                while (buf.hasRemaining()) {
+                    int n = channel.write(buf, pos);
+                    if (n < 0) {
+                        throw new IOException("write returned " + n);
+                    }
+                    if (n == 0) {
+                        // write may return 0, just retry the syscall
+                        log.warn("degraded positional write returned 0 for file={}, pos={}",
+                                dtFile.getFile().getPath(), pos);
+                    }
+                    pos += n;
+                }
+                offset++;
+                length--;
+            }
         }
     }
 

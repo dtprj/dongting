@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class AsyncIoTaskTest extends BaseFiberTest {
     private static File dir;
     private File file;
-    private DtFile dtFile;
+    private LogFile dtFile;
     private RaftGroupConfigEx groupConfig;
 
     @BeforeAll
@@ -66,7 +66,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     public void setup() throws Exception {
         file = new File(dir, "testFile");
         Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-        dtFile = new DtFile(file, fiberGroup, s, MockExecutors.ioExecutor());
+        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, s, MockExecutors.ioExecutor(), null, 0, true);
         dtFile.syncOpen();
         groupConfig = new RaftGroupConfigEx(1, "1", "");
         groupConfig.ioRetryInterval = new int[]{1};
@@ -212,7 +212,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     public void testAsyncOpen() throws Exception {
         file = new File(dir, "testAsyncOpen");
         Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-        dtFile = new DtFile(file, fiberGroup, s, MockExecutors.ioExecutor());
+        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, s, MockExecutors.ioExecutor(), null, 0, true);
 
         doInFiber(new FiberFrame<>() {
             ByteBuffer buf = ByteBuffer.allocate(8);
@@ -252,5 +252,74 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             }
         });
 
+    }
+
+    private static ByteBuffer dataBuf(int size, int value) {
+        ByteBuffer buf = ByteBuffer.allocate(size);
+        for (int i = 0; i < size; i++) {
+            buf.put((byte) value);
+        }
+        buf.flip();
+        return buf;
+    }
+
+    private void gatheringWriteAndVerify(Supplier<AsyncIoTask> supplier) throws Exception {
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                ByteBuffer[] bufs = {dataBuf(100, 1), dataBuf(200, 2), dataBuf(50, 3)};
+                AsyncIoTask t = supplier.get();
+                return t.write(bufs, 10).await(1000, v -> resumeRead(bufs));
+            }
+
+            private FrameCallResult resumeRead(ByteBuffer[] bufs) {
+                for (ByteBuffer b : bufs) {
+                    assertFalse(b.hasRemaining());
+                }
+                ByteBuffer buf = ByteBuffer.allocate(360);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.read(buf, 0).await(1000, v -> resumeVerify(buf));
+            }
+
+            private FrameCallResult resumeVerify(ByteBuffer buf) {
+                buf.flip();
+                for (int i = 0; i < 360; i++) {
+                    byte expect;
+                    if (i < 10) {
+                        expect = 0;
+                    } else if (i < 110) {
+                        expect = 1;
+                    } else if (i < 310) {
+                        expect = 2;
+                    } else {
+                        expect = 3;
+                    }
+                    assertEquals(expect, buf.get());
+                }
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
+    public void testGatheringWrite() throws Exception {
+        gatheringWriteAndVerify(() -> new AsyncIoTask(fiberGroup, dtFile));
+    }
+
+    @Test
+    public void testGatheringWriteDegrade() throws Exception {
+        // hold the lock so the gathering write degrades to positional writes
+        dtFile.gatheringWriteLock.lock();
+        try {
+            gatheringWriteAndVerify(() -> new AsyncIoTask(fiberGroup, dtFile));
+        } finally {
+            dtFile.gatheringWriteLock.unlock();
+        }
+    }
+
+    @Test
+    public void testGatheringWriteRetry() throws Exception {
+        // fail once, verify buffers are rewound on retry
+        gatheringWriteAndVerify(() -> new IoFailTask(1, true, false, () -> false));
     }
 }

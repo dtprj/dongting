@@ -124,7 +124,8 @@ abstract class FileQueue {
                 long startPos = Long.parseLong(matcher.group(1));
                 Set<OpenOption> openOptions = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE);
                 LogFile lf = new LogFile(startPos, startPos + getFileSize(), f,
-                        groupConfig.fiberGroup, openOptions, ioExecutor, this::lruTouch, raftStatus.ts.wallClockMillis);
+                        groupConfig.fiberGroup, openOptions, ioExecutor, this::lruTouch,
+                        raftStatus.ts.wallClockMillis, mainLogFile);
                 queue.addLast(lf);
                 count++;
             }
@@ -523,7 +524,7 @@ abstract class FileQueue {
                             StandardOpenOption.CREATE);
                     logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), file,
                             groupConfig.fiberGroup, options, ioExecutor, FileQueue.this::lruTouch,
-                            raftStatus.ts.wallClockMillis);
+                            raftStatus.ts.wallClockMillis, mainLogFile);
                     // access in io thread, but happens-before use
                     logFile.syncOpen();
                     long time = System.currentTimeMillis() - startTime;

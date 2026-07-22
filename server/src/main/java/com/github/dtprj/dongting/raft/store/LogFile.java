@@ -23,6 +23,7 @@ import java.io.File;
 import java.nio.file.OpenOption;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /**
@@ -49,15 +50,20 @@ public class LogFile extends DtFile {
     private int writers;
     private final FiberCondition noRwCond;
 
+    // serializes non-positional gathering writes since they mutate the channel position,
+    // see AsyncIoTask. null for idx files
+    final ReentrantLock gatheringWriteLock;
+
     public LogFile(long startPos, long endPos, File file, FiberGroup group,
                    Set<OpenOption> openOptions, ExecutorService ioExecutor,
-                   Consumer<LogFile> accessCallback, long currentTimeMillis) {
+                   Consumer<LogFile> accessCallback, long currentTimeMillis, boolean mainLogFile) {
         super(file, group, openOptions, ioExecutor);
         this.lastAccessTime = currentTimeMillis;
         this.accessCallback = accessCallback;
         this.startPos = startPos;
         this.endPos = endPos;
         this.noRwCond = group.newCondition("noRw-" + file.getName());
+        this.gatheringWriteLock = mainLogFile ? new ReentrantLock() : null;
     }
 
     public void close() {
