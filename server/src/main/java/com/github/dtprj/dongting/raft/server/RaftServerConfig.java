@@ -21,6 +21,7 @@ package com.github.dtprj.dongting.raft.server;
 public class RaftServerConfig {
     public static final int ENCODE_CHUNK_SIZE = 8192;
     public static final int GATHERING_WRITE_THRESHOLD = 10 * 1024;
+    public static final int MAX_GATHER_BUF_COUNT = 64;
 
     public String servers;
     // internal use for raft log replication (server to server), and admin commands

@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
+import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -99,7 +100,11 @@ public class ChainWriter {
         private final long posInFile;
         private final long expectNextPos;
         private final boolean force;
+
+        // released after write finish, it is also the write source when bufs is null
         private final RefBuffer buf;
+        // non-null for gathering write, in this case bufs is the write source
+        private final ByteBuffer[] bufs;
 
         private final int perfWriteItemCount;
         private final int perfWriteBytes;
@@ -110,22 +115,34 @@ public class ChainWriter {
 
 
         WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval, boolean retryForever,
-                         Supplier<Boolean> cancelIndicator, RefBuffer buf, long posInFile, boolean force,
-                         int perfItemCount, long lastRaftIndex) {
+                  Supplier<Boolean> cancelIndicator, RefBuffer buf, ByteBuffer[] bufs,
+                  long posInFile, boolean force, int perfItemCount, long lastRaftIndex) {
             this.ioTask = new AsyncIoTask(fiberGroup, logFile, retryInterval, retryForever, cancelIndicator);
             this.posInFile = posInFile;
             this.force = force;
             this.buf = buf;
+            this.bufs = bufs;
             this.perfWriteItemCount = perfItemCount;
-            int remaining = buf == null ? 0 : buf.getBuffer().remaining();
+            int remaining = 0;
+            if (bufs != null) {
+                for (ByteBuffer b : bufs) {
+                    remaining += b.remaining();
+                }
+            } else if (buf != null) {
+                remaining = buf.getBuffer().remaining();
+            }
             this.perfWriteBytes = remaining;
             this.expectNextPos = posInFile + remaining;
             this.lastRaftIndex = lastRaftIndex;
         }
 
         void submitWrite() {
-            if (buf != null && perfWriteBytes > 0) {
-                ioTask.write(buf.getBuffer(), posInFile);
+            if (perfWriteBytes > 0) {
+                if (bufs != null) {
+                    ioTask.write(bufs, posInFile);
+                } else {
+                    ioTask.write(buf.getBuffer(), posInFile);
+                }
             } else {
                 ioTask.getFuture().complete(null);
             }
@@ -142,6 +159,20 @@ public class ChainWriter {
 
     public void submitWrite(LogFile logFile, RefBuffer buf, long posInFile, boolean force,
                             int perfItemCount, long lastRaftIndex) {
+        submitWrite(logFile, buf, null, posInFile, force, perfItemCount, lastRaftIndex);
+    }
+
+    /**
+     * Gathering write: bufs is the write source, buf is released after write finish
+     * (the copied segments share its content).
+     */
+    public void submitWrite(LogFile logFile, ByteBuffer[] bufs, RefBuffer buf, long posInFile,
+                            boolean force, int perfItemCount, long lastRaftIndex) {
+        submitWrite(logFile, buf, bufs, posInFile, force, perfItemCount, lastRaftIndex);
+    }
+
+    private void submitWrite(LogFile logFile, RefBuffer buf, ByteBuffer[] bufs,
+                             long posInFile, boolean force, int perfItemCount, long lastRaftIndex) {
         if (error) {
             log.warn("in error state, ignore write");
             if (buf != null) {
@@ -151,7 +182,7 @@ public class ChainWriter {
         }
         int[] retryInterval = initialized ? config.ioRetryInterval : null;
         WriteTask task = new WriteTask(config.fiberGroup, logFile, retryInterval, true,
-                this::shouldCancelRetry, buf, posInFile, force, perfItemCount, lastRaftIndex);
+                this::shouldCancelRetry, buf, bufs, posInFile, force, perfItemCount, lastRaftIndex);
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
             if (lastTask.getLogFile() == task.getLogFile()) {

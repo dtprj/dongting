@@ -37,9 +37,9 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.function.Consumer;
@@ -115,7 +115,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 InitFiberFrame.initRaftStatus(raftStatus, fiberGroup, serverConfig);
                 logFileQueue.initQueue();
                 FiberFrame<Integer> f = logFileQueue.restore(1, 0, 0);
@@ -157,7 +157,13 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
     }
 
-    static RaftTask createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize, int bizHeaderLen) {
+    static RaftTask createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize,
+                               int bizHeaderLen) {
+        return createItem(config, term, prevTerm, index, totalSize, bizHeaderLen, false);
+    }
+
+    static RaftTask createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize,
+                               int bizHeaderLen, boolean direct) {
         byte[] bizHeader = new byte[bizHeaderLen];
         for (int i = 0; i < bizHeaderLen; i++) {
             bizHeader[i] = (byte) i;
@@ -172,7 +178,8 @@ public class LogFileQueueTest extends BaseFiberTest {
             bizBody[i] = (byte) i;
         }
 
-        RaftReqData reqData = RaftTaskTest.buildTestReqData(1, 2, bizHeader, bizBody);
+        RaftReqData reqData = direct ? RaftTaskTest.buildTestReqDataDirect(1, 2, bizHeader, bizBody)
+                : RaftTaskTest.buildTestReqData(1, 2, bizHeader, bizBody);
         reqData.term = term;
         reqData.prevLogTerm = prevTerm;
         reqData.index = index;
@@ -183,11 +190,16 @@ public class LogFileQueueTest extends BaseFiberTest {
     }
 
     private void append(boolean check, long startPos, int... totalSizes) throws Exception {
+        append(check, startPos, totalSizes, null);
+    }
+
+    private void append(boolean check, long startPos, int[] totalSizes, boolean[] directFlags) throws Exception {
         long fileSize = 1024;
         RaftTask[] items = new RaftTask[totalSizes.length];
         List<RaftTask> list = new ArrayList<>();
         for (int i = 0; i < totalSizes.length; i++) {
-            items[i] = createItem(config, term, prevTerm, index, totalSizes[i], bizHeaderLen);
+            boolean direct = directFlags != null && directFlags[i];
+            items[i] = createItem(config, term, prevTerm, index, totalSizes[i], bizHeaderLen, direct);
             index++;
             prevTerm = term;
             list.add(items[i]);
@@ -328,6 +340,44 @@ public class LogFileQueueTest extends BaseFiberTest {
     }
 
     @Test
+    public void testAppendDirectMixed() throws Exception {
+        setup(1024, 256);
+        // mix direct and heap items, item3 rolls to next file with end header written
+        append(true, 0L, new int[]{250, 250, 1024}, new boolean[]{true, false, true});
+        append(true, 2048L, new int[]{512, 512, 1024}, new boolean[]{false, true, true});
+    }
+
+    @Test
+    public void testAppendDirectOnly() throws Exception {
+        setup(1024, 256);
+        // all items are direct and larger than maxWriteBufferSize, no end header space left
+        append(true, 0L, new int[]{600, 400, 1024}, new boolean[]{true, true, true});
+    }
+
+    @Test
+    public void testAppendDirectGatherLimit() throws Exception {
+        setup(1024 * 1024, 1024);
+        // item count exceeds MAX_GATHER_SIZE, so submit happens in the middle of a round
+        int n = RaftServerConfig.MAX_GATHER_BUF_COUNT + 10;
+        int[] sizes = new int[n];
+        boolean[] flags = new boolean[n];
+        Arrays.fill(sizes, 200);
+        Arrays.fill(flags, true);
+        append(true, 0L, sizes, flags);
+    }
+
+    @Test
+    public void testAppendDirectMixedLargeHeap() throws Exception {
+        setup(1024, 256);
+        // a leading direct item leaves gatherBufs non-empty, then a heap item
+        // larger than maxWriteBufferSize overflows the borrowed buffer mid-encode:
+        // doWrite takes the gather path from inside the heap encode loop, and
+        // encoding continues into a freshly borrowed buffer; the trailing direct
+        // item then mixes with the leftover copied bytes in the final gather write
+        append(true, 0L, new int[]{200, 600, 200}, new boolean[]{true, false, true});
+    }
+
+    @Test
     public void testRestore1() throws Exception {
         setup(1024, 1024);
         // last file not finished
@@ -338,7 +388,7 @@ public class LogFileQueueTest extends BaseFiberTest {
                 return logFileQueue.close().await(this::afterClose);
             }
 
-            private FrameCallResult afterClose(Void unused) throws IOException {
+            private FrameCallResult afterClose(Void unused) {
                 logFileQueue = new LogFileQueue(dir, config, idxOps);
                 logFileQueue.initQueue();
                 assertThrows(RaftException.class, () -> logFileQueue.restore(1, -1, 0));
@@ -456,7 +506,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 logFileQueue = new LogFileQueue(dir, config, idxOps);
                 logFileQueue.initQueue();
                 return Fiber.frameReturn();

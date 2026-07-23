@@ -33,8 +33,10 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.CRC32C;
 
@@ -83,14 +85,20 @@ class LogAppender {
 
     class WriteFiberFrame extends FiberFrame<Void> {
 
-        // lastItem/writeCount/bytesToWrite are reset in encodeAndWriteItems();
+        // lastItem/writeCount/bytesToWrite/copiedStart are reset in encodeAndWriteItems();
         private RaftTask lastItem;
         private int writeCount;
+        // in gathering rounds bytesToWrite only counts bytes that need copying
+        // (direct buffer items are excluded)
         private int bytesToWrite;
+        // start position of copied data in buffer that is not sliced yet
+        private int copiedStart;
 
         // bufRef/buffer are reassigned on every entry to encodeAndWriteItems()
         private RefBuffer bufRef;
         private ByteBuffer buffer;
+
+        private ArrayList<ByteBuffer> gatherBufs;
 
         private final List<RaftTask> taskList;
 
@@ -157,11 +165,13 @@ class LogAppender {
             bytesToWrite = 0;
             lastItem = null;
             writeCount = 0;
+            copiedStart = 0;
 
             boolean writeEndHeader = false;
             boolean rollNextFile = false;
             long pos = nextPersistPos;
             int count = 0;
+            int directBytes = 0;
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
                 RaftTask li = taskList.get(i);
                 RaftReqData rd = li.reqData;
@@ -170,6 +180,9 @@ class LogAppender {
                     idxOps.put(rd.index, pos, rd.timestamp, len);
                     pos += len;
                     count++;
+                    if (rd.buffer.getBuffer().isDirect()) {
+                        directBytes += len;
+                    }
                 } else {
                     rollNextFile = true;
                     // file rest bytes not enough
@@ -182,6 +195,10 @@ class LogAppender {
             }
 
             bytesToWrite = (int) (pos - nextPersistPos); // should not overflow
+            if (directBytes > 0) {
+                // direct items are not copied, so exclude them from borrow size
+                bytesToWrite -= directBytes;
+            }
             bufRef = borrowBuffer(bytesToWrite);
             buffer = bufRef.getBuffer();
             try {
@@ -193,7 +210,7 @@ class LogAppender {
                     }
                     LogHeader.writeEndHeader(crc32c, buffer);
                 }
-                if (buffer.position() > 0) {
+                if (buffer.position() > 0 || (gatherBufs != null && !gatherBufs.isEmpty())) {
                     doWrite(file);
                 } else {
                     if (buffer.capacity() > 0) {
@@ -248,6 +265,10 @@ class LogAppender {
 
         private void encodeData(int actualSize, RaftTask src, LogFile file) {
             try {
+                if (src.reqData.buffer.getBuffer().isDirect()) {
+                    appendDirectBuffer(src, file);
+                    return;
+                }
                 int totalEncodeLen = 0;
                 while (true) {
                     int startPos = buffer.position();
@@ -267,25 +288,68 @@ class LogAppender {
             }
         }
 
-        private void doWrite(LogFile file) {
-            buffer.flip();
-            int bytes = buffer.remaining();
+        private void appendDirectBuffer(RaftTask src, LogFile file) {
+            if (gatherBufs == null) {
+                gatherBufs = new ArrayList<>();
+            }
+            flushCopiedSegment();
+            // no need to retain the reqData buffer, tail cache does not evict
+            // items that are not written (applied) yet
+            gatherBufs.add(src.reqData.buffer.getBuffer().slice());
+            if (gatherBufs.size() >= RaftServerConfig.MAX_GATHER_BUF_COUNT) {
+                doWrite(file);
+            }
+        }
 
+        private void flushCopiedSegment() {
+            int pos = buffer.position();
+            if (pos > copiedStart) {
+                buffer.limit(pos).position(copiedStart);
+                gatherBufs.add(buffer.slice());
+                buffer.limit(buffer.capacity()).position(pos);
+                copiedStart = pos;
+            }
+        }
+
+        private void doWrite(LogFile file) {
             long lastIndex = lastItem != null ? lastItem.reqData.index : -1;
             long writeStartPosInFile = nextPersistPos & fileLenMask;
 
-            RefBuffer refBufferCopy = this.bufRef;
-            this.bufRef = null;
-            this.buffer = null;
+            // copied bytes of the borrowed buffer, all flushCopiedSegment slices
+            // of one borrowed buffer exactly partition [0, position)
+            int copiedPos = buffer.position();
+            int bytes;
+            if (gatherBufs != null && !gatherBufs.isEmpty()) {
+                flushCopiedSegment();
+                bytes = 0;
+                for (ByteBuffer b : gatherBufs) {
+                    bytes += b.remaining();
+                }
+                ByteBuffer[] bufs = gatherBufs.toArray(new ByteBuffer[0]);
+                gatherBufs.clear();
+                copiedStart = 0;
+                RefBuffer refBufferCopy = this.bufRef;
+                this.bufRef = null;
+                this.buffer = null;
+                // ownership of bufRef transferred, copied segments share its content
+                chainWriter.submitWrite(file, bufs, refBufferCopy, writeStartPosInFile,
+                        lastItem != null, writeCount, lastIndex);
+            } else {
+                buffer.flip();
+                bytes = buffer.remaining();
 
-            // ownership transferred
-            chainWriter.submitWrite(file, refBufferCopy, writeStartPosInFile,
-                    lastItem != null, writeCount, lastIndex);
+                RefBuffer refBufferCopy = this.bufRef;
+                this.bufRef = null;
+                this.buffer = null;
+                // ownership transferred
+                chainWriter.submitWrite(file, refBufferCopy, writeStartPosInFile,
+                        lastItem != null, writeCount, lastIndex);
+            }
 
             nextPersistPos += bytes;
             nextPersistIndex += writeCount;
 
-            bytesToWrite -= bytes;
+            bytesToWrite -= copiedPos;
             lastItem = null;
             writeCount = 0;
 
