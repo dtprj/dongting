@@ -159,10 +159,20 @@ public class LogFileQueueTest extends BaseFiberTest {
 
     static RaftTask createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize,
                                int bizHeaderLen) {
-        return createItem(config, term, prevTerm, index, totalSize, bizHeaderLen, false);
+        return createItem(config, LogHeader.TYPE_HEARTBEAT, term, prevTerm, index, totalSize, bizHeaderLen, false);
     }
 
     static RaftTask createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize,
+                               int bizHeaderLen, boolean direct) {
+        return createItem(config, LogHeader.TYPE_HEARTBEAT, term, prevTerm, index, totalSize, bizHeaderLen, direct);
+    }
+
+    static RaftTask createItem(RaftGroupConfigEx config, int type, int term, int prevTerm, long index, int totalSize,
+                               int bizHeaderLen) {
+        return createItem(config, type, term, prevTerm, index, totalSize, bizHeaderLen, false);
+    }
+
+    static RaftTask createItem(RaftGroupConfigEx config, int type, int term, int prevTerm, long index, int totalSize,
                                int bizHeaderLen, boolean direct) {
         byte[] bizHeader = new byte[bizHeaderLen];
         for (int i = 0; i < bizHeaderLen; i++) {
@@ -178,8 +188,8 @@ public class LogFileQueueTest extends BaseFiberTest {
             bizBody[i] = (byte) i;
         }
 
-        RaftReqData reqData = direct ? RaftTaskTest.buildTestReqDataDirect(1, 2, bizHeader, bizBody)
-                : RaftTaskTest.buildTestReqData(1, 2, bizHeader, bizBody);
+        RaftReqData reqData = direct ? RaftTaskTest.buildTestReqDataDirect(type, 2, bizHeader, bizBody)
+                : RaftTaskTest.buildTestReqData(type, 2, bizHeader, bizBody);
         reqData.term = term;
         reqData.prevLogTerm = prevTerm;
         reqData.index = index;

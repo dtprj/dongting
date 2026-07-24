@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -31,6 +34,7 @@ import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.TestDir;
@@ -354,6 +358,71 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
+    }
+
+    @Test
+    void testFileLogLoaderStreamDecode() throws Exception {
+        // TYPE_NORMAL items are decoded through the codec factory on the fly while reading.
+        // the last item has biz header but no body (bodyLen == 0).
+        int[] totalSizes = new int[]{200, 300, 150, 400, LogHeader.ITEM_HEADER_SIZE + 50, 220,
+                LogHeader.computeTotalLen(20, 0)};
+        int[] bizHeaderLen = new int[]{30, 0, 60, 100, 0, 10, 20};
+        ArrayList<RaftTask> list = new ArrayList<>();
+        long index = 1;
+        for (int i = 0; i < totalSizes.length; i++) {
+            list.add(createItem(config, LogHeader.TYPE_NORMAL, 100, 100, index++, totalSizes[i], bizHeaderLen[i]));
+        }
+        append(list);
+
+        RaftCodecFactory codecFactory = new RaftCodecFactory() {
+            @Override
+            public DecoderCallback<? extends Object> createHeaderCallback(int bizType, DecodeContext context) {
+                return new ByteArray.Callback();
+            }
+
+            @Override
+            public DecoderCallback<? extends Object> createBodyCallback(int bizType, DecodeContext context) {
+                return new ByteArray.Callback();
+            }
+        };
+        final int total = totalSizes.length;
+        doInFiber(new FiberFrame<>() {
+            // small read buffer forces biz header/body to span multiple reads, i.e. stream decode
+            final RaftLog.LogIterator it = new FileLogLoader(raftLog.idxFiles, raftLog.logFiles, config,
+                    codecFactory, () -> false, true, 64);
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(it.next(1, total, 500000), this::afterNext);
+            }
+
+            private FrameCallResult afterNext(List<RaftTask> logItems) throws Exception {
+                assertEquals(total, logItems.size());
+                for (RaftTask rt : logItems) {
+                    // decode == true does not build the raw buffer
+                    assertNull(rt.reqData.buffer);
+                    assertEquals(LogHeader.computeTotalLen(rt.reqData.bizHeaderLen, rt.reqData.bodyLen),
+                            rt.reqData.totalLen);
+                    assertStreamDecoded(rt.bizHeader, rt.reqData.bizHeaderLen);
+                    assertStreamDecoded(rt.bizBody, rt.reqData.bodyLen);
+                    rt.reqData.release();
+                }
+                it.close();
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    private void assertStreamDecoded(Object decoded, int expectLen) {
+        if (expectLen == 0) {
+            assertNull(decoded);
+            return;
+        }
+        byte[] data = ((ByteArray) decoded).getData();
+        assertEquals(expectLen, data.length);
+        for (int i = 0; i < expectLen; i++) {
+            assertEquals((byte) i, data[i], "content mismatch at " + i);
+        }
     }
 
     private void testLoader(Supplier<RaftLog.LogIterator> creator) throws Exception {

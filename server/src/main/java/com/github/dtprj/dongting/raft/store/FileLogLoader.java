@@ -47,7 +47,6 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-// TODO refactor this file to eliminate memory copy
 class FileLogLoader implements RaftLog.LogIterator {
 
     private static final int STATE_ITEM_HEADER = 1;
@@ -144,8 +143,17 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private final LogHeader header = new LogHeader();
 
+        // used when decode == false: the whole item is assembled here
         private RefBuffer fullBufferRef;
         private ByteBuffer fullBuffer;
+
+        // used when decode == true: stream-decoded biz objects of the current item
+        private Object decodedBizHeader;
+        private Object decodedBizBody;
+        // current segment decode strategy (valid while reading a biz header/body segment)
+        private DecoderCallback<?> segmentCallback;
+        private byte[] segmentBytes;
+
         private boolean readerPending;
         private boolean resultReturned;
 
@@ -292,11 +300,13 @@ class FileLogLoader implements RaftLog.LogIterator {
                     finishRead();
                     return RESULT_FINISH;
                 }
-                fullBufferRef = header.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
-                        ? buffers.borrowDirect(header.totalLen)
-                        : buffers.borrow(header.totalLen, false, true, 512);
-                fullBuffer = fullBufferRef.getBuffer();
-                header.writeTo(fullBuffer);
+                if (!decode) {
+                    fullBufferRef = header.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
+                            ? buffers.borrowDirect(header.totalLen)
+                            : buffers.borrow(header.totalLen, false, true, 512);
+                    fullBuffer = fullBufferRef.getBuffer();
+                    header.writeTo(fullBuffer);
+                }
                 state = STATE_BIZ_HEADER;
                 return RESULT_CONTINUE_PARSE;
             } else {
@@ -336,7 +346,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 state = STATE_BIZ_BODY;
                 return RESULT_CONTINUE_PARSE;
             }
-            boolean readFinish = readData(buf, bizHeaderLen);
+            boolean readFinish = readData(buf, bizHeaderLen, true);
             if (readFinish) {
                 crc32c.reset();
                 state = STATE_BIZ_BODY;
@@ -348,13 +358,20 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
         }
 
-        private boolean readData(ByteBuffer buf, int dataLen) {
+        private boolean readData(ByteBuffer buf, int dataLen, boolean isHeader) {
             if (dataLen - currentReadBytes > 0 && buf.remaining() > 0) {
+                if (decode && currentReadBytes == 0) {
+                    prepareSegmentDecode(isHeader, dataLen);
+                }
                 int oldPos = buf.position();
                 int toRead = Math.min(buf.remaining(), dataLen - currentReadBytes);
                 int oldLimit = buf.limit();
                 buf.limit(oldPos + toRead);
-                fullBuffer.put(buf);
+                if (decode) {
+                    consumeSegment(buf, dataLen, isHeader);
+                } else {
+                    fullBuffer.put(buf);
+                }
                 buf.limit(oldLimit);
                 int read = buf.position() - oldPos;
                 if (read > 0) {
@@ -370,29 +387,67 @@ class FileLogLoader implements RaftLog.LogIterator {
                     throw new ChecksumException("crc32c not match: index=" + header.index + ",pos="
                             + itemStartPos + ",len=" + dataLen);
                 }
-                fullBuffer.putInt(crc);
+                if (!decode) {
+                    fullBuffer.putInt(crc);
+                }
                 return true;
             } else {
                 return false;
             }
         }
 
+        private void prepareSegmentDecode(boolean isHeader, int dataLen) {
+            segmentCallback = null;
+            segmentBytes = null;
+            if (header.type == LogHeader.TYPE_NORMAL) {
+                DecoderCallback<?> c = isHeader
+                        ? codecFactory.createHeaderCallback(header.bizType, decodeContext)
+                        : codecFactory.createBodyCallback(header.bizType, decodeContext);
+                if (c != null) {
+                    decoder.prepareNext(decodeContext, c);
+                    segmentCallback = c;
+                }
+            } else {
+                byte[] b = new byte[dataLen];
+                segmentBytes = b;
+                if (isHeader) {
+                    decodedBizHeader = b;
+                } else {
+                    decodedBizBody = b;
+                }
+            }
+        }
+
+        private void consumeSegment(ByteBuffer buf, int dataLen, boolean isHeader) {
+            if (segmentCallback != null) {
+                Object r = decoder.decode(buf, dataLen, currentReadBytes);
+                if (r != null) {
+                    if (isHeader) {
+                        decodedBizHeader = r;
+                    } else {
+                        decodedBizBody = r;
+                    }
+                }
+            } else if (segmentBytes != null) {
+                int n = buf.remaining();
+                buf.get(segmentBytes, currentReadBytes, n);
+            } else {
+                // TYPE_NORMAL but no callback: skip the bytes
+                buf.position(buf.limit());
+            }
+        }
+
         private void add() {
-            Object decodeBizHeader = null;
-            Object decodeBizBody = null;
+            RaftReqData reqData;
             if (decode) {
-                decodeBizHeader = decodeData(header.type, fullBuffer,
-                        LogHeader.ITEM_HEADER_SIZE, header.bizHeaderLen, true);
-                decodeBizBody = decodeData(header.type, fullBuffer,
-                        LogHeader.ITEM_HEADER_SIZE + (header.bizHeaderLen > 0 ? header.bizHeaderLen + 4 : 0),
-                        header.bodyLen, false);
+                reqData = new RaftReqData(header);
+            } else {
+                fullBuffer.flip();
+                fullBufferRef.prepareForEncode();
+                reqData = new RaftReqData(header, fullBufferRef);
             }
 
-            fullBuffer.flip();
-            fullBufferRef.prepareForEncode();
-            RaftReqData reqData = new RaftReqData(header, fullBufferRef);
-
-            RaftTask rt = new RaftTask(reqData, decodeBizHeader, decodeBizBody,
+            RaftTask rt = new RaftTask(reqData, decodedBizHeader, decodedBizBody,
                     header.type == LogHeader.TYPE_LOG_READ);
 
             long costTimeMillis = groupConfig.ts.wallClockMillis - header.timestamp;
@@ -405,29 +460,10 @@ class FileLogLoader implements RaftLog.LogIterator {
             result.add(rt);
             fullBuffer = null;
             fullBufferRef = null;
-        }
-
-        private Object decodeData(int type, ByteBuffer fullBuf, int offset, int len, boolean isHeader) {
-            if (len == 0) {
-                return null;
-            }
-            int oldPos = fullBuf.position();
-            int oldLimit = fullBuf.limit();
-            fullBuf.limit(offset + len);
-            fullBuf.position(offset);
-            ByteBuffer slice = fullBuf.slice();
-            fullBuf.limit(oldLimit);
-            fullBuf.position(oldPos);
-
-            if (type != LogHeader.TYPE_NORMAL) {
-                byte[] b = new byte[len];
-                slice.get(b);
-                return b;
-            }
-            DecoderCallback<?> c = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext) :
-                    codecFactory.createBodyCallback(header.bizType, decodeContext);
-            decoder.prepareNext(decodeContext, c);
-            return decoder.decode(slice, len, 0);
+            decodedBizHeader = null;
+            decodedBizBody = null;
+            segmentCallback = null;
+            segmentBytes = null;
         }
 
         private int extractBizBody(ByteBuffer buf) {
@@ -437,7 +473,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 state = STATE_ITEM_HEADER;
                 return checkItemLimit();
             }
-            boolean readFinish = readData(buf, bodyLen);
+            boolean readFinish = readData(buf, bodyLen, false);
             if (readFinish) {
                 add();
                 state = STATE_ITEM_HEADER;
