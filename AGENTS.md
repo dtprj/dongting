@@ -41,6 +41,8 @@
 
 ### Fiber/Coroutines
 - Each raft group runs in a fiber group (single-threaded)
+- FiberFrame's doFinally method guarantees execution just like a Java finally block. Similar to Java daemon threads, when a fiber group is shut down, daemon fibers may stop at any suspension point, in which case doFinally will not execute.
+- Since fiber groups in this project are dynamically created and destroyed, a fiber group shutdown does not mean the process is shutting down. Therefore, daemon fibers must not hold any resources that need to be returned or cleaned up (e.g., objects borrowed from ByteBufferPool, LogFile counters), because cleanup cannot be guaranteed.
 - See com.github.dtprj.dongting.fiber package for more details
 
 ### Class Inheritance Pattern
@@ -70,8 +72,8 @@ All Java files must include Apache 2.0 license header (17 lines)
 
 ### Comments
 - Java source code and comments: **English only**
-- All code must be in English
-- Add comments only when necessary
+- Add comments only when necessary 
+- Code is the best documentation. Keep comments concise.
 - Don't delete existing comments unless they are no longer relevant
 
 ### Field Access Pattern
@@ -81,8 +83,3 @@ All Java files must include Apache 2.0 license header (17 lines)
 
 ### ByteBuffer.array() Usage
 - If the ByteBuffer is external (not allocated/wrapped within the current class), always include `arrayOffset()` in index calculations — it may have been sliced.
-
-### Logging
-- Logger: `com.github.dtprj.dongting.log.DtLog`
-- Factory: `com.github.dtprj.dongting.log.DtLogs`
-- Declaration: `private static final DtLog log = DtLogs.getLogger(ClassName.class);`
