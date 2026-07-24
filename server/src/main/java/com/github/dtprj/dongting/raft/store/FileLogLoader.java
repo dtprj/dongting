@@ -142,7 +142,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         private int state = STATE_ITEM_HEADER;
         private long itemStartPos;
 
-        private LogHeader header;
+        private final LogHeader header = new LogHeader();
 
         private RefBuffer fullBufferRef;
         private ByteBuffer fullBuffer;
@@ -313,7 +313,6 @@ class FileLogLoader implements RaftLog.LogIterator {
         }
 
         private boolean extractHeader(ByteBuffer readBuffer) {
-            header = new LogHeader();
             LogHeader h = header;
             itemStartPos = bufferStartPos + readBuffer.position();
             if (!h.readAndCheckCrc(crc32c, readBuffer)) {
@@ -406,7 +405,6 @@ class FileLogLoader implements RaftLog.LogIterator {
             result.add(rt);
             fullBuffer = null;
             fullBufferRef = null;
-            header = null;
         }
 
         private Object decodeData(int type, ByteBuffer fullBuf, int offset, int len, boolean isHeader) {
