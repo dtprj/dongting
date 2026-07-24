@@ -223,6 +223,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
         fullRefBuffer.prepareForEncode();
         RaftReqData reqData = new RaftReqData(fullRefBuffer);
         LogHeader.readFields(fullBuffer, reqData);
+        fullBuffer.position(0);
         consumer.accept(reqData);
         reset();
     }
