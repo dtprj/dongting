@@ -69,9 +69,8 @@ public class RaftReqData extends RefCount {
             return null;
         }
         ByteBuffer buf = buffer.getBuffer();
-        buf.limit(totalLen);
-        buf.position(LogHeader.ITEM_HEADER_SIZE);
         buf.limit(LogHeader.ITEM_HEADER_SIZE + bizHeaderLen);
+        buf.position(LogHeader.ITEM_HEADER_SIZE);
         return buf;
     }
 
@@ -82,9 +81,8 @@ public class RaftReqData extends RefCount {
         int start = LogHeader.ITEM_HEADER_SIZE
                 + (bizHeaderLen > 0 ? bizHeaderLen + 4 : 0);
         ByteBuffer buf = buffer.getBuffer();
-        buf.limit(totalLen);
-        buf.position(start);
         buf.limit(start + bodyLen);
+        buf.position(start);
         return buf;
     }
 
