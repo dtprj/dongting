@@ -64,6 +64,8 @@ public class ChainWriter {
     private boolean markStop;
     boolean initialized;
 
+    private final Supplier<Boolean> cancelRetryIndicator = this::shouldCancelRetry;
+
     public ChainWriter(String fiberNamePrefix, RaftGroupConfigEx config, LongConsumer writeCallback,
                        LongConsumer forceCallback) {
         this.config = config;
@@ -182,7 +184,7 @@ public class ChainWriter {
         }
         int[] retryInterval = initialized ? config.ioRetryInterval : null;
         WriteTask task = new WriteTask(config.fiberGroup, logFile, retryInterval, true,
-                this::shouldCancelRetry, buf, bufs, posInFile, force, perfItemCount, lastRaftIndex);
+                cancelRetryIndicator, buf, bufs, posInFile, force, perfItemCount, lastRaftIndex);
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
             if (lastTask.getLogFile() == task.getLogFile()) {
@@ -325,7 +327,7 @@ public class ChainWriter {
                 }
                 ForceFrame ff = new ForceFrame(logFile, config.blockIoExecutor, false);
                 RetryFrame<Void> rf = new RetryFrame<>(ff, config.ioRetryInterval,
-                        true, ChainWriter.this::shouldCancelRetry);
+                        true, cancelRetryIndicator);
                 WriteTask finalTask = task;
                 long perfStartTime = perfCallback.takeTimeAndRefresh(forcePerfType, config.ts);
                 currentForceTask = task;
