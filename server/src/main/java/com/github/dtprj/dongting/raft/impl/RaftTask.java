@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
@@ -26,7 +27,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RaftTask extends RaftInput implements com.github.dtprj.dongting.codec.Encodable {
+public class RaftTask extends RaftInput implements Encodable {
 
     public long perfTime;
 

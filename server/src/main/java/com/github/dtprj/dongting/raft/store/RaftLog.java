@@ -42,7 +42,11 @@ public interface RaftLog {
      */
     FiberFrame<Void> truncateTail(long index);
 
-    LogIterator openIterator(Supplier<Boolean> cancelIndicator);
+    /**
+     * Open an iterator. If {@code decode} is false, biz header and body of each item will NOT be decoded
+     * (they are left null); only the raw buffer is filled. Used by replication path which only needs raw bytes.
+     */
+    LogIterator openIterator(Supplier<Boolean> cancelIndicator, boolean decode);
 
     /**
      * return null if it can't match and will cause install snapshot

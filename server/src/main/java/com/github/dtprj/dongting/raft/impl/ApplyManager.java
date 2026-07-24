@@ -432,7 +432,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                             raftStatus.commitIndex, raftStatus.lastApplying);
                 }
                 if (logIterator == null) {
-                    logIterator = raftLog.openIterator(null);
+                    logIterator = raftLog.openIterator(null, true);
                 }
                 FiberFrame<List<RaftTask>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
                 return Fiber.call(ff, this::afterLoad);

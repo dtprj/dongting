@@ -347,7 +347,8 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return Fiber.resume(null, this);
         } else {
             if (replicateIterator == null) {
-                replicateIterator = raftLog.openIterator(this::shouldStopReplicate);
+                // replication path only needs raw bytes, skip biz header/body decode
+                replicateIterator = raftLog.openIterator(this::shouldStopReplicate, false);
             }
             FiberFrame<List<RaftTask>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
                     groupConfig.singleReplicateLimit);

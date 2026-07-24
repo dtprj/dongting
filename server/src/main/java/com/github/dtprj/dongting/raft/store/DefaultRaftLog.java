@@ -181,8 +181,8 @@ public final class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public LogIterator openIterator(Supplier<Boolean> cancelIndicator) {
-        return new FileLogLoader(idxFiles, logFiles, groupConfig, raftCodecFactory, cancelIndicator);
+    public LogIterator openIterator(Supplier<Boolean> cancelIndicator, boolean decode) {
+        return new FileLogLoader(idxFiles, logFiles, groupConfig, raftCodecFactory, cancelIndicator, decode);
     }
 
     @Override

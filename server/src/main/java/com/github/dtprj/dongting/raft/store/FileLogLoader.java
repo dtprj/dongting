@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
@@ -32,6 +33,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
@@ -45,6 +47,7 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
+// TODO refactor this file to eliminate memory copy
 class FileLogLoader implements RaftLog.LogIterator {
 
     private static final int STATE_ITEM_HEADER = 1;
@@ -54,6 +57,8 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final IdxOps idxFiles;
     private final LogFileQueue logFiles;
     private final RaftGroupConfigEx groupConfig;
+    private final Buffers buffers;
+    private final boolean decode;
     private RefBuffer readBufferRef;
     private ByteBuffer readBuffer;
     private boolean loading;
@@ -75,20 +80,22 @@ class FileLogLoader implements RaftLog.LogIterator {
     private LogFile logFile;
 
     FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig, RaftCodecFactory codecFactory,
-                  Supplier<Boolean> cancelIndicator) {
-        this(idxFiles, logFiles, groupConfig, codecFactory, cancelIndicator, 256 * 1024);
+                  Supplier<Boolean> cancelIndicator, boolean decode) {
+        this(idxFiles, logFiles, groupConfig, codecFactory, cancelIndicator, decode, 256 * 1024);
     }
 
     FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig,
-                  RaftCodecFactory codecFactory, Supplier<Boolean> cancelIndicator, int readBufferSize) {
+                  RaftCodecFactory codecFactory, Supplier<Boolean> cancelIndicator, boolean decode, int readBufferSize) {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;
         this.groupConfig = groupConfig;
         this.codecFactory = codecFactory;
         this.cancelIndicator = cancelIndicator;
+        this.decode = decode;
         this.tailCache = ((RaftStatusImpl) groupConfig.raftStatus).tailCache;
 
         DispatcherThread t = groupConfig.fiberGroup.dispatcher.thread;
+        this.buffers = t.buffers;
         this.readBufferRef = t.buffers.borrowLocal(readBufferSize);
         this.readBuffer = readBufferRef.getBuffer();
         this.decodeContext = DecodeContext.factory.apply(t.buffers, t.threadLocalBuffer);
@@ -137,8 +144,10 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private LogHeader header;
 
+        private RefBuffer fullBufferRef;
         private ByteBuffer fullBuffer;
         private boolean readerPending;
+        private boolean resultReturned;
 
         NextFrame(long startIndex, int limit, int bytesLimit) {
             this.startIndex = startIndex;
@@ -154,11 +163,21 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         @Override
         protected FrameCallResult doFinally() {
+            loading = false;
             if (readerPending) {
                 logFile.decReaders();
             }
             decodeContext.reset(decoder);
-            loading = false;
+            // ownership of the whole result list is transferred to caller only on normal return
+            if (!resultReturned) {
+                for (RaftTask rt : result) {
+                    rt.reqData.release();
+                }
+                if (fullBufferRef != null) {
+                    fullBufferRef.release();
+                    fullBufferRef = null;
+                }
+            }
             releaseIfNecessary();
             return Fiber.frameReturn();
         }
@@ -203,7 +222,9 @@ class FileLogLoader implements RaftLog.LogIterator {
                     throw new RaftException("error state:" + state);
                 }
                 if (r == RESULT_FINISH) {
-                    setResult(new ArrayList<>(result));
+                    ArrayList<RaftTask> finalResult = new ArrayList<>(result);
+                    resultReturned = true;
+                    setResult(finalResult);
                     return Fiber.frameReturn();
                 } else if (r == RESULT_NEED_LOAD) {
                     return loadLogFromStore();
@@ -271,8 +292,10 @@ class FileLogLoader implements RaftLog.LogIterator {
                     finishRead();
                     return RESULT_FINISH;
                 }
-                // TODO refactor this file
-                fullBuffer = ByteBuffer.allocate(header.totalLen);
+                fullBufferRef = header.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
+                        ? buffers.borrowDirect(header.totalLen)
+                        : buffers.borrow(header.totalLen, false, true, 512);
+                fullBuffer = fullBufferRef.getBuffer();
                 header.writeTo(fullBuffer);
                 state = STATE_BIZ_HEADER;
                 return RESULT_CONTINUE_PARSE;
@@ -356,16 +379,19 @@ class FileLogLoader implements RaftLog.LogIterator {
         }
 
         private void add() {
-            Object decodeBizHeader = decodeData(header.type, fullBuffer,
-                    LogHeader.ITEM_HEADER_SIZE, header.bizHeaderLen, true);
-            Object decodeBizBody = decodeData(header.type, fullBuffer,
-                    LogHeader.ITEM_HEADER_SIZE + (header.bizHeaderLen > 0 ? header.bizHeaderLen + 4 : 0),
-                    header.bodyLen, false);
+            Object decodeBizHeader = null;
+            Object decodeBizBody = null;
+            if (decode) {
+                decodeBizHeader = decodeData(header.type, fullBuffer,
+                        LogHeader.ITEM_HEADER_SIZE, header.bizHeaderLen, true);
+                decodeBizBody = decodeData(header.type, fullBuffer,
+                        LogHeader.ITEM_HEADER_SIZE + (header.bizHeaderLen > 0 ? header.bizHeaderLen + 4 : 0),
+                        header.bodyLen, false);
+            }
 
             fullBuffer.flip();
-            RefBuffer fullRefBuffer = RefBuffer.wrap(fullBuffer);
-            fullRefBuffer.prepareForEncode();
-            RaftReqData reqData = new RaftReqData(header, fullRefBuffer);
+            fullBufferRef.prepareForEncode();
+            RaftReqData reqData = new RaftReqData(header, fullBufferRef);
 
             RaftTask rt = new RaftTask(reqData, decodeBizHeader, decodeBizBody,
                     header.type == LogHeader.TYPE_LOG_READ);
@@ -379,6 +405,7 @@ class FileLogLoader implements RaftLog.LogIterator {
 
             result.add(rt);
             fullBuffer = null;
+            fullBufferRef = null;
             header = null;
         }
 

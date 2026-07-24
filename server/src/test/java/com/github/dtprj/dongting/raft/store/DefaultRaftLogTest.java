@@ -292,12 +292,12 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         // file 5, started from 11, total 12 items
         append(11, new int[]{100, 100}, new int[]{10, 10});
 
-        testLoader(() -> raftLog.openIterator(() -> false));
+        testLoader(() -> raftLog.openIterator(() -> false, true));
         testLoader(() -> new FileLogLoader(raftLog.idxFiles, raftLog.logFiles, config,
-                null, () -> false, 99));
+                null, () -> false, true, 99));
         // test cancel indicator
         doInFiber(new FiberFrame<>() {
-            final RaftLog.LogIterator it = raftLog.openIterator(() -> true);
+            final RaftLog.LogIterator it = raftLog.openIterator(() -> true, true);
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -318,7 +318,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         // test cancel indicator
         doInFiber(new FiberFrame<>() {
             int count;
-            final RaftLog.LogIterator it = raftLog.openIterator(() -> count++ >= 1);
+            final RaftLog.LogIterator it = raftLog.openIterator(() -> count++ >= 1, true);
 
             @Override
             public FrameCallResult execute(Void input) {
@@ -342,7 +342,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         raftStatus.tailCache.put(3, input);
         // test cancel if tail cache has next item
         doInFiber(new FiberFrame<>() {
-            final RaftLog.LogIterator it = raftLog.openIterator(() -> false);
+            final RaftLog.LogIterator it = raftLog.openIterator(() -> false, true);
 
             @Override
             public FrameCallResult execute(Void input) {
