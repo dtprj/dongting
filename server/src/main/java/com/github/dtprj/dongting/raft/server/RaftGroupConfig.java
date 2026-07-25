@@ -42,7 +42,7 @@ public class RaftGroupConfig {
     public int maxCacheTasks = (int) DtUtil.calcByMem(100000);
     public long maxCacheTaskBytes = DtUtil.calcByMem(384 * 1024 * 1024);
 
-    public int idxItemsPerFile = 1024 * 1024;
+    public int idxItemsPerFile = 8 * 1024 * 1024;
     public int idxCacheSize = 16 * 1024;
     public int idxFlushThreshold = 8 * 1024;
     public long logFileSize = 1024 * 1024 * 1024;
