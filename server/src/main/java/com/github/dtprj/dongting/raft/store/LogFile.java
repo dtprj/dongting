@@ -67,12 +67,11 @@ public class LogFile extends DtFile {
     }
 
     public void close() {
-        if (inUse() || openFuture != null || mmapOpenFuture != null) {
+        if (inUse() || openFuture != null) {
             BugLog.log(new IllegalStateException("close file while in use or pending: " + file.getPath()));
             return;
         }
         doClose();
-        closeMmap();
     }
 
     public void incReaders() {
