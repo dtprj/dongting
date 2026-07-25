@@ -402,10 +402,6 @@ public class NodeManager extends AbstractLifeCircle {
         return nodePingReadyFuture;
     }
 
-    public UUID getUuid() {
-        return uuid;
-    }
-
     // create new set since this method invoke occasionally
     public Set<Integer> getAllNodeIdsInLock() {
         HashSet<Integer> ids = new HashSet<>();

@@ -557,10 +557,6 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
     }
 
-    public int getTerm() {
-        return term;
-    }
-
 }
 
 class LeaderFindMatchPosFrame extends AbstractLeaderRepFrame {

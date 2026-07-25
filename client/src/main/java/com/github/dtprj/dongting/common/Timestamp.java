@@ -34,14 +34,6 @@ public class Timestamp {
         this.wallClockMillis = wallClockMillis;
     }
 
-    public long getNanoTime() {
-        return nanoTime;
-    }
-
-    public long getWallClockMillis() {
-        return wallClockMillis;
-    }
-
     public boolean refresh(long millisDiff) {
         DtUtil.checkPositive(millisDiff, "millisDiff");
         long t = System.currentTimeMillis();
