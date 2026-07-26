@@ -111,9 +111,9 @@ public class RaftReqData extends RefCount {
     }
 
     private static void checkBizType(int bizType) {
-        if (bizType < 0 || bizType > 127) {
+        if (bizType < 0 || bizType > 255) {
             // we use 1 byte to store bizType in raft log
-            throw new IllegalArgumentException("bizType must be in [0, 127]");
+            throw new IllegalArgumentException("bizType must be in [0, 255]");
         }
     }
 

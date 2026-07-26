@@ -35,18 +35,16 @@ public class LogHeader {
     // total len(4 bytes), include this 4 bytes
     // biz header len 4 bytes
     // body len 4 bytes
-    // type 1 byte
-    // bizType 1 byte
+    // type(1) + bizType(1) + timestamp(6) packed into a single long (8 bytes)
     // term 4 bytes
     // prevLogTerm 4 bytes
     // index 8 bytes
-    // timestamp 8 bytes
     // header crc
-    public static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 1 + 1 + 4 + 4 + 8 + 8 + 4;
+    public static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 8 + 4 + 4 + 8 + 4;
 
     public static final int OFFSET_BIZ_HEADER_LEN = 4;
     public static final int OFFSET_BODY_LEN = 8;
-    public static final int OFFSET_INDEX = 22;
+    public static final int OFFSET_INDEX = 28;
 
     // negative value means end of file
     private static final int END_LEN_MAGIC = 0xF19A7BCB;
@@ -77,12 +75,13 @@ public class LogHeader {
         totalLen = buf.getInt();
         bizHeaderLen = buf.getInt();
         bodyLen = buf.getInt();
-        type = buf.get();
-        bizType = buf.get();
+        long packed = buf.getLong();
+        type = (int) (packed >>> 56);
+        bizType = (int) ((packed >>> 48) & 0xFF);
+        timestamp = packed & 0xFFFF_FFFF_FFFFL;
         term = buf.getInt();
         prevLogTerm = buf.getInt();
         index = buf.getLong();
-        timestamp = buf.getLong();
         headerCrc = buf.getInt();
     }
 
@@ -98,12 +97,13 @@ public class LogHeader {
         buf.getInt(); // skip totalLen, already set in data from buffer
         data.bizHeaderLen = buf.getInt();
         data.bodyLen = buf.getInt();
-        data.type = buf.get();
-        data.bizType = buf.get();
+        long packed = buf.getLong();
+        data.type = (int) (packed >>> 56);
+        data.bizType = (int) ((packed >>> 48) & 0xFF);
+        data.timestamp = packed & 0xFFFF_FFFF_FFFFL;
         data.term = buf.getInt();
         data.prevLogTerm = buf.getInt();
         data.index = buf.getLong();
-        data.timestamp = buf.getLong();
     }
 
     public static int computeTotalLen(int bizHeaderLen, int bodyLen) {
@@ -114,12 +114,10 @@ public class LogHeader {
         buf.putInt(totalLen);
         buf.putInt(bizHeaderLen);
         buf.putInt(bodyLen);
-        buf.put((byte) type);
-        buf.put((byte) bizType);
+        buf.putLong(((type & 0xFFL) << 56) | ((bizType & 0xFFL) << 48) | (timestamp & 0xFFFF_FFFF_FFFFL));
         buf.putInt(term);
         buf.putInt(prevLogTerm);
         buf.putLong(index);
-        buf.putLong(timestamp);
     }
 
     public void writeTo(ByteBuffer buffer) {
@@ -159,12 +157,11 @@ public class LogHeader {
         buf.putInt(data.totalLen);
         buf.putInt(data.bizHeaderLen);
         buf.putInt(data.bodyLen);
-        buf.put((byte) data.type);
-        buf.put((byte) data.bizType);
+        buf.putLong(((data.type & 0xFFL) << 56) | ((data.bizType & 0xFFL) << 48)
+                | (data.timestamp & 0xFFFF_FFFF_FFFFL));
         buf.putInt(data.term);
         buf.putInt(data.prevLogTerm);
         buf.putLong(data.index);
-        buf.putLong(data.timestamp);
     }
 
     public static void writeEndHeader(CRC32C crc, ByteBuffer buffer) {
@@ -172,11 +169,9 @@ public class LogHeader {
         buffer.putInt(END_LEN_MAGIC);
         buffer.putInt(0);
         buffer.putInt(0);
-        buffer.put((byte) 0);
-        buffer.put((byte) 0);
-        buffer.putInt(0);
-        buffer.putInt(0);
         buffer.putLong(0L);
+        buffer.putInt(0);
+        buffer.putInt(0);
         buffer.putLong(0L);
         crc.reset();
         RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);

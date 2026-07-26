@@ -547,19 +547,10 @@ public class LogFileQueueTest extends BaseFiberTest {
         buf.position(offset);
         header.read(buf);
         headerUpdater.accept(header);
-        buf.position(offset);
-        buf.putInt(header.totalLen);
-        buf.putInt(header.bizHeaderLen);
-        buf.putInt(header.bodyLen);
-        buf.put((byte) header.type);
-        buf.put((byte) header.bizType);
-        buf.putInt(header.term);
-        buf.putInt(header.prevLogTerm);
-        buf.putLong(header.index);
-        buf.putLong(header.timestamp);
+        header.writeTo(buf, offset);
         CRC32C c = new CRC32C();
         RaftUtil.updateCrc(c, buf, offset, LogHeader.ITEM_HEADER_SIZE - 4);
-        buf.putInt((int) c.getValue());
+        buf.putInt(offset + LogHeader.ITEM_HEADER_SIZE - 4, (int) c.getValue());
         write(filePos, buf.array());
     }
 

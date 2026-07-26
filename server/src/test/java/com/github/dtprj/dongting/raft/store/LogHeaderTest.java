@@ -37,7 +37,7 @@ public class LogHeaderTest {
         reqData.term = 1000;
         reqData.prevLogTerm = 2000;
         reqData.index = 3000;
-        reqData.timestamp = Long.MAX_VALUE;
+        reqData.timestamp = 0xFFFF_FFFF_FFFFL; // max value of 6-byte unsigned
 
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         LogHeader.writeAndComputeCrc(reqData, new CRC32C(), buf);
@@ -50,7 +50,7 @@ public class LogHeaderTest {
         assertEquals(1000, header.term);
         assertEquals(2000, header.prevLogTerm);
         assertEquals(3000, header.index);
-        assertEquals(Long.MAX_VALUE, header.timestamp);
+        assertEquals(0xFFFF_FFFF_FFFFL, header.timestamp);
 
         assertEquals(header.totalLen, LogHeader.computeTotalLen(200, 300));
         assertEquals(200, header.bizHeaderLen);
