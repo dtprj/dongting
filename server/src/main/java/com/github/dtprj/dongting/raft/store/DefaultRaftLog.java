@@ -37,13 +37,12 @@ import java.io.File;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_FIRST_VALID_POS;
-
 /**
  * @author huangli
  */
 public final class DefaultRaftLog implements RaftLog {
     private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
+    private static final String KEY_FIRST_VALID_POS = "firstValidPos";
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
