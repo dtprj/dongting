@@ -146,7 +146,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             return new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
-                    if (finalRestoreIndex == raftStatus.firstValidIndex) {
+                    if (finalRestoreIndex <= raftStatus.firstValidIndex) {
                         // return null will cause install snapshot
                         setResult(null);
                         return Fiber.frameReturn();
@@ -530,6 +530,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         nextPersistIndex = nextLogIndex;
         writeFinishIndex = nextLogIndex - 1;
         persistedIndex = nextLogIndex - 1;
+        submittedPersistIndexInStatusFile = persistedIndex;
+        statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
         initQueue();
         startFibers();
         return ensureWritePosReady(indexToPos(nextLogIndex));
