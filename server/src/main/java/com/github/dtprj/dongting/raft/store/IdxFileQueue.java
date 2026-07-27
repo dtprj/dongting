@@ -67,7 +67,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
-    private long persistedIndexInStatusFile;
+    private long submittedPersistIndexInStatusFile;
     private long nextPersistIndex;
     private long writeFinishIndex;
     long persistedIndex;
@@ -117,9 +117,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     public FiberFrame<Pair<Long, Long>> initRestorePos() {
         this.firstIndex = posToIndex(queueStartPosition);
-        this.persistedIndexInStatusFile = RaftUtil.parseLong(statusManager.getProperties(),
-                KEY_PERSIST_IDX_INDEX, 0);
-        long restoreIndex = persistedIndexInStatusFile;
+        long restoreIndex = RaftUtil.parseLong(statusManager.getProperties(), KEY_PERSIST_IDX_INDEX, 0);
+        this.submittedPersistIndexInStatusFile = restoreIndex;
 
         log.info("load raft status file. firstIndex={}, {}={}, {}={}", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
                 StatusManager.FIRST_VALID_IDX, raftStatus.firstValidIndex);
@@ -179,13 +178,14 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     // run in Future callback
     private void forceFinish(long forceFinishRaftIndex) {
         flushDoneCondition.signalAll();
+        persistedIndex = forceFinishRaftIndex;
         // if we set syncForce to false, forceFinishRaftIndex may greater than raftStatus.lastForceLogIndex
         long idx = Math.min(forceFinishRaftIndex, raftStatus.lastForceLogIndex);
-        if (idx > persistedIndexInStatusFile) {
+        if (idx > submittedPersistIndexInStatusFile) {
             statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(idx));
             statusManager.persistAsync();
+            submittedPersistIndexInStatusFile = idx;
         }
-        persistedIndex = forceFinishRaftIndex;
     }
 
     public long indexToPos(long index) {
