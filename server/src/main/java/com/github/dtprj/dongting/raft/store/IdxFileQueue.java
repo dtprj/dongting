@@ -76,7 +76,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     private final FlushLoopFrame flushLoopFrame = new FlushLoopFrame();
     private long lastForceNanos;
-    private static final long FLUSH_INTERVAL_NANOS = 2L * 1000 * 1000 * 1000;
+    private final long flushIntervalNanos;
 
     private final Fiber flushFiber;
     private final FiberCondition needFlushCondition;
@@ -94,6 +94,8 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         this.ts = groupConfig.ts;
         this.lastForceNanos = ts.nanoTime;
         this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
+        // clamp to 1ms: a non-positive interval would make the flush loop spin without await
+        this.flushIntervalNanos = Math.max(groupConfig.idxFlushIntervalMillis, 1) * 1_000_000;
 
         this.maxCacheItems = groupConfig.idxCacheSize;
         this.flushThreshold = groupConfig.idxFlushThreshold;
@@ -331,7 +333,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                 return Fiber.frameReturn();
             }
             long diff = getDiff();
-            long flushRestMillis = (lastForceNanos + FLUSH_INTERVAL_NANOS - ts.nanoTime) / 1000 / 1000;
+            long flushRestMillis = (lastForceNanos + flushIntervalNanos - ts.nanoTime) / 1000 / 1000;
             // 0: flush without force, 1 : flush with force, 2: force only and exit
             int flushType;
             if (diff > 0 && nextPersistIndex <= firstIndex) {
@@ -532,6 +534,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         persistedIndex = nextLogIndex - 1;
         submittedPersistIndexInStatusFile = persistedIndex;
         statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
+        statusManager.lastPersistedIdxIndex = persistedIndex;
         initQueue();
         startFibers();
         return ensureWritePosReady(indexToPos(nextLogIndex));

@@ -54,6 +54,10 @@ public class StatusManager {
 
     private long requestUpdateVersion;
     private long finishedUpdateVersion;
+    // the value of IdxFileQueue.KEY_PERSIST_IDX_INDEX that is known to be durable in the status
+    // file. The restore process starts from the value in the status file, so log/idx file deletion
+    // must not remove data that the next restore still depends on.
+    long lastPersistedIdxIndex;
 
     private final FiberCondition needUpdateCondition;
     private final FiberCondition updateDoneCondition;
@@ -83,6 +87,7 @@ public class StatusManager {
                 raftStatus.commitIndex = RaftUtil.parseInt(loadedProps, COMMIT_INDEX, 0);
                 raftStatus.installSnapshot = RaftUtil.parseBoolean(loadedProps, INSTALL_SNAPSHOT, false);
                 raftStatus.firstValidIndex = RaftUtil.parseLong(loadedProps, FIRST_VALID_IDX, 1);
+                lastPersistedIdxIndex = RaftUtil.parseLong(loadedProps, IdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
 
                 updateFiber.start();
                 return Fiber.frameReturn();
@@ -102,6 +107,7 @@ public class StatusManager {
 
     private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
+        private long writingIdxIndex;
 
         @Override
         public FrameCallResult execute(Void input) {
@@ -123,6 +129,8 @@ public class StatusManager {
                 public FrameCallResult execute(Void input) {
                     copyWriteData();
                     version = requestUpdateVersion;
+                    writingIdxIndex = RaftUtil.parseLong(statusFile.getProperties(),
+                            IdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
                     FiberFuture<Void> f = statusFile.update();
                     return f.await(this::justReturn);
                 }
@@ -135,6 +143,7 @@ public class StatusManager {
         private FrameCallResult resumeOnUpdateDone(Void v) {
             // log.info("status update done, version={}, flush={}", version, flush);
             finishedUpdateVersion = version;
+            lastPersistedIdxIndex = writingIdxIndex;
             updateDoneCondition.signalAll();
             // loop
             return Fiber.yield(this);

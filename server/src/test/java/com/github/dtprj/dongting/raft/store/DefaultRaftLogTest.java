@@ -60,6 +60,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     private RaftGroupConfigEx config;
     private StatusManager statusManager;
     private DefaultRaftLog raftLog;
+    private boolean lagStatusFile;
 
     @BeforeEach
     void setup() throws Exception {
@@ -77,7 +78,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config.ts = raftStatus.ts;
         config.raftStatus = raftStatus;
         raftStatus.tailCache = new TailCache(config, raftStatus);
-        statusManager = new StatusManager(config);
+        statusManager = lagStatusFile ? new LaggingStatusManager(config) : new StatusManager(config);
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -92,6 +93,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config.idxItemsPerFile = 8;
         config.idxCacheSize = 4;
         config.idxFlushThreshold = 2;
+        // shorten the periodic idx flush interval so tests don't wait for it
+        config.idxFlushIntervalMillis = 20;
         config.logFileSize = 1024;
         raftLog = new DefaultRaftLog(config, statusManager, null, 1);
         doInFiber(new FiberFrame<>() {
@@ -233,6 +236,99 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
     private void plus1Hour() throws Exception {
         doInFiber(() -> TestUtil.plus1Hour(raftStatus.ts));
+    }
+
+    // simulates that the status file update is not finished, by dropping persist requests
+    private static class LaggingStatusManager extends StatusManager {
+        volatile boolean dropPersistRequests;
+
+        LaggingStatusManager(RaftGroupConfigEx c) {
+            super(c);
+        }
+
+        @Override
+        public void persistAsync() {
+            if (!dropPersistRequests) {
+                super.persistAsync();
+            }
+        }
+    }
+
+    @Test
+    void testDeleteGuardByStatusFilePersistIndex() throws Exception {
+        try {
+            int[] totalSizes = new int[]{400, 400, 512, 200, 400};
+            int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
+            append(1, totalSizes, bizHeaderLen);
+            raftStatus.commitIndex = 5;
+            raftStatus.setLastApplied(5);
+            raftStatus.lastLogIndex = 5;
+            append(6, totalSizes, bizHeaderLen);
+            // let the close below persist idx to 10 and save KEY_PERSIST_IDX_INDEX=10 to status file
+            raftStatus.commitIndex = 10;
+
+            doInFiber(new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    return raftLog.close().await(this::resume);
+                }
+
+                private FrameCallResult resume(Void unused) {
+                    return statusManager.close().await(this::justReturn);
+                }
+            });
+
+            // restart with the lagging status manager
+            lagStatusFile = true;
+            init();
+            LaggingStatusManager lsm = (LaggingStatusManager) statusManager;
+            // the status file is "not updated" from now on, so lastPersistedIdxIndex keeps
+            // the restored value 10 even if new values are submitted by idx force
+            lsm.dropPersistRequests = true;
+
+            // the durable value is restored from the status file
+            doInFiber(() -> assertEquals(10, statusManager.lastPersistedIdxIndex));
+
+            append(11, totalSizes, bizHeaderLen);
+            append(16, totalSizes, bizHeaderLen);
+            raftStatus.commitIndex = 20;
+            raftStatus.setLastApplied(20);
+            raftStatus.lastLogIndex = 20;
+            raftStatus.lastForceLogIndex = 20;
+            raftStatus.lastSavedSnapshotIndex = 25;
+
+            // idx data of entry 15 is forced (in-memory persistedIndex) and submitted to the status
+            // file, but the update is "dropped", so the durable value is still 10
+            WaitUtil.waitUtil(() -> raftLog.idxFiles.persistedIndex >= 15, 10_000);
+            doInFiber(() -> assertEquals(10, statusManager.lastPersistedIdxIndex));
+
+            File dir = new File(new File(dataDir), "log");
+            // the mark bound is min(lastApplied=20, lastPersistedIdxIndex=10, lastSavedSnapshotIndex=25,
+            // index=15) = 10, so only files whose next file starts at index <= 10 are marked
+            doInFiber(() -> raftLog.markTruncateByIndex(15, 0));
+
+            // files before 3072 are deleted since the durable value 10 covers their next file's firstIndex
+            WaitUtil.waitUtil(fileDeleted(dir, 3072));
+            // the next file of 4096 starts at index 11 > 10, so the file at 4096 is not even marked
+            assertFalse(fileDeleted(dir, 4096).get());
+
+            // after the status file is updated again, the durable value catches up. update it
+            // directly instead of waiting for the periodic idx force to trigger the update
+            lsm.dropPersistRequests = false;
+            doInFiber(() -> statusManager.persistAsync());
+            WaitUtil.waitUtil(() -> statusManager.lastPersistedIdxIndex >= 15, 10_000);
+
+            // re-mark with bound=15 and deletion continues
+            doInFiber(() -> raftLog.markTruncateByIndex(15, 0));
+            WaitUtil.waitUtil(fileDeleted(dir, 5120));
+            // the file at 6144 is not marked since its next file starts at index 17 > 15, so it is kept
+            assertFalse(fileDeleted(dir, 6144).get());
+        } finally {
+            lagStatusFile = false;
+            if (statusManager instanceof LaggingStatusManager) {
+                ((LaggingStatusManager) statusManager).dropPersistRequests = false;
+            }
+        }
     }
 
     @Test

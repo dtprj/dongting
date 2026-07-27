@@ -193,7 +193,7 @@ public final class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.persistedIndex);
+        long bound = Math.min(raftStatus.getLastApplied(), statusManager.lastPersistedIdxIndex);
         bound = Math.min(bound, raftStatus.lastSavedSnapshotIndex);
         bound = Math.min(bound, index);
         log.info("mark truncate log files by index {}, bound={}", index, bound);
@@ -202,7 +202,7 @@ public final class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByTimestamp(long timestampBound, long delayMillis) {
-        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.persistedIndex);
+        long bound = Math.min(raftStatus.getLastApplied(), statusManager.lastPersistedIdxIndex);
         bound = Math.min(bound, raftStatus.lastSavedSnapshotIndex);
         log.info("mark truncate log files by timestamp {}, bound={}", timestampBound, bound);
         logFiles.markDelete(bound, timestampBound, delayMillis);
@@ -348,6 +348,11 @@ public final class DefaultRaftLog implements RaftLog {
                     raftStatus.lastForceLogIndex < second.firstIndex) {
                 return false;
             }
+            // the restore process starts from KEY_PERSIST_IDX_INDEX in the status file,
+            // so the log entry at that index must not be deleted
+            if (statusManager.lastPersistedIdxIndex < second.firstIndex) {
+                return false;
+            }
             return !first.inUse();
         }
 
@@ -382,7 +387,8 @@ public final class DefaultRaftLog implements RaftLog {
             if (logFiles.getFirstIndex() < firstIndexOfNextFile) {
                 return false;
             }
-            if (idxFiles.persistedIndex < firstIndexOfNextFile) {
+            // use the durable value in the status file, not the in-memory persistedIndex
+            if (statusManager.lastPersistedIdxIndex < firstIndexOfNextFile) {
                 return false;
             }
             return !first.inUse();
