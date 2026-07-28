@@ -50,28 +50,16 @@ public class RaftReqData extends RefCount {
         this.totalLen = fullBuffer.actualSize();
     }
 
-    public RaftReqData(LogHeader header, RefBuffer fullBuffer) {
-        super(false, fullBuffer.isDummy());
-        this.buffer = fullBuffer;
-        this.totalLen = fullBuffer.actualSize();
-        this.bizHeaderLen = header.bizHeaderLen;
-        this.bodyLen = header.bodyLen;
-        this.type = header.type;
-        this.bizType = header.bizType;
-        this.term = header.term;
-        this.prevLogTerm = header.prevLogTerm;
-        this.index = header.index;
-        this.timestamp = header.timestamp;
-    }
-
     /**
-     * Create a dummy instance without buffer, used when the log item is decoded on the fly
-     * (e.g. apply path) and the raw bytes are not needed.
+     * @param header     the log header to copy fields from
+     * @param fullBuffer the full buffer containing the raw log item; {@code null} to create a
+     *                   dummy instance without buffer, used when the log item is decoded on
+     *                   the fly (e.g. apply path) and the raw bytes are not needed.
      */
-    public RaftReqData(LogHeader header) {
-        super(false, true);
-        this.buffer = null;
-        this.totalLen = header.totalLen;
+    public RaftReqData(LogHeader header, RefBuffer fullBuffer) {
+        super(false, fullBuffer == null || fullBuffer.isDummy());
+        this.buffer = fullBuffer;
+        this.totalLen = fullBuffer == null ? header.totalLen : fullBuffer.actualSize();
         this.bizHeaderLen = header.bizHeaderLen;
         this.bodyLen = header.bodyLen;
         this.type = header.type;

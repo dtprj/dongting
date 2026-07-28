@@ -444,7 +444,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         private void add() {
             RaftReqData reqData;
             if (decode) {
-                reqData = new RaftReqData(header);
+                reqData = new RaftReqData(header, null);
             } else {
                 fullBuffer.flip();
                 fullBufferRef.prepareForEncode();
