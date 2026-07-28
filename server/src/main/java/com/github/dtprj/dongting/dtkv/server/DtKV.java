@@ -152,7 +152,11 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public FiberFuture<Object> exec(long index, long leaderCreateTimeMillis, long localCreateNanos, RaftInput input) {
+    public FiberFuture<Object> exec(RaftInput input) {
+        RaftTask rt = (RaftTask) input;
+        long leaderCreateTimeMillis = rt.reqData.timestamp;
+        long localCreateNanos = rt.localCreateNanos;
+        long index = rt.reqData.index;
         FiberFuture<Object> f = mainFiberGroup.newFuture("dtkv-exec");
         if (useSeparateExecutor) {
             // assert submit success

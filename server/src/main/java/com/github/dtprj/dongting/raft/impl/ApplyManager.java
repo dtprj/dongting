@@ -184,7 +184,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                     FiberFuture<Object> f = null;
                     Throwable execEx = null;
                     try {
-                        f = stateMachine.exec(index, rt.reqData.timestamp, rt.localCreateNanos, rt);
+                        f = stateMachine.exec(rt);
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;

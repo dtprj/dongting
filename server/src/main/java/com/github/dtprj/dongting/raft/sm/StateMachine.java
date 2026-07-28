@@ -32,7 +32,7 @@ public interface StateMachine extends LifeCircle, RaftCodecFactory {
     /**
      * this method is called in raft thread.
      */
-    FiberFuture<Object> exec(long index, long leaderCreateTimeMillis, long localCreateNanos, RaftInput input);
+    FiberFuture<Object> exec(RaftInput input);
 
     /**
      * this method is called in raft thread.

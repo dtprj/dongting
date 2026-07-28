@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -129,10 +130,13 @@ public class DtKVTest extends BaseFiberTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private <T> FiberFuture<T> exec(long index, int bizType, KvReq req) {
         RaftReqData rd = RaftReqData.build(LogHeader.TYPE_NORMAL, bizType, req);
+        rd.index = index;
+        rd.timestamp = ts.wallClockMillis;
         RaftInput i = RaftInput.create(rd, null, req,
                 new DtTime(1, TimeUnit.SECONDS), false, null);
+        ((RaftTask) i).init(ts.nanoTime);
         req.ownerUuid = uuid;
-        return (FiberFuture) kv.exec(index, ts.wallClockMillis, ts.nanoTime, i);
+        return (FiberFuture) kv.exec(i);
     }
 
     private KvResult get(String key) {
