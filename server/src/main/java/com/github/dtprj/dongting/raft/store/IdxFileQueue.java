@@ -67,10 +67,9 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
-    private long submittedPersistIndexInStatusFile;
+    long submittedPersistIndexInStatusFile;
     private long nextPersistIndex;
     private long writeFinishIndex;
-    long persistedIndex;
     private long nextIndex;
     private long firstIndex;
 
@@ -132,7 +131,6 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             nextIndex = 1;
             nextPersistIndex = 1;
             writeFinishIndex = 0;
-            persistedIndex = 0;
 
             if (queueEndPosition == 0) {
                 tryAllocateAsync(0);
@@ -143,7 +141,6 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
             nextIndex = restoreIndex + 1;
             nextPersistIndex = restoreIndex + 1;
             writeFinishIndex = restoreIndex;
-            persistedIndex = restoreIndex;
             final long finalRestoreIndex = restoreIndex;
             return new FiberFrame<>() {
                 @Override
@@ -180,7 +177,6 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
     // run in Future callback
     private void forceFinish(long forceFinishRaftIndex) {
         flushDoneCondition.signalAll();
-        persistedIndex = forceFinishRaftIndex;
         // if we set syncForce to false, forceFinishRaftIndex may greater than raftStatus.lastForceLogIndex
         long idx = Math.min(forceFinishRaftIndex, raftStatus.lastForceLogIndex);
         if (idx > submittedPersistIndexInStatusFile) {
@@ -432,7 +428,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
                     setResult(new IdxItem(pos, cache.lastGetTimestamp, cache.lastGetSize));
                     return Fiber.frameReturn();
                 }
-                BugLog.log("load index too large: index={}, persistedIndex={}", itemIndex, persistedIndex);
+                BugLog.log("load index too large: index={}, writeFinishIndex={}", itemIndex, writeFinishIndex);
                 throw new RaftException("index is too large");
             }
             long pos = indexToPos(itemIndex);
@@ -531,10 +527,9 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
         nextIndex = nextLogIndex;
         nextPersistIndex = nextLogIndex;
         writeFinishIndex = nextLogIndex - 1;
-        persistedIndex = nextLogIndex - 1;
-        submittedPersistIndexInStatusFile = persistedIndex;
-        statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
-        statusManager.lastPersistedIdxIndex = persistedIndex;
+        submittedPersistIndexInStatusFile = writeFinishIndex;
+        statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(writeFinishIndex));
+        statusManager.lastPersistedIdxIndex = writeFinishIndex;
         initQueue();
         startFibers();
         return ensureWritePosReady(indexToPos(nextLogIndex));

@@ -297,9 +297,9 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             raftStatus.lastForceLogIndex = 20;
             raftStatus.lastSavedSnapshotIndex = 25;
 
-            // idx data of entry 15 is forced (in-memory persistedIndex) and submitted to the status
-            // file, but the update is "dropped", so the durable value is still 10
-            WaitUtil.waitUtil(() -> raftLog.idxFiles.persistedIndex >= 15, 10_000);
+            // idx data of entry 15 is forced and submitted to the status file, but the update
+            // is "dropped", so the durable value is still 10
+            WaitUtil.waitUtil(() -> raftLog.idxFiles.submittedPersistIndexInStatusFile >= 15, 10_000);
             doInFiber(() -> assertEquals(10, statusManager.lastPersistedIdxIndex));
 
             File dir = new File(new File(dataDir), "log");

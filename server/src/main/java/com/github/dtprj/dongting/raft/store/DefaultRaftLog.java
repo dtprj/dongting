@@ -387,7 +387,7 @@ public final class DefaultRaftLog implements RaftLog {
             if (logFiles.getFirstIndex() < firstIndexOfNextFile) {
                 return false;
             }
-            // use the durable value in the status file, not the in-memory persistedIndex
+            // use the durable value in the status file
             if (statusManager.lastPersistedIdxIndex < firstIndexOfNextFile) {
                 return false;
             }
