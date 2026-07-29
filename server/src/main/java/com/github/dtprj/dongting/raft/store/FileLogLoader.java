@@ -460,6 +460,7 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
             long localCreateNanos = groupConfig.ts.nanoTime - costTimeMillis * 1_000_000L;
             rt.init(localCreateNanos);
+            rt.raftLogPosition = itemStartPos;
 
             result.add(rt);
             fullBuffer = null;

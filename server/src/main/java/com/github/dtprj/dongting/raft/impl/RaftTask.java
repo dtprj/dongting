@@ -29,8 +29,9 @@ import java.nio.ByteBuffer;
  */
 public class RaftTask extends RaftInput implements Encodable {
 
-    public long perfTime;
+    long perfTime;
 
+    public long raftLogPosition;
     public long localCreateNanos;
 
     private boolean invokeCallback;

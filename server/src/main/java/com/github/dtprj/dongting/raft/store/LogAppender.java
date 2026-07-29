@@ -177,6 +177,7 @@ class LogAppender {
                 RaftReqData rd = li.reqData;
                 int len = rd.totalLen;
                 if (pos + len <= file.endPos) {
+                    li.raftLogPosition = pos;
                     idxOps.put(rd.index, pos, rd.timestamp, len);
                     pos += len;
                     count++;
