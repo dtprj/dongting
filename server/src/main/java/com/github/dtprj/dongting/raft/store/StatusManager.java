@@ -112,18 +112,18 @@ public class StatusManager {
         @Override
         public FrameCallResult execute(Void input) {
             if (requestUpdateVersion > finishedUpdateVersion) {
-                return doUpdate(null);
+                return doUpdate();
             } else {
                 if (closed) {
                     log.info("status update fiber exit, groupId={}", groupConfig.groupId);
                     updateDoneCondition.signalAll();
                     return Fiber.frameReturn();
                 }
-                return needUpdateCondition.await(this::doUpdate);
+                return needUpdateCondition.await(this);
             }
         }
 
-        private FrameCallResult doUpdate(Void v) {
+        private FrameCallResult doUpdate() {
             FiberFrame<Void> updateFrame = new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
