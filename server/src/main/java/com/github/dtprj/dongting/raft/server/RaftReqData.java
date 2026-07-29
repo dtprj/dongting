@@ -42,6 +42,7 @@ public class RaftReqData extends RefCount {
     public int term;
     public int prevLogTerm;
     public long index;
+    public long bizKey;
     public long timestamp;
 
     public RaftReqData(RefBuffer fullBuffer) {
@@ -67,6 +68,7 @@ public class RaftReqData extends RefCount {
         this.term = header.term;
         this.prevLogTerm = header.prevLogTerm;
         this.index = header.index;
+        this.bizKey = header.bizKey;
         this.timestamp = header.timestamp;
     }
 

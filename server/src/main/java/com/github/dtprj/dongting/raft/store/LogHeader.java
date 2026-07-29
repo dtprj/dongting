@@ -39,8 +39,9 @@ public class LogHeader {
     // term 4 bytes
     // prevLogTerm 4 bytes
     // index 8 bytes
+    // bizKey 8 bytes
     // header crc
-    public static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 8 + 4 + 4 + 8 + 4;
+    public static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 8 + 4 + 4 + 8 + 8 + 4;
 
     public static final int OFFSET_BIZ_HEADER_LEN = 4;
     public static final int OFFSET_BODY_LEN = 8;
@@ -54,10 +55,11 @@ public class LogHeader {
     public int bodyLen;
     public int type;
     public int bizType;
+    public long timestamp;
     public int term;
     public int prevLogTerm;
     public long index;
-    public long timestamp;
+    public long bizKey;
     public int headerCrc;
 
     public LogHeader() {
@@ -82,6 +84,7 @@ public class LogHeader {
         term = buf.getInt();
         prevLogTerm = buf.getInt();
         index = buf.getLong();
+        bizKey = buf.getLong();
         headerCrc = buf.getInt();
     }
 
@@ -104,6 +107,7 @@ public class LogHeader {
         data.term = buf.getInt();
         data.prevLogTerm = buf.getInt();
         data.index = buf.getLong();
+        data.bizKey = buf.getLong();
     }
 
     public static int computeTotalLen(int bizHeaderLen, int bodyLen) {
@@ -118,6 +122,7 @@ public class LogHeader {
         buf.putInt(term);
         buf.putInt(prevLogTerm);
         buf.putLong(index);
+        buf.putLong(bizKey);
     }
 
     public void writeTo(ByteBuffer buffer) {
@@ -162,6 +167,7 @@ public class LogHeader {
         buf.putInt(data.term);
         buf.putInt(data.prevLogTerm);
         buf.putLong(data.index);
+        buf.putLong(data.bizKey);
     }
 
     public static void writeEndHeader(CRC32C crc, ByteBuffer buffer) {
@@ -172,6 +178,7 @@ public class LogHeader {
         buffer.putLong(0L);
         buffer.putInt(0);
         buffer.putInt(0);
+        buffer.putLong(0L);
         buffer.putLong(0L);
         crc.reset();
         RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);
