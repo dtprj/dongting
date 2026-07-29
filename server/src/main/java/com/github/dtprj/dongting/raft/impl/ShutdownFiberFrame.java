@@ -86,13 +86,13 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterStatusManagerClose(Void unused) {
+        gc.groupConfig.perfCallback.shutdown();
+
         RaftFactory raftFactory = gc.raftFactory;
         if (!raftFactory.useSharedIoExecutor()) {
             raftFactory.shutdownBlockIoExecutor(gc.serverConfig, gc.groupConfig,
                     gc.groupConfig.blockIoExecutor);
         }
-        gc.groupConfig.perfCallback.shutdown();
-
         return Fiber.frameReturn();
     }
 }
