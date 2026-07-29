@@ -119,7 +119,7 @@ public class StatusManager {
                     updateDoneCondition.signalAll();
                     return Fiber.frameReturn();
                 }
-                return needUpdateCondition.await(this::doUpdate);
+                return needUpdateCondition.await(this);
             }
         }
 
