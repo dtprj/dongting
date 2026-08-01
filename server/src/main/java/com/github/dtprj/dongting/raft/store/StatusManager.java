@@ -87,7 +87,7 @@ public class StatusManager {
                 raftStatus.commitIndex = RaftUtil.parseInt(loadedProps, COMMIT_INDEX, 0);
                 raftStatus.installSnapshot = RaftUtil.parseBoolean(loadedProps, INSTALL_SNAPSHOT, false);
                 raftStatus.firstValidIndex = RaftUtil.parseLong(loadedProps, FIRST_VALID_IDX, 1);
-                lastPersistedIdxIndex = RaftUtil.parseLong(loadedProps, IdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
+                lastPersistedIdxIndex = RaftUtil.parseLong(loadedProps, RaftIdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
 
                 updateFiber.start();
                 return Fiber.frameReturn();
@@ -130,7 +130,7 @@ public class StatusManager {
                     copyWriteData();
                     version = requestUpdateVersion;
                     writingIdxIndex = RaftUtil.parseLong(statusFile.getProperties(),
-                            IdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
+                            RaftIdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
                     FiberFuture<Void> f = statusFile.update();
                     return f.await(this::justReturn);
                 }

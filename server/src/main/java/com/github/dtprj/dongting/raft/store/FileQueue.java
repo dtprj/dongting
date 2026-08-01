@@ -459,7 +459,7 @@ abstract class FileQueue {
         public FrameCallResult execute(Void input) {
             if (raftStatus.installSnapshot || stopAlloc) {
                 allocDoneCond.signalAll();
-                log.info("{} queue alloc fiber exit", FileQueue.this instanceof IdxFileQueue ? "idx" : "log");
+                log.info("{} queue alloc fiber exit", FileQueue.this instanceof RaftIdxFileQueue ? "idx" : "log");
                 return Fiber.frameReturn();
             }
             // pre-allocate when allocPos enters the last file, so the next file is ready

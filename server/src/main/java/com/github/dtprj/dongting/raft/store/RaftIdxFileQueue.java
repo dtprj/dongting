@@ -52,8 +52,8 @@ import java.util.zip.CRC32C;
  *
  * @author huangli
  */
-final class IdxFileQueue extends FileQueue implements IdxOps {
-    private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
+final class RaftIdxFileQueue extends FileQueue implements IdxOps {
+    private static final DtLog log = DtLogs.getLogger(RaftIdxFileQueue.class);
     static final int ITEM_LEN = 32;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
 
@@ -83,7 +83,7 @@ final class IdxFileQueue extends FileQueue implements IdxOps {
 
     private final ChainWriter chainWriter;
 
-    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig) {
+    public RaftIdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig) {
         super(dir, groupConfig, (long) ITEM_LEN * groupConfig.idxItemsPerFile, false);
         int itemsPerFile = groupConfig.idxItemsPerFile;
         if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {

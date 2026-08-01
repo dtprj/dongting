@@ -29,7 +29,7 @@ import java.util.zip.CRC32C;
  *  16..19 : size of the log entry in bytes (int)
  * </pre>
  * When flushed to disk, a slot is padded with 8 reserved bytes and a 4-byte CRC32C
- * checksum to form the 32-byte on-disk item format used by {@link IdxFileQueue}.
+ * checksum to form the 32-byte on-disk item format used by {@link RaftIdxFileQueue}.
  *
  * @author huangli
  */
@@ -160,10 +160,10 @@ class RaftIdxCache {
 
     public long fill(long index, ByteBuffer destBuffer) {
         DtUtil.checkPositive(destBuffer.remaining(), "destBuffer.remaining");
-        if (destBuffer.remaining() % IdxFileQueue.ITEM_LEN != 0) {
+        if (destBuffer.remaining() % RaftIdxFileQueue.ITEM_LEN != 0) {
             throw new IllegalArgumentException("invalid buf size " + destBuffer.remaining());
         }
-        int count = destBuffer.remaining() / IdxFileQueue.ITEM_LEN;
+        int count = destBuffer.remaining() / RaftIdxFileQueue.ITEM_LEN;
         if (index < firstRaftIndex || index > lastRaftIndex) {
             throw new IllegalArgumentException("bad index " + index + ", firstRaftIndex="
                     + firstRaftIndex + ", lastRaftIndex=" + lastRaftIndex);
@@ -175,7 +175,7 @@ class RaftIdxCache {
         // the crc32c is a simple object, so here no need to cache
         CRC32C crc = new CRC32C();
         byte[] data = this.data;
-        int dataLen = IdxFileQueue.ITEM_LEN - 4;
+        int dataLen = RaftIdxFileQueue.ITEM_LEN - 4;
         for (int i = 0; i < count; i++, index++) {
             int srcBufferIndex = bufIndex(index, capacity);
             // cache slot: pos(8)+timestamp(8)+itemSize(4)=20, disk: +reserved(8)+crc(4)=32

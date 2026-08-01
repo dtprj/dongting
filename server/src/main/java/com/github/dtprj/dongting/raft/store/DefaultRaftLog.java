@@ -51,7 +51,7 @@ public final class DefaultRaftLog implements RaftLog {
     private final RaftCodecFactory raftCodecFactory;
     private final long deleteIntervalMillis;
     LogFileQueue logFiles;
-    IdxFileQueue idxFiles;
+    RaftIdxFileQueue idxFiles;
 
     private static final long DEFAULT_DELETE_INTERVAL_MILLIS = 10 * 1000;
 
@@ -75,7 +75,7 @@ public final class DefaultRaftLog implements RaftLog {
     private void createFiles() {
         File dataDir = FileUtil.ensureDir(groupConfig.dataDir);
 
-        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), statusManager, groupConfig);
+        idxFiles = new RaftIdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), statusManager, groupConfig);
         logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), groupConfig, idxFiles);
     }
 
