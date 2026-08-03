@@ -39,7 +39,7 @@ import java.util.List;
 /**
  * @author huangli
  */
-final class LogFileQueue extends FileQueue {
+final class LogFileQueue extends AllocatingFileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
     public static final int MAX_WRITE_BUFFER_SIZE = 128 * 1024;

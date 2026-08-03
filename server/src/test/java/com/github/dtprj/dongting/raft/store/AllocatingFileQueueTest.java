@@ -37,13 +37,13 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * @author huangli
  */
-public class FileQueueTest extends BaseFiberTest {
+public class AllocatingFileQueueTest extends BaseFiberTest {
 
     private MockFileQueue fileQueue;
 
     @BeforeEach
     public void setup() {
-        File dir = TestDir.createTestDir(FileQueueTest.class.getSimpleName());
+        File dir = TestDir.createTestDir(AllocatingFileQueueTest.class.getSimpleName());
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.blockIoExecutor = MockExecutors.ioExecutor();
         RaftStatusImpl raftStatus = new RaftStatusImpl(1, dispatcher.ts);
@@ -63,7 +63,7 @@ public class FileQueueTest extends BaseFiberTest {
         });
     }
 
-    private static class MockFileQueue extends FileQueue {
+    private static class MockFileQueue extends AllocatingFileQueue {
         public MockFileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize) {
             super(dir, groupConfig, fileSize, false);
         }

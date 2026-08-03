@@ -52,7 +52,7 @@ import java.util.zip.CRC32C;
  *
  * @author huangli
  */
-final class RaftIdxFileQueue extends FileQueue implements IdxOps {
+final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(RaftIdxFileQueue.class);
     static final int ITEM_LEN = 32;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
