@@ -77,12 +77,44 @@ public class FileQueueTest extends BaseFiberTest {
 
     @Test
     public void testInit2() throws Exception {
+        // a crash during pre-allocation may leave the last file with length 0,
+        // it is re-extended instead of failing
+        File f1 = new File(fileQueue.dir, "00000000000000000000");
+        RandomAccessFile raf1 = new RandomAccessFile(f1, "rw");
+        raf1.setLength(0);
+        raf1.close();
+        fileQueue.initQueue();
+        assertEquals(1, fileQueue.queue.size());
+        assertEquals(1024, f1.length());
+        assertEquals(0, fileQueue.queueStartPosition);
+        assertEquals(1024, fileQueue.queueEndPosition);
+    }
+
+    @Test
+    public void testInit2b() throws Exception {
+        // a non-last file with wrong size indicates real corruption
+        File f1 = new File(fileQueue.dir, "00000000000000000000");
+        File f2 = new File(fileQueue.dir, "00000000000000001024");
+        RandomAccessFile raf1 = new RandomAccessFile(f1, "rw");
+        RandomAccessFile raf2 = new RandomAccessFile(f2, "rw");
+        raf1.setLength(1023);
+        raf2.setLength(1024);
+        raf1.close();
+        raf2.close();
+        assertThrows(RaftException.class, () -> fileQueue.initQueue());
+        assertEquals(1023, f1.length());
+    }
+
+    @Test
+    public void testInit2c() throws Exception {
+        // last file with a size other than 0 and fileSize is not possible
+        // on the normal path, treat it as corruption
         File f1 = new File(fileQueue.dir, "00000000000000000000");
         RandomAccessFile raf1 = new RandomAccessFile(f1, "rw");
         raf1.setLength(1023);
-        assertThrows(RaftException.class, () -> fileQueue.initQueue());
-        assertEquals(0, fileQueue.queue.size());
         raf1.close();
+        assertThrows(RaftException.class, () -> fileQueue.initQueue());
+        assertEquals(1023, f1.length());
     }
 
     @Test

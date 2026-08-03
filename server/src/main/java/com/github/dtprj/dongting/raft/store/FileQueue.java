@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
@@ -118,9 +119,6 @@ abstract class FileQueue {
             }
             Matcher matcher = PATTERN.matcher(f.getName());
             if (matcher.matches()) {
-                if (f.length() != getFileSize()) {
-                    throw new RaftException("file size error: " + f.getPath() + ", size=" + f.length());
-                }
                 long startPos = Long.parseLong(matcher.group(1));
                 Set<OpenOption> openOptions = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE);
                 LogFile lf = new LogFile(startPos, startPos + getFileSize(), f,
@@ -132,6 +130,18 @@ abstract class FileQueue {
         }
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
+            long len = lf.getFile().length();
+            if (len != getFileSize()) {
+                // a crash during pre-allocation may leave the last file with length 0
+                // (file created but setLength not durable), no data has been written to
+                // it yet, so re-extend it to the full size. any other wrong size is
+                // not possible on the normal path and indicates real corruption.
+                if (i != queue.size() - 1 || len != 0) {
+                    throw new RaftException("file size error: " + lf.getFile().getPath()
+                            + ", size=" + len);
+                }
+                rebuildLastFile(lf.getFile());
+            }
             if ((lf.startPos & fileLenMask) != 0) {
                 throw new RaftException("file start index error: " + lf.startPos);
             }
@@ -145,6 +155,17 @@ abstract class FileQueue {
             queueEndPosition = queue.get(queue.size() - 1).endPos;
             log.info("load {} files in {}, first={}, last={}", count, dir.getPath(),
                     queue.get(0).getFile().getName(), queue.get(queue.size() - 1).getFile().getName());
+        }
+    }
+
+    private void rebuildLastFile(File f) {
+        log.warn("last file size is {}, expect {}, re-extend it: {}",
+                f.length(), getFileSize(), f.getPath());
+        try (RandomAccessFile raf = new RandomAccessFile(f, "rw")) {
+            raf.setLength(getFileSize());
+            raf.getFD().sync();
+        } catch (IOException e) {
+            throw new RaftException("re-extend file fail: " + f.getPath(), e);
         }
     }
 
@@ -520,8 +541,7 @@ abstract class FileQueue {
                     raf.setLength(getFileSize());
                     raf.getFD().sync();
                     raf.close();
-                    Set<OpenOption> options = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE,
-                            StandardOpenOption.CREATE);
+                    Set<OpenOption> options = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE);
                     logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), file,
                             groupConfig.fiberGroup, options, ioExecutor, FileQueue.this::lruTouch,
                             raftStatus.ts.wallClockMillis, mainLogFile);
