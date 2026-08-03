@@ -44,6 +44,8 @@ public class FiberGroup {
     final IndexedQueue<Fiber> readyFibersNextRound2 = new IndexedQueue<>(16);
     private final IdentityHashMap<Fiber, Fiber> normalFibers = new IdentityHashMap<>(128);
     private final IdentityHashMap<Fiber, Fiber> daemonFibers = new IdentityHashMap<>(128);
+    // futures with registered callbacks, group exit waits for them to complete so callbacks are guaranteed to run
+    final IdentityHashMap<FiberFuture<?>, FiberFuture<?>> pendingCallbackFutures = new IdentityHashMap<>();
 
     final FiberChannel<Runnable> sysChannel;
 
@@ -229,6 +231,9 @@ public class FiberGroup {
             if (sysChannel.queue.size() > 0) {
                 return;
             }
+            if (!pendingCallbackFutures.isEmpty()) {
+                return;
+            }
             // update finished status in lock, so that other threads can see it in this lock
             ReentrantLock lock = dispatcher.shareQueue.lock;
             lock.lock();
@@ -291,6 +296,7 @@ public class FiberGroup {
                 .append(", readyNext=").append(readyFibersNextRound1.size() + readyFibersNextRound2.size())
                 .append(", normal=").append(normalFibers.size())
                 .append(", daemon=").append(daemonFibers.size())
+                .append(", pendingCallbackFutures=").append(pendingCallbackFutures.size())
                 .append("\n")
                 .append("--------------------------------------------------\n")
                 .append("readyFibers:\n");
@@ -306,6 +312,9 @@ public class FiberGroup {
                 sb.append('\n');
             }
         });
+        sb.append("--------------------------------------------------\n");
+        sb.append("pendingCallbackFutures:\n");
+        pendingCallbackFutures.forEach((key, f) -> sb.append(f).append('\n'));
         sb.append("--------------------------------------------------\n");
         log.info(sb.toString());
     }

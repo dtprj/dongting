@@ -50,7 +50,7 @@ public class FiberFuture<T> extends WaitSource {
     protected void prepare(Fiber currentFiber, boolean timeout) {
         if (timeout) {
             currentFiber.inputEx = new FiberTimeoutException("wait "
-                    + currentFiber.source + " timeout:" + currentFiber.scheduleTimeout/1000/1000 + "ms");
+                    + currentFiber.source + " timeout:" + currentFiber.scheduleTimeout / 1000 / 1000 + "ms");
             currentFiber.stackTop.resumePoint = null;
         } else {
             if (execEx != null) {
@@ -130,6 +130,9 @@ public class FiberFuture<T> extends WaitSource {
             this.execEx = ex;
         }
         this.done = true;
+        if (callbackHead != null) {
+            group.pendingCallbackFutures.remove(this);
+        }
         // if group finished, no ops
         if (group.finished) {
             return;
@@ -186,7 +189,8 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     /**
-     * this method should call in dispatcher thread
+     * this method should call in dispatcher thread.
+     * The group will not finish until the future completes, so the callback is guaranteed to run.
      */
     public void registerCallback(FiberFutureCallback<T> callback) {
         group.checkGroup();
@@ -197,6 +201,7 @@ public class FiberFuture<T> extends WaitSource {
             Callback<T> c = new Callback<>();
             c.frameCallback = callback;
             addCallback(c);
+            group.pendingCallbackFutures.put(this, this);
         }
     }
 
@@ -224,6 +229,10 @@ public class FiberFuture<T> extends WaitSource {
         }
     }
 
+    /**
+     * this method should call in dispatcher thread.
+     * The group will not finish until the future completes, so the callback is guaranteed to run.
+     */
     public void registerCallback(BiConsumer<T, Throwable> callback) {
         group.checkGroup();
         if (done) {
@@ -232,6 +241,7 @@ public class FiberFuture<T> extends WaitSource {
             Callback<T> c = new Callback<>();
             c.simpleCallback = callback;
             addCallback(c);
+            group.pendingCallbackFutures.put(this, this);
         }
     }
 

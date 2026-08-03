@@ -563,4 +563,68 @@ public class FutureTest extends AbstractFiberTest {
         assertNull(futureResult.get());
         assertTrue(f.isCancelled());
     }
+
+    @Test
+    public void testShutdownWaitSimpleCallback() throws Exception {
+        FiberFuture<Integer> f = fiberGroup.newFuture("noName");
+        AtomicBoolean callbackRun = new AtomicBoolean();
+        doInFiber(() -> f.registerCallback((v, ex) -> callbackRun.set(true)));
+        assertEquals(1, fiberGroup.pendingCallbackFutures.size());
+        fiberGroup.requestShutdown();
+        // two fiber round-trips ensure at least one updateFinishStatus has run after shouldStop is set,
+        // so the group had the chance to finish but must not, since the future is not complete
+        doInFiber(() -> {
+        });
+        doInFiber(() -> {
+        });
+        assertFalse(fiberGroup.shutdownFuture.isDone());
+        assertFalse(callbackRun.get());
+        f.fireComplete(100);
+        WaitUtil.waitUtil(() -> fiberGroup.shutdownFuture.isDone());
+        assertTrue(callbackRun.get());
+        assertTrue(fiberGroup.finished);
+        assertTrue(fiberGroup.pendingCallbackFutures.isEmpty());
+    }
+
+    @Test
+    public void testShutdownWaitFrameCallback() throws Exception {
+        FiberFuture<Integer> f = fiberGroup.newFuture("noName");
+        AtomicBoolean callbackRun = new AtomicBoolean();
+        doInFiber(() -> f.registerCallback(new FiberFuture.FiberFutureCallback<>() {
+            @Override
+            protected FrameCallResult afterDone(Integer v, Throwable ex) {
+                callbackRun.set(true);
+                return Fiber.frameReturn();
+            }
+        }));
+        assertEquals(1, fiberGroup.pendingCallbackFutures.size());
+        fiberGroup.requestShutdown();
+        // two fiber round-trips ensure at least one updateFinishStatus has run after shouldStop is set,
+        // so the group had the chance to finish but must not, since the future is not complete
+        doInFiber(() -> {
+        });
+        doInFiber(() -> {
+        });
+        assertFalse(fiberGroup.shutdownFuture.isDone());
+        assertFalse(callbackRun.get());
+        f.fireCompleteExceptionally(new Exception());
+        WaitUtil.waitUtil(() -> fiberGroup.shutdownFuture.isDone());
+        assertTrue(callbackRun.get());
+        assertTrue(fiberGroup.finished);
+        assertTrue(fiberGroup.pendingCallbackFutures.isEmpty());
+    }
+
+    @Test
+    public void testShutdownNotBlockedByDoneFuture() throws Exception {
+        FiberFuture<Integer> f = fiberGroup.newFuture("noName");
+        doInFiber(() -> {
+            f.complete(1);
+            f.registerCallback((v, ex) -> {
+            });
+        });
+        assertTrue(fiberGroup.pendingCallbackFutures.isEmpty());
+        fiberGroup.requestShutdown();
+        WaitUtil.waitUtil(() -> fiberGroup.shutdownFuture.isDone());
+        assertTrue(fiberGroup.finished);
+    }
 }
