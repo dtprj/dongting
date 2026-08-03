@@ -234,6 +234,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
     public void stopFiber() {
         saveLoopFrame.stopLoop = true;
         saveLoopFrame.saveSnapshotCond.signal();
+        // requests that are not taken by any SaveFrame will never be processed after stop,
+        // drain here since the loop fiber may not be running.
+        // pollFirst to avoid CME if a callback re-enters saveSnapshot()
+        Pair<Long, FiberFuture<Long>> req;
+        while ((req = saveRequest.pollFirst()) != null) {
+            req.getRight().completeExceptionally(new RaftException("snapshot manager is stopped"));
+        }
     }
 
     class SaveSnapshotLoopFrame extends FiberFrame<Void> {
@@ -295,8 +302,12 @@ public class DefaultSnapshotManager implements SnapshotManager {
     @Override
     public FiberFuture<Long> saveSnapshot() {
         FiberFuture<Long> f = groupConfig.fiberGroup.newFuture("saveSnapshot-" + groupConfig.groupId);
-        saveRequest.addLast(new Pair<>(raftStatus.getLastApplied(), f));
-        saveLoopFrame.saveSnapshotCond.signal();
+        if (saveLoopFrame.stopLoop) {
+            f.completeExceptionally(new RaftException("snapshot manager is stopped"));
+        } else {
+            saveRequest.addLast(new Pair<>(raftStatus.getLastApplied(), f));
+            saveLoopFrame.saveSnapshotCond.signal();
+        }
         return f;
     }
 

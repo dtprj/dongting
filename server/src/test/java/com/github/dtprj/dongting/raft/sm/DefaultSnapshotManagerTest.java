@@ -226,4 +226,22 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         assertFalse(saveFinished.get());
     }
 
+    @Test
+    void testStopFiberCompletesPendingSaveRequests() throws Exception {
+        String dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
+        createManager(false, dataDir, false);
+        doInFiber(() -> {
+            // save loop fiber is not started, so the request stays in saveRequest
+            FiberFuture<Long> f1 = m.saveSnapshot();
+            m.stopFiber();
+            assertTrue(f1.isDone());
+            assertNotNull(f1.getEx());
+
+            // requests after stopFiber complete exceptionally immediately
+            FiberFuture<Long> f2 = m.saveSnapshot();
+            assertTrue(f2.isDone());
+            assertNotNull(f2.getEx());
+        });
+    }
+
 }
