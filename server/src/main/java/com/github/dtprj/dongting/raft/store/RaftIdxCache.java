@@ -44,8 +44,8 @@ class RaftIdxCache {
     private int size;
 
     public RaftIdxCache(int initialCapacity) {
-        int capacity = 1;
-        while (capacity < initialCapacity) {
+        int capacity = Integer.highestOneBit(Math.max(initialCapacity, 1));
+        if (capacity < initialCapacity) {
             capacity <<= 1;
         }
         data = new byte[capacity * SLOT_SIZE];
@@ -67,6 +67,7 @@ class RaftIdxCache {
         }
         lastRaftIndex = raftIndex;
         int index = bufIndex(raftIndex, capacity);
+        ByteBuffer buffer = this.buffer;
         buffer.putLong(index, pos);
         buffer.putLong(index + 8, timestamp);
         buffer.putInt(index + 16, itemSize);
@@ -79,6 +80,7 @@ class RaftIdxCache {
     public long get(long raftIndex) {
         if (raftIndex >= firstRaftIndex && raftIndex <= lastRaftIndex) {
             int slotIndex = bufIndex(raftIndex, capacity);
+            ByteBuffer buffer = this.buffer;
             lastGetTimestamp = buffer.getLong(slotIndex + 8);
             lastGetSize = buffer.getInt(slotIndex + 16);
             return buffer.getLong(slotIndex);
@@ -88,13 +90,8 @@ class RaftIdxCache {
 
     public void remove() {
         if (size > 0) {
-            int index = bufIndex(firstRaftIndex, capacity);
-            buffer.putLong(index, 0);
-            buffer.putLong(index + 8, 0);
-            buffer.putInt(index + 16, 0);
             firstRaftIndex++;
-            size--;
-            if (size == 0) {
+            if (--size == 0) {
                 firstRaftIndex = -1;
                 lastRaftIndex = -1;
             }
@@ -145,10 +142,6 @@ class RaftIdxCache {
             throw new IllegalArgumentException("Invalid raftIndex to truncate");
         }
         while (lastRaftIndex >= raftIndex) {
-            int bufIndex = bufIndex(lastRaftIndex, capacity);
-            buffer.putLong(bufIndex, 0);
-            buffer.putLong(bufIndex + 8, 0);
-            buffer.putInt(bufIndex + 16, 0);
             lastRaftIndex--;
             size--;
         }
@@ -163,11 +156,11 @@ class RaftIdxCache {
         if (destBuffer.remaining() % RaftIdxFileQueue.ITEM_LEN != 0) {
             throw new IllegalArgumentException("invalid buf size " + destBuffer.remaining());
         }
-        int count = destBuffer.remaining() / RaftIdxFileQueue.ITEM_LEN;
         if (index < firstRaftIndex || index > lastRaftIndex) {
             throw new IllegalArgumentException("bad index " + index + ", firstRaftIndex="
                     + firstRaftIndex + ", lastRaftIndex=" + lastRaftIndex);
         }
+        int count = destBuffer.remaining() / RaftIdxFileQueue.ITEM_LEN;
         if ((index + count - 1) < firstRaftIndex || (index + count - 1) > lastRaftIndex) {
             throw new IllegalArgumentException("bad index " + index + "," + destBuffer.remaining()
                     + ", firstRaftIndex=" + firstRaftIndex + ", lastRaftIndex=" + lastRaftIndex);
