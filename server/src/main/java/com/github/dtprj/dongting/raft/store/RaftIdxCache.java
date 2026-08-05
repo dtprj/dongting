@@ -39,9 +39,9 @@ class RaftIdxCache {
     private int capacity;
     private byte[] data;
     private ByteBuffer buffer;
-    private long firstRaftIndex;
-    private long lastRaftIndex;
-    private int size;
+    long firstRaftIndex; // -1 indicates no data
+    long lastRaftIndex; // -1 indicates no data
+    int size;
 
     public RaftIdxCache(int initialCapacity) {
         int capacity = Integer.highestOneBit(Math.max(initialCapacity, 1));
@@ -96,18 +96,6 @@ class RaftIdxCache {
                 lastRaftIndex = -1;
             }
         }
-    }
-
-    public int size() {
-        return size;
-    }
-
-    public long getFirstRaftIndex() {
-        return firstRaftIndex;
-    }
-
-    public long getLastRaftIndex() {
-        return lastRaftIndex;
     }
 
     private int bufIndex(long raftIndex, int len) {

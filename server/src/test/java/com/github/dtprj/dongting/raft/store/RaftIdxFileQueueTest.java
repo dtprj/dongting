@@ -128,7 +128,7 @@ public class RaftIdxFileQueueTest extends BaseFiberTest {
                 for (int i = 1; i <= 10; i++) {
                     raftIdxFileQueue.put(i, (i - 1) * 100L, (i - 1) * 1000L, 100);
                 }
-                assertEquals(10, raftIdxFileQueue.cache.size());
+                assertEquals(10, raftIdxFileQueue.cache.size);
                 return Fiber.frameReturn();
             }
         });
@@ -232,7 +232,7 @@ public class RaftIdxFileQueueTest extends BaseFiberTest {
                     raftIdxFileQueue.put(i, (i - 1) * 100L, (i - 1) * 1000L, 100);
                 }
                 raftIdxFileQueue.truncateTail(5);
-                assertEquals(4, raftIdxFileQueue.cache.size());
+                assertEquals(4, raftIdxFileQueue.cache.size);
 
                 raftStatus.commitIndex = 3;
                 raftStatus.lastForceLogIndex = 3;

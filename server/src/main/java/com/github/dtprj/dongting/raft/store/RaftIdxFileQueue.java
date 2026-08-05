@@ -218,13 +218,13 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
 
     private long getDiff() {
         // in recovery, the commit index may be larger than last key, lastKey may be -1
-        long lastNeedFlushItem = Math.min(cache.getLastRaftIndex(), raftStatus.commitIndex);
+        long lastNeedFlushItem = Math.min(cache.lastRaftIndex, raftStatus.commitIndex);
         return Math.max(lastNeedFlushItem - nextPersistIndex + 1, 0);
     }
 
     private void flush(LogFile logFile, boolean suggestForce) {
         long startIdx = nextPersistIndex;
-        long lastIdx = Math.min(raftStatus.commitIndex, cache.getLastRaftIndex());
+        long lastIdx = Math.min(raftStatus.commitIndex, cache.lastRaftIndex);
         if (lastIdx < startIdx) {
             submitForceOnlyTask();
             return;
@@ -284,7 +284,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
     @Override
     public boolean needWaitFlush() {
         removeHead();
-        return cache.size() > blockCacheItems && getDiff() >= flushThreshold;
+        return cache.size > blockCacheItems && getDiff() >= flushThreshold;
     }
 
     @Override
@@ -294,11 +294,11 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
             @Override
             public FrameCallResult execute(Void input) {
                 if (needWaitFlush()) {
-                    long first = cache.getFirstRaftIndex();
-                    long last = cache.getLastRaftIndex();
+                    long first = cache.firstRaftIndex;
+                    long last = cache.lastRaftIndex;
                     log.warn("group {} cache size {} exceed {}, may cause block. cache from {} to {}, idxWriteFinishIndex={}," +
                                     " commitIndex={}, lastWriteIndex={}, lastForceIndex={}",
-                            raftStatus.groupId, cache.size(), blockCacheItems, first, last, writeFinishIndex,
+                            raftStatus.groupId, cache.size, blockCacheItems, first, last, writeFinishIndex,
                             raftStatus.commitIndex, raftStatus.lastWriteLogIndex, raftStatus.lastForceLogIndex);
                     needFlushCondition.signal();
                     return flushDoneCondition.await(1000, this);
@@ -313,7 +313,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
         long maxCacheItems = this.maxCacheItems;
         long writeFinishIndex = this.writeFinishIndex;
         // notice: we are not write no-commited logs to the idx file
-        while (cache.size() >= maxCacheItems && cache.getFirstRaftIndex() < writeFinishIndex) {
+        while (cache.size >= maxCacheItems && cache.firstRaftIndex < writeFinishIndex) {
             cache.remove();
         }
     }
@@ -423,7 +423,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
                 throw new RaftException("index too small");
             }
             if (itemIndex > writeFinishIndex) {
-                if (itemIndex >= cache.getFirstRaftIndex() && itemIndex <= cache.getLastRaftIndex()) {
+                if (itemIndex >= cache.firstRaftIndex && itemIndex <= cache.lastRaftIndex) {
                     long pos = cache.get(itemIndex);
                     setResult(new IdxItem(pos, cache.lastGetTimestamp, cache.lastGetSize));
                     return Fiber.frameReturn();
@@ -480,10 +480,10 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
         if (index <= raftStatus.commitIndex) {
             throw new RaftException("truncateTail index is too small: " + index);
         }
-        if (cache.size() == 0) {
+        if (cache.size == 0) {
             return;
         }
-        if (index < cache.getFirstRaftIndex() || index > cache.getLastRaftIndex()) {
+        if (index < cache.firstRaftIndex || index > cache.lastRaftIndex) {
             throw new RaftException("truncateTail out of cache range: " + index);
         }
         log.info("truncate tail to {}(inclusive), old nextIndex={}", index, nextIndex);

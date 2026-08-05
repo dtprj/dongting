@@ -74,9 +74,9 @@ public class RaftIdxCacheTest {
         map.put(2, 100, 2000L, 200);
         map.put(3, 300, 3000L, 1000);
 
-        assertEquals(3, map.size());
+        assertEquals(3, map.size);
         map.remove();
-        assertEquals(2, map.size());
+        assertEquals(2, map.size);
     }
 
     @Test
@@ -85,9 +85,9 @@ public class RaftIdxCacheTest {
         map.put(2, 100, 2000L, 200);
         map.put(3, 300, 3000L, 800);
 
-        assertEquals(1, map.getFirstRaftIndex());
+        assertEquals(1, map.firstRaftIndex);
         map.remove();
-        assertEquals(2, map.getFirstRaftIndex());
+        assertEquals(2, map.firstRaftIndex);
     }
 
     @Test
@@ -96,9 +96,9 @@ public class RaftIdxCacheTest {
         map.put(2, 100, 2000L, 200);
         map.put(3, 300, 3000L, 400);
 
-        assertEquals(3, map.getLastRaftIndex());
+        assertEquals(3, map.lastRaftIndex);
         map.remove();
-        assertEquals(3, map.getLastRaftIndex());
+        assertEquals(3, map.lastRaftIndex);
     }
 
     @Test
@@ -108,7 +108,7 @@ public class RaftIdxCacheTest {
             map.put(raftIndex, raftIndex * 100L, raftIndex * 1000L, 100);
         }
 
-        assertEquals(10, map.size());
+        assertEquals(10, map.size);
         for (long i = 0; i < 10; i++) {
             int raftIndex = (int) (i + 1);
             assertEquals(raftIndex * 100L, map.get(raftIndex));
@@ -122,13 +122,13 @@ public class RaftIdxCacheTest {
             long index = base + i;
             map.put(index, index * 100, index * 1000L, 100);
         }
-        assertEquals(8, map.size());
+        assertEquals(8, map.size);
         for (long i = 0; i < 8; i++) {
-            long key = map.getLastRaftIndex() + 1;
+            long key = map.lastRaftIndex + 1;
             map.put(key, key * 100, key * 1000L, 100);
         }
-        assertEquals(16, map.size());
-        for (long i = map.getFirstRaftIndex(); i <= map.getLastRaftIndex(); i++) {
+        assertEquals(16, map.size);
+        for (long i = map.firstRaftIndex; i <= map.lastRaftIndex; i++) {
             assertEquals(i * 100, map.get(i));
         }
     }
@@ -176,9 +176,9 @@ public class RaftIdxCacheTest {
         }
 
         map.truncate(6);
-        assertEquals(6, map.size());
-        assertEquals(0, map.getFirstRaftIndex());
-        assertEquals(5, map.getLastRaftIndex());
+        assertEquals(6, map.size);
+        assertEquals(0, map.firstRaftIndex);
+        assertEquals(5, map.lastRaftIndex);
 
         for (long i = 0; i <= 5; i++) {
             assertEquals(i * 100, map.get(i));
@@ -196,9 +196,9 @@ public class RaftIdxCacheTest {
         map.put(9, 900, 9000L, 100);
 
         map.truncate(4);
-        assertEquals(2, map.size());
-        assertEquals(2, map.getFirstRaftIndex());
-        assertEquals(3, map.getLastRaftIndex());
+        assertEquals(2, map.size);
+        assertEquals(2, map.firstRaftIndex);
+        assertEquals(3, map.lastRaftIndex);
 
         assertEquals(200, map.get(2));
         assertEquals(300, map.get(3));
@@ -220,9 +220,9 @@ public class RaftIdxCacheTest {
         }
 
         map.truncate(0);
-        assertEquals(0, map.size());
-        assertEquals(-1, map.getFirstRaftIndex());
-        assertEquals(-1, map.getLastRaftIndex());
+        assertEquals(0, map.size);
+        assertEquals(-1, map.firstRaftIndex);
+        assertEquals(-1, map.lastRaftIndex);
     }
 
     @Test
@@ -232,9 +232,9 @@ public class RaftIdxCacheTest {
         }
 
         map.truncate(9);
-        assertEquals(9, map.size());
-        assertEquals(0, map.getFirstRaftIndex());
-        assertEquals(8, map.getLastRaftIndex());
+        assertEquals(9, map.size);
+        assertEquals(0, map.firstRaftIndex);
+        assertEquals(8, map.lastRaftIndex);
     }
 
     @Test
