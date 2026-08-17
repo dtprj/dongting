@@ -27,17 +27,17 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * @author huangli
  */
-class MqIdxCacheManagerTest {
+class MqIdxManagerTest {
 
-    private MqIdxCacheManager m;
+    private MqIdxManager m;
 
     @BeforeEach
     void setUp() {
-        m = new MqIdxCacheManager(16);
+        m = new MqIdxManager(16);
     }
 
     // pos equals seq, timestamp = seq * 2, size = (int) seq + 1
-    private void append(MqIdxCacheManager m, long queueId, long seq) {
+    private void append(MqIdxManager m, long queueId, long seq) {
         m.append(queueId, seq, seq, seq * 2, (int) seq + 1);
     }
 
@@ -91,8 +91,8 @@ class MqIdxCacheManagerTest {
         assertEquals(0, q.firstSeqInCache);
         assertEquals(5, q.blocks.size());
 
-        MqIdxCacheBlock b0 = q.blocks.get(0);
-        MqIdxCacheBlock b4 = q.blocks.get(4);
+        MqIdxBlock b0 = q.blocks.get(0);
+        MqIdxBlock b4 = q.blocks.get(4);
         assertEquals(0, b0.startSeq);
         assertEquals(512, b4.startSeq);
         assertEquals(128, b0.count);
@@ -115,7 +115,7 @@ class MqIdxCacheManagerTest {
         m.register(1, 1000, buildBlockBuffer(896, 128));
         QueueIdxInfo q = m.get(1);
         assertEquals(896, q.firstSeqInCache);
-        MqIdxCacheBlock b = q.blocks.getFirst();
+        MqIdxBlock b = q.blocks.getFirst();
         assertEquals(896, b.startSeq);
         assertEquals(104, b.count);
         assertFalse(b.isFull());
@@ -143,7 +143,7 @@ class MqIdxCacheManagerTest {
         m.register(1, 300, null);
         QueueIdxInfo q = m.get(1);
         assertEquals(256, q.firstSeqInCache);
-        MqIdxCacheBlock b = q.blocks.getFirst();
+        MqIdxBlock b = q.blocks.getFirst();
         assertEquals(256, b.startSeq);
         assertEquals(44, b.count);
         // slots before nextSeq hold zero data; the upper layer guards the boundary
@@ -181,7 +181,7 @@ class MqIdxCacheManagerTest {
 
     @Test
     void testEvictionKeepTailBlock() {
-        m = new MqIdxCacheManager(4);
+        m = new MqIdxManager(4);
         for (int q = 1; q <= 3; q++) {
             for (int i = 0; i < 1000; i++) {
                 append(m, q, i);
@@ -212,7 +212,7 @@ class MqIdxCacheManagerTest {
 
     @Test
     void testEvictionGatedByDirty() {
-        m = new MqIdxCacheManager(2);
+        m = new MqIdxManager(2);
         for (int i = 0; i < 1000; i++) {
             append(m, 1, i);
         }
@@ -233,7 +233,7 @@ class MqIdxCacheManagerTest {
 
     @Test
     void testReadNoTouch() {
-        m = new MqIdxCacheManager(4);
+        m = new MqIdxManager(4);
         for (int i = 0; i < 500; i++) {
             append(m, 1, i);
         }
@@ -265,7 +265,7 @@ class MqIdxCacheManagerTest {
         assertEquals(5, m.get(1).blocks.size());
         assertEquals(5, m.get(2).blocks.size());
 
-        MqIdxCacheBlock b = m.remove();
+        MqIdxBlock b = m.remove();
         assertSame(m.get(1), b.owner);
         assertEquals(0, b.startSeq);
         assertEquals(4, m.get(1).blocks.size());

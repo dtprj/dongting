@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
  *
  * @author huangli
  */
-final class MqIdxCacheBlock {
+final class MqIdxBlock {
 
     static final int BLOCK_SHIFT = 7;
     static final int BLOCK_ITEMS = 128; // 128 * 32 = 4096
@@ -38,7 +38,7 @@ final class MqIdxCacheBlock {
 
     final ByteBuffer buffer = ByteBuffer.wrap(new byte[BLOCK_BYTES]);
 
-    MqIdxCacheBlock(QueueIdxInfo owner, long startSeq, int count) {
+    MqIdxBlock(QueueIdxInfo owner, long startSeq, int count) {
         this.owner = owner;
         this.startSeq = startSeq;
         this.count = count;

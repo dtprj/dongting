@@ -25,7 +25,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
  */
 final class QueueIdxInfo {
 
-    final MqIdxCacheManager manager;
+    final MqIdxManager manager;
     final long queueId;
 
     // cannot be rebuilt from raft logs, must be saved into snapshots
@@ -33,34 +33,34 @@ final class QueueIdxInfo {
 
     long firstSeqInCache;
 
-    final IndexedQueue<MqIdxCacheBlock> blocks = new IndexedQueue<>(2);
+    final IndexedQueue<MqIdxBlock> blocks = new IndexedQueue<>(2);
 
-    QueueIdxInfo(MqIdxCacheManager manager, long queueId) {
+    QueueIdxInfo(MqIdxManager manager, long queueId) {
         this(manager, queueId, 0);
     }
 
     // restore: the first block covers the window of nextSeq; slots before nextSeq hold no
     // valid data (install), or are filled by register() from the idx file (restart)
-    QueueIdxInfo(MqIdxCacheManager manager, long queueId, long nextSeq) {
+    QueueIdxInfo(MqIdxManager manager, long queueId, long nextSeq) {
         this.manager = manager;
         this.queueId = queueId;
         this.nextSeq = nextSeq;
-        long startSeq = nextSeq & ~((long) MqIdxCacheBlock.BLOCK_MASK);
+        long startSeq = nextSeq & ~((long) MqIdxBlock.BLOCK_MASK);
         this.firstSeqInCache = startSeq;
-        blocks.addLast(new MqIdxCacheBlock(this, startSeq, (int) (nextSeq - startSeq)));
+        blocks.addLast(new MqIdxBlock(this, startSeq, (int) (nextSeq - startSeq)));
         manager.onNewBlock();
     }
 
-    MqIdxCacheBlock getBlock(long seq) {
+    MqIdxBlock getBlock(long seq) {
         if (seq < firstSeqInCache || seq >= nextSeq) {
             return null;
         }
-        int index = (int) ((seq >>> MqIdxCacheBlock.BLOCK_SHIFT)
-                - (firstSeqInCache >>> MqIdxCacheBlock.BLOCK_SHIFT));
+        int index = (int) ((seq >>> MqIdxBlock.BLOCK_SHIFT)
+                - (firstSeqInCache >>> MqIdxBlock.BLOCK_SHIFT));
         return blocks.get(index);
     }
 
-    void removeFirst(MqIdxCacheBlock expected) {
+    void removeFirst(MqIdxBlock expected) {
         if (blocks.getFirst() != expected) {
             throw new IllegalStateException("fifo invariant broken: block " + expected.startSeq
                     + " is not the head block of queue " + queueId);
@@ -74,11 +74,11 @@ final class QueueIdxInfo {
             throw new IllegalArgumentException("seq not continuous: queue=" + queueId
                     + ", seq=" + seq + ", nextSeq=" + nextSeq);
         }
-        MqIdxCacheBlock b = blocks.getLast();
+        MqIdxBlock b = blocks.getLast();
         if (b == null || b.isFull()) {
             // null: the queue was fully evicted (only happens when nextSeq is block-aligned)
             manager.onNewBlock();
-            b = new MqIdxCacheBlock(this, nextSeq, 0);
+            b = new MqIdxBlock(this, nextSeq, 0);
             blocks.addLast(b);
         }
         b.append(pos, timestamp, itemSize);

@@ -28,7 +28,7 @@ import java.util.zip.CRC32C;
  *
  * @author huangli
  */
-class MqIdxCacheManager {
+class MqIdxManager {
 
     private static final int ITEM_LEN = 32;
 
@@ -36,13 +36,13 @@ class MqIdxCacheManager {
 
     private final int maxCachedBlocks;
 
-    private final IndexedQueue<MqIdxCacheBlock> fifo;
+    private final IndexedQueue<MqIdxBlock> fifo;
     private int totalBlockCount;
 
     long lastGetTimestamp;
     int lastGetSize;
 
-    MqIdxCacheManager(int maxCachedBlocks) {
+    MqIdxManager(int maxCachedBlocks) {
         this.maxCachedBlocks = maxCachedBlocks;
         this.fifo = new IndexedQueue<>(maxCachedBlocks);
     }
@@ -59,7 +59,7 @@ class MqIdxCacheManager {
     QueueIdxInfo register(long queueId, long nextSeq, ByteBuffer src) {
         QueueIdxInfo q = new QueueIdxInfo(this, queueId, nextSeq);
         if (src != null) {
-            int itemCount = (int) (nextSeq & MqIdxCacheBlock.BLOCK_MASK);
+            int itemCount = (int) (nextSeq & MqIdxBlock.BLOCK_MASK);
             if (src.limit() < itemCount * ITEM_LEN) {
                 throw new IllegalArgumentException("bad buffer size " + src.limit());
             }
@@ -78,7 +78,7 @@ class MqIdxCacheManager {
         q.append(seq, pos, timestamp, itemSize);
     }
 
-    void onSeal(MqIdxCacheBlock b) {
+    void onSeal(MqIdxBlock b) {
         fifo.addLast(b);
     }
 
@@ -93,18 +93,18 @@ class MqIdxCacheManager {
      */
     long getIdxItemInCache(long queueId, long seq) {
         QueueIdxInfo q = queues.get(queueId);
-        MqIdxCacheBlock b = q == null ? null : q.getBlock(seq);
+        MqIdxBlock b = q == null ? null : q.getBlock(seq);
         if (b == null) {
             return -1;
         }
         ByteBuffer buffer = b.buffer;
-        int offset = ((int) (seq & MqIdxCacheBlock.BLOCK_MASK)) * MqIdxCacheBlock.SLOT_SIZE;
+        int offset = ((int) (seq & MqIdxBlock.BLOCK_MASK)) * MqIdxBlock.SLOT_SIZE;
         lastGetTimestamp = buffer.getLong(offset + 8);
         lastGetSize = buffer.getInt(offset + 16);
         return buffer.getLong(offset);
     }
 
-    private void decode(ByteBuffer src, int itemCount, MqIdxCacheBlock b) {
+    private void decode(ByteBuffer src, int itemCount, MqIdxBlock b) {
         ByteBuffer buffer = b.buffer;
         CRC32C crc = new CRC32C();
         for (int i = 0; i < itemCount; i++) {
@@ -120,7 +120,7 @@ class MqIdxCacheManager {
                         + ", seq=" + (b.startSeq + i));
             }
             crc.reset();
-            int offset = i * MqIdxCacheBlock.SLOT_SIZE;
+            int offset = i * MqIdxBlock.SLOT_SIZE;
             buffer.putLong(offset, pos);
             buffer.putLong(offset + 8, timestamp);
             buffer.putInt(offset + 16, itemSize);
@@ -131,8 +131,8 @@ class MqIdxCacheManager {
      * Removes and returns the fifo head block, or null. If the block is dirty, the caller must
      * wait for its pending flush to complete before dropping it.
      */
-    MqIdxCacheBlock remove() {
-        MqIdxCacheBlock b = fifo.pollFirst();
+    MqIdxBlock remove() {
+        MqIdxBlock b = fifo.pollFirst();
         if (b == null) {
             return null;
         }
@@ -147,7 +147,7 @@ class MqIdxCacheManager {
      */
     void evict() {
         while (totalBlockCount > maxCachedBlocks) {
-            MqIdxCacheBlock b = fifo.getFirst();
+            MqIdxBlock b = fifo.getFirst();
             if (b == null || b.dirty) {
                 return;
             }
