@@ -32,6 +32,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
@@ -351,8 +352,11 @@ abstract class FileQueue {
                         Files.delete(file.toPath());
 
                         deleteFuture.fireComplete(null);
+                    } catch (NoSuchFileException e) {
+                        log.warn("delete log file, file not exists: {}", file.getPath());
+                        deleteFuture.fireComplete(null);
                     } catch (Throwable e) {
-                        log.error("delete file fail: ", file.getPath());
+                        log.error("delete file fail: {}", file.getPath(), e);
                         deleteFuture.fireCompleteExceptionally(e);
                     }
                 });
