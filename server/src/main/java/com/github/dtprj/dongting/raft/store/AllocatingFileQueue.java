@@ -121,21 +121,15 @@ abstract class AllocatingFileQueue extends FileQueue {
             // before writes actually reach the end of the current queue
             if (allocPos > queueEndPosition - fileSize) {
                 FileAllocFrame f = new FileAllocFrame();
-                return Fiber.call(f, v -> afterAlloc(f));
+                RetryFrame<Void> rf = new RetryFrame<>(f, groupConfig.ioRetryInterval, true,
+                        () -> raftStatus.installSnapshot || stopAlloc);
+                return Fiber.call(rf, v -> afterAlloc(f));
             } else {
                 return needAllocCond.await(5000, this);
             }
         }
 
         private FrameCallResult afterAlloc(FileAllocFrame f) {
-            if (!f.result) {
-                if (raftStatus.installSnapshot || stopAlloc) {
-                    allocDoneCond.signalAll();
-                    return Fiber.resume(null, this);
-                } else {
-                    return Fiber.sleep(5000, this);
-                }
-            }
             LogFile logFile = f.logFile;
             lruAddLast(logFile);
             queue.addLast(logFile);
@@ -146,6 +140,16 @@ abstract class AllocatingFileQueue extends FileQueue {
             allocDoneCond.signalAll();
             return Fiber.resume(null, this);
         }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            allocDoneCond.signalAll();
+            if (raftStatus.installSnapshot || stopAlloc) {
+                log.info("{} queue alloc fiber exit on cancel", mainLogFile ? "log" : "idx");
+                return Fiber.frameReturn();
+            }
+            throw Fiber.fatal(ex);
+        }
     }
 
     private class FileAllocFrame extends FiberFrame<Void> {
@@ -154,16 +158,16 @@ abstract class AllocatingFileQueue extends FileQueue {
         private File file;
         private LogFile logFile;
         private final int perfType;
-        private final long perfStartTime;
-        private boolean result;
+        private long perfStartTime;
 
         public FileAllocFrame() {
             this.perfType = mainLogFile ? PerfConsts.RAFT_D_LOG_FILE_ALLOC : PerfConsts.RAFT_D_IDX_FILE_ALLOC;
-            this.perfStartTime = groupConfig.perfCallback.takeTime(perfType);
         }
 
         @Override
         public FrameCallResult execute(Void v) {
+            perfStartTime = groupConfig.perfCallback.takeTime(perfType);
+            logFile = null;
             fileStartPos = queueEndPosition;
             String fileName = String.format("%020d", fileStartPos);
             file = new File(dir, fileName);
@@ -194,18 +198,16 @@ abstract class AllocatingFileQueue extends FileQueue {
         }
 
         private FrameCallResult afterCreateFile(Void unused) {
-            result = true;
             groupConfig.perfCallback.fireTime(perfType, perfStartTime);
             return Fiber.frameReturn();
         }
 
         @Override
-        protected FrameCallResult handle(Throwable ex) {
-            log.error("allocate file fail: ", ex);
+        protected FrameCallResult handle(Throwable ex) throws Throwable {
             if (logFile != null) {
                 logFile.destroy();
             }
-            return Fiber.frameReturn();
+            throw ex;
         }
     }
 }
