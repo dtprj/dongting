@@ -32,9 +32,11 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -357,5 +359,104 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     public void testWriteAndForceRetry() throws Exception {
         // fail once, verify the buffer is rewound on retry
         writeAndForceAndVerify(() -> new IoFailTask(1, true, false, () -> false));
+    }
+
+    @Test
+    public void testOpenRetry() throws Exception {
+        file = new File(dir, "testOpenRetry");
+        Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
+        AtomicBoolean openFail = new AtomicBoolean(true);
+        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, s, MockExecutors.ioExecutor(), null, 0, true) {
+            @Override
+            protected FileChannel doSyncOpen() throws IOException {
+                if (openFail.compareAndSet(true, false)) {
+                    throw new IOException("mock open error");
+                }
+                return super.doSyncOpen();
+            }
+        };
+
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                assertFalse(dtFile.isRwChannelOpen());
+                ByteBuffer buf = dataBuf(8, 1);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile,
+                        groupConfig.ioRetryInterval, true, () -> false);
+                return t.write(buf, 0).await(1000, this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                assertTrue(dtFile.isRwChannelOpen());
+                assertFalse(openFail.get());
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
+    public void testRetryReopensChannel() throws Exception {        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                ByteBuffer buf = dataBuf(8, 3);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile,
+                        groupConfig.ioRetryInterval, false, null) {
+                    private boolean failed;
+
+                    @Override
+                    protected void doExec(long pos) {
+                        if (!failed) {
+                            failed = true;
+                            // simulate an idle close racing the io failure
+                            dtFile.doClose();
+                            retry(new IOException("mock error"));
+                        } else {
+                            super.doExec(pos);
+                        }
+                    }
+                };
+                return t.write(buf, 0).await(1000, this::resumeRead);
+            }
+
+            private FrameCallResult resumeRead(Void unused) {
+                assertTrue(dtFile.isRwChannelOpen());
+                ByteBuffer buf = ByteBuffer.allocate(8);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.read(buf, 0).await(1000, v -> resumeVerify(buf));
+            }
+
+            private FrameCallResult resumeVerify(ByteBuffer buf) {
+                buf.flip();
+                while (buf.hasRemaining()) {
+                    assertEquals(3, buf.get());
+                }
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
+    public void testDestroyedFileFailFast() throws Exception {
+        // io on a destroyed file fails fast instead of retrying forever
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                dtFile.destroy();
+                ByteBuffer buf = dataBuf(8, 1);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile,
+                        groupConfig.ioRetryInterval, true, () -> false);
+                return t.write(buf, 0).await(1000, this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                throw new AssertionError();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                assertTrue(DtUtil.rootCause(ex).getMessage().contains("destroyed"));
+                return Fiber.frameReturn();
+            }
+        });
     }
 }

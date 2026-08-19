@@ -126,11 +126,17 @@ public class AsyncIoTask {
         }
         this.filePos = filePos;
         this.write = write;
+        ensureOpenThenExec();
+        rwCalled = true;
+        return future;
+    }
+
+    private void ensureOpenThenExec() {
         if (!dtFile.isRwChannelOpen()) {
             FiberFuture<Void> openFut = dtFile.ensureOpen();
             openFut.registerCallback((v, ex) -> {
                 if (ex != null) {
-                    future.fireCompleteExceptionally(ex);
+                    retry(ex);
                 } else {
                     exec(filePos);
                 }
@@ -138,8 +144,6 @@ public class AsyncIoTask {
         } else {
             exec(filePos);
         }
-        rwCalled = true;
-        return future;
     }
 
     protected void fireComplete(Throwable ex) {
@@ -191,7 +195,8 @@ public class AsyncIoTask {
                 } else if (ioBuffer != null) {
                     ioBuffer.rewind();
                 }
-                exec(filePos);
+                // the channel may have been idle-closed meanwhile
+                ensureOpenThenExec();
                 return Fiber.frameReturn();
             }
 
@@ -205,6 +210,11 @@ public class AsyncIoTask {
             private boolean shouldCancelRetry() {
                 if (isGroupShouldStopPlain()) {
                     // if fiber group is stopped, ignore cancelIndicator and retryForever
+                    return true;
+                }
+                if (dtFile.destroyed) {
+                    // a destroyed file can never be opened again, retrying is futile
+                    log.warn("retry canceled because file is destroyed");
                     return true;
                 }
                 if (cancelRetryIndicator != null && cancelRetryIndicator.get()) {
