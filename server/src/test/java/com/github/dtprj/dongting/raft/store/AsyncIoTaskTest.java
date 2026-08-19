@@ -322,4 +322,40 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         // fail once, verify buffers are rewound on retry
         gatheringWriteAndVerify(() -> new IoFailTask(1, true, false, () -> false));
     }
+
+    private void writeAndForceAndVerify(Supplier<AsyncIoTask> supplier) throws Exception {
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                ByteBuffer buf = dataBuf(100, 7);
+                AsyncIoTask t = supplier.get();
+                return t.writeAndForce(buf, 10).await(1000, v -> resumeRead());
+            }
+
+            private FrameCallResult resumeRead() {
+                ByteBuffer buf = ByteBuffer.allocate(110);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.read(buf, 0).await(1000, v -> resumeVerify(buf));
+            }
+
+            private FrameCallResult resumeVerify(ByteBuffer buf) {
+                buf.flip();
+                for (int i = 0; i < 110; i++) {
+                    assertEquals(i < 10 ? 0 : 7, buf.get());
+                }
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
+    public void testWriteAndForce() throws Exception {
+        writeAndForceAndVerify(() -> new AsyncIoTask(fiberGroup, dtFile));
+    }
+
+    @Test
+    public void testWriteAndForceRetry() throws Exception {
+        // fail once, verify the buffer is rewound on retry
+        writeAndForceAndVerify(() -> new IoFailTask(1, true, false, () -> false));
+    }
 }

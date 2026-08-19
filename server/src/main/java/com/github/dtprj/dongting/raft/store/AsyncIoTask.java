@@ -50,6 +50,7 @@ public class AsyncIoTask {
     private long filePos;
 
     private boolean write;
+    private boolean force;
 
     private int retryCount = 0;
 
@@ -91,6 +92,23 @@ public class AsyncIoTask {
         return exec(filePos, true);
     }
 
+    /**
+     * Writes and then forces (fdatasync) in the same io turn: the future completes
+     * only when the data is durable.
+     */
+    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos) {
+        this.force = true;
+        return write(ioBuffer, filePos);
+    }
+
+    /**
+     * Submits a force (fdatasync), recognized by both buffers being null. A closed
+     * channel is re-opened first: skipping the force would fake durability.
+     */
+    public FiberFuture<Void> force() {
+        return exec(0, false);
+    }
+
     private static void checkPosition(ByteBuffer buf) {
         if (buf.position() != 0) {
             throw new RaftException("buffer position must be 0: " + buf.position());
@@ -128,7 +146,14 @@ public class AsyncIoTask {
         if (ex == null) {
             future.fireComplete(null);
         } else {
-            String op = write ? "write" : "read";
+            String op;
+            if (ioBuffer == null && ioBuffers == null) {
+                op = "force";
+            } else if (write) {
+                op = force ? "writeAndForce" : "write";
+            } else {
+                op = "read";
+            }
             String s = op + " file=" + dtFile.getFile().getPath() + ", filePos=" + filePos + " fail. " + ex.getMessage();
             future.fireCompleteExceptionally(new IOException(s, ex));
         }
@@ -163,7 +188,7 @@ public class AsyncIoTask {
                     for (ByteBuffer buf : ioBuffers) {
                         buf.rewind();
                     }
-                } else {
+                } else if (ioBuffer != null) {
                     ioBuffer.rewind();
                 }
                 exec(filePos);
@@ -205,6 +230,11 @@ public class AsyncIoTask {
     // this method set to protected for mock error in unit test
     protected void doExec(long pos) {
         try {
+            if (ioBuffer == null && ioBuffers == null) {
+                dtFile.doForce(false);
+                fireComplete(null);
+                return;
+            }
             if (ioBuffers != null) {
                 doGatheringWrite(pos);
             } else {
@@ -229,6 +259,9 @@ public class AsyncIoTask {
                     }
                     pos = filePos + ioBuffer.position();
                 }
+            }
+            if (force) {
+                dtFile.doForce(false);
             }
             fireComplete(null);
         } catch (Throwable e) {
