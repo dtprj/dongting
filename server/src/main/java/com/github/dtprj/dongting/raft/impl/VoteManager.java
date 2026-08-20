@@ -351,6 +351,13 @@ public class VoteManager {
         }
 
         @Override
+        protected FrameCallResult handle(Throwable t) {
+            log.warn("process resp fail, cancel vote. groupId=" + groupId, t);
+            cancelVote("process resp fail");
+            return Fiber.frameReturn();
+        }
+
+        @Override
         public FrameCallResult execute(Void input) {
             if (isGroupShouldStopPlain()) {
                 cancelVote("stop");

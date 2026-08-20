@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -22,9 +23,11 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -54,6 +57,9 @@ public class StatusManager {
 
     private long requestUpdateVersion;
     private long finishedUpdateVersion;
+    // updates with version <= failedUpdateVersion failed or were cancelled, waiters of them
+    // receive an exception. Reset when a later update succeeds.
+    private long failedUpdateVersion;
     // the value of IdxFileQueue.KEY_PERSIST_IDX_INDEX that is known to be durable in the status
     // file. The restore process starts from the value in the status file, so log/idx file deletion
     // must not remove data that the next restore still depends on.
@@ -111,7 +117,7 @@ public class StatusManager {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (requestUpdateVersion > finishedUpdateVersion) {
+            if (requestUpdateVersion > finishedUpdateVersion && requestUpdateVersion > failedUpdateVersion) {
                 return doUpdate();
             } else {
                 if (closed) {
@@ -137,13 +143,19 @@ public class StatusManager {
             };
             RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame, groupConfig.ioRetryInterval,
                     true, () -> raftStatus.installSnapshot);
-            return Fiber.call(retryFrame, this::resumeOnUpdateDone);
+            return Fiber.call(new HandlerFrame<>(retryFrame), this::afterUpdate);
         }
 
-        private FrameCallResult resumeOnUpdateDone(Void v) {
-            // log.info("status update done, version={}, flush={}", version, flush);
-            finishedUpdateVersion = version;
-            lastPersistedIdxIndex = writingIdxIndex;
+        private FrameCallResult afterUpdate(Pair<Void, Throwable> result) {
+            Throwable ex = result.getRight();
+            if (ex == null) {
+                finishedUpdateVersion = version;
+                lastPersistedIdxIndex = writingIdxIndex;
+                failedUpdateVersion = 0;
+            } else {
+                failedUpdateVersion = version;
+                log.error("save status failed, groupId={}", groupConfig.groupId, ex);
+            }
             updateDoneCondition.signalAll();
             // loop
             return Fiber.yield(this);
@@ -151,6 +163,7 @@ public class StatusManager {
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
+            failedUpdateVersion = requestUpdateVersion;
             updateDoneCondition.signalAll();
             log.error("update status file error, groupId={}", groupConfig.groupId, ex);
             throw Fiber.fatal(ex);
@@ -172,13 +185,17 @@ public class StatusManager {
         needUpdateCondition.signalAll();
     }
 
-    public FrameCallResult waitUpdateFinish(FrameCall<Void> resumePoint) {
+    public FrameCallResult waitUpdateFinish(FrameCall<Void> resumePoint) throws RaftException {
         return waitUpdateFinish(requestUpdateVersion, resumePoint);
     }
 
-    private FrameCallResult waitUpdateFinish(long version, FrameCall<Void> resumePoint) {
+    private FrameCallResult waitUpdateFinish(long version, FrameCall<Void> resumePoint) throws RaftException {
         if (finishedUpdateVersion >= version) {
             return Fiber.resume(null, resumePoint);
+        }
+        if (failedUpdateVersion >= version) {
+            throw new RaftException("status update failed, groupId=" + groupConfig.groupId
+                    + ", version=" + version);
         }
         return updateDoneCondition.await(1000, v -> waitUpdateFinish(version, resumePoint));
     }

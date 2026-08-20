@@ -57,6 +57,12 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private boolean termUpdated;
 
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            writeErrorResp(reqInfo, ex);
+            return Fiber.frameReturn();
+        }
+
         private VoteFiberFrame(ReqInfoEx<VoteReq> reqInfo) {
             this.reqInfo = reqInfo;
             this.raftStatus = reqInfo.raftGroup.groupComponents.raftStatus;
