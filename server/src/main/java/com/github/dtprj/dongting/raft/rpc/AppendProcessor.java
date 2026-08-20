@@ -438,6 +438,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private static final DtLog log = DtLogs.getLogger(InstallFiberFrame.class);
     private final int groupId = gc.raftStatus.groupId;
     private boolean markInstall = false;
+    private boolean released;
 
     public InstallFiberFrame(ReqInfoEx<InstallSnapshotReq> reqInfo, AppendProcessor processor) {
         super("install snapshot", processor, reqInfo);
@@ -446,7 +447,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     @Override
     protected FrameCallResult handle(Throwable ex) throws Throwable {
         log.error("install snapshot error", ex);
-        return writeAppendResp(AppendProcessor.APPEND_SERVER_ERROR, ex.toString());
+        return writeRespAndRelease(ex);
     }
 
     @Override
@@ -568,7 +569,11 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult writeRespAndRelease(Throwable ex) {
-        reqInfo.reqFrame.clean();
+        if (!released) {
+            reqInfo.reqFrame.clean();
+            released = true;
+            needRelease = false;
+        }
         if (ex == null) {
             return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
         } else {
