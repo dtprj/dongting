@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
@@ -182,7 +183,7 @@ abstract class FileQueue {
                 File f = files[i];
                 if (PATTERN.matcher(f.getName()).matches()) {
                     log.warn("delete unexpected file: {}", f.getPath());
-                    return Fiber.call(new DeleteFrame(f), this);
+                    return Fiber.call(new DeleteFrame(f, ioExecutor), this);
                 } else {
                     return Fiber.resume(null, this);
                 }
@@ -334,26 +335,35 @@ abstract class FileQueue {
         }
     }
 
-    private class DeleteFrame extends FiberFrame<Void> {
+    public static final class DeleteFrame extends FiberFrame<Void> {
 
         private final File file;
+        private final boolean recursive;
+        private final ExecutorService ioExecutor;
+        private final boolean keepRootWhenRecursive;
 
-        public DeleteFrame(File file) {
+        public DeleteFrame(File file, ExecutorService ioExecutor) {
+            this(file, ioExecutor, false, false);
+        }
+
+        public DeleteFrame(File file, ExecutorService ioExecutor, boolean recursive, boolean keepRootWhenRecursive) {
             this.file = file;
+            this.recursive = recursive;
+            this.ioExecutor = ioExecutor;
+            this.keepRootWhenRecursive = keepRootWhenRecursive;
         }
 
         @Override
         public FrameCallResult execute(Void input) {
-            FiberFuture<Void> deleteFuture = groupConfig.fiberGroup.newFuture("deleteFile");
+            FiberFuture<Void> deleteFuture = FiberGroup.currentGroup().newFuture("deleteFile");
             try {
                 ioExecutor.execute(() -> {
                     try {
-                        log.info("delete log file: {}", file.getPath());
-                        Files.delete(file.toPath());
-
-                        deleteFuture.fireComplete(null);
-                    } catch (NoSuchFileException e) {
-                        log.warn("delete log file, file not exists: {}", file.getPath());
+                        if (recursive) {
+                            deleteRecursively(file, true);
+                        } else {
+                            deleteFile(file);
+                        }
                         deleteFuture.fireComplete(null);
                     } catch (Throwable e) {
                         log.error("delete file fail: {}", file.getPath(), e);
@@ -365,6 +375,29 @@ abstract class FileQueue {
                 deleteFuture.completeExceptionally(e);
             }
             return deleteFuture.await(this::justReturn);
+        }
+
+        private void deleteRecursively(File f, boolean root) throws IOException {
+            if (f.isDirectory()) {
+                File[] children = f.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        deleteRecursively(child, false);
+                    }
+                }
+            }
+            if (!root || !keepRootWhenRecursive) {
+                deleteFile(f);
+            }
+        }
+
+        private void deleteFile(File f) throws IOException {
+            try {
+                log.info("delete file: {}", f.getPath());
+                Files.delete(f.toPath());
+            } catch (NoSuchFileException e) {
+                log.warn("file not exists: {}", f.getPath());
+            }
         }
     }
 
@@ -384,7 +417,7 @@ abstract class FileQueue {
                 first.deleted = true;
                 lruRemove(first);
                 first.destroy();
-                return Fiber.call(new DeleteFrame(first.getFile()), this::justReturn);
+                return Fiber.call(new DeleteFrame(first.getFile(), ioExecutor), this::justReturn);
             }
         };
         f = new RetryFrame<>(f, groupConfig.ioRetryInterval, true,
