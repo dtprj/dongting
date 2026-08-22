@@ -28,9 +28,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.nio.file.OpenOption;
-import java.nio.file.StandardOpenOption;
-import java.util.Set;
 
 /**
  * A FileQueue that allocates the next file ahead of time in a dedicated fiber,
@@ -179,9 +176,8 @@ abstract class AllocatingFileQueue extends FileQueue {
                     raf.setLength(getFileSize());
                     raf.getFD().sync();
                     raf.close();
-                    Set<OpenOption> options = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE);
                     logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), file,
-                            groupConfig.fiberGroup, options, ioExecutor, AllocatingFileQueue.this::lruTouch,
+                            groupConfig.fiberGroup, ioExecutor, AllocatingFileQueue.this::lruTouch,
                             raftStatus.ts.wallClockMillis, mainLogFile);
                     // access in io thread, but happens-before use
                     logFile.syncOpen();

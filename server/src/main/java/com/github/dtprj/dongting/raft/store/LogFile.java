@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.BugLog;
 
 import java.io.File;
 import java.nio.file.OpenOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReentrantLock;
@@ -30,6 +31,9 @@ import java.util.function.Consumer;
  * @author huangli
  */
 public class LogFile extends DtFile {
+    private static final Set<OpenOption> RW_OPEN_OPTIONS
+            = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE);
+
     final long startPos;
     final long endPos;
 
@@ -55,9 +59,9 @@ public class LogFile extends DtFile {
     final ReentrantLock gatheringWriteLock;
 
     public LogFile(long startPos, long endPos, File file, FiberGroup group,
-                   Set<OpenOption> openOptions, ExecutorService ioExecutor,
+                   ExecutorService ioExecutor,
                    Consumer<LogFile> accessCallback, long currentTimeMillis, boolean mainLogFile) {
-        super(file, group, openOptions, ioExecutor);
+        super(file, group, RW_OPEN_OPTIONS, ioExecutor);
         this.lastAccessTime = currentTimeMillis;
         this.accessCallback = accessCallback;
         this.startPos = startPos;

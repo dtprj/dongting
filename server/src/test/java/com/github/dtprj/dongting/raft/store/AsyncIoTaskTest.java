@@ -31,11 +31,9 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.OpenOption;
-import java.nio.file.StandardOpenOption;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -67,8 +65,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     @BeforeEach
     public void setup() throws Exception {
         file = new File(dir, "testFile");
-        Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, s, MockExecutors.ioExecutor(), null, 0, true);
+        new RandomAccessFile(file, "rw").close();
+        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0, true);
         dtFile.syncOpen();
         groupConfig = new RaftGroupConfigEx(1, "1", "");
         groupConfig.ioRetryInterval = new int[]{1};
@@ -213,8 +211,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     @Test
     public void testAsyncOpen() throws Exception {
         file = new File(dir, "testAsyncOpen");
-        Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, s, MockExecutors.ioExecutor(), null, 0, true);
+        new RandomAccessFile(file, "rw").close();
+        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0, true);
 
         doInFiber(new FiberFrame<>() {
             ByteBuffer buf = ByteBuffer.allocate(8);
@@ -364,9 +362,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     @Test
     public void testOpenRetry() throws Exception {
         file = new File(dir, "testOpenRetry");
-        Set<OpenOption> s = Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
+        new RandomAccessFile(file, "rw").close();
         AtomicBoolean openFail = new AtomicBoolean(true);
-        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, s, MockExecutors.ioExecutor(), null, 0, true) {
+        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0, true) {
             @Override
             protected FileChannel doSyncOpen() throws IOException {
                 if (openFail.compareAndSet(true, false)) {

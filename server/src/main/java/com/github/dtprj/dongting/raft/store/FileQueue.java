@@ -35,10 +35,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
-import java.nio.file.OpenOption;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -110,9 +107,8 @@ abstract class FileQueue {
             Matcher matcher = PATTERN.matcher(f.getName());
             if (matcher.matches()) {
                 long startPos = Long.parseLong(matcher.group(1));
-                Set<OpenOption> openOptions = Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE);
                 LogFile lf = new LogFile(startPos, startPos + getFileSize(), f,
-                        groupConfig.fiberGroup, openOptions, ioExecutor, this::lruTouch,
+                        groupConfig.fiberGroup, ioExecutor, this::lruTouch,
                         raftStatus.ts.wallClockMillis, mainLogFile);
                 queue.addLast(lf);
                 count++;
