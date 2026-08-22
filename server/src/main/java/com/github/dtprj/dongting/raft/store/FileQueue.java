@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.FutureFrame;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -159,10 +160,8 @@ abstract class FileQueue {
     }
 
     protected FiberFuture<Void> stopFileQueue() {
-        FiberFuture<Void> f = groupConfig.fiberGroup.newFuture("fileQueueClose");
-        new Fiber("waitNoRwAndClose-" + groupConfig.groupId, groupConfig.fiberGroup,
-                new WaitNoRwAndCloseFrame(f)).start();
-        return f;
+        return FutureFrame.startWaitFiber("waitNoRwAndClose-" + groupConfig.groupId,
+                groupConfig.fiberGroup, new WaitNoRwAndCloseFrame());
     }
 
     // to delete all files that not be managed (unexpected)
@@ -307,11 +306,6 @@ abstract class FileQueue {
      * then closes all channels. Used during shutdown and install snapshot.
      */
     private class WaitNoRwAndCloseFrame extends FiberFrame<Void> {
-        private final FiberFuture<Void> resultFuture;
-
-        WaitNoRwAndCloseFrame(FiberFuture<Void> resultFuture) {
-            this.resultFuture = resultFuture;
-        }
 
         @Override
         public FrameCallResult execute(Void input) {
@@ -324,13 +318,6 @@ abstract class FileQueue {
                 }
             }
             closeAllChannel();
-            resultFuture.complete(null);
-            return Fiber.frameReturn();
-        }
-
-        @Override
-        protected FrameCallResult handle(Throwable ex) {
-            resultFuture.completeExceptionally(ex);
             return Fiber.frameReturn();
         }
     }

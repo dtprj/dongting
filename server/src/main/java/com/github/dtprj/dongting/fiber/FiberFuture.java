@@ -317,10 +317,29 @@ public class FiberFuture<T> extends WaitSource {
         return newFuture;
     }
 
+    public <T2> FiberFuture<T2> composeFrame(String name, Function<T, FiberFrame<T2>> fn) {
+        FiberFuture<T2> newFuture = new FiberFuture<>(name, group);
+        registerCallback((r, ex) -> {
+            if (ex != null) {
+                newFuture.complete0(null, ex);
+            } else {
+                try {
+                    FiberFrame<T2> sub = fn.apply(r);
+                    Fiber f = new Fiber(name, group, new FutureFrame<>(newFuture, sub));
+                    f.start();
+                } catch (Throwable e) {
+                    if (!newFuture.isDone()) {
+                        newFuture.complete0(null, e);
+                    }
+                }
+            }
+        });
+        return newFuture;
+    }
+
     public static FiberFuture<Void> allOf(String name, FiberFuture<?>... futures) {
         FiberGroup g = FiberGroup.currentGroup();
-        FiberFuture<Void> newFuture = g.newFuture(name);
-        Fiber f = new Fiber("wait-all-future", g, new FiberFrame<Void>() {
+        return FutureFrame.startWaitFiber(name, g, new FiberFrame<Void>() {
             private int i;
 
             @Override
@@ -332,19 +351,10 @@ public class FiberFuture<T> extends WaitSource {
                 if (i < futures.length) {
                     return futures[i++].await(this::loop);
                 } else {
-                    newFuture.complete(null);
                     return Fiber.frameReturn();
                 }
             }
-
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                newFuture.completeExceptionally(ex);
-                return Fiber.frameReturn();
-            }
         });
-        g.start(f, false);
-        return newFuture;
     }
 
     public static <T> FiberFuture<T> failedFuture(FiberGroup group, Throwable ex) {
