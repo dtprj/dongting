@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCancelException;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberInterruptException;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -41,6 +42,12 @@ public class RetryFrame<O> extends FiberFrame<O> {
     private final Supplier<Boolean> cancelRetry;
     private int retryCount;
     private Throwable lastSubFrameEx;
+
+    /**
+     * Optional. Signaled when cancelRetry may have turned true, so the retry sleep wakes
+     * up promptly instead of waiting out the current interval. Assign after construction.
+     */
+    public FiberCondition cancelCondition;
 
     public RetryFrame(FiberFrame<O> subFrame, int[] retryIntervals, boolean retryForever, Supplier<Boolean> cancelRetry) {
         this.subFrame = subFrame;
@@ -75,6 +82,9 @@ public class RetryFrame<O> extends FiberFrame<O> {
             if (sleepTime > 0) {
                 log.error("io error, {}th retry scheduled after {} ms", retryCount + 1, sleepTime, subFrameEx);
                 this.lastSubFrameEx = subFrameEx;
+                if (cancelCondition != null) {
+                    return cancelCondition.await(sleepTime, getFiberGroup().shouldStopCondition, this::retry);
+                }
                 return Fiber.sleepUntilShouldStop(sleepTime, this::retry);
             } else {
                 log.error("io error, retryCount={}", retryCount, subFrameEx);
