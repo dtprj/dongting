@@ -89,6 +89,7 @@ public class LinearTaskRunner {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             log.error("error in linear task runner", ex);
+            cleanChannel(new ArrayList<>());
             throw Fiber.fatal(ex);
         }
 
@@ -99,13 +100,18 @@ public class LinearTaskRunner {
                     true, this::afterTakeAll);
         }
 
+        private void cleanChannel(ArrayList<RaftTask> l) {
+            taskChannel.markShutdown();
+            taskChannel.drain(l);
+            for (RaftTask rt : l) {
+                rt.reqData.release();
+                rt.callFail(new RaftException("raft group is stopping"));
+            }
+        }
+
         private FrameCallResult afterTakeAll(Void unused) {
             if (isGroupShouldStopPlain()) {
-                for (RaftTask rt : list) {
-                    rt.reqData.release();
-                    rt.callFail(new RaftException("raft group is stopping"));
-                }
-                taskChannel.markShutdown();
+                cleanChannel(list);
                 // fiber exit
                 return Fiber.frameReturn();
             }
@@ -130,14 +136,12 @@ public class LinearTaskRunner {
         }
     }
 
-    private static void onDispatchFail(RaftTask rt) {
-        rt.reqData.release();
-        rt.callFail(new RaftException("submit raft task failed, the fiber group is not running"));
-    }
-
     public void submitRaftTaskInBizThread(RaftTask task) {
         task.perfTime = perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY);
-        taskChannel.fireOffer(task, LinearTaskRunner::onDispatchFail);
+        if (!taskChannel.fireOffer(task)) {
+            task.reqData.release();
+            task.callFail(new RaftException("submit raft task failed, the fiber group is not running"));
+        }
     }
 
     public static long lastIndex(RaftStatusImpl raftStatus) {

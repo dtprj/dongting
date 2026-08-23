@@ -56,11 +56,8 @@ class FiberQueue {
                 throw new FiberException("FiberQueueTask is already in queue");
             }
             FiberGroup g = task.ownerGroup;
-            if (g != null) {
-                if (g.finished) {
-                    log.warn("task is not accepted because its group is finished: {}", task);
-                    return false;
-                }
+            if (!Dispatcher.offerCheck(g, task)) {
+                return false;
             }
             if (head == TAIL) {
                 head = tail = task;
@@ -114,6 +111,7 @@ class FiberQueue {
         }
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     boolean hasTask(FiberGroup g) {
         FiberQueueTask task = head;
         while (task != TAIL) {
@@ -123,6 +121,38 @@ class FiberQueue {
             task = task.next;
         }
         return false;
+    }
+
+    void dispatchBeforeShutdown(FiberChannel<?> c) {
+        FiberQueueTask prev = TAIL;
+        FiberQueueTask task = head;
+        while (task != TAIL) {
+            FiberQueueTask next = task.next;
+            if (task.ownerGroup == c.groupOfConsumer
+                    && task instanceof FiberChannel.ChannelTask
+                    && ((FiberChannel<?>.ChannelTask) task).getOwner() == c) {
+                // fill into FiberChannel immediately
+                try {
+                    task.run();
+                } catch (Throwable e) {
+                    // OOM?
+                    log.error("", e);
+                }
+                // unlink it so it won't run again
+                if (prev == TAIL) {
+                    head = next;
+                } else {
+                    prev.next = next;
+                }
+                if (tail == task) {
+                    tail = prev;
+                }
+                task.next = null;
+            } else {
+                prev = task;
+            }
+            task = next;
+        }
     }
 
     public void shutdown() {

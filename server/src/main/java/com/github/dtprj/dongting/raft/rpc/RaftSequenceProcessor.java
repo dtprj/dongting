@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -78,22 +79,29 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
 
         private FrameCallResult resume(ReqInfoEx<T> o) {
             if (isGroupShouldStopPlain()) {
-                channel.markShutdown();
-                if (o != null) {
-                    o.reqFrame.clean();
-                    o.reqContext.writeRespInBizThreads(createStoppedResp(o.raftGroup.getGroupId()));
-                    // should continue loop to take all pending tasks and release them
-                    return Fiber.resume(null, this);
-                } else {
-                    // fiber exit here
-                    return Fiber.frameReturn();
-                }
+                return cleanAndExit(o);
             }
             if (o == null) {
                 return Fiber.resume(null, this);
             }
             current = o;
             return Fiber.call(processInFiberGroup(o), this);
+        }
+
+        private FrameCallResult cleanAndExit(ReqInfoEx<T> o) {
+            channel.markShutdown();
+            if (o != null) {
+                o.reqFrame.clean();
+                o.reqContext.writeRespInBizThreads(createStoppedResp(o.raftGroup.getGroupId()));
+            }
+            ArrayList<ReqInfoEx<T>> list = new ArrayList<>();
+            channel.drain(list);
+            for (ReqInfoEx<T> reqInfo : list) {
+                reqInfo.reqFrame.clean();
+                reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
+            }
+            // fiber exit here
+            return Fiber.frameReturn();
         }
 
         @Override
@@ -104,20 +112,14 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
                 log.error("uncaught exception in {}.", getClass().getSimpleName(), ex);
                 current.reqContext.writeRespInBizThreads(wf);
             }
-            if (!isGroupShouldStopPlain()) {
+            if (isGroupShouldStopPlain()) {
+                return cleanAndExit(null);
+            } else {
                 log.error("restart processor fiber.");
                 startProcessFiber(channel);
+                return Fiber.frameReturn();
             }
-            return Fiber.frameReturn();
         }
-    }
-
-    private void onDispatcherFail(Object obj) {
-        @SuppressWarnings("unchecked")
-        ReqInfo<T> reqInfo = (ReqInfo<T>) obj;
-        reqInfo.reqFrame.clean();
-        reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
-        log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());
     }
 
     @Override
@@ -131,7 +133,11 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             wf.msg = "raft group not initialized: " + reqInfo.raftGroup.getGroupId();
             return wf;
         } else {
-            c.fireOffer(reqInfo, this::onDispatcherFail);
+            if (!c.fireOffer(reqInfo)) {
+                reqInfo.reqFrame.clean();
+                reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
+                log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());
+            }
         }
         return null;
     }

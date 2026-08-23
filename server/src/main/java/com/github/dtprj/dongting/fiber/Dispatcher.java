@@ -268,13 +268,13 @@ public class Dispatcher extends AbstractLifeCircle {
                 fiber = readyQueue.pollFirst();
             }
 
-            g.updateFinishStatus();
+            boolean shouldKeepReady = g.updateFinishStatus();
             if (g.finished) {
                 log.info("fiber group finished: {}", g.name);
                 finishedGroups.add(g);
                 g.ready = false;
             } else {
-                g.ready = readyQueue.size() > 0 || nextQueue1.size() > 0 || nextQueue2.size() > 0;
+                g.ready = shouldKeepReady || readyQueue.size() > 0 || nextQueue1.size() > 0 || nextQueue2.size() > 0;
             }
         } finally {
             thread.currentGroup = null;
@@ -626,16 +626,36 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    static boolean offerCheck(FiberGroup g, FiberQueueTask r) {
+        if (g == null) {
+            return true;
+        }
+        if (g.finished) {
+            log.warn("task is not accepted because its group is finished: {}", r);
+            return false;
+        }
+        if (r instanceof FiberChannel.ChannelTask) {
+            FiberChannel.ChannelTask ct = (FiberChannel.ChannelTask) r;
+            if (ct.getOwner().shutdown) {
+                log.warn("task is not accepted because its channel is shutdown: {}", r);
+                return false;
+            }
+        }
+        return true;
+    }
+
     boolean doInDispatcherThread(FiberQueueTask r) {
         FiberGroup g = r.ownerGroup;
         if (Thread.currentThread() == thread && g == thread.currentGroup) {
-            if (g != null) {
-                if (g.finished) {
-                    log.warn("task is not accepted because its group is finished: {}", r);
-                    return false;
-                }
+            if (!offerCheck(g, r)) {
+                return false;
             }
-            r.run();
+            try {
+                r.run();
+            } catch (Throwable e) {
+                log.error("FiberQueueTask fail", e);
+            }
             return true;
         } else {
             return shareQueue.offer(r);

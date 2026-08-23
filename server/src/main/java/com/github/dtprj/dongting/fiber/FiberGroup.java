@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -48,6 +49,7 @@ public class FiberGroup {
     final IdentityHashMap<FiberFuture<?>, FiberFuture<?>> pendingCallbackFutures = new IdentityHashMap<>();
 
     final FiberChannel<Runnable> sysChannel;
+    private Fiber groupRunnerFiber;
 
     boolean finished;
     boolean ready;
@@ -77,12 +79,8 @@ public class FiberGroup {
         if (fiber.group != this) {
             throw new DtException("fiber not in group");
         }
-        return dispatcher.doInDispatcherThread(new FiberQueueTask(this) {
-            @Override
-            protected void run() {
-                start(fiber, false);
-            }
-        });
+        // if sysChannel is shutdown and group is not finish, we should ensure fireOffer fails
+        return sysChannel.fireOffer(fiber::start);
     }
 
     /**
@@ -148,8 +146,9 @@ public class FiberGroup {
 
     void startGroupRunnerFiber() {
         GroupRunnerFiberFrame frame = new GroupRunnerFiberFrame(sysChannel);
-        Fiber f = new Fiber("group-runner", this, frame).setDaemon(true).setSignalCountInEachRound(100);
-        start(f, false);
+        groupRunnerFiber = new Fiber("group-runner", this, frame).setSignalCountInEachRound(100);
+        // not in any group context here, so can't use Fiber.start() which requires checkGroup()
+        start(groupRunnerFiber, false);
     }
 
     void start(Fiber f, boolean addFirst) {
@@ -222,32 +221,54 @@ public class FiberGroup {
         dispatcher.readyGroups.addLast(this);
     }
 
-    void updateFinishStatus() {
+    /**
+     * @return return true if group should keep ready
+     */
+    boolean updateFinishStatus() {
         boolean ss = shareStatusSource.shouldStop;
         if (ss && !finished) {
-            if (!normalFibers.isEmpty()) {
-                return;
+            if (normalFibers.size() > 1) {
+                return false;
             }
             if (sysChannel.queue.size() > 0) {
-                return;
+                return false;
             }
             if (!pendingCallbackFutures.isEmpty()) {
-                return;
+                return false;
             }
-            // update finished status in lock, so that other threads can see it in this lock
+
+            // normalFibers.size() is 0 or 1
             ReentrantLock lock = dispatcher.shareQueue.lock;
             lock.lock();
             try {
-                if (!dispatcher.shareQueue.hasTask(this)) {
+                if (dispatcher.shareQueue.hasTask(this)) {
+                    // enforce group ready, otherwise the updateFinishStatus() may be never invoked
+                    return true;
+                }
+                if (normalFibers.isEmpty()) {
+                    // update finished status in lock, so that other threads can see it in this lock
                     finished = true;
+                } else {
+                    if (normalFibers.containsKey(groupRunnerFiber)) {
+                        sysChannel.markShutdown();
+                        // no need drain since shareQueue has no task of this group
+
+                        // no current fiber here, use signal0 instead of signal()
+                        sysChannel.notEmptyCondition.signal0(true);
+                        return false;
+                    } else if (groupRunnerFiber != null) {
+                        BugLog.log("the last fiber is not groupRunnerFiber");
+                    }
                 }
             } finally {
                 lock.unlock();
             }
+
             if (finished) {
                 shutdownFuture.complete(null);
             }
         }
+        return false;
     }
 
     boolean isShouldStopPlain() {
@@ -308,7 +329,7 @@ public class FiberGroup {
         normalFibers.forEach((key, f) -> {
             if (!f.ready) {
                 concatFiberName(sb, f);
-                sb.append(", waitOn=").append(f.source).append(", timeout=").append(f.scheduleTimeout/1000/1000);
+                sb.append(", waitOn=").append(f.source).append(", timeout=").append(f.scheduleTimeout / 1000 / 1000);
                 sb.append('\n');
             }
         });
@@ -358,6 +379,10 @@ class GroupRunnerFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) {
+        if (channel.shutdown && channel.queue.size() == 0) {
+            // group is closing and all callbacks are processed, exit so the group can finish
+            return Fiber.frameReturn();
+        }
         return channel.take(this::afterTake);
     }
 
@@ -370,6 +395,14 @@ class GroupRunnerFiberFrame extends FiberFrame<Void> {
             }
         }
         return Fiber.resume(null, this);
+    }
+
+    @Override
+    protected FrameCallResult handle(Throwable ex) {
+        BugLog.log("group runner fiber exit unexpectedly", ex);
+        channel.markShutdown();
+        channel.drain(new ArrayList<>());
+        throw Fiber.fatal(ex);
     }
 }
 

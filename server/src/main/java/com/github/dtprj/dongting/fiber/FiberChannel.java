@@ -16,12 +16,10 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This queue is unbound and only block consumer.
@@ -29,14 +27,13 @@ import java.util.function.Consumer;
  * @author huangli
  */
 public class FiberChannel<T> {
-    private static final DtLog log = DtLogs.getLogger(FiberChannel.class);
-    private final FiberGroup groupOfConsumer;
+    final FiberGroup groupOfConsumer;
     private final Dispatcher dispatcherOfConsumer;
     final IndexedQueue<T> queue;
-    private final FiberCondition notEmptyCondition;
+    final FiberCondition notEmptyCondition;
     private FiberCondition[] notEmptyAndShouldStop;
 
-    private boolean shutdown;
+    boolean shutdown;
 
     FiberChannel(FiberGroup groupOfConsumer) {
         this(groupOfConsumer, 64);
@@ -50,47 +47,32 @@ public class FiberChannel<T> {
     }
 
     /**
-     * the return value only ensures that the task is accepted by dispatcher.
+     * Returns true means the data is accepted and will be processed by the consumer.
+     * Returns false means the data is not queued and will never be processed by the consumer,
+     * because the dispatcher is shutdown, the group is finished, or the channel is shutdown;
+     * the caller should clean up the data in that case.
      */
     public boolean fireOffer(T data) {
-        return fireOffer0(data, null);
+        return dispatcherOfConsumer.doInDispatcherThread(new ChannelTask(groupOfConsumer, data));
     }
 
-    /**
-     * If the task is not accepted by dispatcher, the callback invoked in caller thread;
-     * if markShutdown() is called, the callback invoked in dispatcher thread.
-     */
-    public void fireOffer(T data, Consumer<T> dispatchFailCallback) {
-        if (!fireOffer0(data, dispatchFailCallback)) {
-            try {
-                if (dispatchFailCallback != null) {
-                    dispatchFailCallback.accept(data);
-                }
-            } catch (Throwable e) {
-                log.warn("", this);
-            }
+    class ChannelTask extends FiberQueueTask {
+
+        private final T data;
+
+        public ChannelTask(FiberGroup ownerGroup, T data) {
+            super(ownerGroup);
+            this.data = data;
         }
-    }
 
-    private boolean fireOffer0(T data, Consumer<T> dispatchFailCallback) {
-        FiberQueueTask t = new FiberQueueTask(groupOfConsumer) {
-            @Override
-            protected void run() {
-                if (shutdown) {
-                    try {
-                        log.warn("task is not accepted because channel is shutdown: {}", data);
-                        if (dispatchFailCallback != null) {
-                            dispatchFailCallback.accept(data);
-                        }
-                    } catch (Throwable e) {
-                        log.warn("", this);
-                    }
-                } else {
-                    offer0(data);
-                }
-            }
-        };
-        return dispatcherOfConsumer.doInDispatcherThread(t);
+        FiberChannel<T> getOwner() {
+            return FiberChannel.this;
+        }
+
+        @Override
+        protected void run() {
+            offer0(data);
+        }
     }
 
     public void offer(T data) {
@@ -202,14 +184,32 @@ public class FiberChannel<T> {
     }
 
     private FrameCallResult afterTakeAll(Collection<T> c, FrameCall<Void> resumePoint) {
+        drain(c);
+        return Fiber.resume(null, resumePoint);
+    }
+
+    /**
+     * Should be called in dispatcher thread (in the consumer group context).
+     */
+    public void markShutdown() {
+        groupOfConsumer.checkGroup();
+        if (shutdown) {
+            return;
+        }
+        ReentrantLock lock = dispatcherOfConsumer.shareQueue.lock;
+        lock.lock();
+        try {
+            dispatcherOfConsumer.shareQueue.dispatchBeforeShutdown(this);
+            shutdown = true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void drain(Collection<T> c) {
         T data;
         while ((data = queue.pollFirst()) != null) {
             c.add(data);
         }
-        return Fiber.resume(null, resumePoint);
-    }
-
-    public void markShutdown() {
-        shutdown = true;
     }
 }

@@ -111,11 +111,15 @@ public class FiberFuture<T> extends WaitSource {
             if (dispatcherThread.currentGroup == group) {
                 complete0(r, ex);
             } else {
+                if (group.sysChannel.shutdown) {
+                    log.warn("group is shutting down, ignore fireComplete");
+                    return;
+                }
                 group.sysChannel.offer0(() -> complete0(r, ex));
             }
         } else {
             if (!group.sysChannel.fireOffer(() -> complete0(r, ex))) {
-                log.warn("dispatcher is shutdown, ignore fireComplete");
+                log.warn("group is shutdown, ignore fireComplete");
             }
         }
     }
