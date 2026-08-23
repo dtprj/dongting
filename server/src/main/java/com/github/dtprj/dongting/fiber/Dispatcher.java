@@ -415,6 +415,10 @@ public class Dispatcher extends AbstractLifeCircle {
         Fiber fiber = getCurrentFiberAndCheck(null);
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
+        if (currentFrame.catchCalled && resumePoint == currentFrame) {
+            throwFatalError(fiber.group, "usage fatal error: " +
+                    "Fiber.resume() with current frame as resume point is not allowed in handle() or doFinally()");
+        }
         fiber.inputObj = input;
         fiber.inputEx = ex;
         currentFrame.resumePoint = resumePoint;

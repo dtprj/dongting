@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -283,6 +284,31 @@ public class CatchTest extends AbstractFiberTest {
         WaitUtil.waitUtil(parentFinallyCalled::get);
         assertTrue(subFinallyCalled.get());
         assertEquals(100, resultRef.get());
+    }
+
+    @Test
+    public void testResumeSelfInHandle() {
+        Exception ex = new Exception("mock ex");
+        AtomicInteger executeCount = new AtomicInteger();
+        FiberFrame<Void> sub = new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Exception {
+                executeCount.incrementAndGet();
+                throw ex;
+            }
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                return Fiber.resume(null, this);
+            }
+        };
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(sub, this::justReturn);
+            }
+        });
+        WaitUtil.waitUtil(() -> fiberGroup.finished);
+        assertEquals(1, executeCount.get());
     }
 
 }
