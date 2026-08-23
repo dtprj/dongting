@@ -404,6 +404,7 @@ public class MemberManager {
         @Override
         public FrameCallResult execute(Void input) {
             if (isGroupShouldStopPlain()) {
+                finalFuture.completeExceptionally(new RaftException("raft group is stopping"));
                 return Fiber.frameReturn();
             }
             if (prepareIndex != raftStatus.lastConfigChangeIndex) {
@@ -457,6 +458,7 @@ public class MemberManager {
             log.error("leader config change {}, not leader, role={}, groupId={}",
                     stageStr, raftStatus.getRole(), groupId);
             f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
+            return;
         }
         RaftCallback c = new RaftCallback() {
             @Override
@@ -491,8 +493,13 @@ public class MemberManager {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
+                if (isGroupShouldStopPlain()) {
+                    f.completeExceptionally(new RaftException("raft group is stopping"));
+                    return Fiber.frameReturn();
+                }
                 if (raftStatus.getLastApplied() < prepareIndex + 1) {
-                    return gc.applyManager.applyFinishCond.await(100, this);
+                    return gc.applyManager.applyFinishCond.await(100,
+                            getFiberGroup().shouldStopCondition, this);
                 }
                 f.complete(prepareIndex);
                 return Fiber.frameReturn();
