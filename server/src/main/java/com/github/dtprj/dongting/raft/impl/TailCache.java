@@ -86,6 +86,7 @@ public final class TailCache {
         if (rt.addPending) {
             pendingCount--;
             pendingBytes -= rt.reqData.totalLen;
+            rt.addPending = false;
         }
     }
 
@@ -157,8 +158,19 @@ public final class TailCache {
     }
 
     public void cleanAll() {
+        RaftException ex = new RaftException("clean all task");
         while (firstIndex >= 0) {
-            remove(firstIndex);
+            RaftTask t = cache.pollFirst();
+            if (cache.size() == 0) {
+                firstIndex = -1;
+            } else {
+                firstIndex++;
+            }
+            if (t != null) {
+                release(t);
+                removePending(t);
+                t.callFail(ex);
+            }
         }
     }
 
