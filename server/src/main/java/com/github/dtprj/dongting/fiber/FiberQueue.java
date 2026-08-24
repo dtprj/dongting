@@ -77,8 +77,8 @@ class FiberQueue {
     public FiberQueueTask poll(long timeout, TimeUnit timeUnit) throws InterruptedException {
         lock.lock();
         try {
-            if (head == TAIL) {
-                if (!notEmpty.await(timeout, timeUnit)) {
+            while (head == TAIL) {
+                if (shutdown || !notEmpty.await(timeout, timeUnit)) {
                     return null;
                 }
             }

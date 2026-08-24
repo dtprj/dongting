@@ -199,6 +199,7 @@ public class Dispatcher extends AbstractLifeCircle {
         }
         if (!finishedGroups.isEmpty()) {
             groups.removeAll(finishedGroups);
+            finishedGroups.clear();
         }
 
         // 60 seconds clean once
