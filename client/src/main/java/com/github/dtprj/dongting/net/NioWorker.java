@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -258,6 +259,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         } catch (Exception e) {
             log.error("select failed: {}", workerName, e);
+            LockSupport.parkNanos(100 * 1000 * 1000L);
             return -1;
         } finally {
             if ((c.accept(PerfConsts.RPC_D_WORKER_WORK) || c.accept(PerfConsts.RPC_D_WORKER_SEL)) && !selNow) {
