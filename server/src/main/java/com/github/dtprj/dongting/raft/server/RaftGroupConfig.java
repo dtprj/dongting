@@ -48,6 +48,16 @@ public class RaftGroupConfig {
     public long idxFlushIntervalMillis = 2000;
     public long logFileSize = 1024 * 1024 * 1024;
 
+    // mq idx: 32 bytes per item, each queue has its own dir and file queue
+    public int mqIdxItemsPerFile = 256 * 1024; // 8MB per file
+    public int mqIdxCacheBlocks = 16 * 1024;
+    public int mqIdxFlushThreshold = 1024;
+    public long mqIdxFlushIntervalMillis = 60_000;
+    public int mqIdxFlushBatchItems = 32 * 1024; // 1MB per write batch
+    // max concurrent in-flight flush rounds; flush-all counts trigger rounds against this
+    // quota, but trigger rounds themselves are not throttled (backpressure is not implemented)
+    public int mqIdxFlushAllConcurrency = 8;
+
     public PerfCallback perfCallback = new DefaultRaftPerf();
 
     // leader replicate/install read concurrency, or recovering write concurrency.

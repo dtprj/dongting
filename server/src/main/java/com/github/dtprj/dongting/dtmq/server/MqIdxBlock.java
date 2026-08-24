@@ -25,8 +25,8 @@ import java.nio.ByteBuffer;
  */
 final class MqIdxBlock {
 
-    static final int BLOCK_SHIFT = 7;
     static final int BLOCK_ITEMS = 128; // 128 * 32 = 4096
+    static final int BLOCK_SHIFT = Integer.numberOfTrailingZeros(BLOCK_ITEMS);
     static final int BLOCK_MASK = BLOCK_ITEMS - 1;
     static final int SLOT_SIZE = 20;
     static final int BLOCK_BYTES = BLOCK_ITEMS * SLOT_SIZE; // 2560
@@ -34,7 +34,6 @@ final class MqIdxBlock {
     final QueueIdxInfo owner;
     final long startSeq;
     int count;
-    boolean dirty;
 
     final ByteBuffer buffer = ByteBuffer.wrap(new byte[BLOCK_BYTES]);
 
@@ -51,10 +50,13 @@ final class MqIdxBlock {
         buffer.putLong(index + 8, timestamp);
         buffer.putInt(index + 16, itemSize);
         count++;
-        dirty = true;
     }
 
     boolean isFull() {
         return count == BLOCK_ITEMS;
+    }
+
+    long lastSeq() {
+        return startSeq + BLOCK_ITEMS - 1;
     }
 }

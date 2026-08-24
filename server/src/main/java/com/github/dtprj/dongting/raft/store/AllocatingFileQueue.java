@@ -166,8 +166,8 @@ abstract class AllocatingFileQueue extends FileQueue {
             perfStartTime = groupConfig.perfCallback.takeTime(perfType);
             logFile = null;
             fileStartPos = queueEndPosition;
-            String fileName = String.format("%020d", fileStartPos);
-            file = new File(dir, fileName);
+            file = createFileByStartPos(fileStartPos);
+
             FiberFuture<Void> createFileFuture = getFiberGroup().newFuture("createFile");
             ioExecutor.execute(() -> {
                 long startTime = System.currentTimeMillis();
@@ -178,7 +178,7 @@ abstract class AllocatingFileQueue extends FileQueue {
                     raf.close();
                     logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), file,
                             groupConfig.fiberGroup, ioExecutor, AllocatingFileQueue.this::lruTouch,
-                            raftStatus.ts.wallClockMillis, mainLogFile);
+                            System.currentTimeMillis(), mainLogFile);
                     // access in io thread, but happens-before use
                     logFile.syncOpen();
                     long time = System.currentTimeMillis() - startTime;

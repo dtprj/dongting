@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
 /**
  * @author huangli
  */
-abstract class FileQueue {
+public abstract class FileQueue {
     private static final DtLog log = DtLogs.getLogger(FileQueue.class);
     private static final Pattern PATTERN = Pattern.compile("^(\\d{20})$");
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>(32);
@@ -85,7 +85,7 @@ abstract class FileQueue {
         this.mainLogFile = mainLogFile;
     }
 
-    protected final long getFileSize() {
+    public final long getFileSize() {
         return fileSize;
     }
 
@@ -194,7 +194,7 @@ abstract class FileQueue {
         return queue.get(index);
     }
 
-    void lruAddLast(LogFile lf) {
+    protected void lruAddLast(LogFile lf) {
         if (lf.lruPrev != null || lf.lruNext != null || lruHead == lf) {
             return; // already in list
         }
@@ -235,7 +235,7 @@ abstract class FileQueue {
         lruAddLast(lf);
     }
 
-    void lruTouch(LogFile lf) {
+    public void lruTouch(LogFile lf) {
         lf.lastAccessTime = raftStatus.ts.wallClockMillis;
         if (lf.lruPrev == null && lf.lruNext == null && lruHead != lf) {
             lruAddLast(lf);
@@ -244,7 +244,7 @@ abstract class FileQueue {
         }
     }
 
-    void closeIdleFiles() {
+    public void closeIdleFiles() {
         long now = raftStatus.ts.wallClockMillis;
         int size = queue.size();
         if (size == 0 || openFileCount == 0) {
@@ -427,5 +427,9 @@ abstract class FileQueue {
 
     protected boolean isMarkClose() {
         return markClose;
+    }
+
+    public File createFileByStartPos(long fileStart) {
+        return new File(dir, String.format("%020d", fileStart));
     }
 }

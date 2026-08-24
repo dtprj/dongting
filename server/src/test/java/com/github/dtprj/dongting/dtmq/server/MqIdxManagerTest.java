@@ -15,347 +15,273 @@
  */
 package com.github.dtprj.dongting.dtmq.server;
 
+import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.test.TestDir;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.zip.CRC32C;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
  */
-class MqIdxManagerTest {
+class MqIdxManagerTest extends BaseFiberTest {
 
-    private MqIdxManager m;
+    private File dir;
+    private RaftGroupConfigEx config;
+    private MqIdxManager manager;
 
     @BeforeEach
-    void setUp() {
-        m = new MqIdxManager(16);
+    void setup() throws Exception {
+        dir = TestDir.createTestDir(MqIdxManagerTest.class.getSimpleName());
+        config = newConfig();
+        manager = createManager(config);
     }
 
-    // pos equals seq, timestamp = seq * 2, size = (int) seq + 1
-    private void append(MqIdxManager m, long queueId, long seq) {
-        m.append(queueId, seq, seq, seq * 2, (int) seq + 1);
+    private RaftGroupConfigEx newConfig() {
+        RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
+        c.blockIoExecutor = MockExecutors.ioExecutor();
+        RaftStatusImpl raftStatus = new RaftStatusImpl(1, dispatcher.ts);
+        c.raftStatus = raftStatus;
+        c.ts = raftStatus.ts;
+        c.fiberGroup = fiberGroup;
+        c.mqIdxItemsPerFile = 256;
+        c.mqIdxCacheBlocks = 64;
+        // never trigger flush in memory-only tests
+        c.mqIdxFlushThreshold = Integer.MAX_VALUE;
+        c.mqIdxFlushBatchItems = 128;
+        return c;
     }
 
-    private void assertIdxHit(long queueId, long seq) {
-        assertEquals(seq, m.getIdxItemInCache(queueId, seq));
-        assertEquals(seq * 2, m.lastGetTimestamp);
-        assertEquals((int) seq + 1, m.lastGetSize);
+    private MqIdxManager createManager(RaftGroupConfigEx c) throws Exception {
+        AtomicReference<MqIdxManager> ref = new AtomicReference<>();
+        doInFiber(() -> ref.set(new MqIdxManager(c, dir)));
+        return ref.get();
     }
 
-    private void cleanDirty(long queueId) {
-        QueueIdxInfo q = m.get(queueId);
-        for (int i = 0; i < q.blocks.size(); i++) {
-            q.blocks.get(i).dirty = false;
-        }
+    // pos = seq * 10, timestamp = seq * 100, size = seq + 1
+    private void append(long queueId, long seq) {
+        manager.append(queueId, seq, seq * 10, seq * 100, (int) seq + 1);
     }
 
-    @Test
-    void testAppendAndIdx() {
-        append(m, 1, 0);
-        append(m, 1, 1);
-        append(m, 1, 2);
-        QueueIdxInfo q = m.get(1);
-        assertEquals(3, q.nextSeq);
-        assertEquals(0, q.firstSeqInCache);
-        assertEquals(1, q.blocks.size());
-        assertEquals(3, q.blocks.getFirst().count);
-        assertFalse(q.blocks.getFirst().isFull());
-        assertTrue(q.blocks.getFirst().dirty);
-        assertIdxHit(1, 0);
-        assertIdxHit(1, 1);
-        assertIdxHit(1, 2);
+    private void assertHit(long queueId, long seq) {
+        assertEquals(seq * 10, manager.getIdxItemInCache(queueId, seq));
+        assertEquals(seq * 100, manager.lastGetTimestamp);
+        assertEquals((int) seq + 1, manager.lastGetSize);
     }
 
-    @Test
-    void testIdxMiss() {
-        assertEquals(-1, m.getIdxItemInCache(1, 0));
-        append(m, 1, 0);
-        append(m, 1, 1);
-        assertEquals(-1, m.getIdxItemInCache(2, 0));
-        assertEquals(-1, m.getIdxItemInCache(1, -1));
-        assertEquals(-1, m.getIdxItemInCache(1, 2));
-    }
-
-    @Test
-    void testBlockBoundary() {
-        for (int i = 0; i < 600; i++) {
-            append(m, 1, i);
-        }
-        QueueIdxInfo q = m.get(1);
-        assertEquals(600, q.nextSeq);
-        assertEquals(0, q.firstSeqInCache);
-        assertEquals(5, q.blocks.size());
-
-        MqIdxBlock b0 = q.blocks.get(0);
-        MqIdxBlock b4 = q.blocks.get(4);
-        assertEquals(0, b0.startSeq);
-        assertEquals(512, b4.startSeq);
-        assertEquals(128, b0.count);
-        assertEquals(88, b4.count);
-        assertTrue(b0.isFull());
-        assertFalse(b4.isFull());
-
-        assertIdxHit(1, 0);
-        assertIdxHit(1, 127);
-        assertIdxHit(1, 128);
-        assertIdxHit(1, 511);
-        assertIdxHit(1, 512);
-        assertIdxHit(1, 599);
-        assertEquals(-1, m.getIdxItemInCache(1, 600));
-    }
-
-    @Test
-    void testRestorePrefill() {
-        // the whole 4K block read from file; only records before nextSeq are decoded
-        m.register(1, 1000, buildBlockBuffer(896, 128));
-        QueueIdxInfo q = m.get(1);
-        assertEquals(896, q.firstSeqInCache);
-        MqIdxBlock b = q.blocks.getFirst();
-        assertEquals(896, b.startSeq);
-        assertEquals(104, b.count);
-        assertFalse(b.isFull());
-        // restored data is already on disk
-        assertFalse(b.dirty);
-
-        assertIdxHit(1, 896);
-        assertIdxHit(1, 999);
-        assertEquals(-1, m.getIdxItemInCache(1, 895));
-        assertEquals(-1, m.getIdxItemInCache(1, 1000));
-
-        for (int i = 1000; i < 1024; i++) {
-            append(m, 1, i);
-        }
-        assertTrue(b.isFull());
-        append(m, 1, 1024);
-        assertEquals(2, q.blocks.size());
-        assertEquals(1024, q.blocks.getLast().startSeq);
-        assertIdxHit(1, 1023);
-        assertIdxHit(1, 1024);
-    }
-
-    @Test
-    void testInstallNoPrefill() {
-        m.register(1, 300, null);
-        QueueIdxInfo q = m.get(1);
-        assertEquals(256, q.firstSeqInCache);
-        MqIdxBlock b = q.blocks.getFirst();
-        assertEquals(256, b.startSeq);
-        assertEquals(44, b.count);
-        // slots before nextSeq hold zero data; the upper layer guards the boundary
-        assertEquals(0, m.getIdxItemInCache(1, 299));
-
-        append(m, 1, 300);
-        assertIdxHit(1, 300);
-        assertEquals(45, b.count);
-    }
-
-    @Test
-    void testRegisterInvalidSrc() {
-        // bad buffer size
-        assertThrows(IllegalArgumentException.class,
-                () -> m.register(2, 300, ByteBuffer.allocate(100)));
-        // crc failure
-        ByteBuffer buf = buildBlockBuffer(256, 44);
-        buf.put(40, (byte) (buf.get(40) + 1));
-        assertThrows(RaftException.class, () -> m.register(2, 300, buf));
-        // aligned nextSeq: no data needed, src ignored
-        m.register(3, 256, buildBlockBuffer(256, 1));
-        assertEquals(256, m.get(3).firstSeqInCache);
-    }
-
-    @Test
-    void testAppendSeqContinuity() {
-        append(m, 1, 0);
-        append(m, 1, 1);
-        assertThrows(IllegalArgumentException.class, () -> append(m, 1, 3));
-        assertThrows(IllegalArgumentException.class, () -> append(m, 1, 1));
-        append(m, 1, 2);
-        assertEquals(3, m.get(1).nextSeq);
-        assertIdxHit(1, 2);
-    }
-
-    @Test
-    void testEvictionKeepTailBlock() {
-        m = new MqIdxManager(4);
-        for (int q = 1; q <= 3; q++) {
-            for (int i = 0; i < 1000; i++) {
-                append(m, q, i);
-            }
-            // 8 blocks per queue, 24 in total; all dirty so nothing is evicted yet
-            assertEquals(8, m.get(q).blocks.size());
-        }
-        m.evict();
-        assertEquals(24, m.get(1).blocks.size() + m.get(2).blocks.size() + m.get(3).blocks.size());
-
-        for (int q = 1; q <= 3; q++) {
-            cleanDirty(q);
-        }
-        m.evict();
-        // queue 1 and 2 drained to 1 block, queue 3 keeps 2
-        assertEquals(1, m.get(1).blocks.size());
-        assertEquals(896, m.get(1).firstSeqInCache);
-        assertEquals(1, m.get(2).blocks.size());
-        assertEquals(896, m.get(2).firstSeqInCache);
-        assertEquals(2, m.get(3).blocks.size());
-        assertEquals(768, m.get(3).firstSeqInCache);
-        assertEquals(-1, m.getIdxItemInCache(1, 100));
-        assertIdxHit(1, 896);
-        assertIdxHit(1, 999);
-        assertIdxHit(3, 768);
-        assertEquals(-1, m.getIdxItemInCache(3, 767));
-    }
-
-    @Test
-    void testEvictionGatedByDirty() {
-        m = new MqIdxManager(2);
-        for (int i = 0; i < 1000; i++) {
-            append(m, 1, i);
-        }
-        assertEquals(8, m.get(1).blocks.size());
-        m.evict();
-        // all blocks are dirty, nothing is evictable
-        assertEquals(8, m.get(1).blocks.size());
-
-        // clean the first two blocks only
-        m.get(1).blocks.get(0).dirty = false;
-        m.get(1).blocks.get(1).dirty = false;
-        m.evict();
-        assertEquals(6, m.get(1).blocks.size());
-        assertEquals(256, m.get(1).firstSeqInCache);
-        assertEquals(-1, m.getIdxItemInCache(1, 255));
-        assertIdxHit(1, 256);
-    }
-
-    @Test
-    void testReadNoTouch() {
-        m = new MqIdxManager(4);
-        for (int i = 0; i < 500; i++) {
-            append(m, 1, i);
-        }
-        for (int i = 0; i < 500; i++) {
-            append(m, 2, i);
-        }
-        cleanDirty(1);
-        cleanDirty(2);
-
-        // reads do not affect eviction order: queue 1's block was completed first and is the victim
-        assertIdxHit(1, 10);
-        m.append(3, 0, 3L, 6L, 4);
-        assertEquals(1, m.get(1).blocks.size());
-        assertEquals(384, m.get(1).firstSeqInCache);
-        assertEquals(2, m.get(2).blocks.size());
-        assertEquals(256, m.get(2).firstSeqInCache);
-        assertEquals(1, m.get(3).blocks.size());
-    }
-
-    @Test
-    void testRemove() {
-        for (int i = 0; i < 600; i++) {
-            append(m, 1, i);
-        }
-        for (int i = 0; i < 600; i++) {
-            append(m, 2, i);
-        }
-        // 4 full blocks + 1 append target block per queue
-        assertEquals(5, m.get(1).blocks.size());
-        assertEquals(5, m.get(2).blocks.size());
-
-        MqIdxBlock b = m.remove();
-        assertSame(m.get(1), b.owner);
-        assertEquals(0, b.startSeq);
-        assertEquals(4, m.get(1).blocks.size());
-        assertEquals(128, m.get(1).firstSeqInCache);
-        assertEquals(-1, m.getIdxItemInCache(1, 100));
-        assertIdxHit(1, 300);
-
-        assertEquals(128, m.remove().startSeq);
-        assertEquals(3, m.get(1).blocks.size());
-        assertEquals(256, m.get(1).firstSeqInCache);
-
-        assertEquals(256, m.remove().startSeq);
-        assertEquals(384, m.remove().startSeq);
-        assertEquals(0, m.remove().startSeq);
-        assertEquals(128, m.remove().startSeq);
-        assertEquals(256, m.remove().startSeq);
-        assertEquals(384, m.remove().startSeq);
-        assertNull(m.remove());
-        assertEquals(1, m.get(1).blocks.size());
-        assertEquals(1, m.get(2).blocks.size());
-    }
-
-    @Test
-    void testRegister() {
-        QueueIdxInfo q = m.register(7, 100, null);
-        assertSame(q, m.get(7));
-        assertEquals(100, q.nextSeq);
-        // the first block covers the window of nextSeq, head slots are invalid
-        assertEquals(0, q.firstSeqInCache);
-        assertEquals(1, q.blocks.size());
-        assertEquals(0, q.blocks.getFirst().startSeq);
-        assertEquals(100, q.blocks.getFirst().count);
-
-        // append auto-creates a queue with nextSeq 0
-        append(m, 2, 0);
-        QueueIdxInfo q2 = m.get(2);
-        assertEquals(1, q2.nextSeq);
-        assertIdxHit(2, 0);
-    }
-
-    @Test
-    void testAppendAfterFullEviction() {
-        // 256 records: both blocks are sealed and nextSeq is block-aligned, no tail block
-        for (int i = 0; i < 256; i++) {
-            append(m, 1, i);
-        }
-        assertEquals(2, m.get(1).blocks.size());
-        m.remove();
-        m.remove();
-        assertEquals(0, m.get(1).blocks.size());
-        assertEquals(256, m.get(1).firstSeqInCache);
-
-        // appending after the queue was fully evicted creates a new block
-        append(m, 1, 256);
-        assertEquals(1, m.get(1).blocks.size());
-        assertEquals(256, m.get(1).blocks.getLast().startSeq);
-        assertEquals(-1, m.getIdxItemInCache(1, 255));
-        assertIdxHit(1, 256);
-    }
-
-    @Test
-    void testAppendResetsDirty() {
-        for (int i = 0; i < 100; i++) {
-            append(m, 1, i);
-        }
-        // simulate the flush path cleaning the tail block
-        m.get(1).blocks.getLast().dirty = false;
-        append(m, 1, 100);
-        assertTrue(m.get(1).blocks.getLast().dirty);
-    }
-
-    /**
-     * Build a block buffer for the window starting at seqBase:
-     * pos = seq, timestamp = seq * 2, size = seq + 1.
-     */
-    private ByteBuffer buildBlockBuffer(long seqBase, int count) {
-        ByteBuffer buf = ByteBuffer.allocate(count * 32);
+    // a whole 4K block on disk, window starting at seqBase, same data mapping as append
+    private ByteBuffer buildBlockBuffer(long seqBase) {
+        ByteBuffer buf = ByteBuffer.allocate(MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN);
         CRC32C crc = new CRC32C();
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < MqIdxBlock.BLOCK_ITEMS; i++) {
             long seq = seqBase + i;
             int recStart = buf.position();
-            buf.putLong(seq);
-            buf.putLong(seq * 2L);
+            buf.putLong(seq * 10);
+            buf.putLong(seq * 100);
             buf.putLong(0L);
             buf.putInt((int) seq + 1);
             crc.reset();
-            crc.update(buf.array(), recStart, 28);
+            crc.update(buf.array(), recStart, MqIdxManager.ITEM_LEN - 4);
             buf.putInt((int) crc.getValue());
         }
         buf.flip();
         return buf;
+    }
+
+    @Test
+    void testConfigValidation() {
+        assertInvalid(c -> c.mqIdxItemsPerFile = 0);
+        assertInvalid(c -> c.mqIdxItemsPerFile = 100);
+        assertInvalid(c -> c.mqIdxFlushBatchItems = 64);
+        assertInvalid(c -> c.mqIdxFlushIntervalMillis = 0);
+        assertInvalid(c -> c.mqIdxFlushAllConcurrency = 0);
+        assertInvalid(c -> c.mqIdxFlushThreshold = 0);
+        assertInvalid(c -> c.mqIdxCacheBlocks = 0);
+    }
+
+    private void assertInvalid(Consumer<RaftGroupConfigEx> mutator) {
+        RaftGroupConfigEx c = newConfig();
+        mutator.accept(c);
+        // invalid configs are rejected before the flusher (and its fibers) is created
+        assertThrows(IllegalArgumentException.class, () -> new MqIdxManager(c, dir));
+    }
+
+    @Test
+    void testAppendAndGetIdx() {
+        for (int i = 0; i < 600; i++) {
+            append(1, i);
+        }
+        QueueIdxInfo q = manager.get(1);
+        assertEquals(600, q.nextSeq);
+        assertEquals(0, q.firstSeqInCache);
+        assertEquals(5, q.blocks.size());
+        assertEquals(0, q.blocks.get(0).startSeq);
+        assertEquals(512, q.blocks.get(4).startSeq);
+        assertEquals(88, q.blocks.get(4).count);
+
+        assertHit(1, 0);
+        assertHit(1, 127);
+        assertHit(1, 128);
+        assertHit(1, 599);
+        assertEquals(-1, manager.getIdxItemInCache(2, 0));
+        assertEquals(-1, manager.getIdxItemInCache(1, -1));
+        assertEquals(-1, manager.getIdxItemInCache(1, 600));
+        assertTrue(q.isDirty());
+
+        append(2, 0);
+        append(2, 1);
+        assertEquals(2, manager.get(2).nextSeq);
+        assertHit(2, 1);
+        assertHit(1, 0);
+    }
+
+    @Test
+    void testAppendSeqContinuity() {
+        append(1, 0);
+        assertThrows(IllegalArgumentException.class, () -> append(1, 2));
+        assertThrows(IllegalArgumentException.class, () -> append(1, 0));
+        append(1, 1);
+        assertEquals(2, manager.get(1).nextSeq);
+        assertHit(1, 1);
+    }
+
+    @Test
+    void testRegister() {
+        // restart: src holds the on-disk block of the nextSeq window
+        manager.register(1, 1000, buildBlockBuffer(896));
+        QueueIdxInfo q = manager.get(1);
+        assertEquals(1000, q.nextSeq);
+        assertEquals(896, q.firstSeqInCache);
+        assertEquals(1, q.blocks.size());
+        MqIdxBlock b = q.blocks.getFirst();
+        assertEquals(896, b.startSeq);
+        assertEquals(104, b.count);
+        assertHit(1, 896);
+        assertHit(1, 999);
+        assertEquals(-1, manager.getIdxItemInCache(1, 895));
+        assertEquals(-1, manager.getIdxItemInCache(1, 1000));
+        // continue appending into the restored block
+        for (int i = 1000; i < 1025; i++) {
+            append(1, i);
+        }
+        assertEquals(2, q.blocks.size());
+        assertEquals(1024, q.blocks.getLast().startSeq);
+        assertHit(1, 1023);
+        assertHit(1, 1024);
+
+        // install snapshot: no src, head slots of the window block stay zero
+        manager.register(2, 300, null);
+        QueueIdxInfo q2 = manager.get(2);
+        assertEquals(256, q2.firstSeqInCache);
+        assertEquals(44, q2.blocks.getFirst().count);
+        assertEquals(0, manager.getIdxItemInCache(2, 299));
+        append(2, 300);
+        assertHit(2, 300);
+
+        // block-aligned nextSeq: src carries no decodable items
+        manager.register(3, 256, buildBlockBuffer(256));
+        assertEquals(256, manager.get(3).firstSeqInCache);
+        assertEquals(-1, manager.getIdxItemInCache(3, 255));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> manager.register(4, 300, ByteBuffer.allocate(100)));
+        ByteBuffer corrupted = buildBlockBuffer(256);
+        corrupted.put(40, (byte) (corrupted.get(40) + 1));
+        assertThrows(RaftException.class, () -> manager.register(4, 300, corrupted));
+    }
+
+    @Test
+    void testEviction() throws Exception {
+        config.mqIdxCacheBlocks = 2;
+        manager = createManager(config);
+        for (int i = 0; i < 600; i++) {
+            append(1, i);
+        }
+        QueueIdxInfo q = manager.get(1);
+        // over capacity, but eviction is gated by writeFinishSeq
+        assertEquals(5, q.blocks.size());
+
+        q.writeFinishSeq = 127;
+        manager.evict();
+        assertEquals(4, q.blocks.size());
+        assertEquals(128, q.firstSeqInCache);
+        assertEquals(-1, manager.getIdxItemInCache(1, 127));
+        assertHit(1, 128);
+
+        q.writeFinishSeq = 511;
+        manager.evict();
+        assertEquals(2, q.blocks.size());
+        assertEquals(384, q.firstSeqInCache);
+        assertEquals(-1, manager.getIdxItemInCache(1, 383));
+        assertHit(1, 384);
+        assertHit(1, 599);
+    }
+
+    @Test
+    void testEvictionCrossQueue() throws Exception {
+        config.mqIdxCacheBlocks = 1;
+        manager = createManager(config);
+        for (int i = 0; i < 128; i++) {
+            append(1, i);
+        }
+        for (int i = 0; i < 256; i++) {
+            append(2, i);
+        }
+        QueueIdxInfo q2 = manager.get(2);
+        // global fifo: queue 1's unflushed head blocks queue 2's flushed blocks
+        q2.writeFinishSeq = 255;
+        manager.evict();
+        assertEquals(2, q2.blocks.size());
+
+        manager.get(1).writeFinishSeq = 127;
+        manager.evict();
+        assertEquals(0, manager.get(1).blocks.size());
+        assertEquals(1, q2.blocks.size());
+        assertEquals(128, q2.firstSeqInCache);
+    }
+
+    @Test
+    void testRemove() {
+        for (int i = 0; i < 256; i++) {
+            append(1, i);
+        }
+        for (int i = 0; i < 384; i++) {
+            append(2, i);
+        }
+        // the fifo holds sealed blocks in seal order
+        long[][] expected = {{1, 0}, {1, 128}, {2, 0}, {2, 128}, {2, 256}};
+        for (long[] e : expected) {
+            MqIdxBlock b = manager.remove();
+            assertNotNull(b);
+            assertEquals(e[0], b.owner.queueId);
+            assertEquals(e[1], b.startSeq);
+        }
+        assertNull(manager.remove());
+        assertEquals(0, manager.get(1).blocks.size());
+        assertEquals(256, manager.get(1).firstSeqInCache);
+        assertEquals(0, manager.get(2).blocks.size());
+        assertEquals(384, manager.get(2).firstSeqInCache);
+
+        // append after the queue was fully evicted creates a new block
+        append(1, 256);
+        assertEquals(1, manager.get(1).blocks.size());
+        assertEquals(256, manager.get(1).blocks.getLast().startSeq);
+        assertEquals(-1, manager.getIdxItemInCache(1, 255));
+        assertHit(1, 256);
     }
 }

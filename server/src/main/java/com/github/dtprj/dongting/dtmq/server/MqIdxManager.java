@@ -15,24 +15,34 @@
  */
 package com.github.dtprj.dongting.dtmq.server;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.store.FileQueue;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
 /**
- * In-memory tail cache for mq idx entries, keyed by queueId. Not thread-safe.
+ * Mq idx storage of a raft group, keyed by queueId: the queue map, the global block FIFO
+ * and eviction. Flushing is driven by {@link MqIdxFlusher}. Not thread-safe.
  *
  * @author huangli
  */
 class MqIdxManager {
 
-    private static final int ITEM_LEN = 32;
+    static final int ITEM_LEN = 32;
 
-    private final LongObjMap<QueueIdxInfo> queues = new LongObjMap<>();
+    final RaftGroupConfigEx groupConfig;
+    final File dir;
+    final MqIdxFlusher flusher;
+
+    final LongObjMap<QueueIdxInfo> queues = new LongObjMap<>();
 
     private final int maxCachedBlocks;
 
@@ -42,9 +52,32 @@ class MqIdxManager {
     long lastGetTimestamp;
     int lastGetSize;
 
-    MqIdxManager(int maxCachedBlocks) {
-        this.maxCachedBlocks = maxCachedBlocks;
+    MqIdxManager(RaftGroupConfigEx groupConfig, File dir) {
+        this.groupConfig = groupConfig;
+        this.dir = dir;
+        DtUtil.checkPositive(groupConfig.mqIdxItemsPerFile, "mqIdxItemsPerFile");
+        if (groupConfig.mqIdxItemsPerFile % MqIdxBlock.BLOCK_ITEMS != 0) {
+            // flushes write whole blocks, so file boundaries must align to block boundaries
+            throw new IllegalArgumentException("mqIdxItemsPerFile must be a multiple of "
+                    + MqIdxBlock.BLOCK_ITEMS + ": " + groupConfig.mqIdxItemsPerFile);
+        }
+        if (groupConfig.mqIdxFlushBatchItems < MqIdxBlock.BLOCK_ITEMS) {
+            // a batch starts at the block-aligned writeFinishSeq+1, so a smaller cap
+            // could not advance past a mid-block writeFinishSeq
+            throw new IllegalArgumentException("mqIdxFlushBatchItems must be at least "
+                    + MqIdxBlock.BLOCK_ITEMS + ": " + groupConfig.mqIdxFlushBatchItems);
+        }
+        DtUtil.checkPositive(groupConfig.mqIdxFlushIntervalMillis, "mqIdxFlushIntervalMillis");
+        DtUtil.checkPositive(groupConfig.mqIdxFlushAllConcurrency, "mqIdxFlushAllConcurrency");
+        DtUtil.checkPositive(groupConfig.mqIdxFlushThreshold, "mqIdxFlushThreshold");
+        DtUtil.checkPositive(groupConfig.mqIdxCacheBlocks, "mqIdxCacheBlocks");
+        this.maxCachedBlocks = groupConfig.mqIdxCacheBlocks;
         this.fifo = new IndexedQueue<>(maxCachedBlocks);
+        this.flusher = new MqIdxFlusher(this);
+    }
+
+    void start() {
+        flusher.start();
     }
 
     QueueIdxInfo get(long queueId) {
@@ -52,18 +85,21 @@ class MqIdxManager {
     }
 
     /**
-     * Register a queue from a snapshot. On restart, src holds the block data read from the idx
-     * file (from offset firstSeqInCache * 32, the whole 4K block or the valid prefix); on
-     * install, src is null and the head slots of the first block stay invalid.
+     * Registers a queue from a snapshot. On restart, src holds the block read from the
+     * idx file; only the first {@code nextSeq & 127} items are decoded, guaranteed on
+     * disk since save-snapshot flushes before persisting nextSeq. On install, src is
+     * null and the head slots of the first block stay invalid.
+     * <p>
+     * Only called on a fresh manager: install closes the old manager and rebuilds it
+     * before re-registering, so a queue entry is never replaced in place.
      */
     QueueIdxInfo register(long queueId, long nextSeq, ByteBuffer src) {
         QueueIdxInfo q = new QueueIdxInfo(this, queueId, nextSeq);
         if (src != null) {
-            int itemCount = (int) (nextSeq & MqIdxBlock.BLOCK_MASK);
-            if (src.limit() < itemCount * ITEM_LEN) {
+            if (src.limit() < MqIdxBlock.BLOCK_ITEMS * ITEM_LEN) {
                 throw new IllegalArgumentException("bad buffer size " + src.limit());
             }
-            decode(src, itemCount, q.blocks.getFirst());
+            decode(src, (int) (nextSeq & MqIdxBlock.BLOCK_MASK), q.blocks.getFirst());
         }
         queues.put(queueId, q);
         return q;
@@ -72,7 +108,7 @@ class MqIdxManager {
     void append(long queueId, long seq, long pos, long timestamp, int itemSize) {
         QueueIdxInfo q = queues.get(queueId);
         if (q == null) {
-            q = new QueueIdxInfo(this, queueId);
+            q = new QueueIdxInfo(this, queueId, 0);
             queues.put(queueId, q);
         }
         q.append(seq, pos, timestamp, itemSize);
@@ -128,8 +164,8 @@ class MqIdxManager {
     }
 
     /**
-     * Removes and returns the fifo head block, or null. If the block is dirty, the caller must
-     * wait for its pending flush to complete before dropping it.
+     * Removes and returns the fifo head block, or null. The caller must ensure the block is
+     * fully flushed before dropping it.
      */
     MqIdxBlock remove() {
         MqIdxBlock b = fifo.pollFirst();
@@ -142,16 +178,25 @@ class MqIdxManager {
     }
 
     /**
-     * Discards clean blocks while over the threshold; stops at a dirty block. Called when a
-     * block is created, and by the flush path after clearing dirty flags.
+     * Discards flushed blocks while over the threshold; stops at the first block not fully
+     * flushed. Called when a block is created, and by the flush path when writeFinishSeq advances.
      */
     void evict() {
         while (totalBlockCount > maxCachedBlocks) {
             MqIdxBlock b = fifo.getFirst();
-            if (b == null || b.dirty) {
+            if (b == null || b.owner.writeFinishSeq< b.lastSeq()) {
                 return;
             }
             remove();
         }
+    }
+
+    FiberFuture<Void> close() {
+        return flusher.close();
+    }
+
+    FiberFuture<Void> destroyAllBeforeInstallSnapshot() {
+        return flusher.close().composeFrame("destroyMqIdx",
+                v -> new FileQueue.DeleteFrame(dir, groupConfig.blockIoExecutor, true, true));
     }
 }
