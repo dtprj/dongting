@@ -72,10 +72,9 @@ For encapsulation purposes, some classes have a single implementation:
 All Java files must include Apache 2.0 license header (17 lines)
 
 ### Comments
-- Java source code and comments: **English only**
-- Add comments only when necessary 
-- Code is the best documentation. Keep comments concise.
+- Do not add comments on your own initiative; correcting existing comments that are inconsistent with the code is allowed
 - Don't delete existing comments unless they are no longer relevant
+- Java source code and comments: **English only**
 
 ### Field Access Pattern
 - Internal usage: Access public/package-private fields directly
