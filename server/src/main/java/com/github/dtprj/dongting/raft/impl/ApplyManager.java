@@ -41,6 +41,7 @@ import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
+import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -50,6 +51,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptySet;
 
@@ -58,6 +60,8 @@ import static java.util.Collections.emptySet;
  */
 public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<Void>>> {
     private static final DtLog log = DtLogs.getLogger(ApplyManager.class);
+
+    static final int MAX_PENDING_TASKS = 2000;
 
     private final GroupComponents gc;
     private final Timestamp ts;
@@ -71,7 +75,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     private boolean waitApply;
     final FiberCondition applyFinishCond;
     private final FiberCondition applyMonitorCond;
-    private final LinkedList<RaftTask> heartBeatQueue = new LinkedList<>();
+    private final FiberCondition flowControlCond;
+    final ArrayDeque<RaftTask> pendingTasks = new ArrayDeque<>(MAX_PENDING_TASKS);
+    private final BiConsumer<Object, Throwable> applyFinishCallback = (result, ex) -> drainPendingTasks();
 
     private long initCommitIndex;
 
@@ -96,6 +102,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         this.needApplyCond = fiberGroup.newCondition("needApply");
         this.applyFinishCond = fiberGroup.newCondition("applyFinish");
         this.applyMonitorCond = fiberGroup.newCondition("applyMonitor");
+        this.flowControlCond = fiberGroup.newCondition("applyFlowControl");
     }
 
     @Override
@@ -147,6 +154,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     public void wakeupApply() {
         needApplyCond.signalAll();
+        flowControlCond.signalAll();
     }
 
     public void shutdown(DtTime timeout) {
@@ -178,7 +186,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             case LogHeader.TYPE_LOG_READ: {
                 if (rt.readOnly && rt.callback == null) {
                     // no need to execute read only task if no one wait for result
-                    afterExec(index, rt, null, null);
+                    rt.execFuture = null;
+                    pendingTasks.addLast(rt);
+                    drainPendingTasks();
                 } else {
                     long t = perfCallback.takeTimeAndRefresh(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, ts);
                     FiberFuture<Object> f = null;
@@ -190,13 +200,19 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                         execEx = e;
                     }
                     if (execEx != null) {
-                        afterExec(index, rt, null, execEx);
+                        if (rt.readOnly) {
+                            rt.execFuture = FiberFuture.failedFuture(fiberGroup, execEx);
+                            rt.perfTime = t;
+                            pendingTasks.addLast(rt);
+                            drainPendingTasks();
+                        } else {
+                            throw Fiber.fatal(execEx);
+                        }
                     } else if (f != null) {
-                        f.registerCallback((result, ex) -> {
-                            // the callback may not run in raft thread, so not access ts
-                            perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t, 1, 0);
-                            afterExec(index, rt, result, ex);
-                        });
+                        rt.execFuture = f;
+                        rt.perfTime = t;
+                        pendingTasks.addLast(rt);
+                        f.registerCallback(applyFinishCallback);
                     } else {
                         throw Fiber.fatal(new RaftException("statemachine exec return null future"));
                     }
@@ -205,8 +221,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             }
             default:
                 // heart beat, no need to exec
-                heartBeatQueue.addLast(rt);
-                tryApplyHeartBeat(raftStatus.getLastApplied());
+                rt.execFuture = null;
+                pendingTasks.addLast(rt);
+                drainPendingTasks();
                 return Fiber.resume(null, resumePoint);
         }
     }
@@ -327,7 +344,6 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         if (waitApply) {
             applyFinishCond.signal();
         }
-        tryApplyHeartBeat(index);
     }
 
     private void updateApplyLagNanos(long index, RaftStatusImpl raftStatus) {
@@ -344,11 +360,28 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         }
     }
 
-    private void tryApplyHeartBeat(long appliedIndex) {
-        RaftTask t = heartBeatQueue.peekFirst();
-        if (t != null && t.reqData.index == appliedIndex + 1) {
-            heartBeatQueue.pollFirst();
-            afterExec(appliedIndex + 1, t, null, null);
+    private void drainPendingTasks() {
+        while (!pendingTasks.isEmpty()) {
+            RaftTask rt = pendingTasks.peekFirst();
+            long index = rt.reqData.index;
+            if (index <= raftStatus.getLastApplied()) {
+                throw Fiber.fatal(new RaftException("stale pending task: groupId=" + raftStatus.groupId
+                        + ", index=" + index + ", lastApplied=" + raftStatus.getLastApplied()));
+            }
+            FiberFuture<Object> f = rt.execFuture;
+            if (f != null && !f.isDone()) {
+                break;
+            }
+            pendingTasks.pollFirst();
+            if (f != null) {
+                perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, rt.perfTime, 1, 0);
+                afterExec(index, rt, f.getResult(), f.getEx());
+            } else {
+                afterExec(index, rt, null, null);
+            }
+        }
+        if (pendingTasks.size() < MAX_PENDING_TASKS) {
+            flowControlCond.signalAll();
         }
     }
 
@@ -356,8 +389,28 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         return raftStatus.installSnapshot || shutdown;
     }
 
-    public Fiber getApplyFiber() {
-        return applyFiber;
+    public FiberFrame<Void> waitApplyStop() {
+        return new StopApplyFrame();
+    }
+
+    private class StopApplyFrame extends FiberFrame<Void> {
+        private boolean logged;
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (!applyFiber.isFinished()) {
+                return applyFiber.join(this);
+            }
+            if (!pendingTasks.isEmpty()) {
+                if (!logged) {
+                    log.info("wait pending tasks to drain, groupId={}, pendingSize={}",
+                            raftStatus.groupId, pendingTasks.size());
+                    logged = true;
+                }
+                return flowControlCond.await(1000, this);
+            }
+            return Fiber.frameReturn();
+        }
     }
 
     public void signalStartApply() {
@@ -414,6 +467,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             }
             if (execCount >= 100) {
                 return Fiber.yield(this);
+            }
+            if (pendingTasks.size() >= MAX_PENDING_TASKS) {
+                return flowControlCond.await(this);
             }
             RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
             long diff = raftStatus.commitIndex - raftStatus.lastApplying;
@@ -490,6 +546,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             }
             if (listIndex >= items.size()) {
                 return Fiber.frameReturn();
+            }
+            if (pendingTasks.size() >= MAX_PENDING_TASKS) {
+                return flowControlCond.await(this);
             }
             RaftTask rt = items.get(listIndex++);
 

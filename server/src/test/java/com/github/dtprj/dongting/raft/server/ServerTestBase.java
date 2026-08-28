@@ -187,13 +187,17 @@ public class ServerTestBase {
     protected void config(KvServerConfig config) {
     }
 
+    protected StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
+        KvServerConfig config = new KvServerConfig();
+        config(config);
+        return new DtKV(groupConfig, config);
+    }
+
     private DefaultRaftFactory createRaftFactory(int nodeId) {
         return new DefaultRaftFactory(DefaultPoolFactory.INSTANCE) {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
-                KvServerConfig config = new KvServerConfig();
-                config(config);
-                return new DtKV(groupConfig, config);
+                return ServerTestBase.this.createStateMachine(groupConfig);
             }
 
             @Override

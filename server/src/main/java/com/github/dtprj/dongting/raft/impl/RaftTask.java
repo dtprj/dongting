@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -29,7 +30,10 @@ import java.nio.ByteBuffer;
  */
 public class RaftTask extends RaftInput implements Encodable {
 
+    // used by LinearTaskRunner (submit to append latency), then reused by ApplyManager (state machine exec latency)
     long perfTime;
+
+    FiberFuture<Object> execFuture;
 
     public long raftLogPosition;
     public long localCreateNanos;
