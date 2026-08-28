@@ -65,6 +65,7 @@ For encapsulation purposes, some classes have a single implementation:
 - Framework: JUnit 6 (org.junit.jupiter)
 - Use `Tick.tick(millis)` to scale timeouts based on `-Dtick=N`
 - Use `WaitUtil.waitUtil()` for polling conditions
+- In unit tests, do not sleep longer than `Thread.sleep(tick(5))` unless necessary
 
 ## Coding Conventions
 
