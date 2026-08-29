@@ -36,11 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.zip.CRC32C;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -51,7 +47,6 @@ class MqIdxFlusherTest extends BaseFiberTest {
 
     private File dir;
     private RaftGroupConfigEx config;
-    private RaftStatusImpl raftStatus;
     private MqIdxManager manager;
 
     @BeforeEach
@@ -59,7 +54,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
         dir = TestDir.createTestDir(MqIdxFlusherTest.class.getSimpleName());
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.blockIoExecutor = MockExecutors.ioExecutor();
-        raftStatus = new RaftStatusImpl(1, dispatcher.ts);
+        RaftStatusImpl raftStatus = new RaftStatusImpl(1, dispatcher.ts);
         c.raftStatus = raftStatus;
         c.ts = raftStatus.ts;
         c.fiberGroup = fiberGroup;
@@ -80,7 +75,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
     // dispatcher thread only; pos = seq * 10, timestamp = seq * 100, size = seq + 1
     private void appendItems(long queueId, int fromInclusive, int toExclusive) {
         for (long seq = fromInclusive; seq < toExclusive; seq++) {
-            manager.append(queueId, seq, seq * 10, seq * 100, (int) seq + 1);
+            manager.append(queueId, seq * 10, seq * 100, (int) seq + 1);
         }
     }
 
@@ -91,7 +86,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 if (cond.getAsBoolean()) {
                     return Fiber.frameReturn();
                 }
-                return Fiber.sleep(5, this);
+                return Fiber.sleep(1, this);
             }
         };
     }
@@ -289,8 +284,9 @@ class MqIdxFlusherTest extends BaseFiberTest {
         // the block of the nextSeq(400) window: seq 384..511, second half of file 1
         byte[] block = Arrays.copyOfRange(readFile(1, FILE_SIZE), 4096, 8192);
         manager = createManager();
-        manager.register(1, 400, ByteBuffer.wrap(block));
+        manager.register(1, 400);
         QueueIdxInfo q = manager.get(1);
+        q.installHeadBlock(ByteBuffer.wrap(block));
         assertEquals(384, q.firstSeqInCache);
         assertEquals(384 * 10, manager.getIdxItemInCache(1, 384));
         assertEquals(399 * 10, manager.getIdxItemInCache(1, 399));
@@ -336,27 +332,6 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 assertTrue(f.isDone());
                 assertInstanceOf(RaftException.class, f.getEx());
                 return Fiber.frameReturn();
-            }
-        });
-    }
-
-    @Test
-    void testInstallSnapshotGuard() throws Exception {
-        manager = createManager();
-        doInFiber(new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                manager.start();
-                appendItems(1, 0, 10);
-                raftStatus.installSnapshot = true;
-                QueueIdxInfo q = manager.get(1);
-                manager.flusher.startRound(q, true, 9);
-                assertFalse(q.flushing);
-                FiberFuture<Void> f = manager.flusher.flushAll();
-                assertTrue(f.isDone());
-                assertInstanceOf(RaftException.class, f.getEx());
-                raftStatus.installSnapshot = false;
-                return manager.close().await(this::justReturn);
             }
         });
     }

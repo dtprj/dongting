@@ -270,6 +270,11 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
+    public FiberFuture<Void> startInstall(boolean clean) {
+        return FiberFuture.completedFuture(mainFiberGroup, null);
+    }
+
+    @Override
     public FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset,
                                              boolean done, ByteBuffer data) {
         FiberFuture<Void> f = mainFiberGroup.newFuture("dtkv-install-snapshot");

@@ -16,14 +16,22 @@
 package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.FutureFrame;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.store.FileQueue;
 import com.github.dtprj.dongting.raft.store.LogFile;
+import com.github.dtprj.dongting.raft.store.RetryFrame;
 
 import java.io.File;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
@@ -32,6 +40,8 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 final class QueueIdxInfo extends FileQueue {
+
+    private static final int DISK_BLOCK_BYTES = MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN;
 
     final MqIdxManager manager;
     final long queueId;
@@ -46,6 +56,9 @@ final class QueueIdxInfo extends FileQueue {
     boolean flushing;
     long flushTargetSeq;
     boolean flushForce;
+
+    boolean needLoadHead;
+    FiberFuture<Void> loadFuture;
 
     final IndexedQueue<MqIdxBlock> blocks = new IndexedQueue<>(2);
 
@@ -71,13 +84,11 @@ final class QueueIdxInfo extends FileQueue {
         this.manager = manager;
         this.queueId = queueId;
         this.nextSeq = nextSeq;
-        long startSeq = nextSeq & ~((long) MqIdxBlock.BLOCK_MASK);
-        this.firstSeqInCache = startSeq;
-        this.forceFinishSeq = startSeq - 1;
-        this.writeFinishSeq = startSeq - 1;
-        this.flushTargetSeq = startSeq - 1;
-        blocks.addLast(new MqIdxBlock(this, startSeq, (int) (nextSeq - startSeq)));
-        manager.onNewBlock();
+        this.firstSeqInCache = nextSeq & ~((long) MqIdxBlock.BLOCK_MASK);
+        this.forceFinishSeq = nextSeq - 1;
+        this.writeFinishSeq = nextSeq - 1;
+        this.flushTargetSeq = nextSeq - 1;
+        this.needLoadHead = (nextSeq & MqIdxBlock.BLOCK_MASK) != 0;
     }
 
     long seqToPos(long seq) {
@@ -89,7 +100,7 @@ final class QueueIdxInfo extends FileQueue {
     }
 
     MqIdxBlock getBlock(long seq) {
-        if (seq < firstSeqInCache || seq >= nextSeq) {
+        if (blocks.getFirst() == null || seq < firstSeqInCache || seq >= nextSeq) {
             return null;
         }
         return blocks.get(blockIndexOf(seq));
@@ -113,9 +124,12 @@ final class QueueIdxInfo extends FileQueue {
             throw new IllegalArgumentException("seq not continuous: queue=" + queueId
                     + ", seq=" + seq + ", nextSeq=" + nextSeq);
         }
+        if (needLoadHead) {
+            throw new DtBugException("append before head block loaded: queue=" + queueId);
+        }
         MqIdxBlock b = blocks.getLast();
         if (b == null || b.isFull()) {
-            // null: the queue was fully evicted (only happens when nextSeq is block-aligned)
+            // null: no block yet, or the queue was fully evicted (both imply nextSeq is aligned)
             manager.onNewBlock();
             b = new MqIdxBlock(this, nextSeq, 0);
             blocks.addLast(b);
@@ -125,6 +139,91 @@ final class QueueIdxInfo extends FileQueue {
         if (b.isFull()) {
             manager.onSeal(b);
             manager.flusher.maybeStartRound(this);
+        }
+    }
+
+    FiberFuture<Void> ensureHeadLoaded() {
+        if (!needLoadHead && loadFuture == null) {
+            return null;
+        }
+        if (loadFuture == null) {
+            loadFuture = loadHeadBlock();
+            loadFuture.registerCallback((v, ex) -> loadFuture = null);
+        }
+        return loadFuture;
+    }
+
+    FiberFuture<Void> loadHeadBlock() {
+        RetryFrame<Void> rf = new RetryFrame<>(new LoadHeadFrame(),
+                manager.groupConfig.ioRetryInterval, false, () -> manager.markClose);
+        return FutureFrame.startWaitFiber("mqIdxHeadLoad-" + queueId,
+                manager.groupConfig.fiberGroup, rf);
+    }
+
+    private class LoadHeadFrame extends FiberFrame<Void> {
+        private RefBuffer bufRef;
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            long startSeq = nextSeq & ~((long) MqIdxBlock.BLOCK_MASK);
+            long blockPos = seqToPos(startSeq);
+            File file = createFileByStartPos(startPosOfFile(blockPos));
+            int offsetInFile = (int) (blockPos & fileLenMask);
+            if (bufRef == null) {
+                bufRef = manager.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowLocal(DISK_BLOCK_BYTES);
+            }
+            FiberFuture<Boolean> f = manager.groupConfig.fiberGroup.newFuture("mqIdxBlockLoad");
+            try {
+                manager.groupConfig.blockIoExecutor.execute(() -> loadBlock(f, file, offsetInFile, bufRef));
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+            return f.await(this::afterLoad);
+        }
+
+        private FrameCallResult afterLoad(Boolean loaded) {
+            installHeadBlock(Boolean.TRUE.equals(loaded) ? bufRef.getBuffer() : null);
+            return Fiber.frameReturn();
+        }
+
+        @Override
+        protected FrameCallResult doFinally() {
+            if (bufRef != null) {
+                bufRef.release();
+                bufRef = null;
+            }
+            return Fiber.frameReturn();
+        }
+    }
+
+    void installHeadBlock(ByteBuffer src) {
+        long startSeq = nextSeq & ~((long) MqIdxBlock.BLOCK_MASK);
+        int count = (int) (nextSeq & MqIdxBlock.BLOCK_MASK);
+        MqIdxBlock b = new MqIdxBlock(this, startSeq, count);
+        if (src != null) {
+            MqIdxManager.decode(src, count, b);
+        }
+        manager.onNewBlock();
+        blocks.addLast(b);
+        firstSeqInCache = startSeq;
+        needLoadHead = false;
+    }
+
+    private void loadBlock(FiberFuture<Boolean> f, File file, int offsetInFile, RefBuffer bufRef) {
+        try {
+            if (!file.isFile()) {
+                f.fireComplete(false);
+                return;
+            }
+            ByteBuffer buf = bufRef.getBuffer();
+            try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+                raf.seek(offsetInFile);
+                raf.readFully(buf.array(), buf.arrayOffset(), DISK_BLOCK_BYTES);
+            }
+            f.fireComplete(true);
+        } catch (Throwable t) {
+            f.fireCompleteExceptionally(new RaftException(
+                    "load mq idx block fail: " + file.getPath() + ", offset=" + offsetInFile, t));
         }
     }
 

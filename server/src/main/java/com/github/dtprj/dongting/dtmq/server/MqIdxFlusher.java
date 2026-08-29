@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.LogFile;
@@ -53,7 +52,6 @@ class MqIdxFlusher {
 
     private final MqIdxManager manager;
     private final RaftGroupConfigEx groupConfig;
-    private final RaftStatusImpl raftStatus;
 
     private final Fiber flushAllFiber;
     private final FiberCondition requestCond;
@@ -61,7 +59,6 @@ class MqIdxFlusher {
     private final FiberCondition allocRetryCond;
     private final ArrayList<Pair<Long, FiberFuture<Void>>> waiters = new ArrayList<>();
 
-    private boolean markClose;
     private FiberFuture<Void> closeFuture;
     private int activeRounds;
     private int forceRounds;
@@ -69,16 +66,12 @@ class MqIdxFlusher {
     private long finishedVersion;
     private long lastTickNanos;
 
-    private final Supplier<Boolean> cancelRetryIndicator = this::shouldCancelRetry;
-
-    private boolean shouldCancelRetry() {
-        return markClose || raftStatus.installSnapshot;
-    }
+    private final Supplier<Boolean> cancelRetryIndicator;
 
     MqIdxFlusher(MqIdxManager manager) {
         this.manager = manager;
+        this.cancelRetryIndicator = () -> manager.markClose;
         this.groupConfig = manager.groupConfig;
-        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.flushAllFiber = new Fiber("mqIdxFlushAll-" + groupConfig.groupId,
                 groupConfig.fiberGroup, new FlushLoopFrame());
         this.requestCond = groupConfig.fiberGroup.newCondition("mqIdxFlushRequest");
@@ -98,7 +91,7 @@ class MqIdxFlusher {
     }
 
     void startRound(QueueIdxInfo q, boolean force, long targetSeq) {
-        if (markClose || raftStatus.installSnapshot || q.flushing) {
+        if (manager.markClose || q.flushing) {
             return;
         }
         q.flushing = true;
@@ -113,7 +106,7 @@ class MqIdxFlusher {
 
     FiberFuture<Void> flushAll() {
         FiberFuture<Void> f = groupConfig.fiberGroup.newFuture("mqIdxFlushAll");
-        if (markClose || raftStatus.installSnapshot || !flushAllFiber.isStarted()) {
+        if (manager.markClose || !flushAllFiber.isStarted()) {
             f.fireCompleteExceptionally(new RaftException("mq idx flusher is not running"));
         } else {
             requestVersion++;
@@ -141,11 +134,14 @@ class MqIdxFlusher {
         waiters.clear();
     }
 
+    /**
+     * Must be idempotent.
+     */
     FiberFuture<Void> close() {
         if (closeFuture != null) {
             return closeFuture;
         }
-        markClose = true;
+        manager.markClose = true;
         requestCond.signal();
         roundCond.signalAll();
         allocRetryCond.signalAll();
@@ -156,7 +152,7 @@ class MqIdxFlusher {
     }
 
     private void continueRound(QueueIdxInfo q) {
-        if (markClose || raftStatus.installSnapshot || !roundIncomplete(q)) {
+        if (manager.markClose || !roundIncomplete(q)) {
             endRound(q);
             return;
         }
@@ -229,7 +225,7 @@ class MqIdxFlusher {
             }
             b.logFile.decWriters();
             if (ex != null) {
-                // io is retried forever, so an error means closing or installing
+                // io is retried forever, so an error means closing
                 log.warn("give up mq idx io: queue={}, file={}", q.queueId,
                         b.logFile.getFile().getPath(), ex);
                 endRound(q);
@@ -260,9 +256,9 @@ class MqIdxFlusher {
     private void onAllocated(QueueIdxInfo q, LogFile lf, Throwable ex) {
         try {
             if (ex == null) {
-                if (markClose || raftStatus.installSnapshot) {
-                    // don't attach to the closing file queue; the file on disk is deleted
-                    // by install, or re-extended by restart load
+                if (manager.markClose) {
+                    // don't attach to the closing file queue; the file on disk is removed
+                    // by the following destroy, or re-extended by a later allocation
                     lf.destroy();
                     endRound(q);
                     return;
@@ -270,7 +266,7 @@ class MqIdxFlusher {
                 q.attachFile(lf, q.nextWriteFileStartPos());
                 continueRound(q);
             } else {
-                // allocation is retried forever, so an error means closing or installing
+                // allocation is retried forever, so an error means closing
                 log.warn("give up mq idx file allocation: queue={}", q.queueId, ex);
                 endRound(q);
             }
@@ -288,7 +284,7 @@ class MqIdxFlusher {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (shouldCancelRetry()) {
+            if (manager.markClose) {
                 throw new RaftException("mq idx flusher is closing");
             }
             long fileStart = q.nextWriteFileStartPos();
@@ -360,7 +356,7 @@ class MqIdxFlusher {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (markClose || raftStatus.installSnapshot) {
+            if (manager.markClose) {
                 giveUpWaiters("mq idx flusher is not running");
                 log.info("mq idx flush-all fiber exit, groupId={}", groupConfig.groupId);
                 return Fiber.frameReturn();
@@ -406,7 +402,7 @@ class MqIdxFlusher {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (markClose || raftStatus.installSnapshot) {
+            if (manager.markClose) {
                 return Fiber.frameReturn();
             }
             QueueIdxInfo q;

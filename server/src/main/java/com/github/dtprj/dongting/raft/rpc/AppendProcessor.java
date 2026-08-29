@@ -487,7 +487,12 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         return gc.statusManager.waitUpdateFinish(this::afterBeginStatusPersist);
     }
 
-    private FrameCallResult afterBeginStatusPersist(Void v) throws Exception {
+    private FrameCallResult afterBeginStatusPersist(Void v) {
+        FiberFuture<Void> f = gc.stateMachine.startInstall(true);
+        return f.await(this::afterStateMachineClean);
+    }
+
+    private FrameCallResult afterStateMachineClean(Void v) throws Exception {
         return Fiber.call(gc.raftLog.beginInstall(), this::applyConfigChange);
     }
 

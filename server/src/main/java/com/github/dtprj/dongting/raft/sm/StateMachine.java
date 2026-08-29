@@ -36,6 +36,14 @@ public interface StateMachine extends LifeCircle, RaftCodecFactory {
 
     /**
      * this method is called in raft thread.
+     *
+     * @param clean true for leader install: local data is stale and should be deleted;
+     *              false for local recover: local data must be kept
+     */
+    FiberFuture<Void> startInstall(boolean clean);
+
+    /**
+     * this method is called in raft thread, and only after the future returned by startInstall completes.
      */
     FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done,
                                       ByteBuffer data);

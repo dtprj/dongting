@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
-import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 import java.util.zip.CRC32C;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -75,7 +76,7 @@ class MqIdxManagerTest extends BaseFiberTest {
 
     // pos = seq * 10, timestamp = seq * 100, size = seq + 1
     private void append(long queueId, long seq) {
-        manager.append(queueId, seq, seq * 10, seq * 100, (int) seq + 1);
+        manager.append(queueId, seq * 10, seq * 100, (int) seq + 1);
     }
 
     private void assertHit(long queueId, long seq) {
@@ -153,8 +154,9 @@ class MqIdxManagerTest extends BaseFiberTest {
     @Test
     void testAppendSeqContinuity() {
         append(1, 0);
-        assertThrows(IllegalArgumentException.class, () -> append(1, 2));
-        assertThrows(IllegalArgumentException.class, () -> append(1, 0));
+        QueueIdxInfo q = manager.get(1);
+        assertThrows(IllegalArgumentException.class, () -> q.append(2, 20, 200, 3));
+        assertThrows(IllegalArgumentException.class, () -> q.append(0, 0, 0, 1));
         append(1, 1);
         assertEquals(2, manager.get(1).nextSeq);
         assertHit(1, 1);
@@ -162,10 +164,16 @@ class MqIdxManagerTest extends BaseFiberTest {
 
     @Test
     void testRegister() {
-        // restart: src holds the on-disk block of the nextSeq window
-        manager.register(1, 1000, buildBlockBuffer(896));
+        manager.register(1, 1000);
         QueueIdxInfo q = manager.get(1);
         assertEquals(1000, q.nextSeq);
+        assertTrue(q.needLoadHead);
+        assertEquals(0, q.blocks.size());
+        assertEquals(896, q.firstSeqInCache);
+        assertEquals(-1, manager.getIdxItemInCache(1, 999));
+        assertFalse(q.isDirty());
+        q.installHeadBlock(buildBlockBuffer(896));
+        assertFalse(q.needLoadHead);
         assertEquals(896, q.firstSeqInCache);
         assertEquals(1, q.blocks.size());
         MqIdxBlock b = q.blocks.getFirst();
@@ -184,25 +192,27 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertHit(1, 1023);
         assertHit(1, 1024);
 
-        // install snapshot: no src, head slots of the window block stay zero
-        manager.register(2, 300, null);
+        manager.register(2, 300);
         QueueIdxInfo q2 = manager.get(2);
+        q2.installHeadBlock(null);
         assertEquals(256, q2.firstSeqInCache);
         assertEquals(44, q2.blocks.getFirst().count);
         assertEquals(0, manager.getIdxItemInCache(2, 299));
         append(2, 300);
         assertHit(2, 300);
 
-        // block-aligned nextSeq: src carries no decodable items
-        manager.register(3, 256, buildBlockBuffer(256));
-        assertEquals(256, manager.get(3).firstSeqInCache);
+        manager.register(3, 256);
+        QueueIdxInfo q3 = manager.get(3);
+        assertFalse(q3.needLoadHead);
+        assertEquals(256, q3.firstSeqInCache);
         assertEquals(-1, manager.getIdxItemInCache(3, 255));
 
-        assertThrows(IllegalArgumentException.class,
-                () -> manager.register(4, 300, ByteBuffer.allocate(100)));
+        manager.register(4, 300);
+        QueueIdxInfo q4 = manager.get(4);
         ByteBuffer corrupted = buildBlockBuffer(256);
         corrupted.put(40, (byte) (corrupted.get(40) + 1));
-        assertThrows(RaftException.class, () -> manager.register(4, 300, corrupted));
+        assertThrows(ChecksumException.class, () -> q4.installHeadBlock(corrupted));
+        assertTrue(q4.needLoadHead);
     }
 
     @Test

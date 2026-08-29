@@ -19,8 +19,8 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.store.FileQueue;
 
@@ -52,6 +52,8 @@ class MqIdxManager {
     long lastGetTimestamp;
     int lastGetSize;
 
+    boolean markClose;
+
     MqIdxManager(RaftGroupConfigEx groupConfig, File dir) {
         this.groupConfig = groupConfig;
         this.dir = dir;
@@ -60,6 +62,10 @@ class MqIdxManager {
             // flushes write whole blocks, so file boundaries must align to block boundaries
             throw new IllegalArgumentException("mqIdxItemsPerFile must be a multiple of "
                     + MqIdxBlock.BLOCK_ITEMS + ": " + groupConfig.mqIdxItemsPerFile);
+        }
+        if (Integer.bitCount(groupConfig.mqIdxItemsPerFile) != 1) {
+            throw new IllegalArgumentException("mqIdxItemsPerFile must be power of 2: "
+                    + groupConfig.mqIdxItemsPerFile);
         }
         if (groupConfig.mqIdxFlushBatchItems < MqIdxBlock.BLOCK_ITEMS) {
             // a batch starts at the block-aligned writeFinishSeq+1, so a smaller cap
@@ -85,33 +91,38 @@ class MqIdxManager {
     }
 
     /**
-     * Registers a queue from a snapshot. On restart, src holds the block read from the
-     * idx file; only the first {@code nextSeq & 127} items are decoded, guaranteed on
-     * disk since save-snapshot flushes before persisting nextSeq. On install, src is
-     * null and the head slots of the first block stay invalid.
+     * Registers a queue from a snapshot. No block is loaded here: the queue is not dirty
+     * (its data below nextSeq is durable by the save-snapshot ordering), and the block
+     * covering the nextSeq window is loaded lazily on the first append.
      * <p>
      * Only called on a fresh manager: install closes the old manager and rebuilds it
      * before re-registering, so a queue entry is never replaced in place.
      */
-    QueueIdxInfo register(long queueId, long nextSeq, ByteBuffer src) {
+    void register(long queueId, long nextSeq) {
         QueueIdxInfo q = new QueueIdxInfo(this, queueId, nextSeq);
-        if (src != null) {
-            if (src.limit() < MqIdxBlock.BLOCK_ITEMS * ITEM_LEN) {
-                throw new IllegalArgumentException("bad buffer size " + src.limit());
-            }
-            decode(src, (int) (nextSeq & MqIdxBlock.BLOCK_MASK), q.blocks.getFirst());
-        }
         queues.put(queueId, q);
-        return q;
     }
 
-    void append(long queueId, long seq, long pos, long timestamp, int itemSize) {
+    void append(long queueId, long pos, long timestamp, int itemSize) {
         QueueIdxInfo q = queues.get(queueId);
         if (q == null) {
             q = new QueueIdxInfo(this, queueId, 0);
             queues.put(queueId, q);
         }
-        q.append(seq, pos, timestamp, itemSize);
+        q.append(q.nextSeq, pos, timestamp, itemSize);
+    }
+
+    FiberFuture<Void> appendAsync(long queueId, long pos, long timestamp, int itemSize) {
+        QueueIdxInfo q = queues.get(queueId);
+        FiberFuture<Void> loadFuture = q == null ? null : q.ensureHeadLoaded();
+        if (loadFuture == null) {
+            append(queueId, pos, timestamp, itemSize);
+            return FiberFuture.completedFuture(groupConfig.fiberGroup, null);
+        }
+        return loadFuture.convert("mqIdxAppend", v -> {
+            append(queueId, pos, timestamp, itemSize);
+            return null;
+        });
     }
 
     void onSeal(MqIdxBlock b) {
@@ -140,7 +151,7 @@ class MqIdxManager {
         return buffer.getLong(offset);
     }
 
-    private void decode(ByteBuffer src, int itemCount, MqIdxBlock b) {
+    static void decode(ByteBuffer src, int itemCount, MqIdxBlock b) {
         ByteBuffer buffer = b.buffer;
         CRC32C crc = new CRC32C();
         for (int i = 0; i < itemCount; i++) {
@@ -152,7 +163,8 @@ class MqIdxManager {
             RaftUtil.updateCrc(crc, src, recStart, ITEM_LEN - 4);
             int actualCrc = src.getInt(recStart + 28);
             if (actualCrc != (int) crc.getValue()) {
-                throw new RaftException("mq idx crc check failed: queue=" + b.owner.queueId
+                // TODO recover use raft idx/log data
+                throw new ChecksumException("mq idx crc check failed: queue=" + b.owner.queueId
                         + ", seq=" + (b.startSeq + i));
             }
             crc.reset();
@@ -184,13 +196,16 @@ class MqIdxManager {
     void evict() {
         while (totalBlockCount > maxCachedBlocks) {
             MqIdxBlock b = fifo.getFirst();
-            if (b == null || b.owner.writeFinishSeq< b.lastSeq()) {
+            if (b == null || b.owner.writeFinishSeq < b.lastSeq()) {
                 return;
             }
             remove();
         }
     }
 
+    /**
+     * Must be idempotent.
+     */
     FiberFuture<Void> close() {
         return flusher.close();
     }

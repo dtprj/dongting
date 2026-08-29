@@ -182,6 +182,11 @@ public class ApplyOrderTest extends ServerTestBase {
         }
 
         @Override
+        public FiberFuture<Void> startInstall(boolean clean) {
+            throw new RaftException("not expected in this test");
+        }
+
+        @Override
         public FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset,
                 boolean done, ByteBuffer data) {
             throw new RaftException("not expected in this test");

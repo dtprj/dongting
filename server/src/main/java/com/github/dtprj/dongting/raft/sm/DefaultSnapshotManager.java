@@ -554,6 +554,10 @@ class RecoverFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) {
+        return stateMachine.startInstall(false).await(this::afterStartInstall);
+    }
+
+    private FrameCallResult afterStartInstall(Void v) {
         int readConcurrency = groupConfig.diskSnapshotConcurrency;
         int writeConcurrency = groupConfig.snapshotConcurrency;
         SnapshotReader reader = new SnapshotReader(snapshot, readConcurrency, writeConcurrency, this::apply,
