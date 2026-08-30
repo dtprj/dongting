@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -68,6 +69,7 @@ public class StatusManager {
     private final FiberCondition needUpdateCondition;
     private final FiberCondition updateDoneCondition;
     private final Fiber updateFiber;
+    private final Supplier<Boolean> cancelRetryIndicator;
 
     public StatusManager(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
@@ -79,6 +81,7 @@ public class StatusManager {
         this.updateFiber = new Fiber("status-update-" + groupConfig.groupId, fg, new UpdateFiberFrame());
         this.needUpdateCondition = fg.newCondition("StatusNeedUpdate" + groupConfig.groupId);
         this.updateDoneCondition = fg.newCondition("StatusUpdateDone" + groupConfig.groupId);
+        this.cancelRetryIndicator = () -> raftStatus.installSnapshot;
     }
 
     public FiberFrame<Void> initStatusFile() {
@@ -142,7 +145,7 @@ public class StatusManager {
                 }
             };
             RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame, groupConfig.ioRetryInterval,
-                    true, () -> raftStatus.installSnapshot);
+                    cancelRetryIndicator);
             return Fiber.call(new HandlerFrame<>(retryFrame), this::afterUpdate);
         }
 
@@ -154,7 +157,15 @@ public class StatusManager {
                 failedUpdateVersion = 0;
             } else {
                 failedUpdateVersion = version;
-                log.error("save status failed, groupId={}", groupConfig.groupId, ex);
+                if (cancelRetryIndicator.get()) {
+                    // retry is canceled by install snapshot, so the error is expected
+                    log.warn("give up status update: groupId={}", groupConfig.groupId, ex);
+                } else {
+                    // retry budget exhausted
+                    log.error("status update fail after retries, shutdown group: groupId={}",
+                            groupConfig.groupId, ex);
+                    FiberGroup.currentGroup().requestShutdown();
+                }
             }
             updateDoneCondition.signalAll();
             // loop

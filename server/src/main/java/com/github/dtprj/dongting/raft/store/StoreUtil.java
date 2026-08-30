@@ -31,12 +31,10 @@ class StoreUtil {
         }
     }
 
+    // returns -1 if retryIntervals is null or the retry budget is exhausted
     static int calcRetryInterval(int currentRetryCount, int[] retryIntervals) {
-        if (retryIntervals == null) {
+        if (retryIntervals == null || currentRetryCount >= retryIntervals.length) {
             return -1;
-        }
-        if (currentRetryCount >= retryIntervals.length) {
-            return retryIntervals[retryIntervals.length - 1];
         }
         return retryIntervals[currentRetryCount];
     }

@@ -37,12 +37,12 @@ public class RetryFrameTest extends BaseFiberTest {
     @Test
     public void test() throws Exception {
         // retry and success
-        TestFrame tf = new TestFrame(1, new int[]{1}, false);
+        TestFrame tf = new TestFrame(1, new int[]{1});
         fiberGroup.fireFiber("f", tf);
         tf.future.get(1, TimeUnit.SECONDS);
 
         // fail 2, retry 1
-        tf = new TestFrame(2, new int[]{1}, false);
+        tf = new TestFrame(2, new int[]{1});
         fiberGroup.fireFiber("f", tf);
         try {
             tf.future.get(1, TimeUnit.SECONDS);
@@ -52,17 +52,22 @@ public class RetryFrameTest extends BaseFiberTest {
         }
 
         // fail 2, retry 2
-        tf = new TestFrame(2, new int[]{1, 1}, false);
+        tf = new TestFrame(2, new int[]{1, 1});
         fiberGroup.fireFiber("f", tf);
         tf.future.get(1, TimeUnit.SECONDS);
 
-        // fail 3, retry forever
-        tf = new TestFrame(3, new int[]{1, 1}, true);
+        // fail 3, retry 2, budget exhausted
+        tf = new TestFrame(3, new int[]{1, 1});
         fiberGroup.fireFiber("f", tf);
-        tf.future.get(1, TimeUnit.SECONDS);
+        try {
+            tf.future.get(1, TimeUnit.SECONDS);
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals("mock error", DtUtil.rootCause(e).getMessage());
+        }
 
         // no retry
-        tf = new TestFrame(1, null, false);
+        tf = new TestFrame(1, null);
         fiberGroup.fireFiber("f", tf);
         try {
             tf.future.get(1, TimeUnit.SECONDS);
@@ -72,13 +77,13 @@ public class RetryFrameTest extends BaseFiberTest {
         }
 
         // no fail
-        tf = new TestFrame(0, null, false);
+        tf = new TestFrame(0, null);
         fiberGroup.fireFiber("f", tf);
         tf.future.get(1, TimeUnit.SECONDS);
 
         // interrupt fiber
         {
-            tf = new TestFrame(1, new int[]{5000}, true);
+            tf = new TestFrame(1, new int[]{5000});
             Fiber fiber = new Fiber("f", fiberGroup, tf);
             fiberGroup.fireFiber(fiber);
             fiberGroup.fireFiber("f2", new FiberFrame<>() {
@@ -98,7 +103,7 @@ public class RetryFrameTest extends BaseFiberTest {
 
         // sub frame throw FiberInterruptException, no retry
         {
-            tf = new TestFrame(1, new int[]{1}, true, new FiberInterruptException("interrupt"));
+            tf = new TestFrame(1, new int[]{1}, new FiberInterruptException("interrupt"));
             Fiber fiber = new Fiber("f", fiberGroup, tf);
             fiberGroup.fireFiber(fiber);
             try {
@@ -110,7 +115,7 @@ public class RetryFrameTest extends BaseFiberTest {
         }
 
         // fiber group shutdown, cancel
-        tf = new TestFrame(1, new int[]{5000}, true);
+        tf = new TestFrame(1, new int[]{5000});
         Fiber fiber = new Fiber("f", fiberGroup, tf);
         fiberGroup.fireFiber(fiber);
         shutdownDispatcher();
@@ -126,20 +131,17 @@ public class RetryFrameTest extends BaseFiberTest {
         private final CompletableFuture<Void> future = new CompletableFuture<>();
         private final int mockFailCount;
         private final int[] retryInterval;
-        private final boolean retryForever;
         private final Exception mockEx;
 
-        public TestFrame(int mockFailCount, int[] retryInterval, boolean retryForever) {
+        public TestFrame(int mockFailCount, int[] retryInterval) {
             this.mockFailCount = mockFailCount;
             this.retryInterval = retryInterval;
-            this.retryForever = retryForever;
             this.mockEx = new SecurityException("mock error");
         }
 
-        public TestFrame(int mockFailCount, int[] retryInterval, boolean retryForever, Exception mockEx) {
+        public TestFrame(int mockFailCount, int[] retryInterval, Exception mockEx) {
             this.mockFailCount = mockFailCount;
             this.retryInterval = retryInterval;
-            this.retryForever = retryForever;
             this.mockEx = mockEx;
         }
 
@@ -147,7 +149,7 @@ public class RetryFrameTest extends BaseFiberTest {
         @Override
         public FrameCallResult execute(Void input) {
             RetryFrame<Void> f = new RetryFrame<>(new MockFailFrame(mockFailCount, mockEx), retryInterval,
-                    retryForever, () -> false);
+                    () -> false);
             return Fiber.call(f, this::resume);
         }
 

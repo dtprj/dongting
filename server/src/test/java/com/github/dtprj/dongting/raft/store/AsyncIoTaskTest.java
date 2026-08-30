@@ -167,24 +167,22 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         });
 
         // fail on first read
-        assertReadSuccess(() -> new IoFailTask(1, true, false, null));
+        assertReadSuccess(() -> new IoFailTask(1, true, null));
 
         // fail twice, so retry failed
-        assertReadFail(() -> new IoFailTask(2, true, false, null));
-
-        // fail twice but retry forever
-        assertReadSuccess(() -> new IoFailTask(2, true, true, () -> false));
+        assertReadFail(() -> new IoFailTask(2, true, null));
 
         // fail, cancel indicator return true
-        assertReadFail(() -> new IoFailTask(2, true, true, () -> true));
+        assertReadFail(() -> new IoFailTask(2, true, () -> true));
 
-        // fail, cancel indicator return true
+        // fail, cancel indicator turns true after first check
         AtomicInteger cancelIndicatorCount = new AtomicInteger();
-        assertReadFail(() -> new IoFailTask(2, true, true,
+        groupConfig.ioRetryInterval = new int[]{1, 1};
+        assertReadFail(() -> new IoFailTask(3, true,
                 () -> cancelIndicatorCount.getAndIncrement() == 1));
 
         // no retry
-        assertReadFail(() -> new IoFailTask(2, false, false, null));
+        assertReadFail(() -> new IoFailTask(2, false, null));
     }
 
     private class IoFailTask extends AsyncIoTask {
@@ -192,9 +190,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         private int count;
         IOException ex = new IOException("mock error");
 
-        public IoFailTask(int failCount, boolean retry, boolean retryForever, Supplier<Boolean> cancelIndicator) {
+        public IoFailTask(int failCount, boolean retry, Supplier<Boolean> cancelIndicator) {
             super(groupConfig.fiberGroup, dtFile, retry ? groupConfig.ioRetryInterval : null,
-                    retryForever, cancelIndicator);
+                    cancelIndicator);
             this.failCount = failCount;
         }
 
@@ -246,7 +244,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) {
                 ByteBuffer buf = ByteBuffer.allocate(1);
                 // fail on first write
-                IoFailTask t = new IoFailTask(1, true, false, () -> false);
+                IoFailTask t = new IoFailTask(1, true, () -> false);
                 return t.write(buf, 0)
                         .await(1000, this::justReturn);
             }
@@ -320,7 +318,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     @Test
     public void testGatheringWriteRetry() throws Exception {
         // fail once, verify buffers are rewound on retry
-        gatheringWriteAndVerify(() -> new IoFailTask(1, true, false, () -> false));
+        gatheringWriteAndVerify(() -> new IoFailTask(1, true, () -> false));
     }
 
     private void writeAndForceAndVerify(Supplier<AsyncIoTask> supplier) throws Exception {
@@ -356,7 +354,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     @Test
     public void testWriteAndForceRetry() throws Exception {
         // fail once, verify the buffer is rewound on retry
-        writeAndForceAndVerify(() -> new IoFailTask(1, true, false, () -> false));
+        writeAndForceAndVerify(() -> new IoFailTask(1, true, () -> false));
     }
 
     @Test
@@ -380,7 +378,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
                 assertFalse(dtFile.isRwChannelOpen());
                 ByteBuffer buf = dataBuf(8, 1);
                 AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile,
-                        groupConfig.ioRetryInterval, true, () -> false);
+                        groupConfig.ioRetryInterval, () -> false);
                 return t.write(buf, 0).await(1000, this::resume);
             }
 
@@ -398,7 +396,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) {
                 ByteBuffer buf = dataBuf(8, 3);
                 AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile,
-                        groupConfig.ioRetryInterval, false, null) {
+                        groupConfig.ioRetryInterval, null) {
                     private boolean failed;
 
                     @Override
@@ -442,7 +440,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
                 dtFile.destroy();
                 ByteBuffer buf = dataBuf(8, 1);
                 AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile,
-                        groupConfig.ioRetryInterval, true, () -> false);
+                        groupConfig.ioRetryInterval, () -> false);
                 return t.write(buf, 0).await(1000, this::resume);
             }
 

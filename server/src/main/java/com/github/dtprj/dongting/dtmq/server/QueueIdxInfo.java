@@ -155,7 +155,7 @@ final class QueueIdxInfo extends FileQueue {
 
     FiberFuture<Void> loadHeadBlock() {
         RetryFrame<Void> rf = new RetryFrame<>(new LoadHeadFrame(),
-                manager.groupConfig.ioRetryInterval, false, () -> manager.markClose);
+                manager.groupConfig.ioRetryInterval, () -> manager.markClose);
         return FutureFrame.startWaitFiber("mqIdxHeadLoad-" + queueId,
                 manager.groupConfig.fiberGroup, rf);
     }

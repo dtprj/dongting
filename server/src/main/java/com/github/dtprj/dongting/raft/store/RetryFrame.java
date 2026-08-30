@@ -38,7 +38,6 @@ public class RetryFrame<O> extends FiberFrame<O> {
 
     private final FiberFrame<O> subFrame;
     private final int[] retryIntervals;
-    private final boolean retryForever;
     private final Supplier<Boolean> cancelRetry;
     private int retryCount;
     private Throwable lastSubFrameEx;
@@ -49,10 +48,9 @@ public class RetryFrame<O> extends FiberFrame<O> {
      */
     public FiberCondition cancelCondition;
 
-    public RetryFrame(FiberFrame<O> subFrame, int[] retryIntervals, boolean retryForever, Supplier<Boolean> cancelRetry) {
+    public RetryFrame(FiberFrame<O> subFrame, int[] retryIntervals, Supplier<Boolean> cancelRetry) {
         this.subFrame = subFrame;
         this.retryIntervals = retryIntervals;
-        this.retryForever = retryForever;
         this.cancelRetry = cancelRetry;
     }
 
@@ -98,7 +96,7 @@ public class RetryFrame<O> extends FiberFrame<O> {
             log.warn("retry canceled because of fiber group should stop");
             return true;
         }
-        if (retryCount >= retryIntervals.length && !retryForever) {
+        if (retryCount >= retryIntervals.length) {
             return true;
         }
         return cancelRetry != null && cancelRetry.get();

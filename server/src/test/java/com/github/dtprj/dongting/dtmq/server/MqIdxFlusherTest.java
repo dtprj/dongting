@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -32,6 +33,8 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.zip.CRC32C;
@@ -390,6 +393,52 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
+    }
+
+    @Test
+    void testFlushAllFailAfterRetryExhausted() throws Exception {
+        config.ioRetryInterval = new int[]{1, 1};
+        // a dedicated group, because retry exhaustion shuts down the group
+        FiberGroup g = new FiberGroup("mqFlushFail", dispatcher);
+        dispatcher.startGroup(g).get();
+        config.fiberGroup = g;
+        manager = new MqIdxManager(config, dir);
+        CompletableFuture<Void> testDone = new CompletableFuture<>();
+        g.fireFiber("test", new FiberFrame<>() {
+            FiberFuture<Void> flushFut;
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                manager.start();
+                appendItems(1, 0, 300);
+                // occupy the second idx file path with a directory, so allocation keeps failing
+                File bad = new File(new File(dir, "1"), String.format("%020d", FILE_SIZE));
+                assertTrue(bad.mkdirs());
+                flushFut = manager.flusher.flushAll();
+                return Fiber.call(waitUntil(flushFut::isDone), this::afterFail);
+            }
+
+            private FrameCallResult afterFail(Void v) {
+                assertInstanceOf(RaftException.class, flushFut.getEx());
+                FiberFuture<Void> f2 = manager.flusher.flushAll();
+                assertTrue(f2.isDone());
+                assertInstanceOf(RaftException.class, f2.getEx());
+                testDone.complete(null);
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                testDone.completeExceptionally(ex);
+                return Fiber.frameReturn();
+            }
+        });
+        try {
+            testDone.get(5, TimeUnit.SECONDS);
+            g.shutdownFuture.get(5, TimeUnit.SECONDS);
+        } finally {
+            config.fiberGroup = fiberGroup;
+        }
     }
 
     @Test

@@ -41,7 +41,6 @@ public class AsyncIoTask {
     private final FiberFuture<Void> future;
 
     private final int[] retryInterval;
-    private final boolean retryForever;
     private final FiberGroup fiberGroup;
 
     private ByteBuffer ioBuffer;
@@ -57,16 +56,15 @@ public class AsyncIoTask {
     private boolean rwCalled;
 
     public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile) {
-        this(fiberGroup, dtFile, null, false, null);
+        this(fiberGroup, dtFile, null, null);
     }
 
-    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval, boolean retryForever,
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval,
                        Supplier<Boolean> cancelRetryIndicator) {
         this.fiberGroup = fiberGroup;
         Objects.requireNonNull(dtFile);
         this.dtFile = dtFile;
         this.retryInterval = retryInterval;
-        this.retryForever = retryForever;
         this.cancelRetryIndicator = cancelRetryIndicator;
         this.future = fiberGroup.newFuture("asyncIoTaskFuture");
     }
@@ -166,11 +164,7 @@ public class AsyncIoTask {
     void retry(Throwable ioEx) {
         long sleepTime = StoreUtil.calcRetryInterval(retryCount, retryInterval);
         if (sleepTime <= 0) {
-            fireComplete(ioEx);
-            return;
-        }
-        // assert retryInterval is not null since StoreUtil.calcRetryInterval checked it
-        if (retryCount >= retryInterval.length && !retryForever) {
+            // no retryInterval or retry budget exhausted
             fireComplete(ioEx);
             return;
         }
@@ -209,7 +203,7 @@ public class AsyncIoTask {
 
             private boolean shouldCancelRetry() {
                 if (isGroupShouldStopPlain()) {
-                    // if fiber group is stopped, ignore cancelIndicator and retryForever
+                    // if fiber group is stopped, ignore cancelIndicator
                     return true;
                 }
                 if (dtFile.destroyed) {

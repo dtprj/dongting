@@ -403,7 +403,7 @@ public abstract class FileQueue {
                 return Fiber.call(new DeleteFrame(first.getFile(), ioExecutor), this::justReturn);
             }
         };
-        f = new RetryFrame<>(f, groupConfig.ioRetryInterval, true,
+        f = new RetryFrame<>(f, groupConfig.ioRetryInterval,
                 () -> !initialized || raftStatus.installSnapshot);
         f = new PostFiberFrame<>(f) {
             @Override

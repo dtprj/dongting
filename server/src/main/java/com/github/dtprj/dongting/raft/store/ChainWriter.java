@@ -116,10 +116,10 @@ public class ChainWriter {
         private long perfForceBytes;
 
 
-        WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval, boolean retryForever,
+        WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval,
                   Supplier<Boolean> cancelIndicator, RefBuffer buf, ByteBuffer[] bufs,
                   long posInFile, boolean force, int perfItemCount, long lastRaftIndex) {
-            this.ioTask = new AsyncIoTask(fiberGroup, logFile, retryInterval, retryForever, cancelIndicator);
+            this.ioTask = new AsyncIoTask(fiberGroup, logFile, retryInterval, cancelIndicator);
             this.posInFile = posInFile;
             this.force = force;
             this.buf = buf;
@@ -183,7 +183,7 @@ public class ChainWriter {
             return;
         }
         int[] retryInterval = initialized ? config.ioRetryInterval : null;
-        WriteTask task = new WriteTask(config.fiberGroup, logFile, retryInterval, true,
+        WriteTask task = new WriteTask(config.fiberGroup, logFile, retryInterval,
                 cancelRetryIndicator, buf, bufs, posInFile, force, perfItemCount, lastRaftIndex);
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
@@ -326,8 +326,7 @@ public class ChainWriter {
                     return Fiber.resume(null, this);
                 }
                 ForceFrame ff = new ForceFrame(logFile, config.blockIoExecutor, false);
-                RetryFrame<Void> rf = new RetryFrame<>(ff, config.ioRetryInterval,
-                        true, cancelRetryIndicator);
+                RetryFrame<Void> rf = new RetryFrame<>(ff, config.ioRetryInterval, cancelRetryIndicator);
                 WriteTask finalTask = task;
                 long perfStartTime = perfCallback.takeTimeAndRefresh(forcePerfType, config.ts);
                 currentForceTask = task;

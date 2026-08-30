@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.FutureFrame;
 import com.github.dtprj.dongting.log.BugLog;
@@ -66,11 +67,13 @@ class MqIdxFlusher {
     private long finishedVersion;
     private long lastTickNanos;
 
+    private boolean error;
+
     private final Supplier<Boolean> cancelRetryIndicator;
 
     MqIdxFlusher(MqIdxManager manager) {
         this.manager = manager;
-        this.cancelRetryIndicator = () -> manager.markClose;
+        this.cancelRetryIndicator = () -> manager.markClose || error;
         this.groupConfig = manager.groupConfig;
         this.flushAllFiber = new Fiber("mqIdxFlushAll-" + groupConfig.groupId,
                 groupConfig.fiberGroup, new FlushLoopFrame());
@@ -91,7 +94,7 @@ class MqIdxFlusher {
     }
 
     void startRound(QueueIdxInfo q, boolean force, long targetSeq) {
-        if (manager.markClose || q.flushing) {
+        if (error || manager.markClose || q.flushing) {
             return;
         }
         q.flushing = true;
@@ -106,7 +109,7 @@ class MqIdxFlusher {
 
     FiberFuture<Void> flushAll() {
         FiberFuture<Void> f = groupConfig.fiberGroup.newFuture("mqIdxFlushAll");
-        if (manager.markClose || !flushAllFiber.isStarted()) {
+        if (error || manager.markClose || !flushAllFiber.isStarted()) {
             f.fireCompleteExceptionally(new RaftException("mq idx flusher is not running"));
         } else {
             requestVersion++;
@@ -152,7 +155,7 @@ class MqIdxFlusher {
     }
 
     private void continueRound(QueueIdxInfo q) {
-        if (manager.markClose || !roundIncomplete(q)) {
+        if (error || manager.markClose || !roundIncomplete(q)) {
             endRound(q);
             return;
         }
@@ -193,7 +196,7 @@ class MqIdxFlusher {
         b.logFile.incWriters();
         try {
             AsyncIoTask ioTask = new AsyncIoTask(groupConfig.fiberGroup, b.logFile,
-                    groupConfig.ioRetryInterval, true, cancelRetryIndicator);
+                    groupConfig.ioRetryInterval, cancelRetryIndicator);
             FiberFuture<Void> f = b.force
                     ? ioTask.writeAndForce(b.bufRef.getBuffer(), b.filePos)
                     : ioTask.write(b.bufRef.getBuffer(), b.filePos);
@@ -210,7 +213,7 @@ class MqIdxFlusher {
         QueueIdxInfo.FlushBatch b = new QueueIdxInfo.FlushBatch(endSeq, null, logFile, -1, true);
         try {
             AsyncIoTask ioTask = new AsyncIoTask(groupConfig.fiberGroup, logFile,
-                    groupConfig.ioRetryInterval, true, cancelRetryIndicator);
+                    groupConfig.ioRetryInterval, cancelRetryIndicator);
             ioTask.force().registerCallback((v, ex) -> onIoDone(q, b, ex));
         } catch (Throwable t) {
             logFile.decWriters();
@@ -225,10 +228,18 @@ class MqIdxFlusher {
             }
             b.logFile.decWriters();
             if (ex != null) {
-                // io is retried forever, so an error means closing
-                log.warn("give up mq idx io: queue={}, file={}", q.queueId,
-                        b.logFile.getFile().getPath(), ex);
                 endRound(q);
+                if (cancelRetryIndicator.get()) {
+                    // retry is canceled by close or a previous failure, so the error is expected
+                    log.warn("give up mq idx io: queue={}, file={}", q.queueId,
+                            b.logFile.getFile().getPath(), ex);
+                } else {
+                    // retry budget exhausted
+                    error = true;
+                    log.error("mq idx io fail after retries, shutdown group: queue={}, file={}",
+                            q.queueId, b.logFile.getFile().getPath(), ex);
+                    FiberGroup.currentGroup().requestShutdown();
+                }
                 return;
             }
             if (b.bufRef != null) {
@@ -246,7 +257,7 @@ class MqIdxFlusher {
 
     private void submitFileAlloc(QueueIdxInfo q) {
         RetryFrame<LogFile> rf = new RetryFrame<>(new AllocAttemptFrame(q),
-                groupConfig.ioRetryInterval, true, cancelRetryIndicator);
+                groupConfig.ioRetryInterval, cancelRetryIndicator);
         rf.cancelCondition = allocRetryCond;
         FiberFuture<LogFile> f = FutureFrame.startWaitFiber(
                 "mqIdxFileAlloc-" + groupConfig.groupId + "-" + q.queueId, groupConfig.fiberGroup, rf);
@@ -256,8 +267,8 @@ class MqIdxFlusher {
     private void onAllocated(QueueIdxInfo q, LogFile lf, Throwable ex) {
         try {
             if (ex == null) {
-                if (manager.markClose) {
-                    // don't attach to the closing file queue; the file on disk is removed
+                if (error || manager.markClose) {
+                    // don't attach to the file queue on close or error; the file on disk is removed
                     // by the following destroy, or re-extended by a later allocation
                     lf.destroy();
                     endRound(q);
@@ -266,9 +277,17 @@ class MqIdxFlusher {
                 q.attachFile(lf, q.nextWriteFileStartPos());
                 continueRound(q);
             } else {
-                // allocation is retried forever, so an error means closing
-                log.warn("give up mq idx file allocation: queue={}", q.queueId, ex);
                 endRound(q);
+                if (cancelRetryIndicator.get()) {
+                    // retry is canceled by close or a previous failure, so the error is expected
+                    log.warn("give up mq idx file allocation: queue={}", q.queueId, ex);
+                } else {
+                    // retry budget exhausted
+                    error = true;
+                    log.error("mq idx file allocation fail after retries, shutdown group: queue={}",
+                            q.queueId, ex);
+                    FiberGroup.currentGroup().requestShutdown();
+                }
             }
         } catch (Throwable t) {
             throw Fiber.fatal(t);
@@ -356,7 +375,7 @@ class MqIdxFlusher {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (manager.markClose) {
+            if (error || manager.markClose) {
                 giveUpWaiters("mq idx flusher is not running");
                 log.info("mq idx flush-all fiber exit, groupId={}", groupConfig.groupId);
                 return Fiber.frameReturn();
@@ -402,6 +421,10 @@ class MqIdxFlusher {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (error) {
+                giveUpWaiters("mq idx flush fail");
+                return Fiber.frameReturn();
+            }
             if (manager.markClose) {
                 return Fiber.frameReturn();
             }

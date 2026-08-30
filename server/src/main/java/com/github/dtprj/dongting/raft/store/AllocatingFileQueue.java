@@ -118,7 +118,7 @@ abstract class AllocatingFileQueue extends FileQueue {
             // before writes actually reach the end of the current queue
             if (allocPos > queueEndPosition - fileSize) {
                 FileAllocFrame f = new FileAllocFrame();
-                RetryFrame<Void> rf = new RetryFrame<>(f, groupConfig.ioRetryInterval, true,
+                RetryFrame<Void> rf = new RetryFrame<>(f, groupConfig.ioRetryInterval,
                         () -> raftStatus.installSnapshot || stopAlloc);
                 return Fiber.call(rf, v -> afterAlloc(f));
             } else {

@@ -18,7 +18,9 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -31,8 +33,12 @@ import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
@@ -86,6 +92,53 @@ public class StatusManagerTest extends BaseFiberTest {
             }
         });
         check();
+    }
+
+    @Test
+    public void testUpdateFailAfterRetryExhausted() throws Exception {
+        // a dedicated group, because retry exhaustion shuts down the group
+        FiberGroup g = new FiberGroup("statusUpdateFail", dispatcher);
+        dispatcher.startGroup(g).get();
+        CompletableFuture<Throwable> failEx = new CompletableFuture<>();
+        g.fireFiber("test", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                File dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
+                raftStatus = new RaftStatusImpl(1, g.dispatcher.ts);
+                groupConfig = new RaftGroupConfigEx(1, "1", "1");
+                groupConfig.dataDir = dir.getAbsolutePath();
+                groupConfig.statusFile = "status.test";
+                groupConfig.raftStatus = raftStatus;
+                groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
+                groupConfig.fiberGroup = g;
+                groupConfig.ioRetryInterval = new int[]{1, 1};
+                raftStatus.tailCache = new TailCache(groupConfig, raftStatus);
+                statusManager = new StatusManager(groupConfig);
+                g.shutdownCallback = new FiberFrame<>() {
+                    @Override
+                    public FrameCallResult execute(Void input) {
+                        return statusManager.close().await(this::justReturn);
+                    }
+                };
+                return Fiber.call(statusManager.initStatusFile(), this::afterInit);
+            }
+
+            private FrameCallResult afterInit(Void unused) {
+                // occupy the temp file path with a directory, so status update keeps failing
+                File tmp = new File(groupConfig.dataDir, groupConfig.statusFile + ".tmp");
+                assertTrue(tmp.mkdirs());
+                statusManager.persistAsync();
+                return statusManager.waitUpdateFinish(this::justReturn);
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                failEx.complete(ex);
+                return Fiber.frameReturn();
+            }
+        });
+        assertInstanceOf(RaftException.class, failEx.get(5, TimeUnit.SECONDS));
+        g.shutdownFuture.get(5, TimeUnit.SECONDS);
     }
 
     private void initData() {
