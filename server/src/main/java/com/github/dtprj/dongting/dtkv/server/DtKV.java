@@ -141,12 +141,12 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public DecoderCallback<? extends Object> createHeaderCallback(int bizType, DecodeContext context) {
+    public DecoderCallback<Object> createHeaderCallback(int bizType, DecodeContext context) {
         return null;
     }
 
     @Override
-    public DecoderCallback<? extends Object> createBodyCallback(int bizType, DecodeContext context) {
+    public DecoderCallback<KvReq> createBodyCallback(int bizType, DecodeContext context) {
         DecodeContextEx e = (DecodeContextEx) context;
         return context.toDecoderCallback(e.kvReqCallback());
     }
