@@ -224,10 +224,10 @@ class MqIdxFlusher {
 
     private void onIoDone(QueueIdxInfo q, QueueIdxInfo.FlushBatch b, Throwable ex) {
         try {
+            b.logFile.decWriters();
             if (b.bufRef != null) {
                 b.bufRef.release();
             }
-            b.logFile.decWriters();
             if (ex != null) {
                 endRound(q);
                 if (cancelRetryIndicator.get()) {

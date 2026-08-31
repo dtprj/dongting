@@ -55,6 +55,8 @@ class MqIdxManager {
     // appends over the block limit share this one pending future until evict() or close() releases it
     private FiberFuture<Void> blockFuture;
 
+    private final FiberFuture<Void> cachedNullFuture;
+
     long lastGetTimestamp;
     int lastGetSize;
 
@@ -86,6 +88,7 @@ class MqIdxManager {
         this.maxCachedBlocks = groupConfig.mqIdxCacheBlocks;
         this.fifo = new IndexedQueue<>(maxCachedBlocks);
         this.flusher = new MqIdxFlusher(this);
+        this.cachedNullFuture = FiberFuture.completedFuture(groupConfig.fiberGroup, null);
     }
 
     void start() {
@@ -123,27 +126,22 @@ class MqIdxManager {
         FiberFuture<Void> loadFuture = q == null ? null : q.ensureHeadLoaded();
         if (loadFuture == null) {
             append(queueId, pos, timestamp, itemSize);
-            FiberFuture<Void> bf = flowControlFuture();
-            return bf != null ? bf : FiberFuture.completedFuture(groupConfig.fiberGroup, null);
+            if (fifo.size() > maxCachedBlocks && !markClose) {
+                if (blockFuture == null) {
+                    blockFuture = groupConfig.fiberGroup.newFuture("mqIdxFlowControl");
+                    log.warn("mq idx cache full, flow control engaged: groupId={}, cachedBlocks={}, limit={}",
+                            groupConfig.groupId, fifo.size(), maxCachedBlocks);
+                    flusher.flushAll();
+                }
+                return blockFuture;
+            }
+            return cachedNullFuture;
         }
         // the load path skips flow control: precise control would need a pending queue, approximate is enough
         return loadFuture.convert("mqIdxAppend", v -> {
             append(queueId, pos, timestamp, itemSize);
             return null;
         });
-    }
-
-    private FiberFuture<Void> flowControlFuture() {
-        if (fifo.size() > maxCachedBlocks && !markClose) {
-            if (blockFuture == null) {
-                blockFuture = groupConfig.fiberGroup.newFuture("mqIdxFlowControl");
-                log.warn("mq idx cache full, flow control engaged: groupId={}, cachedBlocks={}, limit={}",
-                        groupConfig.groupId, fifo.size(), maxCachedBlocks);
-                flusher.flushAll();
-            }
-            return blockFuture;
-        }
-        return null;
     }
 
     void completeBlockFuture() {
