@@ -130,7 +130,6 @@ final class QueueIdxInfo extends FileQueue {
         MqIdxBlock b = blocks.getLast();
         if (b == null || b.isFull()) {
             // null: no block yet, or the queue was fully evicted (both imply nextSeq is aligned)
-            manager.onNewBlock();
             b = new MqIdxBlock(this, nextSeq, 0);
             blocks.addLast(b);
         }
@@ -203,7 +202,6 @@ final class QueueIdxInfo extends FileQueue {
         if (src != null) {
             MqIdxManager.decode(src, count, b);
         }
-        manager.onNewBlock();
         blocks.addLast(b);
         firstSeqInCache = startSeq;
         needLoadHead = false;

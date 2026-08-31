@@ -145,6 +145,7 @@ class MqIdxFlusher {
             return closeFuture;
         }
         manager.markClose = true;
+        manager.completeBlockFuture();
         requestCond.signal();
         roundCond.signalAll();
         allocRetryCond.signalAll();

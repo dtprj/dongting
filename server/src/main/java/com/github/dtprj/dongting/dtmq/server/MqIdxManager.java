@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -36,6 +38,8 @@ import java.util.zip.CRC32C;
  */
 class MqIdxManager {
 
+    private static final DtLog log = DtLogs.getLogger(MqIdxManager.class);
+
     static final int ITEM_LEN = 32;
 
     final RaftGroupConfigEx groupConfig;
@@ -47,7 +51,9 @@ class MqIdxManager {
     private final int maxCachedBlocks;
 
     private final IndexedQueue<MqIdxBlock> fifo;
-    private int totalBlockCount;
+
+    // appends over the block limit share this one pending future until evict() or close() releases it
+    private FiberFuture<Void> blockFuture;
 
     long lastGetTimestamp;
     int lastGetSize;
@@ -117,20 +123,39 @@ class MqIdxManager {
         FiberFuture<Void> loadFuture = q == null ? null : q.ensureHeadLoaded();
         if (loadFuture == null) {
             append(queueId, pos, timestamp, itemSize);
-            return FiberFuture.completedFuture(groupConfig.fiberGroup, null);
+            FiberFuture<Void> bf = flowControlFuture();
+            return bf != null ? bf : FiberFuture.completedFuture(groupConfig.fiberGroup, null);
         }
+        // the load path skips flow control: precise control would need a pending queue, approximate is enough
         return loadFuture.convert("mqIdxAppend", v -> {
             append(queueId, pos, timestamp, itemSize);
             return null;
         });
     }
 
-    void onSeal(MqIdxBlock b) {
-        fifo.addLast(b);
+    private FiberFuture<Void> flowControlFuture() {
+        if (fifo.size() > maxCachedBlocks && !markClose) {
+            if (blockFuture == null) {
+                blockFuture = groupConfig.fiberGroup.newFuture("mqIdxFlowControl");
+                log.warn("mq idx cache full, flow control engaged: groupId={}, cachedBlocks={}, limit={}",
+                        groupConfig.groupId, fifo.size(), maxCachedBlocks);
+                flusher.flushAll();
+            }
+            return blockFuture;
+        }
+        return null;
     }
 
-    void onNewBlock() {
-        totalBlockCount++;
+    void completeBlockFuture() {
+        FiberFuture<Void> f = blockFuture;
+        if (f != null) {
+            blockFuture = null;
+            f.fireComplete(null);
+        }
+    }
+
+    void onSeal(MqIdxBlock b) {
+        fifo.addLast(b);
         evict();
     }
 
@@ -185,21 +210,24 @@ class MqIdxManager {
             return null;
         }
         b.owner.removeFirst(b);
-        totalBlockCount--;
         return b;
     }
 
     /**
      * Discards flushed blocks while over the threshold; stops at the first block not fully
-     * flushed. Called when a block is created, and by the flush path when writeFinishSeq advances.
+     * flushed. Called when a block is sealed, and by the flush path when writeFinishSeq advances.
+     * Tail blocks are not counted: they belong to the active append window, not the cache.
      */
     void evict() {
-        while (totalBlockCount > maxCachedBlocks) {
+        while (fifo.size() > maxCachedBlocks) {
             MqIdxBlock b = fifo.getFirst();
             if (b == null || b.owner.writeFinishSeq < b.lastSeq()) {
-                return;
+                break;
             }
             remove();
+        }
+        if (blockFuture != null && fifo.size() <= maxCachedBlocks) {
+            completeBlockFuture();
         }
     }
 

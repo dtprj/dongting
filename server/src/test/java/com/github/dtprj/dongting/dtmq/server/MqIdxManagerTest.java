@@ -16,6 +16,10 @@
 package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
+import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -34,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -235,10 +240,10 @@ class MqIdxManagerTest extends BaseFiberTest {
 
         q.writeFinishSeq = 511;
         manager.evict();
-        assertEquals(2, q.blocks.size());
-        assertEquals(384, q.firstSeqInCache);
-        assertEquals(-1, manager.getIdxItemInCache(1, 383));
-        assertHit(1, 384);
+        assertEquals(3, q.blocks.size());
+        assertEquals(256, q.firstSeqInCache);
+        assertEquals(-1, manager.getIdxItemInCache(1, 255));
+        assertHit(1, 256);
         assertHit(1, 599);
     }
 
@@ -263,6 +268,79 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertEquals(0, manager.get(1).blocks.size());
         assertEquals(1, q2.blocks.size());
         assertEquals(128, q2.firstSeqInCache);
+    }
+
+    @Test
+    void testFlowControl() throws Exception {
+        config.mqIdxCacheBlocks = 2;
+        manager = createManager(config);
+        doInFiber(new FiberFrame<>() {
+            private FiberFuture<Void> blocked;
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                for (int i = 0; i < 382; i++) {
+                    append(1, i);
+                }
+                // 2 sealed blocks fill the fifo to the limit; the tail block is not counted
+                FiberFuture<Void> f = manager.appendAsync(1, 382 * 10, 382 * 100, 383);
+                assertTrue(f.isDone());
+                assertNull(f.getEx());
+                return Fiber.yield(this::overLimit);
+            }
+
+            private FrameCallResult overLimit(Void v) {
+                // this append seals the 3rd block; eviction is gated by writeFinishSeq=-1
+                blocked = manager.appendAsync(1, 383 * 10, 383 * 100, 384);
+                assertFalse(blocked.isDone());
+                FiberFuture<Void> same = manager.appendAsync(1, 384 * 10, 384 * 100, 385);
+                assertSame(blocked, same);
+                assertFalse(same.isDone());
+                assertEquals(385, manager.get(1).nextSeq);
+                assertHit(1, 384);
+                return Fiber.yield(this::release);
+            }
+
+            private FrameCallResult release(Void v) {
+                manager.get(1).writeFinishSeq = 383;
+                manager.evict();
+                assertTrue(blocked.isDone());
+                assertNull(blocked.getEx());
+                assertEquals(3, manager.get(1).blocks.size());
+
+                FiberFuture<Void> f = manager.appendAsync(1, 385 * 10, 385 * 100, 386);
+                assertTrue(f.isDone());
+                assertNull(f.getEx());
+                assertEquals(386, manager.get(1).nextSeq);
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
+    void testFlowControlReleaseOnClose() throws Exception {
+        config.mqIdxCacheBlocks = 2;
+        manager = createManager(config);
+        doInFiber(new FiberFrame<>() {
+            private FiberFuture<Void> blocked;
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                for (int i = 0; i < 384; i++) {
+                    append(1, i);
+                }
+                // 3 sealed blocks are already over the limit, this append starts a new tail block
+                blocked = manager.appendAsync(1, 384 * 10, 384 * 100, 385);
+                assertFalse(blocked.isDone());
+                return manager.close().await(this::afterClose);
+            }
+
+            private FrameCallResult afterClose(Void v) {
+                assertTrue(blocked.isDone());
+                assertNull(blocked.getEx());
+                return Fiber.frameReturn();
+            }
+        });
     }
 
     @Test

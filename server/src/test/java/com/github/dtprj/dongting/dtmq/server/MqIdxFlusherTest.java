@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -258,10 +259,11 @@ class MqIdxFlusherTest extends BaseFiberTest {
             private FrameCallResult afterFlush(Void v) {
                 QueueIdxInfo q = manager.get(1);
                 assertEquals(599, q.writeFinishSeq);
-                // flushed blocks are evicted down to the cache limit
-                assertEquals(1, q.blocks.size());
-                assertEquals(512, q.firstSeqInCache);
-                assertEquals(-1, manager.getIdxItemInCache(1, 511));
+                // the fifo is evicted down to the cache limit; the tail block is not counted
+                assertEquals(2, q.blocks.size());
+                assertEquals(384, q.firstSeqInCache);
+                assertEquals(-1, manager.getIdxItemInCache(1, 383));
+                assertEquals(384 * 10, manager.getIdxItemInCache(1, 384));
                 assertEquals(512 * 10, manager.getIdxItemInCache(1, 512));
                 return manager.close().await(this::justReturn);
             }
@@ -439,6 +441,39 @@ class MqIdxFlusherTest extends BaseFiberTest {
         } finally {
             config.fiberGroup = fiberGroup;
         }
+    }
+
+    @Test
+    void testFlowControl() throws Exception {
+        config.mqIdxCacheBlocks = 1;
+        manager = createManager();
+        doInFiber(new FiberFrame<>() {
+            private final ArrayList<FiberFuture<Void>> futures = new ArrayList<>();
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                manager.start();
+                // appends run far ahead of the async io, so the shared block future engages
+                for (long seq = 0; seq < 400; seq++) {
+                    futures.add(manager.appendAsync(1, seq * 10, seq * 100, (int) seq + 1));
+                }
+                QueueIdxInfo q = manager.get(1);
+                return Fiber.call(waitUntil(() -> q.writeFinishSeq >= 399), this::afterFlush);
+            }
+
+            private FrameCallResult afterFlush(Void v) {
+                for (FiberFuture<Void> f : futures) {
+                    assertTrue(f.isDone());
+                    assertNull(f.getEx());
+                }
+                assertEquals(400, manager.get(1).nextSeq);
+                return manager.close().await(this::justReturn);
+            }
+        });
+        byte[] f0 = readFile(1, 0);
+        assertRecords(f0, 0, 0, 255);
+        byte[] f1 = readFile(1, FILE_SIZE);
+        assertRecords(f1, 256, 256, 399);
     }
 
     @Test
