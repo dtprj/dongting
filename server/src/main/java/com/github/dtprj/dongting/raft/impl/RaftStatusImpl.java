@@ -104,8 +104,12 @@ public final class RaftStatusImpl extends RaftStatus {
     public long applyLagNanos; // sampled update
     public long lastApplyNanos;
 
-    // update after install snapshot by leader, so current node has no raft logs before the index
+    // raft logs before the index no longer exist: deleted (advanced before log file deletion),
+    // or covered by an installed snapshot (updated after leader install)
     public long firstValidIndex = 1;
+
+    // paired with firstValidIndex: position of that log item, always updated together with it
+    public long firstValidPos;
 
     public long lastSavedSnapshotIndex = 0;
 

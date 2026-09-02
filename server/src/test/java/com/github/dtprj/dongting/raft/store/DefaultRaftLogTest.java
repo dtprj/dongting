@@ -161,32 +161,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     @Test
     void testDelete() throws Exception {
         try {
-            int[] totalSizes = new int[]{400, 400, 512, 200, 400};
-            int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
-            append(1, totalSizes, bizHeaderLen);
-            raftStatus.commitIndex = 5;
-            raftStatus.setLastApplied(5);
-            raftStatus.lastLogIndex = 5;
-            append(6, totalSizes, bizHeaderLen);
-
-            doInFiber(new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    // to fire idx flush
-                    return raftLog.close().await(this::resume);
-                }
-
-                private FrameCallResult resume(Void unused) {
-                    return statusManager.close().await(this::justReturn);
-                }
-            });
-
-            init();
-            raftStatus.commitIndex = 5;
-            raftStatus.setLastApplied(5);
-            raftStatus.lastLogIndex = 5;
-            raftStatus.lastForceLogIndex = 5;
-            raftStatus.lastSavedSnapshotIndex = 10;
+            prepareDeleteEnv();
 
             // test delete
             File dir = new File(new File(dataDir), "log");
@@ -236,6 +211,70 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
     private void plus1Hour() throws Exception {
         doInFiber(() -> TestUtil.plus1Hour(raftStatus.ts));
+    }
+
+    private void prepareDeleteEnv() throws Exception {
+        int[] totalSizes = new int[]{400, 400, 512, 200, 400};
+        int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
+        append(1, totalSizes, bizHeaderLen);
+        raftStatus.commitIndex = 5;
+        raftStatus.setLastApplied(5);
+        raftStatus.lastLogIndex = 5;
+        append(6, totalSizes, bizHeaderLen);
+
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                // to fire idx flush
+                return raftLog.close().await(this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                return statusManager.close().await(this::justReturn);
+            }
+        });
+
+        init();
+        raftStatus.commitIndex = 5;
+        raftStatus.setLastApplied(5);
+        raftStatus.lastLogIndex = 5;
+        raftStatus.lastForceLogIndex = 5;
+        raftStatus.lastSavedSnapshotIndex = 10;
+    }
+
+    @Test
+    void testFirstValidRecoverStaleStatus() throws Exception {
+        try {
+            prepareDeleteEnv();
+            File dir = new File(new File(dataDir), "log");
+            doInFiber(() -> raftLog.markTruncateByIndex(5, 0));
+            WaitUtil.waitUtil(() -> fileDeleted(dir, 1024).get()
+                    && raftStatus.firstValidIndex == 5
+                    && raftStatus.firstValidPos == 2048);
+
+            // simulate deletion succeeded but the persist was lost:
+            // rewrite stale values (1/0) to the status file
+            tearDown();
+            init();
+            doInFiber(() -> {
+                raftStatus.firstValidIndex = 1;
+                raftStatus.firstValidPos = 0;
+                statusManager.persistAsync();
+            });
+            tearDown();
+
+            // recovery must fix the stale values from what the disks actually hold
+            init();
+            doInFiber(() -> {
+                assertEquals(5, raftStatus.firstValidIndex);
+                assertEquals(2048, raftStatus.firstValidPos);
+            });
+        } finally {
+            doInFiber(() -> {
+                TestUtil.updateTimestamp(raftStatus.ts, System.nanoTime(), System.currentTimeMillis());
+                BugLog.reset();
+            });
+        }
     }
 
     // simulates that the status file update is not finished, by dropping persist requests
@@ -472,12 +511,12 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
         RaftCodecFactory codecFactory = new RaftCodecFactory() {
             @Override
-            public DecoderCallback<? extends Object> createHeaderCallback(int bizType, DecodeContext context) {
+            public DecoderCallback<ByteArray> createHeaderCallback(int bizType, DecodeContext context) {
                 return new ByteArray.Callback();
             }
 
             @Override
-            public DecoderCallback<? extends Object> createBodyCallback(int bizType, DecodeContext context) {
+            public DecoderCallback<ByteArray> createBodyCallback(int bizType, DecodeContext context) {
                 return new ByteArray.Callback();
             }
         };

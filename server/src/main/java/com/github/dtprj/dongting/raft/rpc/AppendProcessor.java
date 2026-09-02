@@ -555,6 +555,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private FrameCallResult afterRaftLogFinishInstall(long nextLogIndex) {
         log.info("raft log reset to nextLogIndex={}", nextLogIndex);
         gc.raftStatus.firstValidIndex = nextLogIndex;
+        gc.raftStatus.firstValidPos = reqInfo.reqFrame.getBody().nextWritePos;
         StatusManager sm = gc.statusManager;
         sm.persistAsync();
         return sm.waitUpdateFinish(this::afterFinishStatusSaved);

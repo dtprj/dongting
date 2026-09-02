@@ -128,6 +128,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
             return Fiber.frameReturn();
         }
         if (snapshot == null) {
+            // may lag behind disks, which only makes these checks more conservative
             if (raftStatus.firstValidIndex > 1) {
                 raftStatus.installSnapshot = true;
                 log.warn("no snapshot and firstValidIndex>1, mark install snapshot");

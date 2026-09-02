@@ -49,6 +49,7 @@ public class StatusManager {
     public static final String INSTALL_SNAPSHOT = "installSnapshot";
 
     public static final String FIRST_VALID_IDX = "firstValidIndex";
+    public static final String FIRST_VALID_POS = "firstValidPos";
 
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatusImpl raftStatus;
@@ -96,6 +97,7 @@ public class StatusManager {
                 raftStatus.commitIndex = RaftUtil.parseInt(loadedProps, COMMIT_INDEX, 0);
                 raftStatus.installSnapshot = RaftUtil.parseBoolean(loadedProps, INSTALL_SNAPSHOT, false);
                 raftStatus.firstValidIndex = RaftUtil.parseLong(loadedProps, FIRST_VALID_IDX, 1);
+                raftStatus.firstValidPos = RaftUtil.parseLong(loadedProps, FIRST_VALID_POS, 0);
                 lastPersistedIdxIndex = RaftUtil.parseLong(loadedProps, RaftIdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
 
                 updateFiber.start();
@@ -188,6 +190,7 @@ public class StatusManager {
             destMap.put(COMMIT_INDEX, String.valueOf(raftStatus.commitIndex));
             destMap.put(INSTALL_SNAPSHOT, String.valueOf(raftStatus.installSnapshot));
             destMap.put(FIRST_VALID_IDX, String.valueOf(raftStatus.firstValidIndex));
+            destMap.put(FIRST_VALID_POS, String.valueOf(raftStatus.firstValidPos));
         }
     }
 

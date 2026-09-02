@@ -42,7 +42,6 @@ import java.util.function.Supplier;
  */
 public final class DefaultRaftLog implements RaftLog {
     private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
-    private static final String KEY_FIRST_VALID_POS = "firstValidPos";
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
@@ -111,13 +110,11 @@ public final class DefaultRaftLog implements RaftLog {
                 }
                 long restoreIndex = p.getLeft();
                 long restoreStartPos = p.getRight();
-                long firstValidPos = RaftUtil.parseLong(statusManager.getProperties(),
-                        KEY_FIRST_VALID_POS, 0);
 
                 // restore will cause idx write, so start idx fibers
                 idxFiles.startFibers();
 
-                return Fiber.call(logFiles.restore(restoreIndex, restoreStartPos, firstValidPos),
+                return Fiber.call(logFiles.restore(restoreIndex, restoreStartPos, raftStatus.firstValidPos),
                         this::afterLogRestore);
             }
 
@@ -127,6 +124,15 @@ public final class DefaultRaftLog implements RaftLog {
                 logFiles.startFibers();
                 idxFiles.setInitialized(true);
                 logFiles.setInitialized(true);
+
+                if (logFiles.queue.size() > 0) {
+                    LogFile firstFile = logFiles.queue.get(0);
+                    if (firstFile.firstIndex > raftStatus.firstValidIndex) {
+                        // the status file is not persisted after delete raft log file
+                        raftStatus.firstValidIndex = firstFile.firstIndex;
+                        raftStatus.firstValidPos = firstFile.startPos;
+                    }
+                }
 
                 startQueueDeleteFiber();
 
@@ -270,7 +276,6 @@ public final class DefaultRaftLog implements RaftLog {
                 idxFiles.setInitialized(true);
                 logFiles.setInitialized(true);
                 startQueueDeleteFiber();
-                statusManager.getProperties().put(KEY_FIRST_VALID_POS, String.valueOf(nextLogPos));
                 return Fiber.frameReturn();
             }
         };
@@ -369,6 +374,12 @@ public final class DefaultRaftLog implements RaftLog {
                 }
             } else {
                 if (shouldDeleteFirstLog()) {
+                    // advance before deletion: a reader passing the firstValidPos check never hits
+                    // a deleted file. both values come from the in-memory LogFile, no io needed
+                    LogFile second = logFiles.queue.get(1);
+                    raftStatus.firstValidIndex = second.firstIndex;
+                    raftStatus.firstValidPos = second.startPos;
+                    statusManager.persistAsync();
                     return Fiber.call(logFiles.deleteFirstFile(), this::deleteLogs);
                 } else {
                     return deleteIdx(null);
