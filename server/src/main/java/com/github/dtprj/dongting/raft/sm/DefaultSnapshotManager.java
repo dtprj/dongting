@@ -85,7 +85,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private final SaveSnapshotLoopFrame saveLoopFrame;
 
     private long nextId = 1;
-    private File snapshotDir;
+    private final File snapshotDir;
 
     static class FileSnapshotInfo {
         final File idxFile;
@@ -111,6 +111,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.stateMachine = stateMachine;
         this.snapshotCreator = snapshotCreator;
+        this.snapshotDir = new File(groupConfig.dataDir, SNAPSHOT_DIR);
         this.saveLoopFrame = new SaveSnapshotLoopFrame();
     }
 
@@ -126,8 +127,19 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         @Override
         public FrameCallResult execute(Void input) throws IOException {
-            File dataDir = FileUtil.ensureDir(groupConfig.dataDir);
-            snapshotDir = FileUtil.ensureDir(dataDir, SNAPSHOT_DIR);
+            FileUtil.ensureDir(snapshotDir);
+            if (raftStatus.installSnapshot) {
+                // the logs are deleted and will be reinstalled, so all saved snapshots are useless
+                log.info("in install snapshot state, delete all saved snapshots, groupId={}", groupConfig.groupId);
+                File[] all = snapshotDir.listFiles();
+                if (all != null) {
+                    for (File f : all) {
+                        deleteInIoExecutor(f);
+                    }
+                }
+                setResult(null);
+                return Fiber.frameReturn();
+            }
             File[] files = snapshotDir.listFiles(f -> f.isFile() && f.getName().endsWith(IDX_SUFFIX));
             if (files == null || files.length == 0) {
                 setResult(null);
@@ -250,6 +262,16 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return savedSnapshots.getLast().lastIncludeIndex;
         }
         return savedSnapshots.get(Math.max(0, savedSnapshots.size() - keep)).lastIncludeIndex;
+    }
+
+    @Override
+    public void deleteAll() {
+        while (!savedSnapshots.isEmpty()) {
+            FileSnapshotInfo s = savedSnapshots.removeFirst();
+            deleteInIoExecutor(s.dataFile);
+            deleteInIoExecutor(s.idxFile);
+        }
+        raftStatus.reservedSnapshotIndex = 0;
     }
 
     @Override
@@ -413,6 +435,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
             String baseName = sdf.format(new Date()) + "_" + id;
+            FileUtil.ensureDir(snapshotDir);
             File dataFile = new File(snapshotDir, baseName + DATA_SUFFIX);
             this.newIdxFile = new File(snapshotDir, baseName + IDX_SUFFIX);
 
@@ -510,6 +533,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private FrameCallResult finish2(Void unused) {
+            if (checkCancel()) {
+                return Fiber.frameReturn();
+            }
             success = true;
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
             savedSnapshots.addLast(fileSnapshot);

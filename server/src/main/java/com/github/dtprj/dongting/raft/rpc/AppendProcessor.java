@@ -493,6 +493,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult afterStateMachineClean(Void v) throws Exception {
+        gc.snapshotManager.deleteAll();
         return Fiber.call(gc.raftLog.beginInstall(), this::applyConfigChange);
     }
 

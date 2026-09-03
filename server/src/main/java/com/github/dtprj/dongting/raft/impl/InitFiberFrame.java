@@ -109,18 +109,8 @@ public class InitFiberFrame extends FiberFrame<Void> {
         if (cancelInit()) {
             return Fiber.frameReturn();
         }
-        if (raftStatus.installSnapshot || gc.snapshotManager == null) {
-            if (raftStatus.installSnapshot) {
-                log.info("install snapshot, skip recover, groupId={}", groupConfig.groupId);
-            } else {
-                raftStatus.installSnapshot = true;
-                log.info("no snapshot manager, mark install snapshot, groupId={}", groupConfig.groupId);
-            }
-            return afterRecoverStateMachine(null);
-        } else {
-            FiberFrame<Snapshot> f = gc.snapshotManager.init();
-            return Fiber.call(f, this::afterSnapshotManagerInit);
-        }
+        FiberFrame<Snapshot> f = gc.snapshotManager.init();
+        return Fiber.call(f, this::afterSnapshotManagerInit);
     }
 
     private FrameCallResult afterSnapshotManagerInit(Snapshot snapshot) {

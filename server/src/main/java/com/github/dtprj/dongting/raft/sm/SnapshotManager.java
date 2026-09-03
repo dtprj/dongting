@@ -33,4 +33,6 @@ public interface SnapshotManager {
 
     FiberFuture<Long> saveSnapshot();
 
+    // delete all saved snapshots; called when install snapshot begins, since the raft logs are deleted
+    void deleteAll();
 }

@@ -63,8 +63,7 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
     public FrameCallResult execute(Void input) {
         gc.raftStatus.needRepCondition.signalAll();
         FiberFuture<Long> f;
-        if (gc.snapshotManager != null && saveSnapshot
-                && gc.raftStatus.isInitFinished() && !gc.raftStatus.isInitFailed()) {
+        if (saveSnapshot && gc.raftStatus.isInitFinished() && !gc.raftStatus.isInitFailed()) {
             f = gc.snapshotManager.saveSnapshot();
         } else {
             f = FiberFuture.completedFuture(getFiberGroup(), 0L);
@@ -73,9 +72,7 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterSaveSnapshot(Long notUsed) {
-        if (gc.snapshotManager != null) {
-            gc.snapshotManager.stopFiber();
-        }
+        gc.snapshotManager.stopFiber();
         gc.applyManager.shutdown(timeout);
         return gc.raftLog.close().await(this::afterRaftLogClose);
     }

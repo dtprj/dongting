@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -26,6 +27,9 @@ import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
+import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -41,6 +45,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author huangli
  */
 public class DefaultSnapshotManagerTest extends BaseFiberTest {
+    private static RaftServer RAFT_SERVER;
     private DefaultSnapshotManager m;
     private DtKV kv;
     private RaftStatusImpl raftStatus;
@@ -71,6 +77,19 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         groupConfig.ts = dispatcher.ts;
         groupConfig.dataDir = dataDir;
         groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
+        if (RAFT_SERVER == null) {
+            RaftServerConfig sc = new RaftServerConfig();
+            sc.servers = "1,localhost:4000";
+            sc.nodeId = 1;
+            sc.replicatePort = 4000;
+            RAFT_SERVER = new RaftServer(sc, new ArrayList<>(), new DefaultRaftFactory(DefaultPoolFactory.INSTANCE) {
+                @Override
+                public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
+                    return null;
+                }
+            });
+        }
+        groupConfig.raftServer = RAFT_SERVER;
         kvConfig = new KvServerConfig();
         kvConfig.useSeparateExecutor = separateExecutor;
         kvConfig.initMapCapacity = 16;
@@ -336,5 +355,63 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         WaitUtil.waitUtil(() -> raftStatus.reservedSnapshotIndex == 8);
         WaitUtil.waitUtil(() -> m.savedSnapshots.size() == 1);
         assertEquals(8, m.savedSnapshots.getFirst().lastIncludeIndex);
+    }
+
+    @Test
+    void testInstallRestartClearsSnapshots() throws Exception {
+        String dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
+        createManager(false, dataDir, false);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            protected FrameCallResult doFinally() {
+                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                m.stopFiber();
+                return super.doFinally();
+            }
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                kv.start();
+                return Fiber.call(m.init(), this::afterInit);
+            }
+
+            private FrameCallResult afterInit(Snapshot snapshot) {
+                assertNull(snapshot);
+                m.startFiber();
+                raftStatus.setLastApplied(2);
+                return m.saveSnapshot().await(v -> {
+                    raftStatus.setLastApplied(4);
+                    return m.saveSnapshot().await(this::afterSecondSave);
+                });
+            }
+
+            private FrameCallResult afterSecondSave(Long idx) {
+                return Fiber.frameReturn();
+            }
+        });
+        WaitUtil.waitUtil(() -> raftStatus.reservedSnapshotIndex == 2);
+        File snapshotDir = new File(dataDir, DefaultSnapshotManager.SNAPSHOT_DIR);
+        WaitUtil.waitUtil(() -> fileCount(snapshotDir) == 4);
+
+        // restart in install-snapshot state: init deletes all snapshot files
+        createManager(false, dataDir, false);
+        raftStatus.installSnapshot = true;
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(m.init(), this::afterInit);
+            }
+
+            private FrameCallResult afterInit(Snapshot snapshot) {
+                assertNull(snapshot);
+                return Fiber.frameReturn();
+            }
+        });
+        WaitUtil.waitUtil(() -> fileCount(snapshotDir) == 0);
+    }
+
+    private static int fileCount(File dir) {
+        File[] files = dir.listFiles();
+        return files == null ? -1 : files.length;
     }
 }
