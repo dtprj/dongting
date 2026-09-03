@@ -32,9 +32,19 @@ public abstract class ByteBufferPool {
         this.threshold = threshold;
     }
 
+    /**
+     * Borrow RefBuffer from pool.
+     * If plain is true, returned RefBuffer's retain/release is not thread safe.
+     * Returned buffer position is 0, limit == capacity and the capacity may greater than requestSize.
+     */
     public abstract RefBuffer borrow(boolean plain, int requestSize);
 
-    // borrow with an explicit releasor so the caller (Buffers) can control release routing
+    /**
+     * Borrow RefBuffer from pool.
+     * If plain is true, returned RefBuffer's retain/release is not thread safe.
+     * Borrow with an explicit releasor so the caller (Buffers) can control release routing.
+     * Returned buffer position is 0, limit == capacity and the capacity may greater than requestSize.
+     */
     abstract RefBuffer borrow(boolean plain, int requestSize, Consumer<RefBuffer> releasor);
 
     public void release(RefBuffer rb) {
