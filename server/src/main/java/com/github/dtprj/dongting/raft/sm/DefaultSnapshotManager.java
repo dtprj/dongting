@@ -470,7 +470,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             buf.position(0);
             buf.limit(size + 8);
             AsyncIoTask writeTask = new AsyncIoTask(groupConfig.fiberGroup, newDataFile);
-            long newWritePos = currentWritePos + buf.capacity();
+            long newWritePos = currentWritePos + bufferSize;
             FiberFuture<Void> writeFuture = writeTask.write(buf, currentWritePos);
             currentWritePos = newWritePos;
             writeFuture.registerCallback((v, ex) -> rb.release());
@@ -580,7 +580,12 @@ class RecoverFiberFrame extends FiberFrame<Void> {
         this.groupConfig = groupConfig;
         this.snapshot = snapshot;
         Buffers buffers = groupConfig.fiberGroup.dispatcher.thread.buffers;
-        this.bufferCreator = () -> buffers.borrowDirect(snapshot.getBufferSize());
+        this.bufferCreator = () -> {
+            int s = snapshot.getBufferSize();
+            RefBuffer rb = buffers.borrowDirect(s);
+            rb.getBuffer().limit(s);
+            return rb;
+        };
     }
 
     @Override
@@ -604,10 +609,10 @@ class RecoverFiberFrame extends FiberFrame<Void> {
         return Fiber.call(reader, this::finish);
     }
 
-    private FiberFuture<Void> apply(RefBuffer rb, Integer notUsed) {
+    private FiberFuture<Void> apply(RefBuffer rb, Integer readBytes) {
         ByteBuffer buf = rb.getBuffer();
         int size = buf.getInt(0);
-        if (size <= 0 || size > buf.capacity() - 8) {
+        if (size <= 0 || size > readBytes - 8) {
             rb.release();
             return FiberFuture.failedFuture(getFiberGroup(), new RaftException("invalid snapshot data size: " + size));
         }
