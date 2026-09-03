@@ -47,7 +47,7 @@ public interface RaftFactory {
     RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory codecFactory);
 
     SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine,
-                                          Supplier<FiberFuture<Snapshot>> snapshotCreator, RaftLog raftLog);
+                                          Supplier<FiberFuture<Snapshot>> snapshotCreator);
 
     Dispatcher createDispatcher(RaftServerConfig serverConfig, RaftGroupConfig groupConfig);
 

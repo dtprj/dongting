@@ -271,7 +271,6 @@ The following configurations in `config.properties` affect the behavior of Raft 
 - **saveSnapshotSeconds**: Interval in seconds to save snapshots (default value: 3600)
 - **maxKeepSnapshots**: Maximum number of snapshots to keep (default value: 2)
 - **saveSnapshotWhenClose**: Whether to save snapshot when closing (usually when the server is shutting down) (default value: true)
-- **deleteLogsAfterTakeSnapshot**: Whether to delete unnecessary raft log files after creating a snapshot (default value: true)
 
 ### servers.properties
 

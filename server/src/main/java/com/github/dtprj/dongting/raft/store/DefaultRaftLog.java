@@ -200,7 +200,7 @@ public final class DefaultRaftLog implements RaftLog {
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
         long bound = Math.min(raftStatus.getLastApplied(), statusManager.lastPersistedIdxIndex);
-        bound = Math.min(bound, raftStatus.lastSavedSnapshotIndex);
+        bound = Math.min(bound, raftStatus.reservedSnapshotIndex);
         bound = Math.min(bound, index);
         log.info("mark truncate log files by index {}, bound={}", index, bound);
         logFiles.markDelete(bound, Long.MAX_VALUE, delayMillis);
@@ -209,7 +209,7 @@ public final class DefaultRaftLog implements RaftLog {
     @Override
     public void markTruncateByTimestamp(long timestampBound, long delayMillis) {
         long bound = Math.min(raftStatus.getLastApplied(), statusManager.lastPersistedIdxIndex);
-        bound = Math.min(bound, raftStatus.lastSavedSnapshotIndex);
+        bound = Math.min(bound, raftStatus.reservedSnapshotIndex);
         log.info("mark truncate log files by timestamp {}, bound={}", timestampBound, bound);
         logFiles.markDelete(bound, timestampBound, delayMillis);
     }

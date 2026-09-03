@@ -147,7 +147,6 @@ public class InitFiberFrame extends FiberFrame<Void> {
             throw new RaftException("snapshot term greater than current term");
         }
         gc.raftStatus.lastConfigChangeIndex = si.lastConfigChangeIndex;
-        gc.raftStatus.lastSavedSnapshotIndex = si.lastIncludedIndex;
 
         FiberFrame<Void> f = gc.memberManager.applyConfigFrame(
                 "state machine recover apply config change",

@@ -55,6 +55,7 @@ class DtMQTest extends BaseFiberTest {
     private File dataDir;
     private RaftGroupConfigEx config;
     private RaftStatusImpl raftStatus;
+    private MQServerConfig mqConfig;
     private DtMQ mq;
     private DefaultSnapshotManager snapshotManager;
 
@@ -82,10 +83,10 @@ class DtMQTest extends BaseFiberTest {
         raftStatus.nodeIdOfPreparedObservers = Set.of();
         raftStatus.lastAppliedTerm = 1;
         config.raftStatus = raftStatus;
-        mq = new DtMQ(config);
+        mqConfig = new MQServerConfig();
+        mq = new DtMQ(config, mqConfig);
         snapshotManager = new DefaultSnapshotManager(config, mq,
-                () -> mq.takeSnapshot(new SnapshotInfo(raftStatus)), idx -> {
-        });
+                () -> mq.takeSnapshot(new SnapshotInfo(raftStatus)));
     }
 
     private FiberFuture<Object> exec(long queueId, long raftIndex) {

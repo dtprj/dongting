@@ -111,7 +111,8 @@ public final class RaftStatusImpl extends RaftStatus {
     // paired with firstValidIndex: position of that log item, always updated together with it
     public long firstValidPos;
 
-    public long lastSavedSnapshotIndex = 0;
+    // raft logs at or after this index must not be deleted; maintained by the snapshot manager
+    public long reservedSnapshotIndex = 0;
 
     public boolean truncating;
 

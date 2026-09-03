@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.TestDir;
+import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -55,6 +56,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
     private DtKV kv;
     private RaftStatusImpl raftStatus;
     private RaftGroupConfigEx groupConfig;
+    private KvServerConfig kvConfig;
 
     private void createManager(boolean separateExecutor, String dataDir, boolean mockInstall) {
         raftStatus = new RaftStatusImpl(1, dispatcher.ts);
@@ -69,7 +71,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         groupConfig.ts = dispatcher.ts;
         groupConfig.dataDir = dataDir;
         groupConfig.blockIoExecutor = MockExecutors.ioExecutor();
-        KvServerConfig kvConfig = new KvServerConfig();
+        kvConfig = new KvServerConfig();
         kvConfig.useSeparateExecutor = separateExecutor;
         kvConfig.initMapCapacity = 16;
         kv = new DtKV(groupConfig, kvConfig) {
@@ -81,8 +83,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 return super.takeSnapshot(si);
             }
         };
-        m = new DefaultSnapshotManager(groupConfig, kv, ()-> kv.takeSnapshot(new SnapshotInfo(raftStatus)) , idx -> {
-        });
+        m = new DefaultSnapshotManager(groupConfig, kv, () -> kv.takeSnapshot(new SnapshotInfo(raftStatus)));
     }
 
     @ParameterizedTest
@@ -244,4 +245,96 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         });
     }
 
+    @Test
+    void testReservedIndex() throws Exception {
+        String dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
+        createManager(false, dataDir, false);
+        doInFiber(new FiberFrame<>() {
+            private int saveCount;
+
+            @Override
+            protected FrameCallResult doFinally() {
+                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                m.stopFiber();
+                return super.doFinally();
+            }
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                kv.start();
+                return Fiber.call(m.init(), this::afterInit);
+            }
+
+            private FrameCallResult afterInit(Snapshot snapshot) {
+                assertNull(snapshot);
+                m.startFiber();
+                return step(null);
+            }
+
+            private FrameCallResult step(Void v) {
+                // save at index 2, 4, 6, 8
+                if (saveCount == 4) {
+                    return Fiber.frameReturn();
+                }
+                raftStatus.setLastApplied((saveCount + 1) * 2);
+                saveCount++;
+                return m.saveSnapshot().await(this::afterSave);
+            }
+
+            private FrameCallResult afterSave(Long idx) {
+                return Fiber.resume(null, this::step);
+            }
+        });
+        // with keep=2 the list is [6, 8], so reserved is the second newest
+        WaitUtil.waitUtil(() -> raftStatus.reservedSnapshotIndex == 6);
+    }
+
+    @Test
+    void testKeep0DeleteByFirstValidIndex() throws Exception {
+        String dataDir = TestDir.createTestDir(DefaultSnapshotManager.class.getSimpleName()).getAbsolutePath();
+        createManager(false, dataDir, false);
+        groupConfig.maxKeepSnapshots = 0;
+        doInFiber(new FiberFrame<>() {
+            private int saveCount;
+
+            @Override
+            protected FrameCallResult doFinally() {
+                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                m.stopFiber();
+                return super.doFinally();
+            }
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                kv.start();
+                return Fiber.call(m.init(), this::afterInit);
+            }
+
+            private FrameCallResult afterInit(Snapshot snapshot) {
+                assertNull(snapshot);
+                m.startFiber();
+                return step(null);
+            }
+
+            private FrameCallResult step(Void v) {
+                if (saveCount == 3) {
+                    raftStatus.firstValidIndex = 100;
+                }
+                // save at index 2, 4, 6, 8; the last save deletes 2/4/6 (all < firstValidIndex)
+                if (saveCount == 4) {
+                    return Fiber.frameReturn();
+                }
+                raftStatus.setLastApplied((saveCount + 1) * 2);
+                saveCount++;
+                return m.saveSnapshot().await(this::afterSave);
+            }
+
+            private FrameCallResult afterSave(Long idx) {
+                return Fiber.resume(null, this::step);
+            }
+        });
+        WaitUtil.waitUtil(() -> raftStatus.reservedSnapshotIndex == 8);
+        WaitUtil.waitUtil(() -> m.savedSnapshots.size() == 1);
+        assertEquals(8, m.savedSnapshots.getFirst().lastIncludeIndex);
+    }
 }

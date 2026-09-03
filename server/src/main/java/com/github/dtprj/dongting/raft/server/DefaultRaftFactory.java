@@ -31,7 +31,6 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -71,10 +70,8 @@ public abstract class DefaultRaftFactory implements RaftFactory {
 
     @Override
     public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine,
-                                                 Supplier<FiberFuture<Snapshot>> snapshotCreator, RaftLog raftLog) {
-        Consumer<Long> logDeleter = lastIncludeIndex -> raftLog.markTruncateByIndex(
-                lastIncludeIndex, groupConfig.autoDeleteLogDelaySeconds * 1000L);
-        return new DefaultSnapshotManager(groupConfig, stateMachine, snapshotCreator, logDeleter);
+                                                 Supplier<FiberFuture<Snapshot>> snapshotCreator) {
+        return new DefaultSnapshotManager(groupConfig, stateMachine, snapshotCreator);
     }
 
     @Override

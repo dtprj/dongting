@@ -239,7 +239,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         raftStatus.setLastApplied(5);
         raftStatus.lastLogIndex = 5;
         raftStatus.lastForceLogIndex = 5;
-        raftStatus.lastSavedSnapshotIndex = 10;
+        raftStatus.reservedSnapshotIndex = 10;
     }
 
     @Test
@@ -334,7 +334,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             raftStatus.setLastApplied(20);
             raftStatus.lastLogIndex = 20;
             raftStatus.lastForceLogIndex = 20;
-            raftStatus.lastSavedSnapshotIndex = 25;
+            raftStatus.reservedSnapshotIndex = 25;
 
             // idx data of entry 15 is forced and submitted to the status file, but the update
             // is "dropped", so the durable value is still 10
@@ -342,7 +342,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             doInFiber(() -> assertEquals(10, statusManager.lastPersistedIdxIndex));
 
             File dir = new File(new File(dataDir), "log");
-            // the mark bound is min(lastApplied=20, lastPersistedIdxIndex=10, lastSavedSnapshotIndex=25,
+            // the mark bound is min(lastApplied=20, lastPersistedIdxIndex=10, reservedSnapshotIndex=25,
             // index=15) = 10, so only files whose next file starts at index <= 10 are marked
             doInFiber(() -> raftLog.markTruncateByIndex(15, 0));
 

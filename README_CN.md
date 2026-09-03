@@ -266,7 +266,6 @@ kvClient.put(groupId, "key1".getBytes(), "value1".getBytes(), (raftIndex, ex) ->
 - **saveSnapshotSeconds**：保存快照的间隔秒数（默认值：3600）
 - **maxKeepSnapshots**：最多保留的快照数量（默认值：2）
 - **saveSnapshotWhenClose**：关闭时（通常是服务器关闭时）是否保存快照（默认值：true）
-- **deleteLogsAfterTakeSnapshot**：创建快照后是否删除不再需要的raft日志文件（默认值：true）
 
 ### servers.properties
 

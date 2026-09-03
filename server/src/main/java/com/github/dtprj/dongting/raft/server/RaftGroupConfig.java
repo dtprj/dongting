@@ -72,8 +72,6 @@ public class RaftGroupConfig {
     public int maxKeepSnapshots = 2;
     public boolean saveSnapshotWhenClose = true;
     public int autoDeleteLogDelaySeconds = 60;
-
-    public boolean deleteLogsAfterTakeSnapshot = true;
     public int keepOpenFiles = 5;
 
     RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {

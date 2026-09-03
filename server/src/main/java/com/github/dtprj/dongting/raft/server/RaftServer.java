@@ -298,7 +298,7 @@ public class RaftServer extends AbstractLifeCircle {
         gc.commitManager = commitManager;
         gc.applyManager = applyManager;
         gc.nodeManager = nodeManager;
-        gc.snapshotManager = raftFactory.createSnapshotManager(rgcEx, stateMachine, applyManager::requestTakeSnapshot, raftLog);
+        gc.snapshotManager = raftFactory.createSnapshotManager(rgcEx, stateMachine, applyManager::requestTakeSnapshot);
         gc.statusManager = statusManager;
         gc.linearTaskRunner = linearTaskRunner;
         gc.raftFactory = raftFactory;
