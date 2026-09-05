@@ -89,7 +89,13 @@ public class SnapshotReader extends FiberFrame<Void> {
                 // fire read task
                 RefBuffer buf = bufferCreator.get();
                 addNewReadTask = true;
-                FiberFuture<Integer> future = Objects.requireNonNull(snapshot.readNext(buf.getBuffer()));
+                FiberFuture<Integer> future;
+                try {
+                    future = Objects.requireNonNull(snapshot.readNext(buf.getBuffer()));
+                } catch (Throwable e) {
+                    buf.release();
+                    throw e;
+                }
                 readList.add(new Pair<>(buf, future));
                 future.registerCallback((v, ex) -> cond.signal());
             }

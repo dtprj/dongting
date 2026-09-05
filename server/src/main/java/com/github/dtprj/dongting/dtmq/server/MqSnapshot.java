@@ -82,6 +82,7 @@ class MqSnapshot extends Snapshot {
 
     @Override
     public FiberFuture<Integer> readNext(ByteBuffer buffer) {
+        int startPos = buffer.position();
         int bytes = 0;
         RefBuffer p;
         while (buffer.remaining() >= ITEM_BYTES && (p = pages.peek()) != null) {
@@ -96,6 +97,8 @@ class MqSnapshot extends Snapshot {
                 p.release();
             }
         }
+        buffer.limit(startPos + bytes);
+        buffer.position(startPos);
         return FiberFuture.completedFuture(fiberGroup, bytes);
     }
 

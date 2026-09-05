@@ -23,12 +23,14 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftCancelException;
+import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.SnapshotReader;
@@ -44,6 +46,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
@@ -94,10 +97,21 @@ public class DefaultSnapshotManager implements SnapshotManager {
         long lastIncludeIndex;
 
         SnapshotInfo si;
+        int bufferSize;
 
-        FileSnapshotInfo(File idxFile, File dataFile) {
+        final ArrayList<FileSnapshot> openReads = new ArrayList<>();
+        // in-flight opens and reads
+        int busy;
+        // set when open/parse/read failed (any exception), never selected again
+        boolean bad;
+
+        boolean closing;
+        final FiberCondition busyCond;
+
+        FileSnapshotInfo(File idxFile, File dataFile, FiberGroup fiberGroup) {
             this.idxFile = idxFile;
             this.dataFile = dataFile;
+            this.busyCond = fiberGroup.newCondition("snapshotBusy");
         }
     }
 
@@ -123,7 +137,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private class InitFrame extends FiberFrame<Snapshot> {
 
         private StatusFile currentStatusFile;
-        private int lastBufferSize;
 
         @Override
         public FrameCallResult execute(Void input) throws IOException {
@@ -157,7 +170,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     continue;
                 }
                 if (dataFile.exists()) {
-                    FileSnapshotInfo fsi = new FileSnapshotInfo(f, dataFile);
+                    FileSnapshotInfo fsi = new FileSnapshotInfo(f, dataFile, groupConfig.fiberGroup);
                     savedSnapshots.addFirst(fsi);
                 } else {
                     log.error("missing data file: {}", f.getPath());
@@ -184,8 +197,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
             } else {
                 FileSnapshotInfo last = savedSnapshots.getLast();
                 log.info("open snapshot file {}", last.dataFile);
-                FileSnapshot s = new FileSnapshot(groupConfig, last.si, last.dataFile, lastBufferSize);
+                FileSnapshot s = new FileSnapshot(groupConfig, last.si, last.dataFile, last.bufferSize);
                 s.syncOpen();
+                s.attachTo(last);
                 raftStatus.reservedSnapshotIndex = computeReservedSnapshotIndex();
                 setResult(s);
                 return Fiber.frameReturn();
@@ -198,23 +212,25 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
             if (!it.hasNext()) {
                 nextId = Long.parseLong(p.get(KEY_NEXT_ID));
-                lastBufferSize = Integer.parseInt(p.get(KEY_BUFFER_SIZE));
-
-                int lastTerm = Integer.parseInt(p.get(KEY_LAST_TERM));
-                Set<Integer> members = RaftUtil.strToIdSet(p.get(KEY_MEMBERS));
-                Set<Integer> observers = RaftUtil.strToIdSet(p.get(KEY_OBSERVERS));
-                Set<Integer> preparedMembers = RaftUtil.strToIdSet(p.get(KEY_PREPARED_MEMBERS));
-                Set<Integer> preparedObservers = RaftUtil.strToIdSet(p.get(KEY_PREPARED_OBSERVERS));
-                long lastConfigChangeIndex = Long.parseLong(p.get(KEY_LAST_CONFIG_CHANGE_INDEX));
-
-                fsi.si = new SnapshotInfo(fsi.lastIncludeIndex, lastTerm, members, observers, preparedMembers,
-                        preparedObservers, lastConfigChangeIndex);
+                fsi.bufferSize = Integer.parseInt(p.get(KEY_BUFFER_SIZE));
+                fsi.si = parseSnapshotInfo(p, fsi.lastIncludeIndex);
             }
 
             currentStatusFile = null;
 
             return loadIdxInfo(it);
         }
+    }
+
+    private static SnapshotInfo parseSnapshotInfo(Map<String, String> p, long lastIncludeIndex) {
+        int lastTerm = Integer.parseInt(p.get(KEY_LAST_TERM));
+        Set<Integer> members = RaftUtil.strToIdSet(p.get(KEY_MEMBERS));
+        Set<Integer> observers = RaftUtil.strToIdSet(p.get(KEY_OBSERVERS));
+        Set<Integer> preparedMembers = RaftUtil.strToIdSet(p.get(KEY_PREPARED_MEMBERS));
+        Set<Integer> preparedObservers = RaftUtil.strToIdSet(p.get(KEY_PREPARED_OBSERVERS));
+        long lastConfigChangeIndex = Long.parseLong(p.get(KEY_LAST_CONFIG_CHANGE_INDEX));
+        return new SnapshotInfo(lastIncludeIndex, lastTerm, members, observers, preparedMembers,
+                preparedObservers, lastConfigChangeIndex);
     }
 
     @Override
@@ -233,24 +249,66 @@ public class DefaultSnapshotManager implements SnapshotManager {
         });
     }
 
-    private void deleteOldFiles() {
-        int keep = groupConfig.maxKeepSnapshots;
-        if (keep <= 0) {
-            // no count limit: delete only if its logs are all deleted; size > 1 keeps the latest
-            while (savedSnapshots.size() > 1
-                    && savedSnapshots.getFirst().lastIncludeIndex < raftStatus.firstValidIndex) {
-                FileSnapshotInfo s = savedSnapshots.removeFirst();
-                deleteInIoExecutor(s.dataFile);
-                deleteInIoExecutor(s.idxFile);
-            }
-        } else {
-            while (savedSnapshots.size() > keep) {
-                FileSnapshotInfo s = savedSnapshots.removeFirst();
-                deleteInIoExecutor(s.dataFile);
-                deleteInIoExecutor(s.idxFile);
-            }
+    FiberFrame<Void> deleteOldFiles() {
+        return new DeleteSnapshotsFrame(false);
+    }
+
+    private class DeleteSnapshotsFrame extends FiberFrame<Void> {
+        private final boolean all;
+
+        DeleteSnapshotsFrame(boolean all) {
+            this.all = all;
         }
-        raftStatus.reservedSnapshotIndex = computeReservedSnapshotIndex();
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            FileSnapshotInfo fsi = all ? savedSnapshots.peekFirst() : pickNextToDelete();
+            if (fsi == null) {
+                raftStatus.reservedSnapshotIndex = all ? 0 : computeReservedSnapshotIndex();
+                return Fiber.frameReturn();
+            }
+            savedSnapshots.removeFirst();
+            return Fiber.call(new CloseReadersAndDeleteFrame(fsi), this);
+        }
+
+        private FileSnapshotInfo pickNextToDelete() {
+            if (savedSnapshots.isEmpty()) {
+                return null;
+            }
+            int keep = groupConfig.maxKeepSnapshots;
+            if (keep <= 0) {
+                // no count limit: delete only if its logs are all deleted; size > 1 keeps the latest
+                if (savedSnapshots.size() > 1
+                        && savedSnapshots.getFirst().lastIncludeIndex < raftStatus.firstValidIndex) {
+                    return savedSnapshots.getFirst();
+                }
+                return null;
+            }
+            return savedSnapshots.size() > keep ? savedSnapshots.getFirst() : null;
+        }
+    }
+
+    private class CloseReadersAndDeleteFrame extends FiberFrame<Void> {
+        private final FileSnapshotInfo fsi;
+
+        CloseReadersAndDeleteFrame(FileSnapshotInfo fsi) {
+            this.fsi = fsi;
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            fsi.closing = true;
+            if (fsi.busy > 0) {
+                return fsi.busyCond.await(this);
+            }
+            // doClose removes the handle from openReads
+            while (!fsi.openReads.isEmpty()) {
+                fsi.openReads.get(0).close();
+            }
+            deleteInIoExecutor(fsi.dataFile);
+            deleteInIoExecutor(fsi.idxFile);
+            return Fiber.frameReturn();
+        }
     }
 
     private long computeReservedSnapshotIndex() {
@@ -265,13 +323,93 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     @Override
-    public void deleteAll() {
-        while (!savedSnapshots.isEmpty()) {
-            FileSnapshotInfo s = savedSnapshots.removeFirst();
-            deleteInIoExecutor(s.dataFile);
-            deleteInIoExecutor(s.idxFile);
+    public FiberFrame<Void> deleteAll() {
+        return new DeleteSnapshotsFrame(true);
+    }
+
+    @Override
+    public FiberFrame<Snapshot> openSnapshotForInstall() {
+        return new OpenForInstallFrame();
+    }
+
+    private class OpenForInstallFrame extends FiberFrame<Snapshot> {
+        private FileSnapshotInfo fsi;
+        private FileSnapshot snapshot;
+        private boolean success;
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (raftStatus.installSnapshot || raftStatus.getRole() != RaftRole.leader) {
+                setResult(null);
+                return Fiber.frameReturn();
+            }
+            if (groupConfig.installOldestSnapshot) {
+                for (FileSnapshotInfo s : savedSnapshots) {
+                    if (!s.bad && s.lastIncludeIndex >= raftStatus.firstValidIndex) {
+                        fsi = s;
+                        break;
+                    }
+                }
+            }
+            if (fsi == null) {
+                return snapshotCreator.get().await(this::justReturn);
+            }
+            fsi.busy++;
+            if (fsi.si != null) {
+                return openIt();
+            }
+            StatusFile statusFile = new StatusFile(fsi.idxFile, groupConfig);
+            return Fiber.call(statusFile.init(), v -> afterParse(statusFile));
         }
-        raftStatus.reservedSnapshotIndex = 0;
+
+        private FrameCallResult afterParse(StatusFile statusFile) {
+            Map<String, String> p = statusFile.getProperties();
+            fsi.bufferSize = Integer.parseInt(p.get(KEY_BUFFER_SIZE));
+            fsi.si = parseSnapshotInfo(p, fsi.lastIncludeIndex);
+            return openIt();
+        }
+
+        private FrameCallResult openIt() {
+            if (fsi.bufferSize > groupConfig.replicateSnapshotBufferSize) {
+                if (!fsi.bad) {
+                    fsi.bad = true;
+                    log.warn("snapshot bufferSize {} exceeds replicateSnapshotBufferSize {}, mark bad: {}",
+                            fsi.bufferSize, groupConfig.replicateSnapshotBufferSize, fsi.dataFile.getPath());
+                }
+                setResult(null);
+                return Fiber.frameReturn();
+            }
+            snapshot = new FileSnapshot(groupConfig, fsi.si, fsi.dataFile, fsi.bufferSize);
+            snapshot.attachTo(fsi);
+            return snapshot.asyncOpen().await(this::afterOpen);
+        }
+
+        private FrameCallResult afterOpen(Void v) {
+            success = true;
+            setResult(snapshot);
+            return Fiber.frameReturn();
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) throws Throwable {
+            if (fsi != null && !fsi.bad) {
+                // blacklist on any failure, including transient io errors and cancel
+                fsi.bad = true;
+                log.warn("mark snapshot bad: {}, {}", fsi.dataFile.getPath(), ex.toString());
+            }
+            throw ex;
+        }
+
+        @Override
+        protected FrameCallResult doFinally() {
+            if (fsi != null && --fsi.busy == 0) {
+                fsi.busyCond.signalAll();
+            }
+            if (!success && snapshot != null) {
+                snapshot.close();
+            }
+            return Fiber.frameReturn();
+        }
     }
 
     @Override
@@ -313,7 +451,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (stopLoop) {
                 return Fiber.frameReturn();
             }
-            deleteOldFiles();
+            return Fiber.call(deleteOldFiles(), this::afterDeleteOldFiles);
+        }
+
+        private FrameCallResult afterDeleteOldFiles(Void v) {
+            if (stopLoop) {
+                return Fiber.frameReturn();
+            }
             if (saveRequest.isEmpty()) {
                 return saveSnapshotCond.await(groupConfig.saveSnapshotSeconds * 1000L, this::doSave);
             } else {
@@ -326,13 +470,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 return Fiber.frameReturn();
             }
             SaveFrame f = new SaveFrame(nextId++);
-            return Fiber.call(f, this::afterSave);
+            return Fiber.call(f, this);
         }
 
-        private FrameCallResult afterSave(Void v) {
-            deleteOldFiles();
-            return Fiber.resume(null, this);
-        }
     }
 
     @Override
@@ -521,7 +661,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             p.put(KEY_BUFFER_SIZE, String.valueOf(bufferSize));
             p.put(KEY_NEXT_ID, String.valueOf(id + 1));
 
-            fileSnapshot = new FileSnapshotInfo(newIdxFile, newDataFile.getFile());
+            fileSnapshot = new FileSnapshotInfo(newIdxFile, newDataFile.getFile(), groupConfig.fiberGroup);
             fileSnapshot.lastIncludeIndex = readSnapshot.getSnapshotInfo().lastIncludedIndex;
 
             // just for human reading
@@ -571,8 +711,6 @@ class RecoverFiberFrame extends FiberFrame<Void> {
 
     private final Supplier<RefBuffer> bufferCreator;
 
-    private final CRC32C crc32C = new CRC32C();
-
     private long offset;
 
     public RecoverFiberFrame(RaftGroupConfigEx groupConfig, StateMachine stateMachine, FileSnapshot snapshot) {
@@ -610,25 +748,10 @@ class RecoverFiberFrame extends FiberFrame<Void> {
     }
 
     private FiberFuture<Void> apply(RefBuffer rb, Integer readBytes) {
-        ByteBuffer buf = rb.getBuffer();
-        int size = buf.getInt(0);
-        if (size <= 0 || size > readBytes - 8) {
-            rb.release();
-            return FiberFuture.failedFuture(getFiberGroup(), new RaftException("invalid snapshot data size: " + size));
-        }
-        crc32C.reset();
-        RaftUtil.updateCrc(crc32C, buf, 0, size + 4);
-        int crc = buf.getInt(size + 4);
-        if (crc != (int) crc32C.getValue()) {
-            rb.release();
-            return FiberFuture.failedFuture(getFiberGroup(), new RaftException("snapshot data crc error"));
-        }
-        buf.limit(size + 4);
-        buf.position(4);
         SnapshotInfo si = snapshot.getSnapshotInfo();
         FiberFuture<Void> f = stateMachine.installSnapshot(si.lastIncludedIndex, si.lastIncludedTerm,
-                offset, false, buf);
-        offset += size;
+                offset, false, rb.getBuffer());
+        offset += readBytes;
         f.registerCallback((v, ex) -> rb.release());
         return f;
     }

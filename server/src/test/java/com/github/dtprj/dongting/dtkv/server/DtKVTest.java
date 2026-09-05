@@ -297,7 +297,6 @@ public class DtKVTest extends BaseFiberTest {
         }
 
         private FrameCallResult afterRead(Integer bytes) {
-            buf.flip();
             assertEquals(bytes, buf.remaining());
             return dest.installSnapshot(lastIndex, lastTerm, offset, false, buf).await(v -> afterInstall(bytes));
         }

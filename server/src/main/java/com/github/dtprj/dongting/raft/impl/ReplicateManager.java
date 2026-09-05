@@ -660,13 +660,13 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        FiberFuture<Snapshot> f = replicateManager.gc.applyManager.requestTakeSnapshot();
-        return f.await(this::afterTakeSnapshot);
+        return Fiber.call(replicateManager.gc.snapshotManager.openSnapshotForInstall(), this::afterTakeSnapshot);
     }
 
     private FrameCallResult afterTakeSnapshot(Snapshot snapshot) {
         if (snapshot == null) {
-            log.error("open recent snapshot fail, return null");
+            log.warn("open snapshot fail, return null. installSnapshot={}, role={}",
+                    raftStatus.installSnapshot, raftStatus.getRole());
             return Fiber.frameReturn();
         }
         this.snapshot = snapshot;
@@ -705,8 +705,6 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
 
     private FiberFuture<Void> readerCallback(RefBuffer buf, Integer readBytes) {
         // SnapshotReader will check cancel indicator and not call this method if group shouldStopReplicate
-        buf.getBuffer().clear();
-        buf.getBuffer().limit(readBytes);
         buf.prepareForEncode();
         return sendInstallSnapshotReq(buf, false, false);
     }

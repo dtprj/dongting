@@ -33,6 +33,16 @@ public interface SnapshotManager {
 
     FiberFuture<Long> saveSnapshot();
 
+    /**
+     * Returns the oldest snapshot whose lastIncludedIndex >= firstValidIndex, or the latest
+     * via takeSnapshot if none qualifies. When RaftGroupConfig.installOldestSnapshot is false,
+     * always returns the latest via takeSnapshot. The returned snapshot presents the payload
+     * stream (without the on-disk block framing). Returns null in installSnapshot state or
+     * when not leader. Must be called from a non-daemon fiber since the caller must close
+     * the result.
+     */
+    FiberFrame<Snapshot> openSnapshotForInstall();
+
     // delete all saved snapshots; called when install snapshot begins, since the raft logs are deleted
-    void deleteAll();
+    FiberFrame<Void> deleteAll();
 }

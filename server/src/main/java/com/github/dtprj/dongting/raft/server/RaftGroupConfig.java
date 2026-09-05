@@ -73,6 +73,7 @@ public class RaftGroupConfig {
     public boolean saveSnapshotWhenClose = true;
     public int autoDeleteLogDelaySeconds = 60;
     public int keepOpenFiles = 5;
+    public boolean installOldestSnapshot = false;
 
     RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         DtUtil.checkPositive(groupId, "groupId");

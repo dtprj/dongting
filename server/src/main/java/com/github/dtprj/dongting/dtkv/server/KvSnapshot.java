@@ -90,7 +90,7 @@ class KvSnapshot extends Snapshot {
             }
             if (currentKvNode == null) {
                 // no more data
-                return buffer.position() - startPos;
+                return setView(startPos, buffer);
             }
 
             if (encodeStatus.writeToBuffer(buffer)) {
@@ -98,9 +98,16 @@ class KvSnapshot extends Snapshot {
                 currentKvNode = null;
             } else {
                 // buffer is full
-                return buffer.position() - startPos;
+                return setView(startPos, buffer);
             }
         }
+    }
+
+    private static int setView(int startPos, ByteBuffer buffer) {
+        int bytes = buffer.position() - startPos;
+        buffer.limit(startPos + bytes);
+        buffer.position(startPos);
+        return bytes;
     }
 
     private void loadNextNode() {

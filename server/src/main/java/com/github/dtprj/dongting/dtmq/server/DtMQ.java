@@ -67,6 +67,7 @@ public class DtMQ extends AbstractLifeCircle implements StateMachine {
         this.serverConfig = serverConfig;
         // mq deletes raft logs by time, so snapshots are kept while the logs exist
         groupConfig.maxKeepSnapshots = 0;
+        groupConfig.installOldestSnapshot = true;
     }
 
     @Override

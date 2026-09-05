@@ -492,8 +492,11 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         return f.await(this::afterStateMachineClean);
     }
 
-    private FrameCallResult afterStateMachineClean(Void v) throws Exception {
-        gc.snapshotManager.deleteAll();
+    private FrameCallResult afterStateMachineClean(Void v) {
+        return Fiber.call(gc.snapshotManager.deleteAll(), this::afterDeleteAllSnapshots);
+    }
+
+    private FrameCallResult afterDeleteAllSnapshots(Void v) throws Exception {
         return Fiber.call(gc.raftLog.beginInstall(), this::applyConfigChange);
     }
 

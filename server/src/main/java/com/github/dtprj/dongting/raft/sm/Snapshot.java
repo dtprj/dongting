@@ -39,7 +39,11 @@ public abstract class Snapshot {
     }
 
     /**
-     * read next chunk of snapshot data to the buffer.
+     * read the next chunk of snapshot data into the buffer, writing from the current position.
+     * On completion the buffer's position/limit present the data chunk at [position, limit),
+     * the return value is the chunk size, and 0 means EOF. The implementation may use only
+     * part of the buffer. Implementations must tolerate a non-zero position and a limit
+     * smaller than capacity on entry.
      */
     public abstract FiberFuture<Integer> readNext(ByteBuffer buffer);
 
