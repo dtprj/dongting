@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.raft.test.MockRaftGroup;
 import com.github.dtprj.dongting.test.TestDir;
 import org.junit.jupiter.api.Test;
 
@@ -85,6 +86,7 @@ class DtMQTest extends BaseFiberTest {
         config.raftStatus = raftStatus;
         mqConfig = new MQServerConfig();
         mq = new DtMQ(config, mqConfig);
+        mq.setRaftGroup(new MockRaftGroup(1));
         snapshotManager = new DefaultSnapshotManager(config, mq,
                 () -> mq.takeSnapshot(new SnapshotInfo(raftStatus)));
     }
