@@ -166,7 +166,7 @@ final class LogFileQueue extends AllocatingFileQueue {
             @Override
             protected FrameCallResult doFinally() {
                 bufferRef.release();
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
     }

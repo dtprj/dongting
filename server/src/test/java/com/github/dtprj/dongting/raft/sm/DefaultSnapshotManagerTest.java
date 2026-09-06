@@ -127,7 +127,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             protected FrameCallResult doFinally() {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
 
             @Override
@@ -230,7 +230,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             protected FrameCallResult doFinally() {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
 
             @Override
@@ -284,7 +284,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             protected FrameCallResult doFinally() {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
 
             @Override
@@ -329,7 +329,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             protected FrameCallResult doFinally() {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
 
             @Override
@@ -375,7 +375,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             protected FrameCallResult doFinally() {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
 
             @Override
@@ -443,7 +443,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             protected FrameCallResult doFinally() {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
 
             @Override
@@ -564,7 +564,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             protected FrameCallResult doFinally() {
                 kv.stop(new DtTime(1, TimeUnit.SECONDS));
                 m.stopFiber();
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
 
             @Override

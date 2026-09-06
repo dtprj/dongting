@@ -65,7 +65,7 @@ public class VirtualExceptionTest extends AbstractFiberTest {
         @Override
         protected FrameCallResult doFinally() {
             process(finallyEx);
-            return super.doFinally();
+            return Fiber.frameReturn();
         }
     }
 

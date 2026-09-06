@@ -31,7 +31,7 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     O frameResult;
     Throwable frameEx;
 
-    protected FrameCallResult doFinally() {
+    protected FrameCallResult doFinally() throws Throwable {
         return FrameCallResult.RETURN;
     }
 

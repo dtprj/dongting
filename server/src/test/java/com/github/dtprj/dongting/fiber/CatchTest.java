@@ -49,7 +49,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 subFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
         fiberGroup.fireFiber("f", new FiberFrame<>() {
@@ -66,7 +66,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 parentFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         });
         WaitUtil.waitUtil(parentFinallyCalled::get);
@@ -89,7 +89,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 subFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
         fiberGroup.fireFiber("f", new FiberFrame<>() {
@@ -109,7 +109,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 parentFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         });
         WaitUtil.waitUtil(parentFinallyCalled::get);
@@ -130,7 +130,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 subFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
         fiberGroup.fireFiber("f", new FiberFrame<>() {
@@ -144,7 +144,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 parentFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         });
         WaitUtil.waitUtil(parentFinallyCalled::get);
@@ -170,7 +170,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 subFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
         fiberGroup.fireFiber("f", new FiberFrame<>() {
@@ -186,7 +186,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 parentFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         });
         WaitUtil.waitUtil(parentFinallyCalled::get);
@@ -217,7 +217,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 subFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
         fiberGroup.fireFiber("f", new FiberFrame<>() {
@@ -233,7 +233,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 parentFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         });
         WaitUtil.waitUtil(parentFinallyCalled::get);
@@ -263,7 +263,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 subFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
         fiberGroup.fireFiber("f", new FiberFrame<>() {
@@ -278,7 +278,7 @@ public class CatchTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 parentFinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         });
         WaitUtil.waitUtil(parentFinallyCalled::get);

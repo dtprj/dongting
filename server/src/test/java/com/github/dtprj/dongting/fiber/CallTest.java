@@ -53,7 +53,7 @@ public class CallTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 f2FinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
 
@@ -72,7 +72,7 @@ public class CallTest extends AbstractFiberTest {
             @Override
             protected FrameCallResult doFinally() {
                 f1FinallyCalled.set(true);
-                return super.doFinally();
+                return Fiber.frameReturn();
             }
         };
 
