@@ -30,10 +30,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,10 +76,11 @@ class MqIdxFlusherTest extends BaseFiberTest {
         return ref.get();
     }
 
-    // dispatcher thread only; pos = seq * 10, timestamp = seq * 100, size = seq + 1
+    // dispatcher thread only; pos = seq * 10, timestamp = seq * 100, size = seq + 1; the
+    // returned future is ignored: no head load is pending at these call sites
     private void appendItems(long queueId, int fromInclusive, int toExclusive) {
         for (long seq = fromInclusive; seq < toExclusive; seq++) {
-            manager.append(queueId, seq * 10, seq * 100, (int) seq + 1);
+            manager.appendAsync(queueId, seq * 10, seq * 100, (int) seq + 1);
         }
     }
 
@@ -286,22 +287,28 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
         });
 
-        // the block of the nextSeq(400) window: seq 384..511, second half of file 1
-        byte[] block = Arrays.copyOfRange(readFile(1, FILE_SIZE), 4096, 8192);
+        // restart-like: register rewinds to nextSeq 400; initQueue attached both files
         manager = createManager();
         manager.register(1, 400);
-        QueueIdxInfo q = manager.get(1);
-        q.installHeadBlock(ByteBuffer.wrap(block));
-        assertEquals(384, q.firstSeqInCache);
-        assertEquals(384 * 10, manager.getIdxItemInCache(1, 384));
-        assertEquals(399 * 10, manager.getIdxItemInCache(1, 399));
-        assertEquals(-1, manager.getIdxItemInCache(1, 383));
-        assertEquals(-1, manager.getIdxItemInCache(1, 400));
-
+        assertFalse(manager.get(1).needAllocateFile());
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 manager.start();
+                FiberFuture<Void> load = manager.get(1).ensureHeadLoaded();
+                if (load != null) {
+                    return load.await(this::afterHeadLoad);
+                }
+                return afterHeadLoad(null);
+            }
+
+            private FrameCallResult afterHeadLoad(Void v) {
+                // the head block of the nextSeq(400) window: seq 384..399, second half of file 1
+                assertEquals(384, manager.get(1).firstSeqInCache);
+                assertEquals(384 * 10, manager.getIdxItemInCache(1, 384));
+                assertEquals(399 * 10, manager.getIdxItemInCache(1, 399));
+                assertEquals(-1, manager.getIdxItemInCache(1, 383));
+                assertEquals(-1, manager.getIdxItemInCache(1, 400));
                 appendItems(1, 400, 401);
                 return manager.flusher.flushAll().await(this::afterFlush);
             }
@@ -313,8 +320,9 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 return manager.close().await(this::justReturn);
             }
         });
+        // the rewrite into the attached file is idempotent: 384..399 survive, 400 appended
         byte[] f1 = readFile(1, FILE_SIZE);
-        assertRecords(f1, 256, 384, 400);
+        assertRecords(f1, 256, 256, 400);
     }
 
     @Test
@@ -493,5 +501,20 @@ class MqIdxFlusherTest extends BaseFiberTest {
         });
         assertFalse(new File(dir, "1").exists());
         assertTrue(dir.exists());
+    }
+
+    @Test
+    void testInitQueueGapFailFast() throws Exception {
+        File qDir = new File(dir, "1");
+        assertTrue(qDir.mkdirs());
+        // two full-size files with a hole between them
+        for (long startPos : new long[]{0, 2 * FILE_SIZE}) {
+            try (RandomAccessFile raf = new RandomAccessFile(
+                    new File(qDir, String.format("%020d", startPos)), "rw")) {
+                raf.setLength(FILE_SIZE);
+            }
+        }
+        manager = createManager();
+        assertThrows(RaftException.class, () -> manager.register(1, 400));
     }
 }

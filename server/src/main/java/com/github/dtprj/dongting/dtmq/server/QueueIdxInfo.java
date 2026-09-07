@@ -24,14 +24,13 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.FutureFrame;
 import com.github.dtprj.dongting.log.BugLog;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.FileQueue;
 import com.github.dtprj.dongting.raft.store.LogFile;
 import com.github.dtprj.dongting.raft.store.RetryFrame;
 
 import java.io.File;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
@@ -89,6 +88,11 @@ final class QueueIdxInfo extends FileQueue {
         this.writeFinishSeq = nextSeq - 1;
         this.flushTargetSeq = nextSeq - 1;
         this.needLoadHead = (nextSeq & MqIdxBlock.BLOCK_MASK) != 0;
+    }
+
+    void init() {
+        initQueue();
+        this.initialized = true;
     }
 
     long seqToPos(long seq) {
@@ -160,33 +164,46 @@ final class QueueIdxInfo extends FileQueue {
     }
 
     private class LoadHeadFrame extends FiberFrame<Void> {
+        private final long blockStartPos;
         private RefBuffer bufRef;
+        private LogFile logFile;
+        private boolean readerPending;
+
+        LoadHeadFrame() {
+            this.blockStartPos = seqToPos(nextSeq) & ~(DISK_BLOCK_BYTES - 1L);
+        }
 
         @Override
         public FrameCallResult execute(Void input) {
-            long startSeq = nextSeq & ~((long) MqIdxBlock.BLOCK_MASK);
-            long blockPos = seqToPos(startSeq);
-            File file = createFileByStartPos(startPosOfFile(blockPos));
-            int offsetInFile = (int) (blockPos & fileLenMask);
+            logFile = getLogFile(blockStartPos);
+            if (logFile == null || logFile.isDeleted()) {
+                // not on disk: never created after install, or deleted by cleanup;
+                // the appends will rewrite it from the flushed position
+                return afterLoad(false);
+            }
             if (bufRef == null) {
-                bufRef = manager.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowLocal(DISK_BLOCK_BYTES);
+                bufRef = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowLocal(DISK_BLOCK_BYTES);
             }
-            FiberFuture<Boolean> f = manager.groupConfig.fiberGroup.newFuture("mqIdxBlockLoad");
-            try {
-                manager.groupConfig.blockIoExecutor.execute(() -> loadBlock(f, file, offsetInFile, bufRef));
-            } catch (Throwable t) {
-                f.completeExceptionally(t);
-            }
-            return f.await(this::afterLoad);
+            ByteBuffer buf = bufRef.getBuffer();
+            buf.limit(DISK_BLOCK_BYTES);
+            logFile.incReaders();
+            readerPending = true;
+            return new AsyncIoTask(groupConfig.fiberGroup, logFile)
+                    .read(buf, blockStartPos & fileLenMask)
+                    .await(v -> afterLoad(true));
         }
 
-        private FrameCallResult afterLoad(Boolean loaded) {
-            installHeadBlock(Boolean.TRUE.equals(loaded) ? bufRef.getBuffer() : null);
+        private FrameCallResult afterLoad(boolean loaded) {
+            installHeadBlock(loaded ? bufRef.getBuffer() : null);
             return Fiber.frameReturn();
         }
 
         @Override
         protected FrameCallResult doFinally() {
+            if (readerPending) {
+                logFile.decReaders();
+                readerPending = false;
+            }
             if (bufRef != null) {
                 bufRef.release();
                 bufRef = null;
@@ -205,24 +222,6 @@ final class QueueIdxInfo extends FileQueue {
         blocks.addLast(b);
         firstSeqInCache = startSeq;
         needLoadHead = false;
-    }
-
-    private void loadBlock(FiberFuture<Boolean> f, File file, int offsetInFile, RefBuffer bufRef) {
-        try {
-            if (!file.isFile()) {
-                f.fireComplete(false);
-                return;
-            }
-            ByteBuffer buf = bufRef.getBuffer();
-            try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-                raf.seek(offsetInFile);
-                raf.readFully(buf.array(), buf.arrayOffset(), DISK_BLOCK_BYTES);
-            }
-            f.fireComplete(true);
-        } catch (Throwable t) {
-            f.fireCompleteExceptionally(new RaftException(
-                    "load mq idx block fail: " + file.getPath() + ", offset=" + offsetInFile, t));
-        }
     }
 
     boolean isDirty() {

@@ -109,23 +109,22 @@ class MqIdxManager {
      */
     void register(long queueId, long nextSeq) {
         QueueIdxInfo q = new QueueIdxInfo(this, queueId, nextSeq);
+        q.init();
         queues.put(queueId, q);
-    }
-
-    void append(long queueId, long pos, long timestamp, int itemSize) {
-        QueueIdxInfo q = queues.get(queueId);
-        if (q == null) {
-            q = new QueueIdxInfo(this, queueId, 0);
-            queues.put(queueId, q);
-        }
-        q.append(q.nextSeq, pos, timestamp, itemSize);
     }
 
     FiberFuture<Void> appendAsync(long queueId, long pos, long timestamp, int itemSize) {
         QueueIdxInfo q = queues.get(queueId);
-        FiberFuture<Void> loadFuture = q == null ? null : q.ensureHeadLoaded();
+        if (q == null) {
+            // absent from the snapshot: a brand-new queue starting at block-aligned seq 0, so
+            // there is no head block to load; replay regenerates all of its items from the log
+            q = new QueueIdxInfo(this, queueId, 0);
+            q.init();
+            queues.put(queueId, q);
+        }
+        FiberFuture<Void> loadFuture = q.ensureHeadLoaded();
         if (loadFuture == null) {
-            append(queueId, pos, timestamp, itemSize);
+            q.append(q.nextSeq, pos, timestamp, itemSize);
             if (fifo.size() > maxCachedBlocks && !markClose) {
                 if (blockFuture == null) {
                     blockFuture = groupConfig.fiberGroup.newFuture("mqIdxFlowControl");
@@ -139,7 +138,8 @@ class MqIdxManager {
         }
         // the load path skips flow control: precise control would need a pending queue, approximate is enough
         return loadFuture.convert("mqIdxAppend", v -> {
-            append(queueId, pos, timestamp, itemSize);
+            QueueIdxInfo q2 = queues.get(queueId);
+            q2.append(q2.nextSeq, pos, timestamp, itemSize);
             return null;
         });
     }

@@ -166,6 +166,8 @@ public abstract class FileQueue {
         if (files == null || files.length == 0) {
             return FiberFrame.voidCompletedFrame();
         }
+        // sorted: an interrupted delete leaves a contiguous residue, which initQueue accepts
+        Arrays.sort(files);
         return new FiberFrame<>() {
             int i = -1;
 
@@ -364,6 +366,8 @@ public abstract class FileQueue {
             if (f.isDirectory()) {
                 File[] children = f.listFiles();
                 if (children != null) {
+                    // sorted: an interrupted delete leaves a contiguous residue, which initQueue accepts
+                    Arrays.sort(children);
                     for (File child : children) {
                         deleteRecursively(child, false);
                     }

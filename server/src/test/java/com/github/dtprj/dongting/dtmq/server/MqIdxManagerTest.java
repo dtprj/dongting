@@ -79,9 +79,10 @@ class MqIdxManagerTest extends BaseFiberTest {
         return ref.get();
     }
 
-    // pos = seq * 10, timestamp = seq * 100, size = seq + 1
+    // pos = seq * 10, timestamp = seq * 100, size = seq + 1; the returned future is ignored:
+    // no head load is ever pending in these tests, and flow control does not affect the append
     private void append(long queueId, long seq) {
-        manager.append(queueId, seq * 10, seq * 100, (int) seq + 1);
+        manager.appendAsync(queueId, seq * 10, seq * 100, (int) seq + 1);
     }
 
     private void assertHit(long queueId, long seq) {
@@ -224,9 +225,12 @@ class MqIdxManagerTest extends BaseFiberTest {
     void testEviction() throws Exception {
         config.mqIdxCacheBlocks = 2;
         manager = createManager(config);
-        for (int i = 0; i < 600; i++) {
-            append(1, i);
-        }
+        // in fiber: the flow control branch of appendAsync needs the dispatcher thread
+        doInFiber(() -> {
+            for (int i = 0; i < 600; i++) {
+                append(1, i);
+            }
+        });
         QueueIdxInfo q = manager.get(1);
         // over capacity, but eviction is gated by writeFinishSeq
         assertEquals(5, q.blocks.size());
@@ -251,12 +255,14 @@ class MqIdxManagerTest extends BaseFiberTest {
     void testEvictionCrossQueue() throws Exception {
         config.mqIdxCacheBlocks = 1;
         manager = createManager(config);
-        for (int i = 0; i < 128; i++) {
-            append(1, i);
-        }
-        for (int i = 0; i < 256; i++) {
-            append(2, i);
-        }
+        doInFiber(() -> {
+            for (int i = 0; i < 128; i++) {
+                append(1, i);
+            }
+            for (int i = 0; i < 256; i++) {
+                append(2, i);
+            }
+        });
         QueueIdxInfo q2 = manager.get(2);
         // global fifo: queue 1's unflushed head blocks queue 2's flushed blocks
         q2.writeFinishSeq = 255;
