@@ -321,7 +321,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 return await();
             } else {
                 updateCommitIndex = true;
-                sendAppendRequest(member, Collections.emptyList());
+                sendAppendRequest(member, Collections.emptyList(), staleLeaseStartNanos());
                 return Fiber.resume(null, this);
             }
         }
@@ -334,6 +334,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             long sizeLimit = groupConfig.singleReplicateLimit;
             ArrayList<RaftTask> items = new ArrayList<>(limit);
             long size = 0;
+            long leaseStartNanos = 0;
             for (int i = 0; i < limit; i++) {
                 RaftTask rt = tailCache.get(nextIndex + i);
                 size += rt.reqData.totalLen;
@@ -342,8 +343,9 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 }
                 rt.reqData.retain();
                 items.add(rt);
+                leaseStartNanos = rt.localCreateNanos;
             }
-            sendAppendRequest(member, items);
+            sendAppendRequest(member, items, leaseStartNanos);
             return Fiber.resume(null, this);
         } else {
             if (replicateIterator == null) {
@@ -354,6 +356,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                     groupConfig.singleReplicateLimit);
             return Fiber.call(nextFrame, this::resumeAfterLogLoad);
         }
+    }
+
+    private long staleLeaseStartNanos() {
+        return ts.nanoTime - 365L * 24 * 3600 * 1000 * 1000 * 1000;
     }
 
     private FrameCallResult resumeAfterLogLoad(List<RaftTask> items) {
@@ -373,11 +379,11 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return Fiber.resume(null, this);
         }
 
-        sendAppendRequest(member, items);
+        sendAppendRequest(member, items, staleLeaseStartNanos());
         return Fiber.resume(null, this);
     }
 
-    private void sendAppendRequest(RaftMember member, List<RaftTask> items) {
+    private void sendAppendRequest(RaftMember member, List<RaftTask> items, long leaseStartNanos) {
         AppendReqWritePacket req = new AppendReqWritePacket();
         req.command = Commands.RAFT_APPEND_ENTRIES;
         req.groupId = groupId;
@@ -405,7 +411,6 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
         long finalBytes = bytes;
         Executor ge = groupConfig.fiberGroup.getExecutor();
-        long leaseStartNanos = ts.nanoTime;
         RpcCallback<AppendResp> c = (result, ex) ->
                 ge.execute(() -> afterAppendRpc(result, ex, req, leaseStartNanos, finalBytes, perfStartTime));
         // release in AppendReqWritePacket
@@ -495,16 +500,13 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             incrementEpoch();
             int appendCode = body.appendCode;
             if (appendCode == AppendProcessor.APPEND_LOG_NOT_MATCH) {
-                updateLease(member, leaseStartNanos, raftStatus);
                 processLogNotMatch(prevLogIndex, prevLogTerm, body, raftStatus);
             } else if (appendCode == AppendProcessor.APPEND_SERVER_ERROR) {
-                updateLease(member, leaseStartNanos, raftStatus);
                 log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
                         groupId, prevLogIndex, resp.msg);
             } else if (appendCode == AppendProcessor.APPEND_INSTALL_SNAPSHOT) {
                 log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
                         groupId, member.node.nodeId);
-                updateLease(member, leaseStartNanos, raftStatus);
                 member.installSnapshot = true;
             } else if (appendCode == AppendProcessor.APPEND_NOT_MEMBER_IN_GROUP) {
                 log.error("append fail because of follower member check fail. groupId={}, remoteId={}," +
