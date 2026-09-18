@@ -52,7 +52,7 @@ import java.util.zip.CRC32C;
  *
  * @author huangli
  */
-final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
+final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(RaftIdxFileQueue.class);
     static final int ITEM_LEN = 32;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
@@ -109,6 +109,12 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
         chainWriter.setWritePerfType1(0);
         chainWriter.setWritePerfType2(PerfConsts.RAFT_D_IDX_WRITE);
         chainWriter.setForcePerfType(PerfConsts.RAFT_D_IDX_FORCE);
+    }
+
+    @Override
+    protected QueueFile createFile(File file, long startPos, long lastAccessTime) {
+        return new QueueFile(startPos, startPos + getFileSize(), file,
+                groupConfig.fiberGroup, ioExecutor, this::lruTouch, lastAccessTime);
     }
 
     public void setInitialized(boolean initialized) {
@@ -222,7 +228,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
         return Math.max(lastNeedFlushItem - nextPersistIndex + 1, 0);
     }
 
-    private void flush(LogFile logFile, boolean suggestForce) {
+    private void flush(QueueFile logFile, boolean suggestForce) {
         long startIdx = nextPersistIndex;
         long lastIdx = Math.min(raftStatus.commitIndex, cache.lastRaftIndex);
         if (lastIdx < startIdx) {
@@ -251,7 +257,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
     }
 
     private void submitForceOnlyTask() {
-        LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
+        QueueFile logFile = getLogFile(indexToPos(nextPersistIndex));
         if (logFile == null) {
             log.warn("submitForceOnlyTask: logFile is null, nextPersistIndex={}, skip force", nextPersistIndex);
             return;
@@ -260,7 +266,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
         chainWriter.submitWrite(logFile, null, filePos, true, 0, nextPersistIndex - 1);
     }
 
-    private void fillAndSubmit(RefBuffer bufRef, long startIndex, LogFile logFile, boolean suggestForce) {
+    private void fillAndSubmit(RefBuffer bufRef, long startIndex, QueueFile logFile, boolean suggestForce) {
         ByteBuffer buf = bufRef.getBuffer();
         boolean submitCalled = false;
         try {
@@ -364,7 +370,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
                 return Fiber.frameReturn();
             }
             if (flushType == 0 || flushType == 1) {
-                LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
+                QueueFile logFile = getLogFile(indexToPos(nextPersistIndex));
                 if (logFile.shouldDelete()) {
                     BugLog.log("idx file deleted, flush fail: {}", logFile.getFile().getPath());
                     throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
@@ -409,7 +415,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue implements IdxOps {
         final ByteBuffer buffer = ByteBuffer.allocate(32);
 
         private final long itemIndex;
-        private LogFile logFile;
+        private QueueFile logFile;
         private boolean readerPending;
 
         public LoadRaftIdxInfoFrame(long itemIndex) {

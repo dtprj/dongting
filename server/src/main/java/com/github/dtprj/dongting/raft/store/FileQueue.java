@@ -43,10 +43,10 @@ import java.util.regex.Pattern;
 /**
  * @author huangli
  */
-public abstract class FileQueue {
+public abstract class FileQueue<F extends QueueFile> {
     private static final DtLog log = DtLogs.getLogger(FileQueue.class);
     private static final Pattern PATTERN = Pattern.compile("^(\\d{20})$");
-    protected final IndexedQueue<LogFile> queue = new IndexedQueue<>(32);
+    protected final IndexedQueue<F> queue = new IndexedQueue<>(32);
     protected final File dir;
 
     protected final ExecutorService ioExecutor;
@@ -65,8 +65,8 @@ public abstract class FileQueue {
 
     protected boolean markClose;
 
-    private LogFile lruHead;
-    private LogFile lruTail;
+    private QueueFile lruHead;
+    private QueueFile lruTail;
     private int openFileCount;
     private static final long IDLE_CLOSE_MILLIS = 60_000;
 
@@ -93,6 +93,8 @@ public abstract class FileQueue {
         return pos & (~fileLenMask);
     }
 
+    protected abstract F createFile(File file, long startPos, long lastAccessTime);
+
     protected void initQueue() {
         File[] files = dir.listFiles();
         if (files == null || files.length == 0) {
@@ -107,15 +109,13 @@ public abstract class FileQueue {
             Matcher matcher = PATTERN.matcher(f.getName());
             if (matcher.matches()) {
                 long startPos = Long.parseLong(matcher.group(1));
-                LogFile lf = new LogFile(startPos, startPos + getFileSize(), f,
-                        groupConfig.fiberGroup, ioExecutor, this::lruTouch,
-                        raftStatus.ts.wallClockMillis, mainLogFile);
+                F lf = createFile(f, startPos, raftStatus.ts.wallClockMillis);
                 queue.addLast(lf);
                 count++;
             }
         }
         for (int i = 0; i < queue.size(); i++) {
-            LogFile lf = queue.get(i);
+            QueueFile lf = queue.get(i);
             long len = lf.getFile().length();
             if (len != getFileSize()) {
                 // a crash during pre-allocation may leave the last file with length 0
@@ -188,7 +188,7 @@ public abstract class FileQueue {
         };
     }
 
-    protected LogFile getLogFile(long filePos) {
+    protected F getLogFile(long filePos) {
         if (filePos < queueStartPosition || filePos >= queueEndPosition) {
             return null;
         }
@@ -196,7 +196,7 @@ public abstract class FileQueue {
         return queue.get(index);
     }
 
-    protected void lruAddLast(LogFile lf) {
+    protected void lruAddLast(QueueFile lf) {
         if (lf.lruPrev != null || lf.lruNext != null || lruHead == lf) {
             return; // already in list
         }
@@ -210,7 +210,7 @@ public abstract class FileQueue {
         openFileCount++;
     }
 
-    private void lruRemove(LogFile lf) {
+    private void lruRemove(QueueFile lf) {
         if (lf.lruPrev == null && lf.lruNext == null && lruHead != lf) {
             return; // not in list
         }
@@ -229,7 +229,7 @@ public abstract class FileQueue {
         openFileCount--;
     }
 
-    private void lruMoveToLast(LogFile lf) {
+    private void lruMoveToLast(QueueFile lf) {
         if (lf == lruTail) {
             return;
         }
@@ -237,7 +237,7 @@ public abstract class FileQueue {
         lruAddLast(lf);
     }
 
-    public void lruTouch(LogFile lf) {
+    public void lruTouch(QueueFile lf) {
         lf.lastAccessTime = raftStatus.ts.wallClockMillis;
         if (lf.lruPrev == null && lf.lruNext == null && lruHead != lf) {
             lruAddLast(lf);
@@ -265,7 +265,7 @@ public abstract class FileQueue {
 
         int maxIterations = openFileCount;
         while (lruHead != null && maxIterations-- > 0) {
-            LogFile lf = lruHead;
+            QueueFile lf = lruHead;
             if (lf.startPos >= protectedStartPos) {
                 // protected file at LRU head: move to tail and continue
                 lruMoveToLast(lf);
@@ -289,7 +289,7 @@ public abstract class FileQueue {
     // shutdown path: submission of new I/O has stopped, no concurrent access
     private void closeAllChannel() {
         for (int i = 0; i < queue.size(); i++) {
-            LogFile lf = queue.get(i);
+            QueueFile lf = queue.get(i);
             lf.destroy();
             lf.lruPrev = null;
             lf.lruNext = null;
@@ -300,7 +300,7 @@ public abstract class FileQueue {
     }
 
     /**
-     * Waits until all LogFiles in the queue have no active readers or writers,
+     * Waits until all QueueFiles in the queue have no active readers or writers,
      * then closes all channels. Used during shutdown and install snapshot.
      */
     private class WaitNoRwAndCloseFrame extends FiberFrame<Void> {
@@ -308,7 +308,7 @@ public abstract class FileQueue {
         @Override
         public FrameCallResult execute(Void input) {
             for (int i = 0; i < queue.size(); i++) {
-                LogFile lf = queue.get(i);
+                QueueFile lf = queue.get(i);
                 if (lf.inUse()) {
                     log.info("file in use during close, wait. reader={}, writer={}, file={}",
                             lf.getReaders(), lf.getWriters(), lf.getFile().getPath());
@@ -392,7 +392,7 @@ public abstract class FileQueue {
         FiberFrame<Void> f = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                LogFile first = queue.get(0);
+                QueueFile first = queue.get(0);
                 if (first.inUse()) {
                     log.warn("file in use, wait. reader={}, writer={}, file={}", first.getReaders(),
                             first.getWriters(), first.getFile().getPath());

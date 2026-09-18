@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class AsyncIoTaskTest extends BaseFiberTest {
     private static File dir;
     private File file;
-    private LogFile dtFile;
+    private MainLogFile dtFile;
     private RaftGroupConfigEx groupConfig;
 
     @BeforeAll
@@ -66,7 +66,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     public void setup() throws Exception {
         file = new File(dir, "testFile");
         new RandomAccessFile(file, "rw").close();
-        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0, true);
+        dtFile = new MainLogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0);
         dtFile.syncOpen();
         groupConfig = new RaftGroupConfigEx(1, "1", "");
         groupConfig.ioRetryInterval = new int[]{1};
@@ -210,7 +210,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     public void testAsyncOpen() throws Exception {
         file = new File(dir, "testAsyncOpen");
         new RandomAccessFile(file, "rw").close();
-        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0, true);
+        dtFile = new MainLogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0);
 
         doInFiber(new FiberFrame<>() {
             ByteBuffer buf = ByteBuffer.allocate(8);
@@ -362,7 +362,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         file = new File(dir, "testOpenRetry");
         new RandomAccessFile(file, "rw").close();
         AtomicBoolean openFail = new AtomicBoolean(true);
-        dtFile = new LogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0, true) {
+        dtFile = new MainLogFile(0, Long.MAX_VALUE, file, fiberGroup, MockExecutors.ioExecutor(), null, 0) {
             @Override
             protected FileChannel doSyncOpen() throws IOException {
                 if (openFail.compareAndSet(true, false)) {

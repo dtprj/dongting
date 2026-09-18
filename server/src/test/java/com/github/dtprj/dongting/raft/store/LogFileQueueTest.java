@@ -646,7 +646,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 1024);
         append(false, 0L, 500, 500, 200, 200);
         closeThenRestore(1024, 5, 1424, 4, 1224, 500, null);
-        LogFile lf = logFileQueue.getLogFile(0);
+        MainLogFile lf = logFileQueue.getLogFile(0);
         assertEquals(2, lf.firstIndex);
 
         closeThenRestore(1024, 5, 1424, 4, 1224, 1000, null);

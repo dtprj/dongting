@@ -379,13 +379,13 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                LogFile logFile = raftLog.logFiles.getLogFile(2048);
+                MainLogFile logFile = raftLog.logFiles.getLogFile(2048);
                 assertEquals(5, logFile.firstIndex);
                 return Fiber.call(raftLog.truncateTail(5), this::resume1);
             }
 
             private FrameCallResult resume1(Void unused) {
-                LogFile logFile = raftLog.logFiles.getLogFile(2048);
+                MainLogFile logFile = raftLog.logFiles.getLogFile(2048);
                 assertEquals(0, logFile.firstIndex);
                 logFile = raftLog.logFiles.getLogFile(1024);
                 assertEquals(2, logFile.firstIndex);
@@ -395,7 +395,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
 
             private FrameCallResult resume2(Void unused) {
-                LogFile logFile = raftLog.logFiles.getLogFile(1024);
+                MainLogFile logFile = raftLog.logFiles.getLogFile(1024);
                 assertEquals(2, logFile.firstIndex);
                 assertEquals(3, raftLog.logFiles.logAppender.nextPersistIndex);
                 assertEquals(1536, raftLog.logFiles.logAppender.nextPersistPos);
@@ -403,7 +403,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
 
             private FrameCallResult resume3(Void unused) {
-                LogFile logFile = raftLog.logFiles.getLogFile(1024);
+                MainLogFile logFile = raftLog.logFiles.getLogFile(1024);
                 assertEquals(0, logFile.firstIndex);
                 assertEquals(2, raftLog.logFiles.logAppender.nextPersistIndex);
                 assertEquals(800, raftLog.logFiles.logAppender.nextPersistPos);

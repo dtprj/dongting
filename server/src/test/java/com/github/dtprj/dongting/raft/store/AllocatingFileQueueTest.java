@@ -63,9 +63,15 @@ public class AllocatingFileQueueTest extends BaseFiberTest {
         });
     }
 
-    private static class MockFileQueue extends AllocatingFileQueue {
+    private static class MockFileQueue extends AllocatingFileQueue<QueueFile> {
         public MockFileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize) {
             super(dir, groupConfig, fileSize, false);
+        }
+
+        @Override
+        protected QueueFile createFile(File file, long startPos, long lastAccessTime) {
+            return new QueueFile(startPos, startPos + getFileSize(), file,
+                    groupConfig.fiberGroup, ioExecutor, this::lruTouch, lastAccessTime);
         }
     }
 
@@ -210,7 +216,7 @@ public class AllocatingFileQueueTest extends BaseFiberTest {
                 assertNull(fileQueue.getLogFile(0));
                 assertNotNull(fileQueue.getLogFile(1024));
                 assertNotNull(fileQueue.getLogFile(2048));
-                LogFile logFile = fileQueue.getLogFile(1024);
+                QueueFile logFile = fileQueue.getLogFile(1024);
                 logFile.incWriters();
                 Fiber f = new Fiber("f", getFiberGroup(), new FiberFrame<>() {
                     @Override

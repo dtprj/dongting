@@ -79,16 +79,16 @@ class Restorer {
      * return value (left): restore complete
      * return value (right): next write pos
      */
-    public FiberFrame<Pair<Boolean, Long>> restoreFile(ByteBuffer buffer, LogFile lf) {
+    public FiberFrame<Pair<Boolean, Long>> restoreFile(ByteBuffer buffer, MainLogFile lf) {
         return new RestoreFileFrame(buffer, lf);
     }
 
     private class RestoreFileFrame extends FiberFrame<Pair<Boolean, Long>> {
         private final ByteBuffer buffer;
-        private final LogFile lf;
+        private final MainLogFile lf;
         private long readPos;
 
-        RestoreFileFrame(ByteBuffer buffer, LogFile lf) {
+        RestoreFileFrame(ByteBuffer buffer, MainLogFile lf) {
             this.buffer = buffer;
             this.lf = lf;
         }
@@ -213,7 +213,7 @@ class Restorer {
         }
     } //end of class RestoreFileFrame
 
-    private int itemCheckFail(LogFile lf, String reason) {
+    private int itemCheckFail(QueueFile lf, String reason) {
         if (restoreIndexChecked) {
             if (header.totalLen == 0 && header.term == 0 && header.timestamp == 0 && header.index == 0) {
                 log.info("reach end of file. file={}, pos={}", lf.getFile().getPath(), itemStartPosOfFile);
@@ -228,7 +228,7 @@ class Restorer {
         }
     }
 
-    private int restore(ByteBuffer buf, LogFile lf) {
+    private int restore(ByteBuffer buf, QueueFile lf) {
         while (true) {
             int result;
             if (state == STATE_ITEM_HEADER) {
@@ -256,7 +256,7 @@ class Restorer {
         }
     }
 
-    private int restoreHeader(ByteBuffer buf, LogFile lf) {
+    private int restoreHeader(ByteBuffer buf, QueueFile lf) {
         if (buf.remaining() < LogHeader.ITEM_HEADER_SIZE) {
             return RT_CONTINUE_LOAD;
         }
@@ -292,7 +292,7 @@ class Restorer {
         return RT_CONTINUE_READ;
     }
 
-    private int restoreData(ByteBuffer buf, int dataLen, LogFile lf, int newState, String dataType) {
+    private int restoreData(ByteBuffer buf, int dataLen, QueueFile lf, int newState, String dataType) {
         if (dataLen == 0) {
             changeState(newState);
             return RT_CONTINUE_READ;
@@ -327,7 +327,7 @@ class Restorer {
         crc32c.reset();
     }
 
-    private void throwEx(String msg, LogFile lf, long itemStartPosOfFile) {
+    private void throwEx(String msg, QueueFile lf, long itemStartPosOfFile) {
         throw new RaftException(msg + ". file=" + lf.getFile().getPath() + ", pos=" + itemStartPosOfFile);
     }
 }

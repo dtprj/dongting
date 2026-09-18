@@ -76,7 +76,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private long nextPos;
     private long bufferStartPos;
     private long bufferEndPos;
-    private LogFile logFile;
+    private QueueFile logFile;
 
     FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig, RaftCodecFactory codecFactory,
                   Supplier<Boolean> cancelIndicator, boolean decode) {

@@ -152,7 +152,7 @@ class LogAppender {
             if (shouldReturn()) {
                 return Fiber.frameReturn();
             }
-            LogFile lf = logFileQueue.getLogFile(nextPersistPos);
+            MainLogFile lf = logFileQueue.getLogFile(nextPersistPos);
             if (lf.isDeleted()) {
                 BugLog.log("file is deleted or mark deleted: {}", lf.getFile().getPath());
                 throw new RaftException("file is deleted or mark deleted: " + lf.getFile().getPath());
@@ -160,7 +160,7 @@ class LogAppender {
             return encodeAndWriteItems(lf, taskIndex);
         }
 
-        private FrameCallResult encodeAndWriteItems(LogFile file, int taskIndex) {
+        private FrameCallResult encodeAndWriteItems(MainLogFile file, int taskIndex) {
             long roundStartTime = perfCallback.takeTimeAndRefresh(PerfConsts.RAFT_D_ENCODE_AND_WRITE, raftStatus.ts);
             bytesToWrite = 0;
             lastItem = null;
@@ -247,7 +247,7 @@ class LogAppender {
             }
         }
 
-        private void encodeItems(int startTaskIndex, int count, LogFile file) {
+        private void encodeItems(int startTaskIndex, int count, MainLogFile file) {
             for (int i = 0; i < count; i++) {
                 RaftTask li = taskList.get(startTaskIndex + i);
                 RaftReqData rd = li.reqData;
@@ -264,7 +264,7 @@ class LogAppender {
             }
         }
 
-        private void encodeData(int actualSize, RaftTask src, LogFile file) {
+        private void encodeData(int actualSize, RaftTask src, MainLogFile file) {
             try {
                 if (src.reqData.buffer.getBuffer().isDirect()) {
                     appendDirectBuffer(src, file);
@@ -289,7 +289,7 @@ class LogAppender {
             }
         }
 
-        private void appendDirectBuffer(RaftTask src, LogFile file) {
+        private void appendDirectBuffer(RaftTask src, MainLogFile file) {
             if (gatherBufs == null) {
                 gatherBufs = new ArrayList<>();
             }
@@ -312,7 +312,7 @@ class LogAppender {
             }
         }
 
-        private void doWrite(LogFile file) {
+        private void doWrite(MainLogFile file) {
             long lastIndex = lastItem != null ? lastItem.reqData.index : -1;
             long writeStartPosInFile = nextPersistPos & fileLenMask;
 

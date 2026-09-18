@@ -116,7 +116,7 @@ public class ChainWriter {
         private long perfForceBytes;
 
 
-        WriteTask(FiberGroup fiberGroup, LogFile logFile, int[] retryInterval,
+        WriteTask(FiberGroup fiberGroup, QueueFile logFile, int[] retryInterval,
                   Supplier<Boolean> cancelIndicator, RefBuffer buf, ByteBuffer[] bufs,
                   long posInFile, boolean force, int perfItemCount, long lastRaftIndex) {
             this.ioTask = new AsyncIoTask(fiberGroup, logFile, retryInterval, cancelIndicator);
@@ -150,8 +150,8 @@ public class ChainWriter {
             }
         }
 
-        LogFile getLogFile() {
-            return (LogFile) ioTask.getDtFile();
+        QueueFile getLogFile() {
+            return (QueueFile) ioTask.getDtFile();
         }
 
         FiberFuture<Void> getFuture() {
@@ -159,7 +159,7 @@ public class ChainWriter {
         }
     }
 
-    public void submitWrite(LogFile logFile, RefBuffer buf, long posInFile, boolean force,
+    public void submitWrite(QueueFile logFile, RefBuffer buf, long posInFile, boolean force,
                             int perfItemCount, long lastRaftIndex) {
         submitWrite(logFile, buf, null, posInFile, force, perfItemCount, lastRaftIndex);
     }
@@ -168,12 +168,12 @@ public class ChainWriter {
      * Gathering write: bufs is the write source, buf is released after write finish
      * (the copied segments share its content).
      */
-    public void submitWrite(LogFile logFile, ByteBuffer[] bufs, RefBuffer buf, long posInFile,
+    public void submitWrite(QueueFile logFile, ByteBuffer[] bufs, RefBuffer buf, long posInFile,
                             boolean force, int perfItemCount, long lastRaftIndex) {
         submitWrite(logFile, buf, bufs, posInFile, force, perfItemCount, lastRaftIndex);
     }
 
-    private void submitWrite(LogFile logFile, RefBuffer buf, ByteBuffer[] bufs,
+    private void submitWrite(QueueFile logFile, RefBuffer buf, ByteBuffer[] bufs,
                              long posInFile, boolean force, int perfItemCount, long lastRaftIndex) {
         if (error) {
             log.warn("in error state, ignore write");
@@ -317,7 +317,7 @@ public class ChainWriter {
                         break;
                     }
                 }
-                LogFile logFile = task.getLogFile();
+                QueueFile logFile = task.getLogFile();
                 if (logFile.shouldDelete() || logFile.deleted) {
                     log.warn("file {} should delete or deleted, ignore force", logFile.getFile());
                     forceTaskCount--;

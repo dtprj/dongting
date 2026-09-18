@@ -276,7 +276,7 @@ public class AsyncIoTask {
     private void doGatheringWrite(long pos) throws IOException {
         FileChannel channel = dtFile.getChannel();
         // gathering write is only used for raft log files
-        ReentrantLock lock = ((LogFile) dtFile).gatheringWriteLock;
+        ReentrantLock lock = ((MainLogFile) dtFile).gatheringWriteLock;
         int offset = 0;
         int length = ioBuffers.length;
         while (length > 0) {

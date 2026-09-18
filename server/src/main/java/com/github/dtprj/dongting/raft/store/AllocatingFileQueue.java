@@ -35,7 +35,7 @@ import java.io.RandomAccessFile;
  *
  * @author huangli
  */
-abstract class AllocatingFileQueue extends FileQueue {
+abstract class AllocatingFileQueue<F extends QueueFile> extends FileQueue<F> {
     private static final DtLog log = DtLogs.getLogger(AllocatingFileQueue.class);
 
     private final Fiber queueAllocFiber;
@@ -127,7 +127,7 @@ abstract class AllocatingFileQueue extends FileQueue {
         }
 
         private FrameCallResult afterAlloc(FileAllocFrame f) {
-            LogFile logFile = f.logFile;
+            F logFile = f.logFile;
             lruAddLast(logFile);
             queue.addLast(logFile);
             if (queue.size() == 1) {
@@ -153,7 +153,7 @@ abstract class AllocatingFileQueue extends FileQueue {
         private long fileStartPos;
 
         private File file;
-        private LogFile logFile;
+        private F logFile;
         private final int perfType;
         private long perfStartTime;
 
@@ -176,9 +176,7 @@ abstract class AllocatingFileQueue extends FileQueue {
                     raf.setLength(getFileSize());
                     raf.getFD().sync();
                     raf.close();
-                    logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), file,
-                            groupConfig.fiberGroup, ioExecutor, AllocatingFileQueue.this::lruTouch,
-                            System.currentTimeMillis(), mainLogFile);
+                    logFile = createFile(file, fileStartPos, System.currentTimeMillis());
                     // access in io thread, but happens-before use
                     logFile.syncOpen();
                     long time = System.currentTimeMillis() - startTime;

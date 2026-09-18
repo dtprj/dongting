@@ -39,7 +39,7 @@ import java.util.List;
 /**
  * @author huangli
  */
-final class LogFileQueue extends AllocatingFileQueue {
+final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
     public static final int MAX_WRITE_BUFFER_SIZE = 128 * 1024;
@@ -72,6 +72,12 @@ final class LogFileQueue extends AllocatingFileQueue {
         chainWriter.setWritePerfType2(PerfConsts.RAFT_D_LOG_WRITE2);
         chainWriter.setForcePerfType(PerfConsts.RAFT_D_LOG_SYNC);
         this.logAppender = new LogAppender(idxOps, this, groupConfig, chainWriter);
+    }
+
+    @Override
+    protected MainLogFile createFile(File file, long startPos, long lastAccessTime) {
+        return new MainLogFile(startPos, startPos + getFileSize(), file,
+                groupConfig.fiberGroup, ioExecutor, this::lruTouch, lastAccessTime);
     }
 
     public void setInitialized(boolean initialized) {
@@ -122,7 +128,7 @@ final class LogFileQueue extends AllocatingFileQueue {
                     // finish loop
                     return finish();
                 }
-                LogFile lf = queue.get(i);
+                MainLogFile lf = queue.get(i);
                 return Fiber.call(restorer.restoreFile(bufferRef.getBuffer(), lf), this::afterRestoreSingleFile);
             }
 
@@ -142,7 +148,7 @@ final class LogFileQueue extends AllocatingFileQueue {
 
             private FrameCallResult finish() {
                 if (queue.size() > 1) {
-                    LogFile first = queue.get(0);
+                    MainLogFile first = queue.get(0);
                     if (firstValidPos > first.startPos && firstValidPos < first.endPos && first.firstIndex == 0) {
                         // after install snapshot, the firstValidPos is too large in file, so this file has no items
                         log.info("first file has no items, delete it");
@@ -195,8 +201,8 @@ final class LogFileQueue extends AllocatingFileQueue {
         long deleteTimestamp = ts.wallClockMillis + delayMills;
         int queueSize = queue.size();
         for (int i = 0; i < queueSize - 1; i++) {
-            LogFile logFile = queue.get(i);
-            LogFile nextFile = queue.get(i + 1);
+            MainLogFile logFile = queue.get(i);
+            MainLogFile nextFile = queue.get(i + 1);
             boolean result = nextFile.firstTimestamp > 0
                     && timestampBound > nextFile.firstTimestamp
                     && boundIndex >= nextFile.firstIndex;
@@ -227,7 +233,7 @@ final class LogFileQueue extends AllocatingFileQueue {
     public void truncateTail(long index, long pos) {
         if (queue.size() > 0) {
             for (int i = queue.size() - 1; i >= 0; i--) {
-                LogFile logFile = queue.get(i);
+                MainLogFile logFile = queue.get(i);
                 if (logFile.firstIndex == 0) {
                     // tail file has no items
                     continue;

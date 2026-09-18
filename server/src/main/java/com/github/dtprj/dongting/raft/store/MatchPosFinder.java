@@ -41,12 +41,12 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private final int suggestTerm;
     private final long suggestIndex;
     private final RaftGroupConfigEx groupConfig;
-    private final IndexedQueue<LogFile> queue;
+    private final IndexedQueue<MainLogFile> queue;
     private final IdxOps idxOps;
     private final TailCache tailCache;
     private final long fileLenMask;
 
-    private LogFile logFile;
+    private MainLogFile logFile;
     private boolean readerPending;
 
     private long leftIndex;
@@ -55,7 +55,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private long midIndex;
     private ByteBuffer buf;//no need release
 
-    MatchPosFinder(RaftGroupConfigEx groupConfig, IndexedQueue<LogFile> queue, IdxOps idxOps, Supplier<Boolean> cancel,
+    MatchPosFinder(RaftGroupConfigEx groupConfig, IndexedQueue<MainLogFile> queue, IdxOps idxOps, Supplier<Boolean> cancel,
                    TailCache tailCache, long fileLenMask, int suggestTerm, long suggestIndex, long lastLogIndex) {
         this.groupConfig = groupConfig;
         this.queue = queue;
@@ -131,7 +131,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     }
 
 
-    private LogFile findMatchLogFile() {
+    private MainLogFile findMatchLogFile() {
         if (queue.size() == 0) {
             return null;
         }
@@ -139,7 +139,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         int right = queue.size() - 1;
         while (left <= right) {
             int mid = (left + right + 1) >>> 1;
-            LogFile logFile = queue.get(mid);
+            MainLogFile logFile = queue.get(mid);
             if (logFile.shouldDelete()) {
                 left = mid + 1;
                 continue;

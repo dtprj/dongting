@@ -126,7 +126,7 @@ public final class DefaultRaftLog implements RaftLog {
                 logFiles.setInitialized(true);
 
                 if (logFiles.queue.size() > 0) {
-                    LogFile firstFile = logFiles.queue.get(0);
+                    MainLogFile firstFile = logFiles.queue.get(0);
                     if (firstFile.firstIndex > raftStatus.firstValidIndex) {
                         // the status file is not persisted after delete raft log file
                         raftStatus.firstValidIndex = firstFile.firstIndex;
@@ -336,16 +336,16 @@ public final class DefaultRaftLog implements RaftLog {
 
         private boolean shouldDeleteFirstLog() {
             long taskStartTimestamp = ts.wallClockMillis;
-            IndexedQueue<LogFile> q = logFiles.queue;
+            IndexedQueue<MainLogFile> q = logFiles.queue;
             if (q.size() <= 1) {
                 return false;
             }
-            LogFile first = q.get(0);
+            MainLogFile first = q.get(0);
             long deleteTimestamp = first.deleteTimestamp;
             if (deleteTimestamp <= 0 || deleteTimestamp >= taskStartTimestamp) {
                 return false;
             }
-            LogFile second = q.get(1);
+            MainLogFile second = q.get(1);
             if (second.firstIndex == 0) {
                 return false;
             }
@@ -375,8 +375,8 @@ public final class DefaultRaftLog implements RaftLog {
             } else {
                 if (shouldDeleteFirstLog()) {
                     // advance before deletion: a reader passing the firstValidPos check never hits
-                    // a deleted file. both values come from the in-memory LogFile, no io needed
-                    LogFile second = logFiles.queue.get(1);
+                    // a deleted file. both values come from the in-memory MainLogFile, no io needed
+                    MainLogFile second = logFiles.queue.get(1);
                     raftStatus.firstValidIndex = second.firstIndex;
                     raftStatus.firstValidPos = second.startPos;
                     statusManager.persistAsync();
@@ -388,12 +388,12 @@ public final class DefaultRaftLog implements RaftLog {
         }
 
         private boolean shouldDeleteFirstIdx() {
-            IndexedQueue<LogFile> q = idxFiles.queue;
+            IndexedQueue<QueueFile> q = idxFiles.queue;
             if (q.size() <= 1) {
                 // don't delete last file
                 return false;
             }
-            LogFile first = q.get(0);
+            QueueFile first = q.get(0);
             long firstIndexOfNextFile = idxFiles.posToIndex(first.endPos);
             if (logFiles.getFirstIndex() < firstIndexOfNextFile) {
                 return false;
