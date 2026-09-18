@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.FutureFrame;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -389,24 +390,21 @@ public abstract class FileQueue<F extends QueueFile> {
     }
 
     public FiberFrame<Void> deleteFirstFile() {
-        FiberFrame<Void> f = new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                QueueFile first = queue.get(0);
-                if (first.inUse()) {
-                    log.warn("file in use, wait. reader={}, writer={}, file={}", first.getReaders(),
-                            first.getWriters(), first.getFile().getPath());
-                    return first.getNoRwCond().await(this);
-                }
-                if (first.deleteTimestamp == 0) {
-                    first.deleteTimestamp = 1;
-                }
-                first.deleted = true;
-                lruRemove(first);
-                first.destroy();
-                return Fiber.call(new DeleteFrame(first.getFile(), ioExecutor), this::justReturn);
+        FiberFrame<Void> f = new SimpleFrame<>("deleteFirstFile", frame -> {
+            QueueFile first = queue.get(0);
+            if (first.inUse()) {
+                log.warn("file in use, wait. reader={}, writer={}, file={}", first.getReaders(),
+                        first.getWriters(), first.getFile().getPath());
+                return first.getNoRwCond().await(frame);
             }
-        };
+            if (first.deleteTimestamp == 0) {
+                first.deleteTimestamp = 1;
+            }
+            first.deleted = true;
+            lruRemove(first);
+            first.destroy();
+            return Fiber.call(new DeleteFrame(first.getFile(), ioExecutor), frame::justReturn);
+        });
         f = new RetryFrame<>(f, groupConfig.ioRetryInterval,
                 () -> !initialized || raftStatus.installSnapshot || isMarkClose());
         f = new PostFiberFrame<>(f) {

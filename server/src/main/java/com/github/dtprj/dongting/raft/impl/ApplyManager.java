@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -120,20 +121,17 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     public void init(FiberGroup fiberGroup) {
         this.initCommitIndex = raftStatus.commitIndex;
         startApplyFiber(fiberGroup);
-        new Fiber("applyFiberMonitor", fiberGroup, new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (applyFiber.isFinished() && !shouldStopApply()) {
-                    startApplyFiber(fiberGroup);
-                }
-                if (raftStatus.isGroupReady()) {
-                    return applyMonitorCond.await(1000, this);
-                } else {
-                    processWaitGroupReadyQueue(true, false);
-                    return applyMonitorCond.await(100, this);
-                }
+        new Fiber("applyFiberMonitor", fiberGroup, new SimpleFrame<>("applyMonitor", frame -> {
+            if (applyFiber.isFinished() && !shouldStopApply()) {
+                startApplyFiber(fiberGroup);
             }
-        }).setDaemon(true).start();
+            if (raftStatus.isGroupReady()) {
+                return applyMonitorCond.await(1000, frame);
+            } else {
+                processWaitGroupReadyQueue(true, false);
+                return applyMonitorCond.await(100, frame);
+            }
+        })).setDaemon(true).start();
         if (raftStatus.getLastApplied() >= raftStatus.commitIndex) {
             log.info("apply manager init complete");
             raftStatus.markInit(false);
@@ -272,23 +270,21 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     public CompletableFuture<Void> addToWaitReadyQueueFromAnyThread(DtTime t) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        boolean b = fiberGroup.fireFiber("addToWaitReadyQueue", new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (t.isTimeout(raftStatus.ts)) {
-                    RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
-                            + t.getTimeout(TimeUnit.MILLISECONDS) + "ms");
-                    completeWaitReadyFuture(f, e);
-                } else if (raftStatus.isShouldStop()) {
-                    completeWaitReadyFuture(f, new RaftException("group should stop"));
-                } else if (raftStatus.isGroupReady()) {
-                    completeWaitReadyFuture(f, null);
-                } else {
-                    waitReadyQueue.add(new Pair<>(t, f));
-                }
-                return Fiber.frameReturn();
-            }
-        });
+        boolean b = fiberGroup.fireFiber("addToWaitReadyQueue", new SimpleFrame<>("addToWaitReadyQueue",
+                frame -> {
+                    if (t.isTimeout(raftStatus.ts)) {
+                        RaftTimeoutException e = new RaftTimeoutException("wait group ready timeout: "
+                                + t.getTimeout(TimeUnit.MILLISECONDS) + "ms");
+                        completeWaitReadyFuture(f, e);
+                    } else if (raftStatus.isShouldStop()) {
+                        completeWaitReadyFuture(f, new RaftException("group should stop"));
+                    } else if (raftStatus.isGroupReady()) {
+                        completeWaitReadyFuture(f, null);
+                    } else {
+                        waitReadyQueue.add(new Pair<>(t, f));
+                    }
+                    return Fiber.frameReturn();
+                }));
         if (!b) {
             f.completeExceptionally(new RaftException("group should stop"));
         }

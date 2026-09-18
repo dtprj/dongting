@@ -21,9 +21,8 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -538,24 +537,21 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void stopGroup(RaftGroupImpl g, DtTime timeout, boolean saveSnapshot) {
-        g.fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (isGroupShouldStopPlain()) {
-                    return Fiber.frameReturn();
-                }
-
-                if (g.fiberGroup.shutdownCallback != null) {
-                    ShutdownFiberFrame f = (ShutdownFiberFrame) g.fiberGroup.shutdownCallback;
-                    f.timeout = timeout;
-                    f.saveSnapshot = saveSnapshot;
-                }
-
-                // fireFiber run in current thread, so shouldStop set immediately here
-                g.fiberGroup.requestShutdown();
+        g.fiberGroup.fireFiber("shutdown" + g.getGroupId(), new SimpleFrame<>("shutdownGroup", frame -> {
+            if (frame.isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
-        });
+
+            if (g.fiberGroup.shutdownCallback != null) {
+                ShutdownFiberFrame f = (ShutdownFiberFrame) g.fiberGroup.shutdownCallback;
+                f.timeout = timeout;
+                f.saveSnapshot = saveSnapshot;
+            }
+
+            // fireFiber run in current thread, so shouldStop set immediately here
+            g.fiberGroup.requestShutdown();
+            return Fiber.frameReturn();
+        }));
 
     }
 
@@ -731,15 +727,12 @@ public class RaftServer extends AbstractLifeCircle {
             return CompletableFuture.failedFuture(new NoSuchGroupException(groupId));
         } else {
             CompletableFuture<QueryStatusResp> f = new CompletableFuture<>();
-            if (!g.fiberGroup.fireFiber("queryStatus", new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    QueryStatusResp r = QueryStatusProcessor.buildQueryStatusResp(
-                            serverConfig.nodeId, g.groupComponents.raftStatus);
-                    f.complete(r);
-                    return Fiber.frameReturn();
-                }
-            })) {
+            if (!g.fiberGroup.fireFiber("queryStatus", new SimpleFrame<>("queryStatus", frame -> {
+                QueryStatusResp r = QueryStatusProcessor.buildQueryStatusResp(
+                        serverConfig.nodeId, g.groupComponents.raftStatus);
+                f.complete(r);
+                return Fiber.frameReturn();
+            }))) {
                 f.completeExceptionally(new NoSuchGroupException(groupId));
             }
             return f;

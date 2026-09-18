@@ -97,13 +97,11 @@ public class FiberGroup {
         if (Thread.currentThread() == dispatcher.thread && dispatcher.thread.currentGroup == this) {
             requestShutdown0();
         } else {
-            Fiber shutdownGroupFiber = new Fiber("shutdownGroup", this, new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    requestShutdown0();
-                    return Fiber.frameReturn();
-                }
-            });
+            Fiber shutdownGroupFiber = new Fiber("shutdownGroup", this,
+                    new SimpleFrame<>("requestShutdown", f -> {
+                        requestShutdown0();
+                        return Fiber.frameReturn();
+                    }));
             fireFiber(shutdownGroupFiber);
         }
     }

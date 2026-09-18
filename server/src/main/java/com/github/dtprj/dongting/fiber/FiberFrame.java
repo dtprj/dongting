@@ -20,6 +20,7 @@ package com.github.dtprj.dongting.fiber;
  */
 @SuppressWarnings("rawtypes")
 public abstract class FiberFrame<O> implements FrameCall<Void> {
+    final String methodName;
     Fiber fiber;
 
     FiberFrame prev;
@@ -30,6 +31,14 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
 
     O frameResult;
     Throwable frameEx;
+
+    protected FiberFrame() {
+        this.methodName = "N/A";
+    }
+
+    protected FiberFrame(String methodName) {
+        this.methodName = methodName == null ? "N/A" : methodName;
+    }
 
     protected FrameCallResult doFinally() throws Throwable {
         return FrameCallResult.RETURN;
@@ -85,30 +94,19 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     }
 
     public static <O> FiberFrame<O> completedFrame(O theResult) {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                setResult(theResult);
-                return Fiber.frameReturn();
-            }
-        };
+        return new SimpleFrame<>("completedFrame", f -> {
+            f.setResult(theResult);
+            return Fiber.frameReturn();
+        });
     }
 
     public static <O> FiberFrame<O> failedFrame(Exception theEx) {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) throws Exception {
-                throw theEx;
-            }
-        };
+        return new SimpleFrame<>("failedFrame", f -> {
+            throw theEx;
+        });
     }
 
     public static FiberFrame<Void> voidCompletedFrame() {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                return Fiber.frameReturn();
-            }
-        };
+        return new SimpleFrame<>("voidCompletedFrame", null);
     }
 }

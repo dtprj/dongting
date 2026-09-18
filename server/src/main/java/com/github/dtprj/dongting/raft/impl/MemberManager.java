@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -172,21 +173,18 @@ public class MemberManager {
     }
 
     public Fiber createRaftPingFiber() {
-        FiberFrame<Void> fiberFrame = new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                try {
-                    if (isGroupShouldStopPlain()) {
-                        return Fiber.frameReturn();
-                    }
-                    ensureRaftMemberStatus();
-                    replicateManager.tryStartReplicateFibers();
-                    return Fiber.sleep(daemonSleepInterval, this);
-                } catch (Throwable e) {
-                    throw Fiber.fatal(e);
+        FiberFrame<Void> fiberFrame = new SimpleFrame<>("raftPing", frame -> {
+            try {
+                if (frame.isGroupShouldStopPlain()) {
+                    return Fiber.frameReturn();
                 }
+                ensureRaftMemberStatus();
+                replicateManager.tryStartReplicateFibers();
+                return Fiber.sleep(daemonSleepInterval, frame);
+            } catch (Throwable e) {
+                throw Fiber.fatal(e);
             }
-        };
+        });
         // daemon fiber
         return new Fiber("raftPing", groupConfig.fiberGroup, fiberFrame).setDaemon(true);
     }
@@ -340,45 +338,33 @@ public class MemberManager {
     public FiberFrame<Void> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers,
                                                         Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
                                                         CompletableFuture<Long> f) {
-        return new FiberFrame<>() {
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                log.error("leader prepare joint consensus error", ex);
-                f.completeExceptionally(ex);
+        return new SimpleFrame<>("prepareJointConsensus", frame -> {
+            if (!raftStatus.nodeIdOfMembers.equals(members)
+                    || !raftStatus.nodeIdOfObservers.equals(observers)) {
+                log.error("old members or observers not match, groupId={}", groupId);
+                f.completeExceptionally(new RaftException("old members or observers not match"));
                 return Fiber.frameReturn();
             }
-
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (!raftStatus.nodeIdOfMembers.equals(members)
-                        || !raftStatus.nodeIdOfObservers.equals(observers)) {
-                    log.error("old members or observers not match, groupId={}", groupId);
-                    f.completeExceptionally(new RaftException("old members or observers not match"));
-                    return Fiber.frameReturn();
-                }
-                nodeManager.checkLeaderPrepare(newMemberNodes, newObserverNodes);
-                leaderConfigChange(LogHeader.TYPE_PREPARE_CONFIG_CHANGE,
-                        getInputData(newMemberNodes, newObserverNodes), f);
-                return Fiber.frameReturn();
-            }
-        };
+            nodeManager.checkLeaderPrepare(newMemberNodes, newObserverNodes);
+            leaderConfigChange(LogHeader.TYPE_PREPARE_CONFIG_CHANGE,
+                    getInputData(newMemberNodes, newObserverNodes), f);
+            return Fiber.frameReturn();
+        }, ex -> {
+            log.error("leader prepare joint consensus error", ex);
+            f.completeExceptionally(ex);
+            return Fiber.frameReturn();
+        });
     }
 
     public FiberFrame<Void> leaderAbortJointConsensus(CompletableFuture<Long> f) {
-        return new FiberFrame<>() {
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                log.error("leader abort joint consensus error", ex);
-                f.completeExceptionally(ex);
-                return Fiber.frameReturn();
-            }
-
-            @Override
-            public FrameCallResult execute(Void input) {
-                leaderConfigChange(LogHeader.TYPE_DROP_CONFIG_CHANGE, null, f);
-                return Fiber.frameReturn();
-            }
-        };
+        return new SimpleFrame<>("abortJointConsensus", frame -> {
+            leaderConfigChange(LogHeader.TYPE_DROP_CONFIG_CHANGE, null, f);
+            return Fiber.frameReturn();
+        }, ex -> {
+            log.error("leader abort joint consensus error", ex);
+            f.completeExceptionally(ex);
+            return Fiber.frameReturn();
+        });
     }
 
     public FiberFrame<Void> leaderCommitJointConsensus(CompletableFuture<Long> finalFuture, long prepareIndex) {
@@ -490,21 +476,18 @@ public class MemberManager {
     }
 
     private FiberFrame<Void> finishPrepareFuture(CompletableFuture<Long> f, long prepareIndex) {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (isGroupShouldStopPlain()) {
-                    f.completeExceptionally(new RaftException("raft group is stopping"));
-                    return Fiber.frameReturn();
-                }
-                if (raftStatus.getLastApplied() < prepareIndex + 1) {
-                    return gc.applyManager.applyFinishCond.await(100,
-                            getFiberGroup().shouldStopCondition, this);
-                }
-                f.complete(prepareIndex);
+        return new SimpleFrame<>("finishPrepareFuture", frame -> {
+            if (frame.isGroupShouldStopPlain()) {
+                f.completeExceptionally(new RaftException("raft group is stopping"));
                 return Fiber.frameReturn();
             }
-        };
+            if (raftStatus.getLastApplied() < prepareIndex + 1) {
+                return gc.applyManager.applyFinishCond.await(100,
+                        frame.getFiberGroup().shouldStopCondition, frame);
+            }
+            f.complete(prepareIndex);
+            return Fiber.frameReturn();
+        });
     }
 
     private RaftMember findExistMember(int nodeId) {

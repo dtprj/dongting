@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -296,22 +297,19 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
     @Override
     public FiberFrame<Void> waitFlush() {
         // block until flush done
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (needWaitFlush()) {
-                    long first = cache.firstRaftIndex;
-                    long last = cache.lastRaftIndex;
-                    log.warn("group {} cache size {} exceed {}, may cause block. cache from {} to {}, idxWriteFinishIndex={}," +
-                                    " commitIndex={}, lastWriteIndex={}, lastForceIndex={}",
-                            raftStatus.groupId, cache.size, blockCacheItems, first, last, writeFinishIndex,
-                            raftStatus.commitIndex, raftStatus.lastWriteLogIndex, raftStatus.lastForceLogIndex);
-                    needFlushCondition.signal();
-                    return flushDoneCondition.await(1000, this);
-                }
-                return Fiber.frameReturn();
+        return new SimpleFrame<>("waitFlush", frame -> {
+            if (needWaitFlush()) {
+                long first = cache.firstRaftIndex;
+                long last = cache.lastRaftIndex;
+                log.warn("group {} cache size {} exceed {}, may cause block. cache from {} to {}, idxWriteFinishIndex={}," +
+                                " commitIndex={}, lastWriteIndex={}, lastForceIndex={}",
+                        raftStatus.groupId, cache.size, blockCacheItems, first, last, writeFinishIndex,
+                        raftStatus.commitIndex, raftStatus.lastWriteLogIndex, raftStatus.lastForceLogIndex);
+                needFlushCondition.signal();
+                return flushDoneCondition.await(1000, frame);
             }
-        };
+            return Fiber.frameReturn();
+        });
     }
 
     private void removeHead() {

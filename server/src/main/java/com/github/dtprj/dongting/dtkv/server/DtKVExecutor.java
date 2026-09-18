@@ -18,10 +18,9 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -85,20 +84,17 @@ class DtKVExecutor {
 
     public boolean startDaemonTask(String name, DtKVExecutorTask task) {
         if (separateExecutor == null) {
-            Fiber f = new Fiber("fiber-" + name, fiberGroup, new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    task.cond = fiberGroup.newCondition("cond-" + name);
-                    long nextDelayNanos = task.executeTaskOnce();
-                    if (nextDelayNanos == 0) {
-                        return Fiber.yield(this);
-                    } else if (nextDelayNanos > 0) {
-                        return task.cond.await(nextDelayNanos, TimeUnit.NANOSECONDS, this);
-                    } else {
-                        return Fiber.frameReturn();
-                    }
+            Fiber f = new Fiber("fiber-" + name, fiberGroup, new SimpleFrame<>(name, frame -> {
+                task.cond = fiberGroup.newCondition("cond-" + name);
+                long nextDelayNanos = task.executeTaskOnce();
+                if (nextDelayNanos == 0) {
+                    return Fiber.yield(frame);
+                } else if (nextDelayNanos > 0) {
+                    return task.cond.await(nextDelayNanos, TimeUnit.NANOSECONDS, frame);
+                } else {
+                    return Fiber.frameReturn();
                 }
-            }).setDaemon(true);
+            })).setDaemon(true);
             return fiberGroup.fireFiber(f);
         } else {
             try {

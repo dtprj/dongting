@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -135,17 +136,14 @@ public class StatusManager {
         }
 
         private FrameCallResult doUpdate() {
-            FiberFrame<Void> updateFrame = new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    copyWriteData();
-                    version = requestUpdateVersion;
-                    writingIdxIndex = RaftUtil.parseLong(statusFile.getProperties(),
-                            RaftIdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
-                    FiberFuture<Void> f = statusFile.update();
-                    return f.await(this::justReturn);
-                }
-            };
+            FiberFrame<Void> updateFrame = new SimpleFrame<>("statusUpdate", frame -> {
+                copyWriteData();
+                version = requestUpdateVersion;
+                writingIdxIndex = RaftUtil.parseLong(statusFile.getProperties(),
+                        RaftIdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
+                FiberFuture<Void> f = statusFile.update();
+                return f.await(frame::justReturn);
+            });
             RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame, groupConfig.ioRetryInterval,
                     cancelRetryIndicator);
             return Fiber.call(new HandlerFrame<>(retryFrame), this::afterUpdate);
