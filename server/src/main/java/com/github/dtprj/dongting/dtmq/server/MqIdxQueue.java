@@ -40,9 +40,9 @@ import java.util.zip.CRC32C;
  *
  * @author huangli
  */
-final class QueueIdxInfo extends FileQueue {
+final class MqIdxQueue extends FileQueue {
 
-    private static final DtLog log = DtLogs.getLogger(QueueIdxInfo.class);
+    private static final DtLog log = DtLogs.getLogger(MqIdxQueue.class);
 
     private static final int DISK_BLOCK_BYTES = MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN;
 
@@ -92,7 +92,7 @@ final class QueueIdxInfo extends FileQueue {
         }
     }
 
-    QueueIdxInfo(MqIdxManager manager, long queueId, long nextSeq) {
+    MqIdxQueue(MqIdxManager manager, long queueId, long nextSeq) {
         super(new File(manager.dir, String.valueOf(queueId)), manager.groupConfig,
                 (long) MqIdxManager.ITEM_LEN * manager.groupConfig.mqIdxItemsPerFile, false);
         this.manager = manager;

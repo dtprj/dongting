@@ -46,7 +46,7 @@ class MqIdxManager {
     final File dir;
     final MqIdxFlusher flusher;
 
-    final LongObjMap<QueueIdxInfo> queues = new LongObjMap<>();
+    final LongObjMap<MqIdxQueue> queues = new LongObjMap<>();
 
     private final int maxCachedBlocks;
 
@@ -95,7 +95,7 @@ class MqIdxManager {
         flusher.start();
     }
 
-    QueueIdxInfo get(long queueId) {
+    MqIdxQueue get(long queueId) {
         return queues.get(queueId);
     }
 
@@ -108,17 +108,17 @@ class MqIdxManager {
      * before re-registering, so a queue entry is never replaced in place.
      */
     void register(long queueId, long nextSeq) {
-        QueueIdxInfo q = new QueueIdxInfo(this, queueId, nextSeq);
+        MqIdxQueue q = new MqIdxQueue(this, queueId, nextSeq);
         q.init();
         queues.put(queueId, q);
     }
 
     FiberFuture<Void> appendAsync(long queueId, long pos, long timestamp, int itemSize) {
-        QueueIdxInfo q = queues.get(queueId);
+        MqIdxQueue q = queues.get(queueId);
         if (q == null) {
             // absent from the snapshot: a brand-new queue starting at block-aligned seq 0, so
             // there is no head block to load; replay regenerates all of its items from the log
-            q = new QueueIdxInfo(this, queueId, 0);
+            q = new MqIdxQueue(this, queueId, 0);
             q.init();
             queues.put(queueId, q);
         }
@@ -138,7 +138,7 @@ class MqIdxManager {
         }
         // the load path skips flow control: precise control would need a pending queue, approximate is enough
         return loadFuture.convert("mqIdxAppend", v -> {
-            QueueIdxInfo q2 = queues.get(queueId);
+            MqIdxQueue q2 = queues.get(queueId);
             q2.append(q2.nextSeq, pos, timestamp, itemSize);
             return null;
         });
@@ -162,7 +162,7 @@ class MqIdxManager {
      * size are exposed via lastGetTimestamp/lastGetSize.
      */
     long getIdxItemInCache(long queueId, long seq) {
-        QueueIdxInfo q = queues.get(queueId);
+        MqIdxQueue q = queues.get(queueId);
         MqIdxBlock b = q == null ? null : q.getBlock(seq);
         if (b == null) {
             return -1;

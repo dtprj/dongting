@@ -73,10 +73,10 @@ class MqIdxFlusher {
     private boolean error;
 
     // queues with a pending threshold request; drained by the loop fiber
-    private final IndexedQueue<QueueIdxInfo> roundRequests = new IndexedQueue<>(16);
+    private final IndexedQueue<MqIdxQueue> roundRequests = new IndexedQueue<>(16);
 
     // shared by FlushAllRoundFrame and AllQueuesCleanupFrame; filled and drained per round
-    private final IndexedQueue<QueueIdxInfo> todo = new IndexedQueue<>(64);
+    private final IndexedQueue<MqIdxQueue> todo = new IndexedQueue<>(64);
 
     private final Supplier<Boolean> cancelRetryIndicator;
 
@@ -101,11 +101,11 @@ class MqIdxFlusher {
     }
 
     private class AllQueuesCleanupFrame extends FiberFrame<Void> {
-        private final IndexedQueue<QueueIdxInfo> todo;
+        private final IndexedQueue<MqIdxQueue> todo;
 
-        AllQueuesCleanupFrame(IndexedQueue<QueueIdxInfo> todo) {
+        AllQueuesCleanupFrame(IndexedQueue<MqIdxQueue> todo) {
             this.todo = todo;
-            manager.queues.forEach((LongObjMap.ReadOnlyVisitor<QueueIdxInfo>) (id, q) -> todo.addLast(q));
+            manager.queues.forEach((LongObjMap.ReadOnlyVisitor<MqIdxQueue>) (id, q) -> todo.addLast(q));
         }
 
         @Override
@@ -114,7 +114,7 @@ class MqIdxFlusher {
                 return Fiber.frameReturn();
             }
             while (true) {
-                QueueIdxInfo q = todo.pollFirst();
+                MqIdxQueue q = todo.pollFirst();
                 if (q == null) {
                     return Fiber.frameReturn();
                 }
@@ -125,7 +125,7 @@ class MqIdxFlusher {
             }
         }
 
-        private FrameCallResult afterCleanup(QueueIdxInfo q) {
+        private FrameCallResult afterCleanup(MqIdxQueue q) {
             if (q.lastCleanupFailed) {
                 cleanupRetry = true;
             }
@@ -135,7 +135,7 @@ class MqIdxFlusher {
 
     // dispatcher thread; the loop fiber is the only round starter, so a cleanup deleting
     // files cannot interleave with a round start
-    void requestRound(QueueIdxInfo q) {
+    void requestRound(MqIdxQueue q) {
         if (roundWanted(q) && !q.roundRequested) {
             q.roundRequested = true;
             roundRequests.addLast(q);
@@ -143,11 +143,11 @@ class MqIdxFlusher {
         }
     }
 
-    private boolean roundWanted(QueueIdxInfo q) {
+    private boolean roundWanted(MqIdxQueue q) {
         return q.nextSeq - 1 - q.writeFinishSeq >= groupConfig.mqIdxFlushThreshold;
     }
 
-    private void startRound(QueueIdxInfo q, boolean force, long targetSeq) {
+    private void startRound(MqIdxQueue q, boolean force, long targetSeq) {
         if (error || manager.markClose || q.flushing) {
             return;
         }
@@ -206,7 +206,7 @@ class MqIdxFlusher {
         return closeFuture;
     }
 
-    private void continueRound(QueueIdxInfo q) {
+    private void continueRound(MqIdxQueue q) {
         if (error || manager.markClose || !roundIncomplete(q)) {
             endRound(q);
             return;
@@ -229,12 +229,12 @@ class MqIdxFlusher {
         }
     }
 
-    private boolean roundIncomplete(QueueIdxInfo q) {
+    private boolean roundIncomplete(MqIdxQueue q) {
         return q.writeFinishSeq < q.flushTargetSeq
                 || (q.flushForce && q.forceFinishSeq < q.writeFinishSeq);
     }
 
-    private void endRound(QueueIdxInfo q) {
+    private void endRound(MqIdxQueue q) {
         q.flushing = false;
         activeRounds--;
         retireTarget(q);
@@ -242,7 +242,7 @@ class MqIdxFlusher {
         requestRound(q);
     }
 
-    private boolean retireTarget(QueueIdxInfo q) {
+    private boolean retireTarget(MqIdxQueue q) {
         if (q.flushAllTarget && q.forceFinishSeq >= q.flushTargetSeq) {
             q.flushAllTarget = false;
             flushAllTargetCount--;
@@ -251,8 +251,8 @@ class MqIdxFlusher {
         return false;
     }
 
-    private void submitWrite(QueueIdxInfo q) {
-        QueueIdxInfo.FlushBatch b = q.prepareBatch();
+    private void submitWrite(MqIdxQueue q) {
+        MqIdxQueue.FlushBatch b = q.prepareBatch();
         b.logFile.incWriters();
         try {
             AsyncIoTask ioTask = new AsyncIoTask(groupConfig.fiberGroup, b.logFile,
@@ -268,9 +268,9 @@ class MqIdxFlusher {
         }
     }
 
-    private void submitForce(QueueIdxInfo q, LogFile logFile, long endSeq) {
+    private void submitForce(MqIdxQueue q, LogFile logFile, long endSeq) {
         logFile.incWriters();
-        QueueIdxInfo.FlushBatch b = new QueueIdxInfo.FlushBatch(endSeq, null, logFile, -1, true);
+        MqIdxQueue.FlushBatch b = new MqIdxQueue.FlushBatch(endSeq, null, logFile, -1, true);
         try {
             AsyncIoTask ioTask = new AsyncIoTask(groupConfig.fiberGroup, logFile,
                     groupConfig.ioRetryInterval, cancelRetryIndicator);
@@ -281,7 +281,7 @@ class MqIdxFlusher {
         }
     }
 
-    private void onIoDone(QueueIdxInfo q, QueueIdxInfo.FlushBatch b, Throwable ex) {
+    private void onIoDone(MqIdxQueue q, MqIdxQueue.FlushBatch b, Throwable ex) {
         try {
             b.logFile.decWriters();
             if (b.bufRef != null) {
@@ -315,7 +315,7 @@ class MqIdxFlusher {
         }
     }
 
-    private void submitFileAlloc(QueueIdxInfo q) {
+    private void submitFileAlloc(MqIdxQueue q) {
         RetryFrame<LogFile> rf = new RetryFrame<>(new AllocAttemptFrame(q),
                 groupConfig.ioRetryInterval, cancelRetryIndicator);
         rf.cancelCondition = allocRetryCond;
@@ -324,7 +324,7 @@ class MqIdxFlusher {
         f.registerCallback((lf, ex) -> onAllocated(q, lf, ex));
     }
 
-    private void onAllocated(QueueIdxInfo q, LogFile lf, Throwable ex) {
+    private void onAllocated(MqIdxQueue q, LogFile lf, Throwable ex) {
         try {
             if (ex == null) {
                 if (error || manager.markClose) {
@@ -355,9 +355,9 @@ class MqIdxFlusher {
     }
 
     private class AllocAttemptFrame extends FiberFrame<LogFile> {
-        private final QueueIdxInfo q;
+        private final MqIdxQueue q;
 
-        AllocAttemptFrame(QueueIdxInfo q) {
+        AllocAttemptFrame(MqIdxQueue q) {
             this.q = q;
         }
 
@@ -384,7 +384,7 @@ class MqIdxFlusher {
             return f.await(this::justReturn);
         }
 
-        private LogFile allocateFile(QueueIdxInfo q, File file, long fileStart) throws IOException {
+        private LogFile allocateFile(MqIdxQueue q, File file, long fileStart) throws IOException {
             File parent = file.getParentFile();
             if (parent != null && !parent.isDirectory()
                     && !parent.mkdirs() && !parent.isDirectory()) {
@@ -403,7 +403,7 @@ class MqIdxFlusher {
     }
 
     private class CloseFrame extends FiberFrame<Void> {
-        private ArrayList<QueueIdxInfo> qs;
+        private ArrayList<MqIdxQueue> qs;
         private int index = -1;
 
         @Override
@@ -471,7 +471,7 @@ class MqIdxFlusher {
         }
 
         private void processRoundRequests() {
-            QueueIdxInfo q;
+            MqIdxQueue q;
             while ((q = roundRequests.pollFirst()) != null) {
                 q.roundRequested = false;
                 if (roundWanted(q)) {
@@ -515,7 +515,7 @@ class MqIdxFlusher {
                 return Fiber.frameReturn();
             }
             drainRequests();
-            QueueIdxInfo q;
+            MqIdxQueue q;
             while ((q = todo.pollFirst()) != null) {
                 if (retireTarget(q)) {
                     continue;
@@ -540,7 +540,7 @@ class MqIdxFlusher {
         }
 
         private void drainRequests() {
-            QueueIdxInfo q;
+            MqIdxQueue q;
             while ((q = roundRequests.pollFirst()) != null) {
                 q.roundRequested = false;
                 if (!retireTarget(q) && q.flushAllTarget) {

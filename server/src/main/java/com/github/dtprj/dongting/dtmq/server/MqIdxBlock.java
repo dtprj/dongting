@@ -31,13 +31,13 @@ final class MqIdxBlock {
     static final int SLOT_SIZE = 20;
     static final int BLOCK_BYTES = BLOCK_ITEMS * SLOT_SIZE; // 2560
 
-    final QueueIdxInfo owner;
+    final MqIdxQueue owner;
     final long startSeq;
     int count;
 
     final ByteBuffer buffer = ByteBuffer.wrap(new byte[BLOCK_BYTES]);
 
-    MqIdxBlock(QueueIdxInfo owner, long startSeq, int count) {
+    MqIdxBlock(MqIdxQueue owner, long startSeq, int count) {
         this.owner = owner;
         this.startSeq = startSeq;
         this.count = count;

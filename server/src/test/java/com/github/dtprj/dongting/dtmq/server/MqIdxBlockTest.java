@@ -20,9 +20,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -73,7 +71,7 @@ class MqIdxBlockTest {
         MqIdxBlock b0 = newBlock(0, 128);
         MqIdxBlock b1 = newBlock(128, 100);
         ByteBuffer dest = ByteBuffer.allocate(228 * MqIdxManager.ITEM_LEN);
-        QueueIdxInfo.fillBlocks(new MqIdxBlock[]{b0, b1}, 227, dest);
+        MqIdxQueue.fillBlocks(new MqIdxBlock[]{b0, b1}, 227, dest);
         assertEquals(dest.capacity(), dest.position());
         for (int i = 0; i < 228; i++) {
             assertDiskRecord(dest, i);
@@ -85,7 +83,7 @@ class MqIdxBlockTest {
         MqIdxBlock b0 = newBlock(0, 128);
         MqIdxBlock b1 = newBlock(128, 128);
         ByteBuffer dest = ByteBuffer.allocate(151 * MqIdxManager.ITEM_LEN);
-        QueueIdxInfo.fillBlocks(new MqIdxBlock[]{b0, b1}, 150, dest);
+        MqIdxQueue.fillBlocks(new MqIdxBlock[]{b0, b1}, 150, dest);
         assertEquals(dest.capacity(), dest.position());
         for (int i = 0; i <= 150; i++) {
             assertDiskRecord(dest, i);

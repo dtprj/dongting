@@ -20,8 +20,8 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.TestDir;
@@ -34,13 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.zip.CRC32C;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -133,7 +127,7 @@ class MqIdxManagerTest extends BaseFiberTest {
         for (int i = 0; i < 600; i++) {
             append(1, i);
         }
-        QueueIdxInfo q = manager.get(1);
+        MqIdxQueue q = manager.get(1);
         assertEquals(600, q.nextSeq);
         assertEquals(0, q.firstSeqInCache);
         assertEquals(5, q.blocks.size());
@@ -160,7 +154,7 @@ class MqIdxManagerTest extends BaseFiberTest {
     @Test
     void testAppendSeqContinuity() {
         append(1, 0);
-        QueueIdxInfo q = manager.get(1);
+        MqIdxQueue q = manager.get(1);
         assertThrows(IllegalArgumentException.class, () -> q.append(2, 20, 200, 3));
         assertThrows(IllegalArgumentException.class, () -> q.append(0, 0, 0, 1));
         append(1, 1);
@@ -171,7 +165,7 @@ class MqIdxManagerTest extends BaseFiberTest {
     @Test
     void testRegister() {
         manager.register(1, 1000);
-        QueueIdxInfo q = manager.get(1);
+        MqIdxQueue q = manager.get(1);
         assertEquals(1000, q.nextSeq);
         assertTrue(q.needLoadHead);
         assertEquals(0, q.blocks.size());
@@ -199,7 +193,7 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertHit(1, 1024);
 
         manager.register(2, 300);
-        QueueIdxInfo q2 = manager.get(2);
+        MqIdxQueue q2 = manager.get(2);
         q2.installHeadBlock(null);
         assertEquals(256, q2.firstSeqInCache);
         assertEquals(44, q2.blocks.getFirst().count);
@@ -208,13 +202,13 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertHit(2, 300);
 
         manager.register(3, 256);
-        QueueIdxInfo q3 = manager.get(3);
+        MqIdxQueue q3 = manager.get(3);
         assertFalse(q3.needLoadHead);
         assertEquals(256, q3.firstSeqInCache);
         assertEquals(-1, manager.getIdxItemInCache(3, 255));
 
         manager.register(4, 300);
-        QueueIdxInfo q4 = manager.get(4);
+        MqIdxQueue q4 = manager.get(4);
         ByteBuffer corrupted = buildBlockBuffer(256);
         corrupted.put(40, (byte) (corrupted.get(40) + 1));
         assertThrows(ChecksumException.class, () -> q4.installHeadBlock(corrupted));
@@ -231,7 +225,7 @@ class MqIdxManagerTest extends BaseFiberTest {
                 append(1, i);
             }
         });
-        QueueIdxInfo q = manager.get(1);
+        MqIdxQueue q = manager.get(1);
         // over capacity, but eviction is gated by writeFinishSeq
         assertEquals(5, q.blocks.size());
 
@@ -263,7 +257,7 @@ class MqIdxManagerTest extends BaseFiberTest {
                 append(2, i);
             }
         });
-        QueueIdxInfo q2 = manager.get(2);
+        MqIdxQueue q2 = manager.get(2);
         // global fifo: queue 1's unflushed head blocks queue 2's flushed blocks
         q2.writeFinishSeq = 255;
         manager.evict();

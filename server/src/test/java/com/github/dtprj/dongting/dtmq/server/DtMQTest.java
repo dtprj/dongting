@@ -42,11 +42,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32C;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -180,8 +176,8 @@ class DtMQTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterRecover(Void v) {
-                QueueIdxInfo q1 = mq.manager.get(1);
-                QueueIdxInfo q2 = mq.manager.get(2);
+                MqIdxQueue q1 = mq.manager.get(1);
+                MqIdxQueue q2 = mq.manager.get(2);
                 assertEquals(125, q1.nextSeq);
                 assertEquals(5, q2.nextSeq);
                 assertTrue(q1.needLoadHead);
@@ -284,8 +280,8 @@ class DtMQTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterDone(Void v) {
-                QueueIdxInfo q7 = mq.manager.get(7);
-                QueueIdxInfo q8 = mq.manager.get(8);
+                MqIdxQueue q7 = mq.manager.get(7);
+                MqIdxQueue q8 = mq.manager.get(8);
                 assertEquals(300, q7.nextSeq);
                 assertEquals(256, q8.nextSeq);
                 assertTrue(q7.needLoadHead);
@@ -363,7 +359,7 @@ class DtMQTest extends BaseFiberTest {
 
             private FrameCallResult afterDone(Void v) {
                 assertNull(mq.manager.get(7));
-                QueueIdxInfo q9 = mq.manager.get(9);
+                MqIdxQueue q9 = mq.manager.get(9);
                 assertNotNull(q9);
                 assertEquals(512, q9.nextSeq);
                 return Fiber.frameReturn();

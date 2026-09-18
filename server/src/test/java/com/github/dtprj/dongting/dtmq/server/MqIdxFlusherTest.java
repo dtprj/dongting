@@ -129,12 +129,12 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 manager.start();
                 // the first seal requests a round; the loop starts it with target 127
                 appendItems(1, 0, 128);
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 return Fiber.call(waitUntil(() -> q.writeFinishSeq >= 127 && !q.flushing), this::phase2);
             }
 
             private FrameCallResult phase2(Void v) {
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 assertEquals(127, q.writeFinishSeq);
                 assertEquals(-1, q.forceFinishSeq);
                 assertTrue(q.isDirty());
@@ -145,7 +145,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterFlush(Void v) {
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 assertEquals(511, q.writeFinishSeq);
                 // both files are completed by the round, and a file-completing batch always forces
                 assertEquals(511, q.forceFinishSeq);
@@ -174,8 +174,8 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterFlushAll(Void v) {
-                QueueIdxInfo q1 = manager.get(1);
-                QueueIdxInfo q2 = manager.get(2);
+                MqIdxQueue q1 = manager.get(1);
+                MqIdxQueue q2 = manager.get(2);
                 assertEquals(99, q1.writeFinishSeq);
                 assertEquals(99, q1.forceFinishSeq);
                 assertEquals(299, q2.writeFinishSeq);
@@ -207,12 +207,12 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 manager.start();
                 // stop exactly at a seal: the threshold round writes seq 0..127, no force mid-file
                 appendItems(1, 0, 128);
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 return Fiber.call(waitUntil(() -> q.writeFinishSeq >= 127 && !q.flushing), this::afterTrigger);
             }
 
             private FrameCallResult afterTrigger(Void v) {
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 assertEquals(127, q.writeFinishSeq);
                 assertEquals(-1, q.forceFinishSeq);
                 // nothing new to write: flush-all targets writeFinishSeq and issues a pure force
@@ -220,7 +220,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterFlushAll(Void v) {
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 assertEquals(127, q.writeFinishSeq);
                 assertEquals(127, q.forceFinishSeq);
                 assertFalse(q.isDirty());
@@ -238,12 +238,12 @@ class MqIdxFlusherTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) {
                 manager.start();
                 appendItems(1, 0, 50);
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 return Fiber.call(waitUntil(() -> q.forceFinishSeq >= 49), this::afterFlush);
             }
 
             private FrameCallResult afterFlush(Void v) {
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 assertEquals(49, q.writeFinishSeq);
                 return manager.close().await(this::justReturn);
             }
@@ -263,7 +263,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterFlush(Void v) {
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 assertEquals(599, q.writeFinishSeq);
                 // the fifo is evicted down to the cache limit; the tail block is not counted
                 assertEquals(2, q.blocks.size());
@@ -319,7 +319,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterFlush(Void v) {
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 assertEquals(400, q.writeFinishSeq);
                 assertEquals(400, q.forceFinishSeq);
                 return manager.close().await(this::justReturn);
@@ -364,7 +364,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 manager.start();
                 // 128 pending items never cross the threshold, so no round is ever requested
                 appendItems(1, 0, 128);
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 assertFalse(q.roundRequested);
                 assertFalse(q.flushing);
                 assertEquals(-1, q.writeFinishSeq);
@@ -441,7 +441,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 appendItems(1, 0, 384);
                 // the wait condition is monotonic, so it cannot miss: by the first completed
                 // batch the round is typically still in flight, and close runs under it
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 return Fiber.call(waitUntil(() -> q.writeFinishSeq >= 127), this::afterRoundStarted);
             }
 
@@ -517,7 +517,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 for (long seq = 0; seq < 400; seq++) {
                     futures.add(manager.appendAsync(1, seq * 10, seq * 100, (int) seq + 1));
                 }
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 return Fiber.call(waitUntil(() -> q.writeFinishSeq >= 399), this::afterFlush);
             }
 
@@ -618,7 +618,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
         // cached blocks of deleted files still hit
         assertEquals(100, manager.getIdxItemInCache(1, 10));
         assertEquals(1000, manager.getIdxItemInCache(1, 100));
-        QueueIdxInfo q1 = manager.get(1);
+        MqIdxQueue q1 = manager.get(1);
         assertEquals(768, q1.nextSeq);
         assertEquals(0, q1.firstSeqInCache);
     }
@@ -816,7 +816,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                     return afterFlush(null);
                 }
                 appendItems(1, 0, from, from + 128);
-                QueueIdxInfo q = manager.get(1);
+                MqIdxQueue q = manager.get(1);
                 return Fiber.call(waitUntil(() -> q.writeFinishSeq >= from + 127 && !q.flushing),
                         v -> appendPhase(from + 128));
             }

@@ -39,7 +39,7 @@ class MqSnapshot extends Snapshot {
     private final LinkedList<RefBuffer> pages = new LinkedList<>();
     private RefBuffer writePage;
 
-    MqSnapshot(SnapshotInfo snapshotInfo, LongObjMap<QueueIdxInfo> queues, FiberGroup fiberGroup) {
+    MqSnapshot(SnapshotInfo snapshotInfo, LongObjMap<MqIdxQueue> queues, FiberGroup fiberGroup) {
         super(snapshotInfo);
         this.fiberGroup = fiberGroup;
         Buffers buffers = fiberGroup.dispatcher.thread.buffers;
