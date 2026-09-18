@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.FutureFrame;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.FileQueue;
@@ -40,6 +42,8 @@ import java.util.zip.CRC32C;
  */
 final class QueueIdxInfo extends FileQueue {
 
+    private static final DtLog log = DtLogs.getLogger(QueueIdxInfo.class);
+
     private static final int DISK_BLOCK_BYTES = MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN;
 
     final MqIdxManager manager;
@@ -55,9 +59,20 @@ final class QueueIdxInfo extends FileQueue {
     boolean flushing;
     long flushTargetSeq;
     boolean flushForce;
+    // true while the active FlushAllRoundFrame anchors this queue (flushTargetSeq frozen)
+    boolean flushAllTarget;
 
     boolean needLoadHead;
     FiberFuture<Void> loadFuture;
+
+    boolean lastCleanupFailed;
+
+    // pos of the last appended item (seq nextSeq-1); -1 unknown after a restart
+    long lastItemPos = -1;
+    // last item pos of the sealed head file; -1 unknown, reset after each head deletion
+    long headFileLastItemPos = -1;
+    // true while a threshold request for this queue sits in the flusher's request queue
+    boolean roundRequested;
 
     final IndexedQueue<MqIdxBlock> blocks = new IndexedQueue<>(2);
 
@@ -139,9 +154,10 @@ final class QueueIdxInfo extends FileQueue {
         }
         b.append(pos, timestamp, itemSize);
         nextSeq++;
+        lastItemPos = pos;
         if (b.isFull()) {
             manager.onSeal(b);
-            manager.flusher.maybeStartRound(this);
+            manager.flusher.requestRound(this);
         }
     }
 
@@ -228,7 +244,41 @@ final class QueueIdxInfo extends FileQueue {
         return forceFinishSeq < nextSeq - 1;
     }
 
-    FiberFuture<Void> closeFiles() {
+    // true if the write point is beyond the head file, i.e. all its items are flushed
+    // and its content is frozen
+    private boolean isHeadFileSealed() {
+        return queueStartPosition < startPosOfFile(seqToPos(writeFinishSeq + 1));
+    }
+
+    // true if the cleanup frame must run: head unknown, or the head is deletable
+    boolean needRunCleanup(long firstValidPos) {
+        if (queue.size() == 0) {
+            return false;
+        }
+        if (isHeadFileSealed()) {
+            return headFileLastItemPos == -1 || headFileLastItemPos < firstValidPos;
+        }
+        if (queue.size() > 1) {
+            // the head is the write file with files above (restart rewind): not deletable
+            // in place; it becomes a sealed head once the write point moves past it
+            return false;
+        }
+        long firstSeq = posToSeq(queueStartPosition);
+        if (nextSeq <= firstSeq) {
+            // the restored write point sits at the file start: replay re-appends and the
+            // file is rewritten in place; strictly below is impossible, deleting lower
+            // files requires the snapshot to cover them
+            if (nextSeq < firstSeq) {
+                BugLog.log("write point below head file: queue=" + queueId + ", nextSeq="
+                        + nextSeq + ", firstSeq=" + firstSeq);
+            }
+            return false;
+        }
+        return lastItemPos == -1 || lastItemPos < firstValidPos;
+    }
+
+    FiberFuture<Void> close() {
+        markClose = true;
         return stopFileQueue();
     }
 
@@ -316,6 +366,135 @@ final class QueueIdxInfo extends FileQueue {
                 RaftUtil.updateCrc(crc, dest, recStart, MqIdxManager.ITEM_LEN - 4);
                 dest.putInt((int) crc.getValue());
             }
+        }
+    }
+
+    FiberFrame<Void> createCleanupFrame() {
+        lastCleanupFailed = false;
+        return new CleanupFrame();
+    }
+
+    private class CleanupFrame extends FiberFrame<Void> {
+
+        // snapshot: the round may await across log deletions, so all decisions use one watermark
+        private final long firstValidPos;
+
+        private LogFile readLogFile;
+        private boolean readerPending;
+        // seq of the item the lazy read targets; guards against a stale result
+        private long readSeq;
+
+        CleanupFrame() {
+            this.firstValidPos = raftStatus.firstValidPos;
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (manager.markClose) {
+                return Fiber.frameReturn();
+            }
+            if (queue.size() == 0) {
+                return Fiber.frameReturn();
+            }
+            LogFile head = queue.get(0);
+            if (isHeadFileSealed()) {
+                // content frozen: judged by the pos of the last item of the file
+                if (headFileLastItemPos == -1) {
+                    return readItemPos(head, fileSize - MqIdxManager.ITEM_LEN, true);
+                }
+                if (headFileLastItemPos >= firstValidPos) {
+                    return Fiber.frameReturn();
+                }
+                return Fiber.call(deleteFirstFile(), v -> afterDelete());
+            }
+            if (queue.size() > 1) {
+                // the write file with files above (restart rewind): deferred until sealed
+                return Fiber.frameReturn();
+            }
+            if (flushing) {
+                return Fiber.frameReturn();
+            }
+            if (nextSeq <= posToSeq(queueStartPosition)) {
+                return Fiber.frameReturn();
+            }
+            if (lastItemPos == -1) {
+                readSeq = nextSeq - 1;
+                long offset = (nextSeq - 1 - posToSeq(queueStartPosition)) * MqIdxManager.ITEM_LEN;
+                return readItemPos(head, offset, false);
+            }
+            if (lastItemPos >= firstValidPos) {
+                return Fiber.frameReturn();
+            }
+            return Fiber.call(deleteFirstFile(), v -> afterDelete());
+        }
+
+        private FrameCallResult afterDelete() {
+            headFileLastItemPos = -1;
+            return Fiber.resume(null, this);
+        }
+
+        // returns the pos field of the item at offsetInFile, or null to give up this round
+        private FrameCallResult readItemPos(LogFile lf, long offsetInFile, boolean head) {
+            ByteBuffer buf = ByteBuffer.allocate(MqIdxManager.ITEM_LEN);
+            lf.incReaders();
+            readLogFile = lf;
+            readerPending = true;
+            return new AsyncIoTask(groupConfig.fiberGroup, lf).read(buf, offsetInFile)
+                    .await(v -> afterRead(lf, buf, offsetInFile, head));
+        }
+
+        private FrameCallResult afterRead(LogFile lf, ByteBuffer buf, long offsetInFile, boolean head) {
+            endRead();
+            if (manager.markClose) {
+                return Fiber.frameReturn();
+            }
+            CRC32C crc = new CRC32C();
+            RaftUtil.updateCrc(crc, buf, 0, MqIdxManager.ITEM_LEN - 4);
+            if (buf.getInt(MqIdxManager.ITEM_LEN - 4) == (int) crc.getValue()) {
+                long pos = buf.getLong(0);
+                if (head) {
+                    headFileLastItemPos = pos;
+                } else if (nextSeq - 1 == readSeq) {
+                    lastItemPos = pos;
+                } else {
+                    // appends landed during the io: the read value is stale, re-judge with
+                    // the lastItemPos maintained by those appends
+                    return Fiber.resume(null, this);
+                }
+                return Fiber.resume(null, this);
+            } else {
+                log.warn("mq idx item crc check fail, skip cleanup: {}+{}",
+                        lf.getFile().getPath(), offsetInFile);
+                lastCleanupFailed = true;
+                return Fiber.frameReturn();
+            }
+        }
+
+        private void endRead() {
+            if (readerPending) {
+                readerPending = false;
+                readLogFile.decReaders();
+                readLogFile = null;
+            }
+        }
+
+        @Override
+        protected FrameCallResult doFinally() {
+            endRead();
+            return Fiber.frameReturn();
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            // keep the flusher loop alive; the files are left to a later round
+            lastCleanupFailed = true;
+            if (manager.markClose) {
+                // retry canceled by close, expected
+                log.warn("mq idx cleanup canceled by close: queue={}", queueId);
+            } else {
+                log.error("mq idx cleanup fail: queue={}", queueId, ex);
+            }
+            return Fiber.frameReturn();
         }
     }
 }

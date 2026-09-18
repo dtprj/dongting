@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
@@ -28,6 +29,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.LogFile;
@@ -53,21 +55,28 @@ class MqIdxFlusher {
 
     private final MqIdxManager manager;
     private final RaftGroupConfigEx groupConfig;
+    private final RaftStatusImpl raftStatus;
 
-    private final Fiber flushAllFiber;
+    private final Fiber loopFiber;
     private final FiberCondition requestCond;
-    private final FiberCondition roundCond;
+    private final FiberCondition roundDoneCond;
     private final FiberCondition allocRetryCond;
     private final ArrayList<Pair<Long, FiberFuture<Void>>> waiters = new ArrayList<>();
 
     private FiberFuture<Void> closeFuture;
     private int activeRounds;
-    private int forceRounds;
+    private int flushAllTargetCount;
     private long requestVersion;
     private long finishedVersion;
-    private long lastTickNanos;
+    private boolean cleanupRetry;
 
     private boolean error;
+
+    // queues with a pending threshold request; drained by the loop fiber
+    private final IndexedQueue<QueueIdxInfo> roundRequests = new IndexedQueue<>(16);
+
+    // shared by FlushAllRoundFrame and AllQueuesCleanupFrame; filled and drained per round
+    private final IndexedQueue<QueueIdxInfo> todo = new IndexedQueue<>(64);
 
     private final Supplier<Boolean> cancelRetryIndicator;
 
@@ -75,25 +84,70 @@ class MqIdxFlusher {
         this.manager = manager;
         this.cancelRetryIndicator = () -> manager.markClose || error;
         this.groupConfig = manager.groupConfig;
-        this.flushAllFiber = new Fiber("mqIdxFlushAll-" + groupConfig.groupId,
-                groupConfig.fiberGroup, new FlushLoopFrame());
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
+        this.loopFiber = new Fiber("mqIdxFlushLoop-" + groupConfig.groupId,
+                groupConfig.fiberGroup, new IdxLoopFrame());
         this.requestCond = groupConfig.fiberGroup.newCondition("mqIdxFlushRequest");
-        this.roundCond = groupConfig.fiberGroup.newCondition("mqIdxFlushRound");
+        this.roundDoneCond = groupConfig.fiberGroup.newCondition("mqIdxRoundDone");
         this.allocRetryCond = groupConfig.fiberGroup.newCondition("mqIdxAllocRetry");
-        this.lastTickNanos = groupConfig.ts.nanoTime;
     }
 
     void start() {
-        flushAllFiber.start();
+        loopFiber.start();
     }
 
-    void maybeStartRound(QueueIdxInfo q) {
-        if (q.nextSeq - 1 - q.writeFinishSeq >= groupConfig.mqIdxFlushThreshold) {
-            startRound(q, false, q.nextSeq - 1);
+    FiberFrame<Void> createCleanupFrame() {
+        return new AllQueuesCleanupFrame(todo);
+    }
+
+    private class AllQueuesCleanupFrame extends FiberFrame<Void> {
+        private final IndexedQueue<QueueIdxInfo> todo;
+
+        AllQueuesCleanupFrame(IndexedQueue<QueueIdxInfo> todo) {
+            this.todo = todo;
+            manager.queues.forEach((LongObjMap.ReadOnlyVisitor<QueueIdxInfo>) (id, q) -> todo.addLast(q));
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (error || manager.markClose) {
+                return Fiber.frameReturn();
+            }
+            while (true) {
+                QueueIdxInfo q = todo.pollFirst();
+                if (q == null) {
+                    return Fiber.frameReturn();
+                }
+                // in-memory check: most queues need no io at all
+                if (q.needRunCleanup(raftStatus.firstValidPos)) {
+                    return Fiber.call(q.createCleanupFrame(), v -> afterCleanup(q));
+                }
+            }
+        }
+
+        private FrameCallResult afterCleanup(QueueIdxInfo q) {
+            if (q.lastCleanupFailed) {
+                cleanupRetry = true;
+            }
+            return Fiber.resume(null, this);
         }
     }
 
-    void startRound(QueueIdxInfo q, boolean force, long targetSeq) {
+    // dispatcher thread; the loop fiber is the only round starter, so a cleanup deleting
+    // files cannot interleave with a round start
+    void requestRound(QueueIdxInfo q) {
+        if (roundWanted(q) && !q.roundRequested) {
+            q.roundRequested = true;
+            roundRequests.addLast(q);
+            requestCond.signal();
+        }
+    }
+
+    private boolean roundWanted(QueueIdxInfo q) {
+        return q.nextSeq - 1 - q.writeFinishSeq >= groupConfig.mqIdxFlushThreshold;
+    }
+
+    private void startRound(QueueIdxInfo q, boolean force, long targetSeq) {
         if (error || manager.markClose || q.flushing) {
             return;
         }
@@ -101,15 +155,12 @@ class MqIdxFlusher {
         q.flushForce = force;
         q.flushTargetSeq = targetSeq;
         activeRounds++;
-        if (force) {
-            forceRounds++;
-        }
         continueRound(q);
     }
 
     FiberFuture<Void> flushAll() {
         FiberFuture<Void> f = groupConfig.fiberGroup.newFuture("mqIdxFlushAll");
-        if (error || manager.markClose || !flushAllFiber.isStarted()) {
+        if (error || manager.markClose || !loopFiber.isStarted() || loopFiber.isFinished()) {
             f.fireCompleteExceptionally(new RaftException("mq idx flusher is not running"));
         } else {
             requestVersion++;
@@ -147,7 +198,7 @@ class MqIdxFlusher {
         manager.markClose = true;
         manager.completeBlockFuture();
         requestCond.signal();
-        roundCond.signalAll();
+        roundDoneCond.signalAll();
         allocRetryCond.signalAll();
         giveUpWaiters("mq idx flusher is closing");
         closeFuture = FutureFrame.startWaitFiber("mqIdxClose-" + groupConfig.groupId,
@@ -186,10 +237,18 @@ class MqIdxFlusher {
     private void endRound(QueueIdxInfo q) {
         q.flushing = false;
         activeRounds--;
-        if (q.flushForce) {
-            forceRounds--;
+        retireTarget(q);
+        roundDoneCond.signalAll();
+        requestRound(q);
+    }
+
+    private boolean retireTarget(QueueIdxInfo q) {
+        if (q.flushAllTarget && q.forceFinishSeq >= q.flushTargetSeq) {
+            q.flushAllTarget = false;
+            flushAllTargetCount--;
+            return true;
         }
-        roundCond.signalAll();
+        return false;
     }
 
     private void submitWrite(QueueIdxInfo q) {
@@ -349,11 +408,11 @@ class MqIdxFlusher {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (flushAllFiber.isStarted() && !flushAllFiber.isFinished()) {
-                return flushAllFiber.join().await(this);
+            if (loopFiber.isStarted() && !loopFiber.isFinished()) {
+                return loopFiber.join().await(this);
             }
             if (activeRounds > 0) {
-                return roundCond.await(1000, this);
+                return roundDoneCond.await(1000, this);
             }
             if (qs == null) {
                 qs = new ArrayList<>(manager.queues.size());
@@ -366,24 +425,34 @@ class MqIdxFlusher {
                 log.info("mq idx flusher closed, groupId={}", groupConfig.groupId);
                 return Fiber.frameReturn();
             }
-            return qs.get(index).closeFiles().await(this);
+            return qs.get(index).close().await(this);
         }
     }
 
-    private class FlushLoopFrame extends FiberFrame<Void> {
+    private class IdxLoopFrame extends FiberFrame<Void> {
 
-        private final IndexedQueue<QueueIdxInfo> todo = new IndexedQueue<>(64);
+        // -1: run a cleanup on the first tick, so restart leftovers are judged immediately
+        private long lastCleanupFirstValidPos = -1;
+        private boolean pendingCleanup;
+        private long lastFlushTickNanos = raftStatus.ts.nanoTime;
 
         @Override
         public FrameCallResult execute(Void input) {
             if (error || manager.markClose) {
                 giveUpWaiters("mq idx flusher is not running");
-                log.info("mq idx flush-all fiber exit, groupId={}", groupConfig.groupId);
+                log.info("mq idx flush loop exit, groupId={}", groupConfig.groupId);
                 return Fiber.frameReturn();
             }
+            // threshold rounds first: they are the latency-sensitive path
+            processRoundRequests();
             long now = groupConfig.ts.nanoTime;
-            if (now - lastTickNanos >= groupConfig.mqIdxFlushIntervalMillis * 1_000_000L) {
-                lastTickNanos = now;
+            if (now - lastFlushTickNanos >= groupConfig.mqIdxFlushIntervalMillis * 1_000_000L) {
+                lastFlushTickNanos = now;
+                if (raftStatus.firstValidPos != lastCleanupFirstValidPos || cleanupRetry) {
+                    lastCleanupFirstValidPos = raftStatus.firstValidPos;
+                    cleanupRetry = false;
+                    pendingCleanup = true;
+                }
                 requestVersion++;
                 manager.queues.forEach((id, q) -> {
                     q.closeIdleFiles();
@@ -391,9 +460,24 @@ class MqIdxFlusher {
                 return Fiber.yield(this);
             }
             if (requestVersion > finishedVersion) {
-                return Fiber.call(new FlushAllRoundFrame(todo), this);
+                return Fiber.call(new FlushAllRoundFrame(), this);
+            }
+            if (pendingCleanup) {
+                // cleanup only touches head files, so it goes after flush-all rounds
+                pendingCleanup = false;
+                return Fiber.call(createCleanupFrame(), this);
             }
             return requestCond.await(groupConfig.mqIdxFlushIntervalMillis, this);
+        }
+
+        private void processRoundRequests() {
+            QueueIdxInfo q;
+            while ((q = roundRequests.pollFirst()) != null) {
+                q.roundRequested = false;
+                if (roundWanted(q)) {
+                    startRound(q, false, q.nextSeq - 1);
+                }
+            }
         }
 
         @Override
@@ -405,16 +489,17 @@ class MqIdxFlusher {
 
     private class FlushAllRoundFrame extends FiberFrame<Void> {
         private final long version;
-        private final IndexedQueue<QueueIdxInfo> todo;
 
-        FlushAllRoundFrame(IndexedQueue<QueueIdxInfo> todo) {
+        FlushAllRoundFrame() {
             this.version = requestVersion;
-            this.todo = todo;
-            // nextSeq never decreases, so a later trigger round may only raise flushTargetSeq;
-            // the flush-all guarantee (force up to the round-start watermark) always holds
+            flushAllTargetCount = 0;
+            // nextSeq never decreases, so anchoring may only raise flushTargetSeq of a round
+            // still in flight; the flush-all guarantee (force up to the round-start watermark) always holds
             manager.queues.forEach((queueId, q) -> {
                 if (q.isDirty()) {
                     q.flushTargetSeq = q.nextSeq - 1;
+                    q.flushAllTarget = true;
+                    flushAllTargetCount++;
                     todo.addLast(q);
                 }
             });
@@ -429,15 +514,15 @@ class MqIdxFlusher {
             if (manager.markClose) {
                 return Fiber.frameReturn();
             }
+            drainRequests();
             QueueIdxInfo q;
             while ((q = todo.pollFirst()) != null) {
-                if (q.forceFinishSeq >= q.flushTargetSeq) {
+                if (retireTarget(q)) {
                     continue;
                 }
                 if (q.flushing) {
-                    // upgrade the running trigger round, it forces up to the target before ending
+                    // upgrade the running write-only round, it forces up to the target before ending
                     q.flushForce = true;
-                    forceRounds++;
                     continue;
                 }
                 if (activeRounds >= groupConfig.mqIdxFlushAllConcurrency) {
@@ -446,12 +531,24 @@ class MqIdxFlusher {
                 }
                 startRound(q, true, q.flushTargetSeq);
             }
-            if (todo.size() == 0 && forceRounds == 0) {
+            if (flushAllTargetCount == 0 && todo.size() == 0) {
                 finishedVersion = version;
                 finishWaiters(version);
                 return Fiber.frameReturn();
             }
-            return roundCond.await(1000, this);
+            return roundDoneCond.await(1000, this);
+        }
+
+        private void drainRequests() {
+            QueueIdxInfo q;
+            while ((q = roundRequests.pollFirst()) != null) {
+                q.roundRequested = false;
+                if (!retireTarget(q) && q.flushAllTarget) {
+                    continue;
+                }
+                q.flushTargetSeq = q.nextSeq - 1;
+                todo.addLast(q);
+            }
         }
     }
 }
