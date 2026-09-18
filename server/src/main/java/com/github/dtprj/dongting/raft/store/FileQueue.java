@@ -408,7 +408,7 @@ public abstract class FileQueue {
             }
         };
         f = new RetryFrame<>(f, groupConfig.ioRetryInterval,
-                () -> !initialized || raftStatus.installSnapshot);
+                () -> !initialized || raftStatus.installSnapshot || isMarkClose());
         f = new PostFiberFrame<>(f) {
             @Override
             protected FrameCallResult postProcess(Void v) {
