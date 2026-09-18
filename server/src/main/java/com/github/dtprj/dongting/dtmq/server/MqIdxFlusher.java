@@ -63,7 +63,7 @@ class MqIdxFlusher {
     private final FiberCondition allocRetryCond;
     private final ArrayList<Pair<Long, FiberFuture<Void>>> waiters = new ArrayList<>();
 
-    private FiberFuture<Void> closeFuture;
+    private FiberFuture<Void> stopFuture;
     private int activeRounds;
     private int flushAllTargetCount;
     private long requestVersion;
@@ -189,21 +189,19 @@ class MqIdxFlusher {
     }
 
     /**
-     * Must be idempotent.
+     * Must be idempotent. The caller must have set manager.markClose before.
      */
-    FiberFuture<Void> close() {
-        if (closeFuture != null) {
-            return closeFuture;
+    FiberFuture<Void> stop() {
+        if (stopFuture != null) {
+            return stopFuture;
         }
-        manager.markClose = true;
-        manager.completeBlockFuture();
         requestCond.signal();
         roundDoneCond.signalAll();
         allocRetryCond.signalAll();
-        giveUpWaiters("mq idx flusher is closing");
-        closeFuture = FutureFrame.startWaitFiber("mqIdxClose-" + groupConfig.groupId,
-                groupConfig.fiberGroup, new CloseFrame());
-        return closeFuture;
+        giveUpWaiters("mq idx flusher is stopping");
+        stopFuture = FutureFrame.startWaitFiber("mqIdxFlusherStop-" + groupConfig.groupId,
+                groupConfig.fiberGroup, new StopFrame());
+        return stopFuture;
     }
 
     private void continueRound(MqIdxQueue q) {
@@ -402,10 +400,7 @@ class MqIdxFlusher {
         }
     }
 
-    private class CloseFrame extends FiberFrame<Void> {
-        private ArrayList<MqIdxQueue> qs;
-        private int index = -1;
-
+    private class StopFrame extends FiberFrame<Void> {
         @Override
         public FrameCallResult execute(Void input) {
             if (loopFiber.isStarted() && !loopFiber.isFinished()) {
@@ -414,18 +409,8 @@ class MqIdxFlusher {
             if (activeRounds > 0) {
                 return roundDoneCond.await(1000, this);
             }
-            if (qs == null) {
-                qs = new ArrayList<>(manager.queues.size());
-                manager.queues.forEach((id, q) -> {
-                    qs.add(q);
-                });
-            }
-            index++;
-            if (index >= qs.size()) {
-                log.info("mq idx flusher closed, groupId={}", groupConfig.groupId);
-                return Fiber.frameReturn();
-            }
-            return qs.get(index).close().await(this);
+            log.info("mq idx flusher stopped, groupId={}", groupConfig.groupId);
+            return Fiber.frameReturn();
         }
     }
 

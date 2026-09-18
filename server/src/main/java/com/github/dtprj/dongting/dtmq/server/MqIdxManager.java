@@ -18,7 +18,11 @@ package com.github.dtprj.dongting.dtmq.server;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.FutureFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -28,6 +32,7 @@ import com.github.dtprj.dongting.raft.store.FileQueue;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.zip.CRC32C;
 
 /**
@@ -61,6 +66,8 @@ class MqIdxManager {
     int lastGetSize;
 
     boolean markClose;
+
+    private FiberFuture<Void> closeFuture;
 
     MqIdxManager(RaftGroupConfigEx groupConfig, File dir) {
         this.groupConfig = groupConfig;
@@ -144,7 +151,7 @@ class MqIdxManager {
         });
     }
 
-    void completeBlockFuture() {
+    private void completeBlockFuture() {
         FiberFuture<Void> f = blockFuture;
         if (f != null) {
             blockFuture = null;
@@ -233,11 +240,44 @@ class MqIdxManager {
      * Must be idempotent.
      */
     FiberFuture<Void> close() {
-        return flusher.close();
+        if (closeFuture != null) {
+            return closeFuture;
+        }
+        markClose = true;
+        completeBlockFuture();
+        closeFuture = FutureFrame.startWaitFiber("mqIdxClose-" + groupConfig.groupId,
+                groupConfig.fiberGroup, new CloseFrame());
+        return closeFuture;
     }
 
     FiberFuture<Void> destroyAllBeforeInstallSnapshot() {
-        return flusher.close().composeFrame("destroyMqIdx",
+        return close().composeFrame("destroyMqIdx",
                 v -> new FileQueue.DeleteFrame(dir, groupConfig.blockIoExecutor, true, true));
+    }
+
+    private class CloseFrame extends FiberFrame<Void> {
+        private ArrayList<MqIdxQueue> qs;
+        private int index = -1;
+        private boolean flusherStopped;
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (!flusherStopped) {
+                flusherStopped = true;
+                return flusher.stop().await(this);
+            }
+            if (qs == null) {
+                qs = new ArrayList<>(queues.size());
+                queues.forEach((id, q) -> {
+                    qs.add(q);
+                });
+            }
+            index++;
+            if (index >= qs.size()) {
+                log.info("mq idx closed, groupId={}", groupConfig.groupId);
+                return Fiber.frameReturn();
+            }
+            return qs.get(index).close().await(this);
+        }
     }
 }
