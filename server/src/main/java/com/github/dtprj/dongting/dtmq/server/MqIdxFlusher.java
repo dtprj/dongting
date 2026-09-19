@@ -60,8 +60,8 @@ class MqIdxFlusher {
     private final Fiber loopFiber;
     private final FiberCondition requestCond;
     private final FiberCondition roundDoneCond;
-    private final FiberCondition allocRetryCond;
-    private final ArrayList<Pair<Long, FiberFuture<Void>>> waiters = new ArrayList<>();
+    private final FiberCondition cancelAllocRetryCond;
+    private final ArrayList<Pair<Long, FiberFuture<Void>>> flushAllWaiters = new ArrayList<>();
 
     private FiberFuture<Void> stopFuture;
     private int activeRounds;
@@ -89,7 +89,7 @@ class MqIdxFlusher {
                 groupConfig.fiberGroup, new IdxLoopFrame());
         this.requestCond = groupConfig.fiberGroup.newCondition("mqIdxFlushRequest");
         this.roundDoneCond = groupConfig.fiberGroup.newCondition("mqIdxRoundDone");
-        this.allocRetryCond = groupConfig.fiberGroup.newCondition("mqIdxAllocRetry");
+        this.cancelAllocRetryCond = groupConfig.fiberGroup.newCondition("mqIdxCancelAllocRetry");
     }
 
     void start() {
@@ -165,13 +165,13 @@ class MqIdxFlusher {
         } else {
             requestVersion++;
             requestCond.signal();
-            waiters.add(new Pair<>(requestVersion, f));
+            flushAllWaiters.add(new Pair<>(requestVersion, f));
         }
         return f;
     }
 
     private void finishWaiters(long version) {
-        Iterator<Pair<Long, FiberFuture<Void>>> it = waiters.iterator();
+        Iterator<Pair<Long, FiberFuture<Void>>> it = flushAllWaiters.iterator();
         while (it.hasNext()) {
             Pair<Long, FiberFuture<Void>> w = it.next();
             if (w.getLeft() <= version) {
@@ -182,10 +182,10 @@ class MqIdxFlusher {
     }
 
     private void giveUpWaiters(String msg) {
-        for (Pair<Long, FiberFuture<Void>> w : waiters) {
+        for (Pair<Long, FiberFuture<Void>> w : flushAllWaiters) {
             w.getRight().fireCompleteExceptionally(new RaftException(msg));
         }
-        waiters.clear();
+        flushAllWaiters.clear();
     }
 
     /**
@@ -197,7 +197,7 @@ class MqIdxFlusher {
         }
         requestCond.signal();
         roundDoneCond.signalAll();
-        allocRetryCond.signalAll();
+        cancelAllocRetryCond.signalAll();
         giveUpWaiters("mq idx flusher is stopping");
         String stopFiberName = "mqIdxFlusherStop-" + groupConfig.groupId;
         stopFuture = FutureFrame.startWaitFiber(stopFiberName,
@@ -332,7 +332,7 @@ class MqIdxFlusher {
     private void submitFileAlloc(MqIdxQueue q) {
         RetryFrame<MqIdxFile> rf = new RetryFrame<>(new AllocAttemptFrame(q),
                 groupConfig.ioRetryInterval, cancelRetryIndicator);
-        rf.cancelCondition = allocRetryCond;
+        rf.cancelCondition = cancelAllocRetryCond;
         FiberFuture<MqIdxFile> f = FutureFrame.startWaitFiber(
                 "mqIdxFileAlloc-" + groupConfig.groupId + "-" + q.queueId, groupConfig.fiberGroup, rf);
         f.registerCallback((lf, ex) -> onAllocated(q, lf, ex));

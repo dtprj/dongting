@@ -29,7 +29,7 @@ final class MqIdxBlock {
     static final int BLOCK_SHIFT = Integer.numberOfTrailingZeros(BLOCK_ITEMS);
     static final int BLOCK_MASK = BLOCK_ITEMS - 1;
     static final int SLOT_SIZE = 20;
-    static final int BLOCK_BYTES = BLOCK_ITEMS * SLOT_SIZE; // 2560
+    private static final int BLOCK_BYTES = BLOCK_ITEMS * SLOT_SIZE; // 2560
 
     final MqIdxQueue owner;
     final long startSeq;

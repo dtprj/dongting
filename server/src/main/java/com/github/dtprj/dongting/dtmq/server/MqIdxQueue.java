@@ -45,7 +45,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
 
     private static final int DISK_BLOCK_BYTES = MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN;
 
-    final MqIdxManager manager;
+    private final MqIdxManager manager;
     final long queueId;
 
     // cannot be rebuilt from raft logs, must be saved into snapshots
@@ -62,12 +62,12 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
     boolean flushAllTarget;
 
     boolean needLoadHead;
-    FiberFuture<Void> loadFuture;
+    private FiberFuture<Void> loadFuture;
 
     boolean lastCleanupFailed;
 
     // pos of the last appended item (seq nextSeq-1); -1 unknown after a restart
-    long lastItemPos = -1;
+    private long lastItemPos = -1;
     // true while a threshold request for this queue sits in the flusher's request queue
     boolean roundRequested;
 
@@ -116,11 +116,11 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                 groupConfig.fiberGroup, ioExecutor, this::lruTouch, lastAccessTime);
     }
 
-    long seqToPos(long seq) {
+    private long seqToPos(long seq) {
         return seq << 5;
     }
 
-    long posToSeq(long pos) {
+    private long posToSeq(long pos) {
         return pos >>> 5;
     }
 
@@ -178,7 +178,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         return loadFuture;
     }
 
-    FiberFuture<Void> loadHeadBlock() {
+    private FiberFuture<Void> loadHeadBlock() {
         RetryFrame<Void> rf = new RetryFrame<>(new LoadHeadFrame(),
                 manager.groupConfig.ioRetryInterval, () -> manager.markClose);
         return FutureFrame.startWaitFiber("mqIdxHeadLoad-" + queueId,
@@ -289,13 +289,13 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         return stopFileQueue();
     }
 
-    // [block-aligned seq of writeFinishSeq+1, min(flushTargetSeq, fileLastSeq, batch cap)],
+    // [block-aligned seq of writeFinishSeq+1, min(flushTargetSeq, fileLastItemSeq, batch cap)],
     // never crosses files: the flushed prefix is rewritten idempotently; dispatcher fiber only
     FlushBatch prepareBatch() {
-        long startSeq = (writeFinishSeq + 1) & ~((long) MqIdxBlock.BLOCK_MASK);
+        long startSeq = (writeFinishSeq + 1) & ~((long) MqIdxBlock.BLOCK_MASK); // firstSeq of block
         long startPos = seqToPos(startSeq);
-        long lastSeq = fileLastSeq(startPos);
-        long batchEnd = Math.min(flushTargetSeq, Math.min(lastSeq,
+        long fileLastItemSeq = fileLastItemSeq(startPos);
+        long batchEnd = Math.min(flushTargetSeq, Math.min(fileLastItemSeq,
                 startSeq + groupConfig.mqIdxFlushBatchItems - 1));
 
         int from = blockIndexOf(startSeq);
@@ -310,7 +310,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         }
         int len = (int) ((batchEnd - startSeq + 1) * MqIdxManager.ITEM_LEN);
         // a file-completing batch always forces, so the unforced tail never spans files
-        boolean sealsFile = batchEnd == lastSeq;
+        boolean sealsFile = batchEnd == fileLastItemSeq;
         boolean force = sealsFile || (flushForce && batchEnd == flushTargetSeq);
         MqIdxFile logFile = getLogFile(startPos);
         if (logFile == null) {
@@ -346,12 +346,12 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         return getLogFile(seqToPos(writeFinishSeq));
     }
 
-    long fileLastSeq(long pos) {
+    private long fileLastItemSeq(long pos) {
         return posToSeq(pos | fileLenMask);
     }
 
     @Override
-    public MqIdxFile getLogFile(long filePos) {
+    protected MqIdxFile getLogFile(long filePos) {
         return super.getLogFile(filePos);
     }
 

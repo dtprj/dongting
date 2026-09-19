@@ -33,7 +33,7 @@ import java.util.LinkedList;
 class MqSnapshot extends Snapshot {
 
     static final int ITEM_BYTES = 16;
-    static final int PAGE_BYTES = 64 * 1024;
+    private static final int PAGE_BYTES = 64 * 1024;
 
     private final FiberGroup fiberGroup;
     private final LinkedList<RefBuffer> pages = new LinkedList<>();
