@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
-import com.github.dtprj.dongting.raft.store.QueueFile;
 import com.github.dtprj.dongting.raft.store.RetryFrame;
 
 import java.io.File;
@@ -216,7 +215,7 @@ class MqIdxFlusher {
                 submitWrite(q);
             }
         } else {
-            QueueFile lf = q.currentWriteFile();
+            MqIdxFile lf = q.currentWriteFile();
             if (lf == null) {
                 BugLog.log("current write file not found: queue=" + q.queueId
                         + ", writeFinishSeq=" + q.writeFinishSeq);
@@ -266,9 +265,9 @@ class MqIdxFlusher {
         }
     }
 
-    private void submitForce(MqIdxQueue q, QueueFile logFile, long endSeq) {
+    private void submitForce(MqIdxQueue q, MqIdxFile logFile, long endSeq) {
         logFile.incWriters();
-        MqIdxQueue.FlushBatch b = new MqIdxQueue.FlushBatch(endSeq, null, logFile, -1, true);
+        MqIdxQueue.FlushBatch b = new MqIdxQueue.FlushBatch(endSeq, null, logFile, -1, true, -1);
         try {
             AsyncIoTask ioTask = new AsyncIoTask(groupConfig.fiberGroup, logFile,
                     groupConfig.ioRetryInterval, cancelRetryIndicator);
@@ -302,6 +301,10 @@ class MqIdxFlusher {
             }
             if (b.bufRef != null) {
                 q.writeFinishSeq = b.endSeq;
+                if (b.lastItemPos != -1) {
+                    // the batch seals the file: its last item pos is now frozen
+                    b.logFile.lastItemPos = b.lastItemPos;
+                }
                 manager.evict();
             }
             if (b.force) {
@@ -314,15 +317,15 @@ class MqIdxFlusher {
     }
 
     private void submitFileAlloc(MqIdxQueue q) {
-        RetryFrame<QueueFile> rf = new RetryFrame<>(new AllocAttemptFrame(q),
+        RetryFrame<MqIdxFile> rf = new RetryFrame<>(new AllocAttemptFrame(q),
                 groupConfig.ioRetryInterval, cancelRetryIndicator);
         rf.cancelCondition = allocRetryCond;
-        FiberFuture<QueueFile> f = FutureFrame.startWaitFiber(
+        FiberFuture<MqIdxFile> f = FutureFrame.startWaitFiber(
                 "mqIdxFileAlloc-" + groupConfig.groupId + "-" + q.queueId, groupConfig.fiberGroup, rf);
         f.registerCallback((lf, ex) -> onAllocated(q, lf, ex));
     }
 
-    private void onAllocated(MqIdxQueue q, QueueFile lf, Throwable ex) {
+    private void onAllocated(MqIdxQueue q, MqIdxFile lf, Throwable ex) {
         try {
             if (ex == null) {
                 if (error || manager.markClose) {
@@ -352,7 +355,7 @@ class MqIdxFlusher {
         }
     }
 
-    private class AllocAttemptFrame extends FiberFrame<QueueFile> {
+    private class AllocAttemptFrame extends FiberFrame<MqIdxFile> {
         private final MqIdxQueue q;
 
         AllocAttemptFrame(MqIdxQueue q) {
@@ -366,7 +369,7 @@ class MqIdxFlusher {
             }
             long fileStart = q.nextWriteFileStartPos();
             File file = q.createFileByStartPos(fileStart);
-            FiberFuture<QueueFile> f = groupConfig.fiberGroup.newFuture("mqIdxFileAlloc");
+            FiberFuture<MqIdxFile> f = groupConfig.fiberGroup.newFuture("mqIdxFileAlloc");
             try {
                 groupConfig.blockIoExecutor.execute(() -> {
                     try {
@@ -382,7 +385,7 @@ class MqIdxFlusher {
             return f.await(this::justReturn);
         }
 
-        private QueueFile allocateFile(MqIdxQueue q, File file, long fileStart) throws IOException {
+        private MqIdxFile allocateFile(MqIdxQueue q, File file, long fileStart) throws IOException {
             File parent = file.getParentFile();
             if (parent != null && !parent.isDirectory()
                     && !parent.mkdirs() && !parent.isDirectory()) {
@@ -392,7 +395,7 @@ class MqIdxFlusher {
                 raf.setLength(q.getFileSize());
                 raf.getFD().sync();
             }
-            QueueFile lf = q.createFile(file, fileStart, System.currentTimeMillis());
+            MqIdxFile lf = q.createFile(file, fileStart, System.currentTimeMillis());
             lf.syncOpen();
             return lf;
         }

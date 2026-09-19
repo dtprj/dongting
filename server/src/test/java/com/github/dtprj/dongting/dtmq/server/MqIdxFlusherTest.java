@@ -596,6 +596,11 @@ class MqIdxFlusherTest extends BaseFiberTest {
 
             private FrameCallResult afterFlush(Void v) {
                 // queue 1: f0 ends at 2550, f1 at 5110, f2 at 7670; queue 3: f0 at 2550, f1 at 2990
+                // the seals recorded the last item pos in memory, cleanup needs no read-back
+                MqIdxQueue q1 = manager.get(1);
+                assertEquals(2550, q1.getLogFile(0).lastItemPos);
+                assertEquals(5110, q1.getLogFile(FILE_SIZE).lastItemPos);
+                assertEquals(7670, q1.getLogFile(2 * FILE_SIZE).lastItemPos);
                 raftStatus.firstValidPos = 5120;
                 return Fiber.call(manager.flusher.createCleanupFrame(), this::afterCleanup);
             }
@@ -800,45 +805,49 @@ class MqIdxFlusherTest extends BaseFiberTest {
     void testCleanupRetryAfterFailure() throws Exception {
         manager = createManager();
         doInFiber(new FiberFrame<>() {
-            private byte[] orig;
-
             @Override
             public FrameCallResult execute(Void input) {
-                // the flush interval stays 60s during the setup, so no cleanup tick can
-                // cache a good headFileLastItemPos before the file is corrupted; threshold flushes
-                // do not depend on it: the round requests wake the loop directly
+                // the flush interval stays 60s during the setup, so no cleanup tick can run
+                // before the file is corrupted; threshold flushes do not depend on it: the
+                // round requests wake the loop directly
                 manager.start();
                 return appendPhase(0);
             }
 
             private FrameCallResult appendPhase(int from) {
                 if (from >= 512) {
-                    return afterFlush(null);
+                    return manager.close().await(this::justReturn);
                 }
                 appendItems(1, 0, from, from + 128);
                 MqIdxQueue q = manager.get(1);
                 return Fiber.call(waitUntil(() -> q.writeFinishSeq >= from + 127 && !q.flushing),
                         v -> appendPhase(from + 128));
             }
+        });
 
-            private FrameCallResult afterFlush(Void v) {
-                try {
-                    // corrupt the last item of f0 in place: the crc check makes the round
-                    // give up on this queue
-                    orig = new byte[MqIdxManager.ITEM_LEN];
-                    try (RandomAccessFile raf = new RandomAccessFile(idxFile(1, 0), "rw")) {
-                        raf.seek(FILE_SIZE - MqIdxManager.ITEM_LEN);
-                        raf.readFully(orig);
-                        byte[] bad = orig.clone();
-                        for (int i = 0; i < bad.length; i++) {
-                            bad[i] ^= 0x5a;
-                        }
-                        raf.seek(FILE_SIZE - MqIdxManager.ITEM_LEN);
-                        raf.write(bad);
-                    }
-                } catch (IOException e) {
-                    throw new RaftException(e);
-                }
+        // corrupt the last item of f0 in place: the crc check makes the round give up on
+        // this queue
+        byte[] orig = new byte[MqIdxManager.ITEM_LEN];
+        try (RandomAccessFile raf = new RandomAccessFile(idxFile(1, 0), "rw")) {
+            raf.seek(FILE_SIZE - MqIdxManager.ITEM_LEN);
+            raf.readFully(orig);
+            byte[] bad = orig.clone();
+            for (int i = 0; i < bad.length; i++) {
+                bad[i] ^= 0x5a;
+            }
+            raf.seek(FILE_SIZE - MqIdxManager.ITEM_LEN);
+            raf.write(bad);
+        }
+
+        // revive like a restart: a file sealed by this process carries its last item pos
+        // in memory and skips the read-back, so the corrupted item must live in a
+        // freshly loaded file to hit the crc check
+        manager = createManager();
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                manager.start();
+                manager.register(1, 512);
                 raftStatus.firstValidPos = 5120;
                 return Fiber.call(manager.flusher.createCleanupFrame(), this::afterFailedRound);
             }

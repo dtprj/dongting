@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.FileQueue;
-import com.github.dtprj.dongting.raft.store.QueueFile;
 import com.github.dtprj.dongting.raft.store.RetryFrame;
 
 import java.io.File;
@@ -40,7 +39,7 @@ import java.util.zip.CRC32C;
  *
  * @author huangli
  */
-final class MqIdxQueue extends FileQueue<QueueFile> {
+final class MqIdxQueue extends FileQueue<MqIdxFile> {
 
     private static final DtLog log = DtLogs.getLogger(MqIdxQueue.class);
 
@@ -69,8 +68,6 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
 
     // pos of the last appended item (seq nextSeq-1); -1 unknown after a restart
     long lastItemPos = -1;
-    // last item pos of the sealed head file; -1 unknown, reset after each head deletion
-    long headFileLastItemPos = -1;
     // true while a threshold request for this queue sits in the flusher's request queue
     boolean roundRequested;
 
@@ -79,16 +76,19 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
     static final class FlushBatch {
         final long endSeq;
         final RefBuffer bufRef;
-        final QueueFile logFile;
+        final MqIdxFile logFile;
         final long filePos;
         final boolean force;
+        // pos of the last item of the file, if the batch seals it; -1 otherwise
+        final long lastItemPos;
 
-        FlushBatch(long endSeq, RefBuffer bufRef, QueueFile logFile, long filePos, boolean force) {
+        FlushBatch(long endSeq, RefBuffer bufRef, MqIdxFile logFile, long filePos, boolean force, long lastItemPos) {
             this.endSeq = endSeq;
             this.bufRef = bufRef;
             this.logFile = logFile;
             this.filePos = filePos;
             this.force = force;
+            this.lastItemPos = lastItemPos;
         }
     }
 
@@ -111,8 +111,8 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
     }
 
     @Override
-    protected QueueFile createFile(File file, long startPos, long lastAccessTime) {
-        return new QueueFile(startPos, startPos + getFileSize(), file,
+    protected MqIdxFile createFile(File file, long startPos, long lastAccessTime) {
+        return new MqIdxFile(startPos, startPos + getFileSize(), file,
                 groupConfig.fiberGroup, ioExecutor, this::lruTouch, lastAccessTime);
     }
 
@@ -188,7 +188,7 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
     private class LoadHeadFrame extends FiberFrame<Void> {
         private final long blockStartPos;
         private RefBuffer bufRef;
-        private QueueFile logFile;
+        private MqIdxFile logFile;
         private boolean readerPending;
 
         LoadHeadFrame() {
@@ -262,7 +262,8 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
             return false;
         }
         if (isHeadFileSealed()) {
-            return headFileLastItemPos == -1 || headFileLastItemPos < firstValidPos;
+            long firstFileLastItemPos = queue.get(0).lastItemPos;
+            return firstFileLastItemPos == -1 || firstFileLastItemPos < firstValidPos;
         }
         if (queue.size() > 1) {
             // the head is the write file with files above (restart rewind): not deletable
@@ -309,23 +310,26 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
         }
         int len = (int) ((batchEnd - startSeq + 1) * MqIdxManager.ITEM_LEN);
         // a file-completing batch always forces, so the unforced tail never spans files
-        boolean force = batchEnd == lastSeq || (flushForce && batchEnd == flushTargetSeq);
-        QueueFile logFile = getLogFile(startPos);
+        boolean sealsFile = batchEnd == lastSeq;
+        boolean force = sealsFile || (flushForce && batchEnd == flushTargetSeq);
+        MqIdxFile logFile = getLogFile(startPos);
         if (logFile == null) {
             BugLog.logAndThrow("idx file not allocated: queue=" + queueId + ", pos=" + startPos);
         }
 
         RefBuffer bufRef = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirectLocal(len);
+        long lastPos;
         try {
             ByteBuffer buf = bufRef.getBuffer();
             buf.limit(len);
             fillBlocks(blockRefs, batchEnd, buf);
             buf.flip();
+            lastPos = sealsFile ? buf.getLong(len - MqIdxManager.ITEM_LEN) : -1;
         } catch (Throwable t) {
             bufRef.release();
             throw t;
         }
-        return new FlushBatch(batchEnd, bufRef, logFile, startPos & fileLenMask, force);
+        return new FlushBatch(batchEnd, bufRef, logFile, startPos & fileLenMask, force, lastPos);
     }
 
     boolean needAllocateFile() {
@@ -338,7 +342,7 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
     }
 
     // the file writeFinishSeq belongs to; non-null whenever forceFinishSeq < writeFinishSeq
-    QueueFile currentWriteFile() {
+    MqIdxFile currentWriteFile() {
         return getLogFile(seqToPos(writeFinishSeq));
     }
 
@@ -346,7 +350,12 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
         return posToSeq(pos | fileLenMask);
     }
 
-    void attachFile(QueueFile lf, long fileStart) {
+    @Override
+    public MqIdxFile getLogFile(long filePos) {
+        return super.getLogFile(filePos);
+    }
+
+    void attachFile(MqIdxFile lf, long fileStart) {
         lruAddLast(lf);
         queue.addLast(lf);
         if (queue.size() == 1) {
@@ -385,7 +394,7 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
         // snapshot: the round may await across log deletions, so all decisions use one watermark
         private final long firstValidPos;
 
-        private QueueFile readLogFile;
+        private MqIdxFile readLogFile;
         private boolean readerPending;
         // seq of the item the lazy read targets; guards against a stale result
         private long readSeq;
@@ -402,16 +411,16 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
             if (queue.size() == 0) {
                 return Fiber.frameReturn();
             }
-            QueueFile head = queue.get(0);
+            MqIdxFile head = queue.get(0);
             if (isHeadFileSealed()) {
                 // content frozen: judged by the pos of the last item of the file
-                if (headFileLastItemPos == -1) {
+                if (head.lastItemPos == -1) {
                     return readItemPos(head, fileSize - MqIdxManager.ITEM_LEN, true);
                 }
-                if (headFileLastItemPos >= firstValidPos) {
+                if (head.lastItemPos >= firstValidPos) {
                     return Fiber.frameReturn();
                 }
-                return Fiber.call(deleteFirstFile(), v -> afterDelete());
+                return Fiber.call(deleteFirstFile(), v -> Fiber.resume(null, this));
             }
             if (queue.size() > 1) {
                 // the write file with files above (restart rewind): deferred until sealed
@@ -431,16 +440,11 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
             if (lastItemPos >= firstValidPos) {
                 return Fiber.frameReturn();
             }
-            return Fiber.call(deleteFirstFile(), v -> afterDelete());
-        }
-
-        private FrameCallResult afterDelete() {
-            headFileLastItemPos = -1;
-            return Fiber.resume(null, this);
+            return Fiber.call(deleteFirstFile(), v -> Fiber.resume(null, this));
         }
 
         // returns the pos field of the item at offsetInFile, or null to give up this round
-        private FrameCallResult readItemPos(QueueFile lf, long offsetInFile, boolean head) {
+        private FrameCallResult readItemPos(MqIdxFile lf, long offsetInFile, boolean head) {
             ByteBuffer buf = ByteBuffer.allocate(MqIdxManager.ITEM_LEN);
             lf.incReaders();
             readLogFile = lf;
@@ -449,7 +453,7 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
                     .await(v -> afterRead(lf, buf, offsetInFile, head));
         }
 
-        private FrameCallResult afterRead(QueueFile lf, ByteBuffer buf, long offsetInFile, boolean head) {
+        private FrameCallResult afterRead(MqIdxFile lf, ByteBuffer buf, long offsetInFile, boolean head) {
             endRead();
             if (manager.markClose) {
                 return Fiber.frameReturn();
@@ -459,7 +463,7 @@ final class MqIdxQueue extends FileQueue<QueueFile> {
             if (buf.getInt(MqIdxManager.ITEM_LEN - 4) == (int) crc.getValue()) {
                 long pos = buf.getLong(0);
                 if (head) {
-                    headFileLastItemPos = pos;
+                    lf.lastItemPos = pos;
                 } else if (nextSeq - 1 == readSeq) {
                     lastItemPos = pos;
                 } else {
