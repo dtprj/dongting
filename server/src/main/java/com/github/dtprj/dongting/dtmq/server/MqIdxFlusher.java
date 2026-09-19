@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.FutureFrame;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -198,9 +199,21 @@ class MqIdxFlusher {
         roundDoneCond.signalAll();
         allocRetryCond.signalAll();
         giveUpWaiters("mq idx flusher is stopping");
-        stopFuture = FutureFrame.startWaitFiber("mqIdxFlusherStop-" + groupConfig.groupId,
-                groupConfig.fiberGroup, new StopFrame());
+        String stopFiberName = "mqIdxFlusherStop-" + groupConfig.groupId;
+        stopFuture = FutureFrame.startWaitFiber(stopFiberName,
+                groupConfig.fiberGroup, new SimpleFrame<>(stopFiberName, this::mqIdxFlusherStop));
         return stopFuture;
+    }
+
+    private FrameCallResult mqIdxFlusherStop(SimpleFrame<Void> frame) {
+        if (loopFiber.isStarted() && !loopFiber.isFinished()) {
+            return loopFiber.join().await(frame);
+        }
+        if (activeRounds > 0) {
+            return roundDoneCond.await(1000, frame);
+        }
+        log.info("mq idx flusher stopped, groupId={}", groupConfig.groupId);
+        return Fiber.frameReturn();
     }
 
     private void continueRound(MqIdxQueue q) {
@@ -398,20 +411,6 @@ class MqIdxFlusher {
             MqIdxFile lf = q.createFile(file, fileStart, System.currentTimeMillis());
             lf.syncOpen();
             return lf;
-        }
-    }
-
-    private class StopFrame extends FiberFrame<Void> {
-        @Override
-        public FrameCallResult execute(Void input) {
-            if (loopFiber.isStarted() && !loopFiber.isFinished()) {
-                return loopFiber.join().await(this);
-            }
-            if (activeRounds > 0) {
-                return roundDoneCond.await(1000, this);
-            }
-            log.info("mq idx flusher stopped, groupId={}", groupConfig.groupId);
-            return Fiber.frameReturn();
         }
     }
 
