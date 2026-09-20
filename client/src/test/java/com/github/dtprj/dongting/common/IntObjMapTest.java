@@ -44,10 +44,10 @@ public class IntObjMapTest {
         m.forEach((k, v) -> {
             assertEquals(1L, k);
             assertEquals("123", v);
-            count.increment();
+            count.value++;
             return true;
         });
-        assertEquals(1, count.getValue());
+        assertEquals(1, count.value);
         assertEquals("123", m.remove(1));
         assertEquals(0, m.size());
     }
@@ -83,10 +83,10 @@ public class IntObjMapTest {
         MutableInt count = new MutableInt(0);
         m.forEach((k, v) -> {
             assertEquals(Integer.parseInt(v), k * 2);
-            count.increment();
+            count.value++;
             return true;
         });
-        assertEquals(loop, count.getValue());
+        assertEquals(loop, count.value);
 
         for (int i = 0; i < loop; i++) {
             int key = r.nextInt();

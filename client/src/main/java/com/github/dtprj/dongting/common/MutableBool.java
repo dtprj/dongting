@@ -18,27 +18,10 @@ package com.github.dtprj.dongting.common;
 /**
  * @author huangli
  */
-public class MutableLong {
-    private long v;
+public class MutableBool {
+    public boolean value;
 
-    public MutableLong(long value) {
-        this.v = value;
+    public MutableBool(boolean value) {
+        this.value = value;
     }
-
-    public long getValue() {
-        return v;
-    }
-
-    public void setValue(long value) {
-        this.v = value;
-    }
-
-    public long increment() {
-        return ++v;
-    }
-
-    public long decrement() {
-        return --v;
-    }
-
 }

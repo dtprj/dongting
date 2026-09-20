@@ -18,26 +18,10 @@ package com.github.dtprj.dongting.common;
 /**
  * @author huangli
  */
-public class MutableInt {
-    private int v;
+public class MutableLong {
+    public long value;
 
-    public MutableInt(int value) {
-        this.v = value;
-    }
-
-    public int getValue() {
-        return v;
-    }
-
-    public void setValue(int value) {
-        this.v = value;
-    }
-
-    public int increment() {
-        return ++v;
-    }
-
-    public int decrement() {
-        return --v;
+    public MutableLong(long value) {
+        this.value = value;
     }
 }

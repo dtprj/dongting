@@ -58,7 +58,7 @@ public class PbNoCopyDecoderCallbackTest {
 
             @Override
             public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-                count.increment();
+                count.value++;
                 throw new CodecException("cancel");
             }
 
@@ -76,11 +76,11 @@ public class PbNoCopyDecoderCallbackTest {
             decoder.decode(buf, limit, 0);
             fail();
         } catch (CodecException e) {
-            assertEquals(1, count.getValue());
+            assertEquals(1, count.value);
             assertTrue(decoder.isFinished());
         }
 
-        count.setValue(0);
+        count.value = 0;
         decoder.prepareNext(c, c.toDecoderCallback(callback));
         buf.position(0);
         buf.limit(5);
@@ -88,7 +88,7 @@ public class PbNoCopyDecoderCallbackTest {
             decoder.decode(buf, limit, 0);
             fail();
         } catch (CodecException e) {
-            assertEquals(1, count.getValue());
+            assertEquals(1, count.value);
             assertTrue(decoder.isFinished());
         }
     }
