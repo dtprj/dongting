@@ -854,7 +854,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
 
             private FrameCallResult afterFailedRound(Void v) {
                 // the failed round deleted nothing and scheduled a retry
-                assertTrue(manager.get(1).lastCleanupFailed);
+                assertTrue(manager.flusher.cleanupRetry);
                 assertTrue(idxFile(1, 0).exists());
                 try {
                     try (RandomAccessFile raf = new RandomAccessFile(idxFile(1, 0), "rw")) {
@@ -875,7 +875,6 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterRetry(Void v) {
-                assertFalse(manager.get(1).lastCleanupFailed);
                 assertFalse(idxFile(1, 0).exists());
                 return manager.close().await(this::justReturn);
             }

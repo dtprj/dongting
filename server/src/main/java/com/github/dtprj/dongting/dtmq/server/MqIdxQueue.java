@@ -64,8 +64,6 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
     boolean needLoadHead;
     private FiberFuture<Void> loadFuture;
 
-    boolean lastCleanupFailed;
-
     // pos of the last appended item (seq nextSeq-1); -1 unknown after a restart
     private long lastItemPos = -1;
     // true while a threshold request for this queue sits in the flusher's request queue
@@ -384,12 +382,11 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         }
     }
 
-    FiberFrame<Void> createCleanupFrame() {
-        lastCleanupFailed = false;
+    CleanupFrame createCleanupFrame() {
         return new CleanupFrame();
     }
 
-    private class CleanupFrame extends FiberFrame<Void> {
+    class CleanupFrame extends FiberFrame<Void> {
 
         // snapshot: the round may await across log deletions, so all decisions use one watermark
         private final long firstValidPos;
@@ -398,6 +395,9 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         private boolean readerPending;
         // seq of the item the lazy read targets; guards against a stale result
         private long readSeq;
+
+        // true if this round gave up with an error; read by the flusher to schedule a retry
+        boolean failed;
 
         CleanupFrame() {
             this.firstValidPos = raftStatus.firstValidPos;
@@ -475,7 +475,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
             } else {
                 log.warn("mq idx item crc check fail, skip cleanup: {}+{}",
                         lf.getFile().getPath(), offsetInFile);
-                lastCleanupFailed = true;
+                failed = true;
                 return Fiber.frameReturn();
             }
         }
@@ -497,7 +497,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             // keep the flusher loop alive; the files are left to a later round
-            lastCleanupFailed = true;
+            failed = true;
             if (manager.markClose) {
                 // retry canceled by close, expected
                 log.warn("mq idx cleanup canceled by close: queue={}", queueId);

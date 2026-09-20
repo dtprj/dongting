@@ -68,7 +68,7 @@ class MqIdxFlusher {
     private int flushAllTargetCount;
     private long requestVersion;
     private long finishedVersion;
-    private boolean cleanupRetry;
+    boolean cleanupRetry;
 
     private boolean error;
 
@@ -447,16 +447,15 @@ class MqIdxFlusher {
             }
             // in-memory check: most queues need no io at all
             if (q.needRunCleanup(raftStatus.firstValidPos)) {
-                return Fiber.call(q.createCleanupFrame(), v -> afterCleanup(frame, q));
+                MqIdxQueue.CleanupFrame subFrame = q.createCleanupFrame();
+                return Fiber.call(subFrame, v -> {
+                    if (subFrame.failed) {
+                        cleanupRetry = true;
+                    }
+                    return Fiber.resume(null, frame);
+                });
             }
         }
-    }
-
-    private FrameCallResult afterCleanup(SimpleFrame<Void> frame, MqIdxQueue q) {
-        if (q.lastCleanupFailed) {
-            cleanupRetry = true;
-        }
-        return Fiber.resume(null, frame);
     }
 
     //----------------------allQueuesCleanup end----------------------------
