@@ -149,24 +149,17 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
             nextPersistIndex = restoreIndex + 1;
             writeFinishIndex = restoreIndex;
             final long finalRestoreIndex = restoreIndex;
-            return new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    if (finalRestoreIndex <= raftStatus.firstValidIndex) {
-                        // return null will cause install snapshot
-                        setResult(null);
-                        return Fiber.frameReturn();
-                    }
-                    FiberFrame<Long> f = loadLogPos(finalRestoreIndex);
-                    return Fiber.call(f, this::afterLoad);
+            return new SimpleFrame<>("initRestorePos", frame -> {
+                if (finalRestoreIndex <= raftStatus.firstValidIndex) {
+                    // return null will cause install snapshot
+                    return frame.justReturn(null);
                 }
-
-                private FrameCallResult afterLoad(Long restoreIndexPos) {
+                FiberFrame<Long> f = loadLogPos(finalRestoreIndex);
+                return Fiber.call(f, restoreIndexPos -> {
                     log.info("restore from index: {}, pos: {}", finalRestoreIndex, restoreIndexPos);
-                    setResult(new Pair<>(finalRestoreIndex, restoreIndexPos));
-                    return Fiber.frameReturn();
-                }
-            };
+                    return frame.justReturn(new Pair<>(finalRestoreIndex, restoreIndexPos));
+                });
+            });
         }
     }
 

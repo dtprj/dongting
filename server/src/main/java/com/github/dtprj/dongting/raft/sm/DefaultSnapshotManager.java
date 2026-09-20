@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -250,56 +251,42 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     FiberFrame<Void> deleteOldFiles() {
-        return new DeleteSnapshotsFrame(false);
+        return createDeleteSnapshotsFrame(false);
     }
 
-    private class DeleteSnapshotsFrame extends FiberFrame<Void> {
-        private final boolean all;
-
-        DeleteSnapshotsFrame(boolean all) {
-            this.all = all;
-        }
-
-        @Override
-        public FrameCallResult execute(Void input) {
+    private FiberFrame<Void> createDeleteSnapshotsFrame(boolean all) {
+        return new SimpleFrame<>("deleteSnapshots", frame -> {
             FileSnapshotInfo fsi = all ? savedSnapshots.peekFirst() : pickNextToDelete();
             if (fsi == null) {
                 raftStatus.reservedSnapshotIndex = all ? 0 : computeReservedSnapshotIndex();
                 return Fiber.frameReturn();
             }
             savedSnapshots.removeFirst();
-            return Fiber.call(new CloseReadersAndDeleteFrame(fsi), this);
-        }
-
-        private FileSnapshotInfo pickNextToDelete() {
-            if (savedSnapshots.isEmpty()) {
-                return null;
-            }
-            int keep = groupConfig.maxKeepSnapshots;
-            if (keep <= 0) {
-                // no count limit: delete only if its logs are all deleted; size > 1 keeps the latest
-                if (savedSnapshots.size() > 1
-                        && savedSnapshots.getFirst().lastIncludeIndex < raftStatus.firstValidIndex) {
-                    return savedSnapshots.getFirst();
-                }
-                return null;
-            }
-            return savedSnapshots.size() > keep ? savedSnapshots.getFirst() : null;
-        }
+            return Fiber.call(createCloseReadersAndDeleteFrame(fsi), frame);
+        });
     }
 
-    private class CloseReadersAndDeleteFrame extends FiberFrame<Void> {
-        private final FileSnapshotInfo fsi;
-
-        CloseReadersAndDeleteFrame(FileSnapshotInfo fsi) {
-            this.fsi = fsi;
+    private FileSnapshotInfo pickNextToDelete() {
+        if (savedSnapshots.isEmpty()) {
+            return null;
         }
+        int keep = groupConfig.maxKeepSnapshots;
+        if (keep <= 0) {
+            // no count limit: delete only if its logs are all deleted; size > 1 keeps the latest
+            if (savedSnapshots.size() > 1
+                    && savedSnapshots.getFirst().lastIncludeIndex < raftStatus.firstValidIndex) {
+                return savedSnapshots.getFirst();
+            }
+            return null;
+        }
+        return savedSnapshots.size() > keep ? savedSnapshots.getFirst() : null;
+    }
 
-        @Override
-        public FrameCallResult execute(Void input) {
+    private FiberFrame<Void> createCloseReadersAndDeleteFrame(FileSnapshotInfo fsi) {
+        return new SimpleFrame<>("closeReadersAndDelete", frame -> {
             fsi.closing = true;
             if (fsi.busy > 0) {
-                return fsi.busyCond.await(this);
+                return fsi.busyCond.await(frame);
             }
             // doClose removes the handle from openReads
             while (!fsi.openReads.isEmpty()) {
@@ -308,7 +295,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             deleteInIoExecutor(fsi.dataFile);
             deleteInIoExecutor(fsi.idxFile);
             return Fiber.frameReturn();
-        }
+        });
     }
 
     private long computeReservedSnapshotIndex() {
@@ -324,7 +311,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     @Override
     public FiberFrame<Void> deleteAll() {
-        return new DeleteSnapshotsFrame(true);
+        return createDeleteSnapshotsFrame(true);
     }
 
     @Override

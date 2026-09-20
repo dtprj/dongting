@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
@@ -159,31 +160,32 @@ public final class DefaultRaftLog implements RaftLog {
         return logFiles.append(inputs);
     }
 
+    //----------------truncateTail frame------------
     @Override
     public FiberFrame<Void> truncateTail(long index) {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                return Fiber.call(idxFiles.loadLogPos(index), this::afterPosLoad);
-            }
-
-            private FrameCallResult afterPosLoad(Long pos) {
-                if (logFiles.startPosOfFile(pos) == pos && index - 1 >= logFiles.getFirstIndex()) {
-                    return Fiber.call(loadNextItemPos(index - 1), this::afterPosLoad2);
-                }
-                idxFiles.truncateTail(index);
-                logFiles.truncateTail(index, pos);
-                return Fiber.frameReturn();
-            }
-
-            private FrameCallResult afterPosLoad2(Long pos) {
-                idxFiles.truncateTail(index);
-                logFiles.truncateTail(index, pos);
-                return Fiber.frameReturn();
-            }
-        };
-
+        return new SimpleFrame<>("truncateTail", frame -> execTruncateTail(index));
     }
+
+    private FrameCallResult execTruncateTail(long index) {
+        return Fiber.call(idxFiles.loadLogPos(index), pos -> afterPosLoad(index, pos));
+    }
+
+    private FrameCallResult afterPosLoad(long index, Long pos) {
+        if (logFiles.startPosOfFile(pos) == pos && index - 1 >= logFiles.getFirstIndex()) {
+            return Fiber.call(loadNextItemPos(index - 1), pos2 -> afterPosLoad2(index, pos2));
+        }
+        idxFiles.truncateTail(index);
+        logFiles.truncateTail(index, pos);
+        return Fiber.frameReturn();
+    }
+
+    private FrameCallResult afterPosLoad2(long index, Long pos) {
+        idxFiles.truncateTail(index);
+        logFiles.truncateTail(index, pos);
+        return Fiber.frameReturn();
+    }
+
+    //----------------truncateTail frame------------
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> cancelIndicator, boolean decode) {
@@ -242,44 +244,40 @@ public final class DefaultRaftLog implements RaftLog {
 
     @Override
     public FiberFrame<Long> loadNextItemPos(long index) {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (index == 0) {
-                    setResult(0L);
-                    return Fiber.frameReturn();
-                }
-                return Fiber.call(idxFiles.loadRaftIdxInfo(index), this::afterLoadPos);
+        return new SimpleFrame<>("loadNextItemPos", frame -> {
+            if (index == 0) {
+                return frame.justReturn(0L);
             }
-
-            private FrameCallResult afterLoadPos(IdxItem idxInfo) {
-                setResult(idxInfo.position + idxInfo.size);
-                return Fiber.frameReturn();
-            }
-        };
+            return Fiber.call(idxFiles.loadRaftIdxInfo(index),
+                    idxInfo -> frame.justReturn(idxInfo.position + idxInfo.size));
+        });
     }
 
+    //----------------finishInstall frame------------
     @Override
     public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) {
         createFiles();
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                return Fiber.call(idxFiles.finishInstall(nextLogIndex), this::afterIdxFinishInstall);
-            }
-
-            private FrameCallResult afterIdxFinishInstall(Void unused) {
-                return Fiber.call(logFiles.finishInstall(nextLogIndex, nextLogPos), this::afterLogFinishInstall);
-            }
-
-            private FrameCallResult afterLogFinishInstall(Void unused) {
-                idxFiles.setInitialized(true);
-                logFiles.setInitialized(true);
-                startQueueDeleteFiber();
-                return Fiber.frameReturn();
-            }
-        };
+        return new SimpleFrame<>("finishInstall", frame -> execFinishInstall(nextLogIndex, nextLogPos));
     }
+
+    private FrameCallResult execFinishInstall(long nextLogIndex, long nextLogPos) {
+        return Fiber.call(idxFiles.finishInstall(nextLogIndex),
+                unused -> afterIdxFinishInstall(nextLogIndex, nextLogPos));
+    }
+
+    private FrameCallResult afterIdxFinishInstall(long nextLogIndex, long nextLogPos) {
+        return Fiber.call(logFiles.finishInstall(nextLogIndex, nextLogPos),
+                unused -> afterLogFinishInstall());
+    }
+
+    private FrameCallResult afterLogFinishInstall() {
+        idxFiles.setInitialized(true);
+        logFiles.setInitialized(true);
+        startQueueDeleteFiber();
+        return Fiber.frameReturn();
+    }
+
+    //----------------finishInstall frame------------
 
     @Override
     public FiberFuture<Void> close() {

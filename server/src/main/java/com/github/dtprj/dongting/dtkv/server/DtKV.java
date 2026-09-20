@@ -29,10 +29,9 @@ import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -378,21 +377,16 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             dtkvExecutor.submitTaskInFiberThread(() -> ttlManager.roleChange(newRole));
         };
 
-        Fiber markDeleteFiber = new Fiber("kv-mark-delete-" + config.groupId, mainFiberGroup,
-                new MarkDeleteFrame());
-        markDeleteFiber.setDaemon(true).start();
-    }
-
-    private class MarkDeleteFrame extends FiberFrame<Void> {
-        @Override
-        public FrameCallResult execute(Void input) {
+        String fiberName = "kvMarkDelete" + config.groupId;
+        Fiber markDeleteFiber = new Fiber(fiberName, mainFiberGroup, new SimpleFrame<>(fiberName, frame -> {
             RaftStatusImpl rs = (RaftStatusImpl) config.raftStatus;
             if (!rs.installSnapshot && rs.reservedSnapshotIndex > 0) {
                 raftGroup.markTruncateByIndex(rs.reservedSnapshotIndex,
                         config.autoDeleteLogDelaySeconds * 1000L);
             }
-            return Fiber.sleep(LOG_DELETE_CHECK_MILLIS, this);
-        }
+            return Fiber.sleep(LOG_DELETE_CHECK_MILLIS, frame);
+        }));
+        markDeleteFiber.setDaemon(true).start();
     }
 
     private boolean dispatchWatchTask() {

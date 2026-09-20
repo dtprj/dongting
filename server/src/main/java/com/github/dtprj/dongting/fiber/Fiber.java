@@ -188,17 +188,11 @@ public class Fiber extends WaitSource {
         }
         Fiber waitSource = this;
         FiberFuture<Void> fu = group.newFuture("join-" + this);
-        FiberFrame<Void> entryFrame = new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                return waitSource.join(this::afterJoin);
-            }
-
-            private FrameCallResult afterJoin(Void result) {
-                fu.complete(null);
-                return Fiber.frameReturn();
-            }
-        };
+        FiberFrame<Void> entryFrame = new SimpleFrame<>("waitFinish",
+                frame -> waitSource.join(v -> {
+                    fu.complete(null);
+                    return Fiber.frameReturn();
+                }));
         Fiber f = new Fiber("wait-finish", group, entryFrame) {
             private String toStr;
 

@@ -368,28 +368,8 @@ public class MemberManager {
     }
 
     public FiberFrame<Void> leaderCommitJointConsensus(CompletableFuture<Long> finalFuture, long prepareIndex) {
-        return new LeaderCommitFrame(finalFuture, prepareIndex);
-    }
-
-    private class LeaderCommitFrame extends FiberFrame<Void> {
-        private final CompletableFuture<Long> finalFuture;
-        private final long prepareIndex;
-
-        private LeaderCommitFrame(CompletableFuture<Long> finalFuture, long prepareIndex) {
-            this.finalFuture = finalFuture;
-            this.prepareIndex = prepareIndex;
-        }
-
-        @Override
-        protected FrameCallResult handle(Throwable ex) {
-            log.error("leader commit joint consensus error", ex);
-            finalFuture.completeExceptionally(ex);
-            return Fiber.frameReturn();
-        }
-
-        @Override
-        public FrameCallResult execute(Void input) {
-            if (isGroupShouldStopPlain()) {
+        return new SimpleFrame<>("commitJointConsensus", frame -> {
+            if (frame.isGroupShouldStopPlain()) {
                 finalFuture.completeExceptionally(new RaftException("raft group is stopping"));
                 return Fiber.frameReturn();
             }
@@ -402,7 +382,11 @@ public class MemberManager {
             }
             leaderConfigChange(LogHeader.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
             return Fiber.frameReturn();
-        }
+        }, ex -> {
+            log.error("leader commit joint consensus error", ex);
+            finalFuture.completeExceptionally(ex);
+            return Fiber.frameReturn();
+        });
     }
 
     private byte[] getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
@@ -663,7 +647,7 @@ public class MemberManager {
                     if (!newRepList.contains(m)) {
                         Pair<RaftMember, Fiber> repTask = raftStatus.replicateTasks.get(m.node.nodeId);
                         if (repTask != null && !repTask.getRight().isFinished()) {
-                            RemoveLegacyFrame ff = new RemoveLegacyFrame(raftIndex, repTask);
+                            FiberFrame<Void> ff = createRemoveLegacyFrame(raftIndex, repTask);
                             Fiber f = new Fiber("remove-legacy-" + m.node.nodeId,
                                     groupConfig.fiberGroup, ff).setDaemon(true);
                             f.start();
@@ -679,40 +663,27 @@ public class MemberManager {
         }
     }
 
-    private class RemoveLegacyFrame extends FiberFrame<Void> {
-
-        private final RaftMember m;
-        private final long raftIndex;
-        private final Fiber repFiber;
-        private final long startNanos;
-
-        private RemoveLegacyFrame(long raftIndex, Pair<RaftMember, Fiber> repTask) {
-            this.m = repTask.getLeft();
-            this.raftIndex = raftIndex;
-            this.repFiber = repTask.getRight();
-            this.startNanos = raftStatus.ts.nanoTime;
-        }
-
-        @Override
-        public FrameCallResult execute(Void input) {
+    private FiberFrame<Void> createRemoveLegacyFrame(long raftIndex, Pair<RaftMember, Fiber> repTask) {
+        RaftMember m = repTask.getLeft();
+        Fiber repFiber = repTask.getRight();
+        long startNanos = raftStatus.ts.nanoTime;
+        return new SimpleFrame<>("removeLegacy", frame -> {
             // delay stop replicate to ensure the commit config change log is replicate to the legacy member.
             // otherwise the legacy member may start pre-vote and generate WARN logs in other members.
             // however this is not necessary.
             if (m.matchIndex >= raftIndex && m.repCommitIndexAcked >= raftIndex) {
-                return tryStopRepFiber("finished");
+                return tryStopRepFiber(m, repFiber, "finished");
             } else if (raftStatus.ts.nanoTime - startNanos > 5000L * 1000 * 1000) {
-                return tryStopRepFiber("timeout");
+                return tryStopRepFiber(m, repFiber, "timeout");
             }
-            return m.repDoneCondition.await(50, this);
-        }
+            return m.repDoneCondition.await(50, frame);
+        });
+    }
 
-        private FrameCallResult tryStopRepFiber(String status) {
-            m.replicateEpoch++;
-            log.info("legacy task {}, wait it stop. node={}", status, m.node.nodeId);
-            return repFiber.join(this::afterJoin);
-        }
-
-        private FrameCallResult afterJoin(Void v) {
+    private FrameCallResult tryStopRepFiber(RaftMember m, Fiber repFiber, String status) {
+        m.replicateEpoch++;
+        log.info("legacy task {}, wait it stop. node={}", status, m.node.nodeId);
+        return repFiber.join(v -> {
             int n = m.node.nodeId;
             Pair<RaftMember, Fiber> existTask = raftStatus.replicateTasks.get(n);
             if (existTask == null) {
@@ -724,7 +695,7 @@ public class MemberManager {
                 log.error("legacy task not match. node={}", n);
             }
             return Fiber.frameReturn();
-        }
+        });
     }
 
     private List<RaftMember> createMembersInConfigChange(List<RaftNodeEx> nodes) {

@@ -21,9 +21,8 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -154,22 +153,18 @@ public class DtMQ extends AbstractLifeCircle implements StateMachine {
         mqIdxDir = new File(groupConfig.dataDir, MQ_IDX_DIR);
         manager = new MqIdxManager(groupConfig, mqIdxDir);
         manager.start();
-        Fiber f = new Fiber("mq-mark-delete-" + groupConfig.groupId, groupConfig.fiberGroup,
-                new MarkDeleteFrame());
-        f.setDaemon(true).start();
-    }
-
-    private class MarkDeleteFrame extends FiberFrame<Void> {
-        @Override
-        public FrameCallResult execute(Void input) {
+        String fiberName = "mqMarkDelete" + groupConfig.groupId;
+        Fiber f = new Fiber(fiberName, groupConfig.fiberGroup,
+                new SimpleFrame<>(fiberName, frame -> {
             RaftStatusImpl rs = (RaftStatusImpl) groupConfig.raftStatus;
             if (!rs.installSnapshot) {
                 long bound = groupConfig.ts.wallClockMillis - serverConfig.logRetentionMinutes * 60_000L;
                 raftGroup.markTruncateByTimestamp(bound,
                         groupConfig.autoDeleteLogDelaySeconds * 1000L);
             }
-            return Fiber.sleep(LOG_RETENTION_CHECK_MILLIS, this);
-        }
+            return Fiber.sleep(LOG_RETENTION_CHECK_MILLIS, frame);
+        }));
+        f.setDaemon(true).start();
     }
 
     @Override

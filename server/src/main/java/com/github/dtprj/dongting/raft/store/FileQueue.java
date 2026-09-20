@@ -23,8 +23,8 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.FutureFrame;
-import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -156,9 +156,25 @@ public abstract class FileQueue<F extends QueueFile> {
         }
     }
 
+    /**
+     * Waits until all QueueFiles in the queue have no active readers or writers,
+     * then closes all channels. Used during shutdown and install snapshot.
+     */
     protected FiberFuture<Void> stopFileQueue() {
-        return FutureFrame.startWaitFiber("waitNoRwAndClose-" + groupConfig.groupId,
-                groupConfig.fiberGroup, new WaitNoRwAndCloseFrame());
+        String fiberName = "waitNoRwAndClose-" + groupConfig.groupId;
+        return FutureFrame.startWaitFiber(fiberName, groupConfig.fiberGroup,
+                new SimpleFrame<>(fiberName, frame -> {
+                    for (int i = 0; i < queue.size(); i++) {
+                        QueueFile lf = queue.get(i);
+                        if (lf.inUse()) {
+                            log.info("file in use during close, wait. reader={}, writer={}, file={}",
+                                    lf.getReaders(), lf.getWriters(), lf.getFile().getPath());
+                            return lf.getNoRwCond().await(frame);
+                        }
+                    }
+                    closeAllChannel();
+                    return Fiber.frameReturn();
+                }));
     }
 
     // to delete all files that not be managed (unexpected)
@@ -298,27 +314,6 @@ public abstract class FileQueue<F extends QueueFile> {
         lruHead = null;
         lruTail = null;
         openFileCount = 0;
-    }
-
-    /**
-     * Waits until all QueueFiles in the queue have no active readers or writers,
-     * then closes all channels. Used during shutdown and install snapshot.
-     */
-    private class WaitNoRwAndCloseFrame extends FiberFrame<Void> {
-
-        @Override
-        public FrameCallResult execute(Void input) {
-            for (int i = 0; i < queue.size(); i++) {
-                QueueFile lf = queue.get(i);
-                if (lf.inUse()) {
-                    log.info("file in use during close, wait. reader={}, writer={}, file={}",
-                            lf.getReaders(), lf.getWriters(), lf.getFile().getPath());
-                    return lf.getNoRwCond().await(this);
-                }
-            }
-            closeAllChannel();
-            return Fiber.frameReturn();
-        }
     }
 
     public static final class DeleteFrame extends FiberFrame<Void> {
