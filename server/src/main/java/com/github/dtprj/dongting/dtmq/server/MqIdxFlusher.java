@@ -75,7 +75,7 @@ class MqIdxFlusher {
     // queues with a pending threshold request; drained by the loop fiber
     private final IndexedQueue<MqIdxQueue> roundRequests = new IndexedQueue<>(16);
 
-    // shared by FlushAllRoundFrame and AllQueuesCleanupFrame; filled and drained per round
+    // shared by FlushAllRoundFrame and the allQueuesCleanup frame; filled and drained per round
     private final IndexedQueue<MqIdxQueue> todo = new IndexedQueue<>(64);
 
     private final Supplier<Boolean> cancelRetryIndicator;
@@ -94,43 +94,6 @@ class MqIdxFlusher {
 
     void start() {
         loopFiber.start();
-    }
-
-    FiberFrame<Void> createCleanupFrame() {
-        return new AllQueuesCleanupFrame(todo);
-    }
-
-    private class AllQueuesCleanupFrame extends FiberFrame<Void> {
-        private final IndexedQueue<MqIdxQueue> todo;
-
-        AllQueuesCleanupFrame(IndexedQueue<MqIdxQueue> todo) {
-            this.todo = todo;
-            manager.queues.forEach((LongObjMap.ReadOnlyVisitor<MqIdxQueue>) (id, q) -> todo.addLast(q));
-        }
-
-        @Override
-        public FrameCallResult execute(Void input) {
-            if (error || manager.markClose) {
-                return Fiber.frameReturn();
-            }
-            while (true) {
-                MqIdxQueue q = todo.pollFirst();
-                if (q == null) {
-                    return Fiber.frameReturn();
-                }
-                // in-memory check: most queues need no io at all
-                if (q.needRunCleanup(raftStatus.firstValidPos)) {
-                    return Fiber.call(q.createCleanupFrame(), v -> afterCleanup(q));
-                }
-            }
-        }
-
-        private FrameCallResult afterCleanup(MqIdxQueue q) {
-            if (q.lastCleanupFailed) {
-                cleanupRetry = true;
-            }
-            return Fiber.resume(null, this);
-        }
     }
 
     // dispatcher thread; the loop fiber is the only round starter, so a cleanup deleting
@@ -327,8 +290,9 @@ class MqIdxFlusher {
     }
 
     private void submitFileAlloc(MqIdxQueue q) {
-        RetryFrame<MqIdxFile> rf = new RetryFrame<>(new AllocAttemptFrame(q),
-                groupConfig.ioRetryInterval, cancelRetryIndicator);
+        SimpleFrame<MqIdxFile> allocFrame = new SimpleFrame<>("allocAttempt",
+                frame -> frameAllocAttempt(frame, q));
+        RetryFrame<MqIdxFile> rf = new RetryFrame<>(allocFrame, groupConfig.ioRetryInterval, cancelRetryIndicator);
         rf.cancelCondition = cancelAllocRetryCond;
         FiberFuture<MqIdxFile> f = FutureFrame.startWaitFiber(
                 "mqIdxFileAlloc-" + groupConfig.groupId + "-" + q.queueId, groupConfig.fiberGroup, rf);
@@ -365,50 +329,46 @@ class MqIdxFlusher {
         }
     }
 
-    private class AllocAttemptFrame extends FiberFrame<MqIdxFile> {
-        private final MqIdxQueue q;
 
-        AllocAttemptFrame(MqIdxQueue q) {
-            this.q = q;
-        }
+    //------------------------------AllocAttemptFrame begin--------------------------------------
 
-        @Override
-        public FrameCallResult execute(Void input) {
-            if (manager.markClose) {
-                throw new RaftException("mq idx flusher is closing");
-            }
-            long fileStart = q.nextWriteFileStartPos();
-            File file = q.createFileByStartPos(fileStart);
-            FiberFuture<MqIdxFile> f = groupConfig.fiberGroup.newFuture("mqIdxFileAlloc");
-            try {
-                groupConfig.blockIoExecutor.execute(() -> {
-                    try {
-                        f.fireComplete(allocateFile(q, file, fileStart));
-                    } catch (Throwable t) {
-                        log.error("allocate mq idx file failed: {}", file.getPath(), t);
-                        f.fireCompleteExceptionally(t);
-                    }
-                });
-            } catch (Throwable t) {
-                f.completeExceptionally(t);
-            }
-            return f.await(this::justReturn);
+    private FrameCallResult frameAllocAttempt(SimpleFrame<MqIdxFile> frame, MqIdxQueue q) {
+        if (manager.markClose) {
+            throw new RaftException("mq idx flusher is closing");
         }
+        long fileStart = q.nextWriteFileStartPos();
+        File file = q.createFileByStartPos(fileStart);
+        FiberFuture<MqIdxFile> f = groupConfig.fiberGroup.newFuture("mqIdxFileAlloc");
+        try {
+            groupConfig.blockIoExecutor.execute(() -> {
+                try {
+                    f.fireComplete(allocateFile(q, file, fileStart));
+                } catch (Throwable t) {
+                    log.error("allocate mq idx file failed: {}", file.getPath(), t);
+                    f.fireCompleteExceptionally(t);
+                }
+            });
+        } catch (Throwable t) {
+            f.completeExceptionally(t);
+        }
+        return f.await(frame::justReturn);
+    }
 
-        private MqIdxFile allocateFile(MqIdxQueue q, File file, long fileStart) throws IOException {
-            File parent = file.getParentFile();
-            if (parent != null && !parent.isDirectory()
-                    && !parent.mkdirs() && !parent.isDirectory()) {
-                throw new IOException("create queue dir fail: " + parent.getPath());
-            }
-            try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
-                raf.setLength(q.getFileSize());
-                raf.getFD().sync();
-            }
-            MqIdxFile lf = q.createFile(file, fileStart, System.currentTimeMillis());
-            lf.syncOpen();
-            return lf;
+    //------------------------------AllocAttemptFrame end--------------------------------------
+
+    private MqIdxFile allocateFile(MqIdxQueue q, File file, long fileStart) throws IOException {
+        File parent = file.getParentFile();
+        if (parent != null && !parent.isDirectory()
+                && !parent.mkdirs() && !parent.isDirectory()) {
+            throw new IOException("create queue dir fail: " + parent.getPath());
         }
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            raf.setLength(q.getFileSize());
+            raf.getFD().sync();
+        }
+        MqIdxFile lf = q.createFile(file, fileStart, System.currentTimeMillis());
+        lf.syncOpen();
+        return lf;
     }
 
     private class IdxLoopFrame extends FiberFrame<Void> {
@@ -468,6 +428,38 @@ class MqIdxFlusher {
             throw Fiber.fatal(ex);
         }
     }
+
+    FiberFrame<Void> createCleanupFrame() {
+        manager.queues.forEach((LongObjMap.ReadOnlyVisitor<MqIdxQueue>) (id, q) -> todo.addLast(q));
+        return new SimpleFrame<>("allQueuesCleanup", this::frameAllQueuesCleanup);
+    }
+
+    //----------------------allQueuesCleanup begin--------------------------
+
+    private FrameCallResult frameAllQueuesCleanup(SimpleFrame<Void> frame) {
+        if (error || manager.markClose) {
+            return Fiber.frameReturn();
+        }
+        while (true) {
+            MqIdxQueue q = todo.pollFirst();
+            if (q == null) {
+                return Fiber.frameReturn();
+            }
+            // in-memory check: most queues need no io at all
+            if (q.needRunCleanup(raftStatus.firstValidPos)) {
+                return Fiber.call(q.createCleanupFrame(), v -> afterCleanup(frame, q));
+            }
+        }
+    }
+
+    private FrameCallResult afterCleanup(SimpleFrame<Void> frame, MqIdxQueue q) {
+        if (q.lastCleanupFailed) {
+            cleanupRetry = true;
+        }
+        return Fiber.resume(null, frame);
+    }
+
+    //----------------------allQueuesCleanup end----------------------------
 
     private class FlushAllRoundFrame extends FiberFrame<Void> {
         private final long version;
