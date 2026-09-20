@@ -217,7 +217,7 @@ class MqIdxFlusher {
     }
 
     private void continueRound(MqIdxQueue q) {
-        if (error || manager.markClose || !roundIncomplete(q)) {
+        if (error || manager.markClose) {
             endRound(q);
             return;
         }
@@ -227,7 +227,7 @@ class MqIdxFlusher {
             } else {
                 submitWrite(q);
             }
-        } else {
+        } else if (q.flushForce && q.forceFinishSeq < q.writeFinishSeq) {
             MqIdxFile lf = q.currentWriteFile();
             if (lf == null) {
                 BugLog.log("current write file not found: queue=" + q.queueId
@@ -236,12 +236,9 @@ class MqIdxFlusher {
                 return;
             }
             submitForce(q, lf, q.writeFinishSeq);
+        } else {
+            endRound(q);
         }
-    }
-
-    private boolean roundIncomplete(MqIdxQueue q) {
-        return q.writeFinishSeq < q.flushTargetSeq
-                || (q.flushForce && q.forceFinishSeq < q.writeFinishSeq);
     }
 
     private void endRound(MqIdxQueue q) {
