@@ -99,14 +99,14 @@ class MqIdxFlusher {
     // dispatcher thread; the loop fiber is the only round starter, so a cleanup deleting
     // files cannot interleave with a round start
     void requestRound(MqIdxQueue q) {
-        if (roundWanted(q) && !q.roundRequested) {
+        if (pendingReachesThreshold(q) && !q.roundRequested) {
             q.roundRequested = true;
             roundRequests.addLast(q);
             requestCond.signal();
         }
     }
 
-    private boolean roundWanted(MqIdxQueue q) {
+    private boolean pendingReachesThreshold(MqIdxQueue q) {
         return q.nextSeq - 1 - q.writeFinishSeq >= groupConfig.mqIdxFlushThreshold;
     }
 
@@ -119,6 +119,39 @@ class MqIdxFlusher {
         q.flushTargetSeq = targetSeq;
         activeRounds++;
         continueRound(q);
+    }
+
+    private void continueRound(MqIdxQueue q) {
+        if (error || manager.markClose) {
+            endRound(q);
+            return;
+        }
+        if (q.writeFinishSeq < q.flushTargetSeq) {
+            if (q.needAllocateFile()) {
+                submitFileAlloc(q);
+            } else {
+                submitWrite(q);
+            }
+        } else if (q.flushForce && q.forceFinishSeq < q.writeFinishSeq) {
+            MqIdxFile lf = q.currentWriteFile();
+            if (lf == null) {
+                BugLog.log("current write file not found: queue=" + q.queueId
+                        + ", writeFinishSeq=" + q.writeFinishSeq);
+                endRound(q);
+                return;
+            }
+            submitForce(q, lf, q.writeFinishSeq);
+        } else {
+            endRound(q);
+        }
+    }
+
+    private void endRound(MqIdxQueue q) {
+        q.flushing = false;
+        activeRounds--;
+        retireTarget(q);
+        roundDoneCond.signalAll();
+        requestRound(q);
     }
 
     FiberFuture<Void> flushAll() {
@@ -177,39 +210,6 @@ class MqIdxFlusher {
         }
         log.info("mq idx flusher stopped, groupId={}", groupConfig.groupId);
         return Fiber.frameReturn();
-    }
-
-    private void continueRound(MqIdxQueue q) {
-        if (error || manager.markClose) {
-            endRound(q);
-            return;
-        }
-        if (q.writeFinishSeq < q.flushTargetSeq) {
-            if (q.needAllocateFile()) {
-                submitFileAlloc(q);
-            } else {
-                submitWrite(q);
-            }
-        } else if (q.flushForce && q.forceFinishSeq < q.writeFinishSeq) {
-            MqIdxFile lf = q.currentWriteFile();
-            if (lf == null) {
-                BugLog.log("current write file not found: queue=" + q.queueId
-                        + ", writeFinishSeq=" + q.writeFinishSeq);
-                endRound(q);
-                return;
-            }
-            submitForce(q, lf, q.writeFinishSeq);
-        } else {
-            endRound(q);
-        }
-    }
-
-    private void endRound(MqIdxQueue q) {
-        q.flushing = false;
-        activeRounds--;
-        retireTarget(q);
-        roundDoneCond.signalAll();
-        requestRound(q);
     }
 
     private boolean retireTarget(MqIdxQueue q) {
@@ -416,7 +416,7 @@ class MqIdxFlusher {
             MqIdxQueue q;
             while ((q = roundRequests.pollFirst()) != null) {
                 q.roundRequested = false;
-                if (roundWanted(q)) {
+                if (pendingReachesThreshold(q)) {
                     startRound(q, false, q.nextSeq - 1);
                 }
             }
