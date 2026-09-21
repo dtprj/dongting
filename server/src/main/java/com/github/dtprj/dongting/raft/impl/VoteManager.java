@@ -268,10 +268,6 @@ public class VoteManager {
                 return sleepAwhile();
             }
             RaftStatusImpl raftStatus = VoteManager.this.raftStatus;
-            //if (raftStatus.getRole() == RaftRole.leader && raftStatus.getLeaseStartNanos()
-            //        + raftStatus.getElectTimeoutNanos() - raftStatus.ts.nanoTime < 0) {
-            //    RaftUtil.changeToFollower(raftStatus, -1, "leader lease timeout");
-            //}
             boolean timeout = raftStatus.ts.nanoTime - raftStatus.lastElectTime > raftStatus.getElectTimeoutNanos();
             if (voting) {
                 if (timeout) {

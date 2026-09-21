@@ -120,6 +120,7 @@ public final class RaftUtil {
         if (oldRole != RaftRole.observer && oldRole != RaftRole.none) {
             log.info("update term from {} to {}, change to follower, oldRole={}, reason: {}",
                     raftStatus.currentTerm, remoteTerm, raftStatus.getRole(), reason);
+            raftStatus.leadershipChanged |= oldRole == RaftRole.leader;
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
                 TailCache oldPending = raftStatus.tailCache;
@@ -280,6 +281,7 @@ public final class RaftUtil {
                 raftStatus.getRole(), reason);
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
+        raftStatus.leadershipChanged |= raftStatus.getRole() == RaftRole.leader;
         raftStatus.setRole(RaftRole.follower);
         raftStatus.copyShareStatus();
     }
@@ -288,6 +290,7 @@ public final class RaftUtil {
         log.info("change to observer. term={}, oldRole={}", raftStatus.currentTerm, raftStatus.getRole());
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
+        raftStatus.leadershipChanged |= raftStatus.getRole() == RaftRole.leader;
         raftStatus.setRole(RaftRole.observer);
         raftStatus.copyShareStatus();
     }
@@ -296,12 +299,14 @@ public final class RaftUtil {
         log.info("change to none. term={}, oldRole={}", raftStatus.currentTerm, raftStatus.getRole());
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
+        raftStatus.leadershipChanged |= raftStatus.getRole() == RaftRole.leader;
         raftStatus.setRole(RaftRole.none);
         raftStatus.copyShareStatus();
     }
 
     public static void changeToLeader(RaftStatusImpl raftStatus) {
         resetStatus(raftStatus, false);
+        raftStatus.leadershipChanged |= raftStatus.getRole() != RaftRole.leader;
         raftStatus.setRole(RaftRole.leader);
         raftStatus.setCurrentLeader(raftStatus.self);
         raftStatus.groupReadyIndex = raftStatus.lastLogIndex + 1;
@@ -319,9 +324,12 @@ public final class RaftUtil {
         return raftStatus.lastForceLogIndex != raftStatus.lastLogIndex || raftStatus.truncating;
     }
 
+    /**
+     * The caller should re-check installSnapshot and shouldStop flag after resume.
+     */
     public static FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
-        if (writeNotFinished(raftStatus)) {
-            log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}, truncating={}",
+        if (writeNotFinished(raftStatus) && !raftStatus.installSnapshot && !raftStatus.isShouldStop()) {
+            log.info("write not finished, lastForceLogIndex={}, lastLogIndex={}, truncating={}",
                     raftStatus.lastForceLogIndex, raftStatus.lastLogIndex, raftStatus.truncating);
             return raftStatus.logForceFinishCondition.await(10 * 1000,
                     v -> waitWriteFinish(raftStatus, resumePoint));

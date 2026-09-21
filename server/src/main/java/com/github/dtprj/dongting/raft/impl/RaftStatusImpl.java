@@ -75,6 +75,8 @@ public final class RaftStatusImpl extends RaftStatus {
     private RaftRole role; // shared
     private RaftMember currentLeader; // shared
 
+    public boolean leadershipChanged;
+
     // for leader, groupReadyIndex is the firstIndex of currentTerm.
     // for follower, groupReadyIndex is the first log item index of a valid AppendEntries request.
     // reset to Long.MAX_VALUE in RaftUtil.resetStatus(), called when change to follower/observer/candidate or increase term.

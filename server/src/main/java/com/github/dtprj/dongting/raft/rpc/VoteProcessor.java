@@ -115,6 +115,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 return updateStatusFile(false);
             } else {
                 if (!voteReq.preVote && RaftUtil.writeNotFinished(raftStatus)) {
+                    // resume to this::execute to re-run all check
                     return RaftUtil.waitWriteFinish(raftStatus, this);
                 }
                 if (shouldGrant()) {
