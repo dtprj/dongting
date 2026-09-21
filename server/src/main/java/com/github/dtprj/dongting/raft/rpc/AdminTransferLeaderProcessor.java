@@ -49,7 +49,7 @@ public class AdminTransferLeaderProcessor extends RaftProcessor<TransferLeaderRe
         if (req.oldLeaderId != raftServer.getServerConfig().nodeId) {
             log.error("old leader id mismatch, groupId={}, oldLeaderId={}, localId={}",
                     req.groupId, req.oldLeaderId, raftServer.getServerConfig().nodeId);
-            throw new RaftException("new leader id mismatch");
+            throw new RaftException("old leader id mismatch");
         }
         CompletableFuture<Void> f = reqInfo.raftGroup.transferLeadership(req.newLeaderId,
                 reqInfo.reqContext.getTimeout().getTimeout(TimeUnit.MILLISECONDS));
