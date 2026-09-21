@@ -38,3 +38,5 @@ hs_err_pid*
 
 # generate by maven-shade-plugin
 dependency-reduced-pom.xml
+
+.zcodeignore
