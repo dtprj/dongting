@@ -338,7 +338,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         }
 
         if (waitApplyCount > 0) {
-            applyFinishCond.signal();
+            applyFinishCond.signalAll();
         }
     }
 
@@ -387,6 +387,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     public FiberFrame<Void> waitApplyStop() {
         return new StopApplyFrame();
+    }
+
+    public FiberFrame<Void> waitApply(long targetIndex) {
+        return new WaitApplyFrame(targetIndex);
     }
 
     private class StopApplyFrame extends FiberFrame<Void> {

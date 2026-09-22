@@ -850,7 +850,7 @@ public class MemberManager {
 
     public void transferLeadership(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
         if (!groupConfig.fiberGroup.fireFiber("transfer-leader",
-                new TranferLeaderFiberFrame(nodeId, f, deadline))) {
+                new TranferLeaderFiberFrame(nodeId, f, deadline, false, 0, null))) {
             f.completeExceptionally(new RaftException("fire transfer leader fiber failed"));
         }
     }
@@ -860,34 +860,62 @@ public class MemberManager {
         private final int nodeId;
         private final CompletableFuture<Void> f;
         private final DtTime deadline;
+        private final boolean reentry;
+        private long lastLogMillis;
+        private FiberCondition condition;
 
-        TranferLeaderFiberFrame(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
+        TranferLeaderFiberFrame(int nodeId, CompletableFuture<Void> f, DtTime deadline, boolean reentry,
+                                long lastLogMillis, FiberCondition condition) {
             this.nodeId = nodeId;
             this.f = f;
             this.deadline = deadline;
+            this.reentry = reentry;
+            this.lastLogMillis = lastLogMillis;
+            this.condition = condition;
         }
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            RaftUtil.clearTransferLeaderCondition(raftStatus);
+            clearMyCondition();
             f.completeExceptionally(ex);
             return Fiber.frameReturn();
         }
 
+        // the condition may be cleared by resetStatus on role change, or taken by another transfer request
+        private void clearMyCondition() {
+            if (raftStatus.transferLeaderCondition == condition) {
+                RaftUtil.clearTransferLeaderCondition(raftStatus);
+            }
+        }
+
         @Override
         public FrameCallResult execute(Void input) {
+            if (reentry) {
+                // retry after target apply lag, wait a while before re-check
+                return Fiber.sleep(50, this::checkBeforeTransferLeader);
+            }
             if (raftStatus.transferLeaderCondition != null) {
                 f.completeExceptionally(new RaftException("transfer leader in progress"));
                 return Fiber.frameReturn();
             }
-            raftStatus.transferLeaderCondition = groupConfig.fiberGroup.newCondition("transferLeader");
+            condition = groupConfig.fiberGroup.newCondition("transferLeader");
+            raftStatus.transferLeaderCondition = condition;
             return checkBeforeTransferLeader(null);
         }
 
         private FrameCallResult checkBeforeTransferLeader(Void v) {
+            if (isGroupShouldStopPlain()) {
+                f.completeExceptionally(new RaftException("raft group is stopping"));
+                clearMyCondition();
+                return Fiber.frameReturn();
+            }
+            if (raftStatus.transferLeaderCondition != condition) {
+                f.completeExceptionally(new RaftException("transfer leader interrupted"));
+                return Fiber.frameReturn();
+            }
             if (raftStatus.getRole() != RaftRole.leader) {
                 f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
-                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                clearMyCondition();
                 return Fiber.frameReturn();
             }
             RaftMember newLeader = null;
@@ -907,17 +935,17 @@ public class MemberManager {
             }
             if (newLeader == null) {
                 f.completeExceptionally(new RaftException("nodeId not found: " + nodeId));
-                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                clearMyCondition();
                 return Fiber.frameReturn();
             }
 
             if (deadline.isTimeout()) {
                 f.completeExceptionally(new RaftException("transfer leader timeout"));
-                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                clearMyCondition();
                 return Fiber.frameReturn();
             }
             if (f.isCancelled()) {
-                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                clearMyCondition();
                 return Fiber.frameReturn();
             }
 
@@ -929,34 +957,71 @@ public class MemberManager {
                 CompletableFuture<ReadPacket<QueryStatusResp>> queryFuture = new CompletableFuture<>();
                 client.sendRequest(newLeader.node.peer, req, QueryStatusResp.DECODER,
                         new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(queryFuture));
-                RaftNodeEx newLeaderNode = newLeader.node;
-                queryFuture.whenCompleteAsync((resp, ex) -> {
-                    if (ex != null) {
-                        f.completeExceptionally(ex);
-                    } else {
-                        execTransferLeader(newLeaderNode, resp, f);
-                    }
-                }, groupConfig.fiberGroup.getExecutor());
+                RaftMember finalNewLeader = newLeader;
+                queryFuture.whenCompleteAsync((resp, ex) -> afterQuery(finalNewLeader, resp, ex),
+                        groupConfig.fiberGroup.getExecutor());
                 return Fiber.frameReturn();
             } else {
                 return Fiber.sleep(1, this::checkBeforeTransferLeader);
             }
         }
+
+        // run in fiber group thread from the executor callback, not in the transfer fiber.
+        // the rpc timeout guarantees this method is invoked
+        private void afterQuery(RaftMember newLeader, ReadPacket<QueryStatusResp> resp, Throwable ex) {
+            try {
+                if (raftStatus.transferLeaderCondition != condition) {
+                    f.completeExceptionally(new RaftException("transfer leader interrupted"));
+                    return;
+                }
+                if (ex != null) {
+                    clearMyCondition();
+                    f.completeExceptionally(ex);
+                    return;
+                }
+                // the query window may span an election. a leader that has stepped down must not send
+                // the transfer request, otherwise the newLeader may become a second leader in the same term
+                if (raftStatus.getRole() != RaftRole.leader) {
+                    f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
+                    clearMyCondition();
+                    return;
+                }
+                QueryStatusResp s = resp.getBody();
+                if (!s.members.equals(raftStatus.nodeIdOfMembers)
+                        || !s.observers.equals(raftStatus.nodeIdOfObservers)
+                        || !s.preparedMembers.equals(raftStatus.nodeIdOfPreparedMembers)
+                        || !s.preparedObservers.equals(raftStatus.nodeIdOfPreparedObservers)) {
+                    log.error("config not match, groupId={}", groupId);
+                    f.completeExceptionally(new RaftException("config not match"));
+                    clearMyCondition();
+                    return;
+                }
+                if (s.lastApplied < raftStatus.lastLogIndex) {
+                    if (raftStatus.ts.wallClockMillis - lastLogMillis > 1000L) {
+                        log.info("new leader apply lag, wait and retry. groupId={}, nodeId={}, "
+                                        + "itsLastApplied={}, lastLogIndex={}",
+                                groupId, nodeId, s.lastApplied, raftStatus.lastLogIndex);
+                        lastLogMillis = raftStatus.ts.wallClockMillis;
+                    }
+                    if (!groupConfig.fiberGroup.fireFiber("transfer-leader-retry",
+                            new TranferLeaderFiberFrame(nodeId, f, deadline, true, lastLogMillis, condition))) {
+                        clearMyCondition();
+                        f.completeExceptionally(new RaftException("fire retry fiber failed"));
+                    }
+                    return;
+                }
+                execTransferLeader(newLeader.node, f);
+            } catch (Throwable e) {
+                log.error("transfer leader process query resp fail, groupId={}", groupId, e);
+                clearMyCondition();
+                f.completeExceptionally(e);
+            }
+        }
     }
 
-    private void execTransferLeader(RaftNodeEx newLeader, ReadPacket<QueryStatusResp> resp,
-                                    CompletableFuture<Void> finalFuture) {
+    private void execTransferLeader(RaftNodeEx newLeader, CompletableFuture<Void> finalFuture) {
         try {
-            QueryStatusResp s = resp.getBody();
-            if (!s.members.equals(raftStatus.nodeIdOfMembers)
-                    || !s.observers.equals(raftStatus.nodeIdOfObservers)
-                    || !s.preparedMembers.equals(raftStatus.nodeIdOfPreparedMembers)
-                    || !s.preparedObservers.equals(raftStatus.nodeIdOfPreparedObservers)) {
-                log.error("config not match, groupId={}", groupId);
-                finalFuture.completeExceptionally(new RaftException("config not match"));
-                return;
-            }
-            RaftUtil.clearTransferLeaderCondition(raftStatus);
+            // the condition is cleared by changeToFollower -> resetStatus
             RaftUtil.changeToFollower(raftStatus, newLeader.nodeId, "transfer leader");
             TransferLeaderReq req = new TransferLeaderReq();
             req.term = raftStatus.currentTerm;
