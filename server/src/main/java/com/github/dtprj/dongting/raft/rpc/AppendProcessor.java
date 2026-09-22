@@ -518,7 +518,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         MemberManager mm = reqInfo.raftGroup.groupComponents.memberManager;
         InstallSnapshotReq req = reqInfo.reqFrame.getBody();
 
-        reqInfo.raftGroup.groupComponents.raftStatus.lastConfigChangeIndex = req.lastIncludedIndex;
+        reqInfo.raftGroup.groupComponents.raftStatus.lastConfigChangeIndex = req.lastConfigChangeIndex;
 
         FiberFrame<Void> f = mm.applyConfigFrame("install snapshot config change",
                 req.members, req.observers, req.preparedMembers, req.preparedObservers);
