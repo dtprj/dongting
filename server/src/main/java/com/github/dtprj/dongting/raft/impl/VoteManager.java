@@ -172,6 +172,7 @@ public class VoteManager {
         req.candidateId = config.nodeId;
         req.lastLogIndex = raftStatus.lastLogIndex;
         req.lastLogTerm = raftStatus.lastLogTerm;
+        req.lastConfigChangeIndex = raftStatus.lastConfigChangeIndex;
         req.preVote = preVote;
         SimpleWritePacket wf = new SimpleWritePacket(req);
         wf.command = Commands.RAFT_REQUEST_VOTE;

@@ -169,6 +169,9 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             boolean result;
             if (voteReq.term < raftStatus.currentTerm) {
                 result = false;
+            } else if (voteReq.lastConfigChangeIndex < raftStatus.lastConfigChangeIndex) {
+                // never vote for a candidate whose applied config is older
+                result = false;
             } else {
                 // pre-vote not save voteFor state, so not check it
                 if (voteReq.preVote || raftStatus.votedFor == 0
@@ -189,10 +192,12 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 }
             }
             log.info("{} grant check {}. candidateId={}, groupId={}, voteFor={}, reqTerm={}, currentTerm={}, " +
-                            "reqLastLogTerm={}, localLastLogTerm={}, reqIndex={}, localLastLogIndex={}",
+                            "reqLastLogTerm={}, localLastLogTerm={}, reqIndex={}, localLastLogIndex={}, " +
+                            "reqLastConfigChangeIndex={}, localLastConfigChangeIndex={}",
                     voteReq.preVote ? "pre-vote" : "vote", result, voteReq.candidateId, voteReq.groupId,
                     raftStatus.votedFor, voteReq.term, raftStatus.currentTerm, voteReq.lastLogTerm,
-                    raftStatus.lastLogTerm, voteReq.lastLogIndex, raftStatus.lastLogIndex);
+                    raftStatus.lastLogTerm, voteReq.lastLogIndex, raftStatus.lastLogIndex,
+                    voteReq.lastConfigChangeIndex, raftStatus.lastConfigChangeIndex);
             return result;
         }
     }

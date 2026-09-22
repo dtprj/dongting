@@ -95,7 +95,8 @@ public class StatusManager {
 
                 raftStatus.currentTerm = RaftUtil.parseInt(loadedProps, CURRENT_TERM, 0);
                 raftStatus.votedFor = RaftUtil.parseInt(loadedProps, VOTED_FOR, 0);
-                raftStatus.commitIndex = RaftUtil.parseInt(loadedProps, COMMIT_INDEX, 0);
+                raftStatus.commitIndex = RaftUtil.parseLong(loadedProps, COMMIT_INDEX, 0);
+                raftStatus.persistedCommitIndex = raftStatus.commitIndex;
                 raftStatus.installSnapshot = RaftUtil.parseBoolean(loadedProps, INSTALL_SNAPSHOT, false);
                 raftStatus.firstValidIndex = RaftUtil.parseLong(loadedProps, FIRST_VALID_IDX, 1);
                 raftStatus.firstValidPos = RaftUtil.parseLong(loadedProps, FIRST_VALID_POS, 0);
@@ -120,6 +121,7 @@ public class StatusManager {
     private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
         private long writingIdxIndex;
+        private long writingCommitIndex;
 
         @Override
         public FrameCallResult execute(Void input) {
@@ -139,6 +141,7 @@ public class StatusManager {
             FiberFrame<Void> updateFrame = new SimpleFrame<>("statusUpdate", frame -> {
                 copyWriteData();
                 version = requestUpdateVersion;
+                writingCommitIndex = raftStatus.commitIndex;
                 writingIdxIndex = RaftUtil.parseLong(statusFile.getProperties(),
                         RaftIdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
                 FiberFuture<Void> f = statusFile.update();
@@ -154,6 +157,7 @@ public class StatusManager {
             if (ex == null) {
                 finishedUpdateVersion = version;
                 lastPersistedIdxIndex = writingIdxIndex;
+                raftStatus.persistedCommitIndex = writingCommitIndex;
                 failedUpdateVersion = 0;
             } else {
                 failedUpdateVersion = version;

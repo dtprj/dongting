@@ -33,6 +33,7 @@ public class VoteReqTest {
         req.lastLogIndex = 100;
         req.lastLogTerm = 5;
         req.preVote = true;
+        req.lastConfigChangeIndex = 88;
 
         ByteBuffer buf = CodecTestUtil.simpleEncode(req);
         DtRaftServer.RequestVoteReq protoReq = DtRaftServer.RequestVoteReq.parseFrom(buf);
@@ -49,6 +50,7 @@ public class VoteReqTest {
         Assertions.assertEquals(expect.lastLogIndex, proto.getLastLogIndex());
         Assertions.assertEquals(expect.lastLogTerm, proto.getLastLogTerm());
         Assertions.assertEquals(expect.preVote ? 1 : 0, proto.getPreVote());
+        Assertions.assertEquals(expect.lastConfigChangeIndex, proto.getLastConfigChangeIndex());
     }
 
     private void compare(VoteReq expect, VoteReq result) {
@@ -58,5 +60,6 @@ public class VoteReqTest {
         Assertions.assertEquals(expect.lastLogIndex, result.lastLogIndex);
         Assertions.assertEquals(expect.lastLogTerm, result.lastLogTerm);
         Assertions.assertEquals(expect.preVote, result.preVote);
+        Assertions.assertEquals(expect.lastConfigChangeIndex, result.lastConfigChangeIndex);
     }
 }

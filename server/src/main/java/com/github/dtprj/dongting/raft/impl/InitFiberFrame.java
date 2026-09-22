@@ -167,6 +167,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
         if (snapshotIndex > raftStatus.commitIndex) {
             raftStatus.commitIndex = snapshotIndex;
         }
+        // the snapshot data is durable, so it is a persistence commitment
+        if (snapshotIndex > raftStatus.persistedCommitIndex) {
+            raftStatus.persistedCommitIndex = snapshotIndex;
+        }
 
         raftStatus.copyShareStatus();
         return Fiber.call(gc.raftLog.init(),

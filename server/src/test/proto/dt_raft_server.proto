@@ -59,6 +59,7 @@ message RequestVoteReq {
   fixed64 last_log_index = 4;
   int32 last_log_term = 5;
   int32 pre_vote = 6;
+  fixed64 last_config_change_index = 7;
 }
 
 message RequestVoteResp {
@@ -117,6 +118,7 @@ message QueryStatusResp {
   repeated fixed32 prepared_observers = 14[packed = false];
   fixed64 last_config_change_index = 15;
   string last_error = 16;
+  fixed64 persisted_commit_index = 17;
 }
 
 // only use for admin commands, raft server use log replicate to perform config change

@@ -73,7 +73,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     private StateMachine stateMachine;
 
     private final FiberCondition needApplyCond;
-    private boolean waitApply;
+    private int waitApplyCount;
     final FiberCondition applyFinishCond;
     private final FiberCondition applyMonitorCond;
     private final FiberCondition flowControlCond;
@@ -337,7 +337,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             processWaitGroupReadyQueue(false, false);
         }
 
-        if (waitApply) {
+        if (waitApplyCount > 0) {
             applyFinishCond.signal();
         }
     }
@@ -557,14 +557,28 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
         private final long targetIndex;
         private boolean logged;
+        private boolean parked;
 
         WaitApplyFrame(long targetIndex) {
             this.targetIndex = targetIndex;
         }
 
         @Override
+        protected FrameCallResult doFinally() {
+            unpark();
+            return Fiber.frameReturn();
+        }
+
+        private void unpark() {
+            if (parked) {
+                parked = false;
+                waitApplyCount--;
+            }
+        }
+
+        @Override
         public FrameCallResult execute(Void input) {
-            waitApply = false;
+            unpark();
             if (shouldStopApply()) {
                 throw new RaftCancelException("raft is shutting down, exit wait apply");
             }
@@ -574,7 +588,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                             raftStatus.getLastApplied(), raftStatus.lastApplying);
                     logged = true;
                 }
-                waitApply = true;
+                parked = true;
+                waitApplyCount++;
                 return applyFinishCond.await(1000, this);
             }
             return afterPreviousApplyFinish();

@@ -70,6 +70,8 @@ public final class RaftStatusImpl extends RaftStatus {
     public int votedFor; // raft paper persistent state of all servers
 
     public long commitIndex; // raft paper volatile state on all servers
+    // the commitIndex that is known to be durable in status file or snapshot
+    public long persistedCommitIndex;
     private long lastApplied; // raft paper volatile state on all servers
 
     private RaftRole role; // shared

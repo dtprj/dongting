@@ -50,6 +50,7 @@ public class QueryStatusRespTest {
         status.preparedObservers.add(6);
         status.lastConfigChangeIndex = 500;
         status.lastError = "test error";
+        status.persistedCommitIndex = 999;
         return status;
     }
 
@@ -84,6 +85,7 @@ public class QueryStatusRespTest {
         Assertions.assertEquals(expect.applyLagMillis, protoStatus.getApplyLagMillis());
         Assertions.assertEquals(expect.lastConfigChangeIndex, protoStatus.getLastConfigChangeIndex());
         Assertions.assertEquals(expect.lastError, protoStatus.getLastError());
+        Assertions.assertEquals(expect.persistedCommitIndex, protoStatus.getPersistedCommitIndex());
     }
 
     public static void compare2(QueryStatusResp expect, QueryStatusResp r) {
@@ -101,5 +103,6 @@ public class QueryStatusRespTest {
         Assertions.assertEquals(expect.applyLagMillis, r.applyLagMillis);
         Assertions.assertEquals(expect.lastConfigChangeIndex, r.lastConfigChangeIndex);
         Assertions.assertEquals(expect.lastError, r.lastError);
+        Assertions.assertEquals(expect.persistedCommitIndex, r.persistedCommitIndex);
     }
 }
