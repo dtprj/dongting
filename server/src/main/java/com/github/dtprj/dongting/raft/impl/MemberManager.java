@@ -340,7 +340,7 @@ public class MemberManager {
 
     public FiberFrame<Void> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers,
                                                         Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
-                                                        CompletableFuture<Long> f) {
+                                                        CompletableFuture<Long> f, DtTime timeout) {
         return new SimpleFrame<>("prepareJointConsensus", frame -> {
             if (!raftStatus.nodeIdOfMembers.equals(members)
                     || !raftStatus.nodeIdOfObservers.equals(observers)) {
@@ -350,7 +350,7 @@ public class MemberManager {
             }
             nodeManager.checkLeaderPrepare(newMemberNodes, newObserverNodes);
             leaderConfigChange(LogHeader.TYPE_PREPARE_CONFIG_CHANGE,
-                    getInputData(newMemberNodes, newObserverNodes), f);
+                    getInputData(newMemberNodes, newObserverNodes), f, timeout);
             return Fiber.frameReturn();
         }, ex -> {
             log.error("leader prepare joint consensus error", ex);
@@ -361,7 +361,7 @@ public class MemberManager {
 
     public FiberFrame<Void> leaderAbortJointConsensus(CompletableFuture<Long> f) {
         return new SimpleFrame<>("abortJointConsensus", frame -> {
-            leaderConfigChange(LogHeader.TYPE_DROP_CONFIG_CHANGE, null, f);
+            leaderConfigChange(LogHeader.TYPE_DROP_CONFIG_CHANGE, null, f, null);
             return Fiber.frameReturn();
         }, ex -> {
             log.error("leader abort joint consensus error", ex);
@@ -370,7 +370,8 @@ public class MemberManager {
         });
     }
 
-    public FiberFrame<Void> leaderCommitJointConsensus(CompletableFuture<Long> finalFuture, long prepareIndex) {
+    public FiberFrame<Void> leaderCommitJointConsensus(CompletableFuture<Long> finalFuture, long prepareIndex,
+                                                       DtTime timeout) {
         MutableBool started = new MutableBool(false);
         return new SimpleFrame<>("leaderCommit", frame -> {
             if (frame.isGroupShouldStopPlain()) {
@@ -389,11 +390,11 @@ public class MemberManager {
             if (!started.value) {
                 started.value = true;
                 // resume re-enters execute, so the checks above run again after members ready
-                return Fiber.call(new MembersReadyFrame(prepareIndex), frame);
+                return Fiber.call(new MembersReadyFrame(prepareIndex, timeout), frame);
             }
             // the commit log is generated only after rwQuorum of old config members applied and
             // persisted the prepare log, so a restarted node can't be elected with a stale config
-            leaderConfigChange(LogHeader.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture);
+            leaderConfigChange(LogHeader.TYPE_COMMIT_CONFIG_CHANGE, null, finalFuture, null);
             return Fiber.frameReturn();
         }, ex -> {
             log.error("leader commit joint consensus error", ex);
@@ -409,16 +410,17 @@ public class MemberManager {
      */
     private class MembersReadyFrame extends FiberFrame<Void> {
         private final long prepareIndex;
+        private final DtTime timeout;
         private FiberCondition respCondition;
-        private long deadlineNanos;
         private int total;
         private int ready;
         private int quorum;
         private boolean selfReady;
         private ArrayList<RaftMember> retryMembers = new ArrayList<>();
 
-        MembersReadyFrame(long prepareIndex) {
+        MembersReadyFrame(long prepareIndex, DtTime timeout) {
             this.prepareIndex = prepareIndex;
+            this.timeout = timeout;
         }
 
         @Override
@@ -427,15 +429,13 @@ public class MemberManager {
                 throw new RaftException("raft group is stopping");
             }
             if (total == 0) {
-                // TODO use DtTime and pass it from caller
-                deadlineNanos = raftStatus.ts.nanoTime + TimeUnit.SECONDS.toNanos(10);
                 respCondition = groupConfig.fiberGroup.newCondition("membersReadyCheck-" + groupId);
                 List<RaftMember> members = raftStatus.members;
                 quorum = RaftUtil.getRwQuorum(members.size());
                 total = members.size();
                 for (RaftMember m : members) {
                     if (!m.node.self) {
-                        sendQuery(m);
+                        retryMembers.add(m);
                     }
                 }
             }
@@ -451,7 +451,7 @@ public class MemberManager {
             if (ready >= quorum) {
                 return Fiber.frameReturn();
             }
-            if (raftStatus.ts.nanoTime - deadlineNanos > 0) {
+            if (timeout.isTimeout(raftStatus.ts)) {
                 log.error("members not ready for prepare log, groupId={}, prepareIndex={}, ready={}, total={}",
                         groupId, prepareIndex, ready, total);
                 throw new RaftTimeoutException("rwQuorum of members not persisted/applied the prepare log, try later");
@@ -522,7 +522,7 @@ public class MemberManager {
         sb.append(';');
     }
 
-    private void leaderConfigChange(int type, byte[] data, CompletableFuture<Long> f) {
+    private void leaderConfigChange(int type, byte[] data, CompletableFuture<Long> f, DtTime prepareTimeout) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
@@ -553,7 +553,7 @@ public class MemberManager {
                     // the prepared members are ready.
                     gc.linearTaskRunner.issueHeartBeat();
                     Fiber fiber = new Fiber("finishPrepareFuture", groupConfig.fiberGroup,
-                            finishPrepareFuture(f, raftIndex)).setDaemon(true);
+                            finishPrepareFuture(f, raftIndex, prepareTimeout)).setDaemon(true);
                     fiber.start();
                 } else {
                     f.complete(raftIndex);
@@ -572,19 +572,24 @@ public class MemberManager {
         gc.linearTaskRunner.submitRaftTaskInBizThread(task);
     }
 
-    private FiberFrame<Void> finishPrepareFuture(CompletableFuture<Long> f, long prepareIndex) {
+    private FiberFrame<Void> finishPrepareFuture(CompletableFuture<Long> f, long prepareIndex, DtTime timeout) {
         return new SimpleFrame<>("finishPrepareFuture", frame -> {
             if (frame.isGroupShouldStopPlain()) {
                 f.completeExceptionally(new RaftException("raft group is stopping"));
                 return Fiber.frameReturn();
             }
             if (raftStatus.getLastApplied() < prepareIndex + 1) {
+                if (timeout.isTimeout(raftStatus.ts)) {
+                    log.error("prepare log not applied before timeout, groupId={}, prepareIndex={}",
+                            groupId, prepareIndex);
+                    throw new RaftTimeoutException("prepare log not applied before timeout, try later");
+                }
                 return gc.applyManager.applyFinishCond.await(100,
                         frame.getFiberGroup().shouldStopCondition, frame);
             }
             // wait members ready before the prepare request returns, so a following commit
             // request passes the ready check immediately: readiness is monotonic
-            return Fiber.call(new MembersReadyFrame(prepareIndex), v -> {
+            return Fiber.call(new MembersReadyFrame(prepareIndex, timeout), v -> {
                 f.complete(prepareIndex);
                 return Fiber.frameReturn();
             });

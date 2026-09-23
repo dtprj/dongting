@@ -77,7 +77,7 @@ public class MockRaftGroup extends RaftGroup {
 
     @Override
     public CompletableFuture<Long> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers,
-            Set<Integer> prepareMembers, Set<Integer> prepareObservers) {
+            Set<Integer> prepareMembers, Set<Integer> prepareObservers, DtTime timeout) {
         throw new UnsupportedOperationException();
     }
 
@@ -87,7 +87,7 @@ public class MockRaftGroup extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Long> leaderCommitJointConsensus(long prepareIndex) {
+    public CompletableFuture<Long> leaderCommitJointConsensus(long prepareIndex, DtTime timeout) {
         throw new UnsupportedOperationException();
     }
 

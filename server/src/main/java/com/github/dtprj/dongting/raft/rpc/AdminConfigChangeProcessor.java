@@ -75,12 +75,13 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
             type = "prepare";
             log(type, rg);
             AdminPrepareConfigChangeReq req = (AdminPrepareConfigChangeReq) reqFrame.getBody();
-            f = rg.leaderPrepareJointConsensus(req.members, req.observers, req.preparedMembers, req.preparedObservers);
+            f = rg.leaderPrepareJointConsensus(req.members, req.observers, req.preparedMembers, req.preparedObservers,
+                    reqInfo.reqContext.getTimeout());
         } else if (reqFrame.command == Commands.RAFT_ADMIN_COMMIT_CHANGE) {
             type = "commit";
             log(type, rg);
             AdminCommitOrAbortReq req = (AdminCommitOrAbortReq) reqFrame.getBody();
-            f = rg.leaderCommitJointConsensus(req.prepareIndex);
+            f = rg.leaderCommitJointConsensus(req.prepareIndex, reqInfo.reqContext.getTimeout());
         } else {
             type = "abort";
             log(type, rg);

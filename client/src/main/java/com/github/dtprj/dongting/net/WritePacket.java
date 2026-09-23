@@ -50,7 +50,7 @@ public abstract class WritePacket extends Packet implements Encodable {
             + 1 + 5 // uint32 resp_code = 4;
             + 1 + 5 // uint32 biz_code = 5;
             // string resp_msg = 6;
-            + 1 + 8; // fixed32 timeout_millis = 7;
+            + 1 + 8; // fixed64 timeout_nanos = 7;
             // string extra = 8;
 
 

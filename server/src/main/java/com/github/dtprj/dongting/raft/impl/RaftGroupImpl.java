@@ -174,7 +174,9 @@ public final class RaftGroupImpl extends RaftGroup {
 
     @Override
     public CompletableFuture<Long> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers,
-                                                               Set<Integer> preparedMembers, Set<Integer> prepareObservers) {
+                                                               Set<Integer> preparedMembers, Set<Integer> prepareObservers,
+                                                               DtTime timeout) {
+        Objects.requireNonNull(timeout);
         if (preparedMembers.isEmpty()) {
             throw new RaftException("preparedMembers are empty");
         }
@@ -187,7 +189,7 @@ public final class RaftGroupImpl extends RaftGroup {
         }
         CompletableFuture<Long> f = new CompletableFuture<>();
         FiberFrame<Void> ff = groupComponents.memberManager.leaderPrepareJointConsensus(
-                members, observers, preparedMembers, prepareObservers, f);
+                members, observers, preparedMembers, prepareObservers, f, timeout);
         Fiber fiber = new Fiber("leaderPrepareJointConsensus", groupComponents.fiberGroup, ff).setDaemon(true);
         if (!groupComponents.fiberGroup.fireFiber(fiber)) {
             f.completeExceptionally(new RaftException("fire fiber failed, the fiber group is not running"));
@@ -208,10 +210,11 @@ public final class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Long> leaderCommitJointConsensus(long prepareIndex) {
+    public CompletableFuture<Long> leaderCommitJointConsensus(long prepareIndex, DtTime timeout) {
+        Objects.requireNonNull(timeout);
         checkStatus();
         CompletableFuture<Long> f = new CompletableFuture<>();
-        FiberFrame<Void> ff = groupComponents.memberManager.leaderCommitJointConsensus(f, prepareIndex);
+        FiberFrame<Void> ff = groupComponents.memberManager.leaderCommitJointConsensus(f, prepareIndex, timeout);
         Fiber fiber = new Fiber("leaderCommitJointConsensus", groupComponents.fiberGroup, ff).setDaemon(true);
         if (!groupComponents.fiberGroup.fireFiber(fiber)) {
             f.completeExceptionally(new RaftException("fire fiber failed, the fiber group is not running"));
