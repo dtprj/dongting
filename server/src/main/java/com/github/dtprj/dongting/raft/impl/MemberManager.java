@@ -439,8 +439,11 @@ public class MemberManager {
                     }
                 }
             }
-            // self readiness is checked each round: the status file flush may lag the apply
-            if (!selfReady && raftStatus.persistedCommitIndex >= prepareIndex
+            // self readiness is checked each round: the status file flush may lag the apply.
+            // self counts only if this node is a member of the old config: a prepared-only leader
+            // must not dilute the rwQuorum requirement
+            if (!selfReady && raftStatus.nodeIdOfMembers.contains(serverConfig.nodeId)
+                    && raftStatus.persistedCommitIndex >= prepareIndex
                     && raftStatus.getLastApplied() >= prepareIndex) {
                 selfReady = true;
                 ready++;
@@ -903,19 +906,37 @@ public class MemberManager {
             return checkBeforeTransferLeader(null);
         }
 
-        private FrameCallResult checkBeforeTransferLeader(Void v) {
+        // returns true if the transfer is terminated: the future is completed,
+        // and the condition is cleared if it is still owned by this chain
+        private boolean checkTerminated() {
+            if (raftStatus.transferLeaderCondition != condition) {
+                f.completeExceptionally(new RaftException("transfer leader interrupted"));
+                return true;
+            }
             if (isGroupShouldStopPlain()) {
                 f.completeExceptionally(new RaftException("raft group is stopping"));
                 clearMyCondition();
-                return Fiber.frameReturn();
+                return true;
             }
-            if (raftStatus.transferLeaderCondition != condition) {
-                f.completeExceptionally(new RaftException("transfer leader interrupted"));
-                return Fiber.frameReturn();
+            if (f.isCancelled()) {
+                clearMyCondition();
+                return true;
+            }
+            if (deadline.isTimeout()) {
+                f.completeExceptionally(new RaftException("transfer leader timeout"));
+                clearMyCondition();
+                return true;
             }
             if (raftStatus.getRole() != RaftRole.leader) {
                 f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
                 clearMyCondition();
+                return true;
+            }
+            return false;
+        }
+
+        private FrameCallResult checkBeforeTransferLeader(Void v) {
+            if (checkTerminated()) {
                 return Fiber.frameReturn();
             }
             RaftMember newLeader = null;
@@ -935,16 +956,6 @@ public class MemberManager {
             }
             if (newLeader == null) {
                 f.completeExceptionally(new RaftException("nodeId not found: " + nodeId));
-                clearMyCondition();
-                return Fiber.frameReturn();
-            }
-
-            if (deadline.isTimeout()) {
-                f.completeExceptionally(new RaftException("transfer leader timeout"));
-                clearMyCondition();
-                return Fiber.frameReturn();
-            }
-            if (f.isCancelled()) {
                 clearMyCondition();
                 return Fiber.frameReturn();
             }
@@ -970,20 +981,12 @@ public class MemberManager {
         // the rpc timeout guarantees this method is invoked
         private void afterQuery(RaftMember newLeader, ReadPacket<QueryStatusResp> resp, Throwable ex) {
             try {
-                if (raftStatus.transferLeaderCondition != condition) {
-                    f.completeExceptionally(new RaftException("transfer leader interrupted"));
+                if (checkTerminated()) {
                     return;
                 }
                 if (ex != null) {
                     clearMyCondition();
                     f.completeExceptionally(ex);
-                    return;
-                }
-                // the query window may span an election. a leader that has stepped down must not send
-                // the transfer request, otherwise the newLeader may become a second leader in the same term
-                if (raftStatus.getRole() != RaftRole.leader) {
-                    f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
-                    clearMyCondition();
                     return;
                 }
                 QueryStatusResp s = resp.getBody();
