@@ -573,31 +573,25 @@ public class MemberManager {
     }
 
     private FiberFrame<Void> finishPrepareFuture(CompletableFuture<Long> f, long prepareIndex) {
-        return new FiberFrame<>() {
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                f.completeExceptionally(ex);
+        return new SimpleFrame<>("finishPrepareFuture", frame -> {
+            if (frame.isGroupShouldStopPlain()) {
+                f.completeExceptionally(new RaftException("raft group is stopping"));
                 return Fiber.frameReturn();
             }
-
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (isGroupShouldStopPlain()) {
-                    f.completeExceptionally(new RaftException("raft group is stopping"));
-                    return Fiber.frameReturn();
-                }
-                if (raftStatus.getLastApplied() < prepareIndex + 1) {
-                    return gc.applyManager.applyFinishCond.await(100,
-                            getFiberGroup().shouldStopCondition, this);
-                }
-                // wait members ready before the prepare request returns, so a following commit
-                // request passes the ready check immediately: readiness is monotonic
-                return Fiber.call(new MembersReadyFrame(prepareIndex), v -> {
-                    f.complete(prepareIndex);
-                    return Fiber.frameReturn();
-                });
+            if (raftStatus.getLastApplied() < prepareIndex + 1) {
+                return gc.applyManager.applyFinishCond.await(100,
+                        frame.getFiberGroup().shouldStopCondition, frame);
             }
-        };
+            // wait members ready before the prepare request returns, so a following commit
+            // request passes the ready check immediately: readiness is monotonic
+            return Fiber.call(new MembersReadyFrame(prepareIndex), v -> {
+                f.complete(prepareIndex);
+                return Fiber.frameReturn();
+            });
+        }, ex -> {
+            f.completeExceptionally(ex);
+            return Fiber.frameReturn();
+        });
     }
 
     private RaftMember findExistMember(int nodeId) {
