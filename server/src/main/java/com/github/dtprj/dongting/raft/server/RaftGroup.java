@@ -82,7 +82,7 @@ public abstract class RaftGroup {
     /**
      * ADMIN API. This method should be called on the leader; otherwise, it will throw a NotLeaderException.
      */
-    public abstract CompletableFuture<Void> transferLeadership(int nodeId, long timeoutMillis);
+    public abstract CompletableFuture<Void> transferLeadership(int nodeId, DtTime timeout);
 
     /**
      * ADMIN API. This method is idempotent. This method should be called on the leader; otherwise, it will throw a NotLeaderException.

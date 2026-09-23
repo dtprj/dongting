@@ -71,7 +71,7 @@ public class MockRaftGroup extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Void> transferLeadership(int nodeId, long timeoutMillis) {
+    public CompletableFuture<Void> transferLeadership(int nodeId, DtTime timeout) {
         throw new UnsupportedOperationException();
     }
 

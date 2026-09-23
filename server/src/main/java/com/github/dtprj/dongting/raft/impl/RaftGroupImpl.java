@@ -154,11 +154,11 @@ public final class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Void> transferLeadership(int nodeId, long timeoutMillis) {
+    public CompletableFuture<Void> transferLeadership(int nodeId, DtTime timeout) {
+        Objects.requireNonNull(timeout);
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
-        DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
-        groupComponents.memberManager.transferLeadership(nodeId, f, deadline);
+        groupComponents.memberManager.transferLeadership(nodeId, f, timeout);
         return f;
     }
 

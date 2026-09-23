@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -52,7 +51,7 @@ public class AdminTransferLeaderProcessor extends RaftProcessor<TransferLeaderRe
             throw new RaftException("old leader id mismatch");
         }
         CompletableFuture<Void> f = reqInfo.raftGroup.transferLeadership(req.newLeaderId,
-                reqInfo.reqContext.getTimeout().getTimeout(TimeUnit.MILLISECONDS));
+                reqInfo.reqContext.getTimeout());
         f.whenComplete((v, ex) -> {
             if (ex != null) {
                 log.error("transferLeadership failed, groupId={}, newLeaderId={}",
