@@ -58,8 +58,8 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
     boolean flushing;
     long flushTargetSeq;
     boolean flushForce;
-    // true while the active FlushAllRoundFrame anchors this queue (flushTargetSeq frozen)
-    boolean flushAllTarget;
+    // the seq the active flush-all round must force; -1 when not anchored
+    long flushAllTarget = -1;
 
     boolean needLoadHead;
     private FiberFuture<Void> loadFuture;
@@ -396,9 +396,6 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         // seq of the item the lazy read targets; guards against a stale result
         private long readSeq;
 
-        // true if this round gave up with an error; read by the flusher to schedule a retry
-        boolean failed;
-
         CleanupFrame() {
             this.firstValidPos = raftStatus.firstValidPos;
         }
@@ -417,16 +414,10 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                 if (head.lastItemPos == -1) {
                     return readItemPos(head, fileSize - MqIdxManager.ITEM_LEN, true);
                 }
-                if (head.lastItemPos >= firstValidPos) {
-                    return Fiber.frameReturn();
-                }
-                return Fiber.call(deleteFirstFile(), v -> Fiber.resume(null, this));
+                return deleteHead(head, head.lastItemPos);
             }
             if (queue.size() > 1) {
                 // the write file with files above (restart rewind): deferred until sealed
-                return Fiber.frameReturn();
-            }
-            if (flushing) {
                 return Fiber.frameReturn();
             }
             if (nextSeq <= posToSeq(queueStartPosition)) {
@@ -437,7 +428,15 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                 long offset = (nextSeq - 1 - posToSeq(queueStartPosition)) * MqIdxManager.ITEM_LEN;
                 return readItemPos(head, offset, false);
             }
-            if (lastItemPos >= firstValidPos) {
+            return deleteHead(head, lastItemPos);
+        }
+
+        private FrameCallResult deleteHead(MqIdxFile head, long headLastItemPos) {
+            if (headLastItemPos >= firstValidPos) {
+                return Fiber.frameReturn();
+            }
+            if (head.inUse()) {
+                // a reader holds the file: skip, a later round deletes it
                 return Fiber.frameReturn();
             }
             return Fiber.call(deleteFirstFile(), v -> Fiber.resume(null, this));
@@ -475,7 +474,6 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
             } else {
                 log.warn("mq idx item crc check fail, skip cleanup: {}+{}",
                         lf.getFile().getPath(), offsetInFile);
-                failed = true;
                 return Fiber.frameReturn();
             }
         }
@@ -497,7 +495,6 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             // keep the flusher loop alive; the files are left to a later round
-            failed = true;
             if (manager.markClose) {
                 // retry canceled by close, expected
                 log.warn("mq idx cleanup canceled by close: queue={}", queueId);
