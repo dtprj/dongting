@@ -159,6 +159,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         this.shutdown = true;
         wakeupApply();
         applyFinishCond.signalAll();
+        FiberFuture<Snapshot> f;
+        while ((f = takeSnapshotRequests.pollFirst()) != null) {
+            f.completeExceptionally(new RaftException("apply manager is stopped"));
+        }
         try {
             // start in InitFiberFrame
             stateMachine.stop(timeout);
@@ -419,8 +423,12 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     public FiberFuture<Snapshot> requestTakeSnapshot() {
         FiberFuture<Snapshot> future = fiberGroup.newFuture("take-snapshot");
-        takeSnapshotRequests.add(future);
-        wakeupApply();
+        if (shutdown) {
+            future.completeExceptionally(new RaftException("apply manager is stopped"));
+        } else {
+            takeSnapshotRequests.add(future);
+            wakeupApply();
+        }
         return future;
     }
 
@@ -677,17 +685,21 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
         @Override
         public FrameCallResult execute(Void v) {
-            if (raftStatus.installSnapshot) {
-                snapshotFuture.completeExceptionally(new RaftException("install snapshot"));
-                return Fiber.frameReturn();
+            if (shouldStopApply()) {
+                return stopTakeSnapshot();
             }
             return Fiber.call(new WaitApplyFrame(raftStatus.lastApplying), this::afterSync);
         }
 
+        @Override
+        protected FrameCallResult handle(Throwable ex) throws Throwable {
+            snapshotFuture.completeExceptionally(ex);
+            throw ex;
+        }
+
         private FrameCallResult afterSync(Void v) {
-            if (raftStatus.installSnapshot) {
-                snapshotFuture.completeExceptionally(new RaftException("install snapshot"));
-                return Fiber.frameReturn();
+            if (shouldStopApply()) {
+                return stopTakeSnapshot();
             }
             SnapshotInfo si = new SnapshotInfo(raftStatus);
             FiberFuture<Snapshot> f = stateMachine.takeSnapshot(si);
@@ -696,6 +708,11 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
         private FrameCallResult afterTake(Snapshot snapshot) {
             snapshotFuture.complete(snapshot);
+            return Fiber.frameReturn();
+        }
+
+        private FrameCallResult stopTakeSnapshot() {
+            snapshotFuture.completeExceptionally(new RaftException("apply manager is stopped"));
             return Fiber.frameReturn();
         }
     }
