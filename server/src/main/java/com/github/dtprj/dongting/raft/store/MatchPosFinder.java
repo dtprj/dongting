@@ -88,7 +88,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
             return Fiber.frameReturn();
         } else {
             if (tailCache.getFirstIndex() > 0) {
-                rightIndex = Math.min(tailCache.getFirstIndex(), rightIndex);
+                rightIndex = Math.min(tailCache.getFirstIndex() - 1, rightIndex);
             }
             this.leftIndex = logFile.firstIndex;
             this.leftTerm = logFile.firstTerm;
@@ -180,7 +180,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         checkCancel();
         if (pos >= logFile.endPos) {
             // the right index may not in the current logFile, because:
-            // 1, the first index of tail cache is not in the current logFile
+            // 1, the last written index before tail cache is not in the current logFile
             // 2, the suggest index is not in the current logFile, and tail cache is empty
             rightIndex = midIndex - 1;
             return Fiber.resume(null, this::loop);
