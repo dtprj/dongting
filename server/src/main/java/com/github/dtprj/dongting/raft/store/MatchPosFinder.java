@@ -178,6 +178,11 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
 
     private FrameCallResult posLoadComplete(Long pos) {
         checkCancel();
+        if (pos < logFile.startPos) {
+            BugLog.log("log pos {} less than file start pos {}, index={}", pos, logFile.startPos, midIndex);
+            rightIndex = midIndex - 1;
+            return Fiber.resume(null, this::loop);
+        }
         if (pos >= logFile.endPos) {
             // the right index may not in the current logFile, because:
             // 1, the last written index before tail cache is not in the current logFile

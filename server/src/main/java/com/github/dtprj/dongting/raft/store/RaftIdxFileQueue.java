@@ -430,6 +430,10 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
             }
             long pos = indexToPos(itemIndex);
             logFile = getLogFile(pos);
+            if (logFile == null) {
+                throw new RaftException("idx file not found: index=" + itemIndex + ", pos=" + pos
+                        + ", queueStart=" + queueStartPosition + ", queueEnd=" + queueEndPosition);
+            }
             if (logFile.isDeleted()) {
                 throw new RaftException("file deleted: " + logFile.getFile().getPath());
             }
