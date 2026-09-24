@@ -188,6 +188,12 @@ public class CommitManager {
         respQueue.addLast(writer);
     }
 
+    public void clearRespWriters() {
+        while (respQueue.size() > 0) {
+            respQueue.pollFirst();
+        }
+    }
+
     public interface AppendRespWriter {
         boolean writeResp(long lastPersistIndex);
     }

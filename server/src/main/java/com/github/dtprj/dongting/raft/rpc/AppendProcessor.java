@@ -441,6 +441,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
         raftStatus.lastForceLogIndex = matchIndex;
         raftStatus.lastLogIndex = matchIndex;
         raftStatus.lastLogTerm = matchTerm;
+        gc.commitManager.clearRespWriters();
         return doAppend(reqInfo.reqFrame.getBody());
     }
 
@@ -488,6 +489,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
             log.info("start install snapshot, groupId={}, lastIncludedIndex={}, lastIncludedTerm={}",
                     groupId, req.lastIncludedIndex, req.lastIncludedTerm);
             raftStatus.installSnapshot = true;
+            gc.commitManager.clearRespWriters();
             gc.applyManager.wakeupApply(); // wakeup apply fiber to exit
             gc.statusManager.persistAsync();
             markInstall = true;
