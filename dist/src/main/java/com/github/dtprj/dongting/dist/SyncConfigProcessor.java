@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.store.StatusFile;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -228,6 +229,7 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
         // atomic move to replace original file
         Files.move(tempFile.toPath(), serversFile.toPath(),
                 StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        StatusFile.forceDir(serversFile);
     }
 
     private void writeMembersInfo(StringBuilder sb, int groupId, MembersInfo info) {

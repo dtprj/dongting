@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +40,7 @@ import java.nio.file.OpenOption;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.CRC32C;
@@ -51,6 +53,8 @@ public class StatusFile {
 
     public static final int MAX_FILE_LEN = 4096;
     private static final int CRC_HEX_LENGTH = 8;
+    private static final boolean SUPPORT_DIR_FORCE =
+            !System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
 
     private final File file;
     private final FiberGroup fiberGroup;
@@ -210,12 +214,29 @@ public class StatusFile {
             fc.force(true);
             Files.move(tempFile.toPath(), file.toPath(),
                     StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            forceDir(file);
             f.fireComplete(null);
         } catch (Throwable e) {
             log.error("update status file", e);
             f.fireCompleteExceptionally(e);
         } finally {
             DtUtil.close(fc);
+        }
+    }
+
+    public static void forceDir(File file) throws IOException {
+        if (!SUPPORT_DIR_FORCE) {
+            return;
+        }
+        File dir = file.getParentFile();
+        if (dir == null) {
+            return;
+        }
+        FileChannel ch = FileChannel.open(dir.toPath(), StandardOpenOption.READ);
+        try {
+            ch.force(true);
+        } finally {
+            DtUtil.close(ch);
         }
     }
 
