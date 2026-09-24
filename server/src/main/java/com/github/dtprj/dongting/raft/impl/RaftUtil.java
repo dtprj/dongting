@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -152,7 +151,7 @@ public final class RaftUtil {
         raftStatus.setCurrentLeader(null);
         raftStatus.leaderCommit = 0;
 
-        raftStatus.commitHistory = new IndexedQueue<>(16);
+        raftStatus.commitHistory.clear();
         raftStatus.applyLagNanos = TimeUnit.DAYS.toNanos(1);
 
         // wake up replicate fiber if it is waiting on this condition

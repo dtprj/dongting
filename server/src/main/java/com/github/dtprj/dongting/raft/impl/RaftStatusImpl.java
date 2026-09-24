@@ -104,7 +104,7 @@ public final class RaftStatusImpl extends RaftStatus {
     public long lastWriteLogIndex;
     public long lastApplying;
 
-    public IndexedQueue<long[]> commitHistory = new IndexedQueue<>(16);
+    public final IndexedQueue<long[]> commitHistory = new IndexedQueue<>(16);
     public long applyLagNanos; // sampled update
     public long lastApplyNanos;
 

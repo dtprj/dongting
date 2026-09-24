@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.common;
 
+import java.util.Arrays;
+
 /**
  * @author huangli
  */
@@ -76,6 +78,22 @@ public class IndexedQueue<T> {
         writeIndex = index;
         size--;
         return element;
+    }
+
+    public void clear() {
+        if (size > 0) {
+            if (readIndex < writeIndex) {
+                Arrays.fill(elements, readIndex, writeIndex, null);
+            } else if (readIndex > writeIndex) {
+                Arrays.fill(elements, 0, writeIndex, null);
+                Arrays.fill(elements, readIndex, len, null);
+            } else {
+                Arrays.fill(elements, null);
+            }
+            readIndex = 0;
+            writeIndex = 0;
+            size = 0;
+        }
     }
 
     public T getFirst() {

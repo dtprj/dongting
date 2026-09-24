@@ -134,6 +134,73 @@ public class IndexedQueueTest {
     }
 
     @Test
+    public void testClear() {
+        deque.clear();
+        assertEquals(0, deque.size());
+
+        deque.addLast(1);
+        deque.addLast(2);
+        deque.addLast(3);
+        deque.clear();
+        assertEquals(0, deque.size());
+        assertNull(deque.pollFirst());
+        assertNull(deque.pollLast());
+
+        deque.addLast(4);
+        assertEquals(1, deque.size());
+        assertEquals(Integer.valueOf(4), deque.getFirst());
+        assertEquals(Integer.valueOf(4), deque.pollFirst());
+    }
+
+    @Test
+    public void testClearWithMovedReadIndex() {
+        for (int i = 0; i < 10; i++) {
+            deque.addLast(i);
+        }
+        for (int i = 0; i < 5; i++) {
+            deque.pollFirst();
+        }
+        for (int i = 10; i < 20; i++) {
+            deque.addLast(i);
+        }
+        assertEquals(15, deque.size());
+        for (int i = 0; i < 15; i++) {
+            assertEquals(Integer.valueOf(i + 5), deque.get(i));
+        }
+        deque.clear();
+        assertEquals(0, deque.size());
+
+        for (int i = 0; i < 5; i++) {
+            deque.addLast(i);
+        }
+        assertEquals(5, deque.size());
+        for (int i = 0; i < 5; i++) {
+            assertEquals(Integer.valueOf(i), deque.get(i));
+        }
+    }
+
+    @Test
+    public void testClearWhenFull() {
+        for (int i = 0; i < 16; i++) {
+            deque.addLast(i);
+        }
+        assertEquals(16, deque.size());
+        deque.clear();
+        assertEquals(0, deque.size());
+        for (Object e : deque.elements) {
+            assertNull(e);
+        }
+
+        for (int i = 0; i < 18; i++) {
+            deque.addLast(i);
+        }
+        assertEquals(18, deque.size());
+        for (int i = 0; i < 18; i++) {
+            assertEquals(Integer.valueOf(i), deque.get(i));
+        }
+    }
+
+    @Test
     public void testResizeWithMovedReadIndex() {
         for (int i = 0; i < 10; i++) {
             deque.addLast(i);

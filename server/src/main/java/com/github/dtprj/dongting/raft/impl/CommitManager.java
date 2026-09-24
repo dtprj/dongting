@@ -189,9 +189,7 @@ public class CommitManager {
     }
 
     public void clearRespWriters() {
-        while (respQueue.size() > 0) {
-            respQueue.pollFirst();
-        }
+        respQueue.clear();
     }
 
     public interface AppendRespWriter {
