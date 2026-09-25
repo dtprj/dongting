@@ -97,9 +97,8 @@ public final class TailCache {
         if (firstIndex < 0) {
             return;
         }
-        if (index < firstIndex) {
-            throw new IllegalArgumentException("index " + index + " is less than firstIndex " + firstIndex);
-        }
+        // index may be less than firstIndex after a restart; the loop below clears all entries,
+        // and throwing here leaves the caller's memory state inconsistent with truncated files
         if (index > getLastIndex()) {
             throw new IllegalArgumentException("index " + index + " is greater than lastIndex " + getLastIndex());
         }
