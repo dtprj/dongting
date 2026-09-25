@@ -439,7 +439,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                 // a reader holds the file: skip, a later round deletes it
                 return Fiber.frameReturn();
             }
-            return Fiber.call(deleteFirstFile(), v -> Fiber.resume(null, this));
+            return Fiber.call(deleteFirstFile(), this);
         }
 
         // returns the pos field of the item at offsetInFile, or null to give up this round

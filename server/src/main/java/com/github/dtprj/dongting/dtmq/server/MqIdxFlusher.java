@@ -488,7 +488,7 @@ class MqIdxFlusher {
                 walkQueue.pollFirst();
                 q.closeIdleFiles();
                 if (q.needRunCleanup(raftStatus.firstValidPos)) {
-                    return Fiber.call(q.createCleanupFrame(), v -> Fiber.resume(null, this));
+                    return Fiber.call(q.createCleanupFrame(), this);
                 }
             }
             return roundDoneCond.await(1000, this);
