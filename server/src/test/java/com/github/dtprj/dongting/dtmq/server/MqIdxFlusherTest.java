@@ -30,7 +30,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -79,11 +78,16 @@ class MqIdxFlusherTest extends BaseFiberTest {
         return ref.get();
     }
 
-    // dispatcher thread only; pos = seq * 10, timestamp = seq * 100, size = seq + 1; the
-    // returned future is ignored: no head load is pending at these call sites
+    // dispatcher thread only; the returned future is ignored: no head load is pending
+    // at these call sites
     private void appendItems(long queueId, int fromInclusive, int toExclusive) {
+        appendItems(queueId, 0, fromInclusive, toExclusive);
+    }
+
+    // pos = seq * 10 + base, so queues can map to disjoint log position ranges
+    private void appendItems(long queueId, long posBase, int fromInclusive, int toExclusive) {
         for (long seq = fromInclusive; seq < toExclusive; seq++) {
-            manager.appendAsync(queueId, seq * 10, seq * 100, (int) seq + 1);
+            manager.appendAsync(queueId, seq * 10 + posBase, seq * 100, (int) seq + 1);
         }
     }
 
@@ -99,8 +103,12 @@ class MqIdxFlusherTest extends BaseFiberTest {
         };
     }
 
+    private File idxFile(long queueId, long startPos) {
+        return new File(new File(dir, String.valueOf(queueId)), String.format("%020d", startPos));
+    }
+
     private byte[] readFile(long queueId, long startPos) throws Exception {
-        File f = new File(new File(dir, String.valueOf(queueId)), String.format("%020d", startPos));
+        File f = idxFile(queueId, startPos);
         assertTrue(f.exists());
         return Files.readAllBytes(f.toPath());
     }
@@ -118,6 +126,42 @@ class MqIdxFlusherTest extends BaseFiberTest {
             crc.update(data, off, MqIdxManager.ITEM_LEN - 4);
             assertEquals((int) crc.getValue(), buf.getInt(off + 28), "crc of seq " + seq);
         }
+    }
+
+    @Test
+    void testCleanupDeferredUntilForced() throws Exception {
+        manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                manager.start();
+                // the threshold round writes seq 0..127 with a mid-file batch: no force
+                appendItems(1, 0, 128);
+                MqIdxQueue q = manager.get(1);
+                return Fiber.call(waitUntil(() -> q.writeFinishSeq >= 127 && !q.flushing),
+                        this::afterFlush);
+            }
+
+            private FrameCallResult afterFlush(Void v) {
+                MqIdxQueue q = manager.get(1);
+                assertEquals(-1, q.forceFinishSeq);
+                // the whole queue is below firstValidPos; the dirty tail must hold off
+                // deletion until the flush-all force discharges it
+                raftStatus.firstValidPos = 1280;
+                return manager.flusher.flushAll().await(this::afterFlushAll);
+            }
+
+            private FrameCallResult afterFlushAll(Void v) {
+                // the anchored round found its file intact and forced the tail
+                assertEquals(127, manager.get(1).forceFinishSeq);
+                return Fiber.call(waitUntil(() -> !idxFile(1, 0).exists()), this::afterCleanup);
+            }
+
+            private FrameCallResult afterCleanup(Void v) {
+                return manager.close().await(this::justReturn);
+            }
+        });
     }
 
     @Test
@@ -223,6 +267,61 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 MqIdxQueue q = manager.get(1);
                 assertEquals(127, q.writeFinishSeq);
                 assertEquals(127, q.forceFinishSeq);
+                assertFalse(q.isDirty());
+                return manager.close().await(this::justReturn);
+            }
+        });
+    }
+
+    @Test
+    void testFlushAllUpgradesRunningRound() throws Exception {
+        config.ioRetryInterval = new int[]{20, 20, 20, 20, 20, 20, 20, 20};
+        manager = createManager();
+        doInFiber(new FiberFrame<>() {
+            private FiberFuture<Void> flushFut1;
+            private FiberFuture<Void> flushFut2;
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                manager.start();
+                // occupy the second idx file path with a directory: the round's file
+                // allocation keeps failing, so the round (target 299) stays in flight
+                assertTrue(idxFile(1, FILE_SIZE).mkdirs());
+                appendItems(1, 0, 300);
+                MqIdxQueue q = manager.get(1);
+                // monotonic and stable while the round sits in the alloc retry loop
+                return Fiber.call(waitUntil(() -> q.flushing && q.writeFinishSeq >= 255),
+                        this::anchor);
+            }
+
+            private FrameCallResult anchor(Void v) {
+                appendItems(1, 0, 300, 512);
+                // the first flush-all anchors target 511: the stuck round (target 299)
+                // must be upgraded to it, otherwise the waiter never completes
+                flushFut1 = manager.flusher.flushAll();
+                MqIdxQueue q = manager.get(1);
+                return Fiber.call(waitUntil(() -> q.flushForce && q.flushTargetSeq >= 511),
+                        this::secondRound);
+            }
+
+            private FrameCallResult secondRound(Void v) {
+                // the second request arrives while the first round is still in flight:
+                // its waiter must ride a fresh round and see the newer data forced
+                appendItems(1, 0, 512, 556);
+                flushFut2 = manager.flusher.flushAll();
+                // the loop has upgraded the round; free the path for the alloc retry
+                assertTrue(idxFile(1, FILE_SIZE).delete());
+                return flushFut1.await(this::afterFirst);
+            }
+
+            private FrameCallResult afterFirst(Void v) {
+                return flushFut2.await(this::afterSecond);
+            }
+
+            private FrameCallResult afterSecond(Void v) {
+                MqIdxQueue q = manager.get(1);
+                assertEquals(555, q.forceFinishSeq);
+                assertEquals(555, q.writeFinishSeq);
                 assertFalse(q.isDirty());
                 return manager.close().await(this::justReturn);
             }
@@ -365,7 +464,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 // 128 pending items never cross the threshold, so no round is ever requested
                 appendItems(1, 0, 128);
                 MqIdxQueue q = manager.get(1);
-                assertFalse(q.roundRequested);
+                assertFalse(q.flushQueued);
                 assertFalse(q.flushing);
                 assertEquals(-1, q.writeFinishSeq);
                 return manager.close().await(this::justReturn);
@@ -390,6 +489,46 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 // the second queue is deferred by the concurrency cap, both complete eventually
                 assertEquals(99, manager.get(1).forceFinishSeq);
                 assertEquals(99, manager.get(2).forceFinishSeq);
+                return manager.close().await(this::justReturn);
+            }
+        });
+    }
+
+    @Test
+    void testThresholdRoundConcurrencyCap() throws Exception {
+        config.mqIdxFlushAllConcurrency = 1;
+        config.ioRetryInterval = new int[]{20, 20, 20, 20, 20, 20, 20, 20};
+        manager = createManager();
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                manager.start();
+                // occupy the second idx file path with a directory: the round of q1
+                // sticks in the file-alloc retry loop and holds the only round slot
+                assertTrue(idxFile(1, FILE_SIZE).mkdirs());
+                appendItems(1, 0, 300);
+                MqIdxQueue q1 = manager.get(1);
+                return Fiber.call(waitUntil(() -> q1.flushing && q1.writeFinishSeq >= 255),
+                        this::afterStuck);
+            }
+
+            private FrameCallResult afterStuck(Void v) {
+                // q2 crosses the threshold, but its request only queues behind the stuck round
+                appendItems(2, 0, 128);
+                MqIdxQueue q2 = manager.get(2);
+                return Fiber.call(waitUntil(() -> q2.flushQueued), this::afterQueued);
+            }
+
+            private FrameCallResult afterQueued(Void v) {
+                assertFalse(manager.get(2).flushing);
+                assertTrue(idxFile(1, FILE_SIZE).delete());
+                MqIdxQueue q2 = manager.get(2);
+                return Fiber.call(waitUntil(() -> q2.writeFinishSeq >= 127 && !q2.flushing),
+                        this::afterQ2);
+            }
+
+            private FrameCallResult afterQ2(Void v) {
+                assertEquals(299, manager.get(1).writeFinishSeq);
                 return manager.close().await(this::justReturn);
             }
         });
@@ -438,7 +577,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 manager.start();
                 appendItems(1, 0, 300);
                 // occupy the second idx file path with a directory, so allocation keeps failing
-                File bad = new File(new File(dir, "1"), String.format("%020d", FILE_SIZE));
+                File bad = idxFile(1, FILE_SIZE);
                 assertTrue(bad.mkdirs());
                 flushFut = manager.flusher.flushAll();
                 return Fiber.call(waitUntil(flushFut::isDone), this::afterFail);
@@ -534,20 +673,10 @@ class MqIdxFlusherTest extends BaseFiberTest {
         assertThrows(RaftException.class, () -> manager.register(1, 400));
     }
 
-    private File idxFile(long queueId, long startPos) {
-        return new File(new File(dir, String.valueOf(queueId)), String.format("%020d", startPos));
-    }
-
-    // pos = seq * 10 + base, so queues can map to disjoint log position ranges
-    private void appendItems(long queueId, long posBase, int fromInclusive, int toExclusive) {
-        for (long seq = fromInclusive; seq < toExclusive; seq++) {
-            manager.appendAsync(queueId, seq * 10 + posBase, seq * 100, (int) seq + 1);
-        }
-    }
-
     @Test
     void testCleanupDeleteHeadFiles() throws Exception {
         manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -555,6 +684,8 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 appendItems(1, 0, 0, 768);
                 appendItems(2, 100_000, 0, 300);
                 appendItems(3, 0, 0, 300);
+                // the last item pos of q4 f0 is exactly 5120: the keep boundary
+                appendItems(4, 2570, 0, 256);
                 return manager.flusher.flushAll().await(this::afterFlush);
             }
 
@@ -566,8 +697,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 assertEquals(5110, q1.getLogFile(FILE_SIZE).lastItemPos);
                 assertEquals(7670, q1.getLogFile(2 * FILE_SIZE).lastItemPos);
                 raftStatus.firstValidPos = 5120;
-                // cleanup trails the flush inside the round frame: wait for the deletions
-                manager.flusher.flushAll();
+                // the clean cycle repeats per interval: wait for the deepest expected deletion
                 return Fiber.call(waitUntil(() -> !idxFile(1, FILE_SIZE).exists()
                         && !idxFile(3, FILE_SIZE).exists()), this::afterCleanup);
             }
@@ -587,6 +717,8 @@ class MqIdxFlusherTest extends BaseFiberTest {
         // the queue stopped writing mid-file) is deleted too
         assertFalse(idxFile(3, 0).exists());
         assertFalse(idxFile(3, FILE_SIZE).exists());
+        // queue 4: last item pos equals firstValidPos exactly, kept
+        assertTrue(idxFile(4, 0).exists());
         // cached blocks of deleted files still hit
         assertEquals(100, manager.getIdxItemInCache(1, 10));
         assertEquals(1000, manager.getIdxItemInCache(1, 100));
@@ -596,34 +728,9 @@ class MqIdxFlusherTest extends BaseFiberTest {
     }
 
     @Test
-    void testCleanupBoundary() throws Exception {
-        manager = createManager();
-        doInFiber(new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                manager.start();
-                appendItems(1, 0, 0, 512);
-                return manager.flusher.flushAll().await(this::afterFlush);
-            }
-
-            private FrameCallResult afterFlush(Void v) {
-                // last item pos of f0 is exactly 2550: not below firstValidPos, kept
-                raftStatus.firstValidPos = 2550;
-                // await returns only after the round frame (incl. cleanup walk) completed
-                return manager.flusher.flushAll().await(this::afterCleanup);
-            }
-
-            private FrameCallResult afterCleanup(Void v) {
-                return manager.close().await(this::justReturn);
-            }
-        });
-        assertTrue(idxFile(1, 0).exists());
-        assertTrue(idxFile(1, FILE_SIZE).exists());
-    }
-
-    @Test
     void testCleanupAfterRestart() throws Exception {
         manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -640,28 +747,30 @@ class MqIdxFlusherTest extends BaseFiberTest {
         // restart-like: register rewinds to nextSeq 300; initQueue attached both files, so
         // f0 is a sealed head and f1 is the single write file
         manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 manager.start();
                 manager.register(1, 300);
                 raftStatus.firstValidPos = 2560;
-                manager.flusher.flushAll();
-                // f0 (last item 2550) deleted; f1 kept: lastItemPos is unknown after the
-                // restart, the lazy read finds item 299 at pos 2990
+                // f0 (last item 2550) is deleted by the repeating clean cycles; f1 is kept:
+                // lastItemPos is unknown after the restart, the lazy read finds item 299
+                // at pos 2990
                 return Fiber.call(waitUntil(() -> !idxFile(1, 0).exists()), this::afterCleanup);
             }
 
             private FrameCallResult afterCleanup(Void v) {
-                assertTrue(idxFile(1, FILE_SIZE).exists());
                 return manager.close().await(this::justReturn);
             }
         });
+        assertTrue(idxFile(1, FILE_SIZE).exists());
     }
 
     @Test
     void testReviveAfterAllFilesDeleted() throws Exception {
         manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -673,7 +782,6 @@ class MqIdxFlusherTest extends BaseFiberTest {
             private FrameCallResult afterFlush(Void v) {
                 // both files deleted: the write point is beyond f1, both are sealed heads
                 raftStatus.firstValidPos = 5120;
-                manager.flusher.flushAll();
                 return Fiber.call(waitUntil(() -> !idxFile(1, FILE_SIZE).exists()),
                         this::afterCleanup);
             }
@@ -687,6 +795,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
 
         // revive like a restart: the file is lazily re-created at the same name
         manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -708,6 +817,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
     @Test
     void testCleanupCrcCheckFail() throws Exception {
         manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -721,13 +831,12 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
         });
 
-        // corrupt the last item of f0 in place: the crc check makes the round give up on
+        // corrupt the last item of f0 in place: the crc check makes cleanup give up on
         // this queue
-        byte[] orig = new byte[MqIdxManager.ITEM_LEN];
+        byte[] bad = new byte[MqIdxManager.ITEM_LEN];
         try (RandomAccessFile raf = new RandomAccessFile(idxFile(1, 0), "rw")) {
             raf.seek(FILE_SIZE - MqIdxManager.ITEM_LEN);
-            raf.readFully(orig);
-            byte[] bad = orig.clone();
+            raf.readFully(bad);
             for (int i = 0; i < bad.length; i++) {
                 bad[i] ^= 0x5a;
             }
@@ -737,98 +846,45 @@ class MqIdxFlusherTest extends BaseFiberTest {
 
         // revive like a restart: a file sealed by the previous process carries its last
         // item pos in memory and skips the read-back, so the corrupted item must live in
-        // a freshly loaded file to hit the crc check
+        // a freshly loaded file to hit the crc check. q2 is the sentinel proving the
+        // clean cycle ran
         manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 manager.start();
                 manager.register(1, 512);
-                raftStatus.firstValidPos = 5120;
-                return manager.flusher.flushAll().await(this::afterFailedRound);
-            }
-
-            private FrameCallResult afterFailedRound(Void v) {
-                // the read-back ran but the crc check failed: lastItemPos stays unknown,
-                // nothing is deleted, and the loop stays alive
-                assertTrue(idxFile(1, 0).exists());
-                assertTrue(idxFile(1, FILE_SIZE).exists());
-                assertEquals(-1, manager.get(1).getLogFile(0).lastItemPos);
-                try {
-                    try (RandomAccessFile raf = new RandomAccessFile(idxFile(1, 0), "rw")) {
-                        raf.seek(FILE_SIZE - MqIdxManager.ITEM_LEN);
-                        raf.write(orig);
-                    }
-                } catch (IOException e) {
-                    throw new RaftException(e);
-                }
-                // no retry state anywhere: the next round retries cleanup by itself
-                manager.flusher.flushAll();
-                return Fiber.call(waitUntil(() -> !idxFile(1, FILE_SIZE).exists()),
-                        this::afterRetry);
-            }
-
-            private FrameCallResult afterRetry(Void v) {
-                assertFalse(idxFile(1, 0).exists());
-                return manager.close().await(this::justReturn);
-            }
-        });
-    }
-
-    @Test
-    void testFlushAllUpgradesRunningRound() throws Exception {
-        config.ioRetryInterval = new int[]{500, 500, 500, 500};
-        manager = createManager();
-        doInFiber(new FiberFrame<>() {
-            private FiberFuture<Void> flushFut;
-
-            @Override
-            public FrameCallResult execute(Void input) {
-                manager.start();
-                // occupy the second idx file path with a directory: the round's file
-                // allocation keeps failing, so the round (target 299) stays in flight
-                assertTrue(idxFile(1, FILE_SIZE).mkdirs());
-                appendItems(1, 0, 300);
-                MqIdxQueue q = manager.get(1);
-                // monotonic and stable while the round sits in the alloc retry loop
-                return Fiber.call(waitUntil(() -> q.flushing && q.writeFinishSeq >= 255),
-                        this::anchor);
-            }
-
-            private FrameCallResult anchor(Void v) {
-                appendItems(1, 0, 300, 428);
-                // anchors target 427: the stuck round (target 299) must be raised to it,
-                // otherwise the obligation never completes and the waiter hangs
-                flushFut = manager.flusher.flushAll();
-                MqIdxQueue q = manager.get(1);
-                return Fiber.call(waitUntil(() -> q.flushForce && q.flushTargetSeq >= 427),
-                        this::unblock);
-            }
-
-            private FrameCallResult unblock(Void v) {
-                // the walk has upgraded the round; free the path for the alloc retry
-                assertTrue(idxFile(1, FILE_SIZE).delete());
-                return flushFut.await(this::afterFlushAll);
+                appendItems(2, 0, 100);
+                return manager.flusher.flushAll().await(this::afterFlushAll);
             }
 
             private FrameCallResult afterFlushAll(Void v) {
-                MqIdxQueue q = manager.get(1);
-                assertEquals(427, q.forceFinishSeq);
-                assertEquals(427, q.writeFinishSeq);
-                assertFalse(q.isDirty());
+                raftStatus.firstValidPos = 5120;
+                return Fiber.call(waitUntil(() -> !idxFile(2, 0).exists()), this::afterCleanup);
+            }
+
+            private FrameCallResult afterCleanup(Void v) {
                 return manager.close().await(this::justReturn);
             }
         });
+        // the read-back runs every cycle but the crc check fails: lastItemPos stays
+        // unknown, nothing is deleted, and the loop stays alive
+        assertTrue(idxFile(1, 0).exists());
+        assertTrue(idxFile(1, FILE_SIZE).exists());
+        assertEquals(-1, manager.get(1).getLogFile(0).lastItemPos);
     }
 
     @Test
     void testCleanupSkipInUseFile() throws Exception {
         manager = createManager();
+        manager.flusher.cleanIntervalMillis = 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 manager.start();
                 appendItems(1, 0, 512);
+                appendItems(2, 0, 100);
                 return manager.flusher.flushAll().await(this::afterFlush);
             }
 
@@ -836,15 +892,14 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 // simulate an mq reader holding the head file
                 manager.get(1).getLogFile(0).incReaders();
                 raftStatus.firstValidPos = 5120;
-                // await returns only after the round frame (incl. cleanup walk) completed
-                return manager.flusher.flushAll().await(this::afterHeldRound);
+                // q2 is deletable: its deletion proves a full clean cycle ran
+                return Fiber.call(waitUntil(() -> !idxFile(2, 0).exists()), this::afterHeldCycle);
             }
 
-            private FrameCallResult afterHeldRound(Void v) {
-                // the held file is skipped instead of blocking the round
+            private FrameCallResult afterHeldCycle(Void v) {
+                // the held file is skipped instead of blocking cleanup
                 assertTrue(idxFile(1, 0).exists());
                 manager.get(1).getLogFile(0).decReaders();
-                manager.flusher.flushAll();
                 return Fiber.call(waitUntil(() -> !idxFile(1, FILE_SIZE).exists()),
                         this::afterRelease);
             }

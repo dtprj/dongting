@@ -54,8 +54,6 @@ public class RaftGroupConfig {
     public int mqIdxFlushThreshold = 1024;
     public long mqIdxFlushIntervalMillis = 60_000;
     public int mqIdxFlushBatchItems = 32 * 1024; // 1MB per write batch
-    // max concurrent in-flight flush rounds; flush-all counts trigger rounds against this
-    // quota, but trigger rounds themselves are not throttled (backpressure is not implemented)
     public int mqIdxFlushAllConcurrency = 8;
 
     public PerfCallback perfCallback = new DefaultRaftPerf();

@@ -66,8 +66,8 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
 
     // pos of the last appended item (seq nextSeq-1); -1 unknown after a restart
     private long lastItemPos = -1;
-    // true while a threshold request for this queue sits in the flusher's request queue
-    boolean roundRequested;
+
+    boolean flushQueued;
 
     final IndexedQueue<MqIdxBlock> blocks = new IndexedQueue<>(2);
 
@@ -248,40 +248,6 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         return forceFinishSeq < nextSeq - 1;
     }
 
-    // true if the write point is beyond the head file, i.e. all its items are flushed
-    // and its content is frozen
-    private boolean isHeadFileSealed() {
-        return queueStartPosition < startPosOfFile(seqToPos(writeFinishSeq + 1));
-    }
-
-    // true if the cleanup frame must run: head unknown, or the head is deletable
-    boolean needRunCleanup(long firstValidPos) {
-        if (queue.size() == 0) {
-            return false;
-        }
-        if (isHeadFileSealed()) {
-            long firstFileLastItemPos = queue.get(0).lastItemPos;
-            return firstFileLastItemPos == -1 || firstFileLastItemPos < firstValidPos;
-        }
-        if (queue.size() > 1) {
-            // the head is the write file with files above (restart rewind): not deletable
-            // in place; it becomes a sealed head once the write point moves past it
-            return false;
-        }
-        long firstSeq = posToSeq(queueStartPosition);
-        if (nextSeq <= firstSeq) {
-            // the restored write point sits at the file start: replay re-appends and the
-            // file is rewritten in place; strictly below is impossible, deleting lower
-            // files requires the snapshot to cover them
-            if (nextSeq < firstSeq) {
-                BugLog.log("write point below head file: queue=" + queueId + ", nextSeq="
-                        + nextSeq + ", firstSeq=" + firstSeq);
-            }
-            return false;
-        }
-        return lastItemPos == -1 || lastItemPos < firstValidPos;
-    }
-
     FiberFuture<Void> close() {
         markClose = true;
         return stopFileQueue();
@@ -382,8 +348,39 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         }
     }
 
-    CleanupFrame createCleanupFrame() {
-        return new CleanupFrame();
+    private boolean isHeadFileSealed() {
+        return queueStartPosition < startPosOfFile(seqToPos(forceFinishSeq + 1));
+    }
+
+    // true if the cleanup frame must run: head unknown, or the head is deletable
+    boolean needRunCleanup(long firstValidPos) {
+        if (queue.size() == 0) {
+            return false;
+        }
+        if (isHeadFileSealed()) {
+            long firstFileLastItemPos = queue.get(0).lastItemPos;
+            return firstFileLastItemPos == -1 || firstFileLastItemPos < firstValidPos;
+        }
+        if (queue.size() > 1) {
+            // the head is the write file with files above (restart rewind): not deletable
+            // in place; it becomes a sealed head once the write point moves past it
+            return false;
+        }
+        if (isDirty()) {
+            return false;
+        }
+        long firstSeq = posToSeq(queueStartPosition);
+        if (nextSeq <= firstSeq) {
+            // the restored write point sits at the file start: replay re-appends and the
+            // file is rewritten in place; strictly below is impossible, deleting lower
+            // files requires the snapshot to cover them
+            if (nextSeq < firstSeq) {
+                BugLog.log("write point below head file: queue=" + queueId + ", nextSeq="
+                        + nextSeq + ", firstSeq=" + firstSeq);
+            }
+            return false;
+        }
+        return lastItemPos == -1 || lastItemPos < firstValidPos;
     }
 
     class CleanupFrame extends FiberFrame<Void> {
@@ -415,6 +412,9 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                     return readItemPos(head, fileSize - MqIdxManager.ITEM_LEN, true);
                 }
                 return deleteHead(head, head.lastItemPos);
+            }
+            if (isDirty()) {
+                return Fiber.frameReturn();
             }
             if (queue.size() > 1) {
                 // the write file with files above (restart rewind): deferred until sealed
