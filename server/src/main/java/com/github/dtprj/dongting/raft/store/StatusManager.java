@@ -108,9 +108,14 @@ public class StatusManager {
         };
     }
 
-    public FiberFuture<Void> close() {
+    // saveOnClose=false skips the final persist, stale status in the file is always safe
+    public FiberFuture<Void> close(boolean saveOnClose) {
         closed = true;
-        persistAsync();
+        if (saveOnClose) {
+            persistAsync();
+        } else {
+            needUpdateCondition.signalAll();
+        }
         if (updateFiber.isStarted()) {
             return updateFiber.join();
         } else {

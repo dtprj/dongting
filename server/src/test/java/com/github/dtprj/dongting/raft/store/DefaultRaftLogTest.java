@@ -116,7 +116,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<Void> f1 = raftLog.close();
-                FiberFuture<Void> f2 = statusManager.close();
+                FiberFuture<Void> f2 = statusManager.close(true);
                 return FiberFuture.allOf("close", f1, f2).await(this::justReturn);
             }
         });
@@ -230,7 +230,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
 
             private FrameCallResult resume(Void unused) {
-                return statusManager.close().await(this::justReturn);
+                return statusManager.close(true).await(this::justReturn);
             }
         });
 
@@ -313,7 +313,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 }
 
                 private FrameCallResult resume(Void unused) {
-                    return statusManager.close().await(this::justReturn);
+                    return statusManager.close(true).await(this::justReturn);
                 }
             });
 

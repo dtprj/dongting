@@ -108,7 +108,7 @@ public class RaftIdxFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterFlushFinish(Void unused) {
-                return statusManager.close().await(this::justReturn);
+                return statusManager.close(true).await(this::justReturn);
             }
         });
     }
@@ -258,7 +258,7 @@ public class RaftIdxFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterIdxClose(Void unused) {
-                return statusManager.close().await(this::justReturn);
+                return statusManager.close(true).await(this::justReturn);
             }
         });
         raftIdxFileQueue = createFileQueue();
@@ -316,7 +316,7 @@ public class RaftIdxFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterFlushFinish(Void unused) {
-                return statusManager.close().await(this::justReturn);
+                return statusManager.close(true).await(this::justReturn);
             }
         });
 
@@ -372,7 +372,7 @@ public class RaftIdxFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterUpdateStatus(Void unused) {
-                return statusManager.close().await(this::justReturn);
+                return statusManager.close(true).await(this::justReturn);
             }
         });
 

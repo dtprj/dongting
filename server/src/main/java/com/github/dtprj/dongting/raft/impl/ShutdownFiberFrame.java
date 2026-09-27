@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.RaftFactory;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -40,6 +41,8 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
 
     public DtTime timeout = new DtTime(30, TimeUnit.SECONDS);
     public boolean saveSnapshot;
+
+    private boolean error;
 
     public ShutdownFiberFrame(RaftGroupImpl g) {
         this.g = g;
@@ -69,26 +72,66 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
     @Override
     public FrameCallResult execute(Void input) {
         gc.raftStatus.needRepCondition.signalAll();
-        FiberFuture<Long> f;
-        if (saveSnapshot && gc.raftStatus.isInitFinished() && !gc.raftStatus.isInitFailed()) {
-            f = gc.snapshotManager.saveSnapshot();
-        } else {
-            f = FiberFuture.completedFuture(getFiberGroup(), 0L);
-        }
-        return f.await(this::afterSaveSnapshot);
+        return Fiber.call(new AwaitFutureFrame<>("saveSnapshot", () -> {
+            if (saveSnapshot && gc.raftStatus.isInitFinished() && !gc.raftStatus.isInitFailed()) {
+                return gc.snapshotManager.saveSnapshot();
+            } else {
+                return FiberFuture.completedFuture(getFiberGroup(), 0L);
+            }
+        }), this::afterSaveSnapshot);
     }
 
-    private FrameCallResult afterSaveSnapshot(Long notUsed) {
-        gc.snapshotManager.stopFiber();
-        return gc.applyManager.shutdown().await(this::afterApplyManagerShutdown);
+    private void markError(Throwable e, String step) {
+        error = true;
+        log.error("{} failed during shutdown, groupId={}", step, g.getGroupId(), e);
+    }
+
+    private FrameCallResult afterSaveSnapshot(Long ignored) {
+        try {
+            gc.snapshotManager.stopFiber();
+        } catch (Throwable e) {
+            markError(e, "stopSnapshotFiber");
+        }
+        return Fiber.call(new AwaitFutureFrame<>("applyManagerShutdown",
+                () -> gc.applyManager.shutdown()), this::afterApplyManagerShutdown);
     }
 
     private FrameCallResult afterApplyManagerShutdown(Void unused) {
-        return gc.raftLog.close().await(this::afterRaftLogClose);
+        return Fiber.call(new AwaitFutureFrame<>("raftLogClose", () -> gc.raftLog.close()),
+                this::afterRaftLogClose);
     }
 
     private FrameCallResult afterRaftLogClose(Void unused) {
-        g.groupComponents.raftStatus.tailCache.cleanAll();
-        return g.groupComponents.statusManager.close().await(this::justReturn);
+        try {
+            gc.raftStatus.tailCache.cleanAll();
+        } catch (Throwable e) {
+            markError(e, "cleanTailCache");
+        }
+        // if any error occurred, skip the final status persist; stale status in the file is always safe
+        return Fiber.call(new AwaitFutureFrame<>("statusManagerClose",
+                () -> gc.statusManager.close(!error)), this::justReturn);
+    }
+
+    // a frame's handle() only catches the first exception, so each step uses a new AwaitFutureFrame
+    private class AwaitFutureFrame<O> extends FiberFrame<O> {
+        private final String step;
+        private final Supplier<FiberFuture<O>> futureSupplier;
+
+        AwaitFutureFrame(String step, Supplier<FiberFuture<O>> futureSupplier) {
+            super(step);
+            this.step = step;
+            this.futureSupplier = futureSupplier;
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            return futureSupplier.get().await(this::justReturn);
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            markError(ex, step);
+            return Fiber.frameReturn();
+        }
     }
 }

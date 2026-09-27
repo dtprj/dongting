@@ -88,7 +88,7 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             @Override
             protected FrameCallResult doFinally() {
-                return statusManager.close().await(this::justReturn);
+                return statusManager.close(true).await(this::justReturn);
             }
         });
         check();
@@ -117,7 +117,7 @@ public class StatusManagerTest extends BaseFiberTest {
                 g.shutdownCallback = new FiberFrame<>() {
                     @Override
                     public FrameCallResult execute(Void input) {
-                        return statusManager.close().await(this::justReturn);
+                        return statusManager.close(true).await(this::justReturn);
                     }
                 };
                 return Fiber.call(statusManager.initStatusFile(), this::afterInit);
@@ -168,7 +168,7 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             @Override
             protected FrameCallResult doFinally() {
-                return statusManager.close().await(this::justReturn);
+                return statusManager.close(true).await(this::justReturn);
             }
         });
         check();
@@ -193,7 +193,7 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             @Override
             protected FrameCallResult doFinally() {
-                return statusManager.close().await(this::justReturn);
+                return statusManager.close(true).await(this::justReturn);
             }
         });
         check();
