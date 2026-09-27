@@ -285,17 +285,14 @@ public final class DefaultRaftLog implements RaftLog {
             // init() was not called or failed before createFiles()
             return FiberFuture.completedFuture(fiberGroup, null);
         }
-        FiberFuture<Void> f1 = logFiles.close();
-        FiberFuture<Void> f2 = idxFiles.close();
+        FiberFuture<Void> closeFuture = FiberFuture.allOf("logClose", logFiles.close(), idxFiles.close());
         if (deleteFrame != null) {
-            return FiberFuture.allOf("logClose", f1, f2).compose("deleteFiberJoin", v -> {
+            closeFuture.registerCallback((v, ex) -> {
                 deleteFrame.stopRequested = true;
                 deleteFrame.delCond.signal();
-                return deleteFrame.getFiber().join();
             });
-        } else {
-            return FiberFuture.allOf("logClose", f1, f2);
         }
+        return closeFuture;
     }
 
     private class QueueDeleteFiberFrame extends FiberFrame<Void> {
