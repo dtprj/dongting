@@ -62,7 +62,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public class DtKV extends AbstractLifeCircle implements StateMachine {
+public class DtKV implements StateMachine {
 
     private static final DtLog log = DtLogs.getLogger(DtKV.class);
 
@@ -100,6 +100,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     volatile KvStatus kvStatus;
     private EncodeStatus encodeStatus;
+    private volatile boolean stopped;
 
     final ServerWatchManager watchManager;
     final TtlManager ttlManager;
@@ -341,7 +342,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    protected void doStart() {
+    public FiberFuture<Void> start() {
         dtkvExecutor.start();
         // ignore submit failure (stopped)
         dtkvExecutor.startDaemonTask("watch-dispatch", new DtKVExecutor.DtKVExecutorTask() {
@@ -359,8 +360,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
             @Override
             protected boolean shouldStop() {
-                return config.raftServer.getStatus() > AbstractLifeCircle.STATUS_RUNNING ||
-                        DtKV.this.status > AbstractLifeCircle.STATUS_RUNNING;
+                return stopped || config.raftServer.getStatus() > AbstractLifeCircle.STATUS_RUNNING;
             }
 
             @Override
@@ -387,6 +387,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             return Fiber.sleep(LOG_DELETE_CHECK_MILLIS, frame);
         }));
         markDeleteFiber.setDaemon(true).start();
+        return FiberFuture.completedFuture(mainFiberGroup, null);
     }
 
     private boolean dispatchWatchTask() {
@@ -399,10 +400,14 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    protected void doStop(DtTime timeout, boolean force) {
-        // assert submit result is true
-        dtkvExecutor.submitTaskInFiberThread(() -> ttlManager.stop = true);
-        dtkvExecutor.stop();
+    public FiberFuture<Void> stop() {
+        if (!stopped) {
+            stopped = true;
+            // assert submit result is true
+            dtkvExecutor.submitTaskInFiberThread(() -> ttlManager.stop = true);
+            dtkvExecutor.stop();
+        }
+        return FiberFuture.completedFuture(mainFiberGroup, null);
     }
 
     private synchronized void updateStatus(boolean installSnapshot, KvImpl kvImpl) {

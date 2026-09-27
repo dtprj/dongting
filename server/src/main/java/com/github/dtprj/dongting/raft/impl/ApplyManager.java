@@ -155,7 +155,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         flowControlCond.signalAll();
     }
 
-    public void shutdown(DtTime timeout) {
+    public FiberFuture<Void> shutdown() {
         this.shutdown = true;
         wakeupApply();
         applyFinishCond.signalAll();
@@ -163,13 +163,9 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         while ((f = takeSnapshotRequests.pollFirst()) != null) {
             f.completeExceptionally(new RaftException("apply manager is stopped"));
         }
-        try {
-            // start in InitFiberFrame
-            stateMachine.stop(timeout);
-        } catch (Throwable e) {
-            log.error("state machine stop failed", e);
-        }
         processWaitGroupReadyQueue(false, true);
+        // start in InitFiberFrame
+        return stateMachine.stop();
     }
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {

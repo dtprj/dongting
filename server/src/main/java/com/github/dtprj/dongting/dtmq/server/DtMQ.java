@@ -17,9 +17,7 @@ package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtBugException;
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.SimpleFrame;
@@ -42,7 +40,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class DtMQ extends AbstractLifeCircle implements StateMachine {
+public class DtMQ implements StateMachine {
 
     private static final DtLog log = DtLogs.getLogger(DtMQ.class);
 
@@ -149,7 +147,7 @@ public class DtMQ extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    protected void doStart() {
+    public FiberFuture<Void> start() {
         mqIdxDir = new File(groupConfig.dataDir, MQ_IDX_DIR);
         manager = new MqIdxManager(groupConfig, mqIdxDir);
         manager.start();
@@ -165,17 +163,15 @@ public class DtMQ extends AbstractLifeCircle implements StateMachine {
             return Fiber.sleep(LOG_RETENTION_CHECK_MILLIS, frame);
         }));
         f.setDaemon(true).start();
+        return FiberFuture.completedFuture(groupConfig.fiberGroup, null);
     }
 
     @Override
-    protected void doStop(DtTime timeout, boolean force) {
+    public FiberFuture<Void> stop() {
         MqIdxManager m = manager;
-        if (m != null) {
-            m.close().registerCallback((v, ex) -> {
-                if (ex != null) {
-                    log.error("mq idx close fail, groupId={}", groupConfig.groupId, ex);
-                }
-            });
+        if (m == null) {
+            return FiberFuture.completedFuture(groupConfig.fiberGroup, null);
         }
+        return m.close();
     }
 }

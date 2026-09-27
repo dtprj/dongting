@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.dtmq.server;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -39,7 +38,6 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32C;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -52,7 +50,6 @@ class DtMQTest extends BaseFiberTest {
     private File dataDir;
     private RaftGroupConfigEx config;
     private RaftStatusImpl raftStatus;
-    private MQServerConfig mqConfig;
     private DtMQ mq;
     private DefaultSnapshotManager snapshotManager;
 
@@ -80,8 +77,7 @@ class DtMQTest extends BaseFiberTest {
         raftStatus.nodeIdOfPreparedObservers = Set.of();
         raftStatus.lastAppliedTerm = 1;
         config.raftStatus = raftStatus;
-        mqConfig = new MQServerConfig();
-        mq = new DtMQ(config, mqConfig);
+        mq = new DtMQ(config, new MQServerConfig());
         mq.setRaftGroup(new MockRaftGroup(1));
         snapshotManager = new DefaultSnapshotManager(config, mq,
                 () -> mq.takeSnapshot(new SnapshotInfo(raftStatus)));
@@ -100,8 +96,9 @@ class DtMQTest extends BaseFiberTest {
     private abstract class BaseFrame extends FiberFrame<Void> {
         @Override
         protected FrameCallResult doFinally() {
-            mq.stop(new DtTime(1, TimeUnit.SECONDS));
-            snapshotManager.stopFiber();
+            // cannot await in doFinally(), the callback keeps the ordering and
+            // prevents the group from finishing before the close completes
+            mq.stop().registerCallback((v, ex) -> snapshotManager.stopFiber());
             return Fiber.frameReturn();
         }
     }

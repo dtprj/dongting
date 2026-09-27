@@ -125,7 +125,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult doFinally() {
-                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                kv.stop();
                 m.stopFiber();
                 return Fiber.frameReturn();
             }
@@ -175,7 +175,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterLoop() throws Exception {
-                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                kv.stop();
                 m.stopFiber();
 
                 // make sure the delete snapshot file task done, otherwise the next init will fail
@@ -228,7 +228,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             protected FrameCallResult doFinally() {
-                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                kv.stop();
                 m.stopFiber();
                 return Fiber.frameReturn();
             }
@@ -282,7 +282,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult doFinally() {
-                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                kv.stop();
                 m.stopFiber();
                 return Fiber.frameReturn();
             }
@@ -327,7 +327,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult doFinally() {
-                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                kv.stop();
                 m.stopFiber();
                 return Fiber.frameReturn();
             }
@@ -373,7 +373,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             protected FrameCallResult doFinally() {
-                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                kv.stop();
                 m.stopFiber();
                 return Fiber.frameReturn();
             }
@@ -441,7 +441,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult doFinally() {
-                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                kv.stop();
                 m.stopFiber();
                 return Fiber.frameReturn();
             }
@@ -562,7 +562,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult doFinally() {
-                kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                kv.stop();
                 m.stopFiber();
                 return Fiber.frameReturn();
             }
@@ -758,7 +758,7 @@ public class DefaultSnapshotManagerTest extends BaseFiberTest {
                 @Override
                 protected FrameCallResult doFinally() {
                     done.complete(null);
-                    kv.stop(new DtTime(1, TimeUnit.SECONDS));
+                    kv.stop();
                     m.stopFiber();
                     return Fiber.frameReturn();
                 }

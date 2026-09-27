@@ -76,12 +76,22 @@ public class DtKVTest extends BaseFiberTest {
         kvConfig.useSeparateExecutor = useSeparateExecutor;
         kvConfig.initMapCapacity = 16;
         DtKV kv = new DtKV(groupConfig, kvConfig);
-        doInFiber(kv::start);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return kv.start().await(this::justReturn);
+            }
+        });
         return kv;
     }
 
-    private void stop(DtKV kv) {
-        kv.stop(new DtTime(1, TimeUnit.SECONDS));
+    private void stop(DtKV kv) throws Exception {
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return kv.stop().await(this::justReturn);
+            }
+        });
     }
 
     private FiberFuture<KvResult> put(long index, String key, String value) {

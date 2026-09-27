@@ -49,6 +49,13 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
 
     @Override
     protected FrameCallResult doFinally() {
+        gc.groupConfig.perfCallback.shutdown();
+
+        RaftFactory raftFactory = gc.raftFactory;
+        if (!raftFactory.useSharedIoExecutor()) {
+            raftFactory.shutdownBlockIoExecutor(gc.serverConfig, gc.groupConfig,
+                    gc.groupConfig.blockIoExecutor);
+        }
         gc.raftFactory.stopDispatcher(fiberGroup.dispatcher, timeout);
         return Fiber.frameReturn();
     }
@@ -73,23 +80,15 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
 
     private FrameCallResult afterSaveSnapshot(Long notUsed) {
         gc.snapshotManager.stopFiber();
-        gc.applyManager.shutdown(timeout);
+        return gc.applyManager.shutdown().await(this::afterApplyManagerShutdown);
+    }
+
+    private FrameCallResult afterApplyManagerShutdown(Void unused) {
         return gc.raftLog.close().await(this::afterRaftLogClose);
     }
 
     private FrameCallResult afterRaftLogClose(Void unused) {
         g.groupComponents.raftStatus.tailCache.cleanAll();
-        return g.groupComponents.statusManager.close().await(this::afterStatusManagerClose);
-    }
-
-    private FrameCallResult afterStatusManagerClose(Void unused) {
-        gc.groupConfig.perfCallback.shutdown();
-
-        RaftFactory raftFactory = gc.raftFactory;
-        if (!raftFactory.useSharedIoExecutor()) {
-            raftFactory.shutdownBlockIoExecutor(gc.serverConfig, gc.groupConfig,
-                    gc.groupConfig.blockIoExecutor);
-        }
-        return Fiber.frameReturn();
+        return g.groupComponents.statusManager.close().await(this::justReturn);
     }
 }

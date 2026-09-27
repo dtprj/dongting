@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.common.LifeCircle;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -27,7 +26,11 @@ import java.nio.ByteBuffer;
  *
  * @author huangli
  */
-public interface StateMachine extends LifeCircle, RaftCodecFactory {
+public interface StateMachine extends RaftCodecFactory {
+
+    FiberFuture<Void> start();
+
+    FiberFuture<Void> stop();
 
     /**
      * this method is called in raft thread.

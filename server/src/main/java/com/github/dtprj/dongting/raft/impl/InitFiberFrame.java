@@ -80,7 +80,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
         groupConfig.perfCallback.setCollectExecutor(groupConfig.fiberGroup.getExecutor());
         groupConfig.perfCallback.start();
-        gc.stateMachine.start(); // stop in apply manager
+        return gc.stateMachine.start().await(this::afterStateMachineStart); // stop in apply manager
+    }
+
+    private FrameCallResult afterStateMachineStart(Void v) {
         FiberGroup fg = getFiberGroup();
         initRaftStatus(raftStatus, fg, gc.serverConfig);
 
