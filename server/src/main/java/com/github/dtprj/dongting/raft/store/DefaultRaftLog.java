@@ -227,16 +227,19 @@ public final class DefaultRaftLog implements RaftLog {
             }
 
             private FrameCallResult afterIdxAndLogClose(Void unused) {
+                RaftUtil.checkStop(fiberGroup);
                 deleteFrame.requestDeleteAllAndExit = true;
                 deleteFrame.delCond.signal();
                 return deleteFrame.getFiber().join(this::afterDeleteFiberExit);
             }
 
             private FrameCallResult afterDeleteFiberExit(Void unused) {
+                RaftUtil.checkStop(fiberGroup);
                 return Fiber.call(idxFiles.forceDeleteAll(), this::afterForceDeleteIdxFiles);
             }
 
             private FrameCallResult afterForceDeleteIdxFiles(Void unused) {
+                RaftUtil.checkStop(fiberGroup);
                 return Fiber.call(logFiles.forceDeleteAll(), this::justReturn);
             }
         };

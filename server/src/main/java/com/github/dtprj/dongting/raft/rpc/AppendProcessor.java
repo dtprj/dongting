@@ -498,23 +498,28 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult afterApplyExit(Void v) {
+        RaftUtil.checkStop(getFiberGroup());
         return gc.statusManager.waitUpdateFinish(this::afterBeginStatusPersist);
     }
 
     private FrameCallResult afterBeginStatusPersist(Void v) {
+        RaftUtil.checkStop(getFiberGroup());
         FiberFuture<Void> f = gc.stateMachine.startInstall(true);
         return f.await(this::afterStateMachineClean);
     }
 
     private FrameCallResult afterStateMachineClean(Void v) {
+        RaftUtil.checkStop(getFiberGroup());
         return Fiber.call(gc.snapshotManager.deleteAll(), this::afterDeleteAllSnapshots);
     }
 
     private FrameCallResult afterDeleteAllSnapshots(Void v) throws Exception {
+        RaftUtil.checkStop(getFiberGroup());
         return Fiber.call(gc.raftLog.beginInstall(), this::applyConfigChange);
     }
 
     private FrameCallResult applyConfigChange(Void unused) {
+        RaftUtil.checkStop(getFiberGroup());
         gc.raftStatus.tailCache.cleanAll();
 
         MemberManager mm = reqInfo.raftGroup.groupComponents.memberManager;
@@ -547,6 +552,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult finishInstall(InstallSnapshotReq req, RaftStatusImpl raftStatus) throws Exception {
+        RaftUtil.checkStop(getFiberGroup());
         raftStatus.installSnapshot = false;
 
         raftStatus.setLastApplied(req.lastIncludedIndex);
@@ -571,6 +577,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult afterRaftLogFinishInstall(long nextLogIndex) {
+        RaftUtil.checkStop(getFiberGroup());
         log.info("raft log reset to nextLogIndex={}", nextLogIndex);
         gc.raftStatus.firstValidIndex = nextLogIndex;
         gc.raftStatus.firstValidPos = reqInfo.reqFrame.getBody().nextWritePos;
@@ -580,6 +587,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult afterFinishStatusSaved(Void v) {
+        RaftUtil.checkStop(getFiberGroup());
         gc.applyManager.signalStartApply();
         log.info("apply snapshot finish, groupId={}", groupId);
 
