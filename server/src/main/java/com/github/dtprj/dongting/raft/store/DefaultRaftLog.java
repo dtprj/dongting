@@ -317,7 +317,7 @@ public final class DefaultRaftLog implements RaftLog {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (stopRequested) {
+            if (stopRequested || isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
             logFiles.closeIdleFiles();
@@ -357,7 +357,7 @@ public final class DefaultRaftLog implements RaftLog {
         }
 
         private FrameCallResult deleteLogs(Void unused) {
-            if (stopRequested) {
+            if (stopRequested || isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
             if (deleteAndExit) {
@@ -401,7 +401,7 @@ public final class DefaultRaftLog implements RaftLog {
         }
 
         private FrameCallResult deleteIdx(Void unused) {
-            if (stopRequested) {
+            if (stopRequested || isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
             if (deleteAndExit) {
