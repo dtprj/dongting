@@ -228,9 +228,12 @@ public final class DefaultRaftLog implements RaftLog {
 
             private FrameCallResult afterIdxAndLogClose(Void unused) {
                 RaftUtil.checkStop(fiberGroup);
-                deleteFrame.requestDeleteAllAndExit = true;
-                deleteFrame.delCond.signal();
-                return deleteFrame.getFiber().join(this::afterDeleteFiberExit);
+                if (deleteFrame != null) {
+                    deleteFrame.requestDeleteAllAndExit = true;
+                    deleteFrame.delCond.signal();
+                    return deleteFrame.getFiber().join(this::afterDeleteFiberExit);
+                }
+                return afterDeleteFiberExit(null);
             }
 
             private FrameCallResult afterDeleteFiberExit(Void unused) {
@@ -284,18 +287,15 @@ public final class DefaultRaftLog implements RaftLog {
 
     @Override
     public FiberFuture<Void> close() {
+        if (deleteFrame != null) {
+            deleteFrame.stopRequested = true;
+            deleteFrame.delCond.signal();
+        }
         if (logFiles == null || idxFiles == null) {
             // init() was not called or failed before createFiles()
             return FiberFuture.completedFuture(fiberGroup, null);
         }
-        FiberFuture<Void> closeFuture = FiberFuture.allOf("logClose", logFiles.close(), idxFiles.close());
-        if (deleteFrame != null) {
-            closeFuture.registerCallback((v, ex) -> {
-                deleteFrame.stopRequested = true;
-                deleteFrame.delCond.signal();
-            });
-        }
-        return closeFuture;
+        return FiberFuture.allOf("logClose", logFiles.close(), idxFiles.close());
     }
 
     private class QueueDeleteFiberFrame extends FiberFrame<Void> {
