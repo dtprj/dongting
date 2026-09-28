@@ -71,7 +71,9 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) {
-        gc.raftStatus.needRepCondition.signalAll();
+        if (gc.raftStatus.needRepCondition != null) {
+            gc.raftStatus.needRepCondition.signalAll();
+        }
         return Fiber.call(new AwaitFutureFrame<>("saveSnapshot", () -> {
             if (saveSnapshot && gc.raftStatus.isInitFinished() && !gc.raftStatus.isInitFailed()) {
                 return gc.snapshotManager.saveSnapshot();
