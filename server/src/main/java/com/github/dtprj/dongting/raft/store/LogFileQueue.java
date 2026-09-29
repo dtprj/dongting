@@ -222,12 +222,12 @@ final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
         }
     }
 
-    public FiberFuture<Void> close() {
-        markClose = true;
+    @Override
+    protected FiberFuture<Void> doClose() {
         raftStatus.logWriteFinishCondition.signalAll();
         raftStatus.logForceFinishCondition.signalAll();
         FiberFuture<Void> f = logAppender.close();
-        return f.compose("logAllocStop", v -> stopFileQueue());
+        return f.compose("logAllocStop", v -> super.doClose());
     }
 
     public void truncateTail(long index, long pos) {

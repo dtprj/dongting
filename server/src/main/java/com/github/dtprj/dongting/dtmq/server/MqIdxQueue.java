@@ -248,11 +248,6 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         return forceFinishSeq < nextSeq - 1;
     }
 
-    FiberFuture<Void> close() {
-        markClose = true;
-        return stopFileQueue();
-    }
-
     // [block-aligned seq of writeFinishSeq+1, min(flushTargetSeq, fileLastItemSeq, batch cap)],
     // never crosses files: the flushed prefix is rewritten idempotently; dispatcher fiber only
     FlushBatch prepareBatch() {

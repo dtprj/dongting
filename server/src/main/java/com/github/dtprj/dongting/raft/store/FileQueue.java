@@ -64,7 +64,7 @@ public abstract class FileQueue<F extends QueueFile> {
 
     protected boolean initialized;
 
-    protected boolean markClose;
+    private FiberFuture<Void> closeFuture;
 
     private QueueFile lruHead;
     private QueueFile lruTail;
@@ -422,8 +422,19 @@ public abstract class FileQueue<F extends QueueFile> {
     protected void afterDelete() {
     }
 
+    public final FiberFuture<Void> close() {
+        if (closeFuture != null) {
+            return closeFuture;
+        }
+        return closeFuture = doClose();
+    }
+
+    protected FiberFuture<Void> doClose() {
+        return stopFileQueue();
+    }
+
     protected boolean isMarkClose() {
-        return markClose;
+        return closeFuture != null;
     }
 
     public File createFileByStartPos(long fileStart) {

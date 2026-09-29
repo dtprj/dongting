@@ -334,7 +334,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
                 flushType = 1;
             } else if (diff > flushThreshold) {
                 flushType = flushRestMillis > 0 ? 0 : 1;
-            } else if (markClose) {
+            } else if (isMarkClose()) {
                 flushType = diff > 0 ? 1 : 2;
             } else {
                 if (flushRestMillis > 0) {
@@ -507,8 +507,8 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
         return nextPersistIndex;
     }
 
-    public FiberFuture<Void> close() {
-        markClose = true;
+    @Override
+    protected FiberFuture<Void> doClose() {
         needFlushCondition.signal();
         FiberFuture<Void> f;
         if (flushFiber.isStarted() && !flushFiber.isFinished()) {
@@ -517,7 +517,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
             f = FiberFuture.completedFuture(groupConfig.fiberGroup, null);
         }
         f = f.compose("idxChainStop", v -> chainWriter.stop());
-        return f.compose("idxAllocStop", v -> stopFileQueue());
+        return f.compose("idxAllocStop", v -> super.doClose());
     }
 
     public FiberFrame<Void> finishInstall(long nextLogIndex) {
