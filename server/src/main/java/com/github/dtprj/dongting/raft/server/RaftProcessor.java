@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WritePacket;
-import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftShareStatus;
@@ -151,11 +150,11 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             errorResp = new EmptyBodyRespPacket(CmdCodes.FLOW_CONTROL);
         } else if (root instanceof NotLeaderException) {
             errorResp = new EmptyBodyRespPacket(CmdCodes.NOT_RAFT_LEADER);
-            RaftNode leader = ((NotLeaderException) root).getCurrentLeader();
-            if (leader != null) {
-                errorResp.extra = String.valueOf(leader.nodeId).getBytes(StandardCharsets.UTF_8);
+            int leaderId = ((NotLeaderException) root).getCurrentLeaderId();
+            if (leaderId > 0) {
+                errorResp.extra = String.valueOf(leaderId).getBytes(StandardCharsets.UTF_8);
             }
-            log.warn("not leader, current leader is {}", leader);
+            log.warn("not leader, current leader is {}", leaderId);
         } else if (root.getMessage().contains("the fiber group is not running")) {
             errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
         } else if(root instanceof NetCodeException) {

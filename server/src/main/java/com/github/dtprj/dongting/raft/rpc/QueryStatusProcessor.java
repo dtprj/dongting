@@ -63,7 +63,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         resp.nodeId = nodeId;
         resp.setFlag(raftStatus.isInitFinished(), raftStatus.isInitFailed(),
                 raftStatus.isGroupReady(), BugLog.getCount() != 0);
-        resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().node.nodeId;
+        resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().nodeId;
         resp.term = raftStatus.currentTerm;
         resp.commitIndex = raftStatus.commitIndex;
         resp.lastApplied = raftStatus.getLastApplied();

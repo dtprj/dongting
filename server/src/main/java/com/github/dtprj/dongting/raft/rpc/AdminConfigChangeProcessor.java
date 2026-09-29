@@ -105,7 +105,7 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
 
     private void log(String type, RaftGroup rg) {
         RaftStatusImpl raftStatus = ((RaftGroupImpl) rg).groupComponents.raftStatus;
-        int leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().node.nodeId;
+        int leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().nodeId;
         log.info("receive {} request, groupId={}, role={}, term={}, leaderId={}, members={}, observers={}," +
                         "prepareMembers={},prepareObserves={}", type, rg.getGroupId(), raftStatus.getRole(),
                 raftStatus.currentTerm, leaderId, raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,

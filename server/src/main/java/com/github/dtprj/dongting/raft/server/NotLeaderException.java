@@ -24,22 +24,22 @@ import com.github.dtprj.dongting.raft.RaftNode;
 public class NotLeaderException extends RaftException {
     private static final long serialVersionUID = 3514859721941247422L;
 
-    // may be null
-    private final RaftNode currentLeader;
+    // -1 means unknown
+    private final int currentLeaderId;
 
     public NotLeaderException(RaftNode currentLeader) {
-        this.currentLeader = currentLeader;
+        this.currentLeaderId = currentLeader == null ? -1 : currentLeader.nodeId;
     }
 
     public NotLeaderException(RaftNode currentLeader, String message) {
         super(message);
-        this.currentLeader = currentLeader;
+        this.currentLeaderId = currentLeader == null ? -1 : currentLeader.nodeId;
     }
 
     /**
-     * get current known leader, may be null.
+     * get current known leader id, -1 means unknown.
      */
-    public RaftNode getCurrentLeader() {
-        return currentLeader;
+    public int getCurrentLeaderId() {
+        return currentLeaderId;
     }
 }

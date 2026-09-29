@@ -181,7 +181,7 @@ public class VoteManager {
         final int voteIdOfRequest = this.currentVoteId;
 
         long reqStartNanos = raftStatus.ts.nanoTime;
-        if (member.node.self) {
+        if (member.self) {
             VoteResp resp = new VoteResp();
             resp.voteGranted = true;
             resp.term = currentTerm;
@@ -193,7 +193,7 @@ public class VoteManager {
                 client.sendRequest(member.node.peer, wf, ctx -> ctx.toDecoderCallback(new VoteResp.Callback()),
                         timeout, c);
                 log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
-                        preVote ? "pre-vote" : "vote", member.node.nodeId, groupId,
+                        preVote ? "pre-vote" : "vote", member.nodeId, groupId,
                         currentTerm, req.lastLogIndex, req.lastLogTerm);
             } catch (Exception e) {
                 fireRespProcessFiber(req, null, e, member, voteIdOfRequest, reqStartNanos);
@@ -202,7 +202,7 @@ public class VoteManager {
     }
 
     private void fireRespProcessFiber(VoteReq req, VoteResp resp, Throwable ex, RaftMember member, int voteIdOfRequest, long reqStartNanos) {
-        String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.node.nodeId + ")";
+        String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.nodeId + ")";
         RespProcessFiberFrame initFrame = new RespProcessFiberFrame(resp, ex, member, req, voteIdOfRequest, reqStartNanos);
         groupConfig.fiberGroup.fireFiber(fiberName, initFrame);
     }
@@ -361,7 +361,7 @@ public class VoteManager {
                 return Fiber.frameReturn();
             }
             String voteType = req.preVote ? "pre-vote" : "vote";
-            int remoteId = remoteMember.node.nodeId;
+            int remoteId = remoteMember.nodeId;
             if (ex != null) {
                 log.warn("{} rpc fail. groupId={}, term={}, remote={}, error={}", voteType,
                         groupId, req.term, remoteId, ex.toString());
@@ -420,7 +420,7 @@ public class VoteManager {
         private boolean voteCheckFail(long oldVoteId) {
             if (oldVoteId != currentVoteId) {
                 log.info("vote id changed, ignore {} response. remoteNode={}, grant={}",
-                        req.preVote ? "preVote" : "vote", remoteMember.node.nodeId,
+                        req.preVote ? "preVote" : "vote", remoteMember.nodeId,
                         resp.voteGranted);
                 return true;
             }

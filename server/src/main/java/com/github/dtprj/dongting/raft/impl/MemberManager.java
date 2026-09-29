@@ -149,18 +149,18 @@ public class MemberManager {
         Set<Integer> jointObserverIds = new HashSet<>();
         for (RaftMember m : raftStatus.members) {
             replicateList.add(m);
-            memberIds.add(m.node.nodeId);
+            memberIds.add(m.nodeId);
         }
         for (RaftMember m : raftStatus.observers) {
             replicateList.add(m);
-            observerIds.add(m.node.nodeId);
+            observerIds.add(m.nodeId);
         }
         for (RaftMember m : raftStatus.preparedMembers) {
             replicateList.add(m);
-            jointMemberIds.add(m.node.nodeId);
+            jointMemberIds.add(m.nodeId);
         }
         for (RaftMember m : raftStatus.preparedObservers) {
-            jointObserverIds.add(m.node.nodeId);
+            jointObserverIds.add(m.nodeId);
         }
         raftStatus.replicateList = replicateList.isEmpty() ? emptyList() : replicateList;
         raftStatus.nodeIdOfMembers = memberIds.isEmpty() ? emptySet() : Collections.unmodifiableSet(memberIds);
@@ -202,7 +202,7 @@ public class MemberManager {
     private void check(RaftMember member) {
         RaftNodeEx node = member.node;
         NodeStatus nodeStatus = node.status;
-        if (node.self) {
+        if (member.self) {
             return;
         }
         if (!nodeStatus.isReady()) {
@@ -301,7 +301,7 @@ public class MemberManager {
             for (RaftNode rn : remotes) {
                 RaftMember localMember = null;
                 for (RaftMember m : localServers) {
-                    if (m.node.nodeId == rn.nodeId) {
+                    if (m.nodeId == rn.nodeId) {
                         localMember = m;
                         break;
                     }
@@ -434,7 +434,7 @@ public class MemberManager {
                 quorum = RaftUtil.getRwQuorum(members.size());
                 total = members.size();
                 for (RaftMember m : members) {
-                    if (!m.node.self) {
+                    if (!m.self) {
                         retryMembers.add(m);
                     }
                 }
@@ -481,7 +481,7 @@ public class MemberManager {
                 client.sendRequest(m.node.peer, req, QueryStatusResp.DECODER,
                         new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(f));
             } catch (Throwable e) {
-                log.warn("send query status fail, groupId={}, remote={}", groupId, m.node.nodeId, e);
+                log.warn("send query status fail, groupId={}, remote={}", groupId, m.nodeId, e);
                 onResp(m, false);
                 return;
             }
@@ -492,9 +492,9 @@ public class MemberManager {
                     memberReady = s.persistedCommitIndex >= prepareIndex && s.lastApplied >= prepareIndex;
                     log.info("members ready check receive member status, groupId={}, remote={}, "
                                     + "memberReady={}, persistedCommitIndex={}, lastApplied={}, prepareIndex={}",
-                            groupId, m.node.nodeId, memberReady, s.persistedCommitIndex, s.lastApplied, prepareIndex);
+                            groupId, m.nodeId, memberReady, s.persistedCommitIndex, s.lastApplied, prepareIndex);
                 } else {
-                    log.warn("query status fail, groupId={}, remote={}", groupId, m.node.nodeId, ex);
+                    log.warn("query status fail, groupId={}, remote={}", groupId, m.nodeId, ex);
                 }
                 onResp(m, memberReady);
                 respCondition.signal();
@@ -601,22 +601,22 @@ public class MemberManager {
 
     private RaftMember findExistMember(int nodeId) {
         for (RaftMember m : raftStatus.members) {
-            if (m.node.nodeId == nodeId) {
+            if (m.nodeId == nodeId) {
                 return m;
             }
         }
         for (RaftMember m : raftStatus.observers) {
-            if (m.node.nodeId == nodeId) {
+            if (m.nodeId == nodeId) {
                 return m;
             }
         }
         for (RaftMember m : raftStatus.preparedMembers) {
-            if (m.node.nodeId == nodeId) {
+            if (m.nodeId == nodeId) {
                 return m;
             }
         }
         for (RaftMember m : raftStatus.preparedObservers) {
-            if (m.node.nodeId == nodeId) {
+            if (m.nodeId == nodeId) {
                 return m;
             }
         }
@@ -624,8 +624,8 @@ public class MemberManager {
     }
 
     private RaftMember createMember(RaftNodeEx node, RaftRole role) {
-        RaftMember m = new RaftMember(node, groupConfig.fiberGroup);
-        if (node.self) {
+        RaftMember m = new RaftMember(node, node.nodeId == serverConfig.nodeId, groupConfig.fiberGroup);
+        if (m.self) {
             m.ready = true;
             raftStatus.self = m;
             raftStatus.setRole(role);
@@ -738,7 +738,7 @@ public class MemberManager {
             int selfNodeId = serverConfig.nodeId;
             int newLeaderId = -1;
             if (raftStatus.getCurrentLeader() != null) {
-                newLeaderId = raftStatus.getCurrentLeader().node.nodeId;
+                newLeaderId = raftStatus.getCurrentLeader().nodeId;
                 if (!raftStatus.nodeIdOfMembers.contains(newLeaderId)
                         && !raftStatus.nodeIdOfPreparedMembers.contains(newLeaderId)) {
                     newLeaderId = -1;
@@ -770,10 +770,10 @@ public class MemberManager {
                 List<RaftMember> newRepList = raftStatus.replicateList;
                 for (RaftMember m : oldRepList) {
                     if (!newRepList.contains(m)) {
-                        Pair<RaftMember, Fiber> repTask = raftStatus.replicateTasks.get(m.node.nodeId);
+                        Pair<RaftMember, Fiber> repTask = raftStatus.replicateTasks.get(m.nodeId);
                         if (repTask != null && !repTask.getRight().isFinished()) {
                             FiberFrame<Void> ff = createRemoveLegacyFrame(raftIndex, repTask);
-                            Fiber f = new Fiber("remove-legacy-" + m.node.nodeId,
+                            Fiber f = new Fiber("remove-legacy-" + m.nodeId,
                                     groupConfig.fiberGroup, ff).setDaemon(true);
                             f.start();
                         }
@@ -807,9 +807,9 @@ public class MemberManager {
 
     private FrameCallResult tryStopRepFiber(RaftMember m, Fiber repFiber, String status) {
         m.replicateEpoch++;
-        log.info("legacy task {}, wait it stop. node={}", status, m.node.nodeId);
+        log.info("legacy task {}, wait it stop. node={}", status, m.nodeId);
         return repFiber.join(v -> {
-            int n = m.node.nodeId;
+            int n = m.nodeId;
             Pair<RaftMember, Fiber> existTask = raftStatus.replicateTasks.get(n);
             if (existTask == null) {
                 log.error("legacy task not exists. node={} ", n);
@@ -839,7 +839,7 @@ public class MemberManager {
 
     public boolean isValidCandidate(int nodeId) {
         RaftMember leader = raftStatus.getCurrentLeader();
-        if (leader != null && leader.node.nodeId == nodeId) {
+        if (leader != null && leader.nodeId == nodeId) {
             return true;
         }
         return validCandidate(raftStatus, nodeId);
@@ -940,14 +940,14 @@ public class MemberManager {
             }
             RaftMember newLeader = null;
             for (RaftMember m : raftStatus.members) {
-                if (m.node.nodeId == nodeId) {
+                if (m.nodeId == nodeId) {
                     newLeader = m;
                     break;
                 }
             }
             if (newLeader == null) {
                 for (RaftMember m : raftStatus.preparedMembers) {
-                    if (m.node.nodeId == nodeId) {
+                    if (m.nodeId == nodeId) {
                         newLeader = m;
                         break;
                     }

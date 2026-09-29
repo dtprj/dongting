@@ -104,26 +104,26 @@ public class ReplicateManager {
         IntObjMap<Pair<RaftMember, Fiber>> replicateFibers = raftStatus.replicateTasks;
         for (int size = list.size(), i = 0; i < size; i++) {
             RaftMember m = list.get(i);
-            if (m.node.self) {
+            if (m.self) {
                 continue;
             }
             if (!m.ready) {
                 continue;
             }
-            Pair<RaftMember, Fiber> currentTask = replicateFibers.get(m.node.nodeId);
+            Pair<RaftMember, Fiber> currentTask = replicateFibers.get(m.nodeId);
             if (currentTask == null || currentTask.getRight().isFinished()) {
                 Fiber f;
                 if (m.installSnapshot) {
                     LeaderInstallFrame ff = new LeaderInstallFrame(this, m);
-                    f = new Fiber("install-" + m.node.nodeId + "-" + m.replicateEpoch,
+                    f = new Fiber("install-" + m.nodeId + "-" + m.replicateEpoch,
                             groupConfig.fiberGroup, ff);
                 } else {
                     LeaderRepFrame ff = new LeaderRepFrame(this, commitManager, m);
-                    f = new Fiber("replicate-" + m.node.nodeId + "-" + m.replicateEpoch,
+                    f = new Fiber("replicate-" + m.nodeId + "-" + m.replicateEpoch,
                             groupConfig.fiberGroup, ff);
                 }
                 f.start();
-                replicateFibers.put(m.node.nodeId, new Pair<>(m, f));
+                replicateFibers.put(m.nodeId, new Pair<>(m, f));
             }
         }
     }
@@ -254,7 +254,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         if (ex instanceof RaftCancelException) {
             log.info("ReplicateManager load raft log cancelled");
         } else {
-            log.error("replicate fiber fail, remoteId={}", member.node.nodeId, ex);
+            log.error("replicate fiber fail, remoteId={}", member.nodeId, ex);
             if (raftStatus.getRole() == RaftRole.leader) {
                 // if log is deleted, the next load will never success, so we need to reset nextIndex.
                 // however, the exception may be caused by other reasons
@@ -450,11 +450,11 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             }
             if (warn) {
                 log.warn("append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}. {}",
-                        member.node.nodeId, groupId, raftStatus.currentTerm,
+                        member.nodeId, groupId, raftStatus.currentTerm,
                         term, req.prevLogIndex, ex.toString());
             } else {
                 log.error("append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}",
-                        member.node.nodeId, groupId, raftStatus.currentTerm, term, req.prevLogIndex, ex);
+                        member.nodeId, groupId, raftStatus.currentTerm, term, req.prevLogIndex, ex);
             }
         }
     }
@@ -473,7 +473,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
         if (member.installSnapshot) {
             BugLog.log("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
-                    prevLogIndex, prevLogTerm, member.node.nodeId, groupId);
+                    prevLogIndex, prevLogTerm, member.nodeId, groupId);
             closeIterator();
             incrementEpoch();
             return;
@@ -490,7 +490,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             } else {
                 BugLog.log("append miss order. old matchIndex={}, append prevLogIndex={}," +
                                 " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                        member.matchIndex, prevLogIndex, expectNewMatchIndex, member.node.nodeId,
+                        member.matchIndex, prevLogIndex, expectNewMatchIndex, member.nodeId,
                         groupId, raftStatus.currentTerm, term, body.term);
                 closeIterator();
                 incrementEpoch();
@@ -506,18 +506,18 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                         groupId, prevLogIndex, resp.msg);
             } else if (appendCode == AppendProcessor.APPEND_INSTALL_SNAPSHOT) {
                 log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
-                        groupId, member.node.nodeId);
+                        groupId, member.nodeId);
                 member.installSnapshot = true;
             } else if (appendCode == AppendProcessor.APPEND_NOT_MEMBER_IN_GROUP) {
                 log.error("append fail because of follower member check fail. groupId={}, remoteId={}," +
-                                "localMembers={}, localPreparedMembers={}, msg={}", groupId, member.node.nodeId,
+                                "localMembers={}, localPreparedMembers={}, msg={}", groupId, member.nodeId,
                         raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfPreparedMembers, resp.msg);
             } else {
                 BugLog.log("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
                                 "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}. " +
                                 "remoteMsg={}",
                         AppendProcessor.getAppendResultStr(appendCode), member.matchIndex, prevLogIndex, expectNewMatchIndex,
-                        member.node.nodeId, groupId, raftStatus.currentTerm, term, body.term, resp.msg);
+                        member.nodeId, groupId, raftStatus.currentTerm, term, body.term, resp.msg);
             }
         }
     }
@@ -525,19 +525,19 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     private void processLogNotMatch(long prevLogIndex, int prevLogTerm, AppendResp body,
                                     RaftStatusImpl raftStatus) {
         log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteSuggestTerm={}, remoteSuggestIndex={}, localLastTerm={}, localLastIndex={}",
-                member.node.nodeId, groupId, member.matchIndex, prevLogIndex, prevLogTerm, body.suggestTerm,
+                member.nodeId, groupId, member.matchIndex, prevLogIndex, prevLogTerm, body.suggestTerm,
                 body.suggestIndex, raftStatus.currentTerm, raftStatus.lastLogIndex);
         if (body.suggestTerm == 0 && body.suggestIndex == 0) {
             log.info("remote has no suggest match index, begin install snapshot. remoteId={}, groupId={}",
-                    member.node.nodeId, groupId);
+                    member.nodeId, groupId);
             member.installSnapshot = true;
             return;
         }
         FiberFrame<Void> ff = new LeaderFindMatchPosFrame(replicateManager, member,
                 body.suggestTerm, body.suggestIndex);
-        Fiber f = new Fiber("find-match-pos-" + member.node.nodeId
+        Fiber f = new Fiber("find-match-pos-" + member.nodeId
                 + "-" + member.replicateEpoch, groupConfig.fiberGroup, ff);
-        raftStatus.replicateTasks.put(member.node.nodeId, new Pair<>(member, f));
+        raftStatus.replicateTasks.put(member.nodeId, new Pair<>(member, f));
         f.start();
     }
 
@@ -600,15 +600,15 @@ class LeaderFindMatchPosFrame extends AbstractLeaderRepFrame {
         }
         if (result == null) {
             log.info("follower has no suggest match index, begin install snapshot. remoteId={}, groupId={}",
-                    member.node.nodeId, groupId);
+                    member.nodeId, groupId);
             member.installSnapshot = true;
         } else {
             if (result.getLeft() == suggestTerm && result.getRight() == suggestIndex) {
                 log.info("match success: remote={}, group={}, term={}, index={}",
-                        member.node.nodeId, groupId, suggestTerm, suggestIndex);
+                        member.nodeId, groupId, suggestTerm, suggestIndex);
             } else {
                 log.info("leader suggest: term={}, index={}, remote={}, group={}",
-                        result.getLeft(), result.getRight(), member.node.nodeId, groupId);
+                        result.getLeft(), result.getRight(), member.nodeId, groupId);
             }
             member.nextIndex = result.getRight() + 1;
         }
@@ -643,7 +643,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
 
     @Override
     protected FrameCallResult handle(Throwable ex) throws Throwable {
-        log.error("install snapshot error: group={}, remoteId={}", groupId, member.node.nodeId, ex);
+        log.error("install snapshot error: group={}, remoteId={}", groupId, member.nodeId, ex);
         incrementEpoch();
         return Fiber.frameReturn();
     }
@@ -684,7 +684,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
             return Fiber.frameReturn();
         }
         log.info("begin install snapshot for member: nodeId={}, groupId={}",
-                member.node.nodeId, groupId);
+                member.nodeId, groupId);
         this.snapshot = snapshot;
         this.nextPosAfterInstallFinish = nextPos;
         // send the first request, no data
@@ -764,7 +764,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
                 timeout, callback);
         snapshotOffset += bytes;
         log.info("transfer snapshot data to member {}. groupId={}, offset={}, bytes={}, done={}",
-                member.node.nodeId, groupId, req.offset, bytes, req.done);
+                member.nodeId, groupId, req.offset, bytes, req.done);
         return f;
     }
 
@@ -783,18 +783,18 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (!respBody.success) {
             incrementEpoch();
             f.completeExceptionally(new RaftException("install snapshot fail. remoteNode="
-                    + member.node.nodeId + ", groupId=" + groupId));
+                    + member.nodeId + ", groupId=" + groupId));
             return;
         }
         if (replicateManager.checkTermFailed(respBody.term, false)) {
             incrementEpoch();
             f.completeExceptionally(new RaftException("remote node has larger term. remoteNode="
-                    + member.node.nodeId + ", groupId=" + groupId));
+                    + member.nodeId + ", groupId=" + groupId));
             return;
         }
         if (req.done) {
             log.info("install snapshot for member finished success. nodeId={}, groupId={}",
-                    member.node.nodeId, groupId);
+                    member.nodeId, groupId);
             incrementEpoch();
             member.installSnapshot = false;
             member.matchIndex = req.lastIncludedIndex;
