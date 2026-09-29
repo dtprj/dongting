@@ -168,26 +168,19 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
         int remoteTerm = getRemoteTerm();
         int leaderId = getLeaderId();
         RaftStatusImpl raftStatus = gc.raftStatus;
-        if (gc.memberManager.isValidCandidate(leaderId)) {
-            int localTerm = raftStatus.currentTerm;
-            if (remoteTerm == localTerm) {
-                return processSameTerm(raftStatus, remoteTerm, leaderId);
-            } else if (remoteTerm > localTerm) {
-                gc.voteManager.cancelVote("receive append request with larger term");
-                RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId, "receive append request with larger term");
-                RaftUtil.resetElectTimer(raftStatus);
-                gc.statusManager.persistAsync();
-                return gc.statusManager.waitUpdateFinish(this);
-            } else {
-                log.info("receive {} request with a smaller term, ignore, remoteTerm={}, localTerm={}",
-                        appendType, remoteTerm, localTerm);
-                return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "small term");
-            }
+        int localTerm = raftStatus.currentTerm;
+        if (remoteTerm == localTerm) {
+            return processSameTerm(raftStatus, remoteTerm, leaderId);
+        } else if (remoteTerm > localTerm) {
+            gc.voteManager.cancelVote("receive append request with larger term");
+            RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId, "receive append request with larger term");
+            RaftUtil.resetElectTimer(raftStatus);
+            gc.statusManager.persistAsync();
+            return gc.statusManager.waitUpdateFinish(this);
         } else {
-            log.error("receive {} request from a non-member, ignore. remoteId={}, group={}, localMembers={}, localPreparedMembers={}",
-                    appendType, leaderId, reqInfo.raftGroup.getGroupId(), raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfPreparedMembers);
-            String msg = "not member, members=" + raftStatus.nodeIdOfMembers + ", prepareMembers=" + raftStatus.nodeIdOfPreparedMembers;
-            return writeAppendResp(AppendProcessor.APPEND_NOT_MEMBER_IN_GROUP, msg);
+            log.info("receive {} request with a smaller term, ignore, remoteTerm={}, localTerm={}",
+                    appendType, remoteTerm, localTerm);
+            return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "small term");
         }
     }
 
