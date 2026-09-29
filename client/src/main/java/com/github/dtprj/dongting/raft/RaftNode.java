@@ -44,8 +44,6 @@ public class RaftNode implements Encodable, Comparable<RaftNode> {
     public final HostPort hostPort;
     public final Peer peer;
 
-    public int useCount;
-
     private String str;
 
     public RaftNode(int nodeId, HostPort hostPort) {

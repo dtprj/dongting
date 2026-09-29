@@ -156,9 +156,8 @@ public class RaftClient extends AbstractLifeCircle {
         lock.lock();
         try {
             for (int id : nodeIds) {
-                RaftNode n = allNodes.get(id);
-                if (n.useCount > 0) {
-                    throw new RaftException("node " + id + " is in use: useCount=" + n.useCount);
+                if (isNodeInUseInLock(id)) {
+                    throw new RaftException("node " + id + " is in use");
                 }
             }
             for (int id : nodeIds) {
@@ -170,6 +169,17 @@ public class RaftClient extends AbstractLifeCircle {
         } finally {
             lock.unlock();
         }
+    }
+
+    private boolean isNodeInUseInLock(int nodeId) {
+        for (GroupInfo gi : groups.values()) {
+            for (RaftNode n : gi.servers) {
+                if (n.nodeId == nodeId) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public void clientAddOrUpdateGroup(int groupId, int[] serverIds) throws NetException {
@@ -212,19 +222,12 @@ public class RaftClient extends AbstractLifeCircle {
         for (int nodeId : serverIds) {
             RaftNode n = allNodes.get(nodeId);
             managedServers.add(n);
-            n.useCount++;
             if (oldGroupInfo != null) {
                 RaftNode oldLeader = oldGroupInfo.leader;
                 if (oldLeader != null && oldLeader == n) {
                     // old leader in the new servers list
                     leader = oldLeader;
                 }
-            }
-        }
-
-        if (oldGroupInfo != null) {
-            for (RaftNode n : oldGroupInfo.servers) {
-                n.useCount--;
             }
         }
 
@@ -310,9 +313,6 @@ public class RaftClient extends AbstractLifeCircle {
             if (oldGroupInfo != null) {
                 if (oldGroupInfo.leaderFuture != null) {
                     oldGroupInfo.leaderFuture.completeExceptionally(new RaftException("group removed " + groupId));
-                }
-                for (RaftNode n : oldGroupInfo.servers) {
-                    n.useCount--;
                 }
             }
         } finally {

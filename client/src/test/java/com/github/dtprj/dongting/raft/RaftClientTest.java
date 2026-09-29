@@ -177,19 +177,18 @@ public class RaftClientTest {
 
         client.clientAddOrUpdateGroup(1, new int[]{1, 2, 3});
 
-        // check useCount
-        assertEquals(1, client.getNode(1).useCount);
-        assertEquals(1, client.getNode(2).useCount);
-        assertEquals(1, client.getNode(3).useCount);
+        // nodes referenced by the group can not be removed
+        assertThrows(RaftException.class, () -> client.clientRemoveNode(3));
 
         // update with different members - remove node 3, add no one (just 1,2)
         client.clientAddOrUpdateGroup(1, new int[]{1, 2});
 
         GroupInfo gi = client.getGroup(1);
         assertEquals(2, gi.servers.size());
-        assertEquals(1, client.getNode(1).useCount);
-        assertEquals(1, client.getNode(2).useCount);
-        assertEquals(0, client.getNode(3).useCount);
+        // node 1 is still in use, node 3 is no longer referenced by any group
+        assertThrows(RaftException.class, () -> client.clientRemoveNode(1));
+        client.clientRemoveNode(3);
+        assertNull(client.getNode(3));
     }
 
     @Test
@@ -229,9 +228,8 @@ public class RaftClientTest {
         client.queryResponses.add(pending);
 
         client.clientAddOrUpdateGroup(1, new int[]{1, 2, 3});
-        assertEquals(1, client.getNode(1).useCount);
-        assertEquals(1, client.getNode(2).useCount);
-        assertEquals(1, client.getNode(3).useCount);
+        // nodes referenced by the group can not be removed
+        assertThrows(RaftException.class, () -> client.clientRemoveNode(1));
 
         GroupInfo gi = client.getGroup(1);
         assertNotNull(gi.leaderFuture);
@@ -239,9 +237,11 @@ public class RaftClientTest {
 
         client.clientRemoveGroup(1);
         assertNull(client.getGroup(1));
-        assertEquals(0, client.getNode(1).useCount);
-        assertEquals(0, client.getNode(2).useCount);
-        assertEquals(0, client.getNode(3).useCount);
+        // nodes are no longer referenced by any group
+        client.clientRemoveNode(1, 2, 3);
+        assertNull(client.getNode(1));
+        assertNull(client.getNode(2));
+        assertNull(client.getNode(3));
 
         // leaderFuture should complete exceptionally
         assertTrue(gi.leaderFuture.isCompletedExceptionally());

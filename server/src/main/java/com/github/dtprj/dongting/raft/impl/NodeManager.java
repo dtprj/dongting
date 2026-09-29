@@ -38,13 +38,11 @@ import com.github.dtprj.dongting.raft.rpc.NodePing;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -124,7 +122,7 @@ public class NodeManager extends AbstractLifeCircle {
     protected void doStop(DtTime timeout, boolean force) {
     }
 
-    public void initNodes(ConcurrentHashMap<Integer, RaftGroupImpl> raftGroups) {
+    public void initNodes() {
         CompletableFuture<Void> selfCheckFuture = null;
         RaftNodeEx selfNodeEx = null;
         lock.lock();
@@ -159,13 +157,6 @@ public class NodeManager extends AbstractLifeCircle {
             if (selfNodeEx != null && selfNodeEx.peer.status == PeerStatus.connected) {
                 client.disconnect(selfNodeEx.peer);
             }
-        }
-
-        lock.lock();
-        try {
-            raftGroups.forEach((groupId, g) -> processUseCountForGroupInLock(g, true));
-        } finally {
-            lock.unlock();
         }
     }
 
@@ -305,37 +296,9 @@ public class NodeManager extends AbstractLifeCircle {
             List<RaftNodeEx> newPreparedMembers = checkNodeIdSet(newPreparedMemberIds);
             List<RaftNodeEx> newPreparedObservers = checkNodeIdSet(newPreparedObserverIds);
 
-            processUseCountInLock(newMemberIds, 1);
-            processUseCountInLock(newObserverIds, 1);
-            processUseCountInLock(newPreparedMemberIds, 1);
-            processUseCountInLock(newPreparedObserverIds, 1);
-
-            processUseCountInLock(oldMemberIds, -1);
-            processUseCountInLock(oldObserverIds, -1);
-            processUseCountInLock(oldPreparedMemberIds, -1);
-            processUseCountInLock(oldPreparedObserverIds, -1);
             return List.of(newMembers, newObservers, newPreparedMembers, newPreparedObservers);
         } finally {
             lock.unlock();
-        }
-    }
-
-    public void processUseCountForGroupInLock(RaftGroupImpl g, boolean add) {
-        RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
-        int delta = add ? 1 : -1;
-        processUseCountInLock(raftStatus.nodeIdOfMembers, delta);
-        processUseCountInLock(raftStatus.nodeIdOfObservers, delta);
-        processUseCountInLock(raftStatus.nodeIdOfPreparedMembers, delta);
-        processUseCountInLock(raftStatus.nodeIdOfPreparedObservers, delta);
-    }
-
-    private void processUseCountInLock(Collection<Integer> nodeIds, int delta) {
-        if (nodeIds == null) {
-            return;
-        }
-        for (int nodeId : nodeIds) {
-            RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-            nodeEx.useCount = nodeEx.useCount + delta;
         }
     }
 
@@ -381,12 +344,8 @@ public class NodeManager extends AbstractLifeCircle {
                     log.warn("node {} not exist", nodeId);
                     f.complete(null);
                 } else {
-                    if (existNode.useCount == 0) {
-                        allNodesEx.remove(nodeId);
-                        client.removePeer(existNode.peer).thenRun(() -> f.complete(null));
-                    } else {
-                        f.completeExceptionally(new RaftException("node is using, current ref count: " + existNode.useCount));
-                    }
+                    allNodesEx.remove(nodeId);
+                    client.removePeer(existNode.peer).thenRun(() -> f.complete(null));
                 }
             } catch (Exception unexpected) {
                 log.error("", unexpected);

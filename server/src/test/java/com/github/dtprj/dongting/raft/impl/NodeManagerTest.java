@@ -26,14 +26,12 @@ import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -76,13 +74,7 @@ public class NodeManagerTest {
         raftStatus.nodeIdOfMembers = RaftUtil.strToIdSet(members);
         raftStatus.nodeIdOfObservers = RaftUtil.strToIdSet(observers);
 
-        GroupComponents gc = new GroupComponents();
-        gc.raftStatus = raftStatus;
-        gc.groupConfig = new RaftGroupConfigEx(1, members, observers);
-        ConcurrentHashMap<Integer, RaftGroupImpl> raftGroups = new ConcurrentHashMap<>();
-        raftGroups.put(1, new RaftGroupImpl(gc));
-
-        nodeManager.initNodes(raftGroups);
+        nodeManager.initNodes();
 
         NodeInfo nodeInfo = new NodeInfo();
         nodeInfo.nodeManager = nodeManager;

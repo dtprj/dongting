@@ -357,7 +357,7 @@ public class RaftServer extends AbstractLifeCircle {
             nioClient.start(); // has no servers now
 
             // sync but should complete soon
-            nodeManager.initNodes(raftGroups);
+            nodeManager.initNodes();
 
             // start all fiber group
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -571,7 +571,6 @@ public class RaftServer extends AbstractLifeCircle {
 
     /**
      * ADMIN API. This method is idempotent and may block. If the node is node in node list, complete normally immediately.
-     * If the reference count of the node is not 0, the future complete exceptionally.
      */
     public CompletableFuture<Void> removeNode(int nodeId) {
         CompletableFuture<Void> f = nodeManager.removeNode(nodeId);
@@ -607,7 +606,6 @@ public class RaftServer extends AbstractLifeCircle {
             nodeManager.getLock().lock();
             try {
                 g = createRaftGroup(serverConfig, nodeManager.getAllNodeIdsInLock(), groupConfig);
-                nodeManager.processUseCountForGroupInLock(g, true);
             } finally {
                 nodeManager.getLock().unlock();
             }
@@ -677,12 +675,6 @@ public class RaftServer extends AbstractLifeCircle {
                         return oldGroupInMap;
                     });
                     if (removed[0]) {
-                        nodeManager.getLock().lock();
-                        try {
-                            nodeManager.processUseCountForGroupInLock(g, false);
-                        } finally {
-                            nodeManager.getLock().unlock();
-                        }
                         runPersistConfigTask();
                     }
                 });
