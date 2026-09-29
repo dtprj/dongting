@@ -24,7 +24,8 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 public class RaftMember {
     public final int nodeId;
     public final boolean self;
-    public final RaftNodeEx node;
+    // null if the node definition is not exist; refreshed by MemberManager.check()
+    public RaftNodeEx node;
     public final FiberCondition repDoneCondition;
     public boolean ready;
     public boolean pinging;
@@ -42,8 +43,8 @@ public class RaftMember {
     public int nodeEpoch;
     public boolean installSnapshot;
 
-    public RaftMember(RaftNodeEx node, boolean self, FiberGroup fg) {
-        this.nodeId = node.nodeId;
+    public RaftMember(int nodeId, boolean self, RaftNodeEx node, FiberGroup fg) {
+        this.nodeId = nodeId;
         this.self = self;
         this.node = node;
         this.repDoneCondition = fg.newCondition("repDone-" + nodeId);

@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.zip.CRC32C;
 
 /**
@@ -382,15 +382,21 @@ public final class RaftUtil {
         return value == null ? defaultValue : Boolean.parseBoolean(value);
     }
 
+    private static final HostPort UNKNOWN_HOST_PORT = new HostPort("unknown", 0);
+
+    // the peer parses the servers string, so a placeholder is used when the node definition is missing
+    public static RaftNode toRaftNode(RaftMember m) {
+        return m.node == null ? new RaftNode(m.nodeId, UNKNOWN_HOST_PORT) : m.node;
+    }
+
     public static SimpleWritePacket buildRaftPingPacket(int nodeId, RaftStatusImpl raftStatus) {
         RaftPing raftPing = new RaftPing();
         raftPing.groupId = raftStatus.groupId;
         raftPing.nodeId = nodeId;
-        Function<RaftMember, RaftNodeEx> mapper = m -> m.node;
-        raftPing.members = RaftNode.formatServers(raftStatus.members, mapper);
-        raftPing.observers = RaftNode.formatServers(raftStatus.observers, mapper);
-        raftPing.preparedMembers = RaftNode.formatServers(raftStatus.preparedMembers, mapper);
-        raftPing.preparedObservers = RaftNode.formatServers(raftStatus.preparedObservers, mapper);
+        raftPing.members = RaftNode.formatServers(raftStatus.members, RaftUtil::toRaftNode);
+        raftPing.observers = RaftNode.formatServers(raftStatus.observers, RaftUtil::toRaftNode);
+        raftPing.preparedMembers = RaftNode.formatServers(raftStatus.preparedMembers, RaftUtil::toRaftNode);
+        raftPing.preparedObservers = RaftNode.formatServers(raftStatus.preparedObservers, RaftUtil::toRaftNode);
         return new SimpleWritePacket(raftPing);
     }
 }

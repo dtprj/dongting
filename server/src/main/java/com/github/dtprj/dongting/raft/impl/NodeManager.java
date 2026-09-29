@@ -280,23 +280,11 @@ public class NodeManager extends AbstractLifeCircle {
         return memberNodes;
     }
 
-    public List<List<RaftNodeEx>> doApplyConfig(Set<Integer> oldMemberIds, Set<Integer> oldObserverIds,
-                                                Set<Integer> oldPreparedMemberIds, Set<Integer> oldPreparedObserverIds,
-                                                Set<Integer> newMemberIds, Set<Integer> newObserverIds,
-                                                Set<Integer> newPreparedMemberIds, Set<Integer> newPreparedObserverIds) {
+    // return null if the node definition is not exist
+    public RaftNodeEx getNodeEx(int nodeId) {
         lock.lock();
         try {
-            checkNodeIdSet(oldMemberIds);
-            checkNodeIdSet(oldObserverIds);
-            checkNodeIdSet(oldPreparedMemberIds);
-            checkNodeIdSet(oldPreparedObserverIds);
-
-            List<RaftNodeEx> newMembers = checkNodeIdSet(newMemberIds);
-            List<RaftNodeEx> newObservers = checkNodeIdSet(newObserverIds);
-            List<RaftNodeEx> newPreparedMembers = checkNodeIdSet(newPreparedMemberIds);
-            List<RaftNodeEx> newPreparedObservers = checkNodeIdSet(newPreparedObserverIds);
-
-            return List.of(newMembers, newObservers, newPreparedMembers, newPreparedObservers);
+            return allNodesEx.get(nodeId);
         } finally {
             lock.unlock();
         }

@@ -186,6 +186,14 @@ public class VoteManager {
             resp.voteGranted = true;
             resp.term = currentTerm;
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest, reqStartNanos);
+        } else if (member.node == null) {
+            // can not send vote request without node definition, the vote is simply not granted
+            log.warn("node definition not exist, vote not sent and mock a response. groupId={}, nodeId={}, term={}",
+                    groupId, member.nodeId, currentTerm);
+            VoteResp resp = new VoteResp();
+            resp.voteGranted = false;
+            resp.term = currentTerm;
+            fireRespProcessFiber(req, resp, null, member, voteIdOfRequest, reqStartNanos);
         } else {
             try {
                 RpcCallback<VoteResp> c = (rf, ex) ->

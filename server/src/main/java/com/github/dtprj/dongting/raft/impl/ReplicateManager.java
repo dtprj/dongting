@@ -108,6 +108,7 @@ public class ReplicateManager {
                 continue;
             }
             if (!m.ready) {
+                // if m is ready the raft ping is done, so m.node is not null in replicate/install fibers
                 continue;
             }
             Pair<RaftMember, Fiber> currentTask = replicateFibers.get(m.nodeId);

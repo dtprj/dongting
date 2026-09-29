@@ -111,15 +111,13 @@ public class MemberManager {
     public void init() {
         raftStatus.members = new ArrayList<>();
         for (int nodeId : raftStatus.nodeIdOfMembers) {
-            RaftNodeEx node = nodeManager.allNodesEx.get(nodeId);
-            RaftMember m = createMember(node, RaftRole.follower);
+            RaftMember m = createMember(nodeId, RaftRole.follower);
             raftStatus.members.add(m);
         }
         if (!raftStatus.nodeIdOfObservers.isEmpty()) {
             List<RaftMember> observers = new ArrayList<>();
             for (int nodeId : raftStatus.nodeIdOfObservers) {
-                RaftNodeEx node = nodeManager.allNodesEx.get(nodeId);
-                RaftMember m = createMember(node, RaftRole.observer);
+                RaftMember m = createMember(nodeId, RaftRole.observer);
                 observers.add(m);
             }
             raftStatus.observers = observers;
@@ -130,8 +128,7 @@ public class MemberManager {
         raftStatus.preparedObservers = emptyList();
         if (raftStatus.self == null) {
             // the current node is not in members and observers
-            RaftNodeEx node = nodeManager.allNodesEx.get(serverConfig.nodeId);
-            createMember(node, RaftRole.none);
+            createMember(serverConfig.nodeId, RaftRole.none);
             // for RaftRole.none, don't ping member when init
             pingReadyFuture.complete(null);
         }
@@ -200,11 +197,21 @@ public class MemberManager {
     }
 
     private void check(RaftMember member) {
-        RaftNodeEx node = member.node;
-        NodeStatus nodeStatus = node.status;
         if (member.self) {
             return;
         }
+        RaftNodeEx node = member.node;
+        if (node == null) {
+            // try to resolve the node definition, it may be added after this member created
+            node = nodeManager.getNodeEx(member.nodeId);
+            if (node == null) {
+                log.error("node definition not exist: groupId={}, nodeId={}", groupId, member.nodeId);
+                return;
+            }
+            member.node = node;
+            log.info("node definition resolved: groupId={}, nodeId={}", groupId, member.nodeId);
+        }
+        NodeStatus nodeStatus = node.status;
         if (!nodeStatus.isReady()) {
             setReady(member, false);
         } else if (nodeStatus.getEpoch() != member.nodeEpoch) {
@@ -253,7 +260,7 @@ public class MemberManager {
                     log.error("raft ping static check fail: {}", s);
                     setReady(member, false);
                 } else {
-                    NodeStatus currentNodeStatus = member.node.status;
+                    NodeStatus currentNodeStatus = raftNodeEx.status;
                     if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
                         log.info("raft ping success, id={}, remote={}", ping.nodeId, raftNodeEx.hostPort);
                         setReady(member, true);
@@ -295,7 +302,7 @@ public class MemberManager {
         int check = groupConfig.raftPingCheck;
         if (check > 0) {
             if (localServers.size() != remotes.size()) {
-                return s + " size not match, local=" + RaftNode.formatServers(localServers, m -> m.node)
+                return s + " size not match, local=" + RaftNode.formatServers(localServers, RaftUtil::toRaftNode)
                         + ", remote=" + remoteServers;
             }
             for (RaftNode rn : remotes) {
@@ -306,10 +313,10 @@ public class MemberManager {
                         break;
                     }
                 }
-                boolean fail = localMember == null ||
-                        (check > 1 && !localMember.node.hostPort.equals(rn.hostPort));
+                boolean fail = localMember == null || localMember.node == null
+                        || (check > 1 && !localMember.node.hostPort.equals(rn.hostPort));
                 if (fail) {
-                    return s + " not match, local=" + RaftNode.formatServers(localServers, m -> m.node)
+                    return s + " not match, local=" + RaftNode.formatServers(localServers, RaftUtil::toRaftNode)
                             + ", remote=" + remoteServers;
                 }
             }
@@ -475,6 +482,10 @@ public class MemberManager {
         }
 
         private void sendQuery(RaftMember m) {
+            if (m.node == null) {
+                onResp(m, false);
+                return;
+            }
             PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
             CompletableFuture<ReadPacket<QueryStatusResp>> f = new CompletableFuture<>();
             try {
@@ -623,9 +634,14 @@ public class MemberManager {
         return null;
     }
 
-    private RaftMember createMember(RaftNodeEx node, RaftRole role) {
-        RaftMember m = new RaftMember(node, node.nodeId == serverConfig.nodeId, groupConfig.fiberGroup);
-        if (m.self) {
+    private RaftMember createMember(int nodeId, RaftRole role) {
+        boolean self = nodeId == serverConfig.nodeId;
+        RaftNodeEx node = nodeManager.getNodeEx(nodeId);
+        if (node == null) {
+            log.error("node definition not exist: groupId={}, nodeId={}", groupId, nodeId);
+        }
+        RaftMember m = new RaftMember(nodeId, self, node, groupConfig.fiberGroup);
+        if (self) {
             m.ready = true;
             raftStatus.self = m;
             raftStatus.setRole(role);
@@ -713,19 +729,11 @@ public class MemberManager {
                     msg, groupId, raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
                     raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
                     members, observers, preparedMembers, preparedObservers);
-            List<List<RaftNodeEx>> result = nodeManager.doApplyConfig(
-                    raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers,
-                    raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
-                    members, observers, preparedMembers, preparedObservers);
-            List<RaftNodeEx> newMemberNodes = result.get(0);
-            List<RaftNodeEx> newObserverNodes = result.get(1);
-            List<RaftNodeEx> newPreparedMemberNodes = result.get(2);
-            List<RaftNodeEx> newPreparedObserverNodes = result.get(3);
 
-            List<RaftMember> newMembers = createMembersInConfigChange(newMemberNodes);
-            List<RaftMember> newObservers = createMembersInConfigChange(newObserverNodes);
-            List<RaftMember> newPreparedMembers = createMembersInConfigChange(newPreparedMemberNodes);
-            List<RaftMember> newPreparedObservers = createMembersInConfigChange(newPreparedObserverNodes);
+            List<RaftMember> newMembers = createMembersInConfigChange(members);
+            List<RaftMember> newObservers = createMembersInConfigChange(observers);
+            List<RaftMember> newPreparedMembers = createMembersInConfigChange(preparedMembers);
+            List<RaftMember> newPreparedObservers = createMembersInConfigChange(preparedObservers);
 
             List<RaftMember> oldRepList = raftStatus.replicateList;
 
@@ -823,12 +831,12 @@ public class MemberManager {
         });
     }
 
-    private List<RaftMember> createMembersInConfigChange(List<RaftNodeEx> nodes) {
-        List<RaftMember> newMembers = new ArrayList<>();
-        for (RaftNodeEx node : nodes) {
-            RaftMember m = findExistMember(node.nodeId);
+    private List<RaftMember> createMembersInConfigChange(Set<Integer> nodeIds) {
+        List<RaftMember> newMembers = new ArrayList<>(nodeIds.size());
+        for (int nodeId : nodeIds) {
+            RaftMember m = findExistMember(nodeId);
             if (m == null) {
-                m = createMember(node, RaftRole.observer);
+                m = createMember(nodeId, RaftRole.observer);
                 m.nextIndex = raftStatus.lastLogIndex + 1;
             }
             newMembers.add(m);
@@ -963,12 +971,17 @@ public class MemberManager {
             boolean newLeaderHasLastLog = newLeader.matchIndex == raftStatus.lastLogIndex;
 
             if (newLeader.ready && lastLogCommit && newLeaderHasLastLog) {
+                RaftNodeEx node = newLeader.node;
+                if (node == null) {
+                    f.completeExceptionally(new RaftException("node definition not exist: " + nodeId));
+                    clearMyCondition();
+                    return Fiber.frameReturn();
+                }
                 PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId);
                 CompletableFuture<ReadPacket<QueryStatusResp>> queryFuture = new CompletableFuture<>();
-                client.sendRequest(newLeader.node.peer, req, QueryStatusResp.DECODER,
+                client.sendRequest(node.peer, req, QueryStatusResp.DECODER,
                         new DtTime(3, TimeUnit.SECONDS), RpcCallback.fromFuture(queryFuture));
-                RaftMember finalNewLeader = newLeader;
-                queryFuture.whenCompleteAsync((resp, ex) -> afterQuery(finalNewLeader, resp, ex),
+                queryFuture.whenCompleteAsync((resp, ex) -> afterQuery(node, resp, ex),
                         groupConfig.fiberGroup.getExecutor());
                 return Fiber.frameReturn();
             } else {
@@ -978,7 +991,7 @@ public class MemberManager {
 
         // run in fiber group thread from the executor callback, not in the transfer fiber.
         // the rpc timeout guarantees this method is invoked
-        private void afterQuery(RaftMember newLeader, ReadPacket<QueryStatusResp> resp, Throwable ex) {
+        private void afterQuery(RaftNodeEx newLeaderNode, ReadPacket<QueryStatusResp> resp, Throwable ex) {
             try {
                 if (checkTerminated()) {
                     return;
@@ -1012,7 +1025,7 @@ public class MemberManager {
                     }
                     return;
                 }
-                execTransferLeader(newLeader.node, f);
+                execTransferLeader(newLeaderNode, f);
             } catch (Throwable e) {
                 log.error("transfer leader process query resp fail, groupId={}", groupId, e);
                 clearMyCondition();

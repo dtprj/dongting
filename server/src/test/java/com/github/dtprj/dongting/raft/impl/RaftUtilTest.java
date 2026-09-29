@@ -37,11 +37,11 @@ public class RaftUtilTest {
         RaftNodeEx n3 = new RaftNodeEx(3, new HostPort("127.0.0.1", 10003), false, null);
         RaftNodeEx n4 = new RaftNodeEx(4, new HostPort("127.0.0.1", 10004), false, null);
         RaftNodeEx n5 = new RaftNodeEx(5, new HostPort("127.0.0.1", 10005), false, null);
-        RaftMember m1 = new RaftMember(n1, false, FiberTestUtil.FIBER_GROUP);
-        RaftMember m2 = new RaftMember(n2, false, FiberTestUtil.FIBER_GROUP);
-        RaftMember m3 = new RaftMember(n3, false, FiberTestUtil.FIBER_GROUP);
-        RaftMember m4 = new RaftMember(n4, false, FiberTestUtil.FIBER_GROUP);
-        RaftMember m5 = new RaftMember(n5, false, FiberTestUtil.FIBER_GROUP);
+        RaftMember m1 = new RaftMember(1, false, n1, FiberTestUtil.FIBER_GROUP);
+        RaftMember m2 = new RaftMember(2, false, n2, FiberTestUtil.FIBER_GROUP);
+        RaftMember m3 = new RaftMember(3, false, n3, FiberTestUtil.FIBER_GROUP);
+        RaftMember m4 = new RaftMember(4, false, n4, FiberTestUtil.FIBER_GROUP);
+        RaftMember m5 = new RaftMember(5, false, n5, FiberTestUtil.FIBER_GROUP);
         m1.lastConfirmReqNanos = -100;
         m2.lastConfirmReqNanos = -200;
         m3.lastConfirmReqNanos = 200;
