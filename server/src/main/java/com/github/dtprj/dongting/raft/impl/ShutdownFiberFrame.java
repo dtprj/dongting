@@ -52,6 +52,11 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
 
     @Override
     protected FrameCallResult doFinally() {
+        try {
+            gc.memberManager.releaseAllNodes();
+        } catch (Throwable e) {
+            log.error("", e);
+        }
         gc.groupConfig.perfCallback.shutdown();
 
         RaftFactory raftFactory = gc.raftFactory;

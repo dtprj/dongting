@@ -203,7 +203,7 @@ public class MemberManager {
         RaftNodeEx node = member.node;
         if (node == null) {
             // try to resolve the node definition, it may be added after this member created
-            node = nodeManager.getNodeEx(member.nodeId);
+            node = nodeManager.retainNodeEx(member.nodeId);
             if (node == null) {
                 log.error("node definition not exist: groupId={}, nodeId={}", groupId, member.nodeId);
                 return;
@@ -636,7 +636,7 @@ public class MemberManager {
 
     private RaftMember createMember(int nodeId, RaftRole role) {
         boolean self = nodeId == serverConfig.nodeId;
-        RaftNodeEx node = nodeManager.getNodeEx(nodeId);
+        RaftNodeEx node = nodeManager.retainNodeEx(nodeId);
         if (node == null) {
             log.error("node definition not exist: groupId={}, nodeId={}", groupId, nodeId);
         }
@@ -648,6 +648,30 @@ public class MemberManager {
             raftStatus.copyShareStatus();
         }
         return m;
+    }
+
+    // invoked when the raft group is shutting down
+    public void releaseAllNodes() {
+        HashSet<RaftMember> all = new HashSet<>();
+        if (raftStatus.members != null) {
+            all.addAll(raftStatus.members);
+        }
+        if (raftStatus.observers != null) {
+            all.addAll(raftStatus.observers);
+        }
+        if (raftStatus.preparedMembers != null) {
+            all.addAll(raftStatus.preparedMembers);
+        }
+        if (raftStatus.preparedObservers != null) {
+            all.addAll(raftStatus.preparedObservers);
+        }
+        ArrayList<RaftNodeEx> nodes = new ArrayList<>(all.size());
+        for (RaftMember m : all) {
+            if (m.node != null) {
+                nodes.add(m.node);
+            }
+        }
+        nodeManager.releaseNodeEx(nodes);
     }
 
     public FrameCallResult doPrepare(long raftIndex, Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
@@ -730,6 +754,12 @@ public class MemberManager {
                     raftStatus.nodeIdOfPreparedMembers, raftStatus.nodeIdOfPreparedObservers,
                     members, observers, preparedMembers, preparedObservers);
 
+            HashSet<RaftMember> oldMembers = new HashSet<>();
+            oldMembers.addAll(raftStatus.members);
+            oldMembers.addAll(raftStatus.observers);
+            oldMembers.addAll(raftStatus.preparedMembers);
+            oldMembers.addAll(raftStatus.preparedObservers);
+
             List<RaftMember> newMembers = createMembersInConfigChange(members);
             List<RaftMember> newObservers = createMembersInConfigChange(observers);
             List<RaftMember> newPreparedMembers = createMembersInConfigChange(preparedMembers);
@@ -742,6 +772,20 @@ public class MemberManager {
             raftStatus.preparedMembers = newPreparedMembers;
             raftStatus.preparedObservers = newPreparedObservers;
             computeDuplicatedData(raftStatus);
+
+            // release nodes of members which are dropped by this config change
+            HashSet<RaftMember> retainedMembers = new HashSet<>();
+            retainedMembers.addAll(newMembers);
+            retainedMembers.addAll(newObservers);
+            retainedMembers.addAll(newPreparedMembers);
+            retainedMembers.addAll(newPreparedObservers);
+            ArrayList<RaftNodeEx> droppedNodes = new ArrayList<>();
+            for (RaftMember m : oldMembers) {
+                if (!retainedMembers.contains(m) && m.node != null) {
+                    droppedNodes.add(m.node);
+                }
+            }
+            nodeManager.releaseNodeEx(droppedNodes);
 
             int selfNodeId = serverConfig.nodeId;
             int newLeaderId = -1;

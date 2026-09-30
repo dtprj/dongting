@@ -571,6 +571,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     /**
      * ADMIN API. This method is idempotent and may block. If the node is node in node list, complete normally immediately.
+     * If the node is referenced by any raft member, the future complete exceptionally.
      */
     public CompletableFuture<Void> removeNode(int nodeId) {
         CompletableFuture<Void> f = nodeManager.removeNode(nodeId);

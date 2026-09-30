@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.raft.rpc.NodePing;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -280,11 +281,30 @@ public class NodeManager extends AbstractLifeCircle {
         return memberNodes;
     }
 
-    // return null if the node definition is not exist
-    public RaftNodeEx getNodeEx(int nodeId) {
+    // return null if the node definition is not exist; the returned node is retained,
+    // the caller must release it via releaseNodeEx()
+    public RaftNodeEx retainNodeEx(int nodeId) {
         lock.lock();
         try {
-            return allNodesEx.get(nodeId);
+            RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+            if (nodeEx != null) {
+                nodeEx.useCount++;
+            }
+            return nodeEx;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void releaseNodeEx(Collection<RaftNodeEx> nodes) {
+        if (nodes.isEmpty()) {
+            return;
+        }
+        lock.lock();
+        try {
+            for (RaftNodeEx node : nodes) {
+                node.useCount--;
+            }
         } finally {
             lock.unlock();
         }
@@ -331,9 +351,11 @@ public class NodeManager extends AbstractLifeCircle {
                 if (existNode == null) {
                     log.warn("node {} not exist", nodeId);
                     f.complete(null);
-                } else {
+                } else if (existNode.useCount == 0) {
                     allNodesEx.remove(nodeId);
                     client.removePeer(existNode.peer).thenRun(() -> f.complete(null));
+                } else {
+                    f.completeExceptionally(new RaftException("node is in use, ref count: " + existNode.useCount));
                 }
             } catch (Exception unexpected) {
                 log.error("", unexpected);

@@ -28,6 +28,11 @@ public class RaftNodeEx extends RaftNode {
 
     public boolean pinging;
 
+    // Count of RaftMember references, guarded by NodeManager lock.
+    // For simplicity, the self node does not maintain this field precisely, because of the
+    // RaftRole.none case; but removing the self node is forbidden, so this cannot cause problems.
+    public int useCount;
+
     public volatile NodeStatus status = new NodeStatus(false, 0);
 
     public RaftNodeEx(int id, HostPort hostPort, boolean self, Peer peer) {
