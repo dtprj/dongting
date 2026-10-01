@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.fiber.ShareStatus;
  */
 public final class RaftShareStatus extends ShareStatus {
     public boolean initFinished;
-    public boolean initFailed;
     public boolean groupReady;
 
     // public long lastApplied;

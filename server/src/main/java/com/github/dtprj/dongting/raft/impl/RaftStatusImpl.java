@@ -151,7 +151,6 @@ public final class RaftStatusImpl extends RaftStatus {
         ss.groupReady = groupReady;
 
         ss.initFinished = initFinished;
-        ss.initFailed = initFailed;
 
         this.shareStatusUpdated = false;
 
