@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
@@ -57,9 +58,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
     protected FrameCallResult handle(Throwable ex) {
         log.error("raft group init failed, groupId={}", groupConfig.groupId, ex);
         raftStatus.markInit(true);
-        raftStatus.copyShareStatus();
+        raftStatus.copy(true);
+        boolean fatal = !isGroupShouldStopPlain() && !(DtUtil.rootCause(ex) instanceof RaftCancelException);
+        getFiberGroup().requestShutdown(fatal);
         raftStatus.initFuture.completeExceptionally(ex);
-        getFiberGroup().requestShutdown();
         return Fiber.frameReturn();
     }
 
@@ -67,7 +69,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         if (isGroupShouldStopPlain() && !raftStatus.isInitFinished()) {
             raftStatus.markInit(true);
             raftStatus.copyShareStatus();
-            raftStatus.initFuture.completeExceptionally(new RaftException("group should stop"));
+            raftStatus.initFuture.completeExceptionally(new RaftCancelException("group should stop"));
             return true;
         }
         return false;

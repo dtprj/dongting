@@ -543,7 +543,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private static void throwFatalError(FiberGroup g, String msg) {
         FiberException fe = new FiberException(msg);
         g.dispatcher.fatalError = fe;
-        g.requestShutdown();
+        g.requestShutdown(true);
         throw fe;
     }
 

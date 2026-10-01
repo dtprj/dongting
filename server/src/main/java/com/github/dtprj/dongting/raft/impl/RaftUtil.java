@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.RaftPing;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
@@ -71,7 +70,7 @@ public final class RaftUtil {
 
     public static void checkStop(FiberGroup fiberGroup) {
         if (fiberGroup.shareStatusSource.isShouldStop()) {
-            throw new RaftException("raft group stopped");
+            throw new RaftCancelException("raft group stopped");
         }
     }
 

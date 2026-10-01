@@ -94,6 +94,18 @@ public class FiberGroup {
      * can call in any thread
      */
     public void requestShutdown() {
+        requestShutdown(false);
+    }
+
+    /**
+     * If fatal, the fatal error flag is marked and published before shutdown,
+     * so it is visible to other threads even if the group is already stopping.
+     */
+    public void requestShutdown(boolean fatal) {
+        if (fatal) {
+            shareStatusSource.fatalError = true;
+            shareStatusSource.copy(true);
+        }
         if (Thread.currentThread() == dispatcher.thread && dispatcher.thread.currentGroup == this) {
             requestShutdown0();
         } else {

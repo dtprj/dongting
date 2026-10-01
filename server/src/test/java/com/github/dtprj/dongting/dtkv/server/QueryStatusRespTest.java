@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.raft.impl.DtRaftServer;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
+import com.github.dtprj.dongting.raft.impl.DtRaftServer;
 import com.github.dtprj.dongting.util.CodecTestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

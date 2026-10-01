@@ -20,6 +20,8 @@ import com.github.dtprj.dongting.it.StressIT;
 import com.github.dtprj.dongting.it.support.BootstrapProcessManager.ProcessInfo;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
@@ -32,6 +34,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -315,6 +318,13 @@ public class FaultInjector extends Thread {
                 AdminRaftClient c = clusterValidator.getAdminClient();
                 CompletableFuture<QueryStatusResp> f = c.queryRaftServerStatus(nodeId, groupId);
                 resp = f.get();
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof NetCodeException &&
+                        ((NetCodeException) e.getCause()).getCode() == CmdCodes.RAFT_GROUP_ERROR) {
+                    throw new AssertionError("group fatal error");
+                } else {
+                    log.warn("Failed to check server ready. {}", e.toString());
+                }
             } catch (Exception e) {
                 log.warn("Failed to check server ready. {}", e.toString());
             }

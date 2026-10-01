@@ -173,7 +173,7 @@ public class StatusManager {
                     // retry budget exhausted
                     log.error("status update fail after retries, shutdown group: groupId={}",
                             groupConfig.groupId, ex);
-                    FiberGroup.currentGroup().requestShutdown();
+                    FiberGroup.currentGroup().requestShutdown(true);
                 }
             }
             updateDoneCondition.signalAll();

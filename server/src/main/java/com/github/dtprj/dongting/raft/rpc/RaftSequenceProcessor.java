@@ -87,13 +87,6 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             if (o == null) {
                 return Fiber.resume(null, this);
             }
-            if (o.raftGroup.raftStatus.isFatalError()) {
-                return cleanAndExit(o, () -> {
-                    EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_ERROR);
-                    wf.msg = "raft group in error status: " + groupId;
-                    return wf;
-                });
-            }
             current = o;
             return Fiber.call(processInFiberGroup(o), this);
         }

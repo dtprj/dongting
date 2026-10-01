@@ -269,7 +269,7 @@ class MqIdxFlusher {
                     error = true;
                     log.error("mq idx io fail after retries, shutdown group: queue={}, file={}",
                             q.queueId, b.logFile.getFile().getPath(), ex);
-                    FiberGroup.currentGroup().requestShutdown();
+                    FiberGroup.currentGroup().requestShutdown(true);
                 }
                 return;
             }
@@ -327,7 +327,7 @@ class MqIdxFlusher {
                     error = true;
                     log.error("mq idx file allocation fail after retries, shutdown group: queue={}",
                             q.queueId, ex);
-                    FiberGroup.currentGroup().requestShutdown();
+                    FiberGroup.currentGroup().requestShutdown(true);
                 }
             }
         } catch (Throwable t) {

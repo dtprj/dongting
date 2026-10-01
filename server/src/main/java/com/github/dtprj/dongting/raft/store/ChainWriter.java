@@ -230,7 +230,7 @@ public class ChainWriter {
             log.error("write file {} error: {}", task.getLogFile().getFile(), ioEx.toString());
             error = true;
             task.getLogFile().decWriters();
-            FiberGroup.currentGroup().requestShutdown();
+            FiberGroup.currentGroup().requestShutdown(true);
             return;
         }
         LinkedList<WriteTask> writeTasks = this.writeTasks;
