@@ -130,7 +130,7 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public final CompletableFuture<Void> initFuture = new CompletableFuture<>();
     private boolean initFinished;
-    private boolean initFailed;
+    public boolean initFailed;
 
     public RaftStatusImpl(int groupId, Timestamp ts) {
         super(groupId);
@@ -256,10 +256,6 @@ public final class RaftStatusImpl extends RaftStatus {
 
     public long getLastApplied() {
         return lastApplied;
-    }
-
-    public boolean isInitFailed() {
-        return initFailed;
     }
 
     public boolean isInitFinished() {

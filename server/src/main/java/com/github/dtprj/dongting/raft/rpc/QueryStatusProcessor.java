@@ -61,7 +61,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         QueryStatusResp resp = new QueryStatusResp();
         resp.groupId = raftStatus.groupId;
         resp.nodeId = nodeId;
-        resp.setFlag(raftStatus.isInitFinished(), raftStatus.isInitFailed(),
+        resp.setFlag(raftStatus.isInitFinished(), raftStatus.initFailed,
                 raftStatus.isGroupReady(), BugLog.getCount() != 0);
         resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().nodeId;
         resp.term = raftStatus.currentTerm;

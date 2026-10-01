@@ -80,7 +80,7 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
             gc.raftStatus.needRepCondition.signalAll();
         }
         return Fiber.call(new AwaitFutureFrame<>("saveSnapshot", () -> {
-            if (saveSnapshot && gc.raftStatus.isInitFinished() && !gc.raftStatus.isInitFailed()) {
+            if (saveSnapshot && gc.raftStatus.isInitFinished() && !gc.raftStatus.initFailed) {
                 return gc.snapshotManager.saveSnapshot();
             } else {
                 return FiberFuture.completedFuture(getFiberGroup(), 0L);
