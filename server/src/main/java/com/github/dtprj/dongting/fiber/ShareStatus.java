@@ -20,4 +20,5 @@ package com.github.dtprj.dongting.fiber;
  */
 public class ShareStatus {
     public boolean shouldStop;
+    public boolean fatalError;
 }

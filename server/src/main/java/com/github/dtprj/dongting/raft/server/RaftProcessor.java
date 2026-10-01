@@ -120,6 +120,12 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
         ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         RaftShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
+        if (ss.fatalError) {
+            packet.clean();
+            EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_ERROR);
+            wf.msg = "raft group in error status: " + groupId;
+            return wf;
+        }
         if (!ss.initFinished && packet.command != Commands.RAFT_QUERY_STATUS) {
             // raft query status can be processed when not initialized
             packet.clean();
@@ -157,12 +163,12 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             log.warn("not leader, current leader is {}", leaderId);
         } else if (root.getMessage().contains("the fiber group is not running")) {
             errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
-        } else if(root instanceof NetCodeException) {
+        } else if (root instanceof NetCodeException) {
             NetCodeException nce = (NetCodeException) root;
             errorResp = new EmptyBodyRespPacket(nce.getCode());
             errorResp.msg = nce.getMessage();
             errorResp.extra = nce.getExtra();
-        } else{
+        } else {
             errorResp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
             log.warn("raft processor error", ex);
         }

@@ -37,6 +37,7 @@ public class ShareStatusSource {
     }
 
     protected boolean shouldStop;
+    protected boolean fatalError;
 
     public ShareStatusSource() {
         copy(false);
@@ -45,6 +46,7 @@ public class ShareStatusSource {
     protected void copy(boolean volatileMode) {
         ShareStatus ss = new ShareStatus();
         ss.shouldStop = this.shouldStop;
+        ss.fatalError = this.fatalError;
         if (volatileMode) {
             shareStatus = ss;
         } else {
@@ -62,5 +64,9 @@ public class ShareStatusSource {
 
     public boolean isShouldStop() {
         return shouldStop;
+    }
+
+    public boolean isFatalError() {
+        return fatalError;
     }
 }

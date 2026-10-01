@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -55,8 +56,8 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
         return channel;
     }
 
-    public void startProcessFiber(FiberChannel<ReqInfoEx<T>> channel) {
-        FiberFrame<Void> ff = new ProcessorFiberFrame(channel);
+    public void startProcessFiber(int groupId, FiberChannel<ReqInfoEx<T>> channel) {
+        FiberFrame<Void> ff = new ProcessorFiberFrame(groupId, channel);
         Fiber f = new Fiber("Processor" + getClass().getSimpleName(),
                 FiberGroup.currentGroup(), ff);
         f.start();
@@ -64,10 +65,12 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
 
     private class ProcessorFiberFrame extends FiberFrame<Void> {
 
+        private final int groupId;
         private final FiberChannel<ReqInfoEx<T>> channel;
         private ReqInfo<T> current;
 
-        ProcessorFiberFrame(FiberChannel<ReqInfoEx<T>> channel) {
+        ProcessorFiberFrame(int groupId, FiberChannel<ReqInfoEx<T>> channel) {
+            this.groupId = groupId;
             this.channel = channel;
         }
 
@@ -79,26 +82,33 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
 
         private FrameCallResult resume(ReqInfoEx<T> o) {
             if (isGroupShouldStopPlain()) {
-                return cleanAndExit(o);
+                return cleanAndExit(o, () -> createStoppedResp(groupId));
             }
             if (o == null) {
                 return Fiber.resume(null, this);
+            }
+            if (o.raftGroup.raftStatus.isFatalError()) {
+                return cleanAndExit(o, () -> {
+                    EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_ERROR);
+                    wf.msg = "raft group in error status: " + groupId;
+                    return wf;
+                });
             }
             current = o;
             return Fiber.call(processInFiberGroup(o), this);
         }
 
-        private FrameCallResult cleanAndExit(ReqInfoEx<T> o) {
+        private FrameCallResult cleanAndExit(ReqInfoEx<T> o, Supplier<WritePacket> respProvider) {
             channel.markShutdown();
             if (o != null) {
                 o.reqFrame.clean();
-                o.reqContext.writeRespInBizThreads(createStoppedResp(o.raftGroup.getGroupId()));
+                o.reqContext.writeRespInBizThreads(respProvider.get());
             }
             ArrayList<ReqInfoEx<T>> list = new ArrayList<>();
             channel.drain(list);
             for (ReqInfoEx<T> reqInfo : list) {
                 reqInfo.reqFrame.clean();
-                reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
+                reqInfo.reqContext.writeRespInBizThreads(respProvider.get());
             }
             // fiber exit here
             return Fiber.frameReturn();
@@ -113,10 +123,10 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
                 current.reqContext.writeRespInBizThreads(wf);
             }
             if (isGroupShouldStopPlain()) {
-                return cleanAndExit(null);
+                return cleanAndExit(null, () -> createStoppedResp(groupId));
             } else {
                 log.error("restart processor fiber.");
-                startProcessFiber(channel);
+                startProcessFiber(groupId, channel);
                 return Fiber.frameReturn();
             }
         }

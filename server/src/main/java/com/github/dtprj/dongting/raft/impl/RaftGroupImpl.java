@@ -45,8 +45,8 @@ public final class RaftGroupImpl extends RaftGroup {
     public final GroupComponents groupComponents;
     public final FiberGroup fiberGroup;
 
-    private final int groupId;
-    private final RaftStatusImpl raftStatus;
+    public final int groupId;
+    public final RaftStatusImpl raftStatus;
     private final StateMachine stateMachine;
 
     public RaftGroupImpl(GroupComponents groupComponents) {

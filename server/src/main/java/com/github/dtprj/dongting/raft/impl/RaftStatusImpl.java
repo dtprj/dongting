@@ -142,6 +142,7 @@ public final class RaftStatusImpl extends RaftStatus {
     public void copy(boolean volatileMode) {
         RaftShareStatus ss = new RaftShareStatus();
         ss.shouldStop = shouldStop;
+        ss.fatalError = fatalError;
         ss.role = role;
         // ss.lastApplied = lastApplied;
         if (role == RaftRole.leader) {

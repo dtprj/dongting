@@ -91,7 +91,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
             @SuppressWarnings("rawtypes")
             FiberChannel channel = processor.registerChannel(fg, gc);
             //noinspection unchecked
-            processor.startProcessFiber(channel);
+            processor.startProcessFiber(raftStatus.groupId, channel);
         }
 
         gc.linearTaskRunner.init(fg.newChannel());
