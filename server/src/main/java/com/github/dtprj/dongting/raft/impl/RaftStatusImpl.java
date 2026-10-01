@@ -147,7 +147,7 @@ public final class RaftStatusImpl extends RaftStatus {
         if (role == RaftRole.leader) {
             ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - leaseDelta;
         }
-        ss.currentLeader = currentLeader;
+        ss.currentLeaderId = currentLeader == null ? -1 : currentLeader.nodeId;
         ss.groupReady = groupReady;
 
         ss.initFinished = initFinished;

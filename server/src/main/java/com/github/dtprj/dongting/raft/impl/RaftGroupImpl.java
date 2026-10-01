@@ -95,7 +95,7 @@ public final class RaftGroupImpl extends RaftGroup {
             throw new RaftException("raft group thread is stop");
         }
         if (ss.role != RaftRole.leader) {
-            throw new NotLeaderException(ss.currentLeader == null ? null : ss.currentLeader.node);
+            throw new NotLeaderException(ss.currentLeaderId);
         }
         if (ss.groupReady) {
             long t = ts.nanoTime;

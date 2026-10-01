@@ -27,6 +27,10 @@ public class NotLeaderException extends RaftException {
     // -1 means unknown
     private final int currentLeaderId;
 
+    public NotLeaderException(int currentLeaderId) {
+        this.currentLeaderId = currentLeaderId;
+    }
+
     public NotLeaderException(RaftNode currentLeader) {
         this.currentLeaderId = currentLeader == null ? -1 : currentLeader.nodeId;
     }

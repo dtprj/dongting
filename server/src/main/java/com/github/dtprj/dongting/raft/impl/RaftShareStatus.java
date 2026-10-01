@@ -27,6 +27,6 @@ public final class RaftShareStatus extends ShareStatus {
     // public long lastApplied;
     public long leaseEndNanos;
     public RaftRole role;
-    public RaftMember currentLeader;
+    public int currentLeaderId; // -1 if none
 
 }
