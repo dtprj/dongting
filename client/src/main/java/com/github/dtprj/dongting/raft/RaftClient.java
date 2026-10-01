@@ -515,6 +515,7 @@ public class RaftClient extends AbstractLifeCircle {
                     }
                     case CmdCodes.SYS_ERROR:
                     case CmdCodes.FLOW_CONTROL:
+                    case CmdCodes.RAFT_GROUP_ERROR:
                         updateLeaderFailTime(groupInfo);
                         break;
                     case CmdCodes.COMMAND_NOT_SUPPORT:

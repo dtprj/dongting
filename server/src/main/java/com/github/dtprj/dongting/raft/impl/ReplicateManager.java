@@ -447,7 +447,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             if (ex instanceof NetCodeException) {
                 int c = ((NetCodeException) ex).getCode();
                 warn = c == CmdCodes.RAFT_GROUP_STOPPED || c == CmdCodes.RAFT_GROUP_NOT_INIT
-                        || c == CmdCodes.STOPPING || c == CmdCodes.NOT_INIT;
+                        || c == CmdCodes.STOPPING || c == CmdCodes.NOT_INIT || c == CmdCodes.RAFT_GROUP_ERROR;
             }
             if (warn) {
                 log.warn("append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}. {}",

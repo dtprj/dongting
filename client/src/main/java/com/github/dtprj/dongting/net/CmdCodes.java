@@ -31,4 +31,5 @@ public interface CmdCodes {
     int RAFT_GROUP_STOPPED = 9;
     int RAFT_GROUP_NOT_INIT = 10;
     int DECODE_ERROR = 11;
+    int RAFT_GROUP_ERROR = 12;
 }
