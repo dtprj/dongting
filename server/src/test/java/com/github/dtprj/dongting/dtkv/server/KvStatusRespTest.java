@@ -56,7 +56,7 @@ public class KvStatusRespTest {
         status.observers = new HashSet<>();
         status.observers.add(4);
         status.lastConfigChangeIndex = 500;
-        status.lastError = "test error";
+        status.firstError = "test error";
         return status;
     }
 

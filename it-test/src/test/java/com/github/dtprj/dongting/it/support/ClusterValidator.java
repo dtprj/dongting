@@ -231,7 +231,7 @@ public class ClusterValidator {
             }
 
             if (status.isBug()) {
-                log.error("Node {} has bug flag set. Last error:\n{}", entry.getKey(), status.lastError);
+                log.error("Node {} has bug flag set. First error:\n{}", entry.getKey(), status.firstError);
             }
             Assertions.assertFalse(status.isBug(), "Node " + entry.getKey() + " has bug flag set");
         }

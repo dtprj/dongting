@@ -47,7 +47,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 //    repeated fixed32 prepared_members = 13[packed = false];
 //    repeated fixed32 prepared_observers = 14[packed = false];
 //    fixed64 last_config_change_index = 15;
-//    string last_error = 16;
+//    string first_error = 16;
 //    fixed64 persisted_commit_index = 17;
 
     private static final int IDX_GROUP_ID = 1;
@@ -65,7 +65,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
     private static final int IDX_PREPARED_MEMBERS = 13;
     private static final int IDX_PREPARED_OBSERVERS = 14;
     private static final int IDX_LAST_CONFIG_CHANGE_INDEX = 15;
-    private static final int IDX_LAST_ERROR = 16;
+    private static final int IDX_FIRST_ERROR = 16;
     private static final int IDX_PERSISTED_COMMIT_INDEX = 17;
 
     public int nodeId;
@@ -77,7 +77,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
     public long lastLogIndex;
     public long applyLagMillis; // the time delay from commit to apply, sampled update.
     public long lastConfigChangeIndex;
-    public String lastError;
+    public String firstError;
     public long persistedCommitIndex;
 
     public static final DecoderCallbackCreator<QueryStatusResp> DECODER = ctx -> ctx.toDecoderCallback(
@@ -143,7 +143,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
                     PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers) +
                     PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, preparedObservers) +
                     PbUtil.sizeOfFix64Field(IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex) +
-                    PbUtil.sizeOfUTF8(IDX_LAST_ERROR, lastError) +
+                    PbUtil.sizeOfUTF8(IDX_FIRST_ERROR, firstError) +
                     PbUtil.sizeOfFix64Field(IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex);
         }
         return size;
@@ -240,11 +240,11 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
                 }
                 // fall through
             case IDX_LAST_CONFIG_CHANGE_INDEX:
-                if (!EncodeUtil.encodeUTF8(context, destBuffer, IDX_LAST_ERROR, lastError)) {
+                if (!EncodeUtil.encodeUTF8(context, destBuffer, IDX_FIRST_ERROR, firstError)) {
                     return false;
                 }
                 // fall through
-            case IDX_LAST_ERROR:
+            case IDX_FIRST_ERROR:
                 return EncodeUtil.encodeFix64(context, destBuffer, IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex);
             default:
                 throw new CodecException(context);
@@ -334,8 +334,8 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == IDX_LAST_ERROR) {
-                resp.lastError = parseUTF8(buf, fieldLen, currentPos);
+            if (index == IDX_FIRST_ERROR) {
+                resp.firstError = parseUTF8(buf, fieldLen, currentPos);
             }
         }
 
