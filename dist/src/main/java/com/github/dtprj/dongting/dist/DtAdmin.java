@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.dist;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftNode;
 
@@ -30,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -340,23 +337,8 @@ public class DtAdmin {
         int groupId = getRequiredIntParam("group-id");
         DtTime timeout = getTimeoutParamOrDefault(client);
 
-        QueryStatusResp resp;
         System.out.println("Executing query-status with timeout " + timeout.getTimeout(TimeUnit.SECONDS) + " seconds...");
-        try {
-            resp = client.queryRaftServerStatus(nodeId, groupId).get();
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof NetCodeException) {
-                NetCodeException nce = (NetCodeException) e.getCause();
-                if (nce.getCode() == CmdCodes.RAFT_GROUP_STOPPED) {
-                    System.out.println("group stopped");
-                    return;
-                } else if (nce.getCode() == CmdCodes.RAFT_GROUP_ERROR) {
-                    System.out.println("group in fatal error status");
-                    return;
-                }
-            }
-            throw e;
-        }
+        QueryStatusResp resp = client.queryRaftServerStatus(nodeId, groupId).get();
         System.out.println("Raft Status for group " + resp.groupId + " on node " + resp.nodeId + ":");
         System.out.println("  Term: " + resp.term);
         System.out.println("  Leader ID: " + resp.leaderId);

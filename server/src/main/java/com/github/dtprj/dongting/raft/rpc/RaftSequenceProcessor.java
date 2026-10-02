@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -23,16 +24,19 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -82,7 +86,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
 
         private FrameCallResult resume(ReqInfoEx<T> o) {
             if (isGroupShouldStopPlain()) {
-                return cleanAndExit(o, () -> createStoppedResp(groupId));
+                return cleanAndExit(o);
             }
             if (o == null) {
                 return Fiber.resume(null, this);
@@ -91,17 +95,15 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             return Fiber.call(processInFiberGroup(o), this);
         }
 
-        private FrameCallResult cleanAndExit(ReqInfoEx<T> o, Supplier<WritePacket> respProvider) {
+        private FrameCallResult cleanAndExit(ReqInfoEx<T> o) {
             channel.markShutdown();
             if (o != null) {
-                o.reqFrame.clean();
-                o.reqContext.writeRespInBizThreads(respProvider.get());
+                processAfterStop(o);
             }
             ArrayList<ReqInfoEx<T>> list = new ArrayList<>();
             channel.drain(list);
             for (ReqInfoEx<T> reqInfo : list) {
-                reqInfo.reqFrame.clean();
-                reqInfo.reqContext.writeRespInBizThreads(respProvider.get());
+                processAfterStop(reqInfo);
             }
             // fiber exit here
             return Fiber.frameReturn();
@@ -116,7 +118,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
                 current.reqContext.writeRespInBizThreads(wf);
             }
             if (isGroupShouldStopPlain()) {
-                return cleanAndExit(null, () -> createStoppedResp(groupId));
+                return cleanAndExit(null);
             } else {
                 log.error("restart processor fiber.");
                 startProcessFiber(groupId, channel);
@@ -137,11 +139,35 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             return wf;
         } else {
             if (!c.fireOffer(reqInfo)) {
-                reqInfo.reqFrame.clean();
-                reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
-                log.error("fire task failed , maybe group is stopped: {}", reqInfo.raftGroup.getGroupId());
+                processAfterStop(reqInfo);
             }
         }
         return null;
+    }
+
+    private void processAfterStop(ReqInfo<T> reqInfo) {
+        reqInfo.reqFrame.clean();
+        if (isQueryStatus(reqInfo.reqFrame.command)) {
+            // group is stop, fireOffer is the fence
+            QueryStatusResp qsr = QueryStatusProcessor.buildQueryStatusResp(
+                    raftServer.getServerConfig().nodeId, ((RaftGroupImpl) reqInfo.raftGroup).raftStatus);
+            WritePacket wf;
+            if (reqInfo.reqFrame.command == Commands.RAFT_QUERY_STATUS) {
+                wf = new EncodableBodyWritePacket(qsr);
+                wf.respCode = CmdCodes.SUCCESS;
+            } else if (reqInfo.reqFrame.command == Commands.DTKV_QUERY_STATUS) {
+                KvStatusResp ksr = new KvStatusResp();
+                ksr.raftServerStatus = qsr;
+                // keep watchCount 0, and write other results
+                wf = new EncodableBodyWritePacket(ksr);
+                wf.respCode = CmdCodes.SUCCESS;
+            } else {
+                wf = createStoppedResp(reqInfo.raftGroup.getGroupId());
+            }
+            reqInfo.reqContext.writeRespInBizThreads(wf);
+        } else {
+            reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
+            log.error("group is stopped: {}", reqInfo.raftGroup.getGroupId());
+        }
     }
 }

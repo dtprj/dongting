@@ -34,8 +34,6 @@ import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.perf.DefaultRpcPerf;
-import com.github.dtprj.dongting.raft.NoSuchGroupException;
-import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
@@ -203,7 +201,7 @@ public class RaftServer extends AbstractLifeCircle {
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
     }
 
-    private void addRaftGroupProcessor(NioServer nioServer, int command, RaftSequenceProcessor<?> processor) {
+    public void addRaftGroupProcessor(NioServer nioServer, int command, RaftSequenceProcessor<?> processor) {
         // use io executor
         nioServer.register(command, processor, null);
         raftSequenceProcessors.add(processor);
@@ -590,7 +588,6 @@ public class RaftServer extends AbstractLifeCircle {
      * The return future complete when the group is added, but the group may not be ready,
      * you should check the group status to make sure it's ready.
      *
-     * @see #queryRaftGroupStatus(int)
      */
     public CompletableFuture<Void> addGroup(RaftGroupConfig groupConfig) {
         CompletableFuture<Void> f = new CompletableFuture<>();
@@ -649,7 +646,6 @@ public class RaftServer extends AbstractLifeCircle {
      * The return future complete when the group is removed, but the group may not be stopped,
      * you should check the group status to make sure it's stopped.
      *
-     * @see #queryRaftGroupStatus(int)
      */
     public CompletableFuture<Void> removeGroup(int groupId, boolean saveSnapshot, DtTime shutdownTimeout) {
         DtUtil.checkPositive(groupId, "groupId");
@@ -711,25 +707,6 @@ public class RaftServer extends AbstractLifeCircle {
 
     public ConcurrentHashMap<Integer, RaftGroupImpl> getRaftGroups() {
         return raftGroups;
-    }
-
-    public CompletableFuture<QueryStatusResp> queryRaftGroupStatus(int groupId) {
-        DtUtil.checkPositive(groupId, "groupId");
-        RaftGroupImpl g = raftGroups.get(groupId);
-        if (g == null) {
-            return CompletableFuture.failedFuture(new NoSuchGroupException(groupId));
-        } else {
-            CompletableFuture<QueryStatusResp> f = new CompletableFuture<>();
-            if (!g.fiberGroup.fireFiber("queryStatus", new SimpleFrame<>("queryStatus", frame -> {
-                QueryStatusResp r = QueryStatusProcessor.buildQueryStatusResp(
-                        serverConfig.nodeId, g.groupComponents.raftStatus);
-                f.complete(r);
-                return Fiber.frameReturn();
-            }))) {
-                f.completeExceptionally(new NoSuchGroupException(groupId));
-            }
-            return f;
-        }
     }
 
     private void runPersistConfigTask() {

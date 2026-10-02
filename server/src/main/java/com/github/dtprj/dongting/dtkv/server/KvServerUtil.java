@@ -66,7 +66,7 @@ public class KvServerUtil {
         nioServer.register(Commands.DTKV_UPDATE_LOCK_LEASE, p, null);
 
         nioServer.register(Commands.DTKV_SYNC_WATCH, new WatchProcessor(server), null);
-        nioServer.register(Commands.DTKV_QUERY_STATUS, new KvStatusProcessor(server), null);
+        server.addRaftGroupProcessor(nioServer, Commands.DTKV_QUERY_STATUS, new KvStatusProcessor(server));
 
         nioServer.register(Commands.DTKV_PUT_TEMP_NODE, p, null);
         nioServer.register(Commands.DTKV_MAKE_TEMP_DIR, p, null);

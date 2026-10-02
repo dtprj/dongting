@@ -120,13 +120,13 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
         ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         RaftShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
-        if (ss.fatalError) {
+        if (ss.fatalError && !isQueryStatus(packet.command)) {
             packet.clean();
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_ERROR);
             wf.msg = "raft group in error status: " + groupId;
             return wf;
         }
-        if (!ss.initFinished && packet.command != Commands.RAFT_QUERY_STATUS) {
+        if (!ss.initFinished && !isQueryStatus(packet.command)) {
             // raft query status can be processed when not initialized
             packet.clean();
             EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
@@ -134,12 +134,16 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             return wf;
         }
 
-        if (ss.shouldStop) {
+        if (ss.shouldStop && !isQueryStatus(packet.command)) {
             packet.clean();
             return createStoppedResp(groupId);
         }
         // release in subclass
         return doProcess(reqInfo);
+    }
+
+    protected boolean isQueryStatus(int cmd) {
+        return cmd == Commands.RAFT_QUERY_STATUS || cmd == Commands.DTKV_QUERY_STATUS;
     }
 
     protected abstract WritePacket doProcess(ReqInfo<T> reqInfo);

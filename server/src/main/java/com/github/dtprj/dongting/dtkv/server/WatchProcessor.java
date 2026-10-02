@@ -52,6 +52,7 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
     protected WritePacket doProcess(ReqInfo<WatchReqCallback> reqInfo) {
         DtKV dtKV = KvServerUtil.getStateMachine(reqInfo);
         if (dtKV == null) {
+            // response write in getStateMachine method, return null to indicate not write response
             return null;
         }
 
