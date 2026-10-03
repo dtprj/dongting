@@ -31,7 +31,7 @@ public interface Commands {
 
     // 40 ~ 69 for raft
     int NODE_PING = 40;
-    int RAFT_PING = 41;
+    // int RAFT_PING = 41;
     int RAFT_REQUEST_VOTE = 42;
     int RAFT_INSTALL_SNAPSHOT = 43;
     int RAFT_ADMIN_TRANSFER_LEADER = 44; // from admin tool to old leader

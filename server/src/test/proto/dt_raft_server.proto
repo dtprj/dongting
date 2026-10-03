@@ -23,15 +23,6 @@ message NodePing {
   fixed64 uuid_low = 4;
 }
 
-message RaftPing {
-  int32 group_id = 1;
-  int32 node_id = 2;
-  string servers = 3;
-  string observers = 4;
-  string prepared_members = 5;
-  string prepared_observers = 6;
-}
-
 message AppendEntriesReq {
   int32 group_id = 1;
   int32 term = 2;

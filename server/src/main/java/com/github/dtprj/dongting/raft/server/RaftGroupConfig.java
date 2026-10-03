@@ -30,7 +30,6 @@ public class RaftGroupConfig {
     public String statusFile = "raft.status";
     public int[] ioRetryInterval = new int[]{100, 1000, 3000, 5000, 10000, 20000};
     public boolean syncForce = true;
-    public int raftPingCheck = 0;
     public boolean disableConfigChange;
 
     public int maxReplicateItems = 20000;

@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.server.RaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
 import java.util.concurrent.CompletableFuture;
@@ -53,10 +54,10 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
 
     @Override
     public WritePacket process(ReadPacket<Object> packet, ReqContext reqContext) throws Exception {
-        boolean servicePort = RaftPingProcessor.requestServicePort(reqContext, server.getServerConfig());
-        if (!RaftPingProcessor.checkPort(servicePort, false, true)) {
+        boolean servicePort = RaftProcessor.requestServicePort(reqContext, server.getServerConfig());
+        if (!RaftProcessor.checkPort(servicePort, false, true)) {
             packet.clean();
-            return RaftPingProcessor.createWrongPortRest(packet, reqContext);
+            return RaftProcessor.createWrongPortRest(packet, reqContext);
         }
         int cmd = packet.command;
         switch (cmd) {
