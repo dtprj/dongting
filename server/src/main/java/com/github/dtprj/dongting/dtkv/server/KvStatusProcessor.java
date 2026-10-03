@@ -63,7 +63,7 @@ class KvStatusProcessor extends RaftSequenceProcessor<Integer> {
 
         boolean r = kv.dtkvExecutor.submitTaskInFiberThread(() -> finishAndWriteResp(kv, resp, reqInfo));
         if (!r) {
-            // keep watchCount 0, and write other results
+            resp.watchCount = -1;
             EncodableBodyWritePacket wf = new EncodableBodyWritePacket(resp);
             wf.respCode = CmdCodes.SUCCESS;
             reqInfo.reqContext.writeRespInBizThreads(wf);

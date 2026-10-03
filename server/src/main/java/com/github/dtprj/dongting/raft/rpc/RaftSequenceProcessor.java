@@ -158,7 +158,7 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             } else if (reqInfo.reqFrame.command == Commands.DTKV_QUERY_STATUS) {
                 KvStatusResp ksr = new KvStatusResp();
                 ksr.raftServerStatus = qsr;
-                // keep watchCount 0, and write other results
+                ksr.watchCount = -1;
                 wf = new EncodableBodyWritePacket(ksr);
                 wf.respCode = CmdCodes.SUCCESS;
             } else {
