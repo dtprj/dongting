@@ -350,6 +350,9 @@ public class DtAdmin {
         System.out.println("  Init Finished: " + resp.isInitFinished());
         System.out.println("  Init Failed: " + resp.isInitFailed());
         System.out.println("  Group Ready: " + resp.isGroupReady());
+        System.out.println("  Should Stop: " + resp.isShouldStop());
+        System.out.println("  Finished: " + resp.isFinished());
+        System.out.println("  Fatal Error: " + resp.isFatalError());
         if (resp.isBug()) {
             System.out.println("  Bug: bug flag is set, search BugLog in server logs");
         }

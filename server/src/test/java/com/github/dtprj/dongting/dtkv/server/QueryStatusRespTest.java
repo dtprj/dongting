@@ -30,7 +30,11 @@ public class QueryStatusRespTest {
         QueryStatusResp status = new QueryStatusResp();
         status.groupId = 1;
         status.nodeId = 2;
-        status.setFlag(true, false, true, false);
+        status.setInitFinished(true);
+        status.setGroupReady(true);
+        status.setShouldStop(true);
+        status.setFatalError(true);
+        status.setFinished(true);
         status.term = 10;
         status.leaderId = 2;
         status.commitIndex = 1000;
@@ -75,7 +79,14 @@ public class QueryStatusRespTest {
     public static void compare1(QueryStatusResp expect, DtRaftServer.QueryStatusResp protoStatus) {
         Assertions.assertEquals(expect.groupId, protoStatus.getGroupId());
         Assertions.assertEquals(expect.nodeId, protoStatus.getNodeId());
-        Assertions.assertEquals(expect.isInitFinished(), protoStatus.getFlag() != 0);
+        int f = protoStatus.getFlag();
+        Assertions.assertEquals(expect.isInitFinished(), (f & 1) != 0);
+        Assertions.assertEquals(expect.isInitFailed(), (f & 2) != 0);
+        Assertions.assertEquals(expect.isGroupReady(), (f & 4) != 0);
+        Assertions.assertEquals(expect.isBug(), (f & 8) != 0);
+        Assertions.assertEquals(expect.isShouldStop(), (f & 16) != 0);
+        Assertions.assertEquals(expect.isFinished(), (f & 32) != 0);
+        Assertions.assertEquals(expect.isFatalError(), (f & 64) != 0);
         Assertions.assertEquals(expect.term, protoStatus.getTerm());
         Assertions.assertEquals(expect.leaderId, protoStatus.getLeaderId());
         Assertions.assertEquals(expect.commitIndex, protoStatus.getCommitIndex());
@@ -94,6 +105,9 @@ public class QueryStatusRespTest {
         Assertions.assertEquals(expect.isInitFinished(), r.isInitFinished());
         Assertions.assertEquals(expect.isInitFailed(), r.isInitFailed());
         Assertions.assertEquals(expect.isGroupReady(), r.isGroupReady());
+        Assertions.assertEquals(expect.isShouldStop(), r.isShouldStop());
+        Assertions.assertEquals(expect.isFinished(), r.isFinished());
+        Assertions.assertEquals(expect.isFatalError(), r.isFatalError());
         Assertions.assertEquals(expect.term, r.term);
         Assertions.assertEquals(expect.leaderId, r.leaderId);
         Assertions.assertEquals(expect.commitIndex, r.commitIndex);

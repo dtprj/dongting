@@ -133,7 +133,7 @@ public class FaultInjector extends Thread {
         DtTime deadline = new DtTime(30, TimeUnit.SECONDS);
         while (!deadline.isTimeout()) {
             leaderStatus = getLeaderStatus();
-            if (leaderStatus != null && leaderStatus.isGroupReady()) {
+            if (leaderStatus != null && leaderStatus.isGroupReady() && !leaderStatus.isStopped()) {
                 break;
             }
             try {
@@ -145,7 +145,7 @@ public class FaultInjector extends Thread {
             }
         }
 
-        if (leaderStatus == null || !leaderStatus.isGroupReady()) {
+        if (leaderStatus == null || !leaderStatus.isGroupReady() || leaderStatus.isStopped()) {
             log.warn("No leader available to detect observer status within timeout");
             return;
         }
@@ -169,7 +169,7 @@ public class FaultInjector extends Thread {
 
         // Query leader status once for all fault types that need it
         QueryStatusResp leaderStatus = getLeaderStatus();
-        if (leaderStatus == null || !leaderStatus.isGroupReady()) {
+        if (leaderStatus == null || !leaderStatus.isGroupReady() || leaderStatus.isStopped()) {
             log.warn("Cannot get leader status, skipping fault injection");
             failCount++;
             return;
@@ -318,11 +318,19 @@ public class FaultInjector extends Thread {
             } catch (Exception e) {
                 log.warn("Failed to check server ready. {}", e.toString());
             }
-            if (resp != null && resp.isInitFinished()) {
+            if (resp != null) {
                 if (resp.isInitFailed()) {
                     throw new AssertionError("init failed");
                 }
-                return true;
+                if (resp.isFatalError()) {
+                    throw new AssertionError("group fatal error");
+                }
+                if (resp.isInitFinished()) {
+                    if (resp.isShouldStop()) {
+                        throw new AssertionError("group stopped");
+                    }
+                    return true;
+                }
             }
             Thread.sleep(500);
         }
@@ -472,6 +480,13 @@ public class FaultInjector extends Thread {
                 QueryStatusResp observerStatus = adminClient.queryRaftServerStatus(OBSERVER_NODE_ID, groupId)
                         .get(5, TimeUnit.SECONDS);
 
+                if (observerStatus.isStopped()) {
+                    log.error("Observer node {} group is stopped, shouldStop={}, fatalError={}, finished={}",
+                            OBSERVER_NODE_ID, observerStatus.isShouldStop(), observerStatus.isFatalError(),
+                            observerStatus.isFinished());
+                    return false;
+                }
+
                 long leaderCommitIndex = leaderStatus.commitIndex;
                 long observerCommitIndex = observerStatus.commitIndex;
                 long diff = leaderCommitIndex - observerCommitIndex;
@@ -569,7 +584,7 @@ public class FaultInjector extends Thread {
             try {
                 // Get current members from leader status
                 QueryStatusResp leaderStatus = getLeaderStatus();
-                if (leaderStatus != null && leaderStatus.isGroupReady()) {
+                if (leaderStatus != null && leaderStatus.isGroupReady() && !leaderStatus.isStopped()) {
                     Set<Integer> currentMembers = new HashSet<>(leaderStatus.members);
                     Set<Integer> oldObservers = new HashSet<>();
                     oldObservers.add(OBSERVER_NODE_ID);

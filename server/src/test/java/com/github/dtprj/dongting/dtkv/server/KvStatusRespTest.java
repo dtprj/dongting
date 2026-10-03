@@ -41,7 +41,8 @@ public class KvStatusRespTest {
         QueryStatusResp status = new QueryStatusResp();
         status.groupId = 1;
         status.nodeId = 2;
-        status.setFlag(true, false, true, false);
+        status.setInitFinished(true);
+        status.setGroupReady(true);
         status.term = 10;
         status.leaderId = 2;
         status.commitIndex = 1000;

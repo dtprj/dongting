@@ -517,6 +517,11 @@ public class WatchManager {
             return false;
         }
         QueryStatusResp s = resp.raftServerStatus;
+        if (s.isStopped()) {
+            log.info("group is stopped on node {}, groupId={}, shouldStop={}, fatalError={}, finished={}",
+                    n.nodeId, groupId, s.isShouldStop(), s.isFatalError(), s.isFinished());
+            return false;
+        }
         if (!s.isGroupReady() || s.leaderId <= 0 || s.lastApplyTimeToNowMillis > 15_000 || s.applyLagMillis > 15_000) {
             log.info("status of node {} for group {} is not ok, groupReady={}, leaderId={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
                     n.nodeId, groupId, s.isGroupReady(), s.leaderId, s.lastApplyTimeToNowMillis, s.applyLagMillis);

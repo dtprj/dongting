@@ -89,23 +89,46 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
     private static final int FLAG_MASK_INIT_FAILED = 1 << 1;
     private static final int FLAG_MASK_GROUP_READY = 1 << 2;
     private static final int FLAG_BUG = 1 << 3;
+    private static final int FLAG_MASK_SHOULD_STOP = 1 << 4;
+    private static final int FLAG_MASK_FINISHED = 1 << 5;
+    private static final int FLAG_MASK_FATAL_ERROR = 1 << 6;
 
     public QueryStatusResp() {
     }
 
-    public void setFlag(boolean initFinished, boolean initFailed, boolean groupReady, boolean bug) {
-        flag = 0;
-        if (initFinished) {
-            flag |= FLAG_MASK_INIT_FINISHED;
-        }
-        if (initFailed) {
-            flag |= FLAG_MASK_INIT_FAILED;
-        }
-        if (groupReady) {
-            flag |= FLAG_MASK_GROUP_READY;
-        }
-        if (bug) {
-            flag |= FLAG_BUG;
+    public void setInitFinished(boolean v) {
+        setFlag(FLAG_MASK_INIT_FINISHED, v);
+    }
+
+    public void setInitFailed(boolean v) {
+        setFlag(FLAG_MASK_INIT_FAILED, v);
+    }
+
+    public void setGroupReady(boolean v) {
+        setFlag(FLAG_MASK_GROUP_READY, v);
+    }
+
+    public void setBug(boolean v) {
+        setFlag(FLAG_BUG, v);
+    }
+
+    public void setShouldStop(boolean v) {
+        setFlag(FLAG_MASK_SHOULD_STOP, v);
+    }
+
+    public void setFinished(boolean v) {
+        setFlag(FLAG_MASK_FINISHED, v);
+    }
+
+    public void setFatalError(boolean v) {
+        setFlag(FLAG_MASK_FATAL_ERROR, v);
+    }
+
+    private void setFlag(int mask, boolean v) {
+        if (v) {
+            flag |= mask;
+        } else {
+            flag &= ~mask;
         }
     }
 
@@ -123,6 +146,22 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 
     public boolean isBug() {
         return (flag & FLAG_BUG) != 0;
+    }
+
+    public boolean isShouldStop() {
+        return (flag & FLAG_MASK_SHOULD_STOP) != 0;
+    }
+
+    public boolean isFinished() {
+        return (flag & FLAG_MASK_FINISHED) != 0;
+    }
+
+    public boolean isFatalError() {
+        return (flag & FLAG_MASK_FATAL_ERROR) != 0;
+    }
+
+    public boolean isStopped() {
+        return isShouldStop() || isFatalError() || isFinished();
     }
 
     @Override

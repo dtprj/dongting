@@ -500,10 +500,15 @@ public class MemberManager {
                 boolean memberReady = false;
                 if (ex == null) {
                     QueryStatusResp s = resp.getBody();
-                    memberReady = s.persistedCommitIndex >= prepareIndex && s.lastApplied >= prepareIndex;
-                    log.info("members ready check receive member status, groupId={}, remote={}, "
-                                    + "memberReady={}, persistedCommitIndex={}, lastApplied={}, prepareIndex={}",
-                            groupId, m.nodeId, memberReady, s.persistedCommitIndex, s.lastApplied, prepareIndex);
+                    if (s.isStopped()) {
+                        log.error("member group is stopped, groupId={}, remote={}, shouldStop={}, fatalError={}, finished={}",
+                                groupId, m.nodeId, s.isShouldStop(), s.isFatalError(), s.isFinished());
+                    } else {
+                        memberReady = s.persistedCommitIndex >= prepareIndex && s.lastApplied >= prepareIndex;
+                        log.info("members ready check receive member status, groupId={}, remote={}, "
+                                        + "memberReady={}, persistedCommitIndex={}, lastApplied={}, prepareIndex={}",
+                                groupId, m.nodeId, memberReady, s.persistedCommitIndex, s.lastApplied, prepareIndex);
+                    }
                 } else {
                     log.warn("query status fail, groupId={}, remote={}", groupId, m.nodeId, ex);
                 }
@@ -1046,6 +1051,13 @@ public class MemberManager {
                     return;
                 }
                 QueryStatusResp s = resp.getBody();
+                if (s.isStopped()) {
+                    log.error("target group is stopped, groupId={}, nodeId={}, shouldStop={}, fatalError={}, finished={}",
+                            groupId, nodeId, s.isShouldStop(), s.isFatalError(), s.isFinished());
+                    f.completeExceptionally(new RaftException("target group is stopped: " + nodeId));
+                    clearMyCondition();
+                    return;
+                }
                 if (!s.members.equals(raftStatus.nodeIdOfMembers)
                         || !s.observers.equals(raftStatus.nodeIdOfObservers)
                         || !s.preparedMembers.equals(raftStatus.nodeIdOfPreparedMembers)

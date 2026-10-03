@@ -176,7 +176,7 @@ public class ClusterValidator {
             }
             QueryStatusResp status = adminClient.queryRaftServerStatus(leaderNode.nodeId, groupId)
                     .get(5, TimeUnit.SECONDS);
-            if (status.isGroupReady()) {
+            if (status.isGroupReady() && !status.isStopped()) {
                 Set<Integer> currentNodes = new HashSet<>();
                 currentNodes.addAll(status.members);
                 currentNodes.addAll(status.observers);
@@ -219,6 +219,12 @@ public class ClusterValidator {
 
         for (Map.Entry<Integer, QueryStatusResp> entry : allStatus.entrySet()) {
             QueryStatusResp status = entry.getValue();
+
+            if (status.isStopped()) {
+                log.warn("Node {} group is stopped, shouldStop={}, fatalError={}",
+                        entry.getKey(), status.isShouldStop(), status.isFatalError());
+                return false;
+            }
 
             leaderIds.add(status.leaderId);
             terms.add(status.term);

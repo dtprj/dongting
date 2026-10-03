@@ -970,7 +970,8 @@ public class RaftClientTest {
         QueryStatusResp resp = new QueryStatusResp();
         resp.groupId = groupId;
         resp.leaderId = leaderId;
-        resp.setFlag(true, false, true, false);
+        resp.setInitFinished(true);
+        resp.setGroupReady(true);
         return resp;
     }
 

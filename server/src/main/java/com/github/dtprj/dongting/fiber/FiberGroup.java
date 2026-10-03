@@ -285,6 +285,10 @@ public class FiberGroup {
         return shareStatusSource.shouldStop;
     }
 
+    public boolean isFinished() {
+        return finished;
+    }
+
     public void fireLogGroupInfo(String msg) {
         if (!log.isInfoEnabled()) {
             return;

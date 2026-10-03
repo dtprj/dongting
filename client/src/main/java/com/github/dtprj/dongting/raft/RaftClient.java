@@ -709,6 +709,9 @@ public class RaftClient extends AbstractLifeCircle {
                 if (status == null) {
                     log.error("query leader from {} fail, result is null", node);
                     findLeader(gi, it);
+                } else if (status.isStopped()) {
+                    log.info("group is stopped on node {}, try next", node.nodeId);
+                    findLeader(gi, it);
                 } else if (status.leaderId < 0) {
                     log.error("query leader from {} fail, leader id illegal: {}", node, status.leaderId);
                     findLeader(gi, it);

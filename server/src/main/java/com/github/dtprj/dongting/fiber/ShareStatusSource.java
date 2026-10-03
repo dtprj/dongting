@@ -65,4 +65,8 @@ public class ShareStatusSource {
     public boolean isShouldStop() {
         return shouldStop;
     }
+
+    public boolean isFatalError() {
+        return fatalError;
+    }
 }
