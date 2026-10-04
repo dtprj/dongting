@@ -44,6 +44,7 @@ import java.util.HashSet;
 //  repeated fixed32 prepared_members = 11[packed = false];
 //  repeated fixed32 prepared_observers = 12[packed = false];
 //  fixed64 last_config_change_index = 13;
+//  fixed32 raft_cluster_id = 14;
 
 //  bytes data = 15;
 public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable {
@@ -61,6 +62,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
     private static final int IDX_PREPARED_MEMBERS = 11;
     private static final int IDX_PREPARED_OBSERVERS = 12;
     private static final int IDX_LAST_CONFIG_CHANGE_INDEX = 13;
+    private static final int IDX_RAFT_CLUSTER_ID = 14;
     private static final int IDX_DATA = 15;
     // public int groupId;
     // public int term;
@@ -76,6 +78,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
     // public final Set<Integer> preparedMembers = new HashSet<>();
     // public final Set<Integer> preparedObservers = new HashSet<>();
     public long lastConfigChangeIndex;
+    public int raftClusterId;
 
     public RefBuffer data;
 
@@ -132,6 +135,9 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
 
         public void readFix32(int index, int value) {
             switch (index) {
+                case IDX_RAFT_CLUSTER_ID:
+                    result.raftClusterId = value;
+                    break;
                 case IDX_MEMBERS:
                     if (result.members == Collections.EMPTY_SET) {
                         result.members = new HashSet<>();
@@ -203,6 +209,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
             x += PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, req.preparedMembers);
             x += PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, req.preparedObservers);
             x += PbUtil.sizeOfFix64Field(IDX_LAST_CONFIG_CHANGE_INDEX, req.lastConfigChangeIndex);
+            x += PbUtil.sizeOfFix32Field(IDX_RAFT_CLUSTER_ID, req.raftClusterId);
 
             RefBuffer rb = req.data;
             if (rb != null && rb.getBuffer().hasRemaining()) {
@@ -234,6 +241,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
                     PbUtil.writeFix32Field(dest, IDX_PREPARED_MEMBERS, req.preparedMembers);
                     PbUtil.writeFix32Field(dest, IDX_PREPARED_OBSERVERS, req.preparedObservers);
                     PbUtil.writeFix64Field(dest, IDX_LAST_CONFIG_CHANGE_INDEX, req.lastConfigChangeIndex);
+                    PbUtil.writeFix32Field(dest, IDX_RAFT_CLUSTER_ID, req.raftClusterId);
                     if (totalPreEncodedSize > 0) {
                         PbUtil.writeLenFieldPrefix(dest, IDX_DATA, totalPreEncodedSize);
                         preEncodedBuffer = req.data.getBuffer().slice();

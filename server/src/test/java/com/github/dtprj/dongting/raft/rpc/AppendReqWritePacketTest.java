@@ -264,6 +264,7 @@ public class AppendReqWritePacketTest {
         f.prevLogIndex = 100;
         f.prevLogTerm = 3;
         f.leaderCommit = 99;
+        f.raftClusterId = 0x12345678;
         ArrayList<RaftTask> logs = new ArrayList<>();
         f.logs = logs;
         for (int i = 0; i < 2; i++) {
@@ -301,6 +302,7 @@ public class AppendReqWritePacketTest {
         f.prevLogIndex = 100;
         f.prevLogTerm = 3;
         f.leaderCommit = 99;
+        f.raftClusterId = 0x12345678;
         ArrayList<RaftTask> logs = new ArrayList<>();
         f.logs = logs;
         addLog(logs, addHeader, addBody, 200, false);
@@ -339,6 +341,7 @@ public class AppendReqWritePacketTest {
         assertEquals(f.prevLogIndex, c.prevLogIndex);
         assertEquals(f.prevLogTerm, c.prevLogTerm);
         assertEquals(f.leaderCommit, c.leaderCommit);
+        assertEquals(f.raftClusterId, c.raftClusterId);
         assertEquals(f.logs.size(), c.logs.size());
         for (int i = 0; i < f.logs.size(); i++) {
             RaftTask l1 = f.logs.get(i);

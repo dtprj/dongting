@@ -32,6 +32,7 @@ public class TransferLeaderReqTest {
         req.oldLeaderId = 2;
         req.newLeaderId = 3;
         req.logIndex = 100;
+        req.raftClusterId = 0x12345678;
 
         ByteBuffer buf = CodecTestUtil.simpleEncode(req);
         DtRaftServer.TransferLeaderReq protoReq = DtRaftServer.TransferLeaderReq.parseFrom(buf);
@@ -47,6 +48,7 @@ public class TransferLeaderReqTest {
         Assertions.assertEquals(expect.oldLeaderId, proto.getOldLeaderId());
         Assertions.assertEquals(expect.newLeaderId, proto.getNewLeaderId());
         Assertions.assertEquals(expect.logIndex, proto.getLogIndex());
+        Assertions.assertEquals(expect.raftClusterId, proto.getRaftClusterId());
     }
 
     private void compare(TransferLeaderReq expect, TransferLeaderReq result) {
@@ -55,5 +57,6 @@ public class TransferLeaderReqTest {
         Assertions.assertEquals(expect.oldLeaderId, result.oldLeaderId);
         Assertions.assertEquals(expect.newLeaderId, result.newLeaderId);
         Assertions.assertEquals(expect.logIndex, result.logIndex);
+        Assertions.assertEquals(expect.raftClusterId, result.raftClusterId);
     }
 }

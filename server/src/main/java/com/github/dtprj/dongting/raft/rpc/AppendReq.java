@@ -48,6 +48,7 @@ import java.util.function.Function;
 //fixed64 leader_commit = 6;
 //int32 logs_size = 7;
 //bytes entries = 8;
+//fixed32 raft_cluster_id = 9;
 //}
 public class AppendReq extends RaftRpcData implements DtCleanable {
     private static final DtLog log = DtLogs.getLogger(AppendReq.class);
@@ -60,6 +61,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
     public static final int IDX_LEADER_COMMIT = 6;
     public static final int IDX_LOGS_SIZE = 7;
     public static final int IDX_ENTRIES = 8;
+    public static final int IDX_RAFT_CLUSTER_ID = 9;
 
     // private int groupId;
     // private int term;
@@ -68,6 +70,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
     public int prevLogTerm;
     public long leaderCommit;
     public ArrayList<RaftTask> logs;
+    public int raftClusterId;
 
     @Override
     public void clean() {
@@ -157,6 +160,13 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                 case IDX_LEADER_COMMIT:
                     result.leaderCommit = value;
                     break;
+            }
+        }
+
+        @Override
+        public void readFix32(int index, int value) {
+            if (index == IDX_RAFT_CLUSTER_ID) {
+                result.raftClusterId = value;
             }
         }
 

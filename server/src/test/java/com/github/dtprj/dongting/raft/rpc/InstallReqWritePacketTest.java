@@ -186,6 +186,7 @@ public class InstallReqWritePacketTest {
         req.preparedMembers = new HashSet<>();
         req.preparedObservers = new HashSet<>();
         req.lastConfigChangeIndex = 500;
+        req.raftClusterId = 0x12345678;
 
         if (dataSize > 0) {
             expectedData = new byte[dataSize];
@@ -227,6 +228,7 @@ public class InstallReqWritePacketTest {
         assertEquals(expect.done, result.done);
         assertEquals(expect.nextWritePos, result.nextWritePos);
         assertEquals(expect.lastConfigChangeIndex, result.lastConfigChangeIndex);
+        assertEquals(expect.raftClusterId, result.raftClusterId);
         assertEquals(expect.members, result.members);
         assertEquals(expect.observers, result.observers);
 

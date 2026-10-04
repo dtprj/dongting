@@ -70,6 +70,7 @@ public class StatusManagerTest extends BaseFiberTest {
         assertEquals(raftStatus.commitIndex + "", p.getProperty(StatusManager.COMMIT_INDEX));
         assertEquals(raftStatus.votedFor + "", p.getProperty(StatusManager.VOTED_FOR));
         assertEquals(raftStatus.currentTerm + "", p.getProperty(StatusManager.CURRENT_TERM));
+        assertEquals(raftStatus.raftClusterId + "", p.getProperty(StatusManager.RAFT_CLUSTER_ID));
         statusManager.getProperties().forEach((k, v) -> assertEquals(v, p.get(k)));
     }
 
@@ -145,6 +146,7 @@ public class StatusManagerTest extends BaseFiberTest {
         raftStatus.commitIndex = 100;
         raftStatus.votedFor = 200;
         raftStatus.currentTerm = 300;
+        raftStatus.raftClusterId = 400;
         statusManager.getProperties().put("k1", "v1");
     }
 

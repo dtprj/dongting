@@ -32,6 +32,7 @@ message AppendEntriesReq {
   fixed64 leader_commit = 6;
   int32 logs_size = 7;
   bytes entries = 8;
+  fixed32 raft_cluster_id = 9;
 }
 
 message AppendEntriesResp {
@@ -51,6 +52,7 @@ message RequestVoteReq {
   int32 last_log_term = 5;
   int32 pre_vote = 6;
   fixed64 last_config_change_index = 7;
+  fixed32 raft_cluster_id = 8;
 }
 
 message RequestVoteResp {
@@ -74,6 +76,7 @@ message InstallSnapshotReq {
   repeated fixed32 prepared_members = 11[packed = false];
   repeated fixed32 prepared_observers = 12[packed = false];
   fixed64 last_config_change_index = 13;
+  fixed32 raft_cluster_id = 14;
 
   bytes data = 15;
 }
@@ -84,6 +87,7 @@ message TransferLeaderReq {
   int32 old_leader_id = 3;
   int32 new_leader_id = 4;
   fixed64 log_index = 5; // not used in admin transfer leader request
+  fixed32 raft_cluster_id = 6; // not used in admin transfer leader request
 }
 
 // return EmptyBodyRespFrame

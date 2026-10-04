@@ -32,6 +32,7 @@ import java.nio.ByteBuffer;
 //  uint32 last_log_term = 5;
 //  uint32 pre_vote = 6;
 //  fixed64 last_config_change_index = 7;
+//  fixed32 raft_cluster_id = 8;
 public class VoteReq extends RaftRpcData implements SimpleEncodable {
     // public int groupId;
     // public int term;
@@ -40,6 +41,7 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
     public int lastLogTerm;
     public boolean preVote;
     public long lastConfigChangeIndex;
+    public int raftClusterId;
 
     @Override
     public int actualSize() {
@@ -49,7 +51,8 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
                 + PbUtil.sizeOfFix64Field(4, lastLogIndex)
                 + PbUtil.sizeOfInt32Field(5, lastLogTerm)
                 + PbUtil.sizeOfInt32Field(6, preVote ? 1 : 0)
-                + PbUtil.sizeOfFix64Field(7, lastConfigChangeIndex);
+                + PbUtil.sizeOfFix64Field(7, lastConfigChangeIndex)
+                + PbUtil.sizeOfFix32Field(8, raftClusterId);
     }
 
     @Override
@@ -61,6 +64,7 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
         PbUtil.writeInt32Field(buf, 5, lastLogTerm);
         PbUtil.writeInt32Field(buf, 6, preVote ? 1 : 0);
         PbUtil.writeFix64Field(buf, 7, lastConfigChangeIndex);
+        PbUtil.writeFix32Field(buf, 8, raftClusterId);
     }
 
     public static class Callback extends PbCallback<VoteReq> {
@@ -93,6 +97,13 @@ public class VoteReq extends RaftRpcData implements SimpleEncodable {
                 result.lastLogIndex = value;
             } else if (index == 7) {
                 result.lastConfigChangeIndex = value;
+            }
+        }
+
+        @Override
+        public void readFix32(int index, int value) {
+            if (index == 8) {
+                result.raftClusterId = value;
             }
         }
 

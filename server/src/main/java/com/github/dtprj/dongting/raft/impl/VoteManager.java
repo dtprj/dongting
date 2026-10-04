@@ -170,6 +170,7 @@ public class VoteManager {
         req.groupId = groupId;
         req.term = currentTerm;
         req.candidateId = config.nodeId;
+        req.raftClusterId = raftStatus.raftClusterId;
         req.lastLogIndex = raftStatus.lastLogIndex;
         req.lastLogTerm = raftStatus.lastLogTerm;
         req.lastConfigChangeIndex = raftStatus.lastConfigChangeIndex;
@@ -368,6 +369,10 @@ public class VoteManager {
                 cancelVote("stop");
                 return Fiber.frameReturn();
             }
+            if (raftStatus.raftClusterId != raftStatus.persistedRaftClusterId) {
+                // wait other update operation finish
+                return statusManager.waitUpdateFinish(this);
+            }
             String voteType = req.preVote ? "pre-vote" : "vote";
             int remoteId = remoteMember.nodeId;
             if (ex != null) {
@@ -471,6 +476,11 @@ public class VoteManager {
             raftStatus.votedFor = config.nodeId;
             raftStatus.copyShareStatus();
             log.info("set currentTerm to {}, groupId={}", raftStatus.currentTerm, groupId);
+
+            if (raftStatus.raftClusterId == 0) {
+                raftStatus.raftClusterId = RaftUtil.genRaftClusterId();
+                log.info("generate raftClusterId {}, groupId={}", raftStatus.raftClusterId, groupId);
+            }
 
             statusManager.persistAsync();
             int voteIdBeforePersist = currentVoteId;

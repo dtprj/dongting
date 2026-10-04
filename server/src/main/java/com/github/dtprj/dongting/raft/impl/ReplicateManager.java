@@ -391,6 +391,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         req.term = raftStatus.currentTerm;
         req.leaderId = serverConfig.nodeId;
         req.leaderCommit = raftStatus.commitIndex;
+        req.raftClusterId = raftStatus.raftClusterId;
 
         if (!items.isEmpty()) {
             RaftTask firstItem = items.get(0);
@@ -734,6 +735,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         req.groupId = groupId;
         req.term = raftStatus.currentTerm;
         req.leaderId = serverConfig.nodeId;
+        req.raftClusterId = raftStatus.raftClusterId;
         req.lastIncludedIndex = si.lastIncludedIndex;
         req.lastIncludedTerm = si.lastIncludedTerm;
         req.offset = snapshotOffset;

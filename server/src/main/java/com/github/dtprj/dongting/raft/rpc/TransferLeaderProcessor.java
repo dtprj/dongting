@@ -69,6 +69,17 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (req.raftClusterId != raftStatus.raftClusterId
+                    && (raftStatus.lastLogIndex > 0 || raftStatus.installSnapshot)) {
+                log.error("raft cluster id not match, ignore transfer leader request. localId={}, reqId={}, " +
+                                "groupId={}, remote={}",
+                        raftStatus.raftClusterId, req.raftClusterId, req.groupId,
+                        reqInfo.reqContext.getDtChannel().getRemoteAddr());
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
+                resp.msg = "raft cluster id not match";
+                reqInfo.reqContext.writeRespInBizThreads(resp);
+                return Fiber.frameReturn();
+            }
             if (raftStatus.getRole() != RaftRole.follower) {
                 log.error("not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());
                 throw new RaftException("not follower");

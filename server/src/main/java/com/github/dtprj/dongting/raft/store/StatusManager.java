@@ -46,6 +46,7 @@ public class StatusManager {
 
     public static final String CURRENT_TERM = "currentTerm";
     public static final String VOTED_FOR = "votedFor";
+    public static final String RAFT_CLUSTER_ID = "raftClusterId";
     public static final String COMMIT_INDEX = "commitIndex";
     public static final String INSTALL_SNAPSHOT = "installSnapshot";
 
@@ -95,6 +96,8 @@ public class StatusManager {
 
                 raftStatus.currentTerm = RaftUtil.parseInt(loadedProps, CURRENT_TERM, 0);
                 raftStatus.votedFor = RaftUtil.parseInt(loadedProps, VOTED_FOR, 0);
+                raftStatus.raftClusterId = RaftUtil.parseInt(loadedProps, RAFT_CLUSTER_ID, 0);
+                raftStatus.persistedRaftClusterId = raftStatus.raftClusterId;
                 raftStatus.commitIndex = RaftUtil.parseLong(loadedProps, COMMIT_INDEX, 0);
                 raftStatus.persistedCommitIndex = raftStatus.commitIndex;
                 raftStatus.installSnapshot = RaftUtil.parseBoolean(loadedProps, INSTALL_SNAPSHOT, false);
@@ -127,6 +130,7 @@ public class StatusManager {
         private long version;
         private long writingIdxIndex;
         private long writingCommitIndex;
+        private int writingRaftClusterId;
 
         @Override
         public FrameCallResult execute(Void input) {
@@ -147,6 +151,7 @@ public class StatusManager {
                 copyWriteData();
                 version = requestUpdateVersion;
                 writingCommitIndex = raftStatus.commitIndex;
+                writingRaftClusterId = raftStatus.raftClusterId;
                 writingIdxIndex = RaftUtil.parseLong(statusFile.getProperties(),
                         RaftIdxFileQueue.KEY_PERSIST_IDX_INDEX, 0);
                 FiberFuture<Void> f = statusFile.update();
@@ -163,6 +168,7 @@ public class StatusManager {
                 finishedUpdateVersion = version;
                 lastPersistedIdxIndex = writingIdxIndex;
                 raftStatus.persistedCommitIndex = writingCommitIndex;
+                raftStatus.persistedRaftClusterId = writingRaftClusterId;
                 failedUpdateVersion = 0;
             } else {
                 failedUpdateVersion = version;
@@ -194,6 +200,7 @@ public class StatusManager {
 
             destMap.put(CURRENT_TERM, String.valueOf(raftStatus.currentTerm));
             destMap.put(VOTED_FOR, String.valueOf(raftStatus.votedFor));
+            destMap.put(RAFT_CLUSTER_ID, String.valueOf(raftStatus.raftClusterId));
             destMap.put(COMMIT_INDEX, String.valueOf(raftStatus.commitIndex));
             destMap.put(INSTALL_SNAPSHOT, String.valueOf(raftStatus.installSnapshot));
             destMap.put(FIRST_VALID_IDX, String.valueOf(raftStatus.firstValidIndex));

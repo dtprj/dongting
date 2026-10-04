@@ -62,6 +62,7 @@ public class ServerTestBase {
     protected boolean startAfterCreate = true;
     protected int initTerm = 0;
     protected int initVoteFor = 0;
+    protected int initRaftClusterId = 0;
     protected long initCommitIndex = 0;
     protected boolean initSnapshot = false;
     protected int groupId = 1;
@@ -141,7 +142,7 @@ public class ServerTestBase {
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         GroupComponents gc = g.groupComponents;
 
-        if (initTerm > 0 || initVoteFor > 0 || initCommitIndex > 0 || initSnapshot) {
+        if (initTerm > 0 || initVoteFor > 0 || initCommitIndex > 0 || initSnapshot || initRaftClusterId != 0) {
             File dir = new File(groupConfig.dataDir);
             //noinspection ResultOfMethodCallIgnored
             dir.mkdirs();
@@ -150,6 +151,7 @@ public class ServerTestBase {
             Map<String, String> props = new HashMap<>();
             props.put(StatusManager.CURRENT_TERM, String.valueOf(initTerm));
             props.put(StatusManager.VOTED_FOR, String.valueOf(initVoteFor));
+            props.put(StatusManager.RAFT_CLUSTER_ID, String.valueOf(initRaftClusterId));
             props.put(StatusManager.COMMIT_INDEX, String.valueOf(initCommitIndex));
             props.put(StatusManager.INSTALL_SNAPSHOT, String.valueOf(initSnapshot));
             StatusFile.writeToBuffer(props, buf, new CRC32C());

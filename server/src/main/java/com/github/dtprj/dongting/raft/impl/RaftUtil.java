@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32C;
@@ -80,6 +81,15 @@ public final class RaftUtil {
         } else {
             return (groupSize >> 1) + 1;
         }
+    }
+
+    public static int genRaftClusterId() {
+        Random r = new Random();
+        int v;
+        do {
+            v = r.nextInt();
+        } while (v == 0);
+        return v;
     }
 
     public static void releaseInputs(List<RaftTask> list) {

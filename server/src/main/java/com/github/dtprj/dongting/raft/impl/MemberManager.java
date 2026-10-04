@@ -1062,6 +1062,7 @@ public class MemberManager {
             req.oldLeaderId = serverConfig.nodeId;
             req.newLeaderId = newLeader.nodeId;
             req.groupId = groupId;
+            req.raftClusterId = raftStatus.raftClusterId;
             SimpleWritePacket frame = new SimpleWritePacket(req);
             frame.command = Commands.RAFT_TRANSFER_LEADER;
             DecoderCallbackCreator<Void> dc = DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR;

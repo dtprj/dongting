@@ -55,6 +55,7 @@ public class InstallSnapshotReqTest {
         req.preparedMembers = new HashSet<>();
         req.preparedObservers = new HashSet<>();
         req.lastConfigChangeIndex = 500;
+        req.raftClusterId = 0x12345678;
         return req;
     }
 
@@ -69,6 +70,7 @@ public class InstallSnapshotReqTest {
         builder.setDone(req.done);
         builder.setNextWritePos(req.nextWritePos);
         builder.setLastConfigChangeIndex(req.lastConfigChangeIndex);
+        builder.setRaftClusterId(req.raftClusterId);
         if (req.members != null) {
             for (Integer m : req.members) {
                 builder.addMembers(m);
@@ -92,5 +94,6 @@ public class InstallSnapshotReqTest {
         Assertions.assertEquals(expect.done, result.done);
         Assertions.assertEquals(expect.nextWritePos, result.nextWritePos);
         Assertions.assertEquals(expect.lastConfigChangeIndex, result.lastConfigChangeIndex);
+        Assertions.assertEquals(expect.raftClusterId, result.raftClusterId);
     }
 }

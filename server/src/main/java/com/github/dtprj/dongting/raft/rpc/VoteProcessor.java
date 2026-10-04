@@ -71,6 +71,35 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (isGroupShouldStopPlain()) {
+                // RaftSequenceProcessor checked, however the fiber may suspend to for wait write finish,
+                // the stop flag may be changed, so we should re-check it
+                log.warn("raft group is stopping. ignore vote/pre-vote request");
+                reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(voteReq.groupId));
+                return Fiber.frameReturn();
+            }
+            if (raftStatus.raftClusterId != voteReq.raftClusterId) {
+                StatusManager statusManager = reqInfo.raftGroup.groupComponents.statusManager;
+                if (raftStatus.raftClusterId != raftStatus.persistedRaftClusterId) {
+                    // wait other update operation finish
+                    return statusManager.waitUpdateFinish(this);
+                }
+                if (raftStatus.lastLogIndex > 0 || raftStatus.installSnapshot) {
+                    log.error("raft cluster id not match, ignore vote request. localId={}, reqId={}, " +
+                                    "remoteId={}, groupId={}, remote={}",
+                            raftStatus.raftClusterId, voteReq.raftClusterId, voteReq.candidateId, voteReq.groupId,
+                            reqInfo.reqContext.getDtChannel().getRemoteAddr());
+                    EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
+                    resp.msg = "raft cluster id not match";
+                    reqInfo.reqContext.writeRespInBizThreads(resp);
+                    return Fiber.frameReturn();
+                }
+                if (voteReq.raftClusterId != 0) {
+                    raftStatus.raftClusterId = voteReq.raftClusterId;
+                    statusManager.persistAsync();
+                    return statusManager.waitUpdateFinish(this);
+                }
+            }
             if (!MemberManager.validCandidate(raftStatus, voteReq.candidateId)) {
                 log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
                         voteReq.candidateId, voteReq.groupId,
@@ -96,13 +125,6 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         raftStatus.votedFor, voteReq.term, raftStatus.currentTerm, voteReq.lastLogTerm,
                         raftStatus.lastLogTerm, voteReq.lastLogIndex, raftStatus.lastLogIndex);
                 logReceiveInfo = true;
-            }
-            if (isGroupShouldStopPlain()) {
-                // RaftSequenceProcessor checked, however the fiber may suspend to for wait write finish,
-                // the stop flag may be changed, so we should re-check it
-                log.warn("raft group is stopping. ignore vote/pre-vote request");
-                reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(voteReq.groupId));
-                return Fiber.frameReturn();
             }
             if (voteReq.term > raftStatus.currentTerm) {
                 String msg = (voteReq.preVote ? "pre-vote" : "vote") + " request term greater than local";

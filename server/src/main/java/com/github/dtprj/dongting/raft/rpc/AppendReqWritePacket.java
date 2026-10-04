@@ -37,6 +37,7 @@ import java.util.List;
 //fixed64 leader_commit = 6;
 //int32 logs_size = 7;
 //bytes entries = 8;
+//fixed32 raft_cluster_id = 9;
 //}
 public class AppendReqWritePacket extends PreEncodedWritePacket {
 
@@ -46,6 +47,7 @@ public class AppendReqWritePacket extends PreEncodedWritePacket {
     public long prevLogIndex;
     public int prevLogTerm;
     public long leaderCommit;
+    public int raftClusterId;
     public List<RaftTask> logs;
 
     private int headerSize;
@@ -67,7 +69,8 @@ public class AppendReqWritePacket extends PreEncodedWritePacket {
                 + PbUtil.sizeOfFix64Field(AppendReq.IDX_PREV_LOG_INDEX, prevLogIndex)
                 + PbUtil.sizeOfInt32Field(AppendReq.IDX_PREV_LOG_TERM, prevLogTerm)
                 + PbUtil.sizeOfFix64Field(AppendReq.IDX_LEADER_COMMIT, leaderCommit)
-                + PbUtil.sizeOfInt32Field(AppendReq.IDX_LOGS_SIZE, logs == null ? 0 : logs.size());
+                + PbUtil.sizeOfInt32Field(AppendReq.IDX_LOGS_SIZE, logs == null ? 0 : logs.size())
+                + PbUtil.sizeOfFix32Field(AppendReq.IDX_RAFT_CLUSTER_ID, raftClusterId);
 
         List<RaftTask> logs = this.logs;
         if (logs != null) {
@@ -102,6 +105,7 @@ public class AppendReqWritePacket extends PreEncodedWritePacket {
                 PbUtil.writeInt32Field(dest, AppendReq.IDX_PREV_LOG_TERM, prevLogTerm);
                 PbUtil.writeFix64Field(dest, AppendReq.IDX_LEADER_COMMIT, leaderCommit);
                 PbUtil.writeInt32Field(dest, AppendReq.IDX_LOGS_SIZE, logs == null ? 0 : logs.size());
+                PbUtil.writeFix32Field(dest, AppendReq.IDX_RAFT_CLUSTER_ID, raftClusterId);
                 PbUtil.writeLenFieldPrefix(dest, AppendReq.IDX_ENTRIES, bodySize);
                 writeStatus = WRITE_BODY;
                 // fall through

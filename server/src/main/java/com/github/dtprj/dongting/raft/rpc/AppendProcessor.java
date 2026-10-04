@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -155,6 +156,8 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
 
     protected abstract int getRemoteTerm();
 
+    protected abstract int getRaftClusterId();
+
     protected abstract FrameCallResult process() throws Exception;
 
     @Override
@@ -165,9 +168,30 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
             log.warn("raft group is stopping. ignore {} request", appendType);
             return Fiber.frameReturn();
         }
+        RaftStatusImpl raftStatus = gc.raftStatus;
+        int reqRaftClusterId = getRaftClusterId();
+        if (raftStatus.raftClusterId != reqRaftClusterId) {
+            if (raftStatus.raftClusterId != raftStatus.persistedRaftClusterId) {
+                // wait other update operation finish
+                return gc.statusManager.waitUpdateFinish(this);
+            }
+            if (raftStatus.lastLogIndex > 0 || raftStatus.installSnapshot) {
+                log.error("raft cluster id not match, ignore {} request. localId={}, reqId={}, groupId={}, remote={}",
+                        appendType, raftStatus.raftClusterId, reqRaftClusterId, raftStatus.groupId,
+                        reqInfo.reqContext.getDtChannel().getRemoteAddr());
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
+                resp.msg = "raft cluster id not match";
+                reqInfo.reqContext.writeRespInBizThreads(resp);
+                return Fiber.frameReturn();
+            }
+            if (reqRaftClusterId != 0) {
+                raftStatus.raftClusterId = reqRaftClusterId;
+                gc.statusManager.persistAsync();
+                return gc.statusManager.waitUpdateFinish(this);
+            }
+        }
         int remoteTerm = getRemoteTerm();
         int leaderId = getLeaderId();
-        RaftStatusImpl raftStatus = gc.raftStatus;
         int localTerm = raftStatus.currentTerm;
         if (remoteTerm == localTerm) {
             return processSameTerm(raftStatus, remoteTerm, leaderId);
@@ -266,6 +290,11 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
     @Override
     protected int getRemoteTerm() {
         return reqInfo.reqFrame.getBody().term;
+    }
+
+    @Override
+    protected int getRaftClusterId() {
+        return reqInfo.reqFrame.getBody().raftClusterId;
     }
 
     @Override
@@ -463,6 +492,11 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
     protected int getRemoteTerm() {
         return reqInfo.reqFrame.getBody().term;
+    }
+
+    @Override
+    protected int getRaftClusterId() {
+        return reqInfo.reqFrame.getBody().raftClusterId;
     }
 
     @Override

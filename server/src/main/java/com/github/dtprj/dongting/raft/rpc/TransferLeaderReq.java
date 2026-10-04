@@ -31,6 +31,7 @@ import java.nio.ByteBuffer;
 //uint32 old_leader_id = 3;
 //uint32 new_leader_id = 4;
 //fixed64 log_index = 5; // not used in admin transfer leader request
+//fixed32 raft_cluster_id = 6; // not used in admin transfer leader request
 //}
 public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
     // public int groupId;
@@ -38,6 +39,7 @@ public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
     public int oldLeaderId;
     public int newLeaderId;
     public long logIndex;
+    public int raftClusterId;
 
     public TransferLeaderReq() {
     }
@@ -48,7 +50,8 @@ public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
                 + PbUtil.sizeOfInt32Field(2, term)
                 + PbUtil.sizeOfInt32Field(3, oldLeaderId)
                 + PbUtil.sizeOfInt32Field(4, newLeaderId)
-                + PbUtil.sizeOfFix64Field(5, logIndex);
+                + PbUtil.sizeOfFix64Field(5, logIndex)
+                + PbUtil.sizeOfFix32Field(6, raftClusterId);
     }
 
     @Override
@@ -58,6 +61,7 @@ public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
         PbUtil.writeInt32Field(buf, 3, oldLeaderId);
         PbUtil.writeInt32Field(buf, 4, newLeaderId);
         PbUtil.writeFix64Field(buf, 5, logIndex);
+        PbUtil.writeFix32Field(buf, 6, raftClusterId);
     }
 
     static final class Callback extends PbCallback<TransferLeaderReq> {
@@ -85,6 +89,13 @@ public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
         public void readFix64(int index, long value) {
             if (index == 5) {
                 req.logIndex = value;
+            }
+        }
+
+        @Override
+        public void readFix32(int index, int value) {
+            if (index == 6) {
+                req.raftClusterId = value;
             }
         }
 
