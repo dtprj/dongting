@@ -266,6 +266,10 @@ public class BootstrapProcessManager {
 
         // Start the node again with the same config
         ProcessInfo newProcessInfo = startNode0(processInfo.config, timeoutSeconds);
+        if (newProcessInfo == null) {
+            log.error("Failed to restart node {}", nodeId);
+            return false;
+        }
         processes.add(newProcessInfo);
 
         log.info("Node {} restarted successfully", nodeId);
