@@ -291,8 +291,8 @@ public class StressAdvancedValidator implements Runnable {
                 if (child.isDirOrTmpDir() && !shouldHasLockBit) {
                     check(child);
                 }
-                return;
             }
+            return;
         }
     }
 
