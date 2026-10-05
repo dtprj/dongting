@@ -122,9 +122,14 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
                         req.groupId, req.term, raftStatus.currentTerm, raftStatus.getRole());
                 throw new RaftException("term or role changed during wait apply");
             }
-            RaftUtil.changeToLeader(raftStatus);
+            RaftUtil.changeToLeader(raftStatus, true);
             gc.voteManager.cancelVote("transfer leader");
+            long currentRaftIndex = raftStatus.lastLogIndex;
             gc.linearTaskRunner.issueHeartBeat();
+            return Fiber.call(gc.applyManager.waitApply(currentRaftIndex + 1), this::afterHeartBeat);
+        }
+
+        private FrameCallResult afterHeartBeat(Void unused) {
             reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SUCCESS));
             return Fiber.frameReturn();
         }

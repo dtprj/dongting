@@ -308,8 +308,8 @@ public final class RaftUtil {
         raftStatus.copyShareStatus();
     }
 
-    public static void changeToLeader(RaftStatusImpl raftStatus) {
-        resetStatus(raftStatus, false);
+    public static void changeToLeader(RaftStatusImpl raftStatus, boolean cleanLastConfirmReqNanos) {
+        resetStatus(raftStatus, cleanLastConfirmReqNanos);
         raftStatus.leadershipChanged |= raftStatus.getRole() != RaftRole.leader;
         raftStatus.setRole(RaftRole.leader);
         raftStatus.setCurrentLeader(raftStatus.self);

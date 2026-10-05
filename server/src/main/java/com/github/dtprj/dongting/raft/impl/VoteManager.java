@@ -420,7 +420,7 @@ public class VoteManager {
                     } else {
                         log.info("successfully elected, change to leader. groupId={}, term={}, lastLogTerm={}, lastLogIndex={}",
                                 groupId, raftStatus.currentTerm, raftStatus.lastLogTerm, raftStatus.lastLogIndex);
-                        RaftUtil.changeToLeader(raftStatus);
+                        RaftUtil.changeToLeader(raftStatus, false);
                         cancelVote("successfully elected");
                         linearTaskRunner.issueHeartBeat();
                         return Fiber.frameReturn();
