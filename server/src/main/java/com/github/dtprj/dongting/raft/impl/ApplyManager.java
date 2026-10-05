@@ -389,8 +389,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         return new StopApplyFrame();
     }
 
-    public FiberFrame<Void> waitApply(long targetIndex) {
-        return new WaitApplyFrame(targetIndex);
+    public FiberFrame<Void> waitApply(long targetIndex, DtTime deadline) {
+        return new WaitApplyFrame(targetIndex, deadline);
     }
 
     private class StopApplyFrame extends FiberFrame<Void> {
@@ -564,11 +564,13 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     private class WaitApplyFrame extends FiberFrame<Void> {
 
         private final long targetIndex;
+        private final DtTime deadline;
         private boolean logged;
         private boolean parked;
 
-        WaitApplyFrame(long targetIndex) {
+        WaitApplyFrame(long targetIndex, DtTime deadline) {
             this.targetIndex = targetIndex;
+            this.deadline = deadline;
         }
 
         @Override
@@ -591,6 +593,11 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 throw new RaftCancelException("raft is shutting down, exit wait apply");
             }
             if (raftStatus.getLastApplied() < targetIndex) {
+                if (deadline != null && deadline.isTimeout(ts)) {
+                    throw new RaftTimeoutException("wait apply timeout: "
+                            + deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms, targetIndex=" + targetIndex
+                            + ", lastApplied=" + raftStatus.getLastApplied());
+                }
                 if (!logged) {
                     log.info("wait apply, targetIndex={}, lastApplied={}, lastApplying={}", targetIndex,
                             raftStatus.getLastApplied(), raftStatus.lastApplying);
@@ -598,7 +605,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 }
                 parked = true;
                 waitApplyCount++;
-                return applyFinishCond.await(1000, this);
+                return applyFinishCond.await(100, fiberGroup.shouldStopCondition, this);
             }
             return afterPreviousApplyFinish();
         }
@@ -622,7 +629,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
         @Override
         public FrameCallResult execute(Void v) {
-            return Fiber.call(new WaitApplyFrame(rt.reqData.index - 1), this::afterSync);
+            return Fiber.call(new WaitApplyFrame(rt.reqData.index - 1, null), this::afterSync);
         }
 
         private FrameCallResult afterSync(Void v) {
@@ -684,7 +691,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             if (shouldStopApply()) {
                 return stopTakeSnapshot();
             }
-            return Fiber.call(new WaitApplyFrame(raftStatus.lastApplying), this::afterSync);
+            return Fiber.call(new WaitApplyFrame(raftStatus.lastApplying, null), this::afterSync);
         }
 
         @Override

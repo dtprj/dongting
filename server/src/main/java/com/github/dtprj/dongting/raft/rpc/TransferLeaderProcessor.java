@@ -112,7 +112,8 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             }
             raftStatus.commitIndex = req.logIndex;
             gc.applyManager.wakeupApply();
-            return Fiber.call(gc.applyManager.waitApply(req.logIndex), this::afterApply);
+            return Fiber.call(gc.applyManager.waitApply(req.logIndex, reqInfo.reqContext.getTimeout()),
+                    this::afterApply);
         }
 
         private FrameCallResult afterApply(Void v) {
@@ -126,7 +127,8 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             gc.voteManager.cancelVote("transfer leader");
             long currentRaftIndex = raftStatus.lastLogIndex;
             gc.linearTaskRunner.issueHeartBeat();
-            return Fiber.call(gc.applyManager.waitApply(currentRaftIndex + 1), this::afterHeartBeat);
+            return Fiber.call(gc.applyManager.waitApply(currentRaftIndex + 1, reqInfo.reqContext.getTimeout()),
+                    this::afterHeartBeat);
         }
 
         private FrameCallResult afterHeartBeat(Void unused) {
