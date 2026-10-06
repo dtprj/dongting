@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
-import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -99,24 +98,6 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                     statusManager.persistAsync();
                     return statusManager.waitUpdateFinish(this);
                 }
-            }
-            if (!MemberManager.validCandidate(raftStatus, voteReq.candidateId)) {
-                log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
-                        voteReq.candidateId, voteReq.groupId,
-                        reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.msg = "receive vote request from unknown member";
-                reqInfo.reqContext.writeRespInBizThreads(resp);
-                return Fiber.frameReturn();
-            }
-            if (!MemberManager.validCandidate(raftStatus, raftServer.getServerConfig().nodeId)) {
-                log.warn("current node is not members and can't process vote. remoteId={}, group={}, remote={}",
-                        voteReq.candidateId, voteReq.groupId,
-                        reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.msg = "current node is not members and can't process vote";
-                reqInfo.reqContext.writeRespInBizThreads(resp);
-                return Fiber.frameReturn();
             }
             if (!logReceiveInfo) {
                 log.info("receive {} request from node {}. groupId={}, voteFor={}, reqTerm={}, currentTerm={}, " +
