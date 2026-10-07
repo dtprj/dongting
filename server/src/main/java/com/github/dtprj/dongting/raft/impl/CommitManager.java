@@ -96,7 +96,14 @@ public class CommitManager {
         } else {
             while (respQueue.size() > 0) {
                 AppendRespWriter writer = respQueue.get(0);
-                if (writer.writeResp(lastPersistIndex)) {
+                boolean remove;
+                try {
+                    remove = writer.writeResp(lastPersistIndex);
+                } catch (RuntimeException e) {
+                    BugLog.log(e);
+                    remove = true;
+                }
+                if (remove) {
                     respQueue.pollFirst();
                 } else {
                     break;
