@@ -146,7 +146,9 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     result.prevLogTerm = (int) value;
                     break;
                 case IDX_LOGS_SIZE:
-                    result.logs = createArrayList((int) value);
+                    if (result.logs == null) {
+                        result.logs = createArrayList((int) value);
+                    }
                     break;
             }
         }
@@ -173,6 +175,9 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         @Override
         public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_ENTRIES) {
+                if (result.logs == null) {
+                    result.logs = createArrayList(8);
+                }
                 parseNested(buf, len, currentPos, logDataCallback);
             }
         }

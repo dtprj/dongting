@@ -70,7 +70,7 @@ public class AdminListNodesResp extends PbCallback<AdminListNodesResp> implement
 
     @Override
     public void readVarNumber(int index, long value) {
-        if (index == IDX_SIZE) {
+        if (index == IDX_SIZE && nodes == null) {
             nodes = createArrayList((int) value);
         }
     }
@@ -80,6 +80,9 @@ public class AdminListNodesResp extends PbCallback<AdminListNodesResp> implement
         if (index == IDX_NODE) {
             if (nodeCallback == null) {
                 nodeCallback = new RaftNode.Callback();
+            }
+            if (nodes == null) {
+                nodes = createArrayList(8);
             }
             RaftNode r = parseNested(buf, fieldLen, currentPos, nodeCallback);
             if (r != null) {

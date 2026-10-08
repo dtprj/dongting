@@ -57,6 +57,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     @Override
     public void readFix64(int index, long value) {
         if (index == WatchReq.IDX_KNOWN_RAFT_INDEXES) {
+            // not handled NPE/ArrayIndexOutOfBoundsException, require client keep field sequence
             knownRaftIndexes[knownRaftIndexesIndex++] = value;
         }
     }
@@ -66,6 +67,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
         if (index == WatchReq.IDX_KEYS) {
             byte[] b = parseBytes(buf, fieldLen, currentPos);
             if (b != null) {
+                // not handled NPE/ArrayIndexOutOfBoundsException, require client keep field sequence
                 this.keys[keysIndex++] = new ByteArray(b);
             }
         }
