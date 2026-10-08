@@ -47,8 +47,8 @@ import java.util.function.Function;
 //int32 prev_log_term = 5;
 //fixed64 leader_commit = 6;
 //int32 logs_size = 7;
-//bytes entries = 8;
-//fixed32 raft_cluster_id = 9;
+//fixed32 raft_cluster_id = 8;
+//bytes entries = 15;
 //}
 public class AppendReq extends RaftRpcData implements DtCleanable {
     private static final DtLog log = DtLogs.getLogger(AppendReq.class);
@@ -60,8 +60,8 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
     public static final int IDX_PREV_LOG_TERM = 5;
     public static final int IDX_LEADER_COMMIT = 6;
     public static final int IDX_LOGS_SIZE = 7;
-    public static final int IDX_ENTRIES = 8;
-    public static final int IDX_RAFT_CLUSTER_ID = 9;
+    public static final int IDX_RAFT_CLUSTER_ID = 8;
+    public static final int IDX_ENTRIES = 15;
 
     // private int groupId;
     // private int term;

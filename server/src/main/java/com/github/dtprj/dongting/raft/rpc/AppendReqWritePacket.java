@@ -36,8 +36,8 @@ import java.util.List;
 //int32 prev_log_term = 5;
 //fixed64 leader_commit = 6;
 //int32 logs_size = 7;
-//bytes entries = 8;
-//fixed32 raft_cluster_id = 9;
+//fixed32 raft_cluster_id = 8;
+//bytes entries = 15;
 //}
 public class AppendReqWritePacket extends PreEncodedWritePacket {
 
