@@ -32,14 +32,14 @@ public class AdminAddNodeReq extends PbCallback<AdminAddNodeReq> implements Simp
     @Override
     public void encode(ByteBuffer buf) {
         PbUtil.writeInt32Field(buf, 1, nodeId);
-        PbUtil.writeAsciiField(buf, 2, host);
+        PbUtil.writeUTF8Field(buf, 2, host);
         PbUtil.writeInt32Field(buf, 3, port);
     }
 
     @Override
     public int actualSize() {
         return PbUtil.sizeOfInt32Field(1, nodeId) +
-                PbUtil.sizeOfAscii(2, host) +
+                PbUtil.sizeOfUTF8(2, host) +
                 PbUtil.sizeOfInt32Field(3, port);
     }
 
