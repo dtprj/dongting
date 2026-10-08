@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Set;
 
 /**
  * @author huangli
@@ -47,8 +46,8 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 //    repeated fixed32 prepared_members = 13[packed = false];
 //    repeated fixed32 prepared_observers = 14[packed = false];
 //    fixed64 last_config_change_index = 15;
-//    string first_error = 16;
-//    fixed64 persisted_commit_index = 17;
+//    fixed64 persisted_commit_index = 16;
+//    string first_error = 100;
 
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_NODE_ID = 2;
@@ -65,8 +64,8 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
     private static final int IDX_PREPARED_MEMBERS = 13;
     private static final int IDX_PREPARED_OBSERVERS = 14;
     private static final int IDX_LAST_CONFIG_CHANGE_INDEX = 15;
-    private static final int IDX_FIRST_ERROR = 16;
-    private static final int IDX_PERSISTED_COMMIT_INDEX = 17;
+    private static final int IDX_PERSISTED_COMMIT_INDEX = 16;
+    private static final int IDX_FIRST_ERROR = 100;
 
     public int nodeId;
     private int flag;
@@ -84,6 +83,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
             new Callback());
 
     private int size;
+    private int headerSize;
 
     private static final int FLAG_MASK_INIT_FINISHED = 1;
     private static final int FLAG_MASK_INIT_FAILED = 1 << 1;
@@ -166,125 +166,63 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 
     @Override
     public int actualSize() {
-        if(size == 0) {
-            size = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId) +
-                    PbUtil.sizeOfInt32Field(IDX_NODE_ID, nodeId) +
-                    PbUtil.sizeOfInt32Field(IDX_FLAG, flag) +
-                    PbUtil.sizeOfInt32Field(IDX_TERM, term) +
-                    PbUtil.sizeOfInt32Field(IDX_LEADER_ID, leaderId) +
-                    PbUtil.sizeOfFix64Field(IDX_COMMIT_INDEX, commitIndex) +
-                    PbUtil.sizeOfFix64Field(IDX_LAST_APPLIED, lastApplied) +
-                    PbUtil.sizeOfFix64Field(IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis) +
-                    PbUtil.sizeOfFix64Field(IDX_LAST_LOG_INDEX, lastLogIndex) +
-                    PbUtil.sizeOfFix64Field(IDX_APPLY_LAG_MILLIS, applyLagMillis) +
-                    PbUtil.sizeOfFix32Field(IDX_MEMBERS, members) +
-                    PbUtil.sizeOfFix32Field(IDX_OBSERVERS, observers) +
-                    PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers) +
-                    PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, preparedObservers) +
-                    PbUtil.sizeOfFix64Field(IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex) +
-                    PbUtil.sizeOfUTF8(IDX_FIRST_ERROR, firstError) +
-                    PbUtil.sizeOfFix64Field(IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex);
+        if (size == 0) {
+            size = headerSize() + PbUtil.sizeOfUTF8(IDX_FIRST_ERROR, firstError);
         }
         return size;
     }
 
-    private static int[] toIntArray(Set<Integer> set) {
-        if (set == null || set.isEmpty()) {
-            return null;
+    private int headerSize() {
+        if (headerSize == 0) {
+            headerSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
+                    + PbUtil.sizeOfInt32Field(IDX_NODE_ID, nodeId)
+                    + PbUtil.sizeOfInt32Field(IDX_FLAG, flag)
+                    + PbUtil.sizeOfInt32Field(IDX_TERM, term)
+                    + PbUtil.sizeOfInt32Field(IDX_LEADER_ID, leaderId)
+                    + PbUtil.sizeOfFix64Field(IDX_COMMIT_INDEX, commitIndex)
+                    + PbUtil.sizeOfFix64Field(IDX_LAST_APPLIED, lastApplied)
+                    + PbUtil.sizeOfFix64Field(IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis)
+                    + PbUtil.sizeOfFix64Field(IDX_LAST_LOG_INDEX, lastLogIndex)
+                    + PbUtil.sizeOfFix64Field(IDX_APPLY_LAG_MILLIS, applyLagMillis)
+                    + PbUtil.sizeOfFix32Field(IDX_MEMBERS, members)
+                    + PbUtil.sizeOfFix32Field(IDX_OBSERVERS, observers)
+                    + PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers)
+                    + PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, preparedObservers)
+                    + PbUtil.sizeOfFix64Field(IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex)
+                    + PbUtil.sizeOfFix64Field(IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex);
         }
-        int[] arr = new int[set.size()];
-        int i = 0;
-        for (Integer v : set) {
-            arr[i++] = v;
-        }
-        return arr;
+        return headerSize;
     }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         switch (context.stage) {
-            case EncodeContext.STAGE_BEGIN:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_GROUP_ID, groupId)) {
+            case EncodeContext.STAGE_BEGIN: {
+                if (destBuffer.remaining() < headerSize()) {
                     return false;
                 }
-                // fall through
-            case IDX_GROUP_ID:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_NODE_ID, nodeId)) {
-                    return false;
-                }
-                // fall through
-            case IDX_NODE_ID:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_FLAG, flag)) {
-                    return false;
-                }
-                // fall through
-            case IDX_FLAG:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_TERM, term)) {
-                    return false;
-                }
-                // fall through
-            case IDX_TERM:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_LEADER_ID, leaderId)) {
-                    return false;
-                }
-                // fall through
-            case IDX_LEADER_ID:
-                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_COMMIT_INDEX, commitIndex)) {
-                    return false;
-                }
-                // fall through
-            case IDX_COMMIT_INDEX:
-                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_LAST_APPLIED, lastApplied)) {
-                    return false;
-                }
-                // fall through
-            case IDX_LAST_APPLIED:
-                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis)) {
-                    return false;
-                }
-                // fall through
-            case IDX_LAST_APPLY_TIME_TO_NOW_MILLIS:
-                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_LAST_LOG_INDEX, lastLogIndex)) {
-                    return false;
-                }
-                // fall through
-            case IDX_LAST_LOG_INDEX:
-                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_APPLY_LAG_MILLIS, applyLagMillis)) {
-                    return false;
-                }
-                // fall through
-            case IDX_APPLY_LAG_MILLIS:
-                if (!EncodeUtil.encodeFix32s(context, destBuffer, IDX_MEMBERS, toIntArray(members))) {
-                    return false;
-                }
-                // fall through
-            case IDX_MEMBERS:
-                if (!EncodeUtil.encodeFix32s(context, destBuffer, IDX_OBSERVERS, toIntArray(observers))) {
-                    return false;
-                }
-                // fall through
-            case IDX_OBSERVERS:
-                if (!EncodeUtil.encodeFix32s(context, destBuffer, IDX_PREPARED_MEMBERS, toIntArray(preparedMembers))) {
-                    return false;
-                }
-                // fall through
-            case IDX_PREPARED_MEMBERS:
-                if (!EncodeUtil.encodeFix32s(context, destBuffer, IDX_PREPARED_OBSERVERS, toIntArray(preparedObservers))) {
-                    return false;
-                }
-                // fall through
-            case IDX_PREPARED_OBSERVERS:
-                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex)) {
-                    return false;
-                }
-                // fall through
-            case IDX_LAST_CONFIG_CHANGE_INDEX:
-                if (!EncodeUtil.encodeUTF8(context, destBuffer, IDX_FIRST_ERROR, firstError)) {
-                    return false;
-                }
-                // fall through
-            case IDX_FIRST_ERROR:
-                return EncodeUtil.encodeFix64(context, destBuffer, IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex);
+                PbUtil.writeInt32Field(destBuffer, IDX_GROUP_ID, groupId);
+                PbUtil.writeInt32Field(destBuffer, IDX_NODE_ID, nodeId);
+                PbUtil.writeInt32Field(destBuffer, IDX_FLAG, flag);
+                PbUtil.writeInt32Field(destBuffer, IDX_TERM, term);
+                PbUtil.writeInt32Field(destBuffer, IDX_LEADER_ID, leaderId);
+                PbUtil.writeFix64Field(destBuffer, IDX_COMMIT_INDEX, commitIndex);
+                PbUtil.writeFix64Field(destBuffer, IDX_LAST_APPLIED, lastApplied);
+                PbUtil.writeFix64Field(destBuffer, IDX_LAST_APPLY_TIME_TO_NOW_MILLIS, lastApplyTimeToNowMillis);
+                PbUtil.writeFix64Field(destBuffer, IDX_LAST_LOG_INDEX, lastLogIndex);
+                PbUtil.writeFix64Field(destBuffer, IDX_APPLY_LAG_MILLIS, applyLagMillis);
+                PbUtil.writeFix32Field(destBuffer, IDX_MEMBERS, members);
+                PbUtil.writeFix32Field(destBuffer, IDX_OBSERVERS, observers);
+                PbUtil.writeFix32Field(destBuffer, IDX_PREPARED_MEMBERS, preparedMembers);
+                PbUtil.writeFix32Field(destBuffer, IDX_PREPARED_OBSERVERS, preparedObservers);
+                PbUtil.writeFix64Field(destBuffer, IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex);
+                PbUtil.writeFix64Field(destBuffer, IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex);
+                context.stage = IDX_PERSISTED_COMMIT_INDEX;
+            }
+            // fall through
+            case IDX_PERSISTED_COMMIT_INDEX:
+                // the first_error field may be very long, so it supports partial write
+                return EncodeUtil.encodeUTF8(context, destBuffer, IDX_FIRST_ERROR, firstError);
             default:
                 throw new CodecException(context);
         }
