@@ -205,7 +205,7 @@ public class PbParser {
                         break;
                     case STATUS_PARSE_FILED_LEN:
                         if (value < 0) {
-                            throw new PbException("bad field len: " + fieldLen);
+                            throw new PbException("bad field len: " + value);
                         }
                         if ((parsedBytes + value) > size || (parsedBytes + value) < 0) {
                             throw new PbException("field length overflow. len=" + value + ",index=" + fieldIndex);
@@ -243,7 +243,7 @@ public class PbParser {
         this.fieldType = type;
         value = value >>> 3;
         if (value == 0) {
-            throw new PbException("bad index:" + ((value << 3) & type) + ", last field index is" + fieldIndex);
+            throw new PbException("bad index: " + type + ", last field index is " + fieldIndex);
         }
         this.fieldIndex = value;
 
@@ -366,6 +366,9 @@ public class PbParser {
 
     private int parseBodyFixedNumber(ByteBuffer buf, PbCallback<?> callback, int remain, int len) {
         int pendingBytes = this.pendingBytes;
+        if (this.parsedBytes + (len - pendingBytes) > this.size) {
+            throw new PbException("size exceed " + this.size);
+        }
         if (pendingBytes == 0 && remain >= len) {
             long value;
             if (len == 4) {

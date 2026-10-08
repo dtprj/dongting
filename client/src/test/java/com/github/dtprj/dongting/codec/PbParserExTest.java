@@ -292,4 +292,42 @@ public class PbParserExTest {
         assertEquals(1, callback.endFailCount);
     }
 
+    @Test
+    public void testFixedFieldValueExceed() {
+        ByteBuffer buf = ByteBuffer.allocate(50);
+        PbUtil.writeTag(buf, PbUtil.TYPE_FIX64, 1);
+        buf.putLong(1L);
+        buf.flip();
+        buf.mark();
+
+        DecodeContext context = CodecTestUtil.createContext();
+        EmptyCallback callback = new EmptyCallback();
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining() - 1);
+        try {
+            parser.parse(buf);
+            fail();
+        } catch (PbException e) {
+            assertTrue(e.getMessage().startsWith("size exceed"));
+            assertTrue(parser.isFinished());
+        }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
+
+        buf.reset();
+        callback = new EmptyCallback();
+        parser.prepareNext(context, callback, buf.remaining() - 1);
+        try {
+            parseByByte(buf, parser);
+            fail();
+        } catch (PbException e) {
+            assertTrue(e.getMessage().startsWith("size exceed"));
+            assertTrue(parser.isFinished());
+        }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
+    }
+
 }
