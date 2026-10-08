@@ -87,14 +87,15 @@ final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
 
     private void writeFinish(long writeFinishRaftIndex) {
         if (writeFinishRaftIndex > 0) {
-            raftStatus.logWriteFinishCondition.signalAll();
             raftStatus.lastWriteLogIndex = writeFinishRaftIndex;
         }
+        raftStatus.logWriteFinishCondition.signalAll();
     }
 
     private void forceFinish(long forceFinishRaftIndex) {
-        // assert forceFinishRaftIndex > 0
-        raftStatus.lastForceLogIndex = forceFinishRaftIndex;
+        if (forceFinishRaftIndex > 0) {
+            raftStatus.lastForceLogIndex = forceFinishRaftIndex;
+        }
         raftStatus.logForceFinishCondition.signalAll();
     }
 

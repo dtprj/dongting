@@ -234,13 +234,13 @@ public class ChainWriter {
             return;
         }
         LinkedList<WriteTask> writeTasks = this.writeTasks;
-        WriteTask lastTaskNeedCallback = null;
+        long writeFinishIndex = -1;
         while (!writeTasks.isEmpty()) {
             WriteTask t = writeTasks.getFirst();
             FiberFuture<Void> f = t.getFuture();
             if (f.isDone()) {
                 writeTasks.removeFirst();
-                lastTaskNeedCallback = t;
+                writeFinishIndex = Math.max(writeFinishIndex, t.lastRaftIndex);
                 if (t.force) {
                     forceTasks.add(t);
                     forceTaskCount++;
@@ -251,10 +251,10 @@ public class ChainWriter {
                 break;
             }
         }
-        if (lastTaskNeedCallback != null) {
+        if (writeFinishIndex >= 0) {
             needForceCondition.signal();
             if (writeCallback != null) {
-                writeCallback.accept(lastTaskNeedCallback.lastRaftIndex);
+                writeCallback.accept(writeFinishIndex);
             }
         }
     }
