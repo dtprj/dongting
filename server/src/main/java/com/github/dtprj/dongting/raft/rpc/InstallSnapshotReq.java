@@ -46,7 +46,7 @@ import java.util.HashSet;
 //  fixed64 last_config_change_index = 13;
 //  fixed32 raft_cluster_id = 14;
 
-//  bytes data = 15;
+//  bytes data = 100;
 public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable {
 
     private static final int IDX_GROUP_ID = 1;
@@ -63,7 +63,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
     private static final int IDX_PREPARED_OBSERVERS = 12;
     private static final int IDX_LAST_CONFIG_CHANGE_INDEX = 13;
     private static final int IDX_RAFT_CLUSTER_ID = 14;
-    private static final int IDX_DATA = 15;
+    private static final int IDX_DATA = 100;
     // public int groupId;
     // public int term;
     public int leaderId;

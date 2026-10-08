@@ -78,7 +78,7 @@ message InstallSnapshotReq {
   fixed64 last_config_change_index = 13;
   fixed32 raft_cluster_id = 14;
 
-  bytes data = 15;
+  bytes data = 100;
 }
 
 message TransferLeaderReq {
