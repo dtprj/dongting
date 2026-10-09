@@ -119,11 +119,12 @@ public class Fiber extends WaitSource {
     public static FiberException fatal(Throwable ex) {
         // assert in dispatcher thread, otherwise ex throws
         DispatcherThread t = DispatcherThread.currentDispatcherThread();
-        if (t.currentGroup.shareStatusSource.isShouldStop()) {
+        boolean oldShouldStop = t.currentGroup.shareStatusSource.isShouldStop();
+        t.currentGroup.requestShutdown(true);
+        if (oldShouldStop) {
             return new FiberException("fatal ex", ex);
         } else {
             log.error("encountered fatal error, raft group will shutdown", ex);
-            t.currentGroup.requestShutdown(true);
             return new FiberException("encountered fatal error, raft group will shutdown", ex);
         }
     }
