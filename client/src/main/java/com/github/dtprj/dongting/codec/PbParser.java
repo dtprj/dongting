@@ -345,14 +345,17 @@ public class PbParser {
         if (oldLimit > end) {
             buf.limit(end);
         }
-        callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
+        try {
+            callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
+        } finally {
+            if (oldLimit > end) {
+                buf.limit(oldLimit);
+            }
+        }
         if (buf.position() != end) {
             throw new PbException("readBytes didn't consume all bytes. "
                     + "fieldIndex=" + this.fieldIndex + ", fieldLen=" + fieldLen
                     + ", currentPos=" + pendingBytes + ", class=" + callback.getClass().getName());
-        }
-        if (oldLimit > end) {
-            buf.limit(oldLimit);
         }
         parsedBytes += actualRead;
         if (needRead == actualRead) {
