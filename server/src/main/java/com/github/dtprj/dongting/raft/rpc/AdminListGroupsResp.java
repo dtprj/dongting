@@ -21,8 +21,6 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
 
@@ -30,7 +28,6 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class AdminListGroupsResp extends PbCallback<AdminListGroupsResp> implements Encodable {
-    private static final DtLog log = DtLogs.getLogger(AdminListGroupsResp.class);
 
     private static final int IDX_SIZE = 1;
     private static final int IDX_GROUP_ID = 2;
@@ -46,8 +43,15 @@ public class AdminListGroupsResp extends PbCallback<AdminListGroupsResp> impleme
     @Override
     public void readVarNumber(int index, long value) {
         if (index == IDX_SIZE) {
-            groupIds = new int[(int) value];
+            int len = (int) value;
+            if (len < 0 || len > 1000000) {
+                throw new CodecException("invalid group size: " + len);
+            }
+            groupIds = new int[len];
         } else if (index == IDX_GROUP_ID) {
+            if (groupIds == null) {
+                throw new CodecException("group_id field found before size field");
+            }
             if (writePos < groupIds.length) {
                 groupIds[writePos++] = (int) value;
             } else {
