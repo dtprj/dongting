@@ -120,7 +120,8 @@ class RaftLogDataCallbackTest {
         RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
         Decoder decoder = new Decoder();
         decoder.prepareNext(CodecTestUtil.decodeContext(), callback);
-        callback.doDecode(combined, 0, 0);
+        decoder.decode(combined, combined.remaining(), 0);
+        assertTrue(decoder.isFinished());
         assertEquals(2, results.size());
 
         RaftTaskTest.assertData(results.get(0), 5, 10);

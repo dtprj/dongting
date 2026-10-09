@@ -36,6 +36,8 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
 
     private RefBuffer fullRefBuffer;
 
+    private int totalParsedBytes;
+
     private int status;
     private int parsedBytes;
     private int totalLen;
@@ -64,7 +66,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
     }
 
     @Override
-    protected void doDecode(ByteBuffer src, int notUsedBodyLen, int notUsedCurrentPos) {
+    protected void doDecode(ByteBuffer src, int totalBlockLen, int notUsedCurrentPos) {
         ByteBuffer fullBuffer = fullRefBuffer == null ? null : fullRefBuffer.getBuffer();
         while (true) {
             int remaining = src.remaining();
@@ -84,6 +86,9 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
                                 totalLen = (totalLen << 8) | (src.get() & 0xFF);
                                 parsedBytes++;
                             }
+                        }
+                        if (totalLen > totalBlockLen - totalParsedBytes || totalLen < LogHeader.ITEM_HEADER_SIZE) {
+                            throw new CodecException("bad totalLen: " + totalLen);
                         }
                         fullRefBuffer = totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD ?
                                 context.buffers.borrowDirect(totalLen) :
@@ -108,6 +113,10 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
                     }
                     bizHeaderLen = fullBuffer.getInt(LogHeader.OFFSET_BIZ_HEADER_LEN);
                     bodyLen = fullBuffer.getInt(LogHeader.OFFSET_BODY_LEN);
+                    if (bizHeaderLen < 0 || bodyLen < 0 || totalLen != LogHeader.computeTotalLen(bizHeaderLen, bodyLen)) {
+                        throw new CodecException("bad header: totalLen=" + totalLen + ",bizHeaderLen="
+                                + bizHeaderLen + ",bizBodyLen=" + bodyLen);
+                    }
                     if (bizHeaderLen > 0) {
                         status = STATUS_FINISH_HEADER;
                     } else if (bodyLen > 0) {
@@ -224,6 +233,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
         RaftReqData reqData = new RaftReqData(fullRefBuffer);
         LogHeader.readFields(fullBuffer, reqData);
         fullBuffer.position(0);
+        totalParsedBytes += totalLen;
         consumer.accept(reqData);
         reset();
     }
@@ -235,10 +245,9 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
 
     @Override
     protected void end(boolean success) {
-        if (!success) {
-            if (fullRefBuffer != null) {
-                fullRefBuffer.release();
-            }
+        totalParsedBytes = 0;
+        if (fullRefBuffer != null) {
+            fullRefBuffer.release();
         }
         reset();
     }
