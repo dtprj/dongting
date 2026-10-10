@@ -17,9 +17,14 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberTimeoutException;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.FutureFrame;
+import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -31,6 +36,8 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -63,6 +70,11 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
+            if (DtUtil.rootCause(ex) instanceof FiberTimeoutException) {
+                log.error("transfer leader wait timeout, the transfer may have taken effect. " +
+                        "groupId={}, term={}", req.groupId, req.term);
+                return Fiber.frameReturn();
+            }
             writeErrorResp(reqInfo, ex);
             return Fiber.frameReturn();
         }
@@ -124,14 +136,42 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
                 throw new RaftException("term or role changed during wait apply");
             }
             RaftUtil.changeToLeader(raftStatus, true);
+            boolean persistVote = raftStatus.votedFor != gc.serverConfig.nodeId;
+            if (persistVote) {
+                raftStatus.votedFor = gc.serverConfig.nodeId;
+                gc.statusManager.persistAsync();
+            }
             gc.voteManager.cancelVote("transfer leader");
             long currentRaftIndex = raftStatus.lastLogIndex;
             gc.linearTaskRunner.issueHeartBeat();
-            return Fiber.call(gc.applyManager.waitApply(currentRaftIndex + 1, reqInfo.reqContext.getTimeout()),
-                    this::afterHeartBeat);
+
+            FiberFuture<Void> persistFuture;
+            if (persistVote) {
+                persistFuture = FutureFrame.startWaitFiber("transferPersistVote", gc.fiberGroup,
+                        new SimpleFrame<>("transferPersistVote",
+                                frame -> gc.statusManager.waitUpdateFinish(frame::justReturn)));
+            } else {
+                persistFuture = FiberFuture.completedFuture(gc.fiberGroup, null);
+            }
+            FiberFuture<Void> applyFuture = FutureFrame.startWaitFiber("transferWaitHeartBeat", gc.fiberGroup,
+                    gc.applyManager.waitApply(currentRaftIndex + 1, reqInfo.reqContext.getTimeout()));
+            long restMillis = reqInfo.reqContext.getTimeout().rest(TimeUnit.MILLISECONDS);
+            if (restMillis <= 0) {
+                log.error("transfer leader wait timeout, the transfer may have taken effect. " +
+                        "groupId={}, term={}", req.groupId, req.term);
+                return Fiber.frameReturn();
+            }
+            return FiberFuture.allOf("transferLeaderFinish", persistFuture, applyFuture)
+                    .await(restMillis, this::afterHeartBeat);
         }
 
         private FrameCallResult afterHeartBeat(Void unused) {
+            // a higher term append or role change may happen during the waits
+            if (raftStatus.currentTerm != req.term || raftStatus.getRole() != RaftRole.leader) {
+                log.error("term or role changed during wait. groupId={}, reqTerm={}, currentTerm={}, role={}",
+                        req.groupId, req.term, raftStatus.currentTerm, raftStatus.getRole());
+                throw new RaftException("term or role changed during wait");
+            }
             reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SUCCESS));
             return Fiber.frameReturn();
         }

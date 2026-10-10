@@ -170,7 +170,9 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private boolean shouldGrant() {
             boolean result;
-            if (voteReq.term < raftStatus.currentTerm) {
+            if (!voteReq.preVote && raftStatus.getRole() == RaftRole.leader && voteReq.term == raftStatus.currentTerm) {
+                result = false;
+            } else if (voteReq.term < raftStatus.currentTerm) {
                 result = false;
             } else if (voteReq.lastConfigChangeIndex < raftStatus.lastConfigChangeIndex) {
                 // never vote for a candidate whose applied config is older
