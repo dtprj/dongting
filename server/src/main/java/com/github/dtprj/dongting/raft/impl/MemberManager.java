@@ -48,8 +48,10 @@ import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -641,9 +643,10 @@ public class MemberManager {
         nodeManager.releaseNodeEx(nodes);
     }
 
-    public FrameCallResult doPrepare(long raftIndex, Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
+    public FrameCallResult doPrepare(long raftIndex, Set<Integer> oldMemberIds, Set<Integer> oldObserverIds,
+                                     Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
         ApplyConfigFrame f = new ApplyConfigFrame("(" + raftIndex + ") prepare config change",
-                raftStatus.nodeIdOfMembers, raftStatus.nodeIdOfObservers, newMemberIds, newObserverIds);
+                oldMemberIds, oldObserverIds, newMemberIds, newObserverIds);
         f.raftIndex = raftIndex;
         return Fiber.call(f, v -> Fiber.frameReturn());
     }
@@ -727,10 +730,11 @@ public class MemberManager {
             oldMembers.addAll(raftStatus.preparedMembers);
             oldMembers.addAll(raftStatus.preparedObservers);
 
-            List<RaftMember> newMembers = createMembersInConfigChange(members);
-            List<RaftMember> newObservers = createMembersInConfigChange(observers);
-            List<RaftMember> newPreparedMembers = createMembersInConfigChange(preparedMembers);
-            List<RaftMember> newPreparedObservers = createMembersInConfigChange(preparedObservers);
+            HashMap<Integer, RaftMember> memberMap = new HashMap<>();
+            List<RaftMember> newMembers = createMembersInConfigChange(members, memberMap);
+            List<RaftMember> newObservers = createMembersInConfigChange(observers, memberMap);
+            List<RaftMember> newPreparedMembers = createMembersInConfigChange(preparedMembers, memberMap);
+            List<RaftMember> newPreparedObservers = createMembersInConfigChange(preparedObservers, memberMap);
 
             List<RaftMember> oldRepList = raftStatus.replicateList;
 
@@ -842,14 +846,18 @@ public class MemberManager {
         });
     }
 
-    private List<RaftMember> createMembersInConfigChange(Set<Integer> nodeIds) {
+    private List<RaftMember> createMembersInConfigChange(Set<Integer> nodeIds, Map<Integer, RaftMember> memberMap) {
         List<RaftMember> newMembers = new ArrayList<>(nodeIds.size());
         for (int nodeId : nodeIds) {
-            RaftMember m = findExistMember(nodeId);
+            RaftMember m = memberMap.get(nodeId);
+            if (m == null) {
+                m = findExistMember(nodeId);
+            }
             if (m == null) {
                 m = createMember(nodeId, RaftRole.observer);
                 m.nextIndex = raftStatus.lastLogIndex + 1;
             }
+            memberMap.put(nodeId, m);
             newMembers.add(m);
         }
         return newMembers;

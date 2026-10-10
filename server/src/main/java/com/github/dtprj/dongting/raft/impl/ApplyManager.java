@@ -682,7 +682,8 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
                 log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
                         oldObserverIds, raftStatus.nodeIdOfObservers, raftStatus.groupId);
             }
-            return gc.memberManager.doPrepare(rt.reqData.index, newMemberIds, newObserverIds);
+            return gc.memberManager.doPrepare(rt.reqData.index, oldMemberIds, oldObserverIds,
+                    newMemberIds, newObserverIds);
         }
 
         private Set<Integer> parseSet(String s) {
