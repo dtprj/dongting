@@ -66,10 +66,12 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     private boolean cancelInit() {
-        if (isGroupShouldStopPlain() && !raftStatus.isInitFinished()) {
-            raftStatus.markInit(true);
-            raftStatus.copyShareStatus();
-            raftStatus.initFuture.completeExceptionally(new RaftCancelException("group should stop"));
+        if (isGroupShouldStopPlain()) {
+            if (!raftStatus.isInitFinished()) {
+                raftStatus.markInit(true);
+                raftStatus.copyShareStatus();
+                raftStatus.initFuture.completeExceptionally(new RaftCancelException("group should stop"));
+            }
             return true;
         }
         return false;
@@ -120,6 +122,9 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     private FrameCallResult afterSnapshotManagerInit(Snapshot snapshot) {
         if (cancelInit()) {
+            if (snapshot != null) {
+                snapshot.close();
+            }
             return Fiber.frameReturn();
         }
         if (snapshot == null) {

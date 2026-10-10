@@ -410,12 +410,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
     public void stopFiber() {
         saveLoopFrame.stopLoop = true;
         saveLoopFrame.saveSnapshotCond.signal();
-        // requests that are not taken by any SaveFrame will never be processed after stop,
-        // drain here since the loop fiber may not be running.
-        // pollFirst to avoid CME if a callback re-enters saveSnapshot()
+        clearPendingSaveRequests();
+    }
+
+    private void clearPendingSaveRequests() {
         Pair<Long, FiberFuture<Long>> req;
         while ((req = saveRequest.pollFirst()) != null) {
-            req.getRight().completeExceptionally(new RaftException("snapshot manager is stopped"));
+            req.getRight().completeExceptionally(new RaftException("snapshot is stopped"));
         }
     }
 
@@ -429,20 +430,26 @@ public class DefaultSnapshotManager implements SnapshotManager {
             throw Fiber.fatal(ex);
         }
 
+        @Override
+        protected FrameCallResult doFinally() throws Throwable {
+            clearPendingSaveRequests();
+            return Fiber.frameReturn();
+        }
+
         SaveSnapshotLoopFrame() {
             this.saveSnapshotCond = groupConfig.fiberGroup.newCondition("saveSnapshotLoop");
         }
 
         @Override
         public FrameCallResult execute(Void input) throws Throwable {
-            if (stopLoop) {
+            if (stopLoop || raftStatus.isFatalError()) {
                 return Fiber.frameReturn();
             }
             return Fiber.call(deleteOldFiles(), this::afterDeleteOldFiles);
         }
 
         private FrameCallResult afterDeleteOldFiles(Void v) {
-            if (stopLoop) {
+            if (stopLoop || raftStatus.isFatalError()) {
                 return Fiber.frameReturn();
             }
             if (saveRequest.isEmpty()) {
@@ -453,7 +460,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private FrameCallResult doSave(Void unused) {
-            if (stopLoop) {
+            if (stopLoop || raftStatus.isFatalError()) {
                 return Fiber.frameReturn();
             }
             SaveFrame f = new SaveFrame(nextId++);
@@ -467,6 +474,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
         FiberFuture<Long> f = groupConfig.fiberGroup.newFuture("saveSnapshot-" + groupConfig.groupId);
         if (saveLoopFrame.stopLoop) {
             f.completeExceptionally(new RaftException("snapshot manager is stopped"));
+        } else if (raftStatus.isFatalError()) {
+            f.completeExceptionally(new RaftException("in fatal status"));
         } else {
             saveRequest.addLast(new Pair<>(raftStatus.getLastApplied(), f));
             saveLoopFrame.saveSnapshotCond.signal();
@@ -607,9 +616,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private boolean checkCancel() {
             // do not check isGroupShouldStopPlain() here
 
-            if (raftStatus.installSnapshot) {
+            if (raftStatus.installSnapshot || raftStatus.isFatalError()) {
                 if (!cancel) {
-                    log.warn("install snapshot, cancel save snapshot task");
+                    log.warn("cancel save snapshot task, install={}, fatal={}",
+                            raftStatus.installSnapshot, raftStatus.isFatalError());
                     cancel = true;
                 }
                 return true;

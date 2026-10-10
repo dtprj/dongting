@@ -164,6 +164,12 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
             f.completeExceptionally(new RaftException("apply manager is stopped"));
         }
         processWaitGroupReadyQueue(false, true);
+        if (!raftStatus.isInitFinished()) {
+            // apply stopped before init replay finished, the markInit() in afterExec never happens
+            raftStatus.markInit(true);
+            raftStatus.copy(true);
+            raftStatus.initFuture.completeExceptionally(new RaftException("apply manager stopped before init complete"));
+        }
         // start in InitFiberFrame
         return stateMachine.stop();
     }
@@ -357,10 +363,15 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     }
 
     private void drainPendingTasks() {
+        if (raftStatus.isFatalError()) {
+            // a committed log failed to apply; stop draining so the failed index is not skipped
+            flowControlCond.signalAll();
+            return;
+        }
         while (!pendingTasks.isEmpty()) {
             RaftTask rt = pendingTasks.peekFirst();
             long index = rt.reqData.index;
-            if (index <= raftStatus.getLastApplied()) {
+            if (index != raftStatus.getLastApplied() + 1) {
                 throw Fiber.fatal(new RaftException("stale pending task: groupId=" + raftStatus.groupId
                         + ", index=" + index + ", lastApplied=" + raftStatus.getLastApplied()));
             }
@@ -382,7 +393,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
     }
 
     private boolean shouldStopApply() {
-        return raftStatus.installSnapshot || shutdown;
+        return raftStatus.installSnapshot || shutdown || raftStatus.isFatalError();
     }
 
     public FiberFrame<Void> waitApplyStop() {
@@ -400,6 +411,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         public FrameCallResult execute(Void input) {
             if (!applyFiber.isFinished()) {
                 return applyFiber.join(this);
+            }
+            if (raftStatus.isFatalError()) {
+                flowControlCond.signalAll();
+                return Fiber.frameReturn();
             }
             if (!pendingTasks.isEmpty()) {
                 if (!logged) {
@@ -419,7 +434,7 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
 
     public FiberFuture<Snapshot> requestTakeSnapshot() {
         FiberFuture<Snapshot> future = fiberGroup.newFuture("take-snapshot");
-        if (shutdown) {
+        if (shouldStopApply()) {
             future.completeExceptionally(new RaftException("apply manager is stopped"));
         } else {
             takeSnapshotRequests.add(future);
@@ -453,6 +468,10 @@ public class ApplyManager implements Comparator<Pair<DtTime, CompletableFuture<V
         protected FrameCallResult doFinally() {
             log.info("apply fiber exit: groupId={}", raftStatus.groupId);
             closeIterator();
+            FiberFuture<Snapshot> f;
+            while ((f = takeSnapshotRequests.pollFirst()) != null) {
+                f.completeExceptionally(new RaftException("apply fiber exit"));
+            }
             return Fiber.frameReturn();
         }
 
