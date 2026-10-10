@@ -128,7 +128,7 @@ public final class RaftUtil {
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
                 TailCache oldPending = raftStatus.tailCache;
-                NotLeaderException e = new NotLeaderException(raftStatus.getCurrentLeaderNode());
+                NotLeaderException e = new NotLeaderException(newLeaderId > 0 ? raftStatus.getCurrentLeaderNode() : null);
                 oldPending.forEach((idx, task) -> failList.add(new Pair<>(task, e)));
             }
         } else {
@@ -140,7 +140,12 @@ public final class RaftUtil {
         raftStatus.copyShareStatus();
         // copy share status should happen before callback invocation
         for (Pair<RaftTask, NotLeaderException> pair : failList) {
-            pair.getLeft().callFail(pair.getRight());
+            RaftTask rt = pair.getLeft();
+            if (rt.reqData.index > raftStatus.commitIndex) {
+                rt.callFail(pair.getRight());
+            }
+            // committed tasks stay in tailCache; the apply fiber will callSuccess with the
+            // real result. linearization point is commit, not apply, so this is linearizable
         }
     }
 
