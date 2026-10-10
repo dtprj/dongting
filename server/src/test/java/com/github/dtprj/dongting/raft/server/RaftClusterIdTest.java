@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
@@ -45,15 +45,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * @author huangli
- */
 public class RaftClusterIdTest extends ServerTestBase {
 
     private static final int WRONG_CLUSTER_ID = 0x7F123456;
@@ -116,7 +109,9 @@ public class RaftClusterIdTest extends ServerTestBase {
                 assertRejected(() -> sendInstall(client, followerPeer, WRONG_CLUSTER_ID, term + 100, lastLogIndex));
                 assertEquals(term, (int) getStatus(follower, rs -> rs.currentTerm));
                 assertFalse((boolean) getStatus(follower, rs -> rs.installSnapshot));
-                assertEquals(lastLogIndex, (long) getStatus(follower, rs -> rs.lastLogIndex));
+                // the leader appends heartbeat log entries at any time, so lastLogIndex may grow;
+                // it would be lastLogIndex + 100 (lastIncludedIndex) if the install took effect
+                assertTrue(getStatus(follower, rs -> rs.lastLogIndex) < lastLogIndex + 100);
 
                 // transfer leader with a wrong cluster id is rejected
                 assertRejected(() -> sendTransfer(client, followerPeer, WRONG_CLUSTER_ID, follower.nodeId));
