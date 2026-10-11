@@ -68,7 +68,7 @@ public class CommitManager {
         public FrameCallResult execute(Void input) {
             RaftStatusImpl raftStatus = CommitManager.this.raftStatus;
             long idx = syncForce ? raftStatus.lastForceLogIndex : raftStatus.lastWriteLogIndex;
-            if (idx > raftStatus.commitIndex) {
+            if (idx > raftStatus.commitIndex || respQueue.size() > 0) {
                 CommitManager.this.logWriteFinish(idx);
             }
             FiberCondition c = syncForce ? raftStatus.logForceFinishCondition
@@ -83,6 +83,7 @@ public class CommitManager {
             throw Fiber.fatal(new RaftException("lastPersistIndex > lastLogIndex. lastPersistIndex="
                     + lastPersistIndex + ", lastLogIndex=" + raftStatus.lastLogIndex));
         }
+        drainRespQueue(lastPersistIndex);
         if (raftStatus.getRole() == RaftRole.leader) {
             RaftMember self = raftStatus.self;
             self.nextIndex = lastPersistIndex + 1;
@@ -94,22 +95,25 @@ public class CommitManager {
             }
             raftStatus.copyShareStatus();
         } else {
-            while (respQueue.size() > 0) {
-                AppendRespWriter writer = respQueue.get(0);
-                boolean remove;
-                try {
-                    remove = writer.writeResp(lastPersistIndex);
-                } catch (RuntimeException e) {
-                    BugLog.log(e);
-                    remove = true;
-                }
-                if (remove) {
-                    respQueue.pollFirst();
-                } else {
-                    break;
-                }
-            }
             followerTryCommit(raftStatus);
+        }
+    }
+
+    private void drainRespQueue(long lastPersistIndex) {
+        while (respQueue.size() > 0) {
+            AppendRespWriter writer = respQueue.get(0);
+            boolean remove;
+            try {
+                remove = writer.writeResp(lastPersistIndex);
+            } catch (RuntimeException e) {
+                BugLog.log(e);
+                remove = true;
+            }
+            if (remove) {
+                respQueue.pollFirst();
+            } else {
+                break;
+            }
         }
     }
 
