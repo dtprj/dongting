@@ -614,7 +614,7 @@ class LeaderFindMatchPosFrame extends AbstractLeaderRepFrame {
             }
             member.nextIndex = result.getRight() + 1;
         }
-        replicateManager.tryStartReplicateFibers();
+        replicateManager.gc.memberManager.raftPingWakeCondition.signal();
         return Fiber.frameReturn();
     }
 }
@@ -722,10 +722,11 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     }
 
     private FrameCallResult afterInstallFinish(Void unused) {
-        if (shouldStopReplicate()) {
+        // the epoch is changed
+        if (isGroupShouldStopPlain()) {
             return Fiber.frameReturn();
         }
-        replicateManager.tryStartReplicateFibers();
+        replicateManager.gc.memberManager.raftPingWakeCondition.signal();
         return Fiber.frameReturn();
     }
 

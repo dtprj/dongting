@@ -82,6 +82,7 @@ public class MemberManager {
     private final int startReadyQuorum;
 
     int daemonSleepInterval = 1000;
+    final FiberCondition raftPingWakeCondition;
 
     public MemberManager(NioClient client, GroupComponents gc, Runnable syncConfigTask) {
         this.client = client;
@@ -91,6 +92,7 @@ public class MemberManager {
         this.raftStatus = gc.raftStatus;
         this.syncConfigTask = syncConfigTask;
         this.groupId = raftStatus.groupId;
+        this.raftPingWakeCondition = groupConfig.fiberGroup.newCondition("raftPingWake");
 
         if (raftStatus.nodeIdOfMembers.isEmpty()) {
             this.pingReadyFuture = CompletableFuture.completedFuture(null);
@@ -181,7 +183,7 @@ public class MemberManager {
                 }
                 ensureRaftMemberStatus();
                 replicateManager.tryStartReplicateFibers();
-                return Fiber.sleep(daemonSleepInterval, frame);
+                return raftPingWakeCondition.await(daemonSleepInterval, frame);
             } catch (Throwable e) {
                 throw Fiber.fatal(e);
             }
