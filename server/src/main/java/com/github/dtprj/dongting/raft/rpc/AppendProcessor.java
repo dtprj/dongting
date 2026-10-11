@@ -472,7 +472,6 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     private static final DtLog log = DtLogs.getLogger(InstallFiberFrame.class);
     private final int groupId = gc.raftStatus.groupId;
-    private boolean markInstall = false;
     private boolean released;
 
     public InstallFiberFrame(ReqInfoEx<InstallSnapshotReq> reqInfo, AppendProcessor processor) {
@@ -512,15 +511,19 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult startInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
-        if (!markInstall) {
-            log.info("start install snapshot, groupId={}, lastIncludedIndex={}, lastIncludedTerm={}",
-                    groupId, req.lastIncludedIndex, req.lastIncludedTerm);
-            raftStatus.installSnapshot = true;
-            gc.commitManager.clearRespWriters();
-            gc.applyManager.wakeupApply(); // wakeup apply fiber to exit
-            gc.statusManager.persistAsync();
-            markInstall = true;
+        if (req.lastIncludedIndex < raftStatus.commitIndex) {
+            log.error("install snapshot request rolls back committed logs, refuse it. groupId={}," +
+                    " lastIncludedIndex={}, localCommitIndex={}",
+                    groupId, req.lastIncludedIndex, raftStatus.commitIndex);
+            return writeRespAndRelease(new RaftException("install snapshot refused, lastIncludedIndex="
+                    + req.lastIncludedIndex + ", commitIndex=" + raftStatus.commitIndex));
         }
+        log.info("start install snapshot, groupId={}, lastIncludedIndex={}, lastIncludedTerm={}",
+                groupId, req.lastIncludedIndex, req.lastIncludedTerm);
+        raftStatus.installSnapshot = true;
+        gc.commitManager.clearRespWriters();
+        gc.applyManager.wakeupApply(); // wakeup apply fiber to exit
+        gc.statusManager.persistAsync();
         return Fiber.call(gc.applyManager.waitApplyStop(), this::afterApplyExit);
     }
 
