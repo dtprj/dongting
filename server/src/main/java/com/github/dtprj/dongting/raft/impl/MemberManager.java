@@ -46,6 +46,7 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -610,6 +611,7 @@ public class MemberManager {
             log.error("node definition not exist: groupId={}, nodeId={}", groupId, nodeId);
         }
         RaftMember m = new RaftMember(nodeId, self, node, groupConfig.fiberGroup);
+        m.lastConfirmReqNanos = raftStatus.ts.nanoTime - Duration.ofDays(1).toNanos();
         if (self) {
             m.ready = true;
             raftStatus.self = m;
