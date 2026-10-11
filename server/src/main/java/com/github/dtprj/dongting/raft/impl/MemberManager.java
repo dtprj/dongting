@@ -720,10 +720,6 @@ public class MemberManager {
         @Override
         public FrameCallResult execute(Void v) {
             VersionFactory.getInstance().fullFence();
-            if (groupConfig.disableConfigChange) {
-                log.warn("ignore apply config change, groupId={}", groupId);
-                return Fiber.frameReturn();
-            }
             if (raftStatus.nodeIdOfMembers.equals(members)
                     && raftStatus.nodeIdOfObservers.equals(observers)
                     && raftStatus.nodeIdOfPreparedMembers.equals(preparedMembers)
@@ -877,6 +873,7 @@ public class MemberManager {
     }
 
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean isValidCandidate(int nodeId) {
         RaftMember leader = raftStatus.getCurrentLeader();
         if (leader != null && leader.nodeId == nodeId) {
