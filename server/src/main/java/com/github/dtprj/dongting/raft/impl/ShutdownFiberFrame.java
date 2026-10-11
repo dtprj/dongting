@@ -53,7 +53,7 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
     @Override
     protected FrameCallResult doFinally() {
         try {
-            gc.memberManager.releaseAllNodes();
+            gc.memberManager.releaseAllNodesInShutdown();
         } catch (Throwable e) {
             log.error("", e);
         }

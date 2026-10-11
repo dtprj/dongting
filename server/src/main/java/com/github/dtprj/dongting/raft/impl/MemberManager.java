@@ -583,6 +583,11 @@ public class MemberManager {
     }
 
     private RaftMember findExistMember(int nodeId) {
+        RaftMember self = raftStatus.self;
+        if (self != null && self.nodeId == nodeId) {
+            // the self member may not be in any list
+            return self;
+        }
         for (RaftMember m : raftStatus.members) {
             if (m.nodeId == nodeId) {
                 return m;
@@ -624,7 +629,7 @@ public class MemberManager {
     }
 
     // invoked when the raft group is shutting down
-    public void releaseAllNodes() {
+    void releaseAllNodesInShutdown() {
         HashSet<RaftMember> all = new HashSet<>();
         if (raftStatus.members != null) {
             all.addAll(raftStatus.members);
@@ -637,6 +642,9 @@ public class MemberManager {
         }
         if (raftStatus.preparedObservers != null) {
             all.addAll(raftStatus.preparedObservers);
+        }
+        if (raftStatus.self != null) {
+            all.add(raftStatus.self);
         }
         ArrayList<RaftNodeEx> nodes = new ArrayList<>(all.size());
         for (RaftMember m : all) {
@@ -748,7 +756,8 @@ public class MemberManager {
             raftStatus.preparedObservers = newPreparedObservers;
             computeDuplicatedData(raftStatus);
 
-            // release nodes of members which are dropped by this config change
+            // release nodes of members which are dropped by this config change,
+            // except the self member which is released by releaseAllNodesInShutdown()
             HashSet<RaftMember> retainedMembers = new HashSet<>();
             retainedMembers.addAll(newMembers);
             retainedMembers.addAll(newObservers);
@@ -756,7 +765,7 @@ public class MemberManager {
             retainedMembers.addAll(newPreparedObservers);
             ArrayList<RaftNodeEx> droppedNodes = new ArrayList<>();
             for (RaftMember m : oldMembers) {
-                if (!retainedMembers.contains(m) && m.node != null) {
+                if (!retainedMembers.contains(m) && m != raftStatus.self && m.node != null) {
                     droppedNodes.add(m.node);
                 }
             }
