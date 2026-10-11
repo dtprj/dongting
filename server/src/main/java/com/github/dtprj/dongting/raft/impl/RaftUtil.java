@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
@@ -30,9 +29,9 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -120,16 +119,15 @@ public final class RaftUtil {
         if (newLeaderId > 0) {
             updateLeader(raftStatus, newLeaderId);
         }
-        LinkedList<Pair<RaftTask, NotLeaderException>> failList = new LinkedList<>();
+        NotLeaderException failEx = null;
         if (oldRole != RaftRole.observer && oldRole != RaftRole.none) {
             log.info("update term from {} to {}, change to follower, oldRole={}, reason: {}",
                     raftStatus.currentTerm, remoteTerm, raftStatus.getRole(), reason);
             raftStatus.leadershipChanged |= oldRole == RaftRole.leader;
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
-                TailCache oldPending = raftStatus.tailCache;
-                NotLeaderException e = new NotLeaderException(newLeaderId > 0 ? raftStatus.getCurrentLeaderNode() : null);
-                oldPending.forEach((idx, task) -> failList.add(new Pair<>(task, e)));
+                // resetStatus() clears current leader, so create the exception before it
+                failEx = new NotLeaderException(newLeaderId > 0 ? raftStatus.getCurrentLeaderNode() : null);
             }
         } else {
             log.info("update term from {} to {}, reason: {}", raftStatus.currentTerm, remoteTerm, reason);
@@ -139,10 +137,29 @@ public final class RaftUtil {
         raftStatus.votedFor = 0;
         raftStatus.copyShareStatus();
         // copy share status should happen before callback invocation
-        for (Pair<RaftTask, NotLeaderException> pair : failList) {
-            RaftTask rt = pair.getLeft();
+        if (failEx != null) {
+            failUncommittedTasks(raftStatus, failEx);
+        }
+    }
+
+    /**
+     * Fail uncommitted tasks; they may still be committed by a new leader. The caller must
+     * invoke copyShareStatus() before this method.
+     */
+    private static void failUncommittedTasks(RaftStatusImpl raftStatus, RaftRole oldRole, int leaderId) {
+        if (oldRole != RaftRole.leader) {
+            return;
+        }
+        failUncommittedTasks(raftStatus,
+                new NotLeaderException(leaderId > 0 ? raftStatus.getCurrentLeaderNode() : null));
+    }
+
+    private static void failUncommittedTasks(RaftStatusImpl raftStatus, NotLeaderException e) {
+        ArrayList<RaftTask> failList = new ArrayList<>(raftStatus.tailCache.size());
+        raftStatus.tailCache.forEach((idx, task) -> failList.add(task));
+        for (RaftTask rt : failList) {
             if (rt.reqData.index > raftStatus.commitIndex) {
-                rt.callFail(pair.getRight());
+                rt.callFail(e);
             }
             // committed tasks stay in tailCache; the apply fiber will callSuccess with the
             // real result. linearization point is commit, not apply, so this is linearizable
@@ -288,29 +305,35 @@ public final class RaftUtil {
     public static void changeToFollower(RaftStatusImpl raftStatus, int leaderId, String reason) {
         log.info("change to follower. term={}, oldRole={}, reason: {}", raftStatus.currentTerm,
                 raftStatus.getRole(), reason);
+        RaftRole oldRole = raftStatus.getRole();
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
-        raftStatus.leadershipChanged |= raftStatus.getRole() == RaftRole.leader;
+        raftStatus.leadershipChanged |= oldRole == RaftRole.leader;
         raftStatus.setRole(RaftRole.follower);
         raftStatus.copyShareStatus();
+        failUncommittedTasks(raftStatus, oldRole, leaderId);
     }
 
     public static void changeToObserver(RaftStatusImpl raftStatus, int leaderId) {
         log.info("change to observer. term={}, oldRole={}", raftStatus.currentTerm, raftStatus.getRole());
+        RaftRole oldRole = raftStatus.getRole();
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
-        raftStatus.leadershipChanged |= raftStatus.getRole() == RaftRole.leader;
+        raftStatus.leadershipChanged |= oldRole == RaftRole.leader;
         raftStatus.setRole(RaftRole.observer);
         raftStatus.copyShareStatus();
+        failUncommittedTasks(raftStatus, oldRole, leaderId);
     }
 
     public static void changeToNone(RaftStatusImpl raftStatus, int leaderId) {
         log.info("change to none. term={}, oldRole={}", raftStatus.currentTerm, raftStatus.getRole());
+        RaftRole oldRole = raftStatus.getRole();
         resetStatus(raftStatus);
         updateLeader(raftStatus, leaderId);
-        raftStatus.leadershipChanged |= raftStatus.getRole() == RaftRole.leader;
+        raftStatus.leadershipChanged |= oldRole == RaftRole.leader;
         raftStatus.setRole(RaftRole.none);
         raftStatus.copyShareStatus();
+        failUncommittedTasks(raftStatus, oldRole, leaderId);
     }
 
     public static void changeToLeader(RaftStatusImpl raftStatus, boolean cleanLastConfirmReqNanos) {
