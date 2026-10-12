@@ -136,49 +136,58 @@ public class RaftReqData extends RefCount {
 
         ByteBuffer buf;
         RefBuffer refBuffer;
+        boolean releaseIfError = false;
         if (buffers == null) {
             buf = ByteBuffer.allocate(totalLen);
             refBuffer = RefBuffer.wrap(buf);
         } else {
             refBuffer = totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD ? buffers.borrowDirect(totalLen) : buffers.borrow(totalLen);
+            releaseIfError = true;
             buf = refBuffer.getBuffer();
         }
-        int bodyStart = LogHeader.ITEM_HEADER_SIZE;
-        int bodyEnd = bodyStart + bodyLen;
-        buf.position(bodyStart);
-        EncodeContext c = new EncodeContext(null);
-        CRC32C crc = new CRC32C();
-        int chunkStart = bodyStart;
-        while (true) {
-            int chunkEnd = chunkStart + RaftServerConfig.ENCODE_CHUNK_SIZE;
-            buf.limit(Math.min(chunkEnd, bodyEnd));
-            boolean finished = bizBody.encode(c, buf);
-            int pos = buf.position();
-            RaftUtil.updateCrc(crc, buf, chunkStart, pos - chunkStart);
-            if (finished) {
-                if (pos != bodyEnd) {
-                    throw new DtBugException("encode finished at wrong position: " + pos);
+        try {
+            int bodyStart = LogHeader.ITEM_HEADER_SIZE;
+            int bodyEnd = bodyStart + bodyLen;
+            buf.position(bodyStart);
+            EncodeContext c = new EncodeContext(null);
+            CRC32C crc = new CRC32C();
+            int chunkStart = bodyStart;
+            while (true) {
+                int chunkEnd = chunkStart + RaftServerConfig.ENCODE_CHUNK_SIZE;
+                buf.limit(Math.min(chunkEnd, bodyEnd));
+                boolean finished = bizBody.encode(c, buf);
+                int pos = buf.position();
+                RaftUtil.updateCrc(crc, buf, chunkStart, pos - chunkStart);
+                if (finished) {
+                    if (pos != bodyEnd) {
+                        throw new DtBugException("encode finished at wrong position: " + pos);
+                    }
+                    break;
+                } else {
+                    if (pos >= bodyEnd) {
+                        throw new DtBugException("encode not finished at expected position: " + bodyEnd);
+                    }
+                    if (chunkEnd >= bodyEnd) {
+                        throw new DtBugException("encode not finished when dest buffer has enough space");
+                    }
                 }
-                break;
-            } else {
-                if (pos >= bodyEnd) {
-                    throw new DtBugException("encode not finished at expected position: " + bodyEnd);
-                }
-                if (chunkEnd >= bodyEnd) {
-                    throw new DtBugException("encode not finished when dest buffer has enough space");
-                }
+                chunkStart = pos;
             }
-            chunkStart = pos;
+            buf.limit(totalLen);
+            buf.putInt((int) crc.getValue());
+            buf.flip();
+            refBuffer.prepareForEncode();
+            RaftReqData data = new RaftReqData(refBuffer);
+            data.type = type;
+            data.bizType = bizType;
+            data.bodyLen = bodyLen;
+            return data;
+        } catch (RuntimeException | Error e) {
+            if(releaseIfError){
+                refBuffer.release();
+            }
+            throw e;
         }
-        buf.limit(totalLen);
-        buf.putInt((int) crc.getValue());
-        buf.flip();
-        refBuffer.prepareForEncode();
-        RaftReqData data = new RaftReqData(refBuffer);
-        data.type = type;
-        data.bizType = bizType;
-        data.bodyLen = bodyLen;
-        return data;
     }
 
     @Override
