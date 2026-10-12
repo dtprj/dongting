@@ -37,8 +37,10 @@ public class ReadPacket<T> extends Packet {
 
     @Override
     protected void doClean() {
-        if (body != null && body instanceof DtCleanable) {
-            ((DtCleanable) body).clean();
+        T b = body;
+        body = null;
+        if (b instanceof DtCleanable) {
+            ((DtCleanable) b).clean();
         }
     }
 }

@@ -131,6 +131,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     @Override
     protected void end(boolean success) {
         if (!success) {
+            packet.clean();
             return;
         }
         if (skipBody) {
@@ -139,6 +140,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
         if (!handshake && peer == null) { // peer is null is server side
             if (packet.command != Commands.CMD_HANDSHAKE || packet.packetType != PacketType.TYPE_REQ) {
+                packet.clean();
                 throw new NetException("first command is not handshake, command=" + packet.command);
             }
         }
@@ -322,6 +324,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private void processIncomingResponse(ReadPacket resp, PacketInfoReq wo) {
         WritePacket req = wo.packet;
         if (resp.command != req.command) {
+            resp.clean();
             wo.callFail(new NetException("command not match"));
             return;
         }
@@ -351,6 +354,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 nioStatus.getAndAddInPendingRelease(-delta);
                 log.debug("pendingRequests>maxInRequests({}), write response code FLOW_CONTROL to client",
                         nioConfig.maxInRequests);
+                req.clean();
                 writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
                         "max incoming request: " + nioConfig.maxInRequests);
                 return;
@@ -359,6 +363,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 nioStatus.getAndAddInPendingRelease(-delta);
                 log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
                         bytes, nioConfig.maxInBytes);
+                req.clean();
                 writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
                         "max incoming request bytes: " + nioConfig.maxInBytes);
                 return;

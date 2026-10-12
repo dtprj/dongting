@@ -58,6 +58,7 @@ final class PacketInfoReq extends PacketInfo {
                 ownerUsedToReleasePermit.releasePermit(packet);
             }
             if (packet.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
+                resp.clean();
                 FutureCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
             } else {
                 FutureCallback.callSuccess(callback, resp);

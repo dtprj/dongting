@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.common.DtCleanable;
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.net.ByteBufferWritePacket;
 
@@ -27,7 +28,7 @@ import java.util.function.Consumer;
  * @author huangli
  */
 // TODO cache RefBuffer
-public final class RefBuffer extends RefCount implements Encodable {
+public final class RefBuffer extends RefCount implements Encodable, DtCleanable {
 
     public static final RefBuffer EMPTY = new RefBuffer(ByteBuffer.allocate(0));
 
@@ -133,6 +134,13 @@ public final class RefBuffer extends RefCount implements Encodable {
             return root.isReleased();
         } else {
             return super.isReleased();
+        }
+    }
+
+    @Override
+    public void clean() {
+        if (!isReleased()) {
+            release();
         }
     }
 
