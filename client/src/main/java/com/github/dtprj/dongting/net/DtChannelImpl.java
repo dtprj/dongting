@@ -148,6 +148,10 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (requestForResp == null && processorForRequest == null) {
             // empty body
             readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, true);
+            // readBody() may update skipBody
+            if (skipBody) {
+                return;
+            }
         }
         currentDecoderCallback = null;
 
