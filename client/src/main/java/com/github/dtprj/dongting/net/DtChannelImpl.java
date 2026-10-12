@@ -406,14 +406,19 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         } else {
             try {
                 executor.execute(reqContext);
-            } catch (RejectedExecutionException e) {
+            } catch (Throwable e) {
                 req.clean();
-                log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
-                        nioConfig.maxInRequests);
-                writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
-                        "max incoming request: " + nioConfig.maxInRequests, reqContext.getTimeout());
                 if (flowControl) {
                     releasePending(currentReadPacketSize);
+                }
+                if (e instanceof RejectedExecutionException) {
+                    log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
+                            nioConfig.maxInRequests);
+                    writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
+                            "max incoming request: " + nioConfig.maxInRequests, reqContext.getTimeout());
+                } else {
+                    log.warn("executor execute fail, command={}", req.command, e);
+                    writeErrorInIoThread(req, CmdCodes.SYS_ERROR, e.toString(), reqContext.getTimeout());
                 }
             }
         }
