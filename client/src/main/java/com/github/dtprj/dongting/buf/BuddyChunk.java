@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.log.BugLog;
+
 import java.nio.ByteBuffer;
 import java.util.BitSet;
 
@@ -27,6 +29,8 @@ import java.util.BitSet;
  * @author huangli
  */
 public class BuddyChunk {
+    private static final int MAGIC = 0xD4195A29;
+
     final ByteBuffer rootBuffer;
     final int chunkSize;
     final int minBlockSize;
@@ -35,8 +39,16 @@ public class BuddyChunk {
     long freeBytes;
     long lastFullFreeNanos;
     int maxAvailableLevel;
+    boolean corrupted;
 
     BuddyChunk(boolean direct, int chunkSize, int minBlockSize) {
+        if (chunkSize <= 0 || (chunkSize & (chunkSize - 1)) != 0 || chunkSize < minBlockSize) {
+            throw new IllegalArgumentException(
+                    "chunkSize must be a power of 2 and not less than minBlockSize: " + chunkSize);
+        }
+        if (minBlockSize < 16 || (minBlockSize & (minBlockSize - 1)) != 0) {
+            throw new IllegalArgumentException("minBlockSize must be a power of 2 and >= 16: " + minBlockSize);
+        }
         this.rootBuffer = direct ? ByteBuffer.allocateDirect(chunkSize) : ByteBuffer.allocate(chunkSize);
         this.chunkSize = chunkSize;
         this.minBlockSize = minBlockSize;
@@ -46,6 +58,7 @@ public class BuddyChunk {
             freeLists[i] = new BitSet();
         }
         freeLists[maxLevel].set(0);
+        rootBuffer.putInt(0, MAGIC);
         this.freeBytes = chunkSize;
         this.maxAvailableLevel = maxLevel;
     }
@@ -68,11 +81,24 @@ public class BuddyChunk {
             int blockIdx = fl.nextSetBit(0);
             if (blockIdx >= 0) {
                 int foundLevel = lv;
+                int bs = blockSize(lv);
+                int off = blockIdx * bs;
+                int v = rootBuffer.getInt(off);
+                if (v != MAGIC) {
+                    corrupted = true;
+                    BugLog.logAndThrow("A bug may exist where the buffer is written to after release."
+                            + " chunk=0x" + Integer.toHexString(System.identityHashCode(rootBuffer))
+                            + ", offset=" + off + ", blockSize=" + bs
+                            + ", expectedMagic=0x" + Integer.toHexString(MAGIC)
+                            + ", actual=0x" + Integer.toHexString(v));
+                }
                 fl.clear(blockIdx);
                 // split down: keep left half (2*idx) for the request, free right buddy (2*idx+1)
                 while (lv > targetLevel) {
                     lv--;
-                    freeLists[lv].set((blockIdx << 1) + 1);
+                    int rightIdx = (blockIdx << 1) + 1;
+                    freeLists[lv].set(rightIdx);
+                    rootBuffer.putInt(rightIdx * blockSize(lv), MAGIC);
                     blockIdx = blockIdx << 1;
                 }
                 if (foundLevel == maxAvailableLevel && freeLists[foundLevel].isEmpty()) {
@@ -84,9 +110,9 @@ public class BuddyChunk {
                         }
                     }
                 }
-                int bsz = blockSize(targetLevel);
-                freeBytes -= bsz;
-                return blockIdx * bsz;
+                freeBytes -= blockSize(targetLevel);
+                rootBuffer.putInt(off, 0);
+                return off;
             }
         }
         return -1;
@@ -98,6 +124,7 @@ public class BuddyChunk {
      * coalesced buddies were already free and remain free.
      */
     void free(int offset, int targetLevel) {
+        rootBuffer.putInt(offset, MAGIC);
         int lv = targetLevel;
         int blockIdx = offset / blockSize(lv);
         BitSet[] freeLists = this.freeLists;

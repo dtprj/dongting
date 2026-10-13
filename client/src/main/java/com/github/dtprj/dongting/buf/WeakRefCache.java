@@ -51,6 +51,16 @@ class WeakRefCache<T> {
         queue.addFirst(new WeakReference<>(value));
     }
 
+    public boolean contains(T value) {
+        IndexedQueue<WeakReference<T>> q = this.queue;
+        for (int i = 0, size = q.size(); i < size; i++) {
+            if (q.get(i).get() == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void cleanHeadAndTail() {
         IndexedQueue<WeakReference<T>> q = this.queue;
         WeakReference<T> ref = q.getFirst();

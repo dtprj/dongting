@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtBugException;
+import com.github.dtprj.dongting.log.BugLog;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -198,6 +200,21 @@ public class FixSizeBufferPoolTest {
             }
         }
         fail("weak ref test failed after 3 attempts");
+    }
+
+    @Test
+    public void testDoubleReleaseToWeakCache() {
+        FixSizeBufferPool pool = new FixSizeBufferPool(false, new ShareBudget(0, false), 1, 2, 128, 128);
+        ByteBuffer buf1 = ByteBuffer.allocate(128);
+        ByteBuffer buf2 = ByteBuffer.allocate(128);
+        ByteBuffer buf3 = ByteBuffer.allocate(128);
+        pool.release(buf1);
+        pool.release(buf2);
+        // stack is full (maxCount=2) and budget is 0, so buf3 goes to the weak ref cache
+        pool.release(buf3);
+        assertThrows(DtBugException.class, () -> pool.release(buf3));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
     }
 
     @Test

@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.log.BugLog;
 
 import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
@@ -131,7 +131,7 @@ public class BuddyBufferPool extends ByteBufferPool {
         BuddyChunk chunk = null;
         int offset = -1;
         // fast path: the chunk that served the previous borrow usually still has room
-        if (hintChunk != null && hintChunk.maxAvailableLevel >= targetLevel) {
+        if (hintChunk != null && !hintChunk.corrupted && hintChunk.maxAvailableLevel >= targetLevel) {
             offset = hintChunk.allocate(targetLevel);
             if (offset >= 0) {
                 chunk = hintChunk;
@@ -141,7 +141,7 @@ public class BuddyBufferPool extends ByteBufferPool {
         if (chunk == null) {
             for (int size = chunks.size(), i = 0; i < size; i++) {
                 BuddyChunk c = chunks.get(i);
-                if (c.maxAvailableLevel < targetLevel) {
+                if (c.corrupted || c.maxAvailableLevel < targetLevel) {
                     continue;
                 }
                 offset = c.allocate(targetLevel);
@@ -219,7 +219,7 @@ public class BuddyBufferPool extends ByteBufferPool {
         try {
             BuddyChunk.BufInfo info = bufMap.remove(buf);
             if (info == null) {
-                throw new DtBugException("buffer does not belong to this pool or released twice");
+                BugLog.logAndThrow("buffer does not belong to this pool or released twice");
             }
             statReleaseCount++;
             statReleaseHitCount++;
@@ -252,6 +252,9 @@ public class BuddyBufferPool extends ByteBufferPool {
                     it.remove();
                     if (hintChunk == c) {
                         hintChunk = null;
+                    }
+                    if (c.corrupted) {
+                        continue;
                     }
                     statChunkCleanCount++;
                     if (chunks.size() >= maxChunkCount || globalIdleChunkList.borrow(chunkSize)) {

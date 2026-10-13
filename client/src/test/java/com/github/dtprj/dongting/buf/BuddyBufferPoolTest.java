@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -124,6 +125,108 @@ public class BuddyBufferPoolTest {
         ByteBuffer buf = pool.borrow(false, 16).getBuffer();
         pool.releaseBuffer(buf);
         assertThrows(DtBugException.class, () -> pool.releaseBuffer(buf));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
+    }
+
+    @Test
+    public void testWriteAfterRelease() {
+        BuddyBufferPool pool = newPool(false, 256, 16, 1, 1);
+        ByteBuffer buf = pool.borrow(false, 16).getBuffer();
+        pool.releaseBuffer(buf);
+        // write through the stale reference after release corrupts the pool's MAGIC marker
+        buf.put(0, (byte) 0);
+        DtBugException ex = assertThrows(DtBugException.class, () -> pool.borrow(false, 16));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
+        // the message must locate the corrupted block for troubleshooting
+        assertTrue(ex.getMessage().contains("offset=0"));
+        assertTrue(ex.getMessage().contains("chunk=0x"));
+    }
+
+    @Test
+    public void testPoolUsableAfterDetection() {
+        BuddyBufferPool pool = newPool(false, 256, 16, 1, 2);
+        ByteBuffer buf = pool.borrow(false, 16).getBuffer();
+        pool.releaseBuffer(buf);
+        buf.put(0, (byte) 0);
+        assertThrows(DtBugException.class, () -> pool.borrow(false, 16));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
+        // the corrupted chunk is quarantined: later borrows self-heal instead of failing forever
+        RefBuffer rb = pool.borrow(false, 16);
+        assertEquals(16, rb.getBuffer().capacity());
+        rb.release();
+    }
+
+    @Test
+    public void testCorruptedChunkNotSharedAcrossPools() {
+        // budget 0 so the shared idle list never allocates chunks asynchronously
+        GlobalIdleChunkList shared = new GlobalIdleChunkList(0, false, 256, 16, 60000, 2);
+        Timestamp ts1 = new Timestamp();
+        BuddyBufferPool poolA = new BuddyBufferPool(new BuddyBufferPoolConfig(
+                false, true, ts1, 256, 16, 0, 2, 60000), shared);
+        Timestamp ts2 = new Timestamp();
+        BuddyBufferPool poolB = new BuddyBufferPool(new BuddyBufferPoolConfig(
+                false, true, ts2, 256, 16, 0, 2, 60000), shared);
+
+        ByteBuffer buf = poolA.borrow(false, 16).getBuffer();
+        poolA.releaseBuffer(buf);
+        buf.put(0, (byte) 0);
+        assertThrows(DtBugException.class, () -> poolA.borrow(false, 16));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
+        ts1.nanoTime += TimeUnit.MILLISECONDS.toNanos(70000);
+        poolA.shrink();
+        assertTrue(poolA.formatStat().contains("chunks 0("));
+
+        // the corrupted chunk is orphaned instead of entering the shared idle list,
+        // so poolB gets a fresh chunk and never observes the corruption
+        RefBuffer b = poolB.borrow(false, 256);
+        assertEquals(256, b.getBuffer().capacity());
+        assertTrue(poolB.formatStat().contains("chunkListHit 0"));
+        assertTrue(poolB.formatStat().contains("newChunk 1"));
+        b.release();
+    }
+
+    @Test
+    public void testReleaseIntoCorruptedChunk() {
+        Timestamp ts = new Timestamp();
+        BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
+                false, true, ts, 256, 16, 0, 1, 100), unlimited(false, 256, 16));
+        RefBuffer a = pool.borrow(false, 16);
+        RefBuffer b = pool.borrow(false, 16);
+        ByteBuffer staleA = a.getBuffer();
+        a.release();
+        // corrupt the freed block A while block B is still outstanding
+        staleA.put(0, (byte) 0);
+        // detection quarantines the chunk; block B remains live inside it
+        assertThrows(DtBugException.class, () -> pool.borrow(false, 16));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
+        // releasing the live block must still work: free() coalesces it with the corrupted
+        // free block and drives the chunk back to fully free without any validation
+        b.release();
+        ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
+        pool.shrink();
+        assertTrue(pool.formatStat().contains("chunks 0("));
+    }
+
+    @Test
+    public void testChunkStillShrinkableAfterDetection() {
+        Timestamp ts = new Timestamp();
+        BuddyBufferPool pool = new BuddyBufferPool(new BuddyBufferPoolConfig(
+                false, true, ts, 256, 16, 0, 1, 100), unlimited(false, 256, 16));
+        ByteBuffer buf = pool.borrow(false, 16).getBuffer();
+        pool.releaseBuffer(buf);
+        buf.put(0, (byte) 0);
+        assertThrows(DtBugException.class, () -> pool.borrow(false, 16));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
+        // detection must not consume the block: the chunk stays fully free and shrinkable
+        ts.nanoTime += TimeUnit.MILLISECONDS.toNanos(200);
+        pool.shrink();
+        assertTrue(pool.formatStat().contains("chunks 0("));
     }
 
     @Test
@@ -138,6 +241,8 @@ public class BuddyBufferPoolTest {
         BuddyBufferPool heapPool = newPool(false, 256, 16, 0, 1);
         assertThrows(DtBugException.class, () -> heapPool.releaseBuffer(ByteBuffer.allocate(8)));
         assertThrows(DtBugException.class, () -> heapPool.releaseBuffer(ByteBuffer.allocate(32)));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
     }
 
     @Test

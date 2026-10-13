@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.log.BugLog;
 
 import java.nio.ByteBuffer;
 
@@ -67,7 +67,7 @@ class FixSizeBufferPool {
         if (buf != null) {
             int bufMagic = buf.getInt(MAGIC_INDEX);
             if (bufMagic != MAGIC) {
-                throw new DtBugException("A bug may exist where the buffer is written to after release.");
+                BugLog.logAndThrow("A bug may exist where the buffer is written to after release.");
             }
             buf.putInt(MAGIC_INDEX, 0);
             statBorrowHitCount++;
@@ -113,8 +113,11 @@ class FixSizeBufferPool {
             // shit
             for (int i = 0, stackSize = bufferStack.size(); i < stackSize; i++) {
                 if (bufferStack.get(i) == buf) {
-                    throw new DtBugException("A bug may exist where the buffer is released twice.");
+                    BugLog.logAndThrow("A bug may exist where the buffer is released twice.");
                 }
+            }
+            if (weakRefCache != null && weakRefCache.contains(buf)) {
+                BugLog.logAndThrow("A bug may exist where the buffer is released twice.");
             }
         }
 

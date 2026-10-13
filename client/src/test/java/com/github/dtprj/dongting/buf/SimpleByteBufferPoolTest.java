@@ -4,6 +4,7 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.log.BugLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -146,10 +147,14 @@ public class SimpleByteBufferPoolTest {
         ByteBuffer buf1 = borrowBuf(400);
         pool.releaseBuffer(buf1);
         assertThrows(DtException.class, () -> pool.releaseBuffer(buf1));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
         ByteBuffer buf2 = borrowBuf(400);
         pool.releaseBuffer(buf2);
         buf2.putInt(0, buf2.getInt(0) + 1);
         assertThrows(DtException.class, () -> borrowBuf(400));
+        // detection writes to BugLog; reset immediately after the trigger
+        BugLog.reset();
         ByteBuffer buf3 = borrowBuf(400);
         // buf2 is dropped
         Assertions.assertNotSame(buf2, buf3);
