@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtCleanable;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftConfigRpcData;
 
 import java.nio.ByteBuffer;
@@ -48,6 +50,8 @@ import java.util.HashSet;
 
 //  bytes data = 100;
 public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable {
+
+    private static final DtLog log = DtLogs.getLogger(InstallSnapshotReq.class);
 
     private static final int IDX_GROUP_ID = 1;
     private static final int IDX_TERM = 2;
@@ -170,6 +174,11 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
             if (index == IDX_DATA) {
                 RefBuffer rb = parseNested(buf, len, currentPos, refBufferCallback);
                 if (rb != null) {
+                    if (result.data != null) {
+                        log.error("duplicate data field in InstallSnapshotReq. groupId={}, leaderId={}",
+                                result.groupId, result.leaderId);
+                        result.data.release();
+                    }
                     result.data = rb;
                 }
             }
