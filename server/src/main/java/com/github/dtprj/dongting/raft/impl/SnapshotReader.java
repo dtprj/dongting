@@ -84,34 +84,18 @@ public class SnapshotReader extends FiberFrame<Void> {
         processWriteResult();
         boolean writeListProcessed = oldSize != writeList.size();
         boolean addNewReadTask = false;
-        if (!readFinish && firstEx == null && !cancel.get()) {
-            if (readList.size() < maxReadConcurrency) {
-                // fire read task
-                RefBuffer buf = bufferCreator.get();
-                addNewReadTask = true;
-                FiberFuture<Integer> future;
-                try {
-                    future = Objects.requireNonNull(snapshot.readNext(buf.getBuffer()));
-                } catch (Throwable e) {
-                    buf.release();
-                    throw e;
-                }
-                readList.add(new Pair<>(buf, future));
-                future.registerCallback((v, ex) -> cond.signal());
-            }
-        } else {
-            if (readList.isEmpty() && writeList.isEmpty()) {
-                if (firstEx != null) {
-                    throw firstEx;
-                } else {
-                    if (readFinish) {
-                        log.info("snapshot read finished: {}", snapshot.getClass().getSimpleName());
-                        return Fiber.frameReturn();
-                    } else {
-                        log.info("snapshot read canceled: {}", snapshot.getClass().getSimpleName());
-                        throw new RaftCancelException("snapshot read canceled");
-                    }
-                }
+        if (!readFinish && firstEx == null && !cancel.get() && readList.size() < maxReadConcurrency) {
+            addNewReadTask = fireReadTask();
+        }
+        if (readList.isEmpty() && writeList.isEmpty() && (readFinish || firstEx != null || cancel.get())) {
+            if (firstEx != null) {
+                throw firstEx;
+            } else if (readFinish) {
+                log.info("snapshot read finished: {}", snapshot.getClass().getSimpleName());
+                return Fiber.frameReturn();
+            } else {
+                log.info("snapshot read canceled: {}", snapshot.getClass().getSimpleName());
+                throw new RaftCancelException("snapshot read canceled");
             }
         }
         if (readListProcessed || writeListProcessed || addNewReadTask) {
@@ -119,6 +103,31 @@ public class SnapshotReader extends FiberFrame<Void> {
         } else {
             return cond.await(1000, this);
         }
+    }
+
+    /**
+     * @return true if a new read task is fired
+     */
+    private boolean fireReadTask() {
+        RefBuffer buf;
+        try {
+            buf = bufferCreator.get();
+        } catch (Throwable e) {
+            firstEx = e;
+            return false;
+        }
+        FiberFuture<Integer> future;
+        try {
+            future = Objects.requireNonNull(snapshot.readNext(buf.getBuffer()), "readNext returns null");
+        } catch (Throwable e) {
+            BugLog.log("readNext should not throw ex", e);
+            // can't assert it's not used in other fiber/thread started by readNext, so not release
+            firstEx = e;
+            return false;
+        }
+        readList.addLast(new Pair<>(buf, future));
+        future.registerCallback((v, ex) -> cond.signal());
+        return true;
     }
 
     private void processReadResult() {
@@ -150,14 +159,17 @@ public class SnapshotReader extends FiberFrame<Void> {
             buf.release();
         } else if (writeList.size() < maxWriteConcurrency) {
             readList.removeFirst();
+            FiberFuture<Void> writeFuture;
             try {
-                FiberFuture<Void> writeFuture = callback.apply(buf, f.getResult());
-                writeList.add(writeFuture);
-                writeFuture.registerCallback((v, ex) -> cond.signal());
+                // transfer ownership to the callback
+                writeFuture = Objects.requireNonNull(callback.apply(buf, f.getResult()), "callback returns null");
             } catch (Throwable e) {
                 BugLog.log(e);
                 firstEx = e;
+                return;
             }
+            writeList.addLast(writeFuture);
+            writeFuture.registerCallback((v, ex) -> cond.signal());
         } else {
             // should wait for write, so not remove from readList
         }
@@ -176,6 +188,24 @@ public class SnapshotReader extends FiberFrame<Void> {
             }
             writeList.removeFirst();
         }
+    }
+
+    @Override
+    protected FrameCallResult doFinally() {
+        // should not reach here with a non-empty readList, this is a safety net
+        Pair<RefBuffer, FiberFuture<Integer>> p;
+        while ((p = readList.pollFirst()) != null) {
+            RefBuffer buf = p.getLeft();
+            FiberFuture<Integer> f = p.getRight();
+            if (f.isDone()) {
+                buf.release();
+            } else {
+                // the pending io operation may still use the buffer, release it after the read completes
+                log.error("snapshot reader exit with pending read: {}", snapshot.getClass().getSimpleName());
+                f.registerCallback((v, ex) -> buf.release());
+            }
+        }
+        return Fiber.frameReturn();
     }
 
 }
