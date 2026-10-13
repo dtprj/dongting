@@ -30,14 +30,11 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -284,19 +281,6 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
         int port = Integer.parseInt(hostPortStr.substring(x + 1).trim());
         return new HostPort(host, port);
-    }
-
-    protected <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
-        try {
-            return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            DtUtil.restoreInterruptStatus();
-            throw new NetException("interrupted", e);
-        } catch (ExecutionException e) {
-            throw new NetException("execution exception", e);
-        } catch (TimeoutException e) {
-            throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
-        }
     }
 
     public ExecutorService getBizExecutor() {

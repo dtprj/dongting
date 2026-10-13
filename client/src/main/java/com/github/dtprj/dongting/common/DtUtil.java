@@ -188,4 +188,12 @@ public class DtUtil {
             return size;
         }
     }
+
+    public static <T> void tryReleaseAfterComplete(CompletableFuture<T> f) {
+        f.whenComplete((r, ex) -> {
+            if (r instanceof DtCleanable) {
+                ((DtCleanable) r).clean();
+            }
+        });
+    }
 }

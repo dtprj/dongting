@@ -363,6 +363,7 @@ public class RaftClient extends AbstractLifeCircle {
             return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             DtUtil.restoreInterruptStatus();
+            DtUtil.tryReleaseAfterComplete(f);
             throw new NetException("interrupted", e);
         } catch (ExecutionException e) {
             Throwable cause = DtUtil.rootCause(e);
@@ -371,6 +372,7 @@ public class RaftClient extends AbstractLifeCircle {
             }
             throw new NetException(e);
         } catch (TimeoutException e) {
+            DtUtil.tryReleaseAfterComplete(f);
             throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
         }
     }

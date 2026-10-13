@@ -143,6 +143,21 @@ public class NioClient extends NioNet implements ChannelListener {
         return waitFuture(f, timeout);
     }
 
+    private <T> T waitFuture(CompletableFuture<T> f, DtTime timeout) {
+        try {
+            return f.get(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            DtUtil.restoreInterruptStatus();
+            DtUtil.tryReleaseAfterComplete(f);
+            throw new NetException("interrupted", e);
+        } catch (ExecutionException e) {
+            throw new NetException("execution exception", e);
+        } catch (TimeoutException e) {
+            DtUtil.tryReleaseAfterComplete(f);
+            throw new NetTimeoutException("timeout: " + timeout.getTimeout(TimeUnit.MILLISECONDS) + "ms", e);
+        }
+    }
+
     public <T> void sendRequest(WritePacket request, DecoderCallbackCreator<T> decoder,
                                 DtTime timeout, RpcCallback<T> callback) {
         Objects.requireNonNull(decoder);
