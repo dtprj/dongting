@@ -38,7 +38,7 @@ public class DefaultPoolFactoryConfig {
 
     public int largeMinChunkCount = (int) DtUtil.calcByMem(4);
     public int largeMaxChunkCount = (int) DtUtil.calcByMem(8);
-    public long largeShareSize = 400 * 1024 * 1024;
+    public long largeShareSize = DtUtil.calcByMem(400 * 1024 * 1024);
 
     private static int[] calcCounts(int[] sizes, long totalSize) {
         int[] r = new int[sizes.length];
