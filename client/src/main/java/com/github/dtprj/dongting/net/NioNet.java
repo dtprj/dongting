@@ -199,7 +199,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         try {
             int estimateSize = request.calcMaxPacketSize();
             releasePermit(estimateSize);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("release permit fail", e);
         } finally {
             request.acquirePermit = false;

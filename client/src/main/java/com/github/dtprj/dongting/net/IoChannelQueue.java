@@ -44,7 +44,7 @@ class IoChannelQueue {
     private static final int ENCODE_FINISH = 2;
     private static final int ENCODE_CANCEL = 3;
 
-    private static final int MAX_BUFFER_SIZE = 256 * 1024;
+    static final int MAX_BUFFER_SIZE = 256 * 1024;
     private static final int MAX_GATHER_SIZE = 64;
     private final WorkerStatus workerStatus;
     private final DtChannelImpl dtc;

@@ -64,12 +64,15 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     // read status
     private ReadPacket packet;
     private boolean readBody;
-    private PacketInfoReq requestForResp;
+    private PacketInfoReq requestForResp = null;
     private ReqProcessor processorForRequest;
     private int currentReadPacketSize;
     private DecoderCallback currentDecoderCallback;
 
     private boolean skipBody;
+
+    // true during packet decoding: codec callbacks may run and channel close is forbidden (see NioWorker.close)
+    boolean decoding;
 
     final IoChannelQueue subQueue;
 
@@ -109,7 +112,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (!running) {
             this.running = false;
         }
-        parser.parse(buf);
+        decoding = true;
+        try {
+            parser.parse(buf);
+        } finally {
+            decoding = false;
+        }
     }
 
     @Override
@@ -119,6 +127,10 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     @Override
     protected void begin(int len) {
+        if (closed) {
+            throw new NetException("channel closed");
+        }
+        decoding = true;
         this.currentReadPacketSize = len;
         packet = new ReadPacket();
         readBody = false;
@@ -131,35 +143,51 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     @Override
     protected void end(boolean success) {
         if (!success) {
-            packet.clean();
+            cleanParseStatus(null, "unknown error");
             return;
         }
         if (skipBody) {
+            cleanParseStatus(null, "response decoder is null");
             return;
         }
 
         if (!handshake && peer == null) { // peer is null is server side
             if (packet.command != Commands.CMD_HANDSHAKE || packet.packetType != PacketType.TYPE_REQ) {
-                packet.clean();
-                throw new NetException("first command is not handshake, command=" + packet.command);
+                NetException e = new NetException("first command is not handshake, command=" + packet.command);
+                cleanParseStatus(e, null);
+                throw e;
             }
         }
 
         if (requestForResp == null && processorForRequest == null) {
             // empty body
-            readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, true);
+            readBody(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
             // readBody() may update skipBody
             if (skipBody) {
+                cleanParseStatus(null, "response decoder is null");
                 return;
             }
         }
+        decoding = false;
         currentDecoderCallback = null;
 
         if (packet.packetType == PacketType.TYPE_RESP) {
-            processIncomingResponse(packet, requestForResp);
+            // assert requestForResp not null
+            WritePacket req = requestForResp.packet;
+            if (packet.command != req.command) {
+                cleanParseStatus(null, "command not match");
+                return;
+            }
+            ReadPacket p = packet;
+            PacketInfoReq pir = requestForResp;
+            packet = null; // not clean, ownership changed to biz code
+            requestForResp = null;
+            pir.callSuccess(p);
         } else {
             // req or one way
-            processIncomingRequest(packet, processorForRequest, workerStatus.ts);
+            ReadPacket p = packet;
+            packet = null; // not clean, ownership changed to biz code
+            processIncomingRequest(p, processorForRequest, workerStatus.ts);
         }
         this.lastActiveTimeNanos = workerStatus.ts.nanoTime;
     }
@@ -223,12 +251,15 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 if (currentPos == 0 && currentDecoderCallback != null) {
                     throw new IllegalStateException("currentDecoder is not null");
                 }
-                if (skipBody) {
-                    buf.position(buf.limit());
-                    return;
-                }
                 boolean end = buf.remaining() >= fieldLen - currentPos;
-                readBody(buf, fieldLen, currentPos, end);
+                try {
+                    readBody(buf, fieldLen, currentPos);
+                } finally {
+                    if (end) {
+                        // so if the body is not last field, exception throws
+                        readBody = true;
+                    }
+                }
                 return;
             }
             default:
@@ -237,7 +268,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     }
 
-    private void readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {
+    private void readBody(ByteBuffer buf, int fieldLen, int currentPos) {
+        if (skipBody) {
+            buf.position(buf.limit());
+            return;
+        }
         if (packet.command <= 0) {
             throw new NetException("command invalid :" + packet.command);
         }
@@ -252,31 +287,22 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             buf.position(buf.limit());
             return;
         }
+        ReadPacket p = packet;
 
         try {
-            packet.body = parseNested(buf, fieldLen, currentPos, currentDecoderCallback);
+            p.body = parseNested(buf, fieldLen, currentPos, currentDecoderCallback);
         } catch (RuntimeException | Error e) {
-            if (packet.packetType == PacketType.TYPE_RESP) {
-                if (requestForResp != null) {
-                    requestForResp.callFail(e);
-                }
-            } else {
-                if (packet.packetType == PacketType.TYPE_REQ) {
-                    int code = e instanceof CodecException ? CmdCodes.DECODE_ERROR : CmdCodes.SYS_ERROR;
-                    writeErrorInIoThread(packet, code, null);
-                }
+            cleanParseStatus(e, null); // update packet to null
+            if (p.packetType == PacketType.TYPE_REQ) {
+                int code = e instanceof CodecException ? CmdCodes.DECODE_ERROR : CmdCodes.SYS_ERROR;
+                writeErrorInIoThread(p, code, null);
             }
             if (!handshake) {
                 throw e;
             }
             skipBody = true;
             buf.position(buf.limit());
-            log.warn("skip body parse, command={}", packet.command, e);
-        } finally {
-            if (end) {
-                // so if the body is not last field, exception throws
-                readBody = true;
-            }
+            log.warn("skip body parse, command={}", p.command, e);
         }
     }
 
@@ -325,16 +351,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         nioStatus.getAndAddInPendingRelease(-delta);
     }
 
-    private void processIncomingResponse(ReadPacket resp, PacketInfoReq wo) {
-        WritePacket req = wo.packet;
-        if (resp.command != req.command) {
-            resp.clean();
-            wo.callFail(new NetException("command not match"));
-            return;
-        }
-        wo.callSuccess(resp);
-    }
-
     private void processIncomingRequest(ReadPacket req, ReqProcessor p, Timestamp roundTime) {
         int maxReq = nioConfig.maxInRequests;
         long maxBytes = nioConfig.maxInBytes;
@@ -359,7 +375,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 log.debug("pendingRequests>maxInRequests({}), write response code FLOW_CONTROL to client",
                         nioConfig.maxInRequests);
                 req.clean();
-                writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
+                writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                         "max incoming request: " + nioConfig.maxInRequests);
                 return;
             }
@@ -368,7 +384,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
                         bytes, nioConfig.maxInBytes);
                 req.clean();
-                writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
+                writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                         "max incoming request bytes: " + nioConfig.maxInBytes);
                 return;
             }
@@ -492,9 +508,24 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         closed = true;
         try {
+            cleanParseStatus(null, "channel close");
             decodeContext.reset(parser.getParser());
         } catch (Exception e) {
             log.error("channel close error", e);
+        }
+    }
+
+    private void cleanParseStatus(Throwable ex, String reason) {
+        decoding = false;
+        currentDecoderCallback = null;
+        if (packet != null) {
+            packet.clean();
+            packet = null;
+        }
+        PacketInfoReq pir = requestForResp;
+        if (pir != null) {
+            requestForResp = null;
+            pir.callFail(ex == null ? new NetException(reason) : ex);
         }
     }
 
