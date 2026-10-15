@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.test.Tick;
+import com.github.dtprj.dongting.test.WaitUtil;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -41,10 +42,12 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -134,13 +137,19 @@ public class NioServerTest {
         }
     }
 
+    private static final AtomicLong TEST_UUID = new AtomicLong();
+
     private static void handshake(DataInputStream in, DataOutputStream out) throws Exception {
+        handshake(in, out, TEST_UUID.incrementAndGet(), 0);
+    }
+
+    private static void handshake(DataInputStream in, DataOutputStream out, long uuid1, long uuid2) throws Exception {
         DtPacket.Handshake handshakeBody = DtPacket.Handshake.newBuilder()
                 .setMagic1(HandshakeBody.MAGIC1)
                 .setMagic2(HandshakeBody.MAGIC2)
                 .setMajorVersion(DtUtil.RPC_MAJOR_VER)
                 .setMinorVersion(DtUtil.RPC_MINOR_VER)
-                .setProcessInfo(DtPacket.ProcessInfo.newBuilder().setUuid1(1).setUuid2(2).build())
+                .setProcessInfo(DtPacket.ProcessInfo.newBuilder().setUuid1(uuid1).setUuid2(uuid2).build())
                 .build();
         DtPacket.Packet reqPacket = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
                 .setSeq(1)
@@ -790,6 +799,39 @@ public class NioServerTest {
             assertEquals(-1, in.read());
         } finally {
             DtUtil.close(s);
+        }
+    }
+
+    @Test
+    public void handshakeTest4() throws Exception {
+        setupServer(null);
+        server.start();
+        Socket s1 = new Socket("127.0.0.1", PORT);
+        Socket s2 = new Socket("127.0.0.1", PORT);
+        try {
+            s1.setSoTimeout(tick(1000));
+            s2.setSoTimeout(tick(1000));
+            s1.setTcpNoDelay(true);
+            s2.setTcpNoDelay(true);
+            DataInputStream in1 = new DataInputStream(s1.getInputStream());
+            DataOutputStream out1 = new DataOutputStream(s1.getOutputStream());
+            DataInputStream in2 = new DataInputStream(s2.getInputStream());
+            DataOutputStream out2 = new DataOutputStream(s2.getOutputStream());
+
+            // same uuid means the same client re-connects, the stale channel should be closed
+            handshake(in1, out1, 7777L, 7777L);
+            handshake(in2, out2, 7777L, 7777L);
+            assertEquals(-1, in1.read());
+            // the mapping must point to the new channel and survive the stale channel's delayed cleanup
+            DtChannel c = server.getClients().get(new UUID(7777L, 7777L));
+            assertNotNull(c);
+            assertTrue(c.getChannel().isOpen());
+            simpleTest(CMD_IO_PING, in2, out2, 2);
+            DtUtil.close(s2);
+            WaitUtil.waitUtil(() -> server.getClients().isEmpty());
+        } finally {
+            DtUtil.close(s1);
+            DtUtil.close(s2);
         }
     }
 }

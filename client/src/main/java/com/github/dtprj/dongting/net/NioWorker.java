@@ -661,7 +661,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (server) {
             incomingConnects.remove(dtc);
             if (dtc.remoteUuid != null) {
-                ((NioServer) owner).getClients().remove(dtc.remoteUuid);
+                // the uuid may be taken over by a new re-connected channel, only remove self
+                ((NioServer) owner).getClients().remove(dtc.remoteUuid, dtc);
             }
         } else {
             Peer p = dtc.peer;

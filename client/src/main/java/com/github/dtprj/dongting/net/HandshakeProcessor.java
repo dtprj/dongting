@@ -71,7 +71,12 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         p.respCode = CmdCodes.SUCCESS;
 
         dtc.workerStatus.worker.finishHandshake(dtc);
-        ((NioServer) dtc.getOwner()).getClients().put(dtc.remoteUuid, dtc);
+        DtChannel old = ((NioServer) dtc.getOwner()).getClients().put(dtc.remoteUuid, dtc);
+        if (old != null && old != dtc) {
+            DtChannelImpl oldDtc = (DtChannelImpl) old;
+            log.info("client re-connected, close stale channel: old={}, new={}", oldDtc, dtc);
+            oldDtc.workerStatus.worker.closeLater(oldDtc);
+        }
 
         return p;
     }
