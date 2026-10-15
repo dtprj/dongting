@@ -242,7 +242,7 @@ class WorkerStatus {
         return x < 0 ? -1 : (x == 0 ? 0 : 1);
     }
 
-    public void cleanPendingReqByChannel(DtChannelImpl dtc) {
+    public void cleanPendingReqByChannel(DtChannelImpl dtc, Throwable ex) {
         if (iteratingPendingQueue) {
             throw new IllegalStateException("iteratingPendingQueue");
         }
@@ -255,7 +255,7 @@ class WorkerStatus {
                 removeFromChannelQueue(pi);
                 removeFromNearTimeoutQueue(pi);
                 if (e == null) {
-                    e = new NetException("channel closed, cancel pending request in NioWorker");
+                    e = new NetException("channel closed, cancel pending request in NioWorker", ex);
                 }
                 // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
                 // so callFail should be idempotent

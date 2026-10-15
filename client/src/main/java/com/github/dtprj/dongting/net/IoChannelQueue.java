@@ -109,7 +109,7 @@ class IoChannelQueue {
     }
 
     // called when channel is closing
-    public void cleanChannelQueue() {
+    public void cleanChannelQueue(Throwable ex) {
         this.writeBufList.clear();
         this.gatheringBufferCacheOffset = -1;
         this.bytesToWrite = 0;
@@ -122,15 +122,19 @@ class IoChannelQueue {
 
         if (lastPacketInfo != null) {
             workerStatus.addPacketsToWrite(-1);
-            callFail(lastPacketInfo, true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
+            callFail(lastPacketInfo, true, new NetException("channel closed, cancel request still in IoChannelQueue. 1", ex));
             lastPacketInfo = null;
         }
         PacketInfo pi;
+        NetException e = null;
         while ((pi = subQueue.pollFirst()) != null) {
-            callFail(pi, true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
+            if (e == null) {
+                e = new NetException("channel closed, cancel request still in IoChannelQueue. 2", ex);
+            }
+            callFail(pi, true, e);
             workerStatus.addPacketsToWrite(-1);
         }
-        cleanOneWayCallbacks(new NetException("channel closed, cancel oneway request still in IoChannelQueue."));
+        cleanOneWayCallbacks(new NetException("channel closed, cancel oneway request still in IoChannelQueue.", ex));
     }
 
     private void cleanPendingPackets() {

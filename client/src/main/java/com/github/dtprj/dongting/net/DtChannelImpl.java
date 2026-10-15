@@ -526,6 +526,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         closed = true;
         try {
+            if (ex != null && !(ex instanceof NetException)) {
+                ex = new NetException("channel close", ex);
+            }
             cleanParseStatus(ex, "channel close");
             decodeContext.reset(parser.getParser());
         } catch (Exception e) {

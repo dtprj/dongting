@@ -308,7 +308,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
-                closeChannelBySelKey(key);
+                closeChannelBySelKey(key, null);
                 return;
             }
             stage = "process socket connect";
@@ -325,7 +325,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 int readBytes = sc.read(readBuffer);
                 if (readBytes == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
-                    closeChannelBySelKey(key);
+                    closeChannelBySelKey(key, null);
                     return;
                 }
                 perfCallback.fireTimeAndRefresh(PerfConsts.RPC_D_READ, startTime, 1, readBytes, roundTime);
@@ -338,10 +338,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         } catch (NetException | IOException e) {
             log.warn("{} error, channel will close: {}", stage, e.toString());
-            closeChannelBySelKey(key);
+            closeChannelBySelKey(key, e);
         } catch (Exception e) {
             log.warn("{} error, channel will close", stage, e);
-            closeChannelBySelKey(key);
+            closeChannelBySelKey(key, e);
         }
     }
 
@@ -535,7 +535,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } catch (Throwable e) {
             log.error("send handshake fail: {}", e);
             ci.future.completeExceptionally(e);
-            close(dtc);
+            close(dtc, e);
         }
     }
 
@@ -544,7 +544,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (ex != null) {
                 log.error("handshake fail: {}", ex);
                 ci.future.completeExceptionally(ex);
-                closeLater(dtc);
+                closeLater(dtc, ex);
             } else {
                 handshakeSuccess(dtc, ci, resp);
             }
@@ -581,14 +581,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void handshakeSuccess(DtChannelImpl dtc, ConnectInfo ci, ReadPacket<HandshakeBody> resp) {
         if (status >= STATUS_PREPARE_STOP) {
             log.info("handshake while worker closed, ignore it: {}", dtc.getChannel());
-            ci.future.completeExceptionally(new NetException("worker closed"));
-            closeLater(dtc);
+            NetException e = new NetException("worker closed");
+            ci.future.completeExceptionally(e);
+            closeLater(dtc, e);
             return;
         }
         if (resp.getBody() == null || resp.getBody().config == null) {
             log.error("handshake fail: invalid response");
-            ci.future.completeExceptionally(new NetException("invalid handshake response"));
-            closeLater(dtc);
+            NetException e = new NetException("invalid handshake response");
+            ci.future.completeExceptionally(e);
+            closeLater(dtc, e);
             return;
         }
         ConfigBody cb = resp.getBody().config;
@@ -637,12 +639,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         return f;
     }
 
-    private void closeChannelBySelKey(SelectionKey key) {
+    private void closeChannelBySelKey(SelectionKey key, Throwable ex) {
         Object obj = key.attachment();
         SocketChannel sc = (SocketChannel) key.channel();
         if (obj instanceof DtChannelImpl) {
             DtChannelImpl dtc = (DtChannelImpl) obj;
-            close(dtc);
+            close(dtc, ex);
         } else {
             BugLog.log("assert false. key attachment is not " + DtChannelImpl.class.getName());
             closeChannel0(sc);
@@ -651,8 +653,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     // make sure not re-use tempSortList when iterate it (callFail may cause use tempSortList again during close dtc)
-    void closeLater(DtChannelImpl dtc) {
-        ioWorkerQueue.scheduleFromBizThread(() -> close(dtc));
+    void closeLater(DtChannelImpl dtc, Throwable ex) {
+        ioWorkerQueue.scheduleFromBizThread(() -> close(dtc, ex));
         wakeup();
     }
 
@@ -695,8 +697,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         channels.remove(dtc.channelIndexInWorker);
         closeChannel0(dtc.getChannel());
-        workerStatus.cleanPendingReqByChannel(dtc);
-        dtc.subQueue.cleanChannelQueue();
+        workerStatus.cleanPendingReqByChannel(dtc, ex);
+        dtc.subQueue.cleanChannelQueue(ex);
 
         if (dtc.listenerOnConnectedCalled && !config.channelListeners.isEmpty()) {
             for (int size = config.channelListeners.size(), i = 0; i < size; i++) {
