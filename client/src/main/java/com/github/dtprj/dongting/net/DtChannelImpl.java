@@ -476,12 +476,10 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     public int getAndIncSeq() {
-        int c = seq++;
-        if (c < 0) {
+        if (seq < 0) {
             seq = 1;
-            c = 1;
         }
-        return c;
+        return seq++;
     }
 
     @Override
