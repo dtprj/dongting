@@ -52,7 +52,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         if (reqBody == null || reqBody.processInfo == null ||
                 (reqBody.processInfo.uuid1 == 0 && reqBody.processInfo.uuid2 == 0)) {
             log.warn("handshake failed, invalid req from {}", dtc.getChannel());
-            dtc.close();
+            dtc.close(null);
             dtc.workerStatus.worker.closeLater(dtc);
             return null;
         }

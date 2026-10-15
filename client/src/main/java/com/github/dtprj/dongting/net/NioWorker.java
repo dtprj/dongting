@@ -92,6 +92,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private long readBufferUseTime;
 
     private final long cleanIntervalNanos;
+    long maxPacketDecodeNanos = 30 * 1000L * 1000 * 1000;
     private long lastCleanNanos;
 
     private final PerfCallback perfCallback;
@@ -202,6 +203,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     releaseReadBuffer();
                 }
                 workerStatus.cleanPendingReqByTimeout();
+                cleanDecodeTimeoutChannels(ts);
                 if (server) {
                     cleanIncomingConnects(ts);
                 } else {
@@ -227,6 +229,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             log.error("NioWorker loop exception", e);
         } finally {
             workEnd(ts, workStartTime);
+        }
+    }
+
+    private void cleanDecodeTimeoutChannels(Timestamp ts) {
+        DtChannelImpl c = workerStatus.decodeListHead;
+        while (c != null && ts.nanoTime - c.packetStartTimeNanos >= maxPacketDecodeNanos) {
+            DtChannelImpl next = c.decodeNext;
+            workerStatus.removeFromDecodeList(c);
+            c.closeOnDecodeTimeout(ts);
+            c = next;
         }
     }
 
@@ -645,6 +657,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     void close(DtChannelImpl dtc) {
+        close(dtc, null);
+    }
+
+    void close(DtChannelImpl dtc, Throwable ex) {
         if (dtc.nioWorkerClose) {
             return;
         }
@@ -656,7 +672,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
 
         dtc.nioWorkerClose = true;
-        dtc.close();
+        dtc.close(ex);
 
         if (server) {
             incomingConnects.remove(dtc);

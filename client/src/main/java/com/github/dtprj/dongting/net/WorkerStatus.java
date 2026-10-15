@@ -49,6 +49,9 @@ class WorkerStatus {
     private PacketInfoReq nearTimeoutQueueHead;
     private PacketInfoReq nearTimeoutQueueTail;
 
+    // linked list of channels with a packet under decoding, ordered by packetStartTimeNanos
+    DtChannelImpl decodeListHead, decodeListTail;
+
     private long addOrder;
 
     int toReleaseCount;
@@ -66,6 +69,40 @@ class WorkerStatus {
 
     public void addPacketsToWrite(int delta) {
         this.packetsToWrite = Math.max(packetsToWrite + delta, 0);
+    }
+
+    void addToDecodeList(DtChannelImpl dtc) {
+        if (dtc.inDecodeList) {
+            return;
+        }
+        dtc.inDecodeList = true;
+        dtc.decodePrev = decodeListTail;
+        dtc.decodeNext = null;
+        if (decodeListTail == null) {
+            decodeListHead = dtc;
+        } else {
+            decodeListTail.decodeNext = dtc;
+        }
+        decodeListTail = dtc;
+    }
+
+    void removeFromDecodeList(DtChannelImpl dtc) {
+        if (!dtc.inDecodeList) {
+            return;
+        }
+        dtc.inDecodeList = false;
+        if (dtc.decodePrev == null) {
+            decodeListHead = dtc.decodeNext;
+        } else {
+            dtc.decodePrev.decodeNext = dtc.decodeNext;
+        }
+        if (dtc.decodeNext == null) {
+            decodeListTail = dtc.decodePrev;
+        } else {
+            dtc.decodeNext.decodePrev = dtc.decodePrev;
+        }
+        dtc.decodePrev = null;
+        dtc.decodeNext = null;
     }
 
     private void removeFromChannelQueue(PacketInfoReq pi) {

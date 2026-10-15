@@ -32,6 +32,8 @@ import com.github.dtprj.dongting.test.WaitUtil;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -48,6 +50,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -134,6 +137,55 @@ public class NioServerTest {
             simpleTest(CMD_BIZ_PING2, in, out, 4);
         } finally {
             DtUtil.close(s);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1, 0", "3, 9223372036854775807", "0, 0"})
+    public void packetDecodeTimeoutTest(int packetType, long timeoutNanos) throws Exception {
+        setupServer(c -> {
+            c.cleanInterval = 1;
+            c.selectTimeout = 1;
+        });
+        for (NioWorker worker : server.workers) {
+            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(200));
+        }
+        AtomicReference<RefBuffer> partialBody = new AtomicReference<>();
+        server.register(4000, new NioServer.PingProcessor() {
+            @Override
+            public DecoderCallback<RefBuffer> createDecoderCallback(int command, DecodeContext context) {
+                return new RefBufferDecoderCallback() {
+                    @Override
+                    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+                        super.doDecode(buffer, bodyLen, currentPos);
+                        partialBody.set(getResult());
+                    }
+                };
+            }
+        }, null);
+        server.start();
+        try (Socket s = new Socket("127.0.0.1", PORT)) {
+            s.setSoTimeout(tick(2000));
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
+            DtPacket.Packet.Builder builder = DtPacket.Packet.newBuilder()
+                    .setPacketType(packetType).setCommand(4000).setSeq(2).setTimeout(timeoutNanos);
+            ByteString bytes = ByteString.copyFrom(new byte[1024]);
+            if (packetType == 0) {
+                builder.setExtra(bytes);
+            } else {
+                builder.setBody(bytes);
+            }
+            byte[] packet = builder.build().toByteArray();
+            out.writeInt(packet.length);
+            out.write(packet, 0, packet.length - 1);
+            out.flush();
+            assertEquals(-1, in.read());
+            if (packetType != 0) {
+                assertNotNull(partialBody.get());
+                assertTrue(partialBody.get().isReleased());
+            }
         }
     }
 

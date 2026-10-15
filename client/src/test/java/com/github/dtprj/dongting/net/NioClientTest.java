@@ -75,6 +75,7 @@ public class NioClientTest {
         private volatile boolean stop;
         private long sleep;
         private int resultCode = CmdCodes.SUCCESS;
+        private volatile boolean stallResponse;
         private final boolean handshakeTest;
 
         public BioServer(int port) throws Exception {
@@ -191,7 +192,8 @@ public class NioClientTest {
                 Thread.sleep(sleep);
             }
             out.writeInt(bs.length);
-            out.write(bs);
+            int len = stallResponse && packet.getCommand() == Commands.CMD_PING ? bs.length - 1 : bs.length;
+            out.write(bs, 0, len);
         }
 
         @Override
@@ -228,6 +230,50 @@ public class NioClientTest {
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
         sendSync(5000, client, tick(1000));
+    }
+
+    @Test
+    public void responseDecodeTimeoutTest() throws Exception {
+        server1 = new BioServer(9000);
+        server1.stallResponse = true;
+        NioClientConfig c = new NioClientConfig();
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.cleanInterval = 1;
+        c.selectTimeout = 1;
+        c.maxOutRequests = 1;
+        c.maxOutBytes = 5000;
+        client = new NioClient(c);
+        client.start();
+        client.waitStart(new DtTime(tick(1), TimeUnit.SECONDS));
+        Peer peer = client.getPeers().get(0);
+        DtChannelImpl channel = peer.dtChannel;
+        channel.workerStatus.worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(200));
+
+        AtomicReference<RefBuffer> partialBody = new AtomicReference<>();
+        ByteBufferWritePacket request = new ByteBufferWritePacket(ByteBuffer.allocate(1024));
+        request.command = Commands.CMD_PING;
+        CompletableFuture<ReadPacket<RefBuffer>> future = new CompletableFuture<>();
+        client.sendRequest(request, ctx -> new RefBufferDecoderCallback() {
+            @Override
+            public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+                super.doDecode(buffer, bodyLen, currentPos);
+                partialBody.set(getResult());
+            }
+        }, new DtTime(tick(500), TimeUnit.MILLISECONDS), RpcCallback.fromFuture(future));
+
+        ExecutionException ex = assertThrows(ExecutionException.class,
+                () -> future.get(tick(2), TimeUnit.SECONDS));
+        assertInstanceOf(NetTimeoutException.class, ex.getCause());
+        assertTrue(ex.getCause().getMessage().startsWith("packet decode timeout:"));
+        assertEquals(0, client.nioStatus.outPendingRequests);
+        assertEquals(0, client.nioStatus.outPendingBytes);
+        assertNotNull(partialBody.get());
+        WaitUtil.waitUtil(() -> partialBody.get().isReleased());
+        WaitUtil.waitUtil(() -> !channel.getChannel().isOpen());
+
+        server1.stallResponse = false;
+        client.connect(peer).get(tick(2), TimeUnit.SECONDS);
+        sendSync(1000, client, tick(1000));
     }
 
     @Test

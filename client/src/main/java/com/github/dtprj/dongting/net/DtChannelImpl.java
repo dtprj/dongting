@@ -67,7 +67,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private PacketInfoReq requestForResp = null;
     private ReqProcessor processorForRequest;
     private int currentReadPacketSize;
+    long packetStartTimeNanos;
     private DecoderCallback currentDecoderCallback;
+
+    // linked list of channels with a packet under decoding, ordered by packetStartTimeNanos
+    DtChannelImpl decodePrev, decodeNext;
+    boolean inDecodeList;
 
     private boolean skipBody;
 
@@ -82,8 +87,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     boolean nioWorkerClose;
     boolean handshake;
     boolean listenerOnConnectedCalled;
-
-    long lastActiveTimeNanos;
 
     PacketInfoReq pendingReqHead;
     PacketInfoReq pendingReqTail;
@@ -107,7 +110,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.localPort = ((java.net.InetSocketAddress) localAddr).getPort();
 
         this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this);
-        this.lastActiveTimeNanos = workerStatus.ts.nanoTime;
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -134,6 +136,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         decoding = true;
         this.currentReadPacketSize = len;
+        this.packetStartTimeNanos = workerStatus.ts.nanoTime;
+        workerStatus.addToDecodeList(this);
         packet = new ReadPacket();
         readBody = false;
         skipBody = false;
@@ -172,6 +176,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         decoding = false;
         currentDecoderCallback = null;
+        workerStatus.removeFromDecodeList(this);
 
         if (packet.packetType == PacketType.TYPE_RESP) {
             // assert requestForResp not null
@@ -191,7 +196,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             packet = null; // not clean, ownership changed to biz code
             processIncomingRequest(p, processorForRequest, workerStatus.ts);
         }
-        this.lastActiveTimeNanos = workerStatus.ts.nanoTime;
     }
 
     @Override
@@ -504,13 +508,25 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return localAddr;
     }
 
-    public void close() {
+    void closeOnDecodeTimeout(Timestamp ts) {
+        if (closed) {
+            return;
+        }
+        Packet p = packet;
+        String msg = "packet decode timeout: " + TimeUnit.NANOSECONDS.toMillis(ts.nanoTime - packetStartTimeNanos)
+                + "ms, cmd=" + (p == null ? 0 : p.command)
+                + ", seq=" + (p == null ? 0 : p.seq) + ", remote=" + remoteAddr;
+        log.warn("{}", msg);
+        workerStatus.worker.close(this, new NetTimeoutException(msg));
+    }
+
+    void close(Throwable ex) {
         if (closed) {
             return;
         }
         closed = true;
         try {
-            cleanParseStatus(null, "channel close");
+            cleanParseStatus(ex, "channel close");
             decodeContext.reset(parser.getParser());
         } catch (Exception e) {
             log.error("channel close error", e);
@@ -518,6 +534,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private void cleanParseStatus(Throwable ex, String reason) {
+        workerStatus.removeFromDecodeList(this);
         decoding = false;
         currentDecoderCallback = null;
         if (packet != null) {
@@ -539,10 +556,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     // for unit test
     ReadPacket getPacket() {
         return packet;
-    }
-
-    public long getLastActiveTimeNanos() {
-        return lastActiveTimeNanos;
     }
 
     @Override

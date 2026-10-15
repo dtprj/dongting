@@ -892,11 +892,6 @@ public class ServerWatchManagerTest {
         }
 
         @Override
-        public long getLastActiveTimeNanos() {
-            return 0;
-        }
-
-        @Override
         public NioNet getOwner() {
             return null;
         }
