@@ -611,19 +611,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (Thread.currentThread() == thread) {
             runnable.run();
         } else {
-            boolean b = ioWorkerQueue.scheduleFromBizThread(runnable);
-            wakeup();
-            if (!b) {
-                if (future != null) {
-                    future.completeExceptionally(new NetException("closed"));
-                }
-            }
+            scheduleInIoThread(runnable, future);
+        }
+    }
+
+    private void scheduleInIoThread(Runnable runnable, CompletableFuture<?> future) {
+        boolean b = ioWorkerQueue.scheduleFromBizThread(runnable);
+        wakeup();
+        if (!b && future != null) {
+            future.completeExceptionally(new NetException("closed"));
         }
     }
 
     public CompletableFuture<Void> disconnect(Peer peer) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        doInIoThread(() -> {
+        scheduleInIoThread(() -> {
             peer.shouldAutoReconnect = false;
             if (peer.dtChannel == null) {
                 f.complete(null);
@@ -652,7 +654,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    // make sure not re-use tempSortList when iterate it (callFail may cause use tempSortList again during close dtc)
     void closeLater(DtChannelImpl dtc, Throwable ex) {
         ioWorkerQueue.scheduleFromBizThread(() -> close(dtc, ex));
         wakeup();
@@ -666,8 +667,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (dtc.nioWorkerClose) {
             return;
         }
-        if (dtc.decoding) {
-            log.warn("close channel during packet decoding, deffer it: {}", dtc);
+        if (dtc.decoding || dtc.encoding) {
             closeLater(dtc, ex);
             return;
         }
@@ -684,7 +684,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } else {
             Peer p = dtc.peer;
             p.dtChannel = null;
-            p.markNotConnect(config, workerStatus, false);
+            if (p.status != PeerStatus.removed) {
+                p.markNotConnect(config, workerStatus, false);
+            }
             if (p.connectInfo != null) {
                 if (!p.connectInfo.future.isDone()) {
                     p.connectInfo.future.completeExceptionally(new NetException("channel closed"));

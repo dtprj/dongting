@@ -110,6 +110,7 @@ public class NioServerClientTest {
             for (int i = 0; i < 5; i++) {
                 invoke(client);
             }
+            assertEquals(4, dtc.seq);
 
             // dup seq test
             ByteBufferWritePacket wf1 = new ByteBufferWritePacket(SimpleByteBufferPool.EMPTY_BUFFER);

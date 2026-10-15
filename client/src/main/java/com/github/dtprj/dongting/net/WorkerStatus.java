@@ -243,26 +243,18 @@ class WorkerStatus {
     }
 
     public void cleanPendingReqByChannel(DtChannelImpl dtc, Throwable ex) {
-        if (iteratingPendingQueue) {
-            throw new IllegalStateException("iteratingPendingQueue");
-        }
-        iteratingPendingQueue = true;
-        try {
-            NetException e = null;
-            while (dtc.pendingReqHead != null) {
-                PacketInfoReq pi = dtc.pendingReqHead;
-                pendingRequests.remove(BitUtil.toLong(dtc.channelIndexInWorker, pi.packet.seq));
-                removeFromChannelQueue(pi);
-                removeFromNearTimeoutQueue(pi);
-                if (e == null) {
-                    e = new NetException("channel closed, cancel pending request in NioWorker", ex);
-                }
-                // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
-                // so callFail should be idempotent
-                pi.callFail(e);
+        NetException e = null;
+        while (dtc.pendingReqHead != null) {
+            PacketInfoReq pi = dtc.pendingReqHead;
+            pendingRequests.remove(BitUtil.toLong(dtc.channelIndexInWorker, pi.packet.seq));
+            removeFromChannelQueue(pi);
+            removeFromNearTimeoutQueue(pi);
+            if (e == null) {
+                e = new NetException("channel closed, cancel pending request in NioWorker", ex);
             }
-        } finally {
-            iteratingPendingQueue = false;
+            // callFail may cause sendHeartbeat callback call close(dtc), and clean pendingOutgoingRequests.
+            // so callFail should be idempotent
+            pi.callFail(e);
         }
     }
 

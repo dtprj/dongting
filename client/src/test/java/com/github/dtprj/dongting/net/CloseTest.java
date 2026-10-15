@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.test.Tick;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -120,6 +122,7 @@ public class CloseTest {
                 return resp;
             }
         }), 100);
+        DtChannelImpl oldChannel = client.getPeers().get(0).dtChannel;
 
         CompletableFuture<ReadPacket<RefBuffer>> f = new CompletableFuture<>();
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
@@ -138,9 +141,186 @@ public class CloseTest {
         assertEquals(0, client.nioStatus.outPendingBytes);
 
         Peer p = client.getPeers().get(0);
-        WaitUtil.waitUtil(() -> p.dtChannel == null);
-        WaitUtil.waitUtil(() -> p.status == PeerStatus.connected);
+        WaitUtil.waitUtil(() -> p.status == PeerStatus.connected && p.dtChannel != null && p.dtChannel != oldChannel);
         NioServerClientTest.invoke(client);
+    }
+
+    private void runInIoThread(Runnable task) throws Exception {
+        CompletableFuture.runAsync(task, r -> client.worker.doInIoThread(r, null)).get(10, TimeUnit.SECONDS);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    public void testCloseFromReadCallback(boolean decodeFail) throws Exception {
+        setup(() -> { }, 1000000);
+        CompletableFuture<Boolean> deferred = new CompletableFuture<>();
+        DtChannelImpl dtc = client.getPeers().get(0).dtChannel;
+        runInIoThread(() -> {
+            dtc.peer.shouldAutoReconnect = false;
+            ByteBufferWritePacket req = new ByteBufferWritePacket(null);
+            req.packetType = PacketType.TYPE_REQ;
+            req.command = CMD;
+            req.seq = dtc.getAndIncSeq();
+            PacketInfoReq pi = new PacketInfoReq(null, null, dtc, req, new DtTime(10, TimeUnit.SECONDS),
+                    (resp, ex) -> {
+                        client.worker.close(dtc);
+                        if (resp != null) {
+                            resp.clean();
+                        }
+                        deferred.complete(dtc.decoding && !dtc.isClosed() && (decodeFail == (ex != null)));
+                    }, ctx -> new RefBufferDecoderCallback() {
+                        @Override
+                        public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+                            if (decodeFail) {
+                                throw new NetException("mock decode failure");
+                            }
+                            super.doDecode(buffer, bodyLen, currentPos);
+                        }
+                    });
+            dtc.workerStatus.addPendingReq(pi);
+            ByteBufferWritePacket resp = new ByteBufferWritePacket(ByteBuffer.allocate(1));
+            resp.packetType = PacketType.TYPE_RESP;
+            resp.command = CMD;
+            resp.seq = req.seq;
+            ByteBuffer buf = ByteBuffer.allocate(resp.actualSize());
+            assertTrue(resp.encode(new EncodeContext(dtc.workerStatus.buffers), buf));
+            buf.flip();
+            dtc.afterRead(true, buf);
+            assertFalse(dtc.decoding);
+            assertNull(dtc.getPacket());
+        });
+        assertTrue(deferred.get(10, TimeUnit.SECONDS));
+        runInIoThread(() -> {
+            assertTrue(dtc.nioWorkerClose);
+            assertFalse(dtc.getChannel().isOpen());
+            assertEquals(0, dtc.workerStatus.pendingReqSize());
+        });
+    }
+
+    @Test
+    public void testCloseFromEncoder() throws Exception {
+        setup(() -> { }, 1000000);
+        DtChannelImpl dtc = client.getPeers().get(0).dtChannel;
+        CompletableFuture<Boolean> closedInEncoder = new CompletableFuture<>();
+        ByteBufferWritePacket req = new ByteBufferWritePacket(ByteBuffer.allocate(1)) {
+            @Override
+            protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
+                dtc.peer.shouldAutoReconnect = false;
+                client.worker.close(dtc);
+                closedInEncoder.complete(dtc.isClosed());
+                return super.encodeBody(context, dest);
+            }
+        };
+        req.command = Commands.CMD_PING;
+        CompletableFuture<ReadPacket<RefBuffer>> result = new CompletableFuture<>();
+        client.sendRequest(req, ctx -> new RefBufferDecoderCallback(),
+                new DtTime(10, TimeUnit.SECONDS), RpcCallback.fromFuture(result));
+        assertFalse(closedInEncoder.get(10, TimeUnit.SECONDS));
+        assertInstanceOf(NetException.class,
+                assertThrows(ExecutionException.class, () -> result.get(10, TimeUnit.SECONDS)).getCause());
+        runInIoThread(() -> {
+            assertFalse(dtc.getChannel().isOpen());
+            assertTrue(req.cleaned);
+            assertEquals(0, dtc.workerStatus.packetsToWrite);
+            assertEquals(0, dtc.workerStatus.pendingReqSize());
+            assertEquals(0, client.nioStatus.outPendingRequests);
+            assertEquals(0, client.nioStatus.outPendingBytes);
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    public void testCascadingCloseFromPendingCallback(int cleanMode) throws Exception {
+        setup(() -> { }, 1000000);
+        NioServerConfig config = new NioServerConfig();
+        config.port = 9001;
+        NioServer otherServer = new NioServer(config);
+        otherServer.start();
+        try {
+            Peer otherPeer = client.addPeer(new HostPort("127.0.0.1", 9001)).get(10, TimeUnit.SECONDS);
+            client.connect(otherPeer).get(10, TimeUnit.SECONDS);
+            runInIoThread(() -> {
+                DtChannelImpl first = client.getPeers().get(0).dtChannel;
+                DtChannelImpl second = otherPeer.dtChannel;
+                first.peer.shouldAutoReconnect = false;
+                second.peer.shouldAutoReconnect = false;
+                WorkerStatus ws = client.worker.workerStatus;
+                ByteBufferWritePacket trigger = new ByteBufferWritePacket(null);
+                trigger.packetType = PacketType.TYPE_REQ;
+                trigger.seq = first.getAndIncSeq();
+                ws.addPendingReq(new PacketInfoReq(null, null, first, trigger, new DtTime(0, TimeUnit.SECONDS),
+                        (resp, ex) -> client.worker.close(second), null));
+                ByteBufferWritePacket pending = new ByteBufferWritePacket(null);
+                pending.packetType = PacketType.TYPE_REQ;
+                pending.seq = second.getAndIncSeq();
+                CompletableFuture<ReadPacket<Void>> pendingResult = new CompletableFuture<>();
+                ws.addPendingReq(new PacketInfoReq(null, null, second, pending, new DtTime(10, TimeUnit.SECONDS),
+                        RpcCallback.fromFuture(pendingResult), null));
+                ByteBufferWritePacket queued = new ByteBufferWritePacket(null);
+                queued.packetType = PacketType.TYPE_REQ;
+                CompletableFuture<ReadPacket<Void>> queuedResult = new CompletableFuture<>();
+                second.subQueue.enqueue(new PacketInfoReq(null, null, second, queued, new DtTime(10, TimeUnit.SECONDS),
+                        RpcCallback.fromFuture(queuedResult), null));
+                if (cleanMode == 0) {
+                    client.worker.close(first);
+                } else if (cleanMode == 1) {
+                    ws.ts.refresh();
+                    ws.cleanPendingReqByTimeout();
+                } else {
+                    ws.cleanAllPendingReq();
+                }
+                assertTrue(pendingResult.isCompletedExceptionally());
+                assertTrue(queuedResult.isCompletedExceptionally());
+                assertTrue(queued.cleaned);
+                assertFalse(second.getChannel().isOpen());
+                assertEquals(0, ws.pendingReqSize());
+                assertEquals(0, ws.packetsToWrite);
+            });
+        } finally {
+            TestUtil.stop(otherServer);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    public void testPeerOperationFromDecoder(boolean remove) throws Exception {
+        setup(() -> { }, 1000000);
+        Peer peer = client.getPeers().get(0);
+        DtChannelImpl dtc = peer.dtChannel;
+        CompletableFuture<Boolean> completedAfterClose = new CompletableFuture<>();
+        ByteBufferWritePacket req = new ByteBufferWritePacket(ByteBuffer.allocate(1));
+        req.command = Commands.CMD_PING;
+        client.sendRequest(req, ctx -> {
+            CompletableFuture<Void> f = remove ? client.removePeer(peer.endPoint) : client.disconnect(peer);
+            boolean completedInDecoder = f.isDone();
+            boolean replaced = !remove || client.addPeer(peer.endPoint).getNow(peer) != peer;
+            f.thenApply(v -> !completedInDecoder && replaced && !dtc.getChannel().isOpen() && peer.dtChannel == null)
+                    .whenComplete((v, ex) -> {
+                        if (ex != null) {
+                            completedAfterClose.completeExceptionally(ex);
+                        } else {
+                            completedAfterClose.complete(v);
+                        }
+                    });
+            return new RefBufferDecoderCallback();
+        }, new DtTime(10, TimeUnit.SECONDS), (resp, ex) -> {
+            if (resp != null) {
+                resp.clean();
+            }
+        });
+        assertTrue(completedAfterClose.get(10, TimeUnit.SECONDS));
+        if (remove) {
+            runInIoThread(() -> {
+                assertEquals(PeerStatus.removed, peer.status);
+                assertFalse(client.getPeers().contains(peer));
+                assertEquals(0, client.worker.workerStatus.retryConnect);
+            });
+            assertThrows(ExecutionException.class, () -> client.connect(peer).get(10, TimeUnit.SECONDS));
+        } else {
+            client.connect(peer).get(10, TimeUnit.SECONDS);
+            assertNotSame(dtc, peer.dtChannel);
+            NioServerClientTest.invoke(client);
+        }
     }
 
     private static class BrokenRespPacket extends WritePacket {

@@ -408,6 +408,15 @@ class IoChannelQueue {
     }
 
     public void processWriteEvent(SocketChannel sc, SelectionKey key, Timestamp roundTime) throws IOException {
+        dtc.encoding = true;
+        try {
+            processWriteEvent0(sc, key, roundTime);
+        } finally {
+            dtc.encoding = false;
+        }
+    }
+
+    private void processWriteEvent0(SocketChannel sc, SelectionKey key, Timestamp roundTime) throws IOException {
         if (prepareWriteBuffer(roundTime)) {
             writing = true;
             long startTime = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_WRITE, roundTime);

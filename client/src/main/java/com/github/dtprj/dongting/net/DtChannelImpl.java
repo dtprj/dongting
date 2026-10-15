@@ -77,6 +77,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private boolean skipBody;
 
     boolean decoding;
+    boolean encoding;
 
     final IoChannelQueue subQueue;
 
@@ -133,7 +134,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (closed) {
             throw new NetException("channel closed");
         }
-        decoding = true;
         this.currentReadPacketSize = len;
         this.packetStartTimeNanos = workerStatus.ts.nanoTime;
         workerStatus.addToDecodeList(this);
@@ -173,7 +173,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 return;
             }
         }
-        decoding = false;
         currentDecoderCallback = null;
         workerStatus.removeFromDecodeList(this);
 
@@ -545,8 +544,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             requestForResp = null;
             pir.callFail(ex == null ? new NetException(reason) : ex);
         }
-        // set after callFail: if the callback closes the channel, NioWorker.close defers it
-        decoding = false;
     }
 
     // for unit test

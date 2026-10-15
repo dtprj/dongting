@@ -259,13 +259,18 @@ public class NioClient extends NioNet implements ChannelListener {
     }
 
     private void removePeer(Peer peer, CompletableFuture<Void> f) {
-        if (peer.dtChannel != null) {
-            worker.close(peer.dtChannel);
-        }
         peers.remove(peer);
-        peer.cleanWaitingConnectList(wd -> new NetException("peer removed"));
         peer.status = PeerStatus.removed;
-        f.complete(null);
+        peer.shouldAutoReconnect = false;
+        peer.resetConnectRetry(worker.workerStatus);
+        peer.cleanWaitingConnectList(wd -> new NetException("peer removed"));
+        worker.disconnect(peer).whenComplete((v, ex) -> {
+            if (ex == null) {
+                f.complete(null);
+            } else {
+                f.completeExceptionally(ex);
+            }
+        });
     }
 
     public CompletableFuture<Void> removePeer(HostPort hp) {
