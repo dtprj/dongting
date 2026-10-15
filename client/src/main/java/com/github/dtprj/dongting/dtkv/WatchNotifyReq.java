@@ -85,7 +85,9 @@ public class WatchNotifyReq implements Encodable {
             if (index == IDX_GROUP_ID) {
                 groupId = (int) value;
             } else if (index == IDX_LIST_SIZE) {
-                notifyList = createArrayList((int) value);
+                if (notifyList == null) {
+                    notifyList = createArrayList((int) value);
+                }
             }
         }
 

@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.WatchReq;
@@ -44,6 +45,9 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
                 this.syncAll = value != 0;
                 break;
             case WatchReq.IDX_KEYS_SIZE:
+                if (knownRaftIndexes != null) {
+                    throw new CodecException("duplicate keys_size field: " + value);
+                }
                 int len = (int) value;
                 if (len < 0 || len > 50000) {
                     throw new RaftException("Invalid key size: " + len);
