@@ -757,4 +757,39 @@ public class NioServerTest {
             DtUtil.close(s);
         }
     }
+
+    @Test
+    public void handshakeTest3() throws Exception {
+        setupServer(c -> c.selectTimeout = 0);
+        server.start();
+        Socket s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setSoTimeout(tick(1000));
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+
+            // processInfo is missing, the handshake is invalid
+            DtPacket.Handshake handshakeBody = DtPacket.Handshake.newBuilder()
+                    .setMagic1(HandshakeBody.MAGIC1)
+                    .setMagic2(HandshakeBody.MAGIC2)
+                    .setMajorVersion(DtUtil.RPC_MAJOR_VER)
+                    .setMinorVersion(DtUtil.RPC_MINOR_VER)
+                    .build();
+            DtPacket.Packet reqPacket = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
+                    .setSeq(1)
+                    .setCommand(Commands.CMD_HANDSHAKE)
+                    .setBody(handshakeBody.toByteString())
+                    .setTimeout(Duration.ofSeconds(10).toNanos())
+                    .build();
+            byte[] reqPacketBytes = reqPacket.toByteArray();
+            out.writeInt(reqPacketBytes.length);
+            out.write(reqPacketBytes);
+            out.flush();
+
+            // the socket should be really closed, so read gets EOF instead of timeout
+            assertEquals(-1, in.read());
+        } finally {
+            DtUtil.close(s);
+        }
+    }
 }

@@ -28,6 +28,7 @@ public abstract class ReqProcessor<T> {
     Executor executor;
     boolean useDefaultExecutor;
 
+    /** Takes ownership of the request/body; clean it or transfer ownership, even on null return or failure. */
     public abstract WritePacket process(ReadPacket<T> packet, ReqContext reqContext) throws Exception;
 
     public abstract DecoderCallback<T> createDecoderCallback(int command, DecodeContext context);

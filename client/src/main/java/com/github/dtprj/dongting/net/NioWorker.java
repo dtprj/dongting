@@ -639,12 +639,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     // make sure not re-use tempSortList when iterate it (callFail may cause use tempSortList again during close dtc)
-    private void closeLater(DtChannelImpl dtc) {
+    void closeLater(DtChannelImpl dtc) {
         ioWorkerQueue.scheduleFromBizThread(() -> close(dtc));
+        wakeup();
     }
 
     void close(DtChannelImpl dtc) {
-        if (dtc.isClosed()) {
+        if (dtc.nioWorkerClose) {
             return;
         }
         if (dtc.decoding) {
@@ -654,6 +655,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
 
+        dtc.nioWorkerClose = true;
         dtc.close();
 
         if (server) {

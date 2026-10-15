@@ -78,6 +78,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private boolean running = true;
     private boolean closed;
+    // close() only marks the channel unusable, NioWorker.close() releases socket/key/queues and sets this flag
+    boolean nioWorkerClose;
     boolean handshake;
     boolean listenerOnConnectedCalled;
 
