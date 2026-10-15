@@ -76,7 +76,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private boolean skipBody;
 
-    // true during packet decoding: codec callbacks may run and channel close is forbidden (see NioWorker.close)
     boolean decoding;
 
     final IoChannelQueue subQueue;
@@ -536,7 +535,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private void cleanParseStatus(Throwable ex, String reason) {
         workerStatus.removeFromDecodeList(this);
-        decoding = false;
         currentDecoderCallback = null;
         if (packet != null) {
             packet.clean();
@@ -547,6 +545,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             requestForResp = null;
             pir.callFail(ex == null ? new NetException(reason) : ex);
         }
+        // set after callFail: if the callback closes the channel, NioWorker.close defers it
+        decoding = false;
     }
 
     // for unit test

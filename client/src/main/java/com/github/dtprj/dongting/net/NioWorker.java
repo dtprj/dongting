@@ -667,9 +667,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         if (dtc.decoding) {
-            // codec callbacks (decoder factory / body decode) must not close channel,
-            // they should throw exception on decode failure
-            BugLog.log(new NetException("close channel during packet decoding, ignored: " + dtc));
+            log.warn("close channel during packet decoding, deffer it: {}", dtc);
+            closeLater(dtc, ex);
             return;
         }
 
