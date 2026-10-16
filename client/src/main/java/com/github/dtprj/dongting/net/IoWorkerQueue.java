@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
@@ -58,10 +59,15 @@ class IoWorkerQueue {
     public void dispatchActions() {
         Object data;
         while ((data = queue.relaxedPoll()) != null) {
-            if (data instanceof PacketInfo) {
-                processWriteData((PacketInfo) data);
-            } else {
-                ((Runnable) data).run();
+            try {
+                if (data instanceof PacketInfo) {
+                    processWriteData((PacketInfo) data);
+                } else {
+                    ((Runnable) data).run();
+                }
+            } catch (Throwable e) {
+                // one failing action must not abort the drain, other queued futures depend on it
+                BugLog.log("dispatch io action fail: {}", data, e);
             }
         }
     }

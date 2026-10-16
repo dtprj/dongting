@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
@@ -100,12 +101,18 @@ class IoChannelQueue {
 
         packetInfo.perfTimeOrAddOrder = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_CHANNEL_QUEUE, workerStatus.ts);
         subQueue.addLast(packetInfo);
+        workerStatus.addPacketsToWrite(1);
 
         if (subQueue.size() == 1 && !writing) {
-            selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+            try {
+                selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+            } catch (CancelledKeyException e) {
+                // the socket was closed by external code, close the channel so queued packets fail
+                dtc.workerStatus.worker.close(dtc, e);
+                return;
+            }
             perfCallback.fire(PerfConsts.RPC_C_MARK_WRITE);
         }
-        workerStatus.addPacketsToWrite(1);
     }
 
     // called when channel is closing
