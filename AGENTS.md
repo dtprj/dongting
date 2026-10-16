@@ -6,7 +6,7 @@
   - The MCP `read_file` tool is better than the built-in read tool
 
 ## Project Overview
-- **Multi-module Maven project** with Java 11 (Java 8 for client module)
+- **Multi-module Maven project**; build with JDK 17+ (client targets Java 8, server Java 11)
 - **High-performance, zero-dependency** raft/kv/mq engine
 - **Fiber-based concurrency** framework (coroutines)
 - **Project name**: Always use "dongting" (English), never Chinese name
@@ -16,7 +16,7 @@
 - **client**: Java 8 compatible, has module-info.java, multiple compile profiles
 - **client-ex**: Development only, copied into client module during package
 - **server**: Java 11+, depends on client
-- **test-support**: Shared test utilities
+- **test-support**: Shared test utilities, Java 17+
 - **dist**: Java 11+, packaging and scripts only
 - **it-test**: Integration tests
 - **demos**: Example applications

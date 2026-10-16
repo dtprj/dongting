@@ -87,7 +87,7 @@ void testLockExpiration() {
 
 ## Build Requirements
 
-- **Java version**: Java 11 for server, Java 8 for client module
+- **Java version**: build with JDK 17+ (test-support); server targets 11, client targets 8
 - **Build tool**: Maven
 - **Module structure**: Multi-module Maven project
 
