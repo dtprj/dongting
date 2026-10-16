@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -190,8 +191,14 @@ public class NodeManager extends AbstractLifeCircle {
                 timeout, RpcCallback.fromFuture(f));
         CompletableFuture<Void> f2 = f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
         // we should set connecting status in schedule thread
-        return f2.whenCompleteAsync((v, ex) ->
-                processResultInLock(nodeEx, ex), executor);
+        return f2.whenComplete((v, ex) -> {
+            try {
+                executor.execute(() -> processResultInLock(nodeEx, ex));
+            } catch (RejectedExecutionException e) {
+                // executor is shutting down, run inline so pinging is reset
+                processResultInLock(nodeEx, ex);
+            }
+        });
     }
 
     // run in io thread
@@ -312,7 +319,16 @@ public class NodeManager extends AbstractLifeCircle {
 
     public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
         CompletableFuture<RaftNodeEx> f = new CompletableFuture<>();
+        if (status >= STATUS_PREPARE_STOP) {
+            f.completeExceptionally(new RaftException("node manager stopped"));
+            return f;
+        }
         addToNioClient(node).whenCompleteAsync((nodeEx, ex) -> {
+            if (ex != null) {
+                log.error("add node fail", ex);
+                f.completeExceptionally(ex);
+                return;
+            }
             lock.lock();
             try {
                 RaftNodeEx existNode = allNodesEx.get(nodeEx.nodeId);
@@ -340,6 +356,10 @@ public class NodeManager extends AbstractLifeCircle {
 
     public CompletableFuture<Void> removeNode(int nodeId) {
         CompletableFuture<Void> f = new CompletableFuture<>();
+        if (status >= STATUS_PREPARE_STOP) {
+            f.completeExceptionally(new RaftException("node manager stopped"));
+            return f;
+        }
         if (nodeId == selfNodeId) {
             f.completeExceptionally(new RaftException("can not remove self"));
             return f;
@@ -353,7 +373,13 @@ public class NodeManager extends AbstractLifeCircle {
                     f.complete(null);
                 } else if (existNode.useCount == 0) {
                     allNodesEx.remove(nodeId);
-                    client.removePeer(existNode.peer).thenRun(() -> f.complete(null));
+                    client.removePeer(existNode.peer).whenComplete((v, ex) -> {
+                        f.complete(null);
+                        if (ex != null) {
+                            log.warn("remove peer fail after node {} removed, endPoint={}",
+                                    nodeId, existNode.peer.endPoint, ex);
+                        }
+                    });
                 } else {
                     f.completeExceptionally(new RaftException("node is in use, ref count: " + existNode.useCount));
                 }
