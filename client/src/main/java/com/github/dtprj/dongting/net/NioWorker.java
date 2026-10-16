@@ -466,6 +466,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         SocketChannel sc = null;
+        ConnectInfo ci = null;
         try {
             HostPort hp = peer.endPoint;
             InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
@@ -474,7 +475,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
             sc.configureBlocking(false);
 
-            ConnectInfo ci = new ConnectInfo();
+            ci = new ConnectInfo();
             ci.future = f;
             ci.peer = peer;
             ci.channel = sc;
@@ -486,15 +487,31 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             sc.register(selector, SelectionKey.OP_CONNECT, ci);
             sc.connect(addr);
         } catch (Throwable e) {
-            if (sc != null) {
-                closeChannel0(sc);
+            if (ci != null) {
+                failConnect(ci, new NetException(e));
+            } else {
+                if (sc != null) {
+                    closeChannel0(sc);
+                }
+                peer.markNotConnect(config, workerStatus, byAutoRetry);
+                peer.connectInfo = null;
+                NetException netEx = new NetException(e);
+                peer.cleanWaitingConnectList(wd -> netEx);
+                f.completeExceptionally(netEx);
             }
-            peer.markNotConnect(config, workerStatus, byAutoRetry);
-            peer.connectInfo = null;
-            NetException netEx = new NetException(e);
-            peer.cleanWaitingConnectList(wd -> netEx);
-            f.completeExceptionally(netEx);
         }
+    }
+
+    private void failConnect(ConnectInfo ci, NetException ex) {
+        outgoingConnects.remove(ci);
+        Peer peer = ci.peer;
+        peer.connectInfo = null;
+        closeChannel0(ci.channel);
+        if (peer.status != PeerStatus.removed) {
+            peer.markNotConnect(config, workerStatus, ci.byAutoRetry);
+        }
+        peer.cleanWaitingConnectList(wd -> ex);
+        ci.future.completeExceptionally(ex);
     }
 
     // called client side
@@ -507,7 +524,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         if (status >= STATUS_PREPARE_STOP) {
-            // do clean in cleanTimeoutConnect() called in run()
+            failConnect(ci, new NetException("worker closed"));
             return;
         }
         try {
@@ -517,12 +534,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             channelsList.add(dtc);
         } catch (Throwable e) {
             log.warn("connect channel fail: {}, {}", ci.peer.endPoint, e.toString());
-            closeChannel0(channel);
-            ci.peer.markNotConnect(config, workerStatus, ci.byAutoRetry);
-            ci.peer.connectInfo = null;
-            NetException netEx = new NetException(e);
-            ci.peer.cleanWaitingConnectList(wd -> netEx);
-            ci.future.completeExceptionally(netEx);
+            failConnect(ci, new NetException(e));
             return;
         }
 
@@ -611,15 +623,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (Thread.currentThread() == thread) {
             runnable.run();
         } else {
-            scheduleInIoThread(runnable, future);
-        }
-    }
-
-    private void scheduleInIoThread(Runnable runnable, CompletableFuture<?> future) {
-        boolean b = ioWorkerQueue.scheduleFromBizThread(runnable);
-        wakeup();
-        if (!b && future != null) {
-            future.completeExceptionally(new NetException("closed"));
+            boolean b = ioWorkerQueue.scheduleFromBizThread(runnable);
+            wakeup();
+            if (!b && future != null) {
+                future.completeExceptionally(new NetException("closed"));
+            }
         }
     }
 
@@ -628,21 +636,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         boolean b = ioWorkerQueue.scheduleFromBizThread(() -> {
             peer.shouldAutoReconnect = false;
             ConnectInfo ci = peer.connectInfo;
-            if (ci != null) {
+            if (ci != null && peer.dtChannel == null) {
                 // cancel the in-flight connect, otherwise whenConnected creates a channel out of peers list
-                peer.connectInfo = null;
-                outgoingConnects.remove(ci);
-                closeChannel0(ci.channel);
-                if (peer.status != PeerStatus.removed) {
-                    peer.markNotConnect(config, workerStatus, false);
-                }
-                NetException ex = new NetException("peer disconnected");
-                peer.cleanWaitingConnectList(wd -> ex);
-                ci.future.completeExceptionally(ex);
+                failConnect(ci, new NetException("peer disconnected"));
             }
             if (peer.dtChannel == null) {
                 f.complete(null);
                 return;
+            }
+            if (ci != null) {
+                // handshake in progress: fail requests that arrived after sendHandshake drained the list
+                peer.cleanWaitingConnectList(wd -> new NetException("peer disconnected"));
             }
             try {
                 close(peer.dtChannel);
@@ -756,11 +760,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void cleanOutgoingTimeoutConnect(Timestamp roundStartTime) {
         boolean close = status >= STATUS_STOPPING;
-        for (Iterator<ConnectInfo> it = this.outgoingConnects.iterator(); it.hasNext(); ) {
-            ConnectInfo ci = it.next();
+        if (outgoingConnects.isEmpty()) {
+            return;
+        }
+        // iterate a copy: failConnect callbacks may re-enter doConnect and structurally
+        // modify the list, a live Iterator would throw ConcurrentModificationException
+        List<ConnectInfo> snapshot = new ArrayList<>(outgoingConnects);
+        for (ConnectInfo ci : snapshot) {
             if (close || ci.deadline.isTimeout(roundStartTime)) {
-                ci.peer.markNotConnect(config, workerStatus, ci.byAutoRetry);
-                ci.peer.connectInfo = null;
                 NetException netEx;
                 if (close) {
                     log.info("worker closed, connect fail: {}", ci.peer.endPoint);
@@ -770,10 +777,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                             ci.peer.endPoint);
                     netEx = new NetTimeoutException("connect timeout");
                 }
-                closeChannel0(ci.channel);
-                ci.peer.cleanWaitingConnectList(wd -> netEx);
-                ci.future.completeExceptionally(netEx);
-                it.remove();
+                failConnect(ci, netEx);
             }
         }
     }
