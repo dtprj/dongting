@@ -167,7 +167,7 @@ public class CloseTest {
                         if (resp != null) {
                             resp.clean();
                         }
-                        deferred.complete(dtc.decoding && !dtc.isClosed() && (decodeFail == (ex != null)));
+                        deferred.complete(dtc.encodingOrDecoding && !dtc.isClosed() && (decodeFail == (ex != null)));
                     }, ctx -> new RefBufferDecoderCallback() {
                         @Override
                         public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
@@ -186,12 +186,13 @@ public class CloseTest {
             assertTrue(resp.encode(new EncodeContext(dtc.workerStatus.buffers), buf));
             buf.flip();
             dtc.afterRead(true, buf);
-            assertFalse(dtc.decoding);
+            assertFalse(dtc.encodingOrDecoding);
             assertNull(dtc.getPacket());
         });
         assertTrue(deferred.get(10, TimeUnit.SECONDS));
         runInIoThread(() -> {
-            assertTrue(dtc.nioWorkerClose);
+            assertTrue(dtc.isClosed());
+            assertNull(dtc.peer.dtChannel);
             assertFalse(dtc.getChannel().isOpen());
             assertEquals(0, dtc.workerStatus.pendingReqSize());
         });

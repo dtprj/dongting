@@ -410,11 +410,12 @@ class IoChannelQueue {
     }
 
     public void processWriteEvent(SocketChannel sc, SelectionKey key, Timestamp roundTime) throws IOException {
-        dtc.encoding = true;
+        dtc.encodingOrDecoding = true;
         try {
             processWriteEvent0(sc, key, roundTime);
         } finally {
-            dtc.encoding = false;
+            dtc.encodingOrDecoding = false;
+            dtc.workerStatus.worker.executePendingClose(dtc);
         }
     }
 

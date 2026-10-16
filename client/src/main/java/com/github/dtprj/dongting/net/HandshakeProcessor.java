@@ -45,6 +45,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         DtChannelImpl dtc = (DtChannelImpl) reqContext.getDtChannel();
         if (dtc.handshake) {
             log.warn("handshake already done: {}", dtc.getChannel());
+            packet.clean();
             return null;
         }
 
@@ -52,8 +53,8 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         if (reqBody == null || reqBody.processInfo == null ||
                 (reqBody.processInfo.uuid1 == 0 && reqBody.processInfo.uuid2 == 0)) {
             log.warn("handshake failed, invalid req from {}", dtc.getChannel());
-            dtc.close(null);
-            dtc.workerStatus.worker.closeLater(dtc, null);
+            packet.clean();
+            dtc.workerStatus.worker.close(dtc, null);
             return null;
         }
 
@@ -75,7 +76,7 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         if (old != null && old != dtc) {
             DtChannelImpl oldDtc = (DtChannelImpl) old;
             log.info("client re-connected, close stale channel: old={}, new={}", oldDtc, dtc);
-            oldDtc.workerStatus.worker.closeLater(oldDtc, null);
+            oldDtc.workerStatus.worker.close(oldDtc, null);
         }
 
         return p;

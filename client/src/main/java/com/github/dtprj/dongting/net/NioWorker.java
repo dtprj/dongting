@@ -333,7 +333,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 dtc.afterRead(status == STATUS_RUNNING, readBuffer);
             }
             stage = "process socket write";
-            if (key.isWritable()) {
+            if (!dtc.closed && key.isWritable()) {
                 dtc.subQueue.processWriteEvent(sc, key, roundTime);
             }
         } catch (NetException | IOException e) {
@@ -544,7 +544,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (ex != null) {
                 log.error("handshake fail: {}", ex);
                 ci.future.completeExceptionally(ex);
-                closeLater(dtc, ex);
+                close(dtc, ex);
             } else {
                 handshakeSuccess(dtc, ci, resp);
             }
@@ -583,14 +583,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             log.info("handshake while worker closed, ignore it: {}", dtc.getChannel());
             NetException e = new NetException("worker closed");
             ci.future.completeExceptionally(e);
-            closeLater(dtc, e);
+            close(dtc, e);
             return;
         }
         if (resp.getBody() == null || resp.getBody().config == null) {
             log.error("handshake fail: invalid response");
             NetException e = new NetException("invalid handshake response");
             ci.future.completeExceptionally(e);
-            closeLater(dtc, e);
+            close(dtc, e);
             return;
         }
         ConfigBody cb = resp.getBody().config;
@@ -625,8 +625,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     public CompletableFuture<Void> disconnect(Peer peer) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        scheduleInIoThread(() -> {
+        boolean b = ioWorkerQueue.scheduleFromBizThread(() -> {
             peer.shouldAutoReconnect = false;
+            ConnectInfo ci = peer.connectInfo;
+            if (ci != null) {
+                // cancel the in-flight connect, otherwise whenConnected creates a channel out of peers list
+                peer.connectInfo = null;
+                outgoingConnects.remove(ci);
+                closeChannel0(ci.channel);
+                if (peer.status != PeerStatus.removed) {
+                    peer.markNotConnect(config, workerStatus, false);
+                }
+                NetException ex = new NetException("peer disconnected");
+                peer.cleanWaitingConnectList(wd -> ex);
+                ci.future.completeExceptionally(ex);
+            }
             if (peer.dtChannel == null) {
                 f.complete(null);
                 return;
@@ -637,7 +650,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             } catch (Throwable e) {
                 f.completeExceptionally(e);
             }
-        }, f);
+        });
+        wakeup();
+        if (!b) {
+            // worker is stopping, run() closes all channels and connects
+            log.info("worker closed, ignore disconnect: {}", peer.endPoint);
+            f.complete(null);
+        }
         return f;
     }
 
@@ -647,6 +666,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (obj instanceof DtChannelImpl) {
             DtChannelImpl dtc = (DtChannelImpl) obj;
             close(dtc, ex);
+        } else if (obj instanceof ConnectInfo) {
+            // the connect was cancelled (e.g. by disconnect) but the key is still in the selected set
+            closeChannel0(sc);
         } else {
             BugLog.log("assert false. key attachment is not " + DtChannelImpl.class.getName());
             closeChannel0(sc);
@@ -654,25 +676,33 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    void closeLater(DtChannelImpl dtc, Throwable ex) {
-        ioWorkerQueue.scheduleFromBizThread(() -> close(dtc, ex));
-        wakeup();
-    }
-
     void close(DtChannelImpl dtc) {
         close(dtc, null);
     }
 
     void close(DtChannelImpl dtc, Throwable ex) {
-        if (dtc.nioWorkerClose) {
+        if (dtc.closed) {
             return;
         }
-        if (dtc.decoding || dtc.encoding) {
-            closeLater(dtc, ex);
+        if (dtc.encodingOrDecoding) {
+            // the channel's read/write callback is on the stack, executePendingClose closes it when the callback returns
+            dtc.closePending = true;
+            if (ex != null && dtc.closeCause == null) {
+                dtc.closeCause = ex;
+            }
             return;
         }
+        doClose(dtc, ex);
+    }
 
-        dtc.nioWorkerClose = true;
+    void executePendingClose(DtChannelImpl dtc) {
+        if (dtc.closePending && !dtc.closed) {
+            doClose(dtc, dtc.closeCause);
+        }
+    }
+
+    private void doClose(DtChannelImpl dtc, Throwable ex) {
+        dtc.closed = true;
         dtc.close(ex);
 
         if (server) {

@@ -76,15 +76,15 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private boolean skipBody;
 
-    boolean decoding;
-    boolean encoding;
+    // set while inside afterRead/processWriteEvent, a close request in that window only sets closePending
+    boolean encodingOrDecoding;
+    boolean closePending;
+    Throwable closeCause;
 
     final IoChannelQueue subQueue;
 
     private boolean running = true;
-    private boolean closed;
-    // close() only marks the channel unusable, NioWorker.close() releases socket/key/queues and sets this flag
-    boolean nioWorkerClose;
+    boolean closed;
     boolean handshake;
     boolean listenerOnConnectedCalled;
 
@@ -116,11 +116,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (!running) {
             this.running = false;
         }
-        decoding = true;
+        encodingOrDecoding = true;
         try {
             parser.parse(buf);
         } finally {
-            decoding = false;
+            encodingOrDecoding = false;
+            workerStatus.worker.executePendingClose(this);
         }
     }
 
@@ -131,7 +132,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     @Override
     protected void begin(int len) {
-        if (closed) {
+        if (closed || closePending) {
             throw new NetException("channel closed");
         }
         this.currentReadPacketSize = len;
@@ -516,11 +517,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         workerStatus.worker.close(this, new NetTimeoutException(msg));
     }
 
+    // called only by NioWorker.doClose, which sets closed before this so reentrant close requests are rejected
     void close(Throwable ex) {
-        if (closed) {
-            return;
-        }
-        closed = true;
         try {
             if (ex != null && !(ex instanceof NetException)) {
                 ex = new NetException("channel close", ex);
