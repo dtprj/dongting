@@ -200,6 +200,8 @@ class IoChannelQueue {
         } catch (RuntimeException | Error e) {
             encodeContext.reset();
             // channel will be closed, and cleanChannelQueue will be called
+            writeBufList.clear();
+            gatheringBufferCacheOffset = -1;
             releaseWriteBuffer();
             throw e;
         }

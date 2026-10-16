@@ -107,7 +107,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (!server && request.command != Commands.CMD_HANDSHAKE && !request.acquirePermit) {
                 acquirePermit = acquirePermit(request, timeout);
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             if (e instanceof InterruptedException) {
                 DtUtil.restoreInterruptStatus();
             }

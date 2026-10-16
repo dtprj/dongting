@@ -28,7 +28,10 @@ public abstract class ReqProcessor<T> {
     Executor executor;
     boolean useDefaultExecutor;
 
-    /** Takes ownership of the request/body; clean it or transfer ownership, even on null return or failure. */
+    /**
+     * Takes ownership of the request/body, the caller should not call packet.clean() after calling this method,
+     * and the implementation must clean it or transfer its ownership onward, even on null return or failure.
+     */
     public abstract WritePacket process(ReadPacket<T> packet, ReqContext reqContext) throws Exception;
 
     public abstract DecoderCallback<T> createDecoderCallback(int command, DecodeContext context);

@@ -54,6 +54,9 @@ public class Decoder {
     }
 
     public void prepareNext(DecodeContext context, DecoderCallback<?> callback) {
+        if (beginCalled && !endCalled) {
+            callEndAndReset(false);
+        }
         this.context = context;
         this.callback = callback;
 
@@ -68,14 +71,14 @@ public class Decoder {
         if (endCalled) {
             throw new CodecException("decode finished");
         }
-        if (currentPos == 0 && !beginCalled) {
-            beginCalled = true;
-            callback.begin(bodyLen);
-        }
         int oldLimit = buffer.limit();
         int recordEndPos = buffer.position() + bodyLen - currentPos;
         boolean allDataAvailable = oldLimit >= recordEndPos;
         try {
+            if (currentPos == 0 && !beginCalled) {
+                beginCalled = true;
+                callback.begin(bodyLen);
+            }
             if (oldLimit > recordEndPos) {
                 buffer.limit(recordEndPos);
             }

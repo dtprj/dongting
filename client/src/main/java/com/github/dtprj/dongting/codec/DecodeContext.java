@@ -65,7 +65,7 @@ public class DecodeContext {
         reset();
         try {
             root.reset();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("reset error", e);
         }
     }
@@ -74,7 +74,7 @@ public class DecodeContext {
         reset();
         try {
             root.reset();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("reset error", e);
         }
     }
@@ -84,10 +84,18 @@ public class DecodeContext {
             nestedContext.reset();
         }
         if (nestedParser != null) {
-            nestedParser.reset();
+            try {
+                nestedParser.reset();
+            } catch (Throwable e) {
+                log.error("reset error", e);
+            }
         }
         if (nestedDecoder != null) {
-            nestedDecoder.reset();
+            try {
+                nestedDecoder.reset();
+            } catch (Throwable e) {
+                log.error("reset error", e);
+            }
         }
     }
 
