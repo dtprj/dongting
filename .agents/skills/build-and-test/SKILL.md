@@ -1,11 +1,9 @@
 ---
 name: build-and-test
-description: Build/test commands, and unit testing key points including BugLog handling guidelines.
+description: Build/test commands, and unit testing key points including BugLog handling and tick/sleep timing rules.
 ---
 
 # Build and Test
-
-This skill provides commands and patterns for building and testing the Dongting project.
 
 ## Quick Reference
 
@@ -45,6 +43,13 @@ Due to the project's complex build process (multiple compilation phases in pom.x
 1. **If IntelliJ-IDEA MCP is available** (recommended): Use it for accurate code analysis and building. See the [idea-mcp skill](../idea-mcp/SKILL.md) for usage instructions.
 2. **Otherwise** (e.g., IDEA not running): Use Maven commands directly.
 
+## Test Timing Rules
+
+- Scale all sleeps/waits/timeouts with `Tick.tick(n)`; `Thread.sleep` no longer than `tick(5)`, unless the sleep is the behavior under test
+- **Stability bar**: tests must pass almost every time with `-Dtick=1` on a modern mainstream computer, and must be guaranteed to pass with `-Dtick=3` on very slow machines
+- Prefer event-driven waits (blocking read, `Future.get`, `WaitUtil` for conditions without an event source) over sleeps
+- When waiting for a production timeout, shrink it under test (e.g. `maxPacketDecodeNanos = tick(10)`, with `cleanInterval`/`selectTimeout` = 1ms), but keep it several times any work that must finish first
+
 ## BugLog in Unit Tests
 
 The project uses `BugLogExtension` to check BugLog state after each test. If BugLog was triggered, the test fails with "BugLog count should be 0".
@@ -54,7 +59,6 @@ The project uses `BugLogExtension` to check BugLog state after each test. If Bug
 1. **BugLog state is global** - One test not resetting BugLog causes ALL subsequent tests to fail
 2. **Only fix the FIRST failing test** - When multiple tests fail due to BugLog, find and fix only the first one; the others will pass automatically
 3. **Not all time adjustments trigger BugLog** - Only operations that cause "nanoTime go back" or other error conditions trigger BugLog
-4. **Reset immediately after the triggering code** - Don't wrap the entire test in try-finally; reset right after the code that triggers BugLog
 
 ### When to Reset BugLog
 
@@ -88,7 +92,3 @@ void testLockExpiration() {
 ## Build Requirements
 
 - **Java version**: build with JDK 17+ (test-support); server targets 11, client targets 8
-- **Build tool**: Maven
-- **Module structure**: Multi-module Maven project
-
-See [project-structure.md](references/project-structure.md) for module details.

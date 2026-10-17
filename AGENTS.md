@@ -1,7 +1,7 @@
 ## Build and Test
 
-- Before running compile/package/test commands or writing tests, see [build-and-test](.agents/skills/build-and-test/SKILL.md) skill for important details.
-- If `IntelliJ-IDEA` MCP is available, prioritize using the tools it provides. Usage skill: [idea-mcp](.agents/skills/idea-mcp/SKILL.md)
+- Before running compile/package/test commands or writing tests, see `build-and-test` skill for important details.
+- If `IntelliJ-IDEA` MCP is available, prioritize using the tools it provides. Usage skill: `idea-mcp`
   - The MCP `build_project`/`get_file_problems` tools report issues more accurately than LSP
   - The MCP `read_file` tool is better than the built-in read tool
 
@@ -28,12 +28,11 @@
 - Use object pools (e.g., `ByteBufferPool`)
 - Minimize allocations in hot paths
 - Use direct buffers for I/O
-- Profile with performance constants in `PerfConsts`
+- Profile with performance constants in `PerfConsts` (the perf ops never throw exception like logger)
 
 ### Zero Dependency Principle
 - Main code implements custom protobuf encoding/decoding
-- Protobuf files (`dt_packet.proto`, `dt_kv.proto`, `dt_raft_server.proto`) in test directories
-- Generated protobuf code used only in tests
+- Protobuf files in test directories, generated protobuf code used only in tests
 - No external dependencies in production code
 
 ### ID Constraints
@@ -56,31 +55,33 @@ For encapsulation purposes, some classes have a single implementation:
 
 **Rule**: When you have a parent class instance but need child class methods, cast directly to the child class—this is safe and intentional.
 
+### ByteBuffer.array() Usage
+- If the ByteBuffer is external (not allocated/wrapped within the current class), always include `arrayOffset()` in index calculations — it may have been sliced.
+
 ### Error Handling
 - Use `BugLog` for unexpected errors (safer than assert): `BugLog.log(exception)`
+- Events that are expected to happen must never be logged to BugLog. If a BugLog entry appears, either eliminate the bug or change it to log.error
 - Search logs with `grep BugLog` to find unexpected issues
 - Fiber errors: `Fiber.fatal()` for unrecoverable errors
 
 ### Testing
-- Framework: JUnit 6 (org.junit.jupiter)
 - Use `Tick.tick(millis)` to scale timeouts based on `-Dtick=N`
 - Use `WaitUtil.waitUtil()` for polling conditions
 - In unit tests, do not sleep longer than `Thread.sleep(tick(5))` unless necessary
+- Do not over-test; test code must not only grow and never shrink
 
 ## Coding Conventions
 
-### File Headers
-All Java files must include Apache 2.0 license header (17 lines)
-
 ### Comments
-- Do not add comments on your own initiative; correcting existing comments that are inconsistent with the code is allowed
-- Don't delete existing comments unless they are no longer relevant
-- Java source code and comments: **English only**
+- Do not add comments unless necessary; leave a single line only at key points
+- Comments should only point out the key points and direction; details can be seen in the code, so there is no need to write at length
+- When modifying existing comments, do not pile on more text; consider simplifying — one line is best
 
 ### Field Access Pattern
 - Internal usage: Access public/package-private fields directly
 - External API: Use getter/setter methods when additional logic is needed
-- Encapsulation: Some classes use single-child pattern for hiding internals (e.g., `DtChannel` -> `DtChannelImpl`, `RaftGroup` -> `RaftGroupImpl`)
 
-### ByteBuffer.array() Usage
-- If the ByteBuffer is external (not allocated/wrapped within the current class), always include `arrayOffset()` in index calculations — it may have been sliced.
+### git
+- git push is forbidden
+- Do not commit without user's permission
+- A git commit message is usually a single line — only a very complex commit may use a one-line summary plus 2-3 lines of detail
