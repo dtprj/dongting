@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -307,6 +308,55 @@ public class CloseTest {
             assertNull(dtc.peer.dtChannel);
             assertFalse(dtc.getChannel().isOpen());
             assertEquals(0, dtc.workerStatus.pendingReqSize());
+        });
+    }
+
+    @Test
+    public void testHeaderParseFailCausePropagatedToPendingReq() throws Exception {
+        setup(() -> { }, 1000000);
+        DtChannelImpl dtc = client.getPeers().get(0).dtChannel;
+        CompletableFuture<Throwable> result = new CompletableFuture<>();
+        Throwable[] thrown = new Throwable[1];
+        runInIoThread(() -> {
+            dtc.peer.shouldAutoReconnect = false;
+            ByteBufferWritePacket req = new ByteBufferWritePacket(null);
+            req.packetType = PacketType.TYPE_REQ;
+            req.command = CMD;
+            req.seq = dtc.getAndIncSeq();
+            PacketInfoReq pi = new PacketInfoReq(null, null, dtc, req, new DtTime(10, TimeUnit.SECONDS),
+                    (resp, ex) -> result.complete(ex), ctx -> new RefBufferDecoderCallback(), true);
+            dtc.workerStatus.addPendingReq(pi);
+
+            // a response packet with an extra varint field appended after the body field
+            ByteBufferWritePacket resp = new ByteBufferWritePacket(ByteBuffer.allocate(1));
+            resp.packetType = PacketType.TYPE_RESP;
+            resp.command = CMD;
+            resp.seq = req.seq;
+            ByteBuffer buf = ByteBuffer.allocate(resp.actualSize() + 2);
+            assertTrue(resp.encode(new EncodeContext(dtc.workerStatus.buffers), buf));
+            buf.putInt(0, buf.getInt(0) + 2);
+            buf.put((byte) 0x08); // tag: index 1, varint
+            buf.put((byte) 0x01);
+            buf.flip();
+            try {
+                dtc.afterRead(true, buf);
+                result.complete(new NetException("no parse exception thrown"));
+            } catch (PbException e) {
+                // the same exception is passed to end(false, ex) which fails the pending request
+                thrown[0] = e;
+            }
+            assertNull(dtc.getPacket());
+            assertEquals(0, dtc.workerStatus.pendingReqSize());
+            // mimic NioWorker: the parse exception also closes the channel; the deferred
+            // request callback must still receive the original parse exception
+            client.worker.close(dtc, thrown[0]);
+        });
+        Throwable ex = result.get(10, TimeUnit.SECONDS);
+        assertEquals(PbException.class, ex.getClass());
+        assertSame(thrown[0], ex);
+        runInIoThread(() -> {
+            assertTrue(dtc.isClosed());
+            assertNull(dtc.peer.dtChannel);
         });
     }
 

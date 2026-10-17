@@ -97,7 +97,7 @@ public class PbParserTest {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected void end(boolean success, Throwable ex) {
             endCount++;
         }
 
@@ -239,7 +239,7 @@ public class PbParserTest {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected void end(boolean success, Throwable ex) {
             if (success) {
                 endSuccessCount++;
                 afterSuccess();
@@ -539,7 +539,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            protected void end(boolean success) {
+            protected void end(boolean success, Throwable ex) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };

@@ -35,7 +35,7 @@ final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
     }
 
     @Override
-    protected void end(boolean success) {
+    protected void end(boolean success, Throwable ex) {
         result = null;
         callback = null;
         parser.reset();

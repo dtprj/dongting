@@ -146,9 +146,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    protected void end(boolean success) {
+    protected void end(boolean success, Throwable ex) {
         if (!success) {
-            cleanParseStatus(null, "unknown error");
+            cleanParseStatus(ex, "unknown error");
             return;
         }
         if (skipBody) {

@@ -244,7 +244,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
     }
 
     @Override
-    protected void end(boolean success) {
+    protected void end(boolean success, Throwable ex) {
         totalParsedBytes = 0;
         if (fullRefBuffer != null) {
             fullRefBuffer.release();

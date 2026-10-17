@@ -141,7 +141,7 @@ public class StrDecoderCallbackTest {
         dec.prepareNext(ctx, cb);
         // only first 30 bytes of a 100-byte field, parsing is not finished
         assertNull(dec.decode(ByteBuffer.wrap(d, 0, 30), 100, 0));
-        // simulate cancellation: reset -> StrDecoderCallback.end(false) releases the buffer
+        // simulate cancellation: reset -> StrDecoderCallback.end(false, null) releases the buffer
         ctx.reset(dec);
         assertAllReleased(borrowed);
     }
@@ -197,7 +197,7 @@ public class StrDecoderCallbackTest {
         part.limit(50);
         assertNull(parser.parse(part));
 
-        // simulate cancellation: reset cascades to nested decoder -> StrDecoderCallback.end(false)
+        // simulate cancellation: reset cascades to nested decoder -> StrDecoderCallback.end(false, null)
         ctx.reset(parser);
         assertAllReleased(borrowed);
     }

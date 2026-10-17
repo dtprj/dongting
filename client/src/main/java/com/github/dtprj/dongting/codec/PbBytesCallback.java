@@ -37,7 +37,7 @@ public class PbBytesCallback extends PbCallback<byte[]> {
     }
 
     @Override
-    protected void end(boolean success) {
+    protected void end(boolean success, Throwable ex) {
         bs = null;
     }
 }

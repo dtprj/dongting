@@ -59,7 +59,7 @@ public class PbParser {
             case STATUS_END_SKIP:
                 break;
             default:
-                callEnd(callback, false);
+                callEnd(callback, false, null);
         }
 
         /*
@@ -102,7 +102,7 @@ public class PbParser {
         try {
             return parse0(buf);
         } catch (RuntimeException | Error e) {
-            callEnd(callback, false);
+            callEnd(callback, false, e);
             throw e;
         }
     }
@@ -115,7 +115,7 @@ public class PbParser {
                 case STATUS_INIT:
                     callBegin(callback, size);
                     if (size == 0) {
-                        return callEnd(callback, true);
+                        return callEnd(callback, true, null);
                     }
                     break;
                 case STATUS_PARSE_TAG:
@@ -128,7 +128,7 @@ public class PbParser {
                 case STATUS_PARSE_FILED_BODY:
                     remain = onStatusParseFieldBody(buf, callback, remain);
                     if (size == parsedBytes && status == STATUS_PARSE_TAG) {
-                        return callEnd(callback, true);
+                        return callEnd(callback, true, null);
                     }
                     break;
                 default:
@@ -140,17 +140,17 @@ public class PbParser {
         }
     }
 
-    private Object callEnd(PbCallback<?> callback, boolean success) {
+    private Object callEnd(PbCallback<?> callback, boolean success, Throwable ex) {
         if (this.status > STATUS_END_SKIP) {
             try {
                 if (success) {
                     try {
                         return callback.getResult();
                     } finally {
-                        callback.end(true);
+                        callback.end(true, null);
                     }
                 } else {
-                    callback.end(false);
+                    callback.end(false, ex);
                     return null;
                 }
             } finally {

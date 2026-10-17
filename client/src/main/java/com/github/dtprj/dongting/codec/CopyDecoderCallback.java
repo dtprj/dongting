@@ -46,7 +46,7 @@ public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
     }
 
     @Override
-    public void end(boolean success) {
+    public void end(boolean success, Throwable ex) {
         if (tempRef != null) {
             tempRef.release();
             tempRef = null;

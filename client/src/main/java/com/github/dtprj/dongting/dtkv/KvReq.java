@@ -184,7 +184,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected void end(boolean success, Throwable ex) {
             req = null;
             keysSize = 0;
             uuid1 = 0;

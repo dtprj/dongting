@@ -35,7 +35,7 @@ public class BytesDecoderCallback extends DecoderCallback<byte[]> {
     }
 
     @Override
-    protected void end(boolean success) {
+    protected void end(boolean success, Throwable ex) {
         r = null;
     }
 }

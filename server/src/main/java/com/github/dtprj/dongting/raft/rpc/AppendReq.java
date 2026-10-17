@@ -123,7 +123,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected void end(boolean success, Throwable ex) {
             if (!success) {
                 result.clean();
             }

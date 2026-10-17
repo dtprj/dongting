@@ -167,7 +167,7 @@ public class RaftNode implements Encodable, Comparable<RaftNode> {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected void end(boolean success, Throwable ex) {
             this.nodeId = 0;
             this.host = null;
             this.port = 0;

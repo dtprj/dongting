@@ -24,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * Decode a UTF-8 string. The single-buffer case is handled by {@link #decodeSingleBuffer};
  * the multi-buffer case keeps the borrowed {@link RefBuffer} in {@link #tempRef} and releases
- * it in {@link #end(boolean)}, which the {@link Decoder} framework always invokes, so no
+ * it in {@link #end(boolean, Throwable)}, which the {@link Decoder} framework always invokes, so no
  * buffer leaks even if parsing is cancelled mid-field.
  *
  * @author huangli
@@ -119,7 +119,7 @@ public class StrDecoderCallback extends DecoderCallback<String> {
     }
 
     @Override
-    protected void end(boolean success) {
+    protected void end(boolean success, Throwable ex) {
         if (tempRef != null) {
             tempRef.release();
             tempRef = null;

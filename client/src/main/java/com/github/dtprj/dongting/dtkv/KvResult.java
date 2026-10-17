@@ -90,7 +90,7 @@ public class KvResult implements Encodable {
         private ByteArray keyInDir;
 
         @Override
-        protected void end(boolean success) {
+        protected void end(boolean success, Throwable ex) {
             bizCode = 0;
             data = null;
             keyInDir = null;

@@ -36,7 +36,14 @@ public abstract class AbstractCodecCallback<T> {
     protected void begin(int len) {
     }
 
-    protected void end(boolean success) {
+    /**
+     * @param success whether the parse/decode completed successfully
+     * @param ex      the exception that caused the failure; null if success is true, or if the
+     *                parse/decode was cancelled (e.g. by reset) without a specific exception.
+     *                It may be any exception thrown during parse/decode (e.g. CodecException),
+     *                not necessarily a NetException
+     */
+    protected void end(boolean success, Throwable ex) {
     }
 
     protected final StrEncoder parseStrEncoder(ByteBuffer buf, int fieldLen, int currentPos) {

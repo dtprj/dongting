@@ -137,7 +137,7 @@ public class KvNode implements Encodable {
         private byte[] data;
 
         @Override
-        protected void end(boolean success) {
+        protected void end(boolean success, Throwable ex) {
             createIndex = 0;
             createTime = 0;
             updateIndex = 0;

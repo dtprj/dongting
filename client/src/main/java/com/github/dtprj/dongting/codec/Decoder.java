@@ -32,17 +32,17 @@ public class Decoder {
 
     void reset() {
         if (beginCalled && !endCalled) {
-            callEndAndReset(false);
+            callEndAndReset(false, null);
         }
     }
 
-    private void callEndAndReset(boolean success) {
+    private void callEndAndReset(boolean success, Throwable ex) {
         if (endCalled) {
             return;
         }
         endCalled = true;
         try {
-            callback.end(success);
+            callback.end(success, ex);
         } finally {
             context.status = null;
             callback.context = null;
@@ -55,7 +55,7 @@ public class Decoder {
 
     public void prepareNext(DecodeContext context, DecoderCallback<?> callback) {
         if (beginCalled && !endCalled) {
-            callEndAndReset(false);
+            callEndAndReset(false, null);
         }
         this.context = context;
         this.callback = callback;
@@ -94,14 +94,14 @@ public class Decoder {
                 buffer.limit(oldLimit);
             }
             buffer.position(allDataAvailable ? recordEndPos : oldLimit);
-            callEndAndReset(false);
+            callEndAndReset(false, e);
             throw e;
         } finally {
             if (oldLimit > recordEndPos) {
                 buffer.limit(oldLimit);
             }
             if (allDataAvailable) {
-                callEndAndReset(true);
+                callEndAndReset(true, null);
             }
         }
     }
