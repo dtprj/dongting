@@ -45,6 +45,7 @@ public class PbParser {
     private int fieldIndex;
     private int fieldLen;
     private long tempValue;
+    private boolean skipField;
 
     private DecodeContext context;
 
@@ -89,6 +90,7 @@ public class PbParser {
         this.fieldIndex = 0;
         this.fieldLen = 0;
         this.tempValue = 0;
+        this.skipField = false;
     }
 
     public boolean isFinished() {
@@ -343,26 +345,39 @@ public class PbParser {
         int actualRead = Math.min(needRead, remain);
         int start = buf.position();
         int end = start + actualRead;
-        int oldLimit = buf.limit();
-        if (oldLimit > end) {
-            buf.limit(end);
-        }
-        try {
-            callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
-        } finally {
+        if (!skipField) {
+            int oldLimit = buf.limit();
             if (oldLimit > end) {
-                buf.limit(oldLimit);
+                buf.limit(end);
             }
-        }
-        if (buf.position() != end) {
-            throw new PbException("readBytes didn't consume all bytes. "
-                    + "fieldIndex=" + this.fieldIndex + ", fieldLen=" + fieldLen
-                    + ", currentPos=" + pendingBytes + ", class=" + callback.getClass().getName());
+            try {
+                callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
+            } finally {
+                if (oldLimit > end) {
+                    buf.limit(oldLimit);
+                }
+            }
+            int pos = buf.position();
+            if (pos != end) {
+                if (pos == start && pendingBytes == 0) {
+                    // unknown field: skip it, later chunks get no callback invocation
+                    buf.position(end);
+                    skipField = true;
+                } else {
+                    throw new PbException("readBytes didn't consume all bytes. "
+                            + "fieldIndex=" + this.fieldIndex + ", fieldLen=" + fieldLen
+                            + ", currentPos=" + pendingBytes + ", class=" + callback.getClass().getName());
+                }
+            }
+        } else {
+            // rest of a skipped field
+            buf.position(end);
         }
         parsedBytes += actualRead;
         if (needRead == actualRead) {
             pendingBytes = 0;
             status = STATUS_PARSE_TAG;
+            skipField = false;
         } else {
             pendingBytes += actualRead;
         }

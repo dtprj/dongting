@@ -603,4 +603,158 @@ public class PbParserTest {
         assertEquals(expectEndSuccess * 10, callback.endSuccessCount);
         assertEquals(expectEndFail * 10, callback.endFailCount);
     }
+
+    @Test
+    public void testUnknownLenDelimitedFieldSkipped() {
+        // f1=111 (varint), unknown len-delimited field 9 (2 bytes), f5=222 (fix32)
+        ByteBuffer buf = ByteBuffer.allocate(32);
+        PbUtil.writeInt32Field(buf, 1, 111);
+        buf.put((byte) ((9 << 3) | PbUtil.TYPE_LENGTH_DELIMITED));
+        buf.put((byte) 2);
+        buf.put((byte) 0xAB);
+        buf.put((byte) 0xCD);
+        PbUtil.writeFix32Field(buf, 5, 222);
+        buf.flip();
+
+        long[] f1 = new long[1];
+        int[] f5 = new int[1];
+        PbCallback<Object> callback = new PbCallback<Object>() {
+            @Override
+            public void readVarNumber(int index, long value) {
+                if (index == 1) {
+                    f1[0] = value;
+                }
+            }
+
+            @Override
+            public void readBytes(int index, ByteBuffer b, int fieldLen, int currentPos) {
+                // unknown index: leave the chunk untouched, the parser skips it
+            }
+
+            @Override
+            public void readFix32(int index, int value) {
+                if (index == 5) {
+                    f5[0] = value;
+                }
+            }
+
+            @Override
+            protected Object getResult() {
+                return this;
+            }
+        };
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining());
+        assertNotNull(parser.parse(buf));
+        assertEquals(111, f1[0]);
+        assertEquals(222, f5[0]);
+    }
+
+    @Test
+    public void testPartialConsumeFails() {
+        ByteBuffer buf = ByteBuffer.allocate(16);
+        buf.put((byte) ((9 << 3) | PbUtil.TYPE_LENGTH_DELIMITED));
+        buf.put((byte) 2);
+        buf.put((byte) 0xAB);
+        buf.put((byte) 0xCD);
+        buf.flip();
+
+        PbCallback<Object> callback = new PbCallback<Object>() {
+            @Override
+            public void readBytes(int index, ByteBuffer b, int fieldLen, int currentPos) {
+                b.get(); // consume only one of the two bytes
+            }
+
+            @Override
+            protected Object getResult() {
+                return this;
+            }
+        };
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining());
+        PbException ex = assertThrows(PbException.class, () -> parser.parse(buf));
+        assertTrue(ex.getMessage().contains("didn't consume all bytes"));
+    }
+
+    @Test
+    public void testUnknownLenDelimitedFieldMultiChunkSkipped() {
+        // unknown len-delimited field 9 (5 bytes) split across two parse() calls
+        ByteBuffer part1 = ByteBuffer.allocate(8);
+        part1.put((byte) ((9 << 3) | PbUtil.TYPE_LENGTH_DELIMITED));
+        part1.put((byte) 5);
+        part1.put((byte) 1);
+        part1.put((byte) 2);
+        part1.flip();
+
+        ByteBuffer part2 = ByteBuffer.allocate(8);
+        part2.put((byte) 3);
+        part2.put((byte) 4);
+        part2.put((byte) 5);
+        PbUtil.writeFix32Field(part2, 5, 222);
+        part2.flip();
+
+        int[] f5 = new int[1];
+        int[] readBytesCount = new int[1];
+        PbCallback<Object> callback = new PbCallback<Object>() {
+            @Override
+            public void readBytes(int index, ByteBuffer b, int fieldLen, int currentPos) {
+                // unknown index: leave the chunk untouched, the parser then skips the field
+                readBytesCount[0]++;
+            }
+
+            @Override
+            public void readFix32(int index, int value) {
+                if (index == 5) {
+                    f5[0] = value;
+                }
+            }
+
+            @Override
+            protected Object getResult() {
+                return this;
+            }
+        };
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, part1.remaining() + part2.remaining());
+        assertNull(parser.parse(part1));
+        assertNotNull(parser.parse(part2));
+        assertEquals(1, readBytesCount[0]);
+        assertEquals(222, f5[0]);
+    }
+
+    @Test
+    public void testStopConsumeMidFieldFails() {
+        // field 2 (5 bytes) split across two parse() calls; callback consumes only the first chunk
+        ByteBuffer part1 = ByteBuffer.allocate(8);
+        part1.put((byte) ((2 << 3) | PbUtil.TYPE_LENGTH_DELIMITED));
+        part1.put((byte) 5);
+        part1.put((byte) 1);
+        part1.put((byte) 2);
+        part1.flip();
+
+        ByteBuffer part2 = ByteBuffer.allocate(8);
+        part2.put((byte) 3);
+        part2.put((byte) 4);
+        part2.put((byte) 5);
+        part2.flip();
+
+        PbCallback<Object> callback = new PbCallback<Object>() {
+            @Override
+            public void readBytes(int index, ByteBuffer b, int fieldLen, int currentPos) {
+                if (currentPos == 0) {
+                    b.position(b.limit());
+                }
+            }
+
+            @Override
+            protected Object getResult() {
+                return this;
+            }
+        };
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, part1.remaining() + part2.remaining());
+        assertNull(parser.parse(part1));
+        PbException ex = assertThrows(PbException.class, () -> parser.parse(part2));
+        assertTrue(ex.getMessage().contains("didn't consume all bytes"));
+    }
 }

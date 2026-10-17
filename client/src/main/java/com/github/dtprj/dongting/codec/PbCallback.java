@@ -31,6 +31,10 @@ public abstract class PbCallback<T> extends AbstractCodecCallback<T> {
     public void readFix64(int index, long value) {
     }
 
+    /**
+     * Consume the whole chunk for recognized indexes (buf limit is the chunk end), or leave the
+     * first chunk untouched to skip an unknown field; partial consumption fails the parse.
+     */
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         buf.position(buf.limit());
     }
