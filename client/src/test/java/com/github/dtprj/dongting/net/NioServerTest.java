@@ -41,6 +41,7 @@ import java.io.EOFException;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Random;
@@ -885,5 +886,15 @@ public class NioServerTest {
             DtUtil.close(s1);
             DtUtil.close(s2);
         }
+    }
+
+    @Test
+    public void acceptAfterWorkerStopTest() throws Exception {
+        setupServer(null);
+        server.start();
+        TestUtil.stop(server);
+        SocketChannel sc = SocketChannel.open();
+        server.workers[0].newChannelAccept(sc);
+        assertFalse(sc.isOpen());
     }
 }

@@ -389,7 +389,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     // invoke by NioServer accept thread
     public void newChannelAccept(SocketChannel sc) {
-        doInIoThread(() -> {
+        boolean b = ioWorkerQueue.scheduleFromBizThread(() -> {
             if (status >= STATUS_STOPPING) {
                 log.info("accept new channel while worker closed, ignore it: {}", sc);
                 closeChannel0(sc);
@@ -405,7 +405,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             channels.put(dtc.channelIndexInWorker, dtc);
             incomingConnects.addLast(dtc);
-        }, null);
+        });
+        if (!b) {
+            log.info("worker closed, close accepted channel: {}", sc);
+            closeChannel0(sc);
+            return;
+        }
+        wakeup();
     }
 
     void finishHandshake(DtChannelImpl dtc) {
