@@ -123,10 +123,6 @@ public class ServerTestBase {
         serverConfig.rpcTimeout = tick(rpcTimeout);
 
         RaftGroupConfig groupConfig = config(nodeId, groupId, nodeIdOfMembers, nodeIdOfObservers);
-        groupConfig.idxCacheSize = idxCacheSize;
-        groupConfig.idxFlushThreshold = idxFlushThreshold;
-        groupConfig.idxItemsPerFile = idxItemsPerFile;
-        groupConfig.logFileSize = logFileSize;
 
         DefaultRaftFactory raftFactory = createRaftFactory(nodeId);
 
@@ -180,6 +176,11 @@ public class ServerTestBase {
         groupConfig.saveSnapshotWhenClose = false;
         // groupConfig.syncForce = false;
         config(groupConfig);
+        // runtime groups (serverAddGroup) need test file sizes too; product defaults (1GB/256MB) saturate slow disks
+        groupConfig.idxCacheSize = idxCacheSize;
+        groupConfig.idxFlushThreshold = idxFlushThreshold;
+        groupConfig.idxItemsPerFile = idxItemsPerFile;
+        groupConfig.logFileSize = logFileSize;
         return groupConfig;
     }
 
