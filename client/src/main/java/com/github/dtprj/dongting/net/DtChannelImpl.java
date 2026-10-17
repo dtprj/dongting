@@ -70,7 +70,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     long packetStartTimeNanos;
     private DecoderCallback currentDecoderCallback;
 
-    // linked list of channels with a packet under decoding, ordered by packetStartTimeNanos
+    // linked list of channels with pending parse data (a partial length prefix or a packet
+    // under decoding), ordered by packetStartTimeNanos
     DtChannelImpl decodePrev, decodeNext;
     boolean inDecodeList;
 
@@ -135,8 +136,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             throw new NetException("channel closed");
         }
         this.currentReadPacketSize = len;
-        this.packetStartTimeNanos = workerStatus.ts.nanoTime;
-        workerStatus.addToDecodeList(this);
         packet = new ReadPacket();
         readBody = false;
         skipBody = false;
@@ -174,7 +173,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             }
         }
         currentDecoderCallback = null;
-        workerStatus.removeFromDecodeList(this);
 
         if (packet.packetType == PacketType.TYPE_RESP) {
             // assert requestForResp not null
@@ -519,6 +517,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     // called only by NioWorker.doClose, which sets closed before this so reentrant close requests are rejected
     void close(Throwable ex) {
         try {
+            // the channel may be closed while parsing is in progress
+            workerStatus.removeFromDecodeList(this);
             if (ex != null && !(ex instanceof NetException)) {
                 ex = new NetException("channel close", ex);
             }
@@ -530,7 +530,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private void cleanParseStatus(Throwable ex, String reason) {
-        workerStatus.removeFromDecodeList(this);
         currentDecoderCallback = null;
         if (packet != null) {
             packet.clean();

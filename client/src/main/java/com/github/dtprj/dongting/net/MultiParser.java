@@ -30,6 +30,8 @@ class MultiParser {
     private final int maxSize;
     private final PbCallback<?> callback;
     private final PbParser parser;
+    // null in unit tests, so decode timeout tracking is disabled
+    private final DtChannelImpl dtc;
 
     private int size;
     private boolean parseLen = true;
@@ -40,6 +42,7 @@ class MultiParser {
         this.maxSize = maxSize;
         this.callback = callback;
         this.parser = new PbParser();
+        this.dtc = callback instanceof DtChannelImpl ? (DtChannelImpl) callback : null;
     }
 
     public void parse(ByteBuffer buf) {
@@ -56,11 +59,24 @@ class MultiParser {
             if (parser.isFinished()) {
                 parseLen = true;
                 size = 0;
+                if (!buf.hasRemaining()) {
+                    if (dtc != null) {
+                        dtc.workerStatus.removeFromDecodeList(dtc);
+                    }
+                    return;
+                }
             }
         }
     }
 
     private void parseLen(ByteBuffer buf) {
+        if (pendingLenBytes == 0 && dtc != null) {
+            WorkerStatus ws = dtc.workerStatus;
+            dtc.packetStartTimeNanos = ws.ts.nanoTime;
+            // move to tail so the list stays ordered by packetStartTimeNanos
+            ws.removeFromDecodeList(dtc);
+            ws.addToDecodeList(dtc);
+        }
         // read buffer is little endian.
         // however the length field is out of proto buffer data, and it's big endian
         int remain = buf.remaining();

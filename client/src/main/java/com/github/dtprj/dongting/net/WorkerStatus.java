@@ -49,7 +49,8 @@ class WorkerStatus {
     private PacketInfoReq nearTimeoutQueueHead;
     private PacketInfoReq nearTimeoutQueueTail;
 
-    // linked list of channels with a packet under decoding, ordered by packetStartTimeNanos
+    // linked list of channels with pending parse data (a partial length prefix or a packet
+    // under decoding), ordered by packetStartTimeNanos
     DtChannelImpl decodeListHead, decodeListTail;
 
     private long addOrder;

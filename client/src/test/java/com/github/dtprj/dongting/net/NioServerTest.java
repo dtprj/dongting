@@ -190,6 +190,104 @@ public class NioServerTest {
         }
     }
 
+    @Test
+    public void decodeFailThenSlowSkipTest() throws Exception {
+        setupServer(c -> {
+            c.cleanInterval = 1;
+            c.selectTimeout = 1;
+        });
+        for (NioWorker worker : server.workers) {
+            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(200));
+        }
+        server.register(4000, new NioServer.PingProcessor() {
+            @Override
+            public DecoderCallback<RefBuffer> createDecoderCallback(int command, DecodeContext context) {
+                return new RefBufferDecoderCallback() {
+                    @Override
+                    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+                        super.doDecode(buffer, bodyLen, currentPos);
+                        throw new CodecException("mock decode fail");
+                    }
+                };
+            }
+        }, null);
+        server.start();
+        try (Socket s = new Socket("127.0.0.1", PORT)) {
+            s.setTcpNoDelay(true);
+            s.setSoTimeout(tick(2000));
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
+            DtPacket.Packet reqPacket = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
+                    .setSeq(2)
+                    .setCommand(4000)
+                    .setBody(ByteString.copyFrom(new byte[1024]))
+                    .setTimeout(Duration.ofSeconds(10).toNanos())
+                    .build();
+            byte[] packet = reqPacket.toByteArray();
+            out.writeInt(packet.length);
+            // header + first body bytes: decode fails, server switches to skip mode
+            out.write(packet, 0, 64);
+            out.flush();
+
+            // drain the DECODE_ERROR response, its content is asserted by cancelDecodeTest
+            int len = in.readInt();
+            in.readFully(new byte[len]);
+
+            // drip a few chunks: bytes keep arriving after the decode failure, but the packet
+            // is never completed, so decode timeout must close the channel
+            for (int i = 0; i < 3; i++) {
+                Thread.sleep(tick(5));
+                out.write(packet, 64 + i * 64, 64);
+                out.flush();
+            }
+            assertEquals(-1, in.read());
+        }
+    }
+
+    @Test
+    public void frameCompleteLeaveDecodeListTest() throws Exception {
+        setupServer(null);
+        server.start();
+        try (Socket s = new Socket("127.0.0.1", PORT)) {
+            s.setTcpNoDelay(true);
+            s.setSoTimeout(tick(2000));
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
+            simpleTest(CMD_IO_PING, in, out, 2);
+            // the response is received, so the frame is fully parsed and the channel
+            // must have left the decode list, or idle channels would be closed by timeout
+            for (NioWorker worker : server.workers) {
+                assertNull(worker.workerStatus.decodeListHead);
+            }
+        }
+    }
+
+    @Test
+    public void lengthPrefixStallDecodeTimeoutTest() throws Exception {
+        setupServer(c -> {
+            c.cleanInterval = 1;
+            c.selectTimeout = 1;
+        });
+        for (NioWorker worker : server.workers) {
+            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(200));
+        }
+        server.start();
+        try (Socket s = new Socket("127.0.0.1", PORT)) {
+            s.setTcpNoDelay(true);
+            s.setSoTimeout(tick(2000));
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            handshake(in, out);
+            // 2 bytes of the 4-byte length prefix, then stall: decode timeout must
+            // cover the length prefix phase and close the channel
+            out.write(new byte[]{0, 0});
+            out.flush();
+            assertEquals(-1, in.read());
+        }
+    }
+
     private static final AtomicLong TEST_UUID = new AtomicLong();
 
     private static void handshake(DataInputStream in, DataOutputStream out) throws Exception {
