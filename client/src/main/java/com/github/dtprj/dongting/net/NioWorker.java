@@ -159,6 +159,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
             if (!server) {
                 cleanOutgoingTimeoutConnect(ts);
+                ((NioClient) owner).cleanWaitConnectReq(wd -> new NetException("worker closed"));
             }
             if (readBuffer != null) {
                 releaseReadBuffer();
