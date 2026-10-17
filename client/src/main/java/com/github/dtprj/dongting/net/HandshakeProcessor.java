@@ -76,7 +76,8 @@ class HandshakeProcessor extends ReqProcessor<HandshakeBody> {
         if (old != null && old != dtc) {
             DtChannelImpl oldDtc = (DtChannelImpl) old;
             log.info("client re-connected, close stale channel: old={}, new={}", oldDtc, dtc);
-            oldDtc.workerStatus.worker.close(oldDtc, null);
+            NioWorker oldWorker = oldDtc.workerStatus.worker;
+            oldWorker.doInIoThread(() -> oldWorker.close(oldDtc, null), null);
         }
 
         return p;
