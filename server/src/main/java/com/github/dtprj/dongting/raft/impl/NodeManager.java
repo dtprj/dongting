@@ -323,35 +323,44 @@ public class NodeManager extends AbstractLifeCircle {
             f.completeExceptionally(new RaftException("node manager stopped"));
             return f;
         }
-        addToNioClient(node).whenCompleteAsync((nodeEx, ex) -> {
-            if (ex != null) {
-                log.error("add node fail", ex);
-                f.completeExceptionally(ex);
-                return;
-            }
-            lock.lock();
+        addToNioClient(node).whenComplete((nodeEx, ex) -> {
             try {
-                RaftNodeEx existNode = allNodesEx.get(nodeEx.nodeId);
-                if (existNode != null) {
-                    if (existNode.hostPort.equals(node.hostPort)) {
-                        f.complete(existNode);
-                    } else {
-                        f.completeExceptionally(new RaftException("node " + node.nodeId
-                                + " already exist but host/port is not same, new node is " + node.hostPort
-                                + ", exist one is " + existNode.hostPort));
-                    }
-                } else {
-                    allNodesEx.put(nodeEx.nodeId, nodeEx);
-                    f.complete(nodeEx);
-                }
-            } catch (Exception unexpected) {
-                log.error("", unexpected);
-                f.completeExceptionally(unexpected);
-            } finally {
-                lock.unlock();
+                executor.execute(() -> processAddNodeResult(node, nodeEx, ex, f));
+            } catch (RejectedExecutionException e) {
+                processAddNodeResult(node, nodeEx, ex, f);
             }
-        }, executor);
+        });
         return f;
+    }
+
+    private void processAddNodeResult(RaftNode node, RaftNodeEx nodeEx, Throwable ex,
+                                      CompletableFuture<RaftNodeEx> f) {
+        if (ex != null) {
+            log.error("add node fail", ex);
+            f.completeExceptionally(ex);
+            return;
+        }
+        lock.lock();
+        try {
+            RaftNodeEx existNode = allNodesEx.get(nodeEx.nodeId);
+            if (existNode != null) {
+                if (existNode.hostPort.equals(node.hostPort)) {
+                    f.complete(existNode);
+                } else {
+                    f.completeExceptionally(new RaftException("node " + node.nodeId
+                            + " already exist but host/port is not same, new node is " + node.hostPort
+                            + ", exist one is " + existNode.hostPort));
+                }
+            } else {
+                allNodesEx.put(nodeEx.nodeId, nodeEx);
+                f.complete(nodeEx);
+            }
+        } catch (Exception unexpected) {
+            log.error("", unexpected);
+            f.completeExceptionally(unexpected);
+        } finally {
+            lock.unlock();
+        }
     }
 
     public CompletableFuture<Void> removeNode(int nodeId) {
