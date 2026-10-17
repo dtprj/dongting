@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.test.Tick;
 import com.github.dtprj.dongting.test.WaitUtil;
@@ -116,14 +117,19 @@ public class CloseTest {
     public void testCleanWaitingConnectListReentry() throws Exception {
         setup(() -> { }, 1000000);
         Peer peer = client.getPeers().get(0);
+        client.disconnect(peer).get(10, TimeUnit.SECONDS);
         CompletableFuture<Void> removeFuture = new CompletableFuture<>();
+        CompletableFuture<Boolean> secondResult = new CompletableFuture<>();
+        int[] failCount = {0};
+        boolean[] inCallback = {false};
+        ByteBufferWritePacket wf1 = new ByteBufferWritePacket(null);
+        ByteBufferWritePacket wf2 = new ByteBufferWritePacket(null);
         runInIoThread(() -> {
-            int[] failCount = {0};
-            ByteBufferWritePacket wf1 = new ByteBufferWritePacket(null);
             wf1.packetType = PacketType.TYPE_REQ;
-            PacketInfoReq r1 = new PacketInfoReq(null, peer, null, wf1, new DtTime(10, TimeUnit.SECONDS),
+            PacketInfoReq r1 = new PacketInfoReq(null, peer, null, wf1, new DtTime(0, TimeUnit.SECONDS),
                     (resp, ex) -> {
                         failCount[0]++;
+                        inCallback[0] = true;
                         client.removePeer(peer).whenComplete((v, e) -> {
                             if (e != null) {
                                 removeFuture.completeExceptionally(e);
@@ -131,22 +137,89 @@ public class CloseTest {
                                 removeFuture.complete(v);
                             }
                         });
-                    }, null);
-            ByteBufferWritePacket wf2 = new ByteBufferWritePacket(null);
+                        inCallback[0] = false;
+                    }, null, true);
             wf2.packetType = PacketType.TYPE_REQ;
             PacketInfoReq r2 = new PacketInfoReq(null, peer, null, wf2, new DtTime(10, TimeUnit.SECONDS),
-                    (resp, ex) -> failCount[0]++, null);
+                    (resp, ex) -> {
+                        failCount[0]++;
+                        secondResult.complete(!inCallback[0] && wf2.cleaned && ex != null);
+                    }, null, true);
             peer.addToWaitConnectList(r1);
             peer.addToWaitConnectList(r2);
-            peer.cleanWaitingConnectList(wd -> new NetException("test"));
-            assertEquals(2, failCount[0]);
-            assertTrue(wf1.cleaned && wf2.cleaned);
+            peer.cleanWaitingConnectList(wd -> wd == r1 ? new NetTimeoutException("test") : null);
+            r1.callFail(new NetException("duplicate completion"));
+            assertEquals(0, failCount[0]);
+            assertTrue(wf1.cleaned);
+            assertFalse(wf2.cleaned);
         });
         removeFuture.get(10, TimeUnit.SECONDS);
+        assertTrue(secondResult.get(10, TimeUnit.SECONDS));
         runInIoThread(() -> {
+            assertEquals(2, failCount[0]);
             assertEquals(PeerStatus.removed, peer.status);
             assertNull(peer.dtChannel);
         });
+    }
+
+    @Test
+    public void testCloseDuringEnqueueAfterConnect() throws Exception {
+        setup(() -> { }, 1000000);
+        Peer peer = client.getPeers().get(0);
+        DtChannelImpl dtc = peer.dtChannel;
+        ByteBufferWritePacket first = new ByteBufferWritePacket(null);
+        ByteBufferWritePacket second = new ByteBufferWritePacket(null);
+        CompletableFuture<ReadPacket<Void>> firstResult = new CompletableFuture<>();
+        CompletableFuture<ReadPacket<Void>> secondResult = new CompletableFuture<>();
+        runInIoThread(() -> {
+            peer.shouldAutoReconnect = false;
+            first.packetType = PacketType.TYPE_REQ;
+            second.packetType = PacketType.TYPE_REQ;
+            peer.addToWaitConnectList(new PacketInfoReq(null, peer, null, first, new DtTime(10, TimeUnit.SECONDS),
+                    RpcCallback.fromFuture(firstResult), null, true));
+            peer.addToWaitConnectList(new PacketInfoReq(null, peer, null, second, new DtTime(10, TimeUnit.SECONDS),
+                    RpcCallback.fromFuture(secondResult), null, true));
+            DtUtil.close(dtc.getChannel());
+            peer.enqueueAfterConnect(dtc);
+            assertTrue(first.cleaned && second.cleaned);
+            assertNull(peer.dtChannel);
+            assertEquals(0, client.worker.workerStatus.packetsToWrite);
+            assertFalse(firstResult.isDone());
+            assertFalse(secondResult.isDone());
+        });
+        assertInstanceOf(NetException.class,
+                assertThrows(ExecutionException.class, () -> firstResult.get(10, TimeUnit.SECONDS)).getCause());
+        assertInstanceOf(NetException.class,
+                assertThrows(ExecutionException.class, () -> secondResult.get(10, TimeUnit.SECONDS)).getCause());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    public void testRejectedCallbackDuringShutdown(boolean crossWorker) throws Exception {
+        setup(() -> { }, 1000000);
+        Peer peer = client.getPeers().get(0);
+        client.disconnect(peer).get(10, TimeUnit.SECONDS);
+        NioWorker callbackWorker = crossWorker ? server.workers[0] : client.worker;
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        ByteBufferWritePacket waiting = new ByteBufferWritePacket(null);
+        waiting.command = Commands.CMD_PING;
+        waiting.packetType = PacketType.TYPE_REQ;
+        DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
+        assertTrue(client.acquirePermit(waiting, timeout));
+        runInIoThread(() -> peer.addToWaitConnectList(new PacketInfoReq(client, peer, null, waiting, timeout,
+                (resp, ex) -> callbackWorker.doInIoThread(() -> {
+                    ByteBufferWritePacket next = new ByteBufferWritePacket(null);
+                    next.command = Commands.CMD_PING;
+                    CompletableFuture<Void> rejected = client.sendOneWay(next, timeout);
+                    boolean inline = rejected.isDone();
+                    rejected.whenComplete((v, e) -> result.complete(!inline && ex instanceof NetException
+                            && e instanceof NetException && waiting.cleaned && next.cleaned
+                            && Thread.currentThread() == callbackWorker.thread));
+                }, result), null, true)));
+        client.stop(new DtTime(Tick.tick(1), TimeUnit.SECONDS));
+        assertTrue(result.get(10, TimeUnit.SECONDS));
+        assertEquals(0, client.nioStatus.outPendingRequests);
+        assertEquals(0, client.nioStatus.outPendingBytes);
     }
 
     @Test
@@ -200,11 +273,12 @@ public class CloseTest {
             req.seq = dtc.getAndIncSeq();
             PacketInfoReq pi = new PacketInfoReq(null, null, dtc, req, new DtTime(10, TimeUnit.SECONDS),
                     (resp, ex) -> {
+                        boolean outsideDecode = !dtc.encodingOrDecoding && !dtc.isClosed();
                         client.worker.close(dtc);
                         if (resp != null) {
                             resp.clean();
                         }
-                        deferred.complete(dtc.encodingOrDecoding && !dtc.isClosed() && (decodeFail == (ex != null)));
+                        deferred.complete(outsideDecode && (decodeFail == (ex != null)));
                     }, ctx -> new RefBufferDecoderCallback() {
                         @Override
                         public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
@@ -213,7 +287,7 @@ public class CloseTest {
                             }
                             super.doDecode(buffer, bodyLen, currentPos);
                         }
-                    });
+                    }, true);
             dtc.workerStatus.addPendingReq(pi);
             ByteBufferWritePacket resp = new ByteBufferWritePacket(ByteBuffer.allocate(1));
             resp.packetType = PacketType.TYPE_RESP;
@@ -225,6 +299,7 @@ public class CloseTest {
             dtc.afterRead(true, buf);
             assertFalse(dtc.encodingOrDecoding);
             assertNull(dtc.getPacket());
+            assertFalse(deferred.isDone());
         });
         assertTrue(deferred.get(10, TimeUnit.SECONDS));
         runInIoThread(() -> {
@@ -277,28 +352,28 @@ public class CloseTest {
         try {
             Peer otherPeer = client.addPeer(new HostPort("127.0.0.1", 9001)).get(10, TimeUnit.SECONDS);
             client.connect(otherPeer).get(10, TimeUnit.SECONDS);
+            DtChannelImpl second = otherPeer.dtChannel;
+            CompletableFuture<ReadPacket<Void>> pendingResult = new CompletableFuture<>();
+            CompletableFuture<ReadPacket<Void>> queuedResult = new CompletableFuture<>();
+            ByteBufferWritePacket queued = new ByteBufferWritePacket(null);
+            WorkerStatus ws = client.worker.workerStatus;
             runInIoThread(() -> {
                 DtChannelImpl first = client.getPeers().get(0).dtChannel;
-                DtChannelImpl second = otherPeer.dtChannel;
                 first.peer.shouldAutoReconnect = false;
                 second.peer.shouldAutoReconnect = false;
-                WorkerStatus ws = client.worker.workerStatus;
                 ByteBufferWritePacket trigger = new ByteBufferWritePacket(null);
                 trigger.packetType = PacketType.TYPE_REQ;
                 trigger.seq = first.getAndIncSeq();
                 ws.addPendingReq(new PacketInfoReq(null, null, first, trigger, new DtTime(0, TimeUnit.SECONDS),
-                        (resp, ex) -> client.worker.close(second), null));
+                        (resp, ex) -> client.worker.close(second), null, true));
                 ByteBufferWritePacket pending = new ByteBufferWritePacket(null);
                 pending.packetType = PacketType.TYPE_REQ;
                 pending.seq = second.getAndIncSeq();
-                CompletableFuture<ReadPacket<Void>> pendingResult = new CompletableFuture<>();
                 ws.addPendingReq(new PacketInfoReq(null, null, second, pending, new DtTime(10, TimeUnit.SECONDS),
-                        RpcCallback.fromFuture(pendingResult), null));
-                ByteBufferWritePacket queued = new ByteBufferWritePacket(null);
+                        RpcCallback.fromFuture(pendingResult), null, true));
                 queued.packetType = PacketType.TYPE_REQ;
-                CompletableFuture<ReadPacket<Void>> queuedResult = new CompletableFuture<>();
                 second.subQueue.enqueue(new PacketInfoReq(null, null, second, queued, new DtTime(10, TimeUnit.SECONDS),
-                        RpcCallback.fromFuture(queuedResult), null));
+                        RpcCallback.fromFuture(queuedResult), null, true));
                 if (cleanMode == 0) {
                     client.worker.close(first);
                 } else if (cleanMode == 1) {
@@ -307,6 +382,10 @@ public class CloseTest {
                 } else {
                     ws.cleanAllPendingReq();
                 }
+                assertFalse(pendingResult.isDone());
+                assertFalse(queuedResult.isDone());
+            });
+            runInIoThread(() -> {
                 assertTrue(pendingResult.isCompletedExceptionally());
                 assertTrue(queuedResult.isCompletedExceptionally());
                 assertTrue(queued.cleaned);

@@ -111,12 +111,12 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (e instanceof InterruptedException) {
                 DtUtil.restoreInterruptStatus();
             }
-            FutureCallback.callFail(callback, e);
+            NioWorker.dispatchCallback(() -> FutureCallback.callFail(callback, e));
             request.clean();
             return;
         }
         PacketInfo wd = new PacketInfoReq(acquirePermit ? this : null, peer, peer != null ? null : dtc,
-                request, timeout, callback, decoder);
+                request, timeout, callback, decoder, true);
         worker.writeReqInBizThreads(wd);
     }
 

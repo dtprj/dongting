@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
@@ -77,6 +78,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     final ArrayList<DtChannelImpl> channelsList;// client side only
     private final IntObjMap<DtChannelImpl> channels;
     private final IoWorkerQueue ioWorkerQueue;
+    private final IndexedQueue<Runnable> pendingActions = new IndexedQueue<>(16);
+    private boolean executingPendingActions;
 
     private final Timestamp timestamp = new Timestamp();
 
@@ -137,29 +140,33 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             run0(selector, ts);
         }
         try {
-            ioWorkerQueue.close();
-            while (!ioWorkerQueue.dispatchFinished()) {
-                ioWorkerQueue.dispatchActions();
-            }
-            selector.close();
-
-            workerStatus.cleanAllPendingReq();
-
-            List<DtChannelImpl> tempList = new ArrayList<>(channels.size());
-            // can't modify channels map in foreach
-            channels.forEach((index, dtc) -> {
-                tempList.add(dtc);
-            });
-            for (DtChannelImpl dtc : tempList) {
-                if (dtc.peer != null) {
-                    dtc.peer.shouldAutoReconnect = false;
+            try {
+                ioWorkerQueue.close();
+                while (!ioWorkerQueue.dispatchFinished()) {
+                    ioWorkerQueue.dispatchActions();
                 }
-                close(dtc);
-            }
+                selector.close();
 
-            if (!server) {
-                cleanOutgoingTimeoutConnect(ts);
-                ((NioClient) owner).cleanWaitConnectReq(wd -> new NetException("worker closed"));
+                workerStatus.cleanAllPendingReq();
+
+                List<DtChannelImpl> tempList = new ArrayList<>(channels.size());
+                // can't modify channels map in foreach
+                channels.forEach((index, dtc) -> {
+                    tempList.add(dtc);
+                });
+                for (DtChannelImpl dtc : tempList) {
+                    if (dtc.peer != null) {
+                        dtc.peer.shouldAutoReconnect = false;
+                    }
+                    close(dtc);
+                }
+
+                if (!server) {
+                    cleanOutgoingTimeoutConnect(ts);
+                    ((NioClient) owner).cleanWaitConnectReq(wd -> new NetException("worker closed"));
+                }
+            } finally {
+                executePendingActions();
             }
             if (readBuffer != null) {
                 releaseReadBuffer();
@@ -229,6 +236,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } catch (Throwable e) {
             log.error("NioWorker loop exception", e);
         } finally {
+            executePendingActions();
             workEnd(ts, workStartTime);
         }
     }
@@ -334,7 +342,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 dtc.afterRead(status == STATUS_RUNNING, readBuffer);
             }
             stage = "process socket write";
-            if (!dtc.closed && key.isWritable()) {
+            if (!dtc.closed && !dtc.closePending && key.isWritable()) {
                 dtc.subQueue.processWriteEvent(sc, key, roundTime);
             }
         } catch (NetException | IOException e) {
@@ -343,6 +351,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } catch (Throwable e) {
             log.warn("{} error, channel will close", stage, e);
             closeChannelBySelKey(key, e);
+        } finally {
+            executePendingActions();
         }
     }
 
@@ -594,10 +604,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         p.command = Commands.CMD_HANDSHAKE;
 
         PacketInfoReq wd = new PacketInfoReq(null, null, dtc, p, ci.deadline, rpcCallback,
-                ctx -> ctx.toDecoderCallback(new HandshakeBody()));
+                ctx -> ctx.toDecoderCallback(new HandshakeBody()), false);
         dtc.subQueue.enqueue(wd);
         // send pending request as quickly as possible, even before handshake finished
-        ci.peer.enqueueAfterConnect();
+        ci.peer.enqueueAfterConnect(dtc);
     }
 
     private void handshakeSuccess(DtChannelImpl dtc, ConnectInfo ci, ReadPacket<HandshakeBody> resp) {
@@ -624,9 +634,37 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ci.peer.status = PeerStatus.connected;
         ci.peer.resetConnectRetry(workerStatus);
         finishHandshake(dtc);
-        ci.peer.enqueueAfterConnect();
+        ci.peer.enqueueAfterConnect(dtc);
         ci.future.complete(null);
         ci.peer.connectInfo = null;
+    }
+
+    static void dispatchCallback(Runnable callback) {
+        Thread current = Thread.currentThread();
+        if (current instanceof WorkerThread) {
+            ((WorkerThread) current).worker.pendingActions.addLast(callback);
+        } else {
+            callback.run();
+        }
+    }
+
+    void executePendingActions() {
+        if (executingPendingActions) {
+            return;
+        }
+        executingPendingActions = true;
+        try {
+            Runnable action;
+            while ((action = pendingActions.pollFirst()) != null) {
+                try {
+                    action.run();
+                } catch (Throwable e) {
+                    BugLog.log("execute pending io action fail", e);
+                }
+            }
+        } finally {
+            executingPendingActions = false;
+        }
     }
 
     public void doInIoThread(Runnable runnable, CompletableFuture<?> future) {
@@ -651,15 +689,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     // cancel the in-flight connect, otherwise whenConnected creates a channel out of peers list
                     failConnect(ci, new NetException("peer disconnected"));
                 }
-                if (peer.dtChannel == null) {
-                    f.complete(null);
-                    return;
+                peer.cleanWaitingConnectList(wd -> new NetException("peer disconnected"));
+                if (peer.dtChannel != null) {
+                    close(peer.dtChannel);
                 }
-                if (ci != null) {
-                    // handshake in progress: fail requests that arrived after sendHandshake drained the list
-                    peer.cleanWaitingConnectList(wd -> new NetException("peer disconnected"));
-                }
-                close(peer.dtChannel);
                 f.complete(null);
             } catch (Throwable e) {
                 f.completeExceptionally(e);
@@ -698,21 +731,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (dtc.closed) {
             return;
         }
+        if (ex != null && dtc.closeCause == null) {
+            dtc.closeCause = ex;
+        }
         if (dtc.encodingOrDecoding) {
-            // the channel's read/write callback is on the stack, executePendingClose closes it when the callback returns
-            dtc.closePending = true;
-            if (ex != null && dtc.closeCause == null) {
-                dtc.closeCause = ex;
+            if (!dtc.closePending) {
+                dtc.closePending = true;
+                pendingActions.addLast(() -> {
+                    if (!dtc.closed) {
+                        doClose(dtc, dtc.closeCause);
+                    }
+                });
             }
             return;
         }
-        doClose(dtc, ex);
-    }
-
-    void executePendingClose(DtChannelImpl dtc) {
-        if (dtc.closePending && !dtc.closed) {
-            doClose(dtc, dtc.closeCause);
-        }
+        doClose(dtc, dtc.closeCause);
     }
 
     private void doClose(DtChannelImpl dtc, Throwable ex) {

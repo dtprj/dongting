@@ -76,7 +76,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private boolean skipBody;
 
-    // set while inside afterRead/processWriteEvent, a close request in that window only sets closePending
+    // set while inside afterRead/processWriteEvent, a close request in that window is deferred
     boolean encodingOrDecoding;
     boolean closePending;
     Throwable closeCause;
@@ -121,7 +121,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             parser.parse(buf);
         } finally {
             encodingOrDecoding = false;
-            workerStatus.worker.executePendingClose(this);
         }
     }
 

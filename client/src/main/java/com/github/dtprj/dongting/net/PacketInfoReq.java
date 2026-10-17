@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.common.FutureCallback;
 /**
  * @author huangli
  */
-final class PacketInfoReq extends PacketInfo {
+final class PacketInfoReq extends PacketInfo implements Runnable {
 
     PacketInfoReq nextInChannel;
     PacketInfoReq prevInChannel;
@@ -34,10 +34,14 @@ final class PacketInfoReq extends PacketInfo {
     final Peer peer;
     final RpcCallback<?> callback;
     final DecoderCallbackCreator<?> respDecoderCallback;
+    private final boolean deferCallback;
     private boolean finished;
+    private ReadPacket<?> callbackResult;
+    private Throwable callbackException;
 
     public <T> PacketInfoReq(NioNet ownerUsedToReleasePermit, Peer peer, DtChannelImpl dtc, WritePacket packet,
-                             DtTime timeout, RpcCallback<T> callback, DecoderCallbackCreator<T> respDecoderCallback) {
+                             DtTime timeout, RpcCallback<T> callback, DecoderCallbackCreator<T> respDecoderCallback,
+                             boolean deferCallback) {
         super(dtc, packet, timeout);
         if (peer != null && dtc != null) {
             throw new IllegalArgumentException();
@@ -46,39 +50,57 @@ final class PacketInfoReq extends PacketInfo {
         this.peer = peer;
         this.callback = callback;
         this.respDecoderCallback = respDecoderCallback;
+        this.deferCallback = deferCallback;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    void callSuccess(ReadPacket resp) {
+    void callSuccess(ReadPacket<?> resp) {
         if (finished) {
             return;
         }
-        try {
-            if (ownerUsedToReleasePermit != null) {
-                ownerUsedToReleasePermit.releasePermit(packet);
-            }
-            if (packet.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
-                resp.clean();
-                FutureCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp.extra));
-            } else {
-                FutureCallback.callSuccess(callback, resp);
-            }
-        } finally {
-            finished = true;
+        finished = true;
+        if (ownerUsedToReleasePermit != null) {
+            ownerUsedToReleasePermit.releasePermit(packet);
         }
+        if (packet.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
+            resp.clean();
+            callbackException = new NetCodeException(resp.respCode, resp.msg, resp.extra);
+        } else {
+            callbackResult = resp;
+        }
+        dispatchCallback();
     }
 
     void callFail(Throwable ex) {
         if (finished) {
             return;
         }
-        try {
-            if (ownerUsedToReleasePermit != null) {
-                ownerUsedToReleasePermit.releasePermit(packet);
-            }
+        finished = true;
+        if (ownerUsedToReleasePermit != null) {
+            ownerUsedToReleasePermit.releasePermit(packet);
+        }
+        callbackException = ex;
+        dispatchCallback();
+    }
+
+    private void dispatchCallback() {
+        if (deferCallback) {
+            NioWorker.dispatchCallback(this);
+        } else {
+            run();
+        }
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void run() {
+        ReadPacket result = callbackResult;
+        Throwable ex = callbackException;
+        callbackResult = null;
+        callbackException = null;
+        if (ex == null) {
+            FutureCallback.callSuccess(callback, result);
+        } else {
             FutureCallback.callFail(callback, ex);
-        } finally {
-            finished = true;
         }
     }
 }

@@ -86,7 +86,7 @@ public class Peer {
         }
     }
 
-    void enqueueAfterConnect() {
+    void enqueueAfterConnect(DtChannelImpl dtc) {
         LinkedList<PacketInfoReq> list = waitConnectList;
         if (list == null) {
             return;
@@ -95,8 +95,8 @@ public class Peer {
         try {
             PacketInfo wd;
             while ((wd = list.pollFirst()) != null) {
-                wd.dtc = dtChannel;
-                dtChannel.subQueue.enqueue(wd);
+                wd.dtc = dtc;
+                dtc.subQueue.enqueue(wd);
             }
         } finally {
             if (!list.isEmpty()) {

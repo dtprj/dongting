@@ -25,10 +25,12 @@ import com.github.dtprj.dongting.common.Timestamp;
 public final class WorkerThread extends DtThread {
 
     public final Timestamp ts;
+    final NioWorker worker;
 
-    WorkerThread(Runnable r, String name, Timestamp ts, Buffers buffers) {
-        super(r, name, buffers);
+    WorkerThread(NioWorker worker, String name, Timestamp ts, Buffers buffers) {
+        super(worker, name, buffers);
         this.ts = ts;
+        this.worker = worker;
     }
 
     public static WorkerThread currentWorkerThread() {

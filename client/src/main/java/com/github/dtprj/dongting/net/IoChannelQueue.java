@@ -98,6 +98,10 @@ class IoChannelQueue {
             return;
         }
         wf.use = true;
+        if (dtc.closed || dtc.closePending) {
+            callFail(packetInfo, true, new NetException("channel closed before enqueue", dtc.closeCause));
+            return;
+        }
 
         packetInfo.perfTimeOrAddOrder = perfCallback.takeTimeAndRefresh(PerfConsts.RPC_D_CHANNEL_QUEUE, workerStatus.ts);
         subQueue.addLast(packetInfo);
@@ -422,7 +426,6 @@ class IoChannelQueue {
             processWriteEvent0(sc, key, roundTime);
         } finally {
             dtc.encodingOrDecoding = false;
-            dtc.workerStatus.worker.executePendingClose(dtc);
         }
     }
 

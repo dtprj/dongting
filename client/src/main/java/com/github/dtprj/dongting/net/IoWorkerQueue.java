@@ -68,6 +68,8 @@ class IoWorkerQueue {
             } catch (Throwable e) {
                 // one failing action must not abort the drain, other queued futures depend on it
                 BugLog.log("dispatch io action fail: {}", data, e);
+            } finally {
+                worker.executePendingActions();
             }
         }
     }
