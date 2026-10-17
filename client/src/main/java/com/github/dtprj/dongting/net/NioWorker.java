@@ -508,11 +508,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         Peer peer = ci.peer;
         peer.connectInfo = null;
         closeChannel0(ci.channel);
-        if (peer.status != PeerStatus.removed) {
-            peer.markNotConnect(config, workerStatus, ci.byAutoRetry);
+        try {
+            if (peer.status != PeerStatus.removed) {
+                peer.markNotConnect(config, workerStatus, ci.byAutoRetry);
+            }
+            peer.cleanWaitingConnectList(wd -> ex);
+        } finally {
+            ci.future.completeExceptionally(ex);
         }
-        peer.cleanWaitingConnectList(wd -> ex);
-        ci.future.completeExceptionally(ex);
     }
 
     // called client side
@@ -635,21 +638,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     public CompletableFuture<Void> disconnect(Peer peer) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         boolean b = ioWorkerQueue.scheduleFromBizThread(() -> {
-            peer.shouldAutoReconnect = false;
-            ConnectInfo ci = peer.connectInfo;
-            if (ci != null && peer.dtChannel == null) {
-                // cancel the in-flight connect, otherwise whenConnected creates a channel out of peers list
-                failConnect(ci, new NetException("peer disconnected"));
-            }
-            if (peer.dtChannel == null) {
-                f.complete(null);
-                return;
-            }
-            if (ci != null) {
-                // handshake in progress: fail requests that arrived after sendHandshake drained the list
-                peer.cleanWaitingConnectList(wd -> new NetException("peer disconnected"));
-            }
             try {
+                peer.shouldAutoReconnect = false;
+                ConnectInfo ci = peer.connectInfo;
+                if (ci != null && peer.dtChannel == null) {
+                    // cancel the in-flight connect, otherwise whenConnected creates a channel out of peers list
+                    failConnect(ci, new NetException("peer disconnected"));
+                }
+                if (peer.dtChannel == null) {
+                    f.complete(null);
+                    return;
+                }
+                if (ci != null) {
+                    // handshake in progress: fail requests that arrived after sendHandshake drained the list
+                    peer.cleanWaitingConnectList(wd -> new NetException("peer disconnected"));
+                }
                 close(peer.dtChannel);
                 f.complete(null);
             } catch (Throwable e) {

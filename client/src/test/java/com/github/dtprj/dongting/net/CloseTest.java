@@ -113,6 +113,43 @@ public class CloseTest {
     }
 
     @Test
+    public void testCleanWaitingConnectListReentry() throws Exception {
+        setup(() -> { }, 1000000);
+        Peer peer = client.getPeers().get(0);
+        CompletableFuture<Void> removeFuture = new CompletableFuture<>();
+        runInIoThread(() -> {
+            int[] failCount = {0};
+            ByteBufferWritePacket wf1 = new ByteBufferWritePacket(null);
+            wf1.packetType = PacketType.TYPE_REQ;
+            PacketInfoReq r1 = new PacketInfoReq(null, peer, null, wf1, new DtTime(10, TimeUnit.SECONDS),
+                    (resp, ex) -> {
+                        failCount[0]++;
+                        client.removePeer(peer).whenComplete((v, e) -> {
+                            if (e != null) {
+                                removeFuture.completeExceptionally(e);
+                            } else {
+                                removeFuture.complete(v);
+                            }
+                        });
+                    }, null);
+            ByteBufferWritePacket wf2 = new ByteBufferWritePacket(null);
+            wf2.packetType = PacketType.TYPE_REQ;
+            PacketInfoReq r2 = new PacketInfoReq(null, peer, null, wf2, new DtTime(10, TimeUnit.SECONDS),
+                    (resp, ex) -> failCount[0]++, null);
+            peer.addToWaitConnectList(r1);
+            peer.addToWaitConnectList(r2);
+            peer.cleanWaitingConnectList(wd -> new NetException("test"));
+            assertEquals(2, failCount[0]);
+            assertTrue(wf1.cleaned && wf2.cleaned);
+        });
+        removeFuture.get(10, TimeUnit.SECONDS);
+        runInIoThread(() -> {
+            assertEquals(PeerStatus.removed, peer.status);
+            assertNull(peer.dtChannel);
+        });
+    }
+
+    @Test
     public void testCleanWhenCloseDuringRespDecode() throws Exception {
         setup(() -> server.register(CMD, new NioServer.PingProcessor() {
             @Override

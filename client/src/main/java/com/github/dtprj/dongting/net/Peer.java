@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.function.Function;
@@ -59,36 +58,56 @@ public class Peer {
     }
 
     void cleanWaitingConnectList(Function<PacketInfoReq, NetException> exceptionSupplier) {
-        if (waitConnectList == null) {
+        LinkedList<PacketInfoReq> list = waitConnectList;
+        if (list == null) {
             return;
         }
-        for (Iterator<PacketInfoReq> it = waitConnectList.iterator(); it.hasNext(); ) {
-            PacketInfoReq wd = it.next();
-            NetException ex = exceptionSupplier.apply(wd);
-            if (ex != null) {
-                it.remove();
+        waitConnectList = null;
+        try {
+            while (!list.isEmpty()) {
+                PacketInfoReq wd = list.peekFirst();
+                NetException ex = exceptionSupplier.apply(wd);
+                if (ex == null) {
+                    break;
+                }
+                list.pollFirst();
                 wd.packet.clean();
                 wd.callFail(ex);
-            } else {
-                break;
             }
-        }
-        if (waitConnectList.isEmpty()) {
-            waitConnectList = null;
+        } finally {
+            if (!list.isEmpty()) {
+                if (waitConnectList == null) {
+                    waitConnectList = list;
+                } else {
+                    list.addAll(waitConnectList);
+                    waitConnectList = list;
+                }
+            }
         }
     }
 
     void enqueueAfterConnect() {
-        if (waitConnectList == null) {
+        LinkedList<PacketInfoReq> list = waitConnectList;
+        if (list == null) {
             return;
         }
-        for (Iterator<PacketInfoReq> it = waitConnectList.iterator(); it.hasNext(); ) {
-            PacketInfo wd = it.next();
-            it.remove();
-            wd.dtc = dtChannel;
-            dtChannel.subQueue.enqueue(wd);
-        }
         waitConnectList = null;
+        try {
+            PacketInfo wd;
+            while ((wd = list.pollFirst()) != null) {
+                wd.dtc = dtChannel;
+                dtChannel.subQueue.enqueue(wd);
+            }
+        } finally {
+            if (!list.isEmpty()) {
+                if (waitConnectList == null) {
+                    waitConnectList = list;
+                } else {
+                    list.addAll(waitConnectList);
+                    waitConnectList = list;
+                }
+            }
+        }
     }
 
     void markNotConnect(NioConfig config, WorkerStatus workerStatus, boolean byAutoRetry) {
