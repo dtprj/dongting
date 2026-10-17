@@ -708,8 +708,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void doClose(DtChannelImpl dtc, Throwable ex) {
         dtc.closed = true;
-        dtc.close(ex);
 
+        ConnectInfo ci = null;
         if (server) {
             incomingConnects.remove(dtc);
             if (dtc.remoteUuid != null) {
@@ -722,17 +722,20 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (p.status != PeerStatus.removed) {
                 p.markNotConnect(config, workerStatus, false);
             }
-            if (p.connectInfo != null) {
-                if (!p.connectInfo.future.isDone()) {
-                    p.connectInfo.future.completeExceptionally(new NetException("channel closed"));
-                }
-                p.connectInfo = null;
-            }
+            ci = p.connectInfo;
+            p.connectInfo = null;
             // O(n) in client side
             channelsList.remove(dtc);
         }
         channels.remove(dtc.channelIndexInWorker);
         closeChannel0(dtc.getChannel());
+
+        dtc.close(ex);
+
+        if (ci != null && !ci.future.isDone()) {
+            ci.future.completeExceptionally(new NetException("channel closed"));
+        }
+
         workerStatus.cleanPendingReqByChannel(dtc, ex);
         dtc.subQueue.cleanChannelQueue(ex);
 
