@@ -247,7 +247,7 @@ public class NioClientTest {
         client.waitStart(new DtTime(tick(1), TimeUnit.SECONDS));
         Peer peer = client.getPeers().get(0);
         DtChannelImpl channel = peer.dtChannel;
-        channel.workerStatus.worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(200));
+        channel.workerStatus.worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(10));
 
         AtomicReference<RefBuffer> partialBody = new AtomicReference<>();
         ByteBufferWritePacket request = new ByteBufferWritePacket(ByteBuffer.allocate(1024));

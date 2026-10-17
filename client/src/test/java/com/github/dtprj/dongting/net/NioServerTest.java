@@ -149,7 +149,7 @@ public class NioServerTest {
             c.selectTimeout = 1;
         });
         for (NioWorker worker : server.workers) {
-            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(200));
+            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(10));
         }
         AtomicReference<RefBuffer> partialBody = new AtomicReference<>();
         server.register(4000, new NioServer.PingProcessor() {
@@ -197,7 +197,7 @@ public class NioServerTest {
             c.selectTimeout = 1;
         });
         for (NioWorker worker : server.workers) {
-            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(200));
+            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(30));
         }
         server.register(4000, new NioServer.PingProcessor() {
             @Override
@@ -235,9 +235,10 @@ public class NioServerTest {
             in.readFully(new byte[len]);
 
             // drip a few chunks: bytes keep arriving after the decode failure, but the packet
-            // is never completed, so decode timeout must close the channel
+            // is never completed, so decode timeout must close the channel.
+            // the decode timeout (tick(30)) must stay longer than the response drain plus these drip writes
             for (int i = 0; i < 3; i++) {
-                Thread.sleep(tick(5));
+                Thread.sleep(tick(1));
                 out.write(packet, 64 + i * 64, 64);
                 out.flush();
             }
@@ -271,7 +272,7 @@ public class NioServerTest {
             c.selectTimeout = 1;
         });
         for (NioWorker worker : server.workers) {
-            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(200));
+            worker.maxPacketDecodeNanos = TimeUnit.MILLISECONDS.toNanos(tick(10));
         }
         server.start();
         try (Socket s = new Socket("127.0.0.1", PORT)) {
