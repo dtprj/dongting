@@ -95,7 +95,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private long readBufferUseTime;
 
     private final long cleanIntervalNanos;
-    long maxPacketDecodeNanos = 30 * 1000L * 1000 * 1000;
+    long maxPacketDecodeNanos = 60 * 1000L * 1000 * 1000; // hard-code is acceptable, no need move to config class
     private long lastCleanNanos;
 
     private final PerfCallback perfCallback;
