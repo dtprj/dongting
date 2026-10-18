@@ -146,7 +146,8 @@ public class ServerClientLockTest {
 
     private static Client createClient() {
         KvClientConfig c = new KvClientConfig();
-        c.autoRenewalRetryMillis = new long[]{tick(5), tick(1000)};
+        // 2nd backoff must exceed the lease left at the 2nd failure (~lease/2-tick(5)), else its retry renews the lease
+        c.autoRenewalRetryMillis = new long[]{tick(5), tick(50)};
         Client client = new Client(c, new RaftClientConfig(), new NioClientConfig());
         client.start();
         client.getRaftClient().clientAddNode("1,127.0.0.1:15501");

@@ -130,9 +130,9 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
 
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
 
-        // update lease will fail, and first retry fail, and second retry after tick(1000)ms
-        client1.mockCount = 2;
+        // updateLease and its first retry fail; the backoff after the 2nd failure lets the lease expire
         client1.mockFailInCallback = true;
+        client1.mockCount = 2;
 
         WaitUtil.waitUtil(1, listener.lostCount::get);
         WaitUtil.waitUtil(2, listener.acquiredCount::get);
@@ -158,14 +158,14 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         // Only one should be holding the lock
         if (lock1.isHeldByCurrentClient()) {
             assertFalse(lock2.isHeldByCurrentClient());
-            client1.mockCount = 100;
             client1.mockFailSync = true;
+            client1.mockCount = 100;
             WaitUtil.waitUtil(1, listener1.lostCount::get);
             WaitUtil.waitUtil(1, listener2.acquiredCount::get);
         } else {
             assertFalse(lock1.isHeldByCurrentClient());
-            client2.mockCount = 100;
             client2.mockFailSync = true;
+            client2.mockCount = 100;
             WaitUtil.waitUtil(1, listener2.lostCount::get);
             WaitUtil.waitUtil(1, listener1.acquiredCount::get);
         }
@@ -229,8 +229,8 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
 
         // update lease fail and retry after tick(5)ms
-        client1.mockCount = 1;
         client1.mockFailSync = true;
+        client1.mockCount = 1;
 
         Thread.sleep(tick(40));
 
@@ -246,8 +246,8 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         AutoRenewalLock lock = client1.createAutoRenewalLock(groupId, key, tick(20), listener);
         lock.start();
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
-        client1.mockCount = 1;
         client1.mockDelayMillis = tick(20);
+        client1.mockCount = 1;
         WaitUtil.waitUtil(1, listener.lostCount::get);
         WaitUtil.waitUtil(2, listener.acquiredCount::get);
         lock.stop(new DtTime(1, TimeUnit.SECONDS));
