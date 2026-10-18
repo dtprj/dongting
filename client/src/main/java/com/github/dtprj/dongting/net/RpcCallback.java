@@ -29,7 +29,7 @@ public interface RpcCallback<T> extends FutureCallback<ReadPacket<T>> {
             if (ex != null) {
                 f.completeExceptionally(ex);
             } else {
-                f.complete(result.body);
+                f.complete(result == null ? null : result.body);
             }
         };
     }

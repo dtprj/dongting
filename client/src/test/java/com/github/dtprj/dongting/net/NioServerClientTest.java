@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -40,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class NioServerClientTest {
 
     @Test
-    public void simpleTest() {
+    public void simpleTest() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.port = 9000;
         NioServer server = new NioServer(serverConfig);
@@ -52,6 +53,10 @@ public class NioServerClientTest {
             client.start();
             client.waitStart(new DtTime(1, TimeUnit.SECONDS));
             invoke(client);
+            // one-way success must complete the future
+            ByteBufferWritePacket ow = new ByteBufferWritePacket(ByteBuffer.allocate(1));
+            ow.command = Commands.CMD_PING;
+            assertNull(client.sendOneWay(ow, new DtTime(1, TimeUnit.SECONDS)).get(1, TimeUnit.SECONDS));
         } finally {
             TestUtil.stop(client, server);
         }
