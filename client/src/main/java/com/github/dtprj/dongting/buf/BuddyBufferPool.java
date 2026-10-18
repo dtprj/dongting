@@ -254,6 +254,10 @@ public class BuddyBufferPool extends ByteBufferPool {
                         hintChunk = null;
                     }
                     if (c.corrupted) {
+                        if (chunks.size() >= maxChunkCount) {
+                            // over maxChunkCount: the dropped chunk held one budget unit
+                            globalIdleChunkList.release(chunkSize);
+                        }
                         continue;
                     }
                     statChunkCleanCount++;
