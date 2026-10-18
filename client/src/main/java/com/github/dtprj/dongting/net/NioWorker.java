@@ -140,43 +140,43 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             run0(selector, ts);
         }
         try {
-            try {
-                ioWorkerQueue.close();
-                while (!ioWorkerQueue.dispatchFinished()) {
-                    ioWorkerQueue.dispatchActions();
-                }
-                selector.close();
-
-                workerStatus.cleanAllPendingReq();
-
-                List<DtChannelImpl> tempList = new ArrayList<>(channels.size());
-                // can't modify channels map in foreach
-                channels.forEach((index, dtc) -> {
-                    tempList.add(dtc);
-                });
-                for (DtChannelImpl dtc : tempList) {
-                    if (dtc.peer != null) {
-                        dtc.peer.shouldAutoReconnect = false;
-                    }
-                    close(dtc);
-                }
-
-                if (!server) {
-                    cleanOutgoingTimeoutConnect(ts);
-                    ((NioClient) owner).cleanWaitConnectReq(wd -> new NetException("worker closed"));
-                }
-            } finally {
-                executePendingActions();
+            ioWorkerQueue.close();
+            while (!ioWorkerQueue.dispatchFinished()) {
+                ioWorkerQueue.dispatchActions();
             }
+            try {
+                selector.close();
+            } catch (Throwable e) {
+                log.error("close selector error", e);
+            }
+
+            workerStatus.cleanAllPendingReq();
+
+            List<DtChannelImpl> tempList = new ArrayList<>(channels.size());
+            // can't modify channels map in foreach
+            channels.forEach((index, dtc) -> {
+                tempList.add(dtc);
+            });
+            for (DtChannelImpl dtc : tempList) {
+                if (dtc.peer != null) {
+                    dtc.peer.shouldAutoReconnect = false;
+                }
+                close(dtc);
+            }
+
+            if (!server) {
+                cleanOutgoingTimeoutConnect(ts);
+                ((NioClient) owner).cleanWaitConnectReq(wd -> new NetException("worker closed"));
+            }
+        } catch (Throwable e) {
+            log.error("close error", e);
+        } finally {
+            executePendingActions();
             if (readBuffer != null) {
                 releaseReadBuffer();
             }
-
             config.poolFactory.destroyPool(buffers);
-
             log.info("worker thread [{}] finished.", thread.getName());
-        } catch (Throwable e) {
-            log.error("close error. {}", e);
         }
     }
 
