@@ -154,8 +154,12 @@ public class NioServer extends NioNet implements Runnable {
                 if (key.isAcceptable()) {
                     ServerSocketChannel c = (ServerSocketChannel) key.channel();
                     SocketChannel sc = c.accept();
+                    // non-blocking accept returns null if no pending connection
+                    if (sc == null) {
+                        continue;
+                    }
                     log.debug("accept new socket: {}", sc);
-                    workers[sc.hashCode() % workers.length].newChannelAccept(sc);
+                    workers[Math.floorMod(sc.hashCode(), workers.length)].newChannelAccept(sc);
                 }
             }
         } catch (ClosedSelectorException e) {
