@@ -60,6 +60,7 @@ public class NioServer extends NioNet implements Runnable {
     public NioServer(NioServerConfig config) {
         super(config);
         this.config = config;
+        DtUtil.checkPositive(config.ioThreads, "ioThreads");
         if (config.ports != null) {
             for (int i : config.ports) {
                 if (i <= 0 || i > 65535) {
