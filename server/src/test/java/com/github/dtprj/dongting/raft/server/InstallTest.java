@@ -79,7 +79,7 @@ public class InstallTest extends ServerTestBase {
 
             waitStart(s1);
             waitStart(s2);
-            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2);
+            waitLeaderElectAndGetLeaderId(groupId, s1, s2);
 
             client.start();
             client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503");
@@ -89,12 +89,12 @@ public class InstallTest extends ServerTestBase {
             long raftIndex1 = putValues(groupId, client, "beforeInstallKey", count, bodySize, expectMap);
 
             // transfer leader make nextIndex to lastLogIndex + 1, then trigger install
-            DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
             adminClient.start();
             adminClient.clientAddNode(servers);
             adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
-            adminClient.transferLeader(groupId, leader.nodeId, leader.nodeId == 1 ? 2 : 1, timeout).get(5, TimeUnit.SECONDS);
-            leader = leader == s1 ? s2 : s1;
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2);
+            adminClient.transferLeader(groupId, leader.nodeId, leader.nodeId == 1 ? 2 : 1,
+                    new DtTime(5, TimeUnit.SECONDS)).get(5, TimeUnit.SECONDS);
 
             // start server 3
             s3 = createServer(3, servers, members, observers);
@@ -111,7 +111,7 @@ public class InstallTest extends ServerTestBase {
                     g3.groupComponents.raftStatus.fiberGroup.getExecutor());
 
             // transfer leader to server 3
-            adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
+            transferLeaderTo(adminClient, 3, s1, s2, s3);
 
             // check data in server 3
             check(groupId, client, expectMap);
@@ -126,11 +126,8 @@ public class InstallTest extends ServerTestBase {
             waitStart(s1);
             waitStart(s2);
             waitStart(s3);
-            leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
+            transferLeaderTo(adminClient, 3, s1, s2, s3);
 
-            if (leader.nodeId != 3) {
-                adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
-            }
             check(groupId, client, expectMap);
         } finally {
             // stop all
@@ -191,7 +188,7 @@ public class InstallTest extends ServerTestBase {
             waitStart(s1);
             waitStart(s2);
             waitStart(s3);
-            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
+            waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
 
             client.start();
             client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503");
@@ -201,10 +198,10 @@ public class InstallTest extends ServerTestBase {
             adminClient.clientAddNode(servers);
             adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
-            DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-            if (leader.nodeId == 3) {
-                adminClient.transferLeader(groupId, leader.nodeId, 1, timeout).get(5, TimeUnit.SECONDS);
-                leader = s1;
+            // s3 is stopped later, so leader must not be 3
+            if (waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3).nodeId == 3) {
+                adminClient.transferLeader(groupId, 3, 1,
+                        new DtTime(5, TimeUnit.SECONDS)).get(5, TimeUnit.SECONDS);
             }
 
             HashMap<String, byte[]> expectMap = new HashMap<>();
@@ -219,8 +216,9 @@ public class InstallTest extends ServerTestBase {
 
             long raftIndex2 = putValues(groupId, client, "after", 4, 400, expectMap);
 
-            // save snapshot and truncate logs, since
-            // config.autoDeleteLogDelayMillis = 0 and config.maxKeepSnapshots = 1
+            // snapshot and truncate logs on the current leader
+            // (autoDeleteLogDelaySeconds=0 and maxKeepSnapshots=1), s3 is already stopped
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2);
             leader.group.fireSaveSnapshot().get(5, TimeUnit.SECONDS);
 
             // restart server 3
@@ -232,7 +230,7 @@ public class InstallTest extends ServerTestBase {
             WaitUtil.waitUtil(() -> g3New.groupComponents.raftStatus.getLastApplied() >= raftIndex2,
                     g3New.groupComponents.raftStatus.fiberGroup.getExecutor());
 
-            adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
+            transferLeaderTo(adminClient, 3, s1, s2, s3);
             check(groupId, client, expectMap);
         } finally {
             // stop all

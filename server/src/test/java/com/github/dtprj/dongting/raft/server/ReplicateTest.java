@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -55,8 +53,7 @@ public class ReplicateTest extends ServerTestBase {
 
             waitStart(s1);
             waitStart(s2);
-
-            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, s1, s2);
+            waitLeaderElectAndGetLeaderId(groupId, s1, s2);
 
             client.start();
             client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503");
@@ -78,11 +75,10 @@ public class ReplicateTest extends ServerTestBase {
             WaitUtil.waitUtil(() -> g3.groupComponents.raftStatus.getLastApplied() >= raftIndex2,
                     g3.groupComponents.raftStatus.fiberGroup.getExecutor());
 
-            DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
             adminClient.start();
             adminClient.clientAddNode(servers);
             adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
-            adminClient.transferLeader(groupId, leader.nodeId, 3, timeout).get(5, TimeUnit.SECONDS);
+            transferLeaderTo(adminClient, 3, s1, s2, s3);
 
             InstallTest.check(groupId, client, expectMap);
         } finally {

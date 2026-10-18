@@ -17,11 +17,13 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerConfig;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.perf.DefaultKvPerf;
+import com.github.dtprj.dongting.raft.admin.AdminRaftClient;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.ImplAccessor;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
@@ -234,6 +236,7 @@ public class ServerTestBase {
 
     protected ServerInfo waitLeaderElectAndGetLeaderId(int groupId, ServerInfo... servers) {
         AtomicReference<ServerInfo> si = new AtomicReference<>();
+        int[] dualLeaderCount = {0};
         WaitUtil.waitUtil(() -> {
             int leader = 0;
             for (ServerInfo server : servers) {
@@ -243,10 +246,24 @@ public class ServerTestBase {
                 }
             }
             if (leader > 1) {
-                throw new RuntimeException("more than one leader");
+                // may be a transient during leader change, persistent dual leader is a bug
+                if (++dualLeaderCount[0] > 200) {
+                    throw new RuntimeException("more than one leader");
+                }
+                return false;
             }
             return leader == 1;
         });
         return si.get();
+    }
+
+    protected void transferLeaderTo(AdminRaftClient adminClient, int newLeaderId, ServerInfo... servers)
+            throws Exception {
+        ServerInfo current = waitLeaderElectAndGetLeaderId(groupId, servers);
+        if (current.nodeId != newLeaderId) {
+            // inner timeout is shorter, so the rpc error is not masked by the outer get timeout
+            adminClient.transferLeader(groupId, current.nodeId, newLeaderId,
+                    new DtTime(4, TimeUnit.SECONDS)).get(5, TimeUnit.SECONDS);
+        }
     }
 }

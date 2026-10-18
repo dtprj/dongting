@@ -96,8 +96,8 @@ public class ConfigChangeTest extends ServerTestBase {
             f = adminClient.prepareChange(groupId, Set.of(2, 3, 4), Set.of(), Set.of(4), Set.of(), timeout);
             prepareIndex = f.get(5, TimeUnit.SECONDS);
 
-            // before commit, transfer leader to new node
-            adminClient.transferLeader(groupId, leaderId, 4, timeout).get(5, TimeUnit.SECONDS);
+            // ensure the new node is leader before commit
+            transferLeaderTo(adminClient, 4, s2, s3, s4);
             leaderId = 4;
 
             // commit config change

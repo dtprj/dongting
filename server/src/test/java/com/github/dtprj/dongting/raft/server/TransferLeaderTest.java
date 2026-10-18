@@ -48,22 +48,22 @@ public class TransferLeaderTest extends ServerTestBase {
                 waitStart(si);
             }
 
-            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
+            waitLeaderElectAndGetLeaderId(groupId, sis);
 
             client.start();
             client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503");
             client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
-            DtTime timeout = new DtTime(5, TimeUnit.SECONDS);
-            client.put(groupId, "key".getBytes(), "value".getBytes());
-
-            ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
-
             adminClient.start();
             adminClient.clientAddNode("1,127.0.0.1:14401;2,127.0.0.1:14402;3,127.0.0.1:14403");
             adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
-            adminClient.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
-            CompletableFuture<Void> f = adminClient.transferLeader(groupId, leader.nodeId, newLeader.nodeId, timeout);
+            client.put(groupId, "key".getBytes(), "value".getBytes());
+
+            // the leader may have changed since election, re-query before transfer
+            ServerInfo leader = waitLeaderElectAndGetLeaderId(groupId, sis);
+            ServerInfo newLeader = leader == sis[0] ? sis[1] : sis[0];
+            CompletableFuture<Void> f = adminClient.transferLeader(groupId, leader.nodeId,
+                    newLeader.nodeId, new DtTime(5, TimeUnit.SECONDS));
 
             f.get(5, TimeUnit.SECONDS);
 
