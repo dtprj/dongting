@@ -59,7 +59,7 @@ public class RaftClusterIdTest extends ServerTestBase {
     void testRaftClusterId() throws Exception {
         ServerInfo[] sis = new ServerInfo[3];
         try {
-            String servers = "1,127.0.0.1:14401;2,127.0.0.1:14402;3,127.0.0.1:14403";
+            String servers = replicateServers(1, 2, 3);
             String members = "1,2,3";
             for (int i = 0; i < 3; i++) {
                 sis[i] = createServer(i + 1, servers, members, "");
@@ -85,7 +85,7 @@ public class RaftClusterIdTest extends ServerTestBase {
             NioClient client = new NioClient(new NioClientConfig());
             client.start();
             try {
-                Peer followerPeer = client.addPeer(new HostPort("127.0.0.1", 14400 + follower.nodeId))
+                Peer followerPeer = client.addPeer(new HostPort("127.0.0.1", replicatePort(follower.nodeId)))
                         .get(5, TimeUnit.SECONDS);
                 int term = getStatus(follower, rs -> rs.currentTerm);
                 long lastLogIndex = getStatus(follower, rs -> rs.lastLogIndex);
@@ -144,7 +144,7 @@ public class RaftClusterIdTest extends ServerTestBase {
         NioClient client = new NioClient(new NioClientConfig());
         try {
             // single-member group; the vote fiber skips while installSnapshot is true, so it never elects
-            si = createServer(1, "1,127.0.0.1:14401", "1", "");
+            si = createServer(1, replicateServers(1), "1", "");
             ServerInfo finalSi = si;
             WaitUtil.waitUtil(() -> finalSi.gc.raftStatus.isInitFinished(), si.gc.fiberGroup.getExecutor());
             assertFalse((boolean) getStatus(si, rs -> rs.initFailed));
@@ -153,7 +153,7 @@ public class RaftClusterIdTest extends ServerTestBase {
             assertEquals(0L, (long) getStatus(si, rs -> rs.lastLogIndex));
 
             client.start();
-            Peer peer = client.addPeer(new HostPort("127.0.0.1", 14401)).get(5, TimeUnit.SECONDS);
+            Peer peer = client.addPeer(new HostPort("127.0.0.1", replicatePort(1))).get(5, TimeUnit.SECONDS);
             int term = getStatus(si, rs -> rs.currentTerm);
 
             assertRejected(() -> sendInstall(client, peer, WRONG_CLUSTER_ID, term + 100, 0));

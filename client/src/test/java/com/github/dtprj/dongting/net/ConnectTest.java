@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.TestUtil;
+import com.github.dtprj.dongting.test.TestPorts;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.Test;
 
@@ -29,10 +30,12 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class ConnectTest {
 
+    private static final int PORT = TestPorts.getPort();
+
     @Test
     public void connectTimeoutAndManualReconnect() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.port = 8888;
+        serverConfig.port = PORT;
         NioServer server = new NioServer(serverConfig);
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.cleanInterval = 0;
@@ -42,7 +45,7 @@ public class ConnectTest {
             server.start();
             client.start();
 
-            Peer peer = client.addPeer(new HostPort("127.0.0.1", 8888)).get(1, TimeUnit.SECONDS);
+            Peer peer = client.addPeer(new HostPort("127.0.0.1", PORT)).get(1, TimeUnit.SECONDS);
             clientConfig.connectTimeoutMillis = -1;
             try {
                 client.connect(peer).get(1, TimeUnit.SECONDS);
@@ -62,7 +65,7 @@ public class ConnectTest {
     @Test
     public void connectAutoReconnect1() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.port = 8888;
+        serverConfig.port = PORT;
         NioServer server = new NioServer(serverConfig);
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.cleanInterval = 0;
@@ -73,7 +76,7 @@ public class ConnectTest {
             server.start();
             client.start();
 
-            Peer peer = client.addPeer(new HostPort("127.0.0.1", 8888)).get(1, TimeUnit.SECONDS);
+            Peer peer = client.addPeer(new HostPort("127.0.0.1", PORT)).get(1, TimeUnit.SECONDS);
 
             clientConfig.connectTimeoutMillis = -1;
             try {
@@ -101,7 +104,7 @@ public class ConnectTest {
         try {
             client.start();
 
-            Peer peer = client.addPeer(new HostPort("127.0.0.1", 8888)).get(1, TimeUnit.SECONDS);
+            Peer peer = client.addPeer(new HostPort("127.0.0.1", PORT)).get(1, TimeUnit.SECONDS);
 
             clientConfig.connectTimeoutMillis = 1;
             try {
@@ -113,7 +116,7 @@ public class ConnectTest {
             assertTrue(peer.status.ordinal() <= PeerStatus.connecting.ordinal());
 
             NioServerConfig serverConfig = new NioServerConfig();
-            serverConfig.port = 8888;
+            serverConfig.port = PORT;
             server = new NioServer(serverConfig);
             server.start();
 

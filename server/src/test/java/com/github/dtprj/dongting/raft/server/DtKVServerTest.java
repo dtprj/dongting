@@ -79,11 +79,11 @@ public class DtKVServerTest extends ServerTestBase {
         KvClient client = new KvClient(new KvClientConfig(), raftClientConfig, new NioClientConfig());
 
         try {
-            s1 = createServer(1, "1, 127.0.0.1:14401", "1", "");
+            s1 = createServer(1, replicateServers(1), "1", "");
             waitStart(s1);
 
             client.start();
-            client.getRaftClient().clientAddNode("1, 127.0.0.1:15501");
+            client.getRaftClient().clientAddNode(serviceServers(1));
             client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1});
 
             testSimple(client);
@@ -105,8 +105,8 @@ public class DtKVServerTest extends ServerTestBase {
         ServerInfo s1 = null, s2 = null, s3 = null;
         KvClient client = new KvClient();
 
-        String repServers = "1,127.0.0.1:14401;2,127.0.0.1:14402;3,127.0.0.1:14403";
-        String servServers = "1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503";
+        String repServers = replicateServers(1, 2, 3);
+        String servServers = serviceServers(1, 2, 3);
         long oldElectTimeout = electTimeout;
         electTimeout = 50;
         try {

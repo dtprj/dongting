@@ -65,6 +65,7 @@ public class WatchManagerTest implements KvListener {
 
     private static Server server;
     private static int groupId;
+    private static String serviceServersStr;
     private KvClient client;
     private MockWatchManager manager;
     private ConcurrentLinkedQueue<WatchEvent> events;
@@ -94,9 +95,10 @@ public class WatchManagerTest implements KvListener {
         ServerInfo s3;
 
         public void startServers() throws Exception {
-            String servers = "1,127.0.0.1:14401;2,127.0.0.1:14402;3,127.0.0.1:14403";
+            String servers = replicateServers(1, 2, 3);
             String members = "1,2,3";
             String observers = "";
+            WatchManagerTest.serviceServersStr = serviceServers(1, 2, 3);
 
             s1 = createServer(1, servers, members, observers);
             s2 = createServer(2, servers, members, observers);
@@ -196,7 +198,7 @@ public class WatchManagerTest implements KvListener {
             }
         };
         client.start();
-        client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503");
+        client.getRaftClient().clientAddNode(serviceServersStr);
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
         manager = (MockWatchManager) client.getWatchManager();
         if (setListener) {

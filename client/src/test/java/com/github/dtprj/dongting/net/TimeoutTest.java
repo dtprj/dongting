@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.test.TestPorts;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class TimeoutTest {
 
     private static final int CMD = 2000;
+    private static final int PORT = TestPorts.getPort();
 
     private NioServer server;
     private NioClient client;
@@ -53,7 +55,7 @@ public class TimeoutTest {
 
     private void setup(Runnable register) {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.port = 9000;
+        serverConfig.port = PORT;
         server = new NioServer(serverConfig);
         if (register != null) {
             register.run();
@@ -65,7 +67,7 @@ public class TimeoutTest {
         clientConfig.maxOutRequests = 1;
         clientConfig.maxOutBytes = 5000;
         clientConfig.nearTimeoutThreshold = tick(10);
-        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT));
         client = new NioClient(clientConfig);
 
         server.start();

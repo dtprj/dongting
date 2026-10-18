@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.test.TestPorts;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -64,6 +65,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @SuppressWarnings("Convert2Diamond")
 public class NioClientTest {
     private static final DtLog log = DtLogs.getLogger(NioClientTest.class);
+
+    private static final int PORT1 = TestPorts.getPort();
+    private static final int PORT2 = TestPorts.getPort(1);
 
     private BioServer server1;
     private BioServer server2;
@@ -222,10 +226,10 @@ public class NioClientTest {
 
     @Test
     public void simpleSyncTest() throws Exception {
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         NioClientConfig c = new NioClientConfig();
         c.readBufferSize = 2048;
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         client = new NioClient(c);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -234,10 +238,10 @@ public class NioClientTest {
 
     @Test
     public void responseDecodeTimeoutTest() throws Exception {
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         server1.stallResponse = true;
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         c.cleanInterval = 1;
         c.selectTimeout = 1;
         c.maxOutRequests = 1;
@@ -278,10 +282,10 @@ public class NioClientTest {
 
     @Test
     public void simpleAsyncTest() throws Exception {
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         NioClientConfig c = new NioClientConfig();
         c.readBufferSize = 2048;
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         client = new NioClient(c);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -290,10 +294,10 @@ public class NioClientTest {
 
     @Test
     public void generalTest() throws Exception {
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         NioClientConfig c = new NioClientConfig();
         c.readBufferSize = 2048;
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         client = new NioClient(c);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -329,11 +333,11 @@ public class NioClientTest {
 
     @Test
     public void multiServerTest() throws Exception {
-        server1 = new BioServer(9000);
-        server2 = new BioServer(9001);
+        server1 = new BioServer(PORT1);
+        server2 = new BioServer(PORT2);
         NioClientConfig c = new NioClientConfig();
         c.readBufferSize = 2048;
-        c.hostPorts = Arrays.asList(new HostPort("127.0.0.1", 9000), new HostPort("127.0.0.1", 9001));
+        c.hostPorts = Arrays.asList(new HostPort("127.0.0.1", PORT1), new HostPort("127.0.0.1", PORT2));
         client = new NioClient(c);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -408,7 +412,8 @@ public class NioClientTest {
     @Test
     public void connectFailTest() {
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 23245));
+        // a fixed port below the TestPorts range, nothing ever listens on it
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 8642));
         client = new NioClient(c);
         client.start();
         Assertions.assertThrows(NetException.class, () -> client.waitStart(new DtTime(tick(10), TimeUnit.MILLISECONDS)));
@@ -417,13 +422,13 @@ public class NioClientTest {
     @Test
     public void reconnectTest1() throws Exception {
         NioClientConfig c = new NioClientConfig();
-        HostPort hp1 = new HostPort("127.0.0.1", 9000);
-        HostPort hp2 = new HostPort("127.0.0.1", 9001);
+        HostPort hp1 = new HostPort("127.0.0.1", PORT1);
+        HostPort hp2 = new HostPort("127.0.0.1", PORT2);
         c.hostPorts = Arrays.asList(hp1, hp2);
         client = new NioClient(c);
 
-        server1 = new BioServer(9000);
-        server2 = new BioServer(9001);
+        server1 = new BioServer(PORT1);
+        server2 = new BioServer(PORT2);
 
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -454,7 +459,7 @@ public class NioClientTest {
         } catch (TimeoutException | ExecutionException e) {
             // ignore
         }
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         client.connect(p1).get(tick(20), TimeUnit.MILLISECONDS);
         sendSyncByPeer(5000, client, p1, 500);
 
@@ -471,11 +476,11 @@ public class NioClientTest {
     @Test
     public void reconnectTest2() throws Exception {
         NioClientConfig c = new NioClientConfig();
-        HostPort hp1 = new HostPort("127.0.0.1", 9000);
+        HostPort hp1 = new HostPort("127.0.0.1", PORT1);
         c.hostPorts = List.of(hp1);
         client = new NioClient(c);
 
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
 
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -486,7 +491,7 @@ public class NioClientTest {
 
         assertThrows(NetException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
 
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
 
         // auto connect by rpc request
         sendSyncByPeer(5000, client, p1, 500);
@@ -495,12 +500,12 @@ public class NioClientTest {
     @Test
     public void reconnectTest3() throws Exception {
         NioClientConfig c = new NioClientConfig();
-        HostPort hp1 = new HostPort("127.0.0.1", 9000);
+        HostPort hp1 = new HostPort("127.0.0.1", PORT1);
         c.hostPorts = List.of(hp1);
         c.connectRetryIntervals = new int[1];
         client = new NioClient(c);
 
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
 
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -512,7 +517,7 @@ public class NioClientTest {
         WaitUtil.waitUtil(() -> p1.connectRetryCount > 1);
 
 
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         WaitUtil.waitUtil(() -> p1.status == PeerStatus.connected);
         assertEquals(0, client.worker.workerStatus.retryConnect);
     }
@@ -520,13 +525,13 @@ public class NioClientTest {
     @Test
     public void peerManageTest() throws Exception {
         NioClientConfig c = new NioClientConfig();
-        HostPort hp1 = new HostPort("127.0.0.1", 9000);
-        HostPort hp2 = new HostPort("127.0.0.1", 9001);
+        HostPort hp1 = new HostPort("127.0.0.1", PORT1);
+        HostPort hp2 = new HostPort("127.0.0.1", PORT2);
         c.hostPorts = new ArrayList<>();
         client = new NioClient(c);
 
-        server1 = new BioServer(9000);
-        server2 = new BioServer(9001);
+        server1 = new BioServer(PORT1);
+        server2 = new BioServer(PORT2);
 
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -576,10 +581,10 @@ public class NioClientTest {
     @Test
     public void clientSemaphoreTimeoutTest() throws Exception {
 
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         server1.sleep = tick(30);
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         c.cleanInterval = 1;
         c.selectTimeout = 1;
         c.maxOutRequests = 1;
@@ -601,9 +606,9 @@ public class NioClientTest {
 
     @Test
     public void clientStatusTest() throws Exception {
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         client = new NioClient(c);
         client.stop(new DtTime(1, TimeUnit.SECONDS));
         assertEquals(AbstractLifeCircle.STATUS_STOPPED, client.getStatus());
@@ -629,9 +634,9 @@ public class NioClientTest {
 
     @Test
     public void errorCodeTest() throws Exception {
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         client = new NioClient(c);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
@@ -647,9 +652,9 @@ public class NioClientTest {
 
     @Test
     public void closeTest1() throws Exception {
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         c.cleanInterval = 0;
         c.selectTimeout = 1;
         client = new NioClient(c);
@@ -671,9 +676,9 @@ public class NioClientTest {
         BioServer server = null;
         NioClient client = null;
         try {
-            server = new BioServer(9000);
+            server = new BioServer(PORT1);
             NioClientConfig c = new NioClientConfig();
-            c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+            c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
             c.cleanInterval = 0;
             c.selectTimeout = 1;
             client = new NioClient(c);
@@ -728,9 +733,9 @@ public class NioClientTest {
 
     @Test
     public void failOrderTest() throws Exception {
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         c.cleanInterval = 0;
         c.selectTimeout = 1;
         client = new NioClient(c);
@@ -773,9 +778,9 @@ public class NioClientTest {
     @Test
     public void badDecoderTest() throws Exception {
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         client = new NioClient(c);
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
 
@@ -816,9 +821,9 @@ public class NioClientTest {
     @Test
     public void badEncoderTest() throws Exception {
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         client = new NioClient(c);
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
 
@@ -890,11 +895,11 @@ public class NioClientTest {
     @Test
     public void largePacketTest() throws Exception {
         NioClientConfig c = new NioClientConfig();
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
         c.maxPacketSize = 100 + 128 * 1024;
         c.maxBodySize = 100;
         client = new NioClient(c);
-        server1 = new BioServer(9000);
+        server1 = new BioServer(PORT1);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
 
@@ -927,10 +932,10 @@ public class NioClientTest {
 
     @Test
     public void handshakeTest() throws Exception {
-        server1 = new BioServer(9000, true);
+        server1 = new BioServer(PORT1, true);
         NioClientConfig c = new NioClientConfig();
         c.readBufferSize = 2048;
-        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        c.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT1));
 
         int maxPacketSize = c.maxPacketSize;
         int maxBodySize = c.maxBodySize;

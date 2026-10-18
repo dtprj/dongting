@@ -38,7 +38,7 @@ public class TransferLeaderTest extends ServerTestBase {
         AdminRaftClient adminClient = new AdminRaftClient();
         KvClient client = new KvClient();
         try {
-            String servers = "1,127.0.0.1:14401;2,127.0.0.1:14402;3,127.0.0.1:14403";
+            String servers = replicateServers(1, 2, 3);
             String members = "1,2,3";
             String observers = "";
             sis[0] = createServer(1, servers, members, observers);
@@ -51,11 +51,11 @@ public class TransferLeaderTest extends ServerTestBase {
             waitLeaderElectAndGetLeaderId(groupId, sis);
 
             client.start();
-            client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503");
+            client.getRaftClient().clientAddNode(serviceServers(1, 2, 3));
             client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
             adminClient.start();
-            adminClient.clientAddNode("1,127.0.0.1:14401;2,127.0.0.1:14402;3,127.0.0.1:14403");
+            adminClient.clientAddNode(replicateServers(1, 2, 3));
             adminClient.clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
             client.put(groupId, "key".getBytes(), "value".getBytes());
 

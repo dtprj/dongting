@@ -49,7 +49,7 @@ public class RemoveNodeTest extends ServerTestBase {
         KvClient kvClient = new KvClient();
         ServerInfo s2 = null, s3 = null;
         try {
-            String servers = "2,127.0.0.1:14402;3,127.0.0.1:14403";
+            String servers = replicateServers(2, 3);
             String members = "2,3";
             s2 = createServer(2, servers, members, "");
             s3 = createServer(3, servers, members, "");
@@ -62,7 +62,7 @@ public class RemoveNodeTest extends ServerTestBase {
             adminClient.fetchLeader(groupId).get(2, TimeUnit.SECONDS);
 
             kvClient.start();
-            kvClient.getRaftClient().clientAddNode("2,127.0.0.1:15502;3,127.0.0.1:15503");
+            kvClient.getRaftClient().clientAddNode(serviceServers(2, 3));
             kvClient.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{2, 3});
 
             // data before all config changes, server 2 must replay it from the beginning of the log
@@ -72,8 +72,8 @@ public class RemoveNodeTest extends ServerTestBase {
 
             // define node 4 on all servers, then prepare a config change which references it,
             // node 4 never starts
-            adminClient.serverAddNode(2, 4, "127.0.0.1", 14404).get(5, TimeUnit.SECONDS);
-            adminClient.serverAddNode(3, 4, "127.0.0.1", 14404).get(5, TimeUnit.SECONDS);
+            adminClient.serverAddNode(2, 4, "127.0.0.1", replicatePort(4)).get(5, TimeUnit.SECONDS);
+            adminClient.serverAddNode(3, 4, "127.0.0.1", replicatePort(4)).get(5, TimeUnit.SECONDS);
             adminClient.prepareChange(groupId, Set.of(2, 3), Set.of(),
                     Set.of(2, 3, 4), Set.of(), timeout).get(5, TimeUnit.SECONDS);
 
@@ -138,7 +138,7 @@ public class RemoveNodeTest extends ServerTestBase {
         AdminRaftClient adminClient = new AdminRaftClient();
         ServerInfo s2 = null, s3 = null;
         try {
-            String servers = "2,127.0.0.1:14402;3,127.0.0.1:14403";
+            String servers = replicateServers(2, 3);
             String members = "2,3";
             s2 = createServer(2, servers, members, "");
             s3 = createServer(3, servers, members, "");
@@ -167,7 +167,7 @@ public class RemoveNodeTest extends ServerTestBase {
             assertEquals(RaftRole.leader, gc.raftStatus.getRole());
 
             // after the node definition is added, the member resolves it automatically
-            adminClient.serverAddNode(leader.nodeId, 99, "127.0.0.1", 15999)
+            adminClient.serverAddNode(leader.nodeId, 99, "127.0.0.1", replicatePort(99))
                     .get(5, TimeUnit.SECONDS);
             WaitUtil.waitUtil(() -> m99.node != null, groupExecutor);
 
@@ -186,7 +186,7 @@ public class RemoveNodeTest extends ServerTestBase {
         ServerInfo s2 = null, s3 = null;
         try {
             // node 4 is defined in the servers config and used as an observer, it never starts
-            String servers = "2,127.0.0.1:14402;3,127.0.0.1:14403;4,127.0.0.1:14404";
+            String servers = replicateServers(2, 3, 4);
             String members = "2,3";
             s2 = createServer(2, servers, members, "4");
             s3 = createServer(3, servers, members, "4");

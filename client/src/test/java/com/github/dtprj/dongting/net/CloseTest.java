@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.test.Tick;
+import com.github.dtprj.dongting.test.TestPorts;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class CloseTest {
     private static final int CMD = 2000;
+    private static final int PORT = TestPorts.getPort();
+    private static final int OTHER_PORT = TestPorts.getPort(1);
     // body must exceed MAX_BUFFER_SIZE so the client is still in the middle of it when channel closes
     private static final int BROKEN_RESP_BODY_SIZE = IoChannelQueue.MAX_BUFFER_SIZE * 2;
     private static final int BROKEN_RESP_ENCODE_FAIL_SIZE = IoChannelQueue.MAX_BUFFER_SIZE * 3 / 2;
@@ -53,7 +56,7 @@ public class CloseTest {
     private void setup(Runnable register, int cleanInterval) {
         received = false;
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.port = 9000;
+        serverConfig.port = PORT;
         server = new NioServer(serverConfig);
         register.run();
 
@@ -61,7 +64,7 @@ public class CloseTest {
         clientConfig.cleanInterval = cleanInterval;
         clientConfig.maxOutRequests = 1;
         clientConfig.maxOutBytes = 5000;
-        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT));
         client = new NioClient(clientConfig);
 
         server.start();
@@ -396,11 +399,11 @@ public class CloseTest {
     public void testCascadingCloseFromPendingCallback(int cleanMode) throws Exception {
         setup(() -> { }, 1000000);
         NioServerConfig config = new NioServerConfig();
-        config.port = 9001;
+        config.port = OTHER_PORT;
         NioServer otherServer = new NioServer(config);
         otherServer.start();
         try {
-            Peer otherPeer = client.addPeer(new HostPort("127.0.0.1", 9001)).get(10, TimeUnit.SECONDS);
+            Peer otherPeer = client.addPeer(new HostPort("127.0.0.1", OTHER_PORT)).get(10, TimeUnit.SECONDS);
             client.connect(otherPeer).get(10, TimeUnit.SECONDS);
             DtChannelImpl second = otherPeer.dtChannel;
             CompletableFuture<ReadPacket<Void>> pendingResult = new CompletableFuture<>();

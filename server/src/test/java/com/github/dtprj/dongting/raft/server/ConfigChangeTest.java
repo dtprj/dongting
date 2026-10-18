@@ -43,7 +43,7 @@ public class ConfigChangeTest extends ServerTestBase {
         AdminRaftClient adminClient = new AdminRaftClient();
         try {
             DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
-            String servers = "2,127.0.0.1:14402;3,127.0.0.1:14403";
+            String servers = replicateServers(2, 3);
             String members = "2,3";
             s2 = createServer(2, servers, members, "");
             s3 = createServer(3, servers, members, "");
@@ -64,8 +64,8 @@ public class ConfigChangeTest extends ServerTestBase {
             f.get(5, TimeUnit.SECONDS);
 
             // add new node
-            CompletableFuture<Void> f1 = adminClient.serverAddNode(2, 4, "127.0.0.1", 14404);
-            CompletableFuture<Void> f2 = adminClient.serverAddNode(3, 4, "127.0.0.1", 14404);
+            CompletableFuture<Void> f1 = adminClient.serverAddNode(2, 4, "127.0.0.1", replicatePort(4));
+            CompletableFuture<Void> f2 = adminClient.serverAddNode(3, 4, "127.0.0.1", replicatePort(4));
             f1.get(5, TimeUnit.SECONDS);
             f2.get(5, TimeUnit.SECONDS);
 
@@ -81,10 +81,10 @@ public class ConfigChangeTest extends ServerTestBase {
             assertEquals(3, queryStatusFuture.get(5, TimeUnit.SECONDS).members.size());
 
             // start the new node
-            s4 = createServer(4, "2,127.0.0.1:14402;3,127.0.0.1:14403;4,127.0.0.1:14404", "2,3,4", "");
+            s4 = createServer(4, replicateServers(2, 3, 4), "2,3,4", "");
             waitStart(s4);
 
-            adminClient.clientAddNode("4,127.0.0.1:14404");
+            adminClient.clientAddNode(replicateServers(4));
             adminClient.clientAddOrUpdateGroup(groupId, new int[]{2, 3, 4});
 
             // mark sure the new node has catch up

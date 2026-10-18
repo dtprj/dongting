@@ -71,7 +71,7 @@ public class InstallTest extends ServerTestBase {
         KvClient client = new KvClient();
         ServerInfo s1 = null, s2 = null, s3 = null;
         try {
-            String servers = "1,127.0.0.1:14401;2,127.0.0.1:14402;3,127.0.0.1:14403";
+            String servers = replicateServers(1, 2, 3);
             String members = "1,2,3";
             String observers = "";
             s1 = createServer(1, servers, members, observers);
@@ -82,7 +82,7 @@ public class InstallTest extends ServerTestBase {
             waitLeaderElectAndGetLeaderId(groupId, s1, s2);
 
             client.start();
-            client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503");
+            client.getRaftClient().clientAddNode(serviceServers(1, 2, 3));
             client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
             HashMap<String, byte[]> expectMap = new HashMap<>();
@@ -178,7 +178,7 @@ public class InstallTest extends ServerTestBase {
         KvClient client = new KvClient();
         ServerInfo s1 = null, s2 = null, s3 = null;
         try {
-            String servers = "1,127.0.0.1:14401;2,127.0.0.1:14402;3,127.0.0.1:14403";
+            String servers = replicateServers(1, 2, 3);
             String members = "1,2,3";
             String observers = "";
             s1 = createServer(1, servers, members, observers);
@@ -191,7 +191,7 @@ public class InstallTest extends ServerTestBase {
             waitLeaderElectAndGetLeaderId(groupId, s1, s2, s3);
 
             client.start();
-            client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502;3,127.0.0.1:15503");
+            client.getRaftClient().clientAddNode(serviceServers(1, 2, 3));
             client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2, 3});
 
             adminClient.start();

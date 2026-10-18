@@ -113,7 +113,7 @@ public class PacketPbTest {
                 decodeContext.buffers, new Timestamp(), 1000);
 
         SocketChannel sc = SocketChannel.open();
-        sc.bind(new InetSocketAddress(19344));
+        sc.bind(new InetSocketAddress(0));
         DtChannelImpl dtc;
         try {
             dtc = new DtChannelImpl(new Java8NioStatus(), workerStatus,

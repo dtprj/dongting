@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.github.dtprj.dongting.test.TestDir;
+import com.github.dtprj.dongting.test.TestPorts;
 import com.github.dtprj.dongting.test.WaitUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -48,6 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntUnaryOperator;
 import java.util.zip.CRC32C;
 
 import static com.github.dtprj.dongting.test.Tick.tick;
@@ -78,6 +80,34 @@ public class ServerTestBase {
     protected int logFileSize = 512 * 1024;
 
     protected final Map<String, String> dirMap = new ConcurrentHashMap<>();
+
+    // temp ports, shared by all tests in this jvm, like the old fixed ports
+    protected int replicatePort(int nodeId) {
+        return TestPorts.getPort(2 * nodeId);
+    }
+
+    protected int servicePort(int nodeId) {
+        return TestPorts.getPort(2 * nodeId + 1);
+    }
+
+    protected String replicateServers(int... nodeIds) {
+        return buildServers(this::replicatePort, nodeIds);
+    }
+
+    protected String serviceServers(int... nodeIds) {
+        return buildServers(this::servicePort, nodeIds);
+    }
+
+    private static String buildServers(IntUnaryOperator port, int... nodeIds) {
+        StringBuilder sb = new StringBuilder();
+        for (int nodeId : nodeIds) {
+            if (sb.length() > 0) {
+                sb.append(';');
+            }
+            sb.append(nodeId).append(",127.0.0.1:").append(port.applyAsInt(nodeId));
+        }
+        return sb.toString();
+    }
 
     public ServerTestBase(boolean openServicePort) {
         this.openServicePort = openServicePort;
@@ -111,14 +141,13 @@ public class ServerTestBase {
 
     protected ServerInfo createServer(int nodeId, String servers, String nodeIdOfMembers,
                                       String nodeIdOfObservers) throws Exception {
-        int replicatePort = 14400 + nodeId;
         RaftServerConfig serverConfig = new RaftServerConfig();
         serverConfig.servers = servers;
         serverConfig.nodeId = nodeId;
-        serverConfig.replicatePort = replicatePort;
+        serverConfig.replicatePort = replicatePort(nodeId);
         serverConfig.pingInterval = tick(1);
         if (openServicePort) {
-            serverConfig.servicePort = 15500 + nodeId;
+            serverConfig.servicePort = servicePort(nodeId);
         }
         serverConfig.electTimeout = tick(electTimeout);
         serverConfig.heartbeatInterval = (long) (serverConfig.electTimeout * 0.4);

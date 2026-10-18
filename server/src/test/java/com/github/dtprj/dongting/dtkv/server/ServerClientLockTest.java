@@ -43,6 +43,7 @@ import static com.github.dtprj.dongting.test.Tick.tick;
  */
 public class ServerClientLockTest {
     protected static int groupId;
+    protected static String serviceServersStr;
     protected static Server server;
     protected static Client client1;
     protected static Client client2;
@@ -52,9 +53,10 @@ public class ServerClientLockTest {
         ServerInfo s1;
 
         public void startServers() throws Exception {
-            String servers = "1,127.0.0.1:14401";
+            String servers = replicateServers(1);
             String members = "1";
             String observers = "";
+            ServerClientLockTest.serviceServersStr = serviceServers(1);
 
             s1 = createServer(1, servers, members, observers);
             waitStart(s1);
@@ -150,7 +152,7 @@ public class ServerClientLockTest {
         c.autoRenewalRetryMillis = new long[]{tick(5), tick(50)};
         Client client = new Client(c, new RaftClientConfig(), new NioClientConfig());
         client.start();
-        client.getRaftClient().clientAddNode("1,127.0.0.1:15501");
+        client.getRaftClient().clientAddNode(serviceServersStr);
         client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1});
         return client;
     }

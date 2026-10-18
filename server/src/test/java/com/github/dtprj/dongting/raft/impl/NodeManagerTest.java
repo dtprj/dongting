@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.test.TestPorts;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -50,20 +51,24 @@ public class NodeManagerTest {
         RaftStatusImpl raftStatus;
     }
 
+    private int port(int nodeId) {
+        return TestPorts.getPort(nodeId);
+    }
+
     private NodeInfo createManager(int nodeId, String members, String observers) {
         List<RaftNode> nodes = new ArrayList<>();
         for (Integer id : RaftUtil.strToIdSet(members)) {
-            nodes.add(new RaftNode(id, new HostPort("127.0.0.1", 15200 + id)));
+            nodes.add(new RaftNode(id, new HostPort("127.0.0.1", port(id))));
         }
         for (Integer id : RaftUtil.strToIdSet(observers)) {
-            nodes.add(new RaftNode(id, new HostPort("127.0.0.1", 15200 + id)));
+            nodes.add(new RaftNode(id, new HostPort("127.0.0.1", port(id))));
         }
         NioClient client = new NioClient(new NioClientConfig());
         RaftServerConfig raftServerConfig = new RaftServerConfig();
         raftServerConfig.nodeId = nodeId;
         raftServerConfig.pingInterval = 1;
         NioServerConfig nioServerConfig = new NioServerConfig();
-        nioServerConfig.port = 15200 + nodeId;
+        nioServerConfig.port = port(nodeId);
         NioServer server = new NioServer(nioServerConfig);
         NodeManager nodeManager = new NodeManager(raftServerConfig, nodes, client, nodes.size(), server);
         server.register(Commands.NODE_PING, new NodePingProcessor(nodeManager, raftServerConfig));
@@ -120,15 +125,15 @@ public class NodeManagerTest {
         } catch (ExecutionException e) {
             assertInstanceOf(RaftException.class, e.getCause());
         }
-        n1.nodeManager.addNode(new RaftNode(9, new HostPort("127.0.0.1", 15209))).get();
+        n1.nodeManager.addNode(new RaftNode(9, new HostPort("127.0.0.1", port(9)))).get();
         n1.nodeManager.removeNode(9).get();
         n1.nodeManager.removeNode(10000).get();
 
         NodeInfo n4 = createManager(4, "1,2,3", "4");
         n4.nodeManager.start();
 
-        n2.nodeManager.addNode(new RaftNode(4, new HostPort("127.0.0.1", 15204))).get();
-        n3.nodeManager.addNode(new RaftNode(4, new HostPort("127.0.0.1", 15204))).get();
+        n2.nodeManager.addNode(new RaftNode(4, new HostPort("127.0.0.1", port(4)))).get();
+        n3.nodeManager.addNode(new RaftNode(4, new HostPort("127.0.0.1", port(4)))).get();
         waitReady(n2, 4);
         waitReady(n3, 4);
 

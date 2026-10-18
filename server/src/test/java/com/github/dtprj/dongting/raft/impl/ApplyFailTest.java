@@ -71,7 +71,7 @@ public class ApplyFailTest extends ServerTestBase {
 
     @Test
     void testAsyncExecFailStopApply() throws Exception {
-        String servers = "1,127.0.0.1:14401";
+        String servers = replicateServers(1);
         ServerInfo si = createServer(1, servers, "1", "");
         try {
             waitStart(si);
@@ -111,7 +111,7 @@ public class ApplyFailTest extends ServerTestBase {
 
     @Test
     void testSyncExecFailStopApply() throws Exception {
-        String servers = "1,127.0.0.1:14401";
+        String servers = replicateServers(1);
         syncFailExecCount = 2;
         ServerInfo si = createServer(1, servers, "1", "");
         try {
@@ -140,7 +140,7 @@ public class ApplyFailTest extends ServerTestBase {
 
     @Test
     void testInitReplayFail() throws Exception {
-        String servers = "1,127.0.0.1:14401";
+        String servers = replicateServers(1);
 
         // phase 1: write and apply some logs, then stop without snapshot
         ServerInfo si = createServer(1, servers, "1", "");

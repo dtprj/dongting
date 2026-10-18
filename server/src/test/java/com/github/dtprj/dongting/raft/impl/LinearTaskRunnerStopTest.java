@@ -34,7 +34,7 @@ public class LinearTaskRunnerStopTest extends ServerTestBase {
 
     @Test
     public void testAllTaskCallbacksInvokedWhenStop() throws Exception {
-        String servers = "1,127.0.0.1:14401";
+        String servers = replicateServers(1);
         ServerInfo si = createServer(1, servers, "1", "");
         try {
             waitStart(si);

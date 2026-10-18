@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.test.Tick;
+import com.github.dtprj.dongting.test.TestPorts;
 import com.github.dtprj.dongting.test.WaitUtil;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
@@ -66,7 +67,7 @@ public class NioServerTest {
     private static final int CMD_BIZ_PING1 = 3001;
     private static final int CMD_BIZ_PING2 = 3002;
 
-    private static final int PORT = 9000;
+    private static final int PORT = TestPorts.getPort();
 
     private NioServer server;
 

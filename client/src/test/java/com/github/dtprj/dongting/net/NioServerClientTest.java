@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.test.TestPorts;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -40,13 +41,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class NioServerClientTest {
 
+    private static final int PORT = TestPorts.getPort();
+
     @Test
     public void simpleTest() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.port = 9000;
+        serverConfig.port = PORT;
         NioServer server = new NioServer(serverConfig);
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT));
         NioClient client = new NioClient(clientConfig);
         try {
             server.start();
@@ -84,7 +87,7 @@ public class NioServerClientTest {
     @Test
     public void testSeqProblem() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
-        serverConfig.port = 9000;
+        serverConfig.port = PORT;
         NioServer server = new NioServer(serverConfig);
         server.register(12345, new NioServer.PingProcessor() {
             @Override
@@ -100,7 +103,7 @@ public class NioServerClientTest {
 
         NioClientConfig clientConfig = new NioClientConfig();
 
-        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", 9000));
+        clientConfig.hostPorts = Collections.singletonList(new HostPort("127.0.0.1", PORT));
         NioClient client = new NioClient(clientConfig);
         try {
             server.start();

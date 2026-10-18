@@ -39,7 +39,7 @@ public class MultiRaftTest extends ServerTestBase {
         AdminRaftClient adminClient = new AdminRaftClient();
         KvClient client = new KvClient();
 
-        String servers = "1,127.0.0.1:14401;2,127.0.0.1:14402";
+        String servers = replicateServers(1, 2);
         String members = "1,2";
         ServerInfo s1 = null;
         ServerInfo s2 = null;
@@ -64,7 +64,7 @@ public class MultiRaftTest extends ServerTestBase {
             waitLeaderElectAndGetLeaderId(groupId2, s1, s2);
 
             client.start();
-            client.getRaftClient().clientAddNode("1,127.0.0.1:15501;2,127.0.0.1:15502");
+            client.getRaftClient().clientAddNode(serviceServers(1, 2));
             client.getRaftClient().clientAddOrUpdateGroup(groupId, new int[]{1, 2});
             client.getRaftClient().clientAddOrUpdateGroup(groupId2, new int[]{1, 2});
             client.put(groupId, "key".getBytes(), "value1".getBytes());
