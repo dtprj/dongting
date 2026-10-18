@@ -90,6 +90,8 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
         if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {
             throw new IllegalArgumentException("itemsPerFile not power of 2: " + itemsPerFile);
         }
+        DtUtil.checkPositive(groupConfig.idxCacheSize, "idxCacheSize");
+        DtUtil.checkPositive(groupConfig.idxFlushThreshold, "idxFlushThreshold");
         this.statusManager = statusManager;
         this.ts = groupConfig.ts;
         this.lastForceNanos = ts.nanoTime;
@@ -332,7 +334,8 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
             if (diff > 0 && nextPersistIndex <= firstIndex) {
                 // after install snapshot
                 flushType = 1;
-            } else if (diff > flushThreshold) {
+            } else if (diff >= flushThreshold) {
+                // >= to match needWaitFlush(): appends already block at exactly the threshold
                 flushType = flushRestMillis > 0 ? 0 : 1;
             } else if (isMarkClose()) {
                 flushType = diff > 0 ? 1 : 2;
