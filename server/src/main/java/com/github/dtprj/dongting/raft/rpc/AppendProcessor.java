@@ -511,7 +511,9 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     }
 
     private FrameCallResult startInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
-        if (req.lastIncludedIndex < raftStatus.commitIndex) {
+        // in install state, local logs and snapshots are already deleted, the stale commitIndex
+        // must not refuse the retry install (otherwise an interrupted install can never resume)
+        if (!raftStatus.installSnapshot && req.lastIncludedIndex < raftStatus.commitIndex) {
             log.error("install snapshot request rolls back committed logs, refuse it. groupId={}," +
                     " lastIncludedIndex={}, localCommitIndex={}",
                     groupId, req.lastIncludedIndex, raftStatus.commitIndex);
