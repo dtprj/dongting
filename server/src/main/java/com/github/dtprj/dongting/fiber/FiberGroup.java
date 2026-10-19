@@ -58,6 +58,7 @@ public class FiberGroup {
     Fiber currentFiber;
 
     public FiberFrame<Void> shutdownCallback;
+    private boolean shutdownCallbackStarted;
 
     public FiberGroup(String name, Dispatcher dispatcher, ShareStatusSource sss) {
         this.name = name;
@@ -119,15 +120,15 @@ public class FiberGroup {
     }
 
     private void requestShutdown0() {
-        // if the dispatcher stopped, no ops
-        if (shareStatusSource.shouldStop) {
-            return;
+        if (!shareStatusSource.shouldStop) {
+            log.info("request shutdown group: {}", name);
+            shareStatusSource.shouldStop = true;
+            shareStatusSource.copy(true);
+            shouldStopCondition.signalAll();
         }
-        log.info("request shutdown group: {}", name);
-        shareStatusSource.shouldStop = true;
-        shareStatusSource.copy(true);
-        shouldStopCondition.signalAll();
-        if (shutdownCallback != null) {
+        // the callback may be registered after shouldStop is set, a later call starts it here
+        if (shutdownCallback != null && !shutdownCallbackStarted) {
+            shutdownCallbackStarted = true;
             start(new Fiber("shutdown-callback", this, shutdownCallback), false);
         }
     }

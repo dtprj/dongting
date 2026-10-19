@@ -311,6 +311,8 @@ public class RaftServer extends AbstractLifeCircle {
         if (groupCustomizer != null) {
             groupCustomizer.accept(g);
         }
+        // register before the group is published, so any stop request can start the callback
+        fiberGroup.shutdownCallback = new ShutdownFiberFrame(g);
         stateMachine.setRaftGroup(g);
         return g;
     }
@@ -621,8 +623,17 @@ public class RaftServer extends AbstractLifeCircle {
                 if (startEx != null) {
                     f.completeExceptionally(startEx);
                 } else {
-                    initRaftGroup(g);
                     RaftStatusImpl raftStatus = g.groupComponents.raftStatus;
+                    try {
+                        initRaftGroup(g);
+                    } catch (Throwable e) {
+                        log.error("fire init fiber fail, groupId={}", groupConfig.groupId, e);
+                        raftStatus.markInit(true);
+                        raftStatus.copyShareStatus();
+                        raftStatus.initFuture.completeExceptionally(e);
+                        f.completeExceptionally(e);
+                        return;
+                    }
                     f.complete(null);
                     raftStatus.initFuture.whenComplete((vv, initEx) -> {
                         if (initEx != null) {

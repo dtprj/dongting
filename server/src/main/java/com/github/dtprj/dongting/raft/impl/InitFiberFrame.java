@@ -41,14 +41,12 @@ public class InitFiberFrame extends FiberFrame<Void> {
     private static final DtLog log = DtLogs.getLogger(InitFiberFrame.class);
 
     private final GroupComponents gc;
-    private final RaftGroupImpl raftGroup;
     private final RaftStatusImpl raftStatus;
     private final RaftGroupConfigEx groupConfig;
     private final Set<RaftSequenceProcessor<?>> raftSequenceProcessors;
 
     public InitFiberFrame(RaftGroupImpl raftGroup, Set<RaftSequenceProcessor<?>> raftSequenceProcessors) {
         this.gc = raftGroup.groupComponents;
-        this.raftGroup = raftGroup;
         this.raftStatus = gc.raftStatus;
         this.groupConfig = gc.groupConfig;
         this.raftSequenceProcessors = raftSequenceProcessors;
@@ -79,8 +77,12 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
-        // Register shutdown callback first to ensure graceful shutdown even if init fails
-        groupConfig.fiberGroup.shutdownCallback = new ShutdownFiberFrame(raftGroup);
+        if (isGroupShouldStopPlain()) {
+            // ensure the shutdown callback is started
+            getFiberGroup().requestShutdown();
+            cancelInit();
+            return Fiber.frameReturn();
+        }
 
         groupConfig.perfCallback.setCollectExecutor(groupConfig.fiberGroup.getExecutor());
         groupConfig.perfCallback.start();
