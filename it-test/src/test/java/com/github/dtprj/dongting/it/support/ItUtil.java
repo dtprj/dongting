@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.it.support;
 
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.test.TestPorts;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -26,16 +27,13 @@ import java.util.List;
  * @author huangli
  */
 public class ItUtil {
-    private static final int BASE_REPLICATE_PORT = 7700;
-    private static final int BASE_SERVICE_PORT = 7701;
-    private static final int PORT_STEP = 100;
 
     public static int replicatePort(int nodeId) {
-        return BASE_REPLICATE_PORT + (nodeId - 1) * PORT_STEP;
+        return TestPorts.getPort(2 * nodeId);
     }
 
     public static int servicePort(int nodeId) {
-        return BASE_SERVICE_PORT + (nodeId - 1) * PORT_STEP;
+        return TestPorts.getPort(2 * nodeId + 1);
     }
 
     public static String formatReplicateServers(int[] nodeIds) {
