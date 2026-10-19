@@ -178,7 +178,8 @@ public class AdminRaftClient extends RaftClient {
     }
 
     /**
-     * Remove and stop a raft group on the specified node, the future completes after the group stopped.
+     * Remove and stop a raft group on the specified node, the future completes when the
+     * remove/stop request is fired; poll the group status to know when it's done.
      */
     public CompletableFuture<Void> serverRemoveGroup(int nodeId, int groupId, DtTime timeout) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.RAFT_ADMIN_REMOVE_GROUP, groupId);

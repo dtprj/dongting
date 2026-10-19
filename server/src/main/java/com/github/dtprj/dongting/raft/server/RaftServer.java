@@ -642,9 +642,8 @@ public class RaftServer extends AbstractLifeCircle {
 
     /**
      * ADMIN API. This method is idempotent.
-     * The return future complete when the group is removed, but the group may not be stopped,
-     * you should check the group status to make sure it's stopped.
-     *
+     * The return future completes when the remove/stop request is fired; the caller should
+     * poll the group status to know when the group is stopped and removed.
      */
     public CompletableFuture<Void> removeGroup(int groupId, boolean saveSnapshot, DtTime shutdownTimeout) {
         DtUtil.checkPositive(groupId, "groupId");
@@ -652,31 +651,22 @@ public class RaftServer extends AbstractLifeCircle {
         if (g == null) {
             log.warn("group {} not exist", groupId);
             return CompletableFuture.completedFuture(null);
-        } else {
-            if (status != STATUS_RUNNING) {
-                return CompletableFuture.failedFuture(new RaftException("raft server is not running"));
-            } else {
-                if (g.groupComponents.raftStatus.getShareStatus().shouldStop) {
-                    log.warn("group {} is stopping", groupId);
-                    return CompletableFuture.completedFuture(null);
-                }
-                stopGroup(g, shutdownTimeout, saveSnapshot);
-                g.fiberGroup.shutdownFuture.thenRun(() -> {
-                    boolean[] removed = new boolean[1];
-                    raftGroups.compute(groupId, (k, oldGroupInMap) -> {
-                        if (oldGroupInMap == g) {
-                            removed[0] = true;
-                            return null;
-                        }
-                        return oldGroupInMap;
-                    });
-                    if (removed[0]) {
-                        runPersistConfigTask();
-                    }
-                });
-                return CompletableFuture.completedFuture(null);
-            }
         }
+        if (status != STATUS_RUNNING) {
+            return CompletableFuture.failedFuture(new RaftException("raft server is not running"));
+        }
+        // register cleanup before the shouldStop check, so a self-stopping group is also removed
+        g.fiberGroup.shutdownFuture.thenRun(() -> {
+            if (raftGroups.remove(groupId, g)) {
+                runPersistConfigTask();
+            }
+        });
+        if (g.groupComponents.raftStatus.getShareStatus().shouldStop) {
+            log.warn("group {} is stopping or stopped", groupId);
+            return CompletableFuture.completedFuture(null);
+        }
+        stopGroup(g, shutdownTimeout, saveSnapshot);
+        return CompletableFuture.completedFuture(null);
     }
 
     public RaftGroup getRaftGroup(int groupId) {
@@ -714,6 +704,9 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
+    /**
+     * The task may be invoked in fiber dispatcher threads, so it must not block.
+     */
     public void setPersistConfigTask(Runnable persistConfigTask) {
         this.persistConfigTask = persistConfigTask;
     }
