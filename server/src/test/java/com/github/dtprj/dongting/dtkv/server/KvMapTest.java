@@ -192,11 +192,14 @@ class KvMapTest {
             count++;
 
             if (ba("key2").equals(h.key)) {
+                // remove returned node and the upcoming node
                 map.remove(h.key);
+                map.remove(ba("key3"));
             }
         }
+        // the removed upcoming node is still returned once, then iteration ends
         assertEquals(3, count);
-        assertEquals(2, map.size());
+        assertEquals(1, map.size());
     }
 
     @Test
@@ -240,8 +243,9 @@ class KvMapTest {
         assertSame(holder3, it.next());
         assertFalse(it.hasNext());
 
-        assertNull(holder2.prev);
-        assertNull(holder2.next);
+        // removed node keeps links to old neighbors, so iterators can advance
+        assertSame(holder1, holder2.prev);
+        assertSame(holder3, holder2.next);
     }
 
     @Test
@@ -256,8 +260,6 @@ class KvMapTest {
 
         assertEquals(0, map.size());
         assertFalse(map.iterator().hasNext());
-        assertNull(holder1.prev);
-        assertNull(holder1.next);
     }
 
     @Test

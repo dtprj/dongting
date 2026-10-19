@@ -184,8 +184,14 @@ class KvSnapshot extends Snapshot {
 
                 @Override
                 protected long execute() {
-                    boolean hasNext = gcTask.get();
-                    if (!hasNext) {
+                    try {
+                        boolean hasNext = gcTask.get();
+                        if (!hasNext) {
+                            finished = true;
+                        }
+                    } catch (Exception e) {
+                        BugLog.log(e);
+                        // stop this task, a new one starts after next snapshot close
                         finished = true;
                     }
                     return 0;

@@ -24,6 +24,7 @@ import java.util.NoSuchElementException;
 /**
  * HashMap + doubly-linked list implementation for better performance.
  * Thread safety is provided by StampedLock in KvImpl, so no concurrent data structures needed.
+ * Iterators may return nodes removed by interleaved operations, callers must tolerate stale nodes.
  *
  * @author huangli
  */
@@ -61,6 +62,15 @@ class KvMap {
         return old;
     }
 
+    // remove only if the key is still mapped to the given value
+    boolean remove(ByteArray key, KvNodeHolder value) {
+        if (map.remove(key, value)) {
+            removeFromList(value);
+            return true;
+        }
+        return false;
+    }
+
     public int size() {
         return map.size();
     }
@@ -80,8 +90,7 @@ class KvMap {
     private void removeFromList(KvNodeHolder node) {
         node.prev.next = node.next;
         node.next.prev = node.prev;
-        node.prev = null;
-        node.next = null;
+        // keep prev/next, so live iterators can skip over removed nodes
     }
 
     private class KvMapIterator implements Iterator<KvNodeHolder> {

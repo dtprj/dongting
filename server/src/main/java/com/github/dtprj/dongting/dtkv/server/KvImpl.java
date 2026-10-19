@@ -608,8 +608,8 @@ class KvImpl {
     }
 
     private void tryRemoveFromMap(KvNodeHolder h) {
-        if (h.childHolderCount == 0) {
-            map.remove(h.key);
+        // the gc task may visit a node removed from map between gc batches
+        if (h.childHolderCount == 0 && map.remove(h.key, h)) {
             int c = --h.parent.childHolderCount;
             if (c < 0) {
                 BugLog.logAndThrow("childHolderCount < 0");
