@@ -194,6 +194,11 @@ class TtlManager {
             BugLog.log(e);
         }
     }
+
+    public void reset() {
+        ttlQueue.clear();
+        pendingQueue.clear();
+    }
 }
 
 

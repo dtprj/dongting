@@ -604,6 +604,22 @@ public class DtKVTest extends BaseFiberTest {
         n = (KvNodeEx) get("tempDir").getNode();
         assertEquals(500, n.ttlInfo.ttlMillis);
 
+        // re-install over existing data: orphaned TtlInfo of the old KvImpl must be cleared
+        AtomicReference<KvSnapshot> snapshotRef2 = new AtomicReference<>();
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return takeSnapshot(this::afterTakeSnapshot);
+            }
+
+            private FrameCallResult afterTakeSnapshot(Snapshot snapshot) {
+                snapshotRef2.set((KvSnapshot) snapshot);
+                return Fiber.frameReturn();
+            }
+        });
+        doInFiber(new CopyFrame(snapshotRef2.get(), newKv));
+        assertEquals(2, newKv.ttlManager.ttlQueue.size() + newKv.ttlManager.pendingQueue.size());
+
         stop(newKv);
         stop(kv);
     }

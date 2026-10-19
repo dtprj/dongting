@@ -297,6 +297,8 @@ public class DtKV implements StateMachine {
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
             watchManager.reset();
+            // TtlInfo of the old KvImpl is orphaned, new ones are created during install
+            ttlManager.reset();
             KvImpl kvImpl = new KvImpl(watchManager, ttlManager, ts, config.groupId, kvConfig);
             updateStatus(true, kvImpl);
             encodeStatus = new EncodeStatus();
