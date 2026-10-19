@@ -353,6 +353,7 @@ public class DtAdmin {
         System.out.println("  Should Stop: " + resp.isShouldStop());
         System.out.println("  Finished: " + resp.isFinished());
         System.out.println("  Fatal Error: " + resp.isFatalError());
+        System.out.println("  Install Snapshot: " + resp.isInstallSnapshot());
         if (resp.isBug()) {
             System.out.println("  Bug: bug flag is set, search BugLog in server logs");
         }

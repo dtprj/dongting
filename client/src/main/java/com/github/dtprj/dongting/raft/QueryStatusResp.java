@@ -92,6 +92,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
     private static final int FLAG_MASK_SHOULD_STOP = 1 << 4;
     private static final int FLAG_MASK_FINISHED = 1 << 5;
     private static final int FLAG_MASK_FATAL_ERROR = 1 << 6;
+    private static final int FLAG_MASK_INSTALL_SNAPSHOT = 1 << 7;
 
     public QueryStatusResp() {
     }
@@ -122,6 +123,10 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 
     public void setFatalError(boolean v) {
         setFlag(FLAG_MASK_FATAL_ERROR, v);
+    }
+
+    public void setInstallSnapshot(boolean v) {
+        setFlag(FLAG_MASK_INSTALL_SNAPSHOT, v);
     }
 
     private void setFlag(int mask, boolean v) {
@@ -158,6 +163,10 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 
     public boolean isFatalError() {
         return (flag & FLAG_MASK_FATAL_ERROR) != 0;
+    }
+
+    public boolean isInstallSnapshot() {
+        return (flag & FLAG_MASK_INSTALL_SNAPSHOT) != 0;
     }
 
     public boolean isStopped() {
