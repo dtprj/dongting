@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.dtkv.WatchReq;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WritePacket;
@@ -48,7 +49,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -171,12 +171,16 @@ public class WatchManagerTest implements KvListener {
 
     private class MockWatchManager extends WatchManager {
 
+        volatile RaftNode lastSyncNode;
+        volatile Peer lastNotifyPeer;
+
         protected MockWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
             super(kvClient, stopped, heartbeatIntervalMillis);
         }
 
         @Override
         protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
+            lastSyncNode = n;
             syncReqCount.incrementAndGet();
             if (mockSyncBizCodeCount != null && mockSyncBizCodeCount.getAndDecrement() > 0) {
                 ReadPacket<Void> p = new ReadPacket<>();
@@ -211,8 +215,9 @@ public class WatchManagerTest implements KvListener {
         }
 
         @Override
-        public WritePacket processNotify(WatchNotifyReq req, SocketAddress remote) {
-            return super.processNotify(req, remote);
+        public WritePacket processNotify(WatchNotifyReq req, Peer peer) {
+            lastNotifyPeer = peer;
+            return super.processNotify(req, peer);
         }
     }
 
@@ -480,5 +485,42 @@ public class WatchManagerTest implements KvListener {
         });
         event = manager.takeEvent();
         assertNull(event);
+    }
+
+    @Test
+    public void testOldServerPush() {
+        init(1000, false);
+        String key1 = "testOldServerPush_key1";
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEventsByUserPull(new PushEvent(-1, key1, null));
+        RaftNode current = manager.lastSyncNode;
+        assertNotNull(current);
+        // the real push goes through KvClientProcessor, lock in the peer identity assumption
+        assertSame(current.peer, manager.lastNotifyPeer);
+        Peer oldPeer = null;
+        for (RaftNode n : client.getRaftClient().getGroup(groupId).servers) {
+            if (n != current) {
+                oldPeer = n.peer;
+                break;
+            }
+        }
+        assertNotNull(oldPeer);
+
+        WatchNotifyReq req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                10000, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
+        WritePacket p = manager.processNotify(req, current.peer);
+        assertEquals(CmdCodes.SUCCESS, p.respCode);
+        assertEquals(KvCodes.SUCCESS, p.bizCode);
+
+        // push from an old server: the event is accepted, then all watches on it are removed
+        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                10001, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value2".getBytes())));
+        p = manager.processNotify(req, oldPeer);
+        assertEquals(CmdCodes.SUCCESS, p.respCode);
+        assertEquals(KvCodes.REMOVE_ALL_WATCH, p.bizCode);
+        WatchEvent event = manager.takeEvent();
+        assertNotNull(event);
+        assertEquals(10001, event.raftIndex);
+        assertEquals("value2", new String(event.value));
     }
 }
