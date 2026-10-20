@@ -49,7 +49,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
                     throw new CodecException("duplicate keys_size field: " + value);
                 }
                 int len = (int) value;
-                if (len < 0 || len > 50000) {
+                if (len < 0 || len > WatchReq.MAX_SYNC_KEYS) {
                     throw new RaftException("Invalid key size: " + len);
                 }
                 this.knownRaftIndexes = new long[len];

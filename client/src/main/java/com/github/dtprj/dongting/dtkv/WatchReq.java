@@ -35,6 +35,9 @@ public class WatchReq implements Encodable {
     public static final int IDX_KNOWN_RAFT_INDEXES = 4;
     public static final int IDX_KEYS = 5;
 
+    // max keys in one sync request, also enforced when server decodes
+    public static final int MAX_SYNC_KEYS = 10000;
+
     public final int groupId;
     public final boolean syncAll;
     public final long[] knownRaftIndexes;

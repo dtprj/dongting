@@ -141,6 +141,10 @@ public class WatchManager {
         lock.lock();
         try {
             GroupWatches gw = watches.get(groupId);
+            int size = gw == null ? 0 : gw.watches.size();
+            if (size + keys.length > WatchReq.MAX_SYNC_KEYS) {
+                throw new IllegalArgumentException("too many watches: " + (size + keys.length));
+            }
             if (gw == null) {
                 gw = new GroupWatches(groupId);
                 watches.put(groupId, gw);
