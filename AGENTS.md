@@ -1,9 +1,9 @@
 ## Build and Test
 
-- Before running compile/package/test commands or writing tests, see `build-and-test` skill for important details.
+- Before running compile/package/test commands or writing tests, see `build-and-test` skill for details.
 - If `IntelliJ-IDEA` MCP is available, prioritize using the tools it provides. Usage skill: `idea-mcp`
-  - The MCP `build_project`/`get_file_problems` tools report issues more accurately than LSP
-  - The MCP `read_file` tool is better than the built-in read tool
+  - Use the `build_project`/`get_file_problems` tools report issues
+  - The `read_file` tool is better than the built-in read tool
 
 ## Project Overview
 - **Multi-module Maven project**; build with JDK 17+ (client targets Java 8, server Java 11)
@@ -19,7 +19,6 @@
 - **test-support**: Shared test utilities, Java 17+
 - **dist**: Java 11+, packaging and scripts only
 - **it-test**: Integration tests
-- **demos**: Example applications
 
 ## Architecture
 
@@ -68,7 +67,9 @@ For encapsulation purposes, some classes have a single implementation:
 - Use `Tick.tick(millis)` to scale timeouts based on `-Dtick=N`
 - Use `WaitUtil.waitUtil()` for polling conditions
 - In unit tests, do not sleep longer than `Thread.sleep(tick(5))` unless necessary
-- Do not over-test; test code must not only grow and never shrink
+- Do not over-test; unit tests should finish running as quickly as possible. The more tests pile up, the harder they are to maintain and the slower they run.
+- After major code changes, check whether any unit tests can be updated or deleted.
+- Rare timing cases do not need unit test coverage; write a temporary test during development (class name starting with TempTest) and delete it before committing.
 
 ## Coding Conventions
 
