@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -223,13 +224,13 @@ public class ChainWriter {
         }
         writeTaskCount--;
         if (error || raftStatus.installSnapshot) {
-            task.getLogFile().decWriters();
+            drainDoneWriteTasks();
             return;
         }
         if (ioEx != null) {
             log.error("write file {} error: {}", task.getLogFile().getFile(), ioEx.toString());
             error = true;
-            task.getLogFile().decWriters();
+            drainDoneWriteTasks();
             FiberGroup.currentGroup().requestShutdown(true);
             return;
         }
@@ -255,6 +256,18 @@ public class ChainWriter {
             needForceCondition.signal();
             if (writeCallback != null) {
                 writeCallback.accept(writeFinishIndex);
+            }
+        }
+    }
+
+    // drain tasks skipped by the head-first loop, otherwise their writer refs leak and file close hangs
+    private void drainDoneWriteTasks() {
+        Iterator<WriteTask> it = writeTasks.iterator();
+        while (it.hasNext()) {
+            WriteTask t = it.next();
+            if (t.getFuture().isDone()) {
+                it.remove();
+                t.getLogFile().decWriters();
             }
         }
     }
