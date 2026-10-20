@@ -177,10 +177,12 @@ public class WatchManager {
                 }
                 gw.needCheckServer = true;
                 syncGroupInLock(gw);
+                if (!gw.removedFromMap && !stopped.get()) {
+                    gw.scheduledFuture = DtUtil.SCHEDULED_SERVICE.schedule(() -> submitCheckTask(gw),
+                            heartbeatIntervalMillis, TimeUnit.MILLISECONDS);
+                }
             } finally {
                 lock.unlock();
-                gw.scheduledFuture = DtUtil.SCHEDULED_SERVICE.schedule(() -> submitCheckTask(gw),
-                        heartbeatIntervalMillis, TimeUnit.MILLISECONDS);
             }
         });
     }
@@ -398,6 +400,10 @@ public class WatchManager {
         }
         gw.removedFromMap = true;
         gw.busy = false;
+        if (gw.scheduledFuture != null) {
+            gw.scheduledFuture.cancel(false);
+            gw.scheduledFuture = null;
+        }
 
         // Clean up notification queue for this group
         KeyWatch prev = null;
@@ -775,6 +781,7 @@ public class WatchManager {
 
     /**
      * Remove all watches for all groups and notify servers to stop pushing.
+     * If the client is stopping, only local cleanup is performed and the server is not notified.
      * This method should be called when client is closing to prevent further notifications.
      */
     public void removeAllWatch() {
@@ -782,6 +789,11 @@ public class WatchManager {
         try {
             ArrayList<GroupWatches> list = new ArrayList<>(watches.values());
             for (GroupWatches gw : list) {
+                if (stopped.get()) {
+                    // syncGroupInLock returns early when stopped, remove directly
+                    removeGroupWatches(gw);
+                    continue;
+                }
                 // Mark all watches in this group for removal
                 for (KeyWatch w : gw.watches.values()) {
                     w.needRemove = true;

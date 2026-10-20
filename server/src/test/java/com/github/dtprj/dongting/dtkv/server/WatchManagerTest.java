@@ -50,8 +50,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -438,6 +440,60 @@ public class WatchManagerTest implements KvListener {
         int count = syncReqCount.get();
         mockQueryStatusExCount = new AtomicInteger(1);
         WaitUtil.waitUtil(() -> syncReqCount.get() > count);
+    }
+
+    @Test
+    public void testHeartbeatTaskStopAfterRemove() throws Exception {
+        init(2, true);
+        CountingExecutor countingExecutor = new CountingExecutor();
+        manager.setInnerExecutorService(countingExecutor);
+        String key1 = "testHeartbeatTaskStop_key1";
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null));
+
+        // remove the only watch, the group is removed and the heartbeat task must stop
+        manager.removeWatch(groupId, key1.getBytes());
+        WaitUtil.waitUtil(() -> manager.processNotify(new WatchNotifyReq(groupId, List.of(new WatchNotify(
+                1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), null))), null).bizCode
+                == KvCodes.REMOVE_ALL_WATCH);
+        int c = countingExecutor.count.get();
+        // 5 heartbeat intervals pass, only the task in flight at removal may run
+        Thread.sleep(Tick.tick(10));
+        assertTrue(countingExecutor.count.get() - c <= 1);
+    }
+
+    private static class CountingExecutor extends AbstractExecutorService {
+        final AtomicInteger count = new AtomicInteger();
+
+        @Override
+        public void execute(Runnable command) {
+            count.incrementAndGet();
+            MockExecutors.ioExecutor().execute(command);
+        }
+
+        @Override
+        public void shutdown() {
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return false;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return false;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return true;
+        }
     }
 
     @Test
