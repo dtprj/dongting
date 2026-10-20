@@ -27,8 +27,10 @@ import com.github.dtprj.dongting.dtkv.WatchNotify;
 import com.github.dtprj.dongting.dtkv.WatchNotifyReq;
 import com.github.dtprj.dongting.dtkv.WatchReq;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
@@ -72,6 +74,10 @@ public class WatchManagerTest implements KvListener {
 
     private AtomicInteger mockSyncExCount;
     private AtomicInteger mockQueryStatusExCount;
+    private AtomicInteger mockSyncBizCodeCount;
+    private AtomicInteger mockWatchLostCount;
+    private int mockWatchLostWatchCount;
+    private AtomicInteger syncReqCount;
 
     @Override
     public void onUpdate(WatchEvent event) {
@@ -155,6 +161,10 @@ public class WatchManagerTest implements KvListener {
         events = new ConcurrentLinkedQueue<>();
         mockSyncExCount = null;
         mockQueryStatusExCount = null;
+        mockSyncBizCodeCount = null;
+        mockWatchLostCount = null;
+        mockWatchLostWatchCount = 0;
+        syncReqCount = new AtomicInteger();
         client = null;
         manager = null;
     }
@@ -167,7 +177,13 @@ public class WatchManagerTest implements KvListener {
 
         @Override
         protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
-            if (mockSyncExCount == null || mockSyncExCount.getAndDecrement() <= 0) {
+            syncReqCount.incrementAndGet();
+            if (mockSyncBizCodeCount != null && mockSyncBizCodeCount.getAndDecrement() > 0) {
+                ReadPacket<Void> p = new ReadPacket<>();
+                p.respCode = CmdCodes.SUCCESS;
+                p.bizCode = KvCodes.INSTALL_SNAPSHOT;
+                c.call(p, null);
+            } else if (mockSyncExCount == null || mockSyncExCount.getAndDecrement() <= 0) {
                 super.sendSyncReq(n, req, c);
             } else {
                 c.call(null, new MockRuntimeException());
@@ -176,7 +192,18 @@ public class WatchManagerTest implements KvListener {
 
         @Override
         protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> c) {
-            if (mockQueryStatusExCount == null || mockQueryStatusExCount.getAndDecrement() <= 0) {
+            if (mockWatchLostCount != null && mockWatchLostCount.getAndDecrement() > 0) {
+                QueryStatusResp s = new QueryStatusResp();
+                s.setGroupReady(true);
+                s.leaderId = 1;
+                KvStatusResp resp = new KvStatusResp();
+                resp.raftServerStatus = s;
+                resp.watchCount = mockWatchLostWatchCount;
+                ReadPacket<KvStatusResp> p = new ReadPacket<>();
+                p.respCode = CmdCodes.SUCCESS;
+                p.setBody(resp);
+                c.call(p, null);
+            } else if (mockQueryStatusExCount == null || mockQueryStatusExCount.getAndDecrement() <= 0) {
                 super.sendQueryStatusReq(n, groupId, c);
             } else {
                 c.call(null, new MockRuntimeException());
@@ -360,6 +387,52 @@ public class WatchManagerTest implements KvListener {
         long idx2 = put(key2, "value2");
         waitForEvents(new PushEvent(idx1, key1, "value1"));
         waitForEvents(new PushEvent(idx2, key2, "value2"));
+    }
+
+    @Test
+    public void testSyncRespBizCode() {
+        init(10, true);
+        String key1 = "testSyncRespBizCode_key1";
+        // the first sync resp has error bizCode (as if server is installing snapshot),
+        // the watch should be re-registered and event received
+        mockSyncBizCodeCount = new AtomicInteger(1);
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null));
+
+        long idx = put(key1, "value1");
+        waitForEvents(new PushEvent(idx, key1, "value1"));
+    }
+
+    @Test
+    public void testWatchLost() {
+        init(10, true);
+        String key1 = "testWatchLost_key1";
+        String key2 = "testWatchLost_key2";
+        manager.addWatch(groupId, key1.getBytes(), key2.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null), new PushEvent(-1, key2, null));
+
+        // heartbeat reports watchCount less than local registered count (partial lost, e.g. install
+        // snapshot cleared all watches then a new watch is re-registered), the client should re-register
+        int count = syncReqCount.get();
+        mockWatchLostCount = new AtomicInteger(1);
+        mockWatchLostWatchCount = 1;
+        WaitUtil.waitUtil(() -> syncReqCount.get() > count);
+
+        long idx = put(key1, "value1");
+        waitForEvents(new PushEvent(idx, key1, "value1"));
+    }
+
+    @Test
+    public void testHeartbeatServerNotOk() {
+        init(10, true);
+        String key1 = "testHeartbeatServerNotOk_key1";
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null));
+
+        // in steady state (needSync=false), heartbeat not-ok should switch server and re-register
+        int count = syncReqCount.get();
+        mockQueryStatusExCount = new AtomicInteger(1);
+        WaitUtil.waitUtil(() -> syncReqCount.get() > count);
     }
 
     @Test

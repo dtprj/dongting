@@ -85,6 +85,8 @@ abstract class ServerWatchManager {
     }
 
     public void reset() {
+        log.info("reset all watches of group {}, channels={}, watches={}", groupId, channelInfoMap.size(),
+                channelInfoMap.values().stream().mapToInt(ci -> ci.watches.size()).sum());
         epoch++;
         needNotifyChannels.clear();
         channelInfoMap.clear();
@@ -417,7 +419,7 @@ abstract class ServerWatchManager {
                     int bizCode = callback.results[i];
                     ChannelWatch w = watches.get(i);
                     if (bizCode == KvCodes.REMOVE_WATCH) {
-                        ci.watches.remove(w.watchHolder.key);
+                        ci.watches.remove(w.watchHolder.key, w);
                         removeWatchFromKvTree(w);
                     } else {
                         if (bizCode != KvCodes.SUCCESS) {
@@ -501,6 +503,10 @@ abstract class ServerWatchManager {
             if (knownRaftIndex >= 0) {
                 ChannelWatch w = ci.watches.get(key);
                 if (w == null || w.removed || knownRaftIndex == 0) {
+                    if (w != null && !w.removed) {
+                        // remove the replaced watch from kv tree to avoid leak
+                        removeWatchFromKvTree(w);
+                    }
                     w = createWatch(kv, key, ci, knownRaftIndex);
                     ci.watches.put(w.watchHolder.key, w);
                 } else {

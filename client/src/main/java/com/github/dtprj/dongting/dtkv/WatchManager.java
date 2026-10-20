@@ -222,6 +222,9 @@ public class WatchManager {
             }
             if (gw.server == null || gw.server.peer.status != PeerStatus.connected || !gi.contains(gw.server)) {
                 if (isGroupWatchesValid(gw)) {
+                    // watches may not be registered on the server to be found (e.g. after install snapshot)
+                    gw.needSync = true;
+                    gw.syncAll = true;
                     findServer(gi, gw, null);
                 } else {
                     // not send sync request
@@ -231,7 +234,7 @@ public class WatchManager {
             }
             if (gw.needCheckServer) {
                 // periodic query (ping), ensure server status and prevent server remove idle client
-                sendQueryStatus(gw, gw.server, status -> {
+                sendQueryStatus(gw, gw.server, true, status -> {
                     if (status == STATUS_OK) {
                         // finished successfully
                         gw.busy = false;
@@ -240,6 +243,10 @@ public class WatchManager {
                             syncGroupInLock(gw);
                         }
                     } else {
+                        if (isGroupWatchesValid(gw)) {
+                            gw.needSync = true;
+                            gw.syncAll = true;
+                        }
                         findServer(gi, gw, null);
                     }
                 });
@@ -312,6 +319,18 @@ public class WatchManager {
         return false;
     }
 
+    // exclude needRegister: watches not sent to server yet are not expected there, otherwise
+    // initial registration on a candidate server would be misjudged as lost
+    private static int registeredWatchCount(GroupWatches gw) {
+        int count = 0;
+        for (KeyWatch w : gw.watches.values()) {
+            if (!w.needRemove && !w.needRegister) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private void sendSyncReq(GroupWatches gw, boolean syncAll, List<ByteArray> keys, long[] knownRaftIndexes) {
         RaftNode server = gw.server;
         RpcCallback<Void> c = (frame, ex) -> {
@@ -332,6 +351,17 @@ public class WatchManager {
                     gw.needSync = true;
                     gw.syncAll = true;
                     gw.server = null;
+                } else if (frame.bizCode == KvCodes.INSTALL_SNAPSHOT) {
+                    // transient failure, re-register on another server
+                    log.warn("sync watches failed, groupId={}, remote={}, bizCode={}",
+                            gw.groupId, server.peer.endPoint, KvCodes.toStr(frame.bizCode));
+                    gw.needSync = true;
+                    gw.syncAll = true;
+                    gw.server = null;
+                } else if (frame.bizCode != KvCodes.SUCCESS) {
+                    // persistent error: no immediate retry, the heartbeat count check retries slowly
+                    log.error("sync watches rejected, groupId={}, remote={}, bizCode={}",
+                            gw.groupId, server.peer.endPoint, KvCodes.toStr(frame.bizCode));
                 }
                 gw.busy = false;
                 if (gw.needSync) {
@@ -421,7 +451,7 @@ public class WatchManager {
                 return;
             }
             if (node.peer.status == PeerStatus.connected) {
-                sendQueryStatus(gw, node, status -> {
+                sendQueryStatus(gw, node, false, status -> {
                     if (status == STATUS_OK) {
                         gw.busy = false;
                         gw.needCheckServer = false;
@@ -459,7 +489,10 @@ public class WatchManager {
     private static final int STATUS_TRY_NEXT = 1;
     private static final int STATUS_RESTART_FIND = 2;
 
-    private void sendQueryStatus(GroupWatches gw, RaftNode n, Consumer<Integer> callback) {
+    // checkWatchCount: true only for the currently registered server; candidate servers may
+    // have no watches registered yet, so zero watchCount must not reject them
+    private void sendQueryStatus(GroupWatches gw, RaftNode n, boolean checkWatchCount,
+                                 Consumer<Integer> callback) {
         RpcCallback<KvStatusResp> rpcCallback = (frame, ex) -> {
             if (stopped.get()) {
                 gw.busy = false;
@@ -475,7 +508,20 @@ public class WatchManager {
                     removeGroupWatches(gw);
                     return;
                 }
-                if (isQueryStatusOk(gw.groupId, n, frame, ex)) {
+                boolean ok = isQueryStatusOk(gw.groupId, n, frame, ex);
+                if (ok && checkWatchCount) {
+                    int expected = registeredWatchCount(gw);
+                    int serverCount = frame.getBody().watchCount;
+                    if (serverCount < expected) {
+                        // watches lost on server, e.g. cleared by install snapshot
+                        log.warn("watches lost on server {}, groupId={}, expect {}, server {}, try to re-register",
+                                n.nodeId, gw.groupId, expected, serverCount);
+                        gw.needSync = true;
+                        gw.syncAll = true;
+                        ok = false;
+                    }
+                }
+                if (ok) {
                     if (currentGroupInfo.contains(n)) {
                         gw.server = n;
                         callback.accept(STATUS_OK);
@@ -522,9 +568,16 @@ public class WatchManager {
                     n.nodeId, groupId, s.isShouldStop(), s.isFatalError(), s.isFinished());
             return false;
         }
-        if (!s.isGroupReady() || s.leaderId <= 0 || s.lastApplyTimeToNowMillis > 15_000 || s.applyLagMillis > 15_000) {
-            log.info("status of node {} for group {} is not ok, groupReady={}, leaderId={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
-                    n.nodeId, groupId, s.isGroupReady(), s.leaderId, s.lastApplyTimeToNowMillis, s.applyLagMillis);
+        if (s.isInstallSnapshot() || !s.isGroupReady() || s.leaderId <= 0
+                || s.lastApplyTimeToNowMillis > 15_000 || s.applyLagMillis > 15_000) {
+            log.info("status of node {} for group {} is not ok, installingSnapshot={}, groupReady={}, leaderId={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
+                    n.nodeId, groupId, s.isInstallSnapshot(), s.isGroupReady(), s.leaderId,
+                    s.lastApplyTimeToNowMillis, s.applyLagMillis);
+            return false;
+        }
+        if (resp.watchCount < 0) {
+            // watch status unknown: the group is stopping on this node and cannot serve watches
+            log.info("watch status unknown on node {}, groupId={}", n.nodeId, groupId);
             return false;
         }
         return true;

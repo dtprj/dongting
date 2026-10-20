@@ -360,6 +360,20 @@ public class ServerWatchManagerTest {
         assertEquals(0, pushRequestList.size());
     }
 
+    @Test
+    public void testSyncRecreateWatch() {
+        manager.sync(kv, dtc1, false, keys("key1"), new long[]{0});
+        // same channel and key with knownRaftIndex=0 again: the old watch must be replaced, not leaked
+        manager.sync(kv, dtc1, true, keys("key1"), new long[]{0});
+        put("key1", "value1");
+        manager.dispatch();
+        mockClientResponse();
+        assertEquals(1, pushRequestList.size());
+        PushReqInfo pushReqInfo = pushRequestList.poll();
+        assertEquals(1, pushReqInfo.req.notifyList.size());
+        assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
+    }
+
     // tree structure watch test
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
