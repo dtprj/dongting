@@ -259,6 +259,11 @@ public class WatchManager implements ChannelListener {
         return false;
     }
 
+    // callbacks complete in io thread; defer so the io thread never blocks on the lock
+    private <T> RpcCallback<T> defer(RpcCallback<T> c) {
+        return (frame, ex) -> dispatchToExecutor(() -> c.call(frame, ex));
+    }
+
     private void dispatchToExecutor(Runnable r) {
         dispatchToExecutor(r, 0);
     }
@@ -274,7 +279,8 @@ public class WatchManager implements ChannelListener {
         try {
             innerExecutorService.submit(r);
         } catch (RejectedExecutionException e) {
-            log.warn("task rejected");
+            log.error("task submit rejected, run it in fallback executor", e);
+            KvClient.getFallbackExecutor().submit(r);
         }
     }
 
@@ -473,12 +479,14 @@ public class WatchManager implements ChannelListener {
             }
         };
         WatchReq req = new WatchReq(gw.groupId, syncAll, keys, knownRaftIndexes);
-        sendSyncReq(server, req, c);
+        sendSyncReq(server, req, defer(c));
     }
 
     protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
         EncodableBodyWritePacket packet = new EncodableBodyWritePacket(req);
         packet.command = Commands.DTKV_SYNC_WATCH;
+        // fail fast on permit exhaustion, the caller may hold the lock
+        packet.acquirePermitNoWait = true;
         raftClient.getNioClient().sendRequest(n.peer, packet,
                 DecoderCallbackCreator.VOID_DECODE_CALLBACK_CREATOR, raftClient.createDefaultTimeout(), c);
     }
@@ -567,19 +575,20 @@ public class WatchManager implements ChannelListener {
                     }
                 });
             } else {
-                raftClient.getNioClient().connect(node.peer).whenComplete((v, ex) -> {
-                    lock.lock();
-                    try {
-                        if (ex != null) {
-                            // try next
-                            findServer(gi, gw, list);
-                        } else {
-                            checkServer(gi, gw, list, node);
-                        }
-                    } finally {
-                        lock.unlock();
-                    }
-                });
+                raftClient.getNioClient().connect(node.peer).whenComplete((v, ex) ->
+                        dispatchToExecutor(() -> {
+                            lock.lock();
+                            try {
+                                if (ex != null) {
+                                    // try next
+                                    findServer(gi, gw, list);
+                                } else {
+                                    checkServer(gi, gw, list, node);
+                                }
+                            } finally {
+                                lock.unlock();
+                            }
+                        }));
             }
         } catch (Throwable e) {
             log.error("unexpected error", e);
@@ -644,11 +653,12 @@ public class WatchManager implements ChannelListener {
                 lock.unlock();
             }
         };
-        sendQueryStatusReq(n, gw.groupId, rpcCallback);
+        sendQueryStatusReq(n, gw.groupId, defer(rpcCallback));
     }
 
     protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> rpcCallback) {
         PbIntWritePacket p = new PbIntWritePacket(Commands.DTKV_QUERY_STATUS, groupId);
+        p.acquirePermitNoWait = true;
         DecoderCallbackCreator<KvStatusResp> d = ctx -> ctx.toDecoderCallback(new KvStatusResp());
         raftClient.getNioClient().sendRequest(n.peer, p, d, raftClient.createDefaultTimeout(), rpcCallback);
     }

@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.RaftClientConfig;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
@@ -68,10 +69,17 @@ public class KvClient extends AbstractLifeCircle {
         this.raftClient = new RaftClient(raftClientConfig, nioConfig);
         this.watchManager = createClientWatchManager();
         this.lockManager = createLockManager();
-        // use bizExecutor in NioClient
+        // push processors take the manager locks, never run them in io thread (bizThreads may be 0)
+        Executor pushExecutor = r -> {
+            ExecutorService es = raftClient.getNioClient().getBizExecutor();
+            if (es == null) {
+                es = getFallbackExecutor();
+            }
+            es.execute(r);
+        };
         KvClientProcessor clientProcessor = new KvClientProcessor(watchManager, lockManager);
-        raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, clientProcessor);
-        raftClient.getNioClient().register(Commands.DTKV_LOCK_PUSH, clientProcessor);
+        raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, clientProcessor, pushExecutor);
+        raftClient.getNioClient().register(Commands.DTKV_LOCK_PUSH, clientProcessor, pushExecutor);
         raftClient.getNioClient().getConfig().channelListeners.add(watchManager);
     }
 

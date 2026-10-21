@@ -571,9 +571,9 @@ public class WatchManagerTest implements KvListener {
                 1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), null))), null).bizCode
                 == KvCodes.REMOVE_ALL_WATCH);
         int c = countingExecutor.count.get();
-        // 5 heartbeat intervals pass, only the task in flight at removal may run
+        // 5 heartbeat intervals pass, only in-flight tasks and the removal sync callback may land later
         Thread.sleep(Tick.tick(10));
-        assertTrue(countingExecutor.count.get() - c <= 1);
+        assertTrue(countingExecutor.count.get() - c <= 2);
     }
 
     private static class CountingExecutor extends AbstractExecutorService {
