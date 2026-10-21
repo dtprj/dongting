@@ -20,8 +20,10 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.ChannelListener;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.HostPort;
@@ -46,6 +48,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -55,7 +58,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public class WatchManager {
+public class WatchManager implements ChannelListener {
     private static final DtLog log = DtLogs.getLogger(WatchManager.class);
 
     private final RaftClient raftClient;
@@ -169,7 +172,7 @@ public class WatchManager {
     }
 
     private void submitCheckTask(GroupWatches gw) {
-        innerExecutorService.submit(() -> {
+        dispatchToExecutor(() -> {
             lock.lock();
             try {
                 if (gw.removedFromMap) {
@@ -185,6 +188,82 @@ public class WatchManager {
                 lock.unlock();
             }
         });
+    }
+
+    // called in io thread; the lock may be held by a thread blocking on out permits, so dispatch
+    @Override
+    public void onDisconnected(DtChannel dtc) {
+        Peer peer = dtc.getPeer();
+        dispatchToExecutor(() -> {
+            lock.lock();
+            try {
+                if (stopped.get()) {
+                    return;
+                }
+                for (GroupWatches gw : new ArrayList<>(watches.values())) {
+                    if (gw.server != null && gw.server.peer == peer) {
+                        log.info("server disconnected, re-register watches, groupId={}, remote={}",
+                                gw.groupId, peer.endPoint);
+                        gw.needSync = true;
+                        gw.syncAll = true;
+                        syncGroupInLock(gw);
+                    }
+                }
+            } catch (Throwable e) {
+                log.error("re-register watches after disconnect failed", e);
+            } finally {
+                lock.unlock();
+            }
+        });
+    }
+
+    // called in io thread; watches lost their server when all servers were unreachable,
+    // re-attach when a server of the group becomes reachable again
+    @Override
+    public void onConnected(DtChannel dtc) {
+        Peer peer = dtc.getPeer();
+        dispatchToExecutor(() -> {
+            lock.lock();
+            try {
+                if (stopped.get()) {
+                    return;
+                }
+                for (GroupWatches gw : new ArrayList<>(watches.values())) {
+                    if (gw.server == null && gw.needSync && groupContainsPeer(gw.groupId, peer)) {
+                        log.info("server connected, re-attach watches, groupId={}, remote={}",
+                                gw.groupId, peer.endPoint);
+                        syncGroupInLock(gw);
+                    }
+                }
+            } catch (Throwable e) {
+                log.error("re-attach watches after reconnect failed", e);
+            } finally {
+                lock.unlock();
+            }
+        });
+    }
+
+    private boolean groupContainsPeer(int groupId, Peer peer) {
+        GroupInfo gi = raftClient.getGroup(groupId);
+        if (gi != null) {
+            for (RaftNode n : gi.servers) {
+                if (n.peer == peer) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void dispatchToExecutor(Runnable r) {
+        if (stopped.get() || innerExecutorService == null) {
+            return;
+        }
+        try {
+            innerExecutorService.submit(r);
+        } catch (RejectedExecutionException e) {
+            log.warn("task rejected");
+        }
     }
 
     public void removeWatch(int groupId, byte[]... keys) {
@@ -747,7 +826,7 @@ public class WatchManager {
         return e;
     }
 
-    public void setInnerExecutorService(ExecutorService es) {
+    protected void setInnerExecutorService(ExecutorService es) {
         this.innerExecutorService = es;
     }
 

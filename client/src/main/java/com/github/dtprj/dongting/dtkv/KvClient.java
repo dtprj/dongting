@@ -72,6 +72,7 @@ public class KvClient extends AbstractLifeCircle {
         KvClientProcessor clientProcessor = new KvClientProcessor(watchManager, lockManager);
         raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, clientProcessor);
         raftClient.getNioClient().register(Commands.DTKV_LOCK_PUSH, clientProcessor);
+        raftClient.getNioClient().getConfig().channelListeners.add(watchManager);
     }
 
     static ExecutorService getFallbackExecutor() {
@@ -736,9 +737,14 @@ public class KvClient extends AbstractLifeCircle {
     }
 
     protected void doStop(DtTime timeout, boolean force) {
-        lockManager.removeAllLock();
-        watchManager.removeAllWatch();
-        raftClient.stop(timeout);
+        try {
+            lockManager.removeAllLock();
+            watchManager.removeAllWatch();
+            raftClient.stop(timeout);
+        } finally {
+            // remove after raft client stopped, avoid concurrent modification with io threads
+            raftClient.getNioClient().getConfig().channelListeners.remove(watchManager);
+        }
     }
 
     public RaftClient getRaftClient() {

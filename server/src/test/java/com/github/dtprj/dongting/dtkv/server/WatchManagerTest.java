@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -80,6 +81,8 @@ public class WatchManagerTest implements KvListener {
     private AtomicInteger mockWatchLostCount;
     private int mockWatchLostWatchCount;
     private AtomicInteger syncReqCount;
+    private AtomicInteger syncRespCount;
+    private AtomicInteger queryRespCount;
 
     @Override
     public void onUpdate(WatchEvent event) {
@@ -156,6 +159,27 @@ public class WatchManagerTest implements KvListener {
         protected void config(KvServerConfig config) {
             config.watchDispatchIntervalMillis = 1;
         }
+
+        private long put(int leaderId, String key, String value) throws Exception {
+            KvReq req = new KvReq(WatchManagerTest.groupId, key.getBytes(), value.getBytes());
+            CompletableFuture<Long> f = new CompletableFuture<>();
+            RaftCallback c = new RaftCallback() {
+                @Override
+                public void success(long raftIndex, Object result) {
+                    f.complete(raftIndex);
+                }
+
+                @Override
+                public void fail(Throwable ex) {
+                    f.completeExceptionally(ex);
+                }
+            };
+            RaftReqData rd = RaftReqData.build(LogHeader.TYPE_NORMAL, DtKV.BIZ_TYPE_PUT, req);
+            RaftInput i = RaftInput.create(rd, null, req, new DtTime(3, TimeUnit.SECONDS), false, c);
+            ServerInfo si = leaderId == 1 ? s1 : leaderId == 2 ? s2 : s3;
+            si.raftServer.getRaftGroup(WatchManagerTest.groupId).submitLinearTask(i);
+            return f.get(5, TimeUnit.SECONDS);
+        }
     }
 
     @BeforeEach
@@ -167,6 +191,8 @@ public class WatchManagerTest implements KvListener {
         mockWatchLostCount = null;
         mockWatchLostWatchCount = 0;
         syncReqCount = new AtomicInteger();
+        syncRespCount = new AtomicInteger();
+        queryRespCount = new AtomicInteger();
         client = null;
         manager = null;
     }
@@ -180,10 +206,22 @@ public class WatchManagerTest implements KvListener {
             super(kvClient, stopped, heartbeatIntervalMillis);
         }
 
+        void setExecutor(ExecutorService es) {
+            setInnerExecutorService(es);
+        }
+
         @Override
         protected void sendSyncReq(RaftNode n, WatchReq req, RpcCallback<Void> c) {
             lastSyncNode = n;
             syncReqCount.incrementAndGet();
+            final RpcCallback<Void> orig = c;
+            c = (frame, ex) -> {
+                try {
+                    orig.call(frame, ex);
+                } finally {
+                    syncRespCount.incrementAndGet();
+                }
+            };
             if (mockSyncBizCodeCount != null && mockSyncBizCodeCount.getAndDecrement() > 0) {
                 ReadPacket<Void> p = new ReadPacket<>();
                 p.respCode = CmdCodes.SUCCESS;
@@ -198,6 +236,14 @@ public class WatchManagerTest implements KvListener {
 
         @Override
         protected void sendQueryStatusReq(RaftNode n, int groupId, RpcCallback<KvStatusResp> c) {
+            final RpcCallback<KvStatusResp> orig = c;
+            c = (frame, ex) -> {
+                try {
+                    orig.call(frame, ex);
+                } finally {
+                    queryRespCount.incrementAndGet();
+                }
+            };
             if (mockWatchLostCount != null && mockWatchLostCount.getAndDecrement() > 0) {
                 QueryStatusResp s = new QueryStatusResp();
                 s.setGroupReady(true);
@@ -443,10 +489,77 @@ public class WatchManagerTest implements KvListener {
     }
 
     @Test
+    public void testServerChannelDisconnected() throws Exception {
+        init(10000, true);
+        String key1 = "testServerChannelDisconnected_key1";
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null));
+        RaftNode current = manager.lastSyncNode;
+        assertNotNull(current);
+
+        int respBase = syncRespCount.get();
+        // quiet followers report unknown applyLag and are rejected, inject one ok status
+        // so the next candidate server is accepted and the switch is deterministic
+        mockWatchLostCount = new AtomicInteger(1);
+        mockWatchLostWatchCount = 100;
+        // remove the peer, so the client must switch watch to another server
+        client.getRaftClient().getNioClient().removePeer(current.peer).get(5, TimeUnit.SECONDS);
+        // heartbeat interval is longer than the wait timeout, so the re-sync is triggered by the
+        // disconnect; wait for the response to ensure the new server has registered the watches
+        WaitUtil.waitUtil(() -> syncRespCount.get() > respBase && manager.lastSyncNode != current);
+        assertNotSame(current, manager.lastSyncNode);
+
+        // the removed peer may be the leader, so put via server side linear task
+        WaitUtil.waitUtil(() -> client.getRaftClient().getGroup(groupId).leader != null);
+        int leaderId = client.getRaftClient().getGroup(groupId).leader.nodeId;
+        long idx = server.put(leaderId, key1, "value1");
+        waitForEvents(new PushEvent(idx, key1, "value1"));
+    }
+
+    @Test
+    public void testServerConnectedReattach() throws Exception {
+        init(10000, true);
+        String key1 = "testServerConnectedReattach_key1";
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null));
+        RaftNode current = manager.lastSyncNode;
+        assertNotNull(current);
+
+        // remove the watch server and force all candidates rejected (even if leadership just
+        // changed and a candidate has fresh apply state), so the group enters the no-server
+        // state (server=null, needSync=true)
+        int qBase = queryRespCount.get();
+        int respBase = syncRespCount.get();
+        mockQueryStatusExCount = new AtomicInteger(2);
+        client.getRaftClient().getNioClient().removePeer(current.peer).get(5, TimeUnit.SECONDS);
+        WaitUtil.waitUtil(() -> queryRespCount.get() >= qBase + 2);
+
+        mockWatchLostCount = new AtomicInteger(1);
+        mockWatchLostWatchCount = 100;
+        Peer other = null;
+        for (RaftNode n : client.getRaftClient().getGroup(groupId).servers) {
+            if (n != current) {
+                other = n.peer;
+                break;
+            }
+        }
+        assertNotNull(other);
+        // reconnect a server to fire the onConnected callback, heartbeat (10s) is far away
+        client.getRaftClient().getNioClient().disconnect(other).get(5, TimeUnit.SECONDS);
+        client.getRaftClient().getNioClient().connect(other).get(5, TimeUnit.SECONDS);
+        WaitUtil.waitUtil(() -> syncRespCount.get() > respBase);
+
+        WaitUtil.waitUtil(() -> client.getRaftClient().getGroup(groupId).leader != null);
+        int leaderId = client.getRaftClient().getGroup(groupId).leader.nodeId;
+        long idx = server.put(leaderId, key1, "value1");
+        waitForEvents(new PushEvent(idx, key1, "value1"));
+    }
+
+    @Test
     public void testHeartbeatTaskStopAfterRemove() throws Exception {
         init(2, true);
         CountingExecutor countingExecutor = new CountingExecutor();
-        manager.setInnerExecutorService(countingExecutor);
+        manager.setExecutor(countingExecutor);
         String key1 = "testHeartbeatTaskStop_key1";
         manager.addWatch(groupId, key1.getBytes());
         waitForEvents(new PushEvent(-1, key1, null));

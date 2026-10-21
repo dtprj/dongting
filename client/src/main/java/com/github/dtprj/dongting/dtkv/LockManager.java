@@ -49,7 +49,7 @@ public class LockManager {
         this.raftClient = kvClient.getRaftClient();
     }
 
-    public void setExecuteService(ExecutorService es) {
+    void setExecuteService(ExecutorService es) {
         executeService = es;
     }
 
