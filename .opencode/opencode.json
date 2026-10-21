@@ -1,26 +1,19 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "IntelliJ-IDEA": {
-      "enabled": true,
-      "type": "remote",
-      "url": "http://127.0.0.1:64342/stream",
-      "headers": {}
-    },
-    "MiniMax": {
-      "enabled": false
-    },
-    "web-reader": {
-      "enabled": false
-    },
-    "web-search-prime": {
-      "enabled": false
-    },
-    "zread": {
-      "enabled": false
-    },
-    "zai-mcp-server": {
-      "enabled": false
+    "servers": {
+      "IntelliJ-IDEA": {
+        "type": "remote",
+        "url": "http://127.0.0.1:64342/stream",
+        "headers": {}
+      }
     }
-  }
+  },
+  "policies": [
+    { "action": "integration.use", "resource": "mcp:MiniMax", "effect": "deny" },
+    { "action": "integration.use", "resource": "mcp:web-reader", "effect": "deny" },
+    { "action": "integration.use", "resource": "mcp:web-search-prime", "effect": "deny" },
+    { "action": "integration.use", "resource": "mcp:zread", "effect": "deny" },
+    { "action": "integration.use", "resource": "mcp:zai-mcp-server", "effect": "deny" }
+  ]
 }
