@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.PbLongWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
@@ -49,8 +50,10 @@ public class AdminConfigChangeProcessor extends RaftProcessor<Object> {
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_ADMIN_PREPARE_CHANGE) {
             return context.toDecoderCallback(new AdminPrepareConfigChangeReq.Callback());
-        } else {
+        } else if (command == Commands.RAFT_ADMIN_COMMIT_CHANGE || command == Commands.RAFT_ADMIN_ABORT_CHANGE) {
             return context.toDecoderCallback(new AdminCommitOrAbortReq());
+        } else {
+            throw new RaftException("bad command:" + command);
         }
     }
 

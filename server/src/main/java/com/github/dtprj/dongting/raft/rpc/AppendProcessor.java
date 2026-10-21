@@ -80,8 +80,10 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
             AppendReq.Callback c = ((DecodeContextEx) context).appendReqCallback(decoderFactory);
             return context.toDecoderCallback(c);
-        } else {
+        } else if (command == Commands.RAFT_INSTALL_SNAPSHOT) {
             return context.toDecoderCallback(new InstallSnapshotReq.Callback());
+        } else {
+            throw new RaftException("bad command:" + command);
         }
     }
 

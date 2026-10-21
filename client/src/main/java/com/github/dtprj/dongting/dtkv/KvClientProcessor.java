@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.RaftException;
 
 /**
  * @author huangli
@@ -44,9 +45,10 @@ class KvClientProcessor extends ReqProcessor<Object> {
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.DTKV_WATCH_NOTIFY_PUSH) {
             return context.toDecoderCallback(new WatchNotifyReq.Callback());
-        } else {
-            // lock push
+        } else if (command == Commands.DTKV_LOCK_PUSH) {
             return context.toDecoderCallback(context.kvReqCallback());
+        } else {
+            throw new RaftException("bad command:" + command);
         }
     }
 
