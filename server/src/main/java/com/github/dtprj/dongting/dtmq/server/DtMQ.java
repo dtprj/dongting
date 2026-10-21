@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -70,6 +71,10 @@ public class DtMQ implements StateMachine {
     @Override
     public void setRaftGroup(RaftGroup raftGroup) {
         this.raftGroup = raftGroup;
+    }
+
+    @Override
+    public void onChannelDisconnected(DtChannel channel) {
     }
 
     @Override

@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.RpcCallback;
@@ -143,6 +144,19 @@ public class DtKV implements StateMachine {
     @Override
     public void setRaftGroup(RaftGroup raftGroup) {
         this.raftGroup = (RaftGroupImpl) raftGroup;
+    }
+
+    @Override
+    public void onChannelDisconnected(DtChannel channel) {
+        // ignore submit failure (stopped)
+        dtkvExecutor.submitTaskInAnyThread(() -> {
+            try {
+                watchManager.removeByChannel(channel);
+            } catch (Throwable e) {
+                log.error("remove watches failed. groupId={}, remote={}", config.groupId,
+                        channel.getRemoteAddr(), e);
+            }
+        });
     }
 
     @Override

@@ -26,7 +26,9 @@ import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.ChannelListener;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
@@ -83,7 +85,7 @@ import java.util.function.Consumer;
 /**
  * @author huangli
  */
-public class RaftServer extends AbstractLifeCircle {
+public class RaftServer extends AbstractLifeCircle implements ChannelListener {
     private static final DtLog log = DtLogs.getLogger(RaftServer.class);
     private final RaftFactory raftFactory;
 
@@ -166,6 +168,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.perfCallback = new DefaultRpcPerf();
         nioServerConfig.poolFactory = raftFactory.getPoolFactory();
         customReplicateNioServer(nioServerConfig);
+        nioServerConfig.channelListeners.add(this);
         nioServer = new NioServer(nioServerConfig);
 
         nodeManager = new NodeManager(serverConfig, allRaftServers, nioClient,
@@ -197,6 +200,25 @@ public class RaftServer extends AbstractLifeCircle {
                 r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
 
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
+    }
+
+    @Override
+    public void onConnected(DtChannel dtc) {
+    }
+
+    @Override
+    public void onDisconnected(DtChannel dtc) {
+        // run in io thread, must not block
+        if (getStatus() > STATUS_RUNNING || dtc.getLocalPort() != serverConfig.servicePort) {
+            return;
+        }
+        for (RaftGroupImpl g : raftGroups.values()) {
+            try {
+                g.getStateMachine().onChannelDisconnected(dtc);
+            } catch (Throwable e) {
+                log.error("onChannelDisconnected error. groupId={}", g.groupId, e);
+            }
+        }
     }
 
     public void addRaftGroupProcessor(NioServer nioServer, int command, RaftSequenceProcessor<?> processor) {

@@ -385,7 +385,7 @@ abstract class ServerWatchManager {
                                     ReadPacket<WatchNotifyRespCallback> result,
                                     Throwable ex, int requestEpoch, boolean fireNext) {
         try {
-            if (epoch != requestEpoch) {
+            if (epoch != requestEpoch || ci.remove) {
                 return;
             }
             ci.pending = false;
@@ -480,6 +480,9 @@ abstract class ServerWatchManager {
     }
 
     public void sync(KvImpl kv, DtChannel channel, boolean syncAll, ByteArray[] keys, long[] knownRaftIndexes) {
+        if (!channel.getChannel().isOpen()) {
+            return;
+        }
         if (syncAll && (keys == null || keys.length == 0)) {
             removeByChannel(channel);
             return;

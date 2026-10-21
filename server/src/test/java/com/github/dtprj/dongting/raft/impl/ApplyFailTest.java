@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -246,6 +247,10 @@ public class ApplyFailTest extends ServerTestBase {
 
         @Override
         public void setRaftGroup(RaftGroup raftGroup) {
+        }
+
+        @Override
+        public void onChannelDisconnected(DtChannel channel) {
         }
 
         @Override
