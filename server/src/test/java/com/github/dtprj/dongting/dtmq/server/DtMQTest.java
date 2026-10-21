@@ -70,17 +70,20 @@ class DtMQTest extends BaseFiberTest {
     }
 
     private void resetRaftStatusAndBiz() {
-        raftStatus = new RaftStatusImpl(1, dispatcher.ts);
-        raftStatus.nodeIdOfMembers = Set.of(1);
-        raftStatus.nodeIdOfObservers = Set.of();
-        raftStatus.nodeIdOfPreparedMembers = Set.of();
-        raftStatus.nodeIdOfPreparedObservers = Set.of();
-        raftStatus.lastAppliedTerm = 1;
-        config.raftStatus = raftStatus;
-        mq = new DtMQ(config, new MQServerConfig());
-        mq.setRaftGroup(new MockRaftGroup(1));
-        snapshotManager = new DefaultSnapshotManager(config, mq,
-                () -> mq.takeSnapshot(new SnapshotInfo(raftStatus)));
+        RaftStatusImpl rs = new RaftStatusImpl(1, dispatcher.ts);
+        rs.nodeIdOfMembers = Set.of(1);
+        rs.nodeIdOfObservers = Set.of();
+        rs.nodeIdOfPreparedMembers = Set.of();
+        rs.nodeIdOfPreparedObservers = Set.of();
+        rs.lastAppliedTerm = 1;
+        config.raftStatus = rs;
+        DtMQ m = new DtMQ(config, new MQServerConfig());
+        m.setRaftGroup(new MockRaftGroup(1));
+        // bind instances to locals: the supplier runs lazily, fields may be reassigned by then
+        snapshotManager = new DefaultSnapshotManager(config, m,
+                () -> m.takeSnapshot(new SnapshotInfo(rs)));
+        mq = m;
+        raftStatus = rs;
     }
 
     private FiberFuture<Object> exec(long queueId, long raftIndex) {
@@ -96,9 +99,9 @@ class DtMQTest extends BaseFiberTest {
     private abstract class BaseFrame extends FiberFrame<Void> {
         @Override
         protected FrameCallResult doFinally() {
-            // cannot await in doFinally(), the callback keeps the ordering and
-            // prevents the group from finishing before the close completes
-            mq.stop().registerCallback((v, ex) -> snapshotManager.stopFiber());
+            // capture sm: the field may be reassigned before the callback runs
+            DefaultSnapshotManager sm = snapshotManager;
+            mq.stop().registerCallback((v, ex) -> sm.stopFiber());
             return Fiber.frameReturn();
         }
     }
