@@ -202,8 +202,9 @@ public class WatchManagerTest implements KvListener {
         volatile RaftNode lastSyncNode;
         volatile Peer lastNotifyPeer;
 
-        protected MockWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
-            super(kvClient, stopped, heartbeatIntervalMillis);
+        protected MockWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis,
+                                   long reRegisterJitterMillis) {
+            super(kvClient, stopped, heartbeatIntervalMillis, reRegisterJitterMillis);
         }
 
         void setExecutor(ExecutorService es) {
@@ -274,7 +275,7 @@ public class WatchManagerTest implements KvListener {
             @Override
             protected WatchManager createClientWatchManager() {
                 return new MockWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
-                        Tick.tick(heartbeatIntervalMillis));
+                        Tick.tick(heartbeatIntervalMillis), 0);
             }
         };
         client.start();

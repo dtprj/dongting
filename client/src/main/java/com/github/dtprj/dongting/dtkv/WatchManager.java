@@ -50,6 +50,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -64,6 +65,7 @@ public class WatchManager implements ChannelListener {
     private final RaftClient raftClient;
     private final Supplier<Boolean> stopped;
     private final long heartbeatIntervalMillis;
+    private final long reRegisterJitterMillis;
 
     private final ReentrantLock lock = new ReentrantLock();
     private final HashMap<Integer, GroupWatches> watches = new HashMap<>();
@@ -112,10 +114,12 @@ public class WatchManager implements ChannelListener {
         }
     }
 
-    protected WatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis) {
+    protected WatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis,
+                           long reRegisterJitterMillis) {
         this.raftClient = kvClient.getRaftClient();
         this.stopped = stopped;
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;
+        this.reRegisterJitterMillis = reRegisterJitterMillis;
     }
 
     private void check(int groupId, byte[]... keys) {
@@ -190,7 +194,7 @@ public class WatchManager implements ChannelListener {
         });
     }
 
-    // called in io thread; the lock may be held by a thread blocking on out permits, so dispatch
+    // io thread: the lock may be held by a thread blocking on out permits, so dispatch; jitter spreads mass re-register
     @Override
     public void onDisconnected(DtChannel dtc) {
         Peer peer = dtc.getPeer();
@@ -214,7 +218,7 @@ public class WatchManager implements ChannelListener {
             } finally {
                 lock.unlock();
             }
-        });
+        }, reRegisterJitterMillis <= 0 ? 0 : ThreadLocalRandom.current().nextLong(reRegisterJitterMillis));
     }
 
     // called in io thread; watches lost their server when all servers were unreachable,
@@ -256,7 +260,15 @@ public class WatchManager implements ChannelListener {
     }
 
     private void dispatchToExecutor(Runnable r) {
+        dispatchToExecutor(r, 0);
+    }
+
+    private void dispatchToExecutor(Runnable r, long delayMillis) {
         if (stopped.get() || innerExecutorService == null) {
+            return;
+        }
+        if (delayMillis > 0) {
+            DtUtil.SCHEDULED_SERVICE.schedule(() -> dispatchToExecutor(r), delayMillis, TimeUnit.MILLISECONDS);
             return;
         }
         try {

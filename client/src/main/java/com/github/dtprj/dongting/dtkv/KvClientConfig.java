@@ -27,5 +27,9 @@ public class KvClientConfig {
 
     public long watchHeartbeatMillis = 60_000; // // should less than KvServerConfig.watchTimeoutMillis
 
+    // spread mass watch re-register after a server crash, watch recovery may delay up to this value;
+    // should be much less than watchHeartbeatMillis; <= 0 disables
+    public long watchReRegisterJitterMillis = 5_000;
+
     public long[] autoRenewalRetryMillis = {1000, 10_000, 30_000, 60_000};
 }
