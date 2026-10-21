@@ -134,6 +134,41 @@ public class TimeoutTest {
     }
 
     @Test
+    public void acquireFailFastInIoThreadTest() throws Exception {
+        CountDownLatch latch1 = new CountDownLatch(1);
+        CountDownLatch latch2 = new CountDownLatch(1);
+        setup(() -> registerDelayPingProcessor(latch1, latch2));
+        // req1 occupies the only permit, server holds the response
+        CompletableFuture<?> f1 = send(new DtTime(1, TimeUnit.SECONDS));
+        latch1.await();
+
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
+        wf.command = CMD;
+        CompletableFuture<Boolean> acquireResult = new CompletableFuture<>();
+        client.worker.doInIoThread(() -> {
+            try {
+                acquireResult.complete(client.acquirePermit(wf, new DtTime(5, TimeUnit.SECONDS)));
+            } catch (Throwable e) {
+                acquireResult.completeExceptionally(e);
+            }
+        }, null);
+        try {
+            acquireResult.get(5, TimeUnit.SECONDS);
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NetException.class, e.getCause().getClass());
+            assertTrue(e.getCause().getMessage().contains("too many pending requests"));
+        }
+
+        latch2.countDown();
+        f1.get(5, TimeUnit.SECONDS);
+        assertEquals(0, client.nioStatus.outPendingBytes);
+        assertEquals(0, client.nioStatus.outPendingRequests);
+        //ensure connection status is correct
+        NioServerClientTest.invoke(client);
+    }
+
+    @Test
     public void acquireTimeoutTest2() throws Exception {
         setup(() -> registerDelayPingProcessor(null, null));
         try {

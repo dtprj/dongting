@@ -121,6 +121,8 @@ public abstract class NioNet extends AbstractLifeCircle {
     }
 
     public boolean acquirePermit(WritePacket request, DtTime timeout) throws InterruptedException {
+        // permits are released by io thread only, waiting in io thread blocks the worker until rpc timeout
+        boolean noWait = request.acquirePermitNoWait || Thread.currentThread() instanceof WorkerThread;
         while (true) {
             int maxPending = config.maxOutRequests;
             long maxPendingBytes = config.maxOutBytes;
@@ -135,7 +137,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                     throw new IllegalStateException("current request is already acquired permit");
                 }
                 if (maxPending > 0 && nioStatus.outPendingRequests + 1 > maxPending) {
-                    if (request.acquirePermitNoWait) {
+                    if (noWait) {
                         throw new NetException("too many pending requests");
                     }
                     if (!pendingReqCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
@@ -147,7 +149,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 }
                 int estimateSize = request.calcMaxPacketSize();
                 if (maxPendingBytes > 0 && nioStatus.outPendingBytes + estimateSize > maxPendingBytes) {
-                    if (request.acquirePermitNoWait) {
+                    if (noWait) {
                         throw new NetException("too many pending bytes");
                     }
                     if (!pendingBytesCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
