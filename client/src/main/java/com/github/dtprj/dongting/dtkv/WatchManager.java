@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.NetPermitException;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.PeerStatus;
@@ -66,6 +67,7 @@ public class WatchManager implements ChannelListener {
     private final Supplier<Boolean> stopped;
     private final long heartbeatIntervalMillis;
     private final long reRegisterJitterMillis;
+    private final long permitRetryMillis;
 
     private final ReentrantLock lock = new ReentrantLock();
     private final HashMap<Integer, GroupWatches> watches = new HashMap<>();
@@ -87,6 +89,7 @@ public class WatchManager implements ChannelListener {
         boolean needSync;
         boolean syncAll;
         boolean needCheckServer;
+        boolean permitRetryPending;
 
         boolean removedFromMap;
         ScheduledFuture<?> scheduledFuture;
@@ -115,11 +118,12 @@ public class WatchManager implements ChannelListener {
     }
 
     protected WatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis,
-                           long reRegisterJitterMillis) {
+                           long reRegisterJitterMillis, long permitRetryMillis) {
         this.raftClient = kvClient.getRaftClient();
         this.stopped = stopped;
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;
         this.reRegisterJitterMillis = reRegisterJitterMillis;
+        this.permitRetryMillis = permitRetryMillis;
     }
 
     private void check(int groupId, byte[]... keys) {
@@ -262,6 +266,30 @@ public class WatchManager implements ChannelListener {
     // callbacks complete in io thread; defer so the io thread never blocks on the lock
     private <T> RpcCallback<T> defer(RpcCallback<T> c) {
         return (frame, ex) -> dispatchToExecutor(() -> c.call(frame, ex));
+    }
+
+    // at most one pending retry per group; skip it if the next heartbeat fires sooner
+    private void schedulePermitRetry(GroupWatches gw) {
+        if (permitRetryMillis <= 0 || gw.removedFromMap) {
+            return;
+        }
+        if (gw.permitRetryPending) {
+            return;
+        }
+        ScheduledFuture<?> sf = gw.scheduledFuture;
+        if (sf != null && sf.getDelay(TimeUnit.MILLISECONDS) < permitRetryMillis) {
+            return;
+        }
+        gw.permitRetryPending = true;
+        dispatchToExecutor(() -> {
+            lock.lock();
+            try {
+                gw.permitRetryPending = false;
+                syncGroupInLock(gw);
+            } finally {
+                lock.unlock();
+            }
+        }, permitRetryMillis);
     }
 
     private void dispatchToExecutor(Runnable r) {
@@ -450,6 +478,16 @@ public class WatchManager implements ChannelListener {
                     return;
                 }
                 if (ex != null) {
+                    if (ex instanceof NetPermitException) {
+                        // client-wide permit exhaustion, not a server failure: keep server, retry later
+                        log.warn("sync watches not sent, no permit, groupId={}, remote={}, retry in {}ms",
+                                gw.groupId, server.peer.endPoint, permitRetryMillis);
+                        gw.needSync = true;
+                        gw.syncAll = true;
+                        gw.busy = false;
+                        schedulePermitRetry(gw);
+                        return;
+                    }
                     log.warn("sync watches failed, groupId={}, remote={}, ex={}",
                             gw.groupId, server.peer.endPoint, ex.toString());
                     gw.needSync = true;
@@ -617,6 +655,14 @@ public class WatchManager implements ChannelListener {
                 GroupInfo currentGroupInfo = raftClient.getGroup(gw.groupId);
                 if (currentGroupInfo == null) {
                     removeGroupWatches(gw);
+                    return;
+                }
+                if (ex instanceof NetPermitException) {
+                    // client-wide permit exhaustion, not a server failure: keep server, retry later
+                    log.warn("query status not sent, no permit, groupId={}, nodeId={}, retry in {}ms",
+                            gw.groupId, n.nodeId, permitRetryMillis);
+                    gw.busy = false;
+                    schedulePermitRetry(gw);
                     return;
                 }
                 boolean ok = isQueryStatusOk(gw.groupId, n, frame, ex);

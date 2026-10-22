@@ -31,5 +31,8 @@ public class KvClientConfig {
     // should be much less than watchHeartbeatMillis; <= 0 disables
     public long watchReRegisterJitterMillis = 5_000;
 
+    // retry interval for watch rpcs dropped by client-wide permit exhaustion; <= 0 retries at heartbeat only
+    public long watchPermitRetryMillis = 5_000;
+
     public long[] autoRenewalRetryMillis = {1000, 10_000, 30_000, 60_000};
 }

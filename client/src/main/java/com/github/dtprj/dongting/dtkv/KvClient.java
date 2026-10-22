@@ -103,7 +103,8 @@ public class KvClient extends AbstractLifeCircle {
 
     protected WatchManager createClientWatchManager() {
         return new WatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
-                config.watchHeartbeatMillis, config.watchReRegisterJitterMillis);
+                config.watchHeartbeatMillis, config.watchReRegisterJitterMillis,
+                config.watchPermitRetryMillis);
     }
 
     protected LockManager createLockManager() {

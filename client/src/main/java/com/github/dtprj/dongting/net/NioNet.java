@@ -138,7 +138,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 }
                 if (maxPending > 0 && nioStatus.outPendingRequests + 1 > maxPending) {
                     if (noWait) {
-                        throw new NetException("too many pending requests");
+                        throw new NetPermitException("too many pending requests");
                     }
                     if (!pendingReqCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
                         throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
@@ -150,7 +150,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 int estimateSize = request.calcMaxPacketSize();
                 if (maxPendingBytes > 0 && nioStatus.outPendingBytes + estimateSize > maxPendingBytes) {
                     if (noWait) {
-                        throw new NetException("too many pending bytes");
+                        throw new NetPermitException("too many pending bytes");
                     }
                     if (!pendingBytesCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
                         throw new NetTimeoutException("too many pending bytes, client wait permit timeout in "

@@ -203,8 +203,8 @@ public class WatchManagerTest implements KvListener {
         volatile Peer lastNotifyPeer;
 
         protected MockWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis,
-                                   long reRegisterJitterMillis) {
-            super(kvClient, stopped, heartbeatIntervalMillis, reRegisterJitterMillis);
+                                   long reRegisterJitterMillis, long permitRetryMillis) {
+            super(kvClient, stopped, heartbeatIntervalMillis, reRegisterJitterMillis, permitRetryMillis);
         }
 
         void setExecutor(ExecutorService es) {
@@ -275,7 +275,7 @@ public class WatchManagerTest implements KvListener {
             @Override
             protected WatchManager createClientWatchManager() {
                 return new MockWatchManager(this, () -> getStatus() >= STATUS_PREPARE_STOP,
-                        Tick.tick(heartbeatIntervalMillis), 0);
+                        Tick.tick(heartbeatIntervalMillis), 0, 0);
             }
         };
         client.start();

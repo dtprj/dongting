@@ -156,7 +156,7 @@ public class TimeoutTest {
             acquireResult.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
-            assertEquals(NetException.class, e.getCause().getClass());
+            assertEquals(NetPermitException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("too many pending requests"));
         }
 
