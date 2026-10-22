@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -144,6 +145,8 @@ public class DtKV implements StateMachine {
     @Override
     public void setRaftGroup(RaftGroup raftGroup) {
         this.raftGroup = (RaftGroupImpl) raftGroup;
+        watchManager.selfNodeId = DtUtil.checkPositive(
+                this.raftGroup.groupComponents.serverConfig.nodeId, "nodeId");
     }
 
     @Override

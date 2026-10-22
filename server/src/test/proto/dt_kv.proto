@@ -63,8 +63,9 @@ message WatchReq {
 
 message WatchNotifyReq {
   int32 group_id = 1;
-  int32 list_size = 2;
-  repeated WatchNotify notify_list = 3[packed = false];
+  int32 node_id = 2;
+  int32 list_size = 14;
+  repeated WatchNotify notify_list = 15[packed = false];
 }
 
 message WatchNotify {

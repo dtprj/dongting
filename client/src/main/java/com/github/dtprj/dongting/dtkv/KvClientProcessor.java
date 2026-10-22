@@ -60,7 +60,7 @@ class KvClientProcessor extends ReqProcessor<Object> {
         }
         if (packet.command == Commands.DTKV_WATCH_NOTIFY_PUSH) {
             WatchNotifyReq req = (WatchNotifyReq) body;
-            return watchManager.processNotify(req, reqContext.getDtChannel().getPeer());
+            return watchManager.processNotify(req);
         } else if (packet.command == Commands.DTKV_LOCK_PUSH) {
             KvReq req = (KvReq) body;
             lockManager.processLockPush(req.groupId, req, packet.bizCode);

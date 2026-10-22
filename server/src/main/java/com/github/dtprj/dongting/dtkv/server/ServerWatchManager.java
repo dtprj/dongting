@@ -61,6 +61,7 @@ abstract class ServerWatchManager {
     private final LinkedHashSet<WatchHolder> needDispatch = new LinkedHashSet<>();
 
     private final int groupId;
+    int selfNodeId;
     private final Timestamp ts;
     private final KvServerConfig config;
     private final long[] retryIntervalNanos;
@@ -335,7 +336,7 @@ abstract class ServerWatchManager {
                     watchList.add(p.getLeft());
                     notifyList.add(p.getRight());
                 }
-                WatchNotifyReq req = new WatchNotifyReq(groupId, notifyList);
+                WatchNotifyReq req = new WatchNotifyReq(groupId, selfNodeId, notifyList);
                 sendRequest(ci, req, watchList, epoch, it.hasNext());
             }
         } catch (Error | RuntimeException e) {

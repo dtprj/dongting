@@ -51,6 +51,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class ServerWatchManagerTest {
 
+    private static final int SELF_NODE_ID = 2;
+
     private final UUID selfUuid = UUID.randomUUID();
 
     private KvServerConfig kvConfig;
@@ -140,6 +142,7 @@ public class ServerWatchManagerTest {
         KvServerConfig c = new KvServerConfig();
         c.initMapCapacity = 16;
         kv = new KvImpl(manager, tm, ts, groupId, c);
+        manager.selfNodeId = SELF_NODE_ID;
         put("aaa", "bbb"); // add first item and make raft index in statemachine greater than 0
     }
 
@@ -254,6 +257,7 @@ public class ServerWatchManagerTest {
         assertEquals(1, pushRequestList.size());
         PushReqInfo pushReqInfo = pushRequestList.poll();
         assertEquals(dtc1, pushReqInfo.ci.channel);
+        assertEquals(SELF_NODE_ID, pushReqInfo.req.nodeId);
         assertEquals(1, pushReqInfo.req.notifyList.size());
         assertEquals("key1", new String(pushReqInfo.req.notifyList.get(0).key));
         assertNull(pushReqInfo.req.notifyList.get(0).value);

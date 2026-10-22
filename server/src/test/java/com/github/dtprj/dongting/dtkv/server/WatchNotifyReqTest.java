@@ -30,7 +30,7 @@ import java.util.Arrays;
  */
 class WatchNotifyReqTest {
     public static WatchNotifyReq buildTestData() {
-        return new WatchNotifyReq(123456789, Arrays.asList(
+        return new WatchNotifyReq(123456789, 987654321, Arrays.asList(
                 new WatchNotify(100, 0, "key1".getBytes(), "value1".getBytes()),
                 new WatchNotify(200, 1, "key2".getBytes(), "value2".getBytes()),
                 new WatchNotify(300, 2, "key3".getBytes(), "value3".getBytes())
@@ -59,6 +59,7 @@ class WatchNotifyReqTest {
 
     private void compare1(WatchNotifyReq data, DtKv.WatchNotifyReq protoResult) {
         Assertions.assertEquals(data.groupId, protoResult.getGroupId());
+        Assertions.assertEquals(data.nodeId, protoResult.getNodeId());
         Assertions.assertEquals(data.notifyList.size(), protoResult.getNotifyListCount());
         for (int i = 0; i < data.notifyList.size(); i++) {
             WatchNotifyTest.compare1(data.notifyList.get(i), protoResult.getNotifyList(i));
@@ -67,6 +68,7 @@ class WatchNotifyReqTest {
 
     private void compare2(WatchNotifyReq data, WatchNotifyReq parseResult) {
         Assertions.assertEquals(data.groupId, parseResult.groupId);
+        Assertions.assertEquals(data.nodeId, parseResult.nodeId);
         Assertions.assertEquals(data.notifyList.size(), parseResult.notifyList.size());
         for (int i = 0; i < data.notifyList.size(); i++) {
             WatchNotifyTest.compare2(data.notifyList.get(i), parseResult.notifyList.get(i));

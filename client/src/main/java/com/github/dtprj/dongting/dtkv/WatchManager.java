@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
-import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NetPermitException;
 import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.Peer;
@@ -741,16 +740,15 @@ public class WatchManager implements ChannelListener {
         return true;
     }
 
-    protected WritePacket processNotify(WatchNotifyReq req, Peer peer) {
+    protected WritePacket processNotify(WatchNotifyReq req) {
         lock.lock();
         try {
             GroupWatches watch = watches.get(req.groupId);
             if (watch == null || raftClient.getGroup(req.groupId) == null) {
-                HostPort remote = peer == null ? null : peer.endPoint;
                 if (watch == null) {
-                    log.warn("watch group not found, groupId={}, server={}", req.groupId, remote);
+                    log.warn("watch group not found, groupId={}, serverNodeId={}", req.groupId, req.nodeId);
                 } else {
-                    log.warn("group removed, groupId={}, server={}", req.groupId, remote);
+                    log.warn("group removed, groupId={}, serverNodeId={}", req.groupId, req.nodeId);
                     removeGroupWatches(watch);
                 }
                 EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
@@ -761,8 +759,8 @@ public class WatchManager implements ChannelListener {
                 return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             }
             // accept events first, then remove all watches on the old server (e.g. after server switch)
-            // Peer is a per-endpoint singleton, so identity comparison is safe
-            boolean fromOldServer = peer != null && watch.server != null && watch.server.peer != peer;
+            RaftNode server = watch.server;
+            boolean fromOldServer = server != null && server.nodeId != req.nodeId;
             int[] results = new int[req.notifyList.size()];
             int i = 0;
             for (WatchNotify n : req.notifyList) {
@@ -782,8 +780,8 @@ public class WatchManager implements ChannelListener {
             }
             fireListenerEventInLock();
             if (fromOldServer) {
-                log.info("notify from old server, remove all watches on it, groupId={}, remote={}",
-                        req.groupId, peer.endPoint);
+                log.info("notify from old server, remove all watches on it, groupId={}, fromNodeId={}, currentServerNodeId={}",
+                        req.groupId, req.nodeId, server.nodeId);
                 EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
                 p.bizCode = KvCodes.REMOVE_ALL_WATCH;
                 return p;

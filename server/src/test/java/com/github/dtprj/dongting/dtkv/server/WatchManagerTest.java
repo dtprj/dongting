@@ -200,7 +200,7 @@ public class WatchManagerTest implements KvListener {
     private class MockWatchManager extends WatchManager {
 
         volatile RaftNode lastSyncNode;
-        volatile Peer lastNotifyPeer;
+        volatile int lastNotifyNodeId;
 
         protected MockWatchManager(KvClient kvClient, Supplier<Boolean> stopped, long heartbeatIntervalMillis,
                                    long reRegisterJitterMillis, long permitRetryMillis) {
@@ -264,9 +264,9 @@ public class WatchManagerTest implements KvListener {
         }
 
         @Override
-        public WritePacket processNotify(WatchNotifyReq req, Peer peer) {
-            lastNotifyPeer = peer;
-            return super.processNotify(req, peer);
+        protected WritePacket processNotify(WatchNotifyReq req) {
+            lastNotifyNodeId = req.nodeId;
+            return super.processNotify(req);
         }
     }
 
@@ -564,11 +564,12 @@ public class WatchManagerTest implements KvListener {
         String key1 = "testHeartbeatTaskStop_key1";
         manager.addWatch(groupId, key1.getBytes());
         waitForEvents(new PushEvent(-1, key1, null));
+        int serverNodeId = manager.lastSyncNode.nodeId;
 
         // remove the only watch, the group is removed and the heartbeat task must stop
         manager.removeWatch(groupId, key1.getBytes());
-        WaitUtil.waitUtil(() -> manager.processNotify(new WatchNotifyReq(groupId, List.of(new WatchNotify(
-                1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), null))), null).bizCode
+        WaitUtil.waitUtil(() -> manager.processNotify(new WatchNotifyReq(groupId, serverNodeId, List.of(new WatchNotify(
+                1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), null)))).bizCode
                 == KvCodes.REMOVE_ALL_WATCH);
         int c = countingExecutor.count.get();
         // 5 heartbeat intervals pass, only in-flight tasks and the removal sync callback may land later
@@ -614,24 +615,25 @@ public class WatchManagerTest implements KvListener {
     public void testProcessNotify() {
         init(1000, false);
         String key1 = "testProcessNotify_key1";
-        WatchNotifyReq req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+        WatchNotifyReq req = new WatchNotifyReq(groupId, 1, List.of(new WatchNotify(
                 1, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
-        WritePacket p = manager.processNotify(req, null);
+        WritePacket p = manager.processNotify(req);
         assertEquals(CmdCodes.SUCCESS, p.respCode);
         assertEquals(KvCodes.REMOVE_ALL_WATCH, p.bizCode);
         assertNull(manager.takeEvent());
 
         manager.addWatch(groupId, key1.getBytes());
         waitForEventsByUserPull(new PushEvent(-1, key1, null));
+        int serverNodeId = manager.lastSyncNode.nodeId;
 
-        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+        req = new WatchNotifyReq(groupId, serverNodeId, List.of(new WatchNotify(
                 10000, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value2".getBytes())));
-        p = manager.processNotify(req, null);
+        p = manager.processNotify(req);
         assertEquals(CmdCodes.SUCCESS, p.respCode);
         assertEquals(KvCodes.SUCCESS, p.bizCode);
-        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+        req = new WatchNotifyReq(groupId, serverNodeId, List.of(new WatchNotify(
                 10001, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value3".getBytes())));
-        p = manager.processNotify(req, null);
+        p = manager.processNotify(req);
         assertEquals(CmdCodes.SUCCESS, p.respCode);
         assertEquals(KvCodes.SUCCESS, p.bizCode);
 
@@ -645,9 +647,9 @@ public class WatchManagerTest implements KvListener {
         manager.removeWatch(groupId, key1.getBytes());
         long[] raftIndexArr = new long[]{10002};
         WaitUtil.waitUtil(() -> {
-            WatchNotifyReq r = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+            WatchNotifyReq r = new WatchNotifyReq(groupId, serverNodeId, List.of(new WatchNotify(
                     raftIndexArr[0]++, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "valueX".getBytes())));
-            WritePacket wp = manager.processNotify(r, null);
+            WritePacket wp = manager.processNotify(r);
             assertEquals(CmdCodes.SUCCESS, wp.respCode);
             // if removeWatch not sync to server at once (because of busy),
             // the bizCode will be KvCodes.SUCCESS
@@ -665,27 +667,27 @@ public class WatchManagerTest implements KvListener {
         waitForEventsByUserPull(new PushEvent(-1, key1, null));
         RaftNode current = manager.lastSyncNode;
         assertNotNull(current);
-        // the real push goes through KvClientProcessor, lock in the peer identity assumption
-        assertSame(current.peer, manager.lastNotifyPeer);
-        Peer oldPeer = null;
+        // the real push goes through KvClientProcessor, lock in the server nodeId assumption
+        assertEquals(current.nodeId, manager.lastNotifyNodeId);
+        int oldNodeId = 0;
         for (RaftNode n : client.getRaftClient().getGroup(groupId).servers) {
             if (n != current) {
-                oldPeer = n.peer;
+                oldNodeId = n.nodeId;
                 break;
             }
         }
-        assertNotNull(oldPeer);
+        assertTrue(oldNodeId > 0);
 
-        WatchNotifyReq req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+        WatchNotifyReq req = new WatchNotifyReq(groupId, current.nodeId, List.of(new WatchNotify(
                 10000, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value1".getBytes())));
-        WritePacket p = manager.processNotify(req, current.peer);
+        WritePacket p = manager.processNotify(req);
         assertEquals(CmdCodes.SUCCESS, p.respCode);
         assertEquals(KvCodes.SUCCESS, p.bizCode);
 
         // push from an old server: the event is accepted, then all watches on it are removed
-        req = new WatchNotifyReq(groupId, List.of(new WatchNotify(
+        req = new WatchNotifyReq(groupId, oldNodeId, List.of(new WatchNotify(
                 10001, WatchEvent.STATE_VALUE_EXISTS, key1.getBytes(), "value2".getBytes())));
-        p = manager.processNotify(req, oldPeer);
+        p = manager.processNotify(req);
         assertEquals(CmdCodes.SUCCESS, p.respCode);
         assertEquals(KvCodes.REMOVE_ALL_WATCH, p.bizCode);
         WatchEvent event = manager.takeEvent();
