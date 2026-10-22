@@ -32,7 +32,7 @@ message KvResult {
   string key_in_dir = 3;
 }
 
-message KvReq {
+message KvReq { // also used as DTKV_LOCK_PUSH
   int32 group_id = 1;
   string key = 2;
   bytes value = 3;
