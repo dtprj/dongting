@@ -419,6 +419,13 @@ public class DtKV implements StateMachine {
     }
 
     @Override
+    public void onGroupStop() {
+        // called in raft thread, dispatch to the thread that owns watch data
+        // ignore submit failure (executor stopped, no watches to notify)
+        dtkvExecutor.submitTaskInAnyThread(watchManager::pushGroupStopEvent);
+    }
+
+    @Override
     public FiberFuture<Void> stop() {
         if (!stopped) {
             stopped = true;

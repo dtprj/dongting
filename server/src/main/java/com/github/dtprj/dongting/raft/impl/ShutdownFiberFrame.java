@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -76,6 +77,14 @@ public class ShutdownFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) {
+        if (gc.groupConfig.raftServer.getStatus() <= AbstractLifeCircle.STATUS_RUNNING) {
+            // when the whole server is stopping, a server stop event is pushed to all channels instead
+            try {
+                gc.stateMachine.onGroupStop();
+            } catch (Throwable e) {
+                log.error("onGroupStop failed, groupId={}", g.getGroupId(), e);
+            }
+        }
         if (gc.raftStatus.needRepCondition != null) {
             gc.raftStatus.needRepCondition.signalAll();
         }

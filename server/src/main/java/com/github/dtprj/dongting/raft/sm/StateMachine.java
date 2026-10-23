@@ -66,4 +66,12 @@ public interface StateMachine extends RaftCodecFactory {
      * it may be called concurrently from multiple io threads for different channels.
      */
     void onChannelDisconnected(DtChannel channel);
+
+    /**
+     * this method is called in raft thread when the raft group is about to stop, except when the whole
+     * raft server is stopping (a server stop event is pushed to all channels instead).
+     * The state machine may push a group stop event to clients, it should not block or throw.
+     */
+    default void onGroupStop() {
+    }
 }

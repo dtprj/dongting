@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftServerEventPush;
 
 /**
  * @author huangli
@@ -47,6 +48,8 @@ class KvClientProcessor extends ReqProcessor<Object> {
             return context.toDecoderCallback(new WatchNotifyReq.Callback());
         } else if (command == Commands.DTKV_LOCK_PUSH) {
             return context.toDecoderCallback(context.kvReqCallback());
+        } else if (command == Commands.RAFT_SERVER_EVENT_PUSH) {
+            return context.toDecoderCallback(new RaftServerEventPush.Callback());
         } else {
             throw new RaftException("bad command:" + command);
         }
@@ -68,6 +71,16 @@ class KvClientProcessor extends ReqProcessor<Object> {
                 return null;
             } else {
                 // currently, lock push is always one-way,
+                // but we keep the code in case it changes in the future
+                return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            }
+        } else if (packet.command == Commands.RAFT_SERVER_EVENT_PUSH) {
+            RaftServerEventPush ev = (RaftServerEventPush) body;
+            watchManager.processServerEvent(ev);
+            if (packet.packetType == PacketType.TYPE_ONE_WAY) {
+                return null;
+            } else {
+                // currently, server event push is always one-way,
                 // but we keep the code in case it changes in the future
                 return new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             }

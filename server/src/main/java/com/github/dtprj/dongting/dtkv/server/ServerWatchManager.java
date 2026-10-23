@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -28,10 +29,14 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.NetCodeException;
+import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftServerEventPush;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -583,6 +588,28 @@ abstract class ServerWatchManager {
             parentWatchHolder.addChild(key, watchHolder);
         }
         return watchHolder;
+    }
+
+    // called in dtkv executor; every channel in the map has watches
+    public void pushGroupStopEvent() {
+        if (channelInfoMap.isEmpty()) {
+            return;
+        }
+        RaftServerEventPush push = new RaftServerEventPush(groupId, selfNodeId,
+                RaftServerEventPush.EVENT_GROUP_STOP);
+        for (ChannelInfo ci : channelInfoMap.values()) {
+            if (!ci.channel.getChannel().isOpen()) {
+                continue;
+            }
+            SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_SERVER_EVENT_PUSH, push);
+            ((NioServer) ci.channel.getOwner()).sendOneWay(ci.channel, p,
+                    new DtTime(3, TimeUnit.SECONDS), (result, ex) -> {
+                        if (ex != null) {
+                            log.warn("push group stop event failed: groupId={}, remote={}, ex={}",
+                                    groupId, ci.channel.getRemoteAddr(), ex.toString());
+                        }
+                    });
+        }
     }
 
     public int updateWatchStatus(DtChannel dtc) {

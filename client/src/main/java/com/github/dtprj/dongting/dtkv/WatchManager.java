@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftServerEventPush;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -218,6 +219,44 @@ public class WatchManager implements ChannelListener {
                 }
             } catch (Throwable e) {
                 log.error("re-register watches after disconnect failed", e);
+            } finally {
+                lock.unlock();
+            }
+        }, reRegisterJitterMillis <= 0 ? 0 : ThreadLocalRandom.current().nextLong(reRegisterJitterMillis));
+    }
+
+    // push executor thread: the watched server or group is stopping, re-register watches on another server;
+    // jitter spreads mass re-register, same as onDisconnected
+    protected void processServerEvent(RaftServerEventPush ev) {
+        if (ev.eventType != RaftServerEventPush.EVENT_SERVER_STOP
+                && ev.eventType != RaftServerEventPush.EVENT_GROUP_STOP) {
+            log.warn("ignore unknown server event, groupId={}, eventType={}, nodeId={}",
+                    ev.groupId, ev.eventType, ev.nodeId);
+            return;
+        }
+        boolean serverStop = ev.eventType == RaftServerEventPush.EVENT_SERVER_STOP;
+        dispatchToExecutor(() -> {
+            lock.lock();
+            try {
+                if (stopped.get()) {
+                    return;
+                }
+                for (GroupWatches gw : new ArrayList<>(watches.values())) {
+                    if (gw.server == null || gw.server.nodeId != ev.nodeId) {
+                        continue;
+                    }
+                    if (!serverStop && gw.groupId != ev.groupId) {
+                        continue;
+                    }
+                    log.info("server event received, re-register watches, groupId={}, eventType={}, nodeId={}, remote={}",
+                            gw.groupId, ev.eventType, ev.nodeId, gw.server.peer.endPoint);
+                    gw.needSync = true;
+                    gw.syncAll = true;
+                    gw.server = null;
+                    syncGroupInLock(gw);
+                }
+            } catch (Throwable e) {
+                log.error("re-register watches after server event failed", e);
             } finally {
                 lock.unlock();
             }

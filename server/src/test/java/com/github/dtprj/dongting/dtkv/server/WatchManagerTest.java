@@ -34,6 +34,7 @@ import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftServerEventPush;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -80,6 +81,7 @@ public class WatchManagerTest implements KvListener {
     private AtomicInteger mockSyncBizCodeCount;
     private AtomicInteger mockWatchLostCount;
     private int mockWatchLostWatchCount;
+    private int mockWatchLostOkNodeId;
     private AtomicInteger syncReqCount;
     private AtomicInteger syncRespCount;
     private AtomicInteger queryRespCount;
@@ -190,6 +192,7 @@ public class WatchManagerTest implements KvListener {
         mockSyncBizCodeCount = null;
         mockWatchLostCount = null;
         mockWatchLostWatchCount = 0;
+        mockWatchLostOkNodeId = 0;
         syncReqCount = new AtomicInteger();
         syncRespCount = new AtomicInteger();
         queryRespCount = new AtomicInteger();
@@ -245,7 +248,9 @@ public class WatchManagerTest implements KvListener {
                     queryRespCount.incrementAndGet();
                 }
             };
-            if (mockWatchLostCount != null && mockWatchLostCount.getAndDecrement() > 0) {
+            boolean mockWatchLost = mockWatchLostCount != null && mockWatchLostCount.get() > 0
+                    && (mockWatchLostOkNodeId <= 0 || n.nodeId == mockWatchLostOkNodeId);
+            if (mockWatchLost && mockWatchLostCount.getAndDecrement() > 0) {
                 QueryStatusResp s = new QueryStatusResp();
                 s.setGroupReady(true);
                 s.leaderId = 1;
@@ -267,6 +272,11 @@ public class WatchManagerTest implements KvListener {
         protected WritePacket processNotify(WatchNotifyReq req) {
             lastNotifyNodeId = req.nodeId;
             return super.processNotify(req);
+        }
+
+        @Override
+        protected void processServerEvent(RaftServerEventPush ev) {
+            super.processServerEvent(ev);
         }
     }
 
@@ -487,6 +497,54 @@ public class WatchManagerTest implements KvListener {
         int count = syncReqCount.get();
         mockQueryStatusExCount = new AtomicInteger(1);
         WaitUtil.waitUtil(() -> syncReqCount.get() > count);
+    }
+
+    @Test
+    public void testServerEventPush() throws Exception {
+        init(10000, true);
+        String key1 = "testServerEventPush_key1";
+        manager.addWatch(groupId, key1.getBytes());
+        waitForEvents(new PushEvent(-1, key1, null));
+        RaftNode current = manager.lastSyncNode;
+        assertNotNull(current);
+
+        // group stop push from the current watch server; heartbeat (10s) is far away,
+        // so the re-sync is triggered by the event only
+        RaftNode switched = waitEventAndSwitch(current,
+                new RaftServerEventPush(groupId, current.nodeId, RaftServerEventPush.EVENT_GROUP_STOP));
+
+        // server stop push from the new watch server, all groups on that peer are switched
+        waitEventAndSwitch(switched,
+                new RaftServerEventPush(0, switched.nodeId, RaftServerEventPush.EVENT_SERVER_STOP));
+
+        WaitUtil.waitUtil(() -> client.getRaftClient().getGroup(groupId).leader != null);
+        int leaderId = client.getRaftClient().getGroup(groupId).leader.nodeId;
+        long idx = server.put(leaderId, key1, "value1");
+        waitForEvents(new PushEvent(idx, key1, "value1"));
+    }
+
+    private RaftNode waitEventAndSwitch(RaftNode current, RaftServerEventPush event) {
+        int respBase = syncRespCount.get();
+        // quiet followers report unknown applyLag and are rejected, inject one ok status for a
+        // deterministic target server so the switch does not fall back to the stopping server
+        RaftNode target = null;
+        for (RaftNode n : client.getRaftClient().getGroup(groupId).servers) {
+            if (n != current) {
+                target = n;
+                break;
+            }
+        }
+        assertNotNull(target);
+        mockWatchLostCount = new AtomicInteger(1);
+        mockWatchLostWatchCount = 100;
+        mockWatchLostOkNodeId = target.nodeId;
+        // reject all other candidates (the current server may report a real ok status),
+        // so the switch target is deterministic regardless of candidate order
+        mockQueryStatusExCount = new AtomicInteger(100);
+        manager.processServerEvent(event);
+        WaitUtil.waitUtil(() -> syncRespCount.get() > respBase && manager.lastSyncNode != current);
+        assertSame(target, manager.lastSyncNode);
+        return manager.lastSyncNode;
     }
 
     @Test

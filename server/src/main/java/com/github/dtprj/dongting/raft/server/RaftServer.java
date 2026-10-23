@@ -35,9 +35,11 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
+import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.perf.DefaultRpcPerf;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftServerEventPush;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
@@ -529,6 +531,7 @@ public class RaftServer extends AbstractLifeCircle implements ChannelListener {
     @Override
     protected void doStop(DtTime timeout, boolean force) {
         try {
+            pushServerStopEvent();
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> {
                 stopGroup(g, timeout, g.groupComponents.groupConfig.saveSnapshotWhenClose);
@@ -554,6 +557,34 @@ public class RaftServer extends AbstractLifeCircle implements ChannelListener {
         } catch (RuntimeException | Error e) {
             log.error("stop raft server failed", e);
             throw e;
+        }
+    }
+
+    // push before nioServer stops; group stop events are not sent in this case
+    private void pushServerStopEvent() {
+        try {
+            if (nioServer == null || serverConfig.servicePort <= 0) {
+                return;
+            }
+            RaftServerEventPush push = new RaftServerEventPush(0, serverConfig.nodeId,
+                    RaftServerEventPush.EVENT_SERVER_STOP);
+            for (DtChannel dtc : nioServer.getClients().values()) {
+                if (dtc.getLocalPort() != serverConfig.servicePort) {
+                    // replicate port channels are raft peers, not kv clients
+                    continue;
+                }
+                if (!dtc.getChannel().isOpen()) {
+                    continue;
+                }
+                SimpleWritePacket p = new SimpleWritePacket(Commands.RAFT_SERVER_EVENT_PUSH, push);
+                nioServer.sendOneWay(dtc, p, new DtTime(3, TimeUnit.SECONDS), (result, ex) -> {
+                    if (ex != null) {
+                        log.warn("push server stop event failed: remote={}, ex={}", dtc.getRemoteAddr(), ex.toString());
+                    }
+                });
+            }
+        } catch (Throwable e) {
+            log.error("push server stop event failed", e);
         }
     }
 

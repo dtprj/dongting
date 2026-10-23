@@ -80,6 +80,7 @@ public class KvClient extends AbstractLifeCircle {
         KvClientProcessor clientProcessor = new KvClientProcessor(watchManager, lockManager);
         raftClient.getNioClient().register(Commands.DTKV_WATCH_NOTIFY_PUSH, clientProcessor, pushExecutor);
         raftClient.getNioClient().register(Commands.DTKV_LOCK_PUSH, clientProcessor, pushExecutor);
+        raftClient.getNioClient().register(Commands.RAFT_SERVER_EVENT_PUSH, clientProcessor, pushExecutor);
         raftClient.getNioClient().getConfig().channelListeners.add(watchManager);
     }
 

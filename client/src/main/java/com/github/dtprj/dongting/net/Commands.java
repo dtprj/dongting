@@ -47,6 +47,7 @@ public interface Commands {
     int RAFT_ADMIN_LIST_NODES = 54;
     int RAFT_ADMIN_LIST_GROUPS = 55;
     int RAFT_ADMIN_SYNC_CONFIG = 56;
+    int RAFT_SERVER_EVENT_PUSH = 57; // one way push from server to client
 
     // 70 ~ 99 for dt kv
     int DTKV_REMOVE = 70;
