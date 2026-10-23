@@ -252,6 +252,7 @@ public class WatchManagerTest implements KvListener {
                     && (mockWatchLostOkNodeId <= 0 || n.nodeId == mockWatchLostOkNodeId);
             if (mockWatchLost && mockWatchLostCount.getAndDecrement() > 0) {
                 QueryStatusResp s = new QueryStatusResp();
+                s.setInitFinished(true);
                 s.setGroupReady(true);
                 s.leaderId = 1;
                 KvStatusResp resp = new KvStatusResp();
@@ -525,8 +526,7 @@ public class WatchManagerTest implements KvListener {
 
     private RaftNode waitEventAndSwitch(RaftNode current, RaftServerEventPush event) {
         int respBase = syncRespCount.get();
-        // quiet followers report unknown applyLag and are rejected, inject one ok status for a
-        // deterministic target server so the switch does not fall back to the stopping server
+        // pin deterministic switch target server
         RaftNode target = null;
         for (RaftNode n : client.getRaftClient().getGroup(groupId).servers) {
             if (n != current) {
@@ -557,8 +557,7 @@ public class WatchManagerTest implements KvListener {
         assertNotNull(current);
 
         int respBase = syncRespCount.get();
-        // quiet followers report unknown applyLag and are rejected, inject one ok status
-        // so the next candidate server is accepted and the switch is deterministic
+        // inject one ok status so the switch target server is deterministic
         mockWatchLostCount = new AtomicInteger(1);
         mockWatchLostWatchCount = 100;
         // remove the peer, so the client must switch watch to another server

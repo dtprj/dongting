@@ -764,10 +764,11 @@ public class WatchManager implements ChannelListener {
                     n.nodeId, groupId, s.isShouldStop(), s.isFatalError(), s.isFinished());
             return false;
         }
-        if (s.isInstallSnapshot() || !s.isGroupReady() || s.leaderId <= 0
+        // watches only need eventual consistency; initFinished skips nodes still replaying logs
+        if (s.isInstallSnapshot() || !s.isInitFinished() || s.isInitFailed()
                 || s.lastApplyTimeToNowMillis > 15_000 || s.applyLagMillis > 15_000) {
-            log.info("status of node {} for group {} is not ok, installingSnapshot={}, groupReady={}, leaderId={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
-                    n.nodeId, groupId, s.isInstallSnapshot(), s.isGroupReady(), s.leaderId,
+            log.info("status of node {} for group {} is not ok, installingSnapshot={}, initFinished={}, initFailed={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
+                    n.nodeId, groupId, s.isInstallSnapshot(), s.isInitFinished(), s.isInitFailed(),
                     s.lastApplyTimeToNowMillis, s.applyLagMillis);
             return false;
         }

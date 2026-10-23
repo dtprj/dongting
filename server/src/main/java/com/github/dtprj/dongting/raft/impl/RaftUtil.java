@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32C;
 
 /**
@@ -179,7 +178,7 @@ public final class RaftUtil {
         raftStatus.leaderCommit = 0;
 
         raftStatus.commitHistory.clear();
-        raftStatus.applyLagNanos = TimeUnit.DAYS.toNanos(1);
+        // keep applyLagNanos, apply speed is a node property
 
         // wake up replicate fiber if it is waiting on this condition
         raftStatus.needRepCondition.signalAll();
