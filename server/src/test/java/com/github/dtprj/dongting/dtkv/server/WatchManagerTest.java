@@ -34,6 +34,7 @@ import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.RaftServerEventPush;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -253,8 +254,7 @@ public class WatchManagerTest implements KvListener {
             if (mockWatchLost && mockWatchLostCount.getAndDecrement() > 0) {
                 QueryStatusResp s = new QueryStatusResp();
                 s.setInitFinished(true);
-                s.setGroupReady(true);
-                s.leaderId = 1;
+                s.role = RaftRole.follower.code;
                 KvStatusResp resp = new KvStatusResp();
                 resp.raftServerStatus = s;
                 resp.watchCount = mockWatchLostWatchCount;

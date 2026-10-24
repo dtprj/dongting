@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.RaftServerEventPush;
 
 import java.util.ArrayList;
@@ -764,11 +765,11 @@ public class WatchManager implements ChannelListener {
                     n.nodeId, groupId, s.isShouldStop(), s.isFatalError(), s.isFinished());
             return false;
         }
-        // watches only need eventual consistency; initFinished skips nodes still replaying logs
-        if (s.isInstallSnapshot() || !s.isInitFinished() || s.isInitFailed()
+        // watches only need eventual consistency; skip replaying nodes and nodes not in group config (role none)
+        if (s.isInstallSnapshot() || s.role == RaftRole.none.code || !s.isInitFinished() || s.isInitFailed()
                 || s.lastApplyTimeToNowMillis > 15_000 || s.applyLagMillis > 15_000) {
-            log.info("status of node {} for group {} is not ok, installingSnapshot={}, initFinished={}, initFailed={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
-                    n.nodeId, groupId, s.isInstallSnapshot(), s.isInitFinished(), s.isInitFailed(),
+            log.info("status of node {} for group {} is not ok, installingSnapshot={}, role={}, initFinished={}, initFailed={}, lastApplyTimeToNowMillis={}, applyLagMillis={}",
+                    n.nodeId, groupId, s.isInstallSnapshot(), s.role, s.isInitFinished(), s.isInitFailed(),
                     s.lastApplyTimeToNowMillis, s.applyLagMillis);
             return false;
         }

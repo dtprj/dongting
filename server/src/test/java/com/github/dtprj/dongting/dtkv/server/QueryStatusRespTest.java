@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.raft.QueryStatusResp;
+import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.impl.DtRaftServer;
 import com.github.dtprj.dongting.util.CodecTestUtil;
 import org.junit.jupiter.api.Assertions;
@@ -55,6 +56,7 @@ public class QueryStatusRespTest {
         status.lastConfigChangeIndex = 500;
         status.firstError = "test error";
         status.persistedCommitIndex = 999;
+        status.role = RaftRole.follower.code;
         return status;
     }
 
@@ -97,6 +99,7 @@ public class QueryStatusRespTest {
         Assertions.assertEquals(expect.lastConfigChangeIndex, protoStatus.getLastConfigChangeIndex());
         Assertions.assertEquals(expect.firstError, protoStatus.getFirstError());
         Assertions.assertEquals(expect.persistedCommitIndex, protoStatus.getPersistedCommitIndex());
+        Assertions.assertEquals(expect.role, protoStatus.getRole());
     }
 
     public static void compare2(QueryStatusResp expect, QueryStatusResp r) {
@@ -118,5 +121,6 @@ public class QueryStatusRespTest {
         Assertions.assertEquals(expect.lastConfigChangeIndex, r.lastConfigChangeIndex);
         Assertions.assertEquals(expect.firstError, r.firstError);
         Assertions.assertEquals(expect.persistedCommitIndex, r.persistedCommitIndex);
+        Assertions.assertEquals(expect.role, r.role);
     }
 }

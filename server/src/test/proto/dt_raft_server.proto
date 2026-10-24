@@ -113,6 +113,7 @@ message QueryStatusResp {
   repeated fixed32 prepared_observers = 14[packed = false];
   fixed64 last_config_change_index = 15;
   fixed64 persisted_commit_index = 16;
+  int32 role = 17;
   string first_error = 100;
 }
 

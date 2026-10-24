@@ -19,5 +19,16 @@ package com.github.dtprj.dongting.raft;
  * @author huangli
  */
 public enum RaftRole {
-    leader, follower, candidate, observer, none
+    leader(1),
+    follower(2),
+    candidate(3),
+    observer(4),
+    none(5);
+
+    // wire value of QueryStatusResp.role
+    public final int code;
+
+    RaftRole(int code) {
+        this.code = code;
+    }
 }

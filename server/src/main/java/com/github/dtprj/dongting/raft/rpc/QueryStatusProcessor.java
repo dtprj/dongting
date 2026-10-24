@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
+import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
@@ -83,6 +84,9 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
         resp.lastConfigChangeIndex = raftStatus.lastConfigChangeIndex;
         resp.firstError = BugLog.getFirstError();
         resp.persistedCommitIndex = raftStatus.persistedCommitIndex;
+        // defensive: role is null only before group init sets it
+        RaftRole role = raftStatus.getRole();
+        resp.role = role == null ? RaftRole.none.code : role.code;
         return resp;
     }
 }

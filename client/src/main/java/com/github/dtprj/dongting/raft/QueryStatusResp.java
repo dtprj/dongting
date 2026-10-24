@@ -47,6 +47,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
 //    repeated fixed32 prepared_observers = 14[packed = false];
 //    fixed64 last_config_change_index = 15;
 //    fixed64 persisted_commit_index = 16;
+//    int32 role = 17;
 //    string first_error = 100;
 
     private static final int IDX_GROUP_ID = 1;
@@ -65,6 +66,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
     private static final int IDX_PREPARED_OBSERVERS = 14;
     private static final int IDX_LAST_CONFIG_CHANGE_INDEX = 15;
     private static final int IDX_PERSISTED_COMMIT_INDEX = 16;
+    private static final int IDX_ROLE = 17;
     private static final int IDX_FIRST_ERROR = 100;
 
     public int nodeId;
@@ -78,6 +80,9 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
     public long lastConfigChangeIndex;
     public String firstError;
     public long persistedCommitIndex;
+
+    // see RaftRole for wire values
+    public int role;
 
     public static final DecoderCallbackCreator<QueryStatusResp> DECODER = ctx -> ctx.toDecoderCallback(
             new Callback());
@@ -198,7 +203,8 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
                     + PbUtil.sizeOfFix32Field(IDX_PREPARED_MEMBERS, preparedMembers)
                     + PbUtil.sizeOfFix32Field(IDX_PREPARED_OBSERVERS, preparedObservers)
                     + PbUtil.sizeOfFix64Field(IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex)
-                    + PbUtil.sizeOfFix64Field(IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex);
+                    + PbUtil.sizeOfFix64Field(IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex)
+                    + PbUtil.sizeOfInt32Field(IDX_ROLE, role);
         }
         return headerSize;
     }
@@ -226,6 +232,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
                 PbUtil.writeFix32Field(destBuffer, IDX_PREPARED_OBSERVERS, preparedObservers);
                 PbUtil.writeFix64Field(destBuffer, IDX_LAST_CONFIG_CHANGE_INDEX, lastConfigChangeIndex);
                 PbUtil.writeFix64Field(destBuffer, IDX_PERSISTED_COMMIT_INDEX, persistedCommitIndex);
+                PbUtil.writeInt32Field(destBuffer, IDX_ROLE, role);
                 context.stage = IDX_PERSISTED_COMMIT_INDEX;
             }
             // fall through
@@ -257,6 +264,9 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
                     break;
                 case IDX_LEADER_ID:
                     resp.leaderId = (int) value;
+                    break;
+                case IDX_ROLE:
+                    resp.role = (int) value;
                     break;
             }
         }
