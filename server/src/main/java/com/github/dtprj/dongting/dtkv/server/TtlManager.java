@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.impl.RaftRole;
+import com.github.dtprj.dongting.raft.RaftRole;
 
 import java.util.Iterator;
 import java.util.TreeSet;

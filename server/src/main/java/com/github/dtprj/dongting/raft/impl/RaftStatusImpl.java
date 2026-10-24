@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.time.Duration;

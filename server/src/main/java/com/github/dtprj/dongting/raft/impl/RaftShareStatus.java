@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.fiber.ShareStatus;
+import com.github.dtprj.dongting.raft.RaftRole;
 
 /**
  * @author huangli
