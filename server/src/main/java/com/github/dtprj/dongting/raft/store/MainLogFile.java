@@ -30,6 +30,8 @@ public class MainLogFile extends QueueFile {
     long firstIndex;
     int firstTerm;
 
+    long deleteTimestamp;
+
     // serializes non-positional gathering writes since they mutate the channel position,
     // see AsyncIoTask
     final ReentrantLock gatheringWriteLock = new ReentrantLock();
@@ -38,5 +40,10 @@ public class MainLogFile extends QueueFile {
                        ExecutorService ioExecutor,
                        Consumer<QueueFile> accessCallback, long currentTimeMillis) {
         super(startPos, endPos, file, group, ioExecutor, accessCallback, currentTimeMillis);
+    }
+
+    @Override
+    public boolean shouldDeleteSoon() {
+        return deleteTimestamp > 0 || deleted;
     }
 }

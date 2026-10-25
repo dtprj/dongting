@@ -392,8 +392,11 @@ public abstract class FileQueue<F extends QueueFile> {
                         first.getWriters(), first.getFile().getPath());
                 return first.getNoRwCond().await(frame);
             }
-            if (first.deleteTimestamp == 0) {
-                first.deleteTimestamp = 1;
+            if (mainLogFile) {
+                MainLogFile mlf = (MainLogFile) first;
+                if (mlf.deleteTimestamp == 0) {
+                    mlf.deleteTimestamp = 1;
+                }
             }
             first.deleted = true;
             lruRemove(first);

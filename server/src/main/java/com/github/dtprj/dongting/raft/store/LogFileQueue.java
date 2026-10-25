@@ -212,7 +212,7 @@ final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
                         logFile.getFile().getName(), result, timestampBound, nextFile.firstTimestamp, boundIndex, nextFile.firstIndex);
             }
             if (result) {
-                if (!logFile.shouldDelete()) {
+                if (!logFile.shouldDeleteSoon()) {
                     logFile.deleteTimestamp = deleteTimestamp;
                 } else {
                     logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);

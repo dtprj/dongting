@@ -331,7 +331,7 @@ public class ChainWriter {
                     }
                 }
                 QueueFile logFile = task.getLogFile();
-                if (logFile.shouldDelete() || logFile.deleted) {
+                if (logFile.shouldDeleteSoon()) {
                     log.error("file {} should delete or deleted, ignore force", logFile.getFile());
                     forceTaskCount--;
                     logFile.decWriters();

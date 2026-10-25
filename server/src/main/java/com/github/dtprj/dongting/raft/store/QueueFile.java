@@ -36,8 +36,6 @@ public class QueueFile extends DtFile {
     final long startPos;
     final long endPos;
 
-    long deleteTimestamp;
-
     boolean deleted;
 
     long lastAccessTime;
@@ -114,8 +112,8 @@ public class QueueFile extends DtFile {
         }
     }
 
-    public boolean shouldDelete() {
-        return deleteTimestamp > 0;
+    public boolean shouldDeleteSoon() {
+        return deleted;
     }
 
     public boolean isDeleted() {

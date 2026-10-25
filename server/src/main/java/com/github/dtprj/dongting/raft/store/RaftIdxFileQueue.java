@@ -365,7 +365,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
             }
             if (flushType == 0 || flushType == 1) {
                 QueueFile logFile = getLogFile(indexToPos(nextPersistIndex));
-                if (logFile.shouldDelete()) {
+                if (logFile.shouldDeleteSoon()) {
                     BugLog.log("idx file deleted, flush fail: {}", logFile.getFile().getPath());
                     throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
                 }
