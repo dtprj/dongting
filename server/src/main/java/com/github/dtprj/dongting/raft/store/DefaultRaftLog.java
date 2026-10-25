@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -190,6 +191,29 @@ public final class DefaultRaftLog implements RaftLog {
     @Override
     public LogIterator openIterator(Supplier<Boolean> cancelIndicator, boolean decode) {
         return new FileLogLoader(idxFiles, logFiles, groupConfig, raftCodecFactory, cancelIndicator, decode);
+    }
+
+    @Override
+    public long firstReadablePos() {
+        IndexedQueue<MainLogFile> queue = logFiles.queue;
+        int low = 0;
+        int high = queue.size();
+        // markDelete and deleteFirstFile only mark a prefix.
+        while (low < high) {
+            int mid = (low + high) >>> 1;
+            MainLogFile file = queue.get(mid);
+            if (file.endPos <= raftStatus.firstValidPos || file.deleteTimestamp != 0 || file.deleted) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        return low == queue.size() ? Long.MAX_VALUE : Math.max(queue.get(low).startPos, raftStatus.firstValidPos);
+    }
+
+    @Override
+    public FiberFrame<Boolean> read(long[] positions, int[] lengths, int count, ByteBuffer dest) {
+        return new LogReadFrame(logFiles, positions, lengths, count, dest);
     }
 
     @Override

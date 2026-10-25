@@ -18,12 +18,15 @@ package com.github.dtprj.dongting.dtmq.server;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.DtBugException;
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.DtChannel;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -37,6 +40,7 @@ import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 
 /**
  * @author huangli
@@ -55,6 +59,9 @@ public class DtMQ implements StateMachine {
     private File mqIdxDir;
 
     MqIdxManager manager;
+    final HashSet<MqPullFrame> activePulls = new HashSet<>();
+    final LongObjMap<HashSet<MqPullFrame>> waitingPulls = new LongObjMap<>();
+    long changeVersion;
 
     private boolean installing;
 
@@ -75,6 +82,31 @@ public class DtMQ implements StateMachine {
 
     @Override
     public void onChannelDisconnected(DtChannel channel) {
+    }
+
+    /** Raft thread only; limits are shared by all queues, and waitMillis=0 disables long polling. */
+    public MqPullFrame pull(long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,
+                            long waitMillis, DtTime deadline) {
+        return new MqPullFrame(this, groupConfig, raftGroup,
+                ((RaftGroupImpl) raftGroup).groupComponents.raftLog,
+                queueIds, fromSeqs, limit, bytesLimit, waitMillis, deadline);
+    }
+
+    /** Raft thread only; individual requests can also be cancelled through MqPullFrame.cancel(). */
+    public void cancelPendingPulls() {
+        for (MqPullFrame pull : activePulls) {
+            pull.cancel();
+        }
+    }
+
+    private void afterAppend(long queueId) {
+        changeVersion++;
+        HashSet<MqPullFrame> pulls = waitingPulls.get(queueId);
+        if (pulls != null) {
+            for (MqPullFrame pull : pulls) {
+                pull.signal();
+            }
+        }
     }
 
     @Override
@@ -100,6 +132,18 @@ public class DtMQ implements StateMachine {
         @SuppressWarnings("unchecked")
         FiberFuture<Object> f = (FiberFuture<Object>) (FiberFuture<?>) manager.appendAsync(
                 reqData.bizKey, rt.raftLogPosition, reqData.timestamp, reqData.totalLen);
+        long queueId = reqData.bizKey;
+        if (f.isDone()) {
+            if (f.getEx() == null) {
+                afterAppend(queueId);
+            }
+        } else {
+            f.registerCallback((v, ex) -> {
+                if (ex == null) {
+                    afterAppend(queueId);
+                }
+            });
+        }
         return f;
     }
 
@@ -121,6 +165,7 @@ public class DtMQ implements StateMachine {
     @Override
     public FiberFuture<Void> startInstall(boolean clean) {
         installing = true;
+        cancelPendingPulls();
         FiberFuture<Void> f;
         if (clean) {
             f = manager.destroyAllBeforeInstallSnapshot();
@@ -173,6 +218,7 @@ public class DtMQ implements StateMachine {
 
     @Override
     public FiberFuture<Void> stop() {
+        cancelPendingPulls();
         MqIdxManager m = manager;
         if (m == null) {
             return FiberFuture.completedFuture(groupConfig.fiberGroup, null);

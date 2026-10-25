@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -47,6 +48,12 @@ public interface RaftLog {
      * (they are left null); only the raw buffer is filled. Used by replication path which only needs raw bytes.
      */
     LogIterator openIterator(Supplier<Boolean> cancelIndicator, boolean decode);
+
+    /** Lower position bound in the first unmarked file, respecting snapshot truncation; Long.MAX_VALUE if absent. */
+    long firstReadablePos();
+
+    /** Reads raw records into caller-owned dest, advancing position on success; false means expired, with no I/O. */
+    FiberFrame<Boolean> read(long[] positions, int[] lengths, int count, ByteBuffer dest);
 
     /**
      * return null if it can't match and will cause install snapshot

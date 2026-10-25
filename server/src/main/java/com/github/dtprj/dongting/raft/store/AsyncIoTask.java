@@ -44,8 +44,8 @@ public class AsyncIoTask {
     private final FiberGroup fiberGroup;
 
     private ByteBuffer ioBuffer;
-    // non-null only for gathering write
     private ByteBuffer[] ioBuffers;
+    private long[] readPositions;
     private long filePos;
 
     private boolean write;
@@ -73,6 +73,22 @@ public class AsyncIoTask {
         checkPosition(ioBuffer);
         this.ioBuffer = ioBuffer;
         return exec(filePos, false);
+    }
+
+    public FiberFuture<Void> read(ByteBuffer[] buffers, long[] positions) {
+        if (buffers.length != positions.length) {
+            throw new IllegalArgumentException("buffers and positions length mismatch");
+        }
+        for (int i = 0; i < buffers.length; i++) {
+            ByteBuffer buf = buffers[i];
+            checkPosition(buf);
+            if (buf.isReadOnly() || positions[i] < 0 || positions[i] > Long.MAX_VALUE - buf.remaining()) {
+                throw new IllegalArgumentException("invalid read buffer or position at " + i);
+            }
+        }
+        this.ioBuffers = buffers;
+        this.readPositions = positions;
+        return exec(positions.length == 0 ? 0 : positions[0], false);
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
@@ -239,7 +255,11 @@ public class AsyncIoTask {
                 fireComplete(null);
                 return;
             }
-            if (ioBuffers != null) {
+            if (readPositions != null) {
+                if (!doPositionalReads()) {
+                    return;
+                }
+            } else if (ioBuffers != null) {
                 doGatheringWrite(pos);
             } else {
                 while (ioBuffer.hasRemaining()) {
@@ -271,6 +291,26 @@ public class AsyncIoTask {
         } catch (Throwable e) {
             retry(e);
         }
+    }
+
+    private boolean doPositionalReads() throws IOException {
+        FileChannel channel = dtFile.getChannel();
+        for (int i = 0; i < ioBuffers.length; i++) {
+            ByteBuffer buf = ioBuffers[i];
+            long pos = readPositions[i];
+            while (buf.hasRemaining()) {
+                int n = channel.read(buf, pos);
+                if (n < 0) {
+                    fireComplete(new RaftException("read end of file"));
+                    return false;
+                }
+                if (n == 0) {
+                    log.warn("read returned 0 for file={}, pos={}", dtFile.getFile().getPath(), pos);
+                }
+                pos += n;
+            }
+        }
+        return true;
     }
 
     private void doGatheringWrite(long pos) throws IOException {

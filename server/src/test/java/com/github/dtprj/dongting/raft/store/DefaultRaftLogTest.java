@@ -44,11 +44,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static com.github.dtprj.dongting.raft.store.LogFileQueueTest.createItem;
+import static com.github.dtprj.dongting.test.Tick.tick;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -410,6 +412,139 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
+    }
+
+    @Test
+    void testReadRecords() throws Exception {
+        int[] sizes = {200, 200, 200, 424, 256, 256, 512, 300};
+        ArrayList<RaftTask> tasks = new ArrayList<>();
+        int total = 0;
+        for (int i = 0; i < sizes.length; i++) {
+            tasks.add(createItem(config, 1, 1, i + 1, sizes[i], 20));
+            total += sizes[i];
+        }
+        int[] order = {0, 2, 3, 4, 6, 7, 1, 5};
+        ByteBuffer expected = ByteBuffer.allocate(total);
+        for (int index : order) {
+            expected.put(tasks.get(index).reqData.buffer.getBuffer().duplicate());
+        }
+        expected.flip();
+        append(tasks);
+
+        long[] positions = new long[order.length + 1];
+        int[] lengths = new int[order.length + 1];
+        for (int i = 0; i < order.length; i++) {
+            positions[i] = tasks.get(order[i]).raftLogPosition;
+            lengths[i] = sizes[order[i]];
+        }
+        positions[order.length] = Long.MAX_VALUE;
+        lengths[order.length] = -1;
+        ByteBuffer dest = ByteBuffer.allocateDirect(expected.remaining() + 2);
+        dest.put(0, (byte) 7).put(dest.capacity() - 1, (byte) 9);
+        dest.position(1).limit(dest.capacity() - 1);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                raftLog.logFiles.markDelete(5, Long.MAX_VALUE, tick(60_000));
+                assertTrue(raftLog.logFiles.getLogFile(0).shouldDeleteSoon());
+                return Fiber.call(raftLog.read(positions, lengths, order.length, dest), this::afterRead);
+            }
+
+            private FrameCallResult afterRead(Boolean success) {
+                assertTrue(success);
+                assertEquals(dest.limit(), dest.position());
+                assertEquals(7, dest.get(0));
+                dest.flip().position(1);
+                assertEquals(expected, dest);
+                dest.limit(dest.capacity());
+                assertEquals(9, dest.get(dest.capacity() - 1));
+                assertNoLogReaders();
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
+    void testReadOldPosition() throws Exception {
+        append(1, new int[]{800, 512}, new int[]{20, 20});
+        ByteBuffer dest = ByteBuffer.allocateDirect(1313);
+        for (int i = 0; i < dest.capacity(); i++) {
+            dest.put(i, (byte) 7);
+        }
+        dest.position(1);
+        doInFiber(new FiberFrame<>() {
+            MainLogFile first;
+            MainLogFile second;
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                first = raftLog.logFiles.getLogFile(0);
+                second = raftLog.logFiles.getLogFile(1024);
+                second.close();
+                raftStatus.firstValidPos = 1024;
+                return Fiber.call(raftLog.read(new long[]{1024, 0}, new int[]{512, 800}, 2, dest),
+                        this::afterOldRead);
+            }
+
+            private FrameCallResult afterOldRead(Boolean success) {
+                verifyRejected(success);
+                raftStatus.firstValidPos = 0;
+                first.deleted = true;
+                return Fiber.call(raftLog.read(new long[]{1024, 0}, new int[]{512, 800}, 2, dest),
+                        this::afterDeletedRead);
+            }
+
+            private FrameCallResult afterDeletedRead(Boolean success) {
+                verifyRejected(success);
+                return Fiber.frameReturn();
+            }
+
+            private void verifyRejected(boolean success) {
+                assertFalse(success);
+                assertEquals(1, dest.position());
+                for (int i = 0; i < dest.capacity(); i++) {
+                    assertEquals(7, dest.get(i));
+                }
+                assertFalse(second.isRwChannelOpen());
+                assertNoLogReaders();
+            }
+
+            @Override
+            protected FrameCallResult doFinally() {
+                raftStatus.firstValidPos = 0;
+                if (first != null) {
+                    first.deleted = false;
+                }
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
+    void testFirstReadablePos() throws Exception {
+        prepareDeleteEnv();
+        doInFiber(() -> {
+            assertEquals(0, raftLog.firstReadablePos());
+            raftLog.markTruncateByIndex(5, tick(60_000));
+            assertTrue(raftLog.logFiles.getLogFile(0).shouldDeleteSoon());
+            assertTrue(raftLog.logFiles.getLogFile(1024).shouldDeleteSoon());
+            assertEquals(0, raftStatus.firstValidPos);
+            assertEquals(2048, raftLog.firstReadablePos());
+            try {
+                raftStatus.firstValidPos = 2049;
+                assertEquals(2049, raftLog.firstReadablePos());
+                raftStatus.firstValidPos = raftLog.logFiles.queueEndPosition;
+                assertEquals(Long.MAX_VALUE, raftLog.firstReadablePos());
+            } finally {
+                raftStatus.firstValidPos = 0;
+            }
+        });
+    }
+
+    private void assertNoLogReaders() {
+        for (int i = 0; i < raftLog.logFiles.queue.size(); i++) {
+            assertEquals(0, raftLog.logFiles.queue.get(i).getReaders());
+        }
     }
 
     @Test
