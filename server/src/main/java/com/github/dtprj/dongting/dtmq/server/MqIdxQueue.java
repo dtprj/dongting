@@ -153,7 +153,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         firstSeqInCache = expected.startSeq + expected.count;
     }
 
-    void append(long seq, long pos, long timestamp, int itemSize) {
+    void append(long seq, long pos, long timestamp, int itemSize, long raftIndex) {
         if (seq != nextSeq) {
             throw new IllegalArgumentException("seq not continuous: queue=" + queueId
                     + ", seq=" + seq + ", nextSeq=" + nextSeq);
@@ -167,7 +167,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
             b = new MqIdxBlock(this, nextSeq, 0);
             blocks.addLast(b);
         }
-        b.append(pos, timestamp, itemSize);
+        b.append(pos, timestamp, itemSize, raftIndex);
         nextSeq++;
         lastItemPos = pos;
         if (b.isFull()) {

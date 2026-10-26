@@ -433,9 +433,13 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
         long[] positions = new long[order.length + 1];
         int[] lengths = new int[order.length + 1];
+        int[] offsets = new int[order.length + 1];
+        int offset = 1;
         for (int i = 0; i < order.length; i++) {
             positions[i] = tasks.get(order[i]).raftLogPosition;
             lengths[i] = sizes[order[i]];
+            offsets[i] = offset;
+            offset += lengths[i];
         }
         positions[order.length] = Long.MAX_VALUE;
         lengths[order.length] = -1;
@@ -447,14 +451,13 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) {
                 raftLog.logFiles.markDelete(5, Long.MAX_VALUE, tick(60_000));
                 assertTrue(raftLog.logFiles.getLogFile(0).shouldDeleteSoon());
-                return Fiber.call(raftLog.read(positions, lengths, order.length, dest), this::afterRead);
+                return Fiber.call(raftLog.read(positions, lengths, offsets, order.length, dest), this::afterRead);
             }
 
             private FrameCallResult afterRead(Boolean success) {
                 assertTrue(success);
-                assertEquals(dest.limit(), dest.position());
+                assertEquals(1, dest.position());
                 assertEquals(7, dest.get(0));
-                dest.flip().position(1);
                 assertEquals(expected, dest);
                 dest.limit(dest.capacity());
                 assertEquals(9, dest.get(dest.capacity() - 1));
@@ -482,7 +485,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 second = raftLog.logFiles.getLogFile(1024);
                 second.close();
                 raftStatus.firstValidPos = 1024;
-                return Fiber.call(raftLog.read(new long[]{1024, 0}, new int[]{512, 800}, 2, dest),
+                return Fiber.call(raftLog.read(new long[]{1024, 0}, new int[]{512, 800}, new int[]{1, 513}, 2, dest),
                         this::afterOldRead);
             }
 
@@ -490,7 +493,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
                 verifyRejected(success);
                 raftStatus.firstValidPos = 0;
                 first.deleted = true;
-                return Fiber.call(raftLog.read(new long[]{1024, 0}, new int[]{512, 800}, 2, dest),
+                return Fiber.call(raftLog.read(new long[]{1024, 0}, new int[]{512, 800}, new int[]{1, 513}, 2, dest),
                         this::afterDeletedRead);
             }
 

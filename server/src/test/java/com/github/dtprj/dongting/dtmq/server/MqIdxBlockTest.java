@@ -31,7 +31,7 @@ class MqIdxBlockTest {
         MqIdxBlock b = new MqIdxBlock(null, startSeq, 0);
         for (int i = 0; i < count; i++) {
             long seq = startSeq + i;
-            b.append(seq * 10, seq * 100, (int) seq + 1);
+            b.append(seq * 10, seq * 100, (int) seq + 1, seq + 1);
         }
         return b;
     }
@@ -53,7 +53,7 @@ class MqIdxBlockTest {
         assertFalse(b.isFull());
         assertEquals(128 + MqIdxBlock.BLOCK_ITEMS - 1, b.lastSeq());
         for (int i = 0; i < MqIdxBlock.BLOCK_ITEMS; i++) {
-            b.append(i * 10L, i * 100L, i + 1);
+            b.append(i * 10L, i * 100L, i + 1, (1L << 32) + i);
         }
         assertTrue(b.isFull());
         assertEquals(MqIdxBlock.BLOCK_ITEMS, b.count);
@@ -63,6 +63,7 @@ class MqIdxBlockTest {
             assertEquals(i * 10L, buf.getLong(off));
             assertEquals(i * 100L, buf.getLong(off + 8));
             assertEquals(i + 1, buf.getInt(off + 16));
+            assertEquals((1L << 32) + i, buf.getLong(off + 20));
         }
     }
 

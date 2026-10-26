@@ -44,6 +44,7 @@ final class MqIdxReader extends FiberFrame<Void> {
     private long minPos;
     private long seq;
     private long pos;
+    private long raftIndex;
     private int size;
     private RefBuffer diskBuffer;
     private long diskStart = -1;
@@ -128,7 +129,7 @@ final class MqIdxReader extends FiberFrame<Void> {
             if (size < LogHeader.ITEM_HEADER_SIZE) {
                 throw new ChecksumException("invalid mq item size: queue=" + queue.queueId + ", seq=" + seq);
             }
-            if (!pull.add(pos, size)) {
+            if (!pull.add(pos, size, raftIndex)) {
                 if (size > pull.bytesLimit) {
                     result.requiredBytes = size;
                 }
@@ -149,6 +150,7 @@ final class MqIdxReader extends FiberFrame<Void> {
         pos = pull.manager.getIdxItemInCache(queue.queueId, seq);
         if (pos >= 0) {
             size = pull.manager.lastGetSize;
+            raftIndex = pull.manager.lastGetRaftIndex;
             return true;
         }
         if (diskStart <= seq && seq < diskEnd) {
@@ -190,6 +192,7 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private void decodeItem() {
+        raftIndex = 0;
         ByteBuffer buf = diskBuffer.getBuffer();
         int offset = (int) (seq - diskStart) * MqIdxManager.ITEM_LEN;
         // Snapshot recovery can leave whole, unwritten blocks before the append point.

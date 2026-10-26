@@ -25,18 +25,22 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 
-/** Returns concatenated raw log records in queue order; null means no records, and the caller releases the buffer. */
-public final class MqPullFrame extends FiberFrame<RefBuffer> {
+/** Returns a pre-encoded response; the caller sends it or calls clean(). */
+public final class MqPullFrame extends FiberFrame<MqPullResp> {
     /** Truncated queues return only a retry cursor; requiredBytes identifies a record exceeding bytesLimit. */
     public static final class QueueResult {
         public final long queueId;
@@ -83,10 +87,14 @@ public final class MqPullFrame extends FiberFrame<RefBuffer> {
     private int queueIndex;
     private long[] positions;
     private int[] lengths;
+    private RefBuffer[] cached;
     int count;
     private int bytes;
+    private int cachedZeroCopyBytes;
+    private int bodySize;
     boolean retry;
     private RefBuffer buffer;
+    private ArrayList<ByteBuffer> segments;
 
     MqPullFrame(DtMQ mq, RaftGroupConfigEx groupConfig, RaftGroup raftGroup, RaftLog raftLog,
                 long[] queueIds, long[] fromSeqs, int limit, int bytesLimit, long waitMillis, DtTime deadline) {
@@ -166,11 +174,13 @@ public final class MqPullFrame extends FiberFrame<RefBuffer> {
 
     private FrameCallResult scan(Void unused) {
         unwatch();
+        releaseBuffers();
         checkLease();
         changeVersion = mq.changeVersion;
         queueIndex = 0;
         count = 0;
         bytes = 0;
+        cachedZeroCopyBytes = 0;
         retry = false;
         for (QueueResult r : results) {
             r.reset();
@@ -195,18 +205,16 @@ public final class MqPullFrame extends FiberFrame<RefBuffer> {
             return Fiber.resume(null, this::scan);
         }
         if (count > 0) {
-            buffer = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirect(bytes);
-            buffer.getBuffer().limit(bytes);
-            return Fiber.call(raftLog.read(positions, lengths, count, buffer.getBuffer()), this::afterRead);
+            return prepareResponse();
         }
         for (QueueResult r : results) {
             if (r.truncated || r.requiredBytes != 0) {
-                return justReturn(null);
+                return prepareResponse();
             }
         }
         long rest = waitEnd - System.nanoTime();
         if (waitNanos == 0 || rest <= 0) {
-            return justReturn(null);
+            return prepareResponse();
         }
         if (mq.changeVersion != changeVersion) {
             return Fiber.resume(null, this::scan);
@@ -219,7 +227,7 @@ public final class MqPullFrame extends FiberFrame<RefBuffer> {
         return changed.await(rest, TimeUnit.NANOSECONDS, groupConfig.fiberGroup.shouldStopCondition, this::scan);
     }
 
-    boolean add(long pos, int size) {
+    boolean add(long pos, int size, long raftIndex) {
         if (count == limit || size > bytesLimit - bytes) {
             return false;
         }
@@ -227,15 +235,79 @@ public final class MqPullFrame extends FiberFrame<RefBuffer> {
             int n = Math.min(limit, 16);
             positions = new long[n];
             lengths = new int[n];
+            cached = new RefBuffer[n];
         } else if (count == positions.length) {
             int n = (int) Math.min(limit, (long) count * 2);
             positions = Arrays.copyOf(positions, n);
             lengths = Arrays.copyOf(lengths, n);
+            cached = Arrays.copyOf(cached, n);
+        }
+        RaftTask task = raftIndex == 0 ? null : raftStatus.tailCache.get(raftIndex);
+        if (task != null) {
+            RefBuffer ref = task.reqData.buffer;
+            ref.retain();
+            cached[count] = ref;
+            if (size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
+                cachedZeroCopyBytes += size;
+            }
         }
         positions[count] = pos;
         lengths[count++] = size;
         bytes += size;
         return true;
+    }
+
+    private FrameCallResult prepareResponse() {
+        int headerSize = MqPullResp.headerSize(results, bytes);
+        bodySize = Math.addExact(headerSize, bytes);
+        int bufferSize = bodySize - cachedZeroCopyBytes;
+        buffer = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirect(bufferSize);
+        ByteBuffer dest = buffer.getBuffer();
+        dest.limit(bufferSize);
+        MqPullResp.writeHeader(dest, results, bytes);
+        segments = new ArrayList<>();
+        int[] offsets = null;
+        int readCount = 0;
+        int segmentStart = 0;
+        for (int i = 0; i < count; i++) {
+            int size = lengths[i];
+            RefBuffer ref = cached[i];
+            if (ref == null) {
+                if (offsets == null) {
+                    offsets = new int[count];
+                }
+                offsets[readCount] = dest.position();
+                positions[readCount] = positions[i];
+                lengths[readCount++] = size;
+                dest.position(dest.position() + size);
+            } else {
+                // Apply and replication share the source buffer's cursor; only mutate our own view.
+                ByteBuffer src = ref.getBuffer().duplicate();
+                src.clear().limit(size);
+                if (size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
+                    addSegment(dest, segmentStart);
+                    segmentStart = dest.position();
+                    segments.add(src);
+                } else {
+                    dest.put(src);
+                    ref.release();
+                    cached[i] = null;
+                }
+            }
+        }
+        addSegment(dest, segmentStart);
+        if (readCount == 0) {
+            return afterRead(true);
+        }
+        return Fiber.call(raftLog.read(positions, lengths, offsets, readCount, dest), this::afterRead);
+    }
+
+    private void addSegment(ByteBuffer dest, int start) {
+        if (dest.position() > start) {
+            ByteBuffer view = dest.duplicate();
+            view.flip().position(start);
+            segments.add(view.slice());
+        }
     }
 
     private boolean resetPositionsValid() {
@@ -252,13 +324,12 @@ public final class MqPullFrame extends FiberFrame<RefBuffer> {
     private FrameCallResult afterRead(boolean success) {
         checkLease();
         if (!success || !resetPositionsValid()) {
-            buffer.release();
-            buffer = null;
             return Fiber.resume(null, this::scan);
         }
-        buffer.getBuffer().flip();
-        RefBuffer result = buffer;
+        MqPullResp result = new MqPullResp(buffer, cached, segments, bodySize);
         buffer = null;
+        cached = null;
+        segments = null;
         return justReturn(result);
     }
 
@@ -288,14 +359,28 @@ public final class MqPullFrame extends FiberFrame<RefBuffer> {
         }
     }
 
-    @Override
-    protected FrameCallResult doFinally() {
-        unwatch();
-        mq.activePulls.remove(this);
+    private void releaseBuffers() {
         if (buffer != null) {
             buffer.release();
             buffer = null;
         }
+        if (cached != null) {
+            for (int i = 0; i < count; i++) {
+                RefBuffer ref = cached[i];
+                if (ref != null) {
+                    ref.release();
+                    cached[i] = null;
+                }
+            }
+        }
+        segments = null;
+    }
+
+    @Override
+    protected FrameCallResult doFinally() {
+        unwatch();
+        mq.activePulls.remove(this);
+        releaseBuffers();
         return Fiber.frameReturn();
     }
 }

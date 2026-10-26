@@ -15,8 +15,9 @@
  */
 package com.github.dtprj.dongting.dtmq.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.dtmq.proto.DtMq;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -36,6 +37,7 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
 import com.github.dtprj.dongting.raft.store.LogHeader;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.TestDir;
@@ -44,6 +46,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,6 +61,7 @@ import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 import static com.github.dtprj.dongting.raft.impl.RaftTaskTest.buildTestReqData;
+import static com.github.dtprj.dongting.raft.impl.RaftTaskTest.buildTestReqDataDirect;
 import static com.github.dtprj.dongting.test.Tick.tick;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -67,6 +72,8 @@ class MqPullTest extends BaseFiberTest {
     private StatusManager statusManager;
     private DefaultRaftLog raftLog;
     private DtMQ mq;
+    private int logReadCount;
+    private Runnable beforeLogRead;
 
     @BeforeEach
     void setup() throws Exception {
@@ -78,7 +85,7 @@ class MqPullTest extends BaseFiberTest {
         config.raftStatus = rs;
         config.ts = rs.ts;
         rs.tailCache = new TailCache(config, rs);
-        config.logFileSize = 4096;
+        config.logFileSize = 16384;
         config.idxItemsPerFile = 512;
         config.idxCacheSize = 512;
         config.idxFlushThreshold = 256;
@@ -95,7 +102,20 @@ class MqPullTest extends BaseFiberTest {
         components.raftStatus = rs;
         components.fiberGroup = fiberGroup;
         components.stateMachine = mq;
-        components.raftLog = raftLog;
+        components.raftLog = (RaftLog) Proxy.newProxyInstance(RaftLog.class.getClassLoader(),
+                new Class<?>[]{RaftLog.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("read")) {
+                        logReadCount += (int) args[3];
+                        if (beforeLogRead != null) {
+                            beforeLogRead.run();
+                        }
+                    }
+                    try {
+                        return method.invoke(raftLog, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
         mq.setRaftGroup(new RaftGroupImpl(components));
         doInFiber(new FiberFrame<>() {
             @Override
@@ -119,6 +139,7 @@ class MqPullTest extends BaseFiberTest {
             await(mq::stop);
             await(() -> FiberFuture.allOf("closePullTest", raftLog.close(), statusManager.close(true)));
         } finally {
+            doInFiber(() -> rs.tailCache.cleanAll());
             items.forEach(item -> item.reqData.release());
         }
     }
@@ -144,7 +165,9 @@ class MqPullTest extends BaseFiberTest {
         byte[] header = {1, 2, 3, 4};
         byte[] body = new byte[totalLen - LogHeader.computeTotalLen(header.length, 0) - 4];
         Arrays.fill(body, (byte) (items.size() + 1));
-        RaftReqData rd = buildTestReqData(LogHeader.TYPE_NORMAL, 2, header, body);
+        RaftReqData rd = totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
+                ? buildTestReqDataDirect(LogHeader.TYPE_NORMAL, 2, header, body)
+                : buildTestReqData(LogHeader.TYPE_NORMAL, 2, header, body);
         rd.index = items.size() + 1;
         rd.term = 1;
         rd.prevLogTerm = rd.index == 1 ? 0 : 1;
@@ -174,7 +197,11 @@ class MqPullTest extends BaseFiberTest {
 
             private FrameCallResult apply(Object unused) {
                 if (next < batch.length) {
-                    return mq.exec(batch[next++]).await(this::apply);
+                    RaftTask task = batch[next++];
+                    task.reqData.retain();
+                    rs.tailCache.put(task.reqData.index, task);
+                    rs.tailCache.removePending(task);
+                    return mq.exec(task).await(this::apply);
                 }
                 rs.lastLogIndex = lastIndex;
                 rs.commitIndex = lastIndex;
@@ -186,7 +213,7 @@ class MqPullTest extends BaseFiberTest {
 
     private static final class Pull {
         final MqPullFrame frame;
-        final CompletableFuture<RefBuffer> result = new CompletableFuture<>();
+        final CompletableFuture<MqPullResp> result = new CompletableFuture<>();
 
         Pull(MqPullFrame frame) {
             this.frame = frame;
@@ -226,15 +253,41 @@ class MqPullTest extends BaseFiberTest {
     }
 
     private void assertRecords(Pull p, RaftTask... expected) throws Exception {
-        RefBuffer ref = p.result.get(tick(3000), TimeUnit.MILLISECONDS);
+        MqPullResp resp = p.result.get(tick(3000), TimeUnit.MILLISECONDS);
         try {
-            if (expected.length == 0) {
-                assertNull(ref);
-                return;
+            ByteBuffer encoded = ByteBuffer.allocate(resp.actualSize());
+            ByteBuffer dest = ByteBuffer.allocate(64);
+            EncodeContext context = new EncodeContext(null);
+            boolean finished;
+            do {
+                finished = resp.encode(context, dest);
+                dest.flip();
+                encoded.put(dest);
+                dest.clear();
+                if (resp.hasPreEncodedBuffer()) {
+                    assertFalse(finished);
+                    ByteBuffer segment = resp.getPreEncodedBuffer();
+                    context.pending += segment.remaining();
+                    encoded.put(segment);
+                }
+            } while (!finished);
+            assertEquals(resp.actualSize(), encoded.position());
+            assertEquals(resp.actualBodySize(), resp.getTotalPreEncodedBufferSize());
+            encoded.flip().position(resp.actualSize() - resp.actualBodySize());
+            DtMq.MqPullResp decoded = DtMq.MqPullResp.parseFrom(encoded.slice());
+            assertEquals(p.frame.getQueueCount(), decoded.getResultsSize());
+            assertEquals(p.frame.getQueueCount(), decoded.getResultsCount());
+            for (int i = 0; i < decoded.getResultsCount(); i++) {
+                MqPullFrame.QueueResult r = p.frame.getQueueResult(i);
+                DtMq.MqPullQueueResult d = decoded.getResults(i);
+                assertEquals(r.queueId, d.getQueueId());
+                assertEquals(r.fromSeq, d.getFromSeq());
+                assertEquals(r.nextSeq, d.getNextSeq());
+                assertEquals(r.count, d.getCount());
+                assertEquals(r.truncated, d.getTruncated());
+                assertEquals(r.requiredBytes, d.getRequiredBytes());
             }
-            assertNotNull(ref);
-            ByteBuffer actual = ref.getBuffer();
-            assertEquals(0, actual.position());
+            ByteBuffer actual = decoded.getRecords().asReadOnlyByteBuffer();
             for (RaftTask task : expected) {
                 ByteBuffer record = task.reqData.buffer.getBuffer().duplicate();
                 record.clear().limit(task.reqData.totalLen);
@@ -245,9 +298,7 @@ class MqPullTest extends BaseFiberTest {
             }
             assertFalse(actual.hasRemaining());
         } finally {
-            if (ref != null) {
-                ref.release();
-            }
+            resp.clean();
         }
     }
 
@@ -264,9 +315,9 @@ class MqPullTest extends BaseFiberTest {
     private void assertFailure(Pull p, Class<? extends Throwable> type) {
         assertThrows(type, () -> {
             try {
-                RefBuffer unexpected = p.result.get(tick(3000), TimeUnit.MILLISECONDS);
+                MqPullResp unexpected = p.result.get(tick(3000), TimeUnit.MILLISECONDS);
                 if (unexpected != null) {
-                    unexpected.release();
+                    unexpected.clean();
                 }
             } catch (ExecutionException e) {
                 throw e.getCause();
@@ -311,6 +362,77 @@ class MqPullTest extends BaseFiberTest {
         assertRecords(empty);
         assertQueue(empty, 0, 2, 2, 0, false, 0);
         assertQueue(empty, 1, 17, 17, 0, false, 0);
+        assertEquals(0, logReadCount);
+        assertClean();
+    }
+
+    @Test
+    void testMixedCacheAndDiskWithEviction() throws Exception {
+        RaftTask a = item(1, 128);
+        RaftTask b = item(2, 160);
+        append(a, b);
+        doInFiber(() -> rs.tailCache.cleanAll());
+        int threshold = RaftServerConfig.GATHERING_WRITE_THRESHOLD;
+        RaftTask small = item(1, threshold - 1);
+        RaftTask large = item(1, threshold);
+        RaftTask last = item(2, threshold + 1);
+        append(small, large, last);
+        beforeLogRead = () -> {
+            rs.tailCache.cleanAll();
+            for (RaftTask task : new RaftTask[]{large, last}) {
+                task.reqData.release();
+                items.remove(task);
+                assertTrue(task.reqData.isReleased());
+                assertFalse(task.reqData.buffer.isReleased());
+            }
+        };
+        ByteBuffer source = large.reqData.buffer.getBuffer();
+        source.position(3).limit(7);
+        Pull mixed = pull(new long[]{1, 2}, new long[]{0, 0}, 10, 65536, 0);
+        assertRecords(mixed, a, small, large, b, last);
+        assertEquals(2, logReadCount);
+        assertEquals(3, source.position());
+        assertEquals(7, source.limit());
+        assertTrue(large.reqData.buffer.isReleased());
+        assertTrue(last.reqData.buffer.isReleased());
+        assertClean();
+    }
+
+    @Test
+    void testCachedResponseCleanupWithoutSend() throws Exception {
+        RaftTask task = item(1, RaftServerConfig.GATHERING_WRITE_THRESHOLD);
+        append(task);
+        Pull cached = pull(new long[]{1}, new long[]{0}, 1, 65536, 0);
+        MqPullResp resp = cached.result.get(tick(3000), TimeUnit.MILLISECONDS);
+        doInFiber(() -> {
+            rs.tailCache.cleanAll();
+            task.reqData.release();
+            items.remove(task);
+            assertFalse(task.reqData.buffer.isReleased());
+        });
+        resp.clean();
+        assertTrue(task.reqData.buffer.isReleased());
+        assertEquals(0, logReadCount);
+        assertClean();
+    }
+
+    @Test
+    void testMixedReadCancellation() throws Exception {
+        append(item(1, 128));
+        doInFiber(() -> rs.tailCache.cleanAll());
+        RaftTask task = item(1, RaftServerConfig.GATHERING_WRITE_THRESHOLD);
+        append(task);
+        beforeLogRead = () -> {
+            mq.cancelPendingPulls();
+            rs.tailCache.cleanAll();
+            task.reqData.release();
+            items.remove(task);
+            assertFalse(task.reqData.buffer.isReleased());
+        };
+        Pull cancelled = pull(new long[]{1}, new long[]{0}, 10, 65536, 0);
+        assertFailure(cancelled, CancellationException.class);
+        assertEquals(1, logReadCount);
+        assertTrue(task.reqData.buffer.isReleased());
         assertClean();
     }
 
@@ -348,12 +470,12 @@ class MqPullTest extends BaseFiberTest {
         doInFiber(() -> rs.firstValidPos = config.logFileSize);
         Pull old = pull(new long[]{1, 2}, new long[]{1, 129}, 10, 4096, tick(20_000));
         assertRecords(old);
-        assertQueue(old, 0, 64, 64, 0, true, 0);
+        assertQueue(old, 0, 256, 256, 0, true, 0);
         assertQueue(old, 1, 130, 130, 0, true, 0);
         Pull zero = pull(new long[]{2, 1}, new long[]{0, 0}, 3, 4096, 0);
-        assertRecords(zero, restored, batch[64], batch[65]);
+        assertRecords(zero, restored, batch[256], batch[257]);
         assertQueue(zero, 0, 130, 131, 1, false, 0);
-        assertQueue(zero, 1, 64, 66, 2, false, 0);
+        assertQueue(zero, 1, 256, 258, 2, false, 0);
         assertClean();
     }
 

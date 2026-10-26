@@ -18,8 +18,7 @@ package com.github.dtprj.dongting.dtmq.server;
 import java.nio.ByteBuffer;
 
 /**
- * Slot layout (20 bytes): pos(8) + timestamp(8) + size(4). On-disk item is 32 bytes, padded
- * with 8 reserved bytes and a 4-byte CRC32C, so loading one block reads 4096 bytes.
+ * Slot layout (28 bytes): pos(8) + timestamp(8) + size(4) + raftIndex(8, memory only).
  *
  * @author huangli
  */
@@ -28,8 +27,8 @@ final class MqIdxBlock {
     static final int BLOCK_ITEMS = 128; // 128 * 32 = 4096
     static final int BLOCK_SHIFT = Integer.numberOfTrailingZeros(BLOCK_ITEMS);
     static final int BLOCK_MASK = BLOCK_ITEMS - 1;
-    static final int SLOT_SIZE = 20;
-    private static final int BLOCK_BYTES = BLOCK_ITEMS * SLOT_SIZE; // 2560
+    static final int SLOT_SIZE = 28;
+    private static final int BLOCK_BYTES = BLOCK_ITEMS * SLOT_SIZE;
 
     final MqIdxQueue owner;
     final long startSeq;
@@ -43,12 +42,13 @@ final class MqIdxBlock {
         this.count = count;
     }
 
-    void append(long pos, long timestamp, int itemSize) {
+    void append(long pos, long timestamp, int itemSize, long raftIndex) {
         int index = count * SLOT_SIZE;
         ByteBuffer buffer = this.buffer;
         buffer.putLong(index, pos);
         buffer.putLong(index + 8, timestamp);
         buffer.putInt(index + 16, itemSize);
+        buffer.putLong(index + 20, raftIndex);
         count++;
     }
 

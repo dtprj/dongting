@@ -33,19 +33,20 @@ final class LogReadFrame extends FiberFrame<Boolean> {
     private final LogFileQueue logFiles;
     private final long[] positions;
     private final int[] lengths;
+    private final int[] offsets;
     private final int count;
     private final ByteBuffer dest;
 
     private FileRead[] reads;
     private int readerCount;
     private int nextRead;
-    private int endPosition;
     private FiberFuture<Void> pending;
 
-    LogReadFrame(LogFileQueue logFiles, long[] positions, int[] lengths, int count, ByteBuffer dest) {
+    LogReadFrame(LogFileQueue logFiles, long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest) {
         this.logFiles = logFiles;
         this.positions = positions;
         this.lengths = lengths;
+        this.offsets = offsets;
         this.count = count;
         this.dest = dest;
     }
@@ -55,21 +56,19 @@ final class LogReadFrame extends FiberFrame<Boolean> {
         if (getFiber().isDaemon()) {
             throw new RaftException("log read should not run in daemon fiber");
         }
-        if (count < 0 || count > positions.length || count > lengths.length) {
+        if (count < 0 || count > positions.length || count > lengths.length || count > offsets.length) {
             throw new IllegalArgumentException("invalid read count: " + count);
         }
         if (dest.isReadOnly()) {
             throw new ReadOnlyBufferException();
         }
-        int total = 0;
         for (int i = 0; i < count; i++) {
             int len = lengths[i];
-            if (len <= 0 || len > dest.remaining() - total) {
-                throw new IllegalArgumentException("invalid read length or insufficient destination at " + i);
+            int offset = offsets[i];
+            if (len <= 0 || offset < 0 || offset > dest.limit() || len > dest.limit() - offset) {
+                throw new IllegalArgumentException("invalid read range at " + i);
             }
-            total += len;
         }
-        endPosition = dest.position() + total;
         nextRead = 0;
         if (!prepareReads()) {
             return justReturn(false);
@@ -84,7 +83,6 @@ final class LogReadFrame extends FiberFrame<Boolean> {
 
     private boolean prepareReads() {
         LinkedHashMap<MainLogFile, FileRead> byFile = new LinkedHashMap<>();
-        int offset = dest.position();
         for (int i = 0; i < count; i++) {
             long pos = positions[i];
             int len = lengths[i];
@@ -103,8 +101,7 @@ final class LogReadFrame extends FiberFrame<Boolean> {
                 read = new FileRead(file);
                 byFile.put(file, read);
             }
-            read.add(pos - file.startPos, offset, len);
-            offset += len;
+            read.add(pos - file.startPos, offsets[i], len);
         }
         reads = byFile.values().toArray(new FileRead[0]);
         return true;
@@ -113,7 +110,6 @@ final class LogReadFrame extends FiberFrame<Boolean> {
     private FrameCallResult readNext(Void unused) {
         pending = null;
         if (nextRead == reads.length) {
-            dest.position(endPosition);
             return justReturn(true);
         }
         FileRead read = reads[nextRead++];

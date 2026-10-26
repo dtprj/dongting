@@ -52,8 +52,8 @@ public interface RaftLog {
     /** Lower position bound in the first unmarked file, respecting snapshot truncation; Long.MAX_VALUE if absent. */
     long firstReadablePos();
 
-    /** Reads raw records into caller-owned dest, advancing position on success; false means expired, with no I/O. */
-    FiberFrame<Boolean> read(long[] positions, int[] lengths, int count, ByteBuffer dest);
+    /** Reads into absolute dest offsets without changing its position; false means expired, with no I/O. */
+    FiberFrame<Boolean> read(long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest);
 
     /**
      * return null if it can't match and will cause install snapshot

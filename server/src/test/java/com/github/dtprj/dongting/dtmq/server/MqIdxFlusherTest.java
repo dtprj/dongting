@@ -87,7 +87,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
     // pos = seq * 10 + base, so queues can map to disjoint log position ranges
     private void appendItems(long queueId, long posBase, int fromInclusive, int toExclusive) {
         for (long seq = fromInclusive; seq < toExclusive; seq++) {
-            manager.appendAsync(queueId, seq * 10 + posBase, seq * 100, (int) seq + 1);
+            manager.appendAsync(queueId, seq * 10 + posBase, seq * 100, (int) seq + 1, seq + 1);
         }
     }
 
@@ -387,6 +387,8 @@ class MqIdxFlusherTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterFlush(Void v) {
+                assertEquals(399 * 10, manager.getIdxItemInCache(1, 399));
+                assertEquals(400, manager.lastGetRaftIndex);
                 return manager.close().await(this::justReturn);
             }
         });
@@ -399,21 +401,20 @@ class MqIdxFlusherTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 manager.start();
-                FiberFuture<Void> load = manager.get(1).ensureHeadLoaded();
-                if (load != null) {
-                    return load.await(this::afterHeadLoad);
-                }
-                return afterHeadLoad(null);
+                return manager.appendAsync(1, 400 * 10, 400 * 100, 401, 401).await(this::afterHeadLoad);
             }
 
             private FrameCallResult afterHeadLoad(Void v) {
-                // the head block of the nextSeq(400) window: seq 384..399, second half of file 1
+                // seq 384..399 are loaded from disk; seq 400 is appended after the load
                 assertEquals(384, manager.get(1).firstSeqInCache);
                 assertEquals(384 * 10, manager.getIdxItemInCache(1, 384));
+                assertEquals(0, manager.lastGetRaftIndex);
                 assertEquals(399 * 10, manager.getIdxItemInCache(1, 399));
+                assertEquals(0, manager.lastGetRaftIndex);
                 assertEquals(-1, manager.getIdxItemInCache(1, 383));
-                assertEquals(-1, manager.getIdxItemInCache(1, 400));
-                appendItems(1, 400, 401);
+                assertEquals(-1, manager.getIdxItemInCache(1, 401));
+                assertEquals(400 * 10, manager.getIdxItemInCache(1, 400));
+                assertEquals(401, manager.lastGetRaftIndex);
                 return manager.flusher.flushAll().await(this::afterFlush);
             }
 
@@ -618,7 +619,7 @@ class MqIdxFlusherTest extends BaseFiberTest {
                 manager.start();
                 // appends run far ahead of the async io, so the shared block future engages
                 for (long seq = 0; seq < 400; seq++) {
-                    futures.add(manager.appendAsync(1, seq * 10, seq * 100, (int) seq + 1));
+                    futures.add(manager.appendAsync(1, seq * 10, seq * 100, (int) seq + 1, seq + 1));
                 }
                 MqIdxQueue q = manager.get(1);
                 return Fiber.call(waitUntil(() -> q.writeFinishSeq >= 399), this::afterFlush);

@@ -73,10 +73,9 @@ class MqIdxManagerTest extends BaseFiberTest {
         return ref.get();
     }
 
-    // pos = seq * 10, timestamp = seq * 100, size = seq + 1; the returned future is ignored:
-    // no head load is ever pending in these tests, and flow control does not affect the append
+    // The returned future is ignored: no head load is pending, and flow control does not affect the append.
     private void append(long queueId, long seq) {
-        manager.appendAsync(queueId, seq * 10, seq * 100, (int) seq + 1);
+        manager.appendAsync(queueId, seq * 10, seq * 100, (int) seq + 1, seq + 1);
     }
 
     private void assertHit(long queueId, long seq) {
@@ -136,9 +135,13 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertEquals(88, q.blocks.get(4).count);
 
         assertHit(1, 0);
+        assertEquals(1, manager.lastGetRaftIndex);
         assertHit(1, 127);
+        assertEquals(128, manager.lastGetRaftIndex);
         assertHit(1, 128);
+        assertEquals(129, manager.lastGetRaftIndex);
         assertHit(1, 599);
+        assertEquals(600, manager.lastGetRaftIndex);
         assertEquals(-1, manager.getIdxItemInCache(2, 0));
         assertEquals(-1, manager.getIdxItemInCache(1, -1));
         assertEquals(-1, manager.getIdxItemInCache(1, 600));
@@ -155,8 +158,8 @@ class MqIdxManagerTest extends BaseFiberTest {
     void testAppendSeqContinuity() {
         append(1, 0);
         MqIdxQueue q = manager.get(1);
-        assertThrows(IllegalArgumentException.class, () -> q.append(2, 20, 200, 3));
-        assertThrows(IllegalArgumentException.class, () -> q.append(0, 0, 0, 1));
+        assertThrows(IllegalArgumentException.class, () -> q.append(2, 20, 200, 3, 3));
+        assertThrows(IllegalArgumentException.class, () -> q.append(0, 0, 0, 1, 1));
         append(1, 1);
         assertEquals(2, manager.get(1).nextSeq);
         assertHit(1, 1);
@@ -180,7 +183,9 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertEquals(896, b.startSeq);
         assertEquals(104, b.count);
         assertHit(1, 896);
+        assertEquals(0, manager.lastGetRaftIndex);
         assertHit(1, 999);
+        assertEquals(0, manager.lastGetRaftIndex);
         assertEquals(-1, manager.getIdxItemInCache(1, 895));
         assertEquals(-1, manager.getIdxItemInCache(1, 1000));
         // continue appending into the restored block
@@ -190,7 +195,9 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertEquals(2, q.blocks.size());
         assertEquals(1024, q.blocks.getLast().startSeq);
         assertHit(1, 1023);
+        assertEquals(1024, manager.lastGetRaftIndex);
         assertHit(1, 1024);
+        assertEquals(1025, manager.lastGetRaftIndex);
 
         manager.register(2, 300);
         MqIdxQueue q2 = manager.get(2);
@@ -283,7 +290,7 @@ class MqIdxManagerTest extends BaseFiberTest {
                     append(1, i);
                 }
                 // 2 sealed blocks fill the fifo to the limit; the tail block is not counted
-                FiberFuture<Void> f = manager.appendAsync(1, 382 * 10, 382 * 100, 383);
+                FiberFuture<Void> f = manager.appendAsync(1, 382 * 10, 382 * 100, 383, 383);
                 assertTrue(f.isDone());
                 assertNull(f.getEx());
                 return Fiber.yield(this::overLimit);
@@ -291,9 +298,9 @@ class MqIdxManagerTest extends BaseFiberTest {
 
             private FrameCallResult overLimit(Void v) {
                 // this append seals the 3rd block; eviction is gated by writeFinishSeq=-1
-                blocked = manager.appendAsync(1, 383 * 10, 383 * 100, 384);
+                blocked = manager.appendAsync(1, 383 * 10, 383 * 100, 384, 384);
                 assertFalse(blocked.isDone());
-                FiberFuture<Void> same = manager.appendAsync(1, 384 * 10, 384 * 100, 385);
+                FiberFuture<Void> same = manager.appendAsync(1, 384 * 10, 384 * 100, 385, 385);
                 assertSame(blocked, same);
                 assertFalse(same.isDone());
                 assertEquals(385, manager.get(1).nextSeq);
@@ -308,7 +315,7 @@ class MqIdxManagerTest extends BaseFiberTest {
                 assertNull(blocked.getEx());
                 assertEquals(3, manager.get(1).blocks.size());
 
-                FiberFuture<Void> f = manager.appendAsync(1, 385 * 10, 385 * 100, 386);
+                FiberFuture<Void> f = manager.appendAsync(1, 385 * 10, 385 * 100, 386, 386);
                 assertTrue(f.isDone());
                 assertNull(f.getEx());
                 assertEquals(386, manager.get(1).nextSeq);
@@ -330,7 +337,7 @@ class MqIdxManagerTest extends BaseFiberTest {
                     append(1, i);
                 }
                 // 3 sealed blocks are already over the limit, this append starts a new tail block
-                blocked = manager.appendAsync(1, 384 * 10, 384 * 100, 385);
+                blocked = manager.appendAsync(1, 384 * 10, 384 * 100, 385, 385);
                 assertFalse(blocked.isDone());
                 return manager.close().await(this::afterClose);
             }

@@ -66,6 +66,7 @@ class MqIdxManager {
 
     long lastGetTimestamp;
     int lastGetSize;
+    long lastGetRaftIndex;
 
     boolean markClose;
 
@@ -122,7 +123,7 @@ class MqIdxManager {
         queues.put(queueId, q);
     }
 
-    FiberFuture<Void> appendAsync(long queueId, long pos, long timestamp, int itemSize) {
+    FiberFuture<Void> appendAsync(long queueId, long pos, long timestamp, int itemSize, long raftIndex) {
         MqIdxQueue q = queues.get(queueId);
         if (q == null) {
             // absent from the snapshot: a brand-new queue starting at block-aligned seq 0, so
@@ -133,7 +134,7 @@ class MqIdxManager {
         }
         FiberFuture<Void> loadFuture = q.ensureHeadLoaded();
         if (loadFuture == null) {
-            q.append(q.nextSeq, pos, timestamp, itemSize);
+            q.append(q.nextSeq, pos, timestamp, itemSize, raftIndex);
             if (fifo.size() > maxCachedBlocks && !markClose) {
                 if (blockFuture == null) {
                     blockFuture = groupConfig.fiberGroup.newFuture("mqIdxFlowControl");
@@ -148,7 +149,7 @@ class MqIdxManager {
         // the load path skips flow control: precise control would need a pending queue, approximate is enough
         return loadFuture.convert("mqIdxAppend", v -> {
             MqIdxQueue q2 = queues.get(queueId);
-            q2.append(q2.nextSeq, pos, timestamp, itemSize);
+            q2.append(q2.nextSeq, pos, timestamp, itemSize, raftIndex);
             return null;
         });
     }
@@ -167,8 +168,7 @@ class MqIdxManager {
     }
 
     /**
-     * Returns the position, or -1 on miss (caller reads the idx file). On hit, timestamp and
-     * size are exposed via lastGetTimestamp/lastGetSize.
+     * Returns the position, or -1 on miss; on hit, updates lastGetTimestamp/lastGetSize/lastGetRaftIndex.
      */
     long getIdxItemInCache(long queueId, long seq) {
         MqIdxQueue q = queues.get(queueId);
@@ -180,6 +180,7 @@ class MqIdxManager {
         int offset = ((int) (seq & MqIdxBlock.BLOCK_MASK)) * MqIdxBlock.SLOT_SIZE;
         lastGetTimestamp = buffer.getLong(offset + 8);
         lastGetSize = buffer.getInt(offset + 16);
+        lastGetRaftIndex = buffer.getLong(offset + 20);
         return buffer.getLong(offset);
     }
 
@@ -204,6 +205,7 @@ class MqIdxManager {
             buffer.putLong(offset, pos);
             buffer.putLong(offset + 8, timestamp);
             buffer.putInt(offset + 16, itemSize);
+            buffer.putLong(offset + 20, 0L);
         }
     }
 

@@ -131,7 +131,7 @@ public class DtMQ implements StateMachine {
         RaftTask rt = (RaftTask) input;
         @SuppressWarnings("unchecked")
         FiberFuture<Object> f = (FiberFuture<Object>) (FiberFuture<?>) manager.appendAsync(
-                reqData.bizKey, rt.raftLogPosition, reqData.timestamp, reqData.totalLen);
+                reqData.bizKey, rt.raftLogPosition, reqData.timestamp, reqData.totalLen, reqData.index);
         long queueId = reqData.bizKey;
         if (f.isDone()) {
             if (f.getEx() == null) {
