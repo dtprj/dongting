@@ -61,21 +61,76 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) {
-        seq = result.requestedSeq;
-        if (seq >= endSeq) {
-            return Fiber.frameReturn();
-        }
+        // nextSeq, not requestedSeq: the memory scan may have collected a prefix already
+        seq = result.nextSeq;
         if (seq == 0 || seq < queue.firstAvailableSeq()) {
             return seekStart();
         }
         return loadItem(this::checkStart);
     }
 
+    /**
+     * Serves the queue entirely from in-memory idx blocks without a frame; false means the
+     * caller should run a reader instance for the I/O path.
+     */
+    static boolean tryMemoryScan(MqPullFrame pull, MqIdxQueue queue, int index) {
+        long seq = pull.fromSeqs[index];
+        if (queue == null || seq >= queue.nextSeq) {
+            return true;
+        }
+        MqPullFrame.QueueResult result = pull.result(index);
+        if (seq == 0 || seq < queue.firstAvailableSeq()) {
+            return false;
+        }
+        // walk blocks directly: no per-item map lookup or block re-resolution
+        MqIdxBlock block = queue.getBlock(seq);
+        if (block == null) {
+            return false;
+        }
+        long pos = pull.manager.getIdxItemInBlock(block, seq);
+        int size = pull.manager.lastGetSize;
+        if (pos < pull.raftStatus.firstValidPos) {
+            return false;
+        }
+        while (true) {
+            if (!consumeItem(pull, queue, result, queue.nextSeq, seq, pos, size,
+                    pull.manager.lastGetRaftIndex)) {
+                return true;
+            }
+            seq = result.nextSeq;
+            if ((seq & MqIdxBlock.BLOCK_MASK) == 0) {
+                block = queue.getBlock(seq);
+                if (block == null) {
+                    return false;
+                }
+            }
+            pos = pull.manager.getIdxItemInBlock(block, seq);
+            size = pull.manager.lastGetSize;
+        }
+    }
+
+    /** Consumes one resolved item; false means the scan is finished (limits or end reached). */
+    private static boolean consumeItem(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result,
+                                       long endSeq, long seq, long pos, int size, long raftIndex) {
+        if (size < LogHeader.ITEM_HEADER_SIZE) {
+            throw new ChecksumException("invalid mq item size: queue=" + queue.queueId + ", seq=" + seq);
+        }
+        if (!pull.add(pos, size, raftIndex)) {
+            if (size > pull.bytesLimit) {
+                result.requiredBytes = size;
+            }
+            return false;
+        }
+        result.count++;
+        result.nextSeq = seq + 1;
+        return seq + 1 != endSeq && pull.count != pull.limit;
+    }
+
     private FrameCallResult checkStart(Void unused) {
-        if (size == 0 || pos < pull.raftStatus.firstValidPos) {
+        if (pos < pull.raftStatus.firstValidPos) {
             return seekStart();
         }
-        return collect(null);
+        return collect();
     }
 
     private FrameCallResult seekStart() {
@@ -117,33 +172,28 @@ final class MqIdxReader extends FiberFrame<Void> {
             result.resetPos = pos;
             return Fiber.frameReturn();
         }
-        return collect(null);
+        return collect();
     }
 
-    private FrameCallResult collect(Void unused) {
+    private FrameCallResult collect() {
         while (true) {
-            if (size == 0 || pos < pull.raftStatus.firstValidPos) {
-                pull.retry = true;
+            if (!consumeItem(pull, queue, result, endSeq, seq, pos, size, raftIndex)) {
                 return Fiber.frameReturn();
             }
-            if (size < LogHeader.ITEM_HEADER_SIZE) {
-                throw new ChecksumException("invalid mq item size: queue=" + queue.queueId + ", seq=" + seq);
-            }
-            if (!pull.add(pos, size, raftIndex)) {
-                if (size > pull.bytesLimit) {
-                    result.requiredBytes = size;
-                }
-                return Fiber.frameReturn();
-            }
-            result.count++;
-            result.nextSeq = ++seq;
-            if (seq == endSeq || pull.count == pull.limit) {
-                return Fiber.frameReturn();
-            }
+            seq = result.nextSeq;
             if (!loadCachedItem()) {
-                return loadItem(this::collect);
+                return loadItem(this::afterLoad);
             }
         }
+    }
+
+    // firstValidPos may advance, or the idx file vanish, while suspended on I/O
+    private FrameCallResult afterLoad(Void unused) {
+        if (pos < pull.raftStatus.firstValidPos) {
+            pull.retry = true;
+            return Fiber.frameReturn();
+        }
+        return collect();
     }
 
     private boolean loadCachedItem() {
@@ -229,7 +279,7 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     private FrameCallResult awaitPending(Pair<Void, Throwable> unused) {
         if (pending != null && !pending.isDone()) {
-            return Fiber.call(new HandlerFrame<>(new SimpleFrame<Void>("waitMqIdxRead",
+            return Fiber.call(new HandlerFrame<>(new SimpleFrame<>("waitMqIdxRead",
                     f -> pending.await(f::justReturn))), this::awaitPending);
         }
         endRead();

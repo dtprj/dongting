@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
-import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.RaftLog;
@@ -35,6 +34,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
@@ -72,13 +72,15 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     final RaftGroupConfigEx groupConfig;
     final RaftStatusImpl raftStatus;
     final RaftLog raftLog;
-    private final RaftGroup raftGroup;
-    private final QueueResult[] results;
+    final long[] queueIds;
+    final long[] fromSeqs;
+    // created lazily, one entry per scanned queue; null entry means idle and encodes from fromSeqs
+    QueueResult[] results;
     final int limit;
     final int bytesLimit;
     private final long waitNanos;
     private final DtTime deadline;
-    private final FiberCondition changed;
+    private FiberCondition changed;
     MqIdxManager manager;
     private boolean cancelled;
     private boolean waiting;
@@ -94,9 +96,9 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     private int bodySize;
     boolean retry;
     private RefBuffer buffer;
-    private ArrayList<ByteBuffer> segments;
+    private List<ByteBuffer> segments;
 
-    MqPullFrame(DtMQ mq, RaftGroupConfigEx groupConfig, RaftGroup raftGroup, RaftLog raftLog,
+    MqPullFrame(DtMQ mq, RaftGroupConfigEx groupConfig, RaftLog raftLog,
                 long[] queueIds, long[] fromSeqs, int limit, int bytesLimit, long waitMillis, DtTime deadline) {
         if (queueIds.length == 0 || queueIds.length != fromSeqs.length) {
             throw new IllegalArgumentException("queueIds and fromSeqs must have the same nonzero length");
@@ -109,39 +111,51 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         this.mq = mq;
         this.groupConfig = groupConfig;
         this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
-        this.raftGroup = raftGroup;
         this.raftLog = raftLog;
         this.limit = limit;
         this.bytesLimit = bytesLimit;
         this.waitNanos = TimeUnit.MILLISECONDS.toNanos(waitMillis);
         this.deadline = Objects.requireNonNull(deadline);
-        this.changed = groupConfig.fiberGroup.newCondition("mqPull");
-        this.results = new QueueResult[queueIds.length];
-        HashSet<Long> ids = new HashSet<>();
-        for (int i = 0; i < queueIds.length; i++) {
-            if (fromSeqs[i] < 0 || !ids.add(queueIds[i])) {
-                throw new IllegalArgumentException("negative fromSeq or duplicate queueId");
+        this.queueIds = queueIds;
+        this.fromSeqs = fromSeqs;
+        int len = queueIds.length;
+        // zero-allocation pairwise check for small requests; a single sort copy for large ones
+        if (len <= 16) {
+            for (int i = 1; i < len; i++) {
+                for (int j = 0; j < i; j++) {
+                    if (queueIds[j] == queueIds[i]) {
+                        throw new IllegalArgumentException("duplicate queueId: " + queueIds[i]);
+                    }
+                }
             }
-            results[i] = new QueueResult(queueIds[i], fromSeqs[i]);
+        } else {
+            long[] ids = queueIds.clone();
+            Arrays.sort(ids);
+            for (int i = 1; i < len; i++) {
+                if (ids[i] == ids[i - 1]) {
+                    throw new IllegalArgumentException("duplicate queueId: " + ids[i]);
+                }
+            }
         }
-    }
-
-    public int getQueueCount() {
-        return results.length;
-    }
-
-    public QueueResult getQueueResult(int index) {
-        return results[index];
+        for (int i = 0; i < len; i++) {
+            if (fromSeqs[i] < 0) {
+                throw new IllegalArgumentException("negative fromSeq: " + fromSeqs[i]);
+            }
+        }
     }
 
     /** Raft thread only; does not interrupt in-flight I/O or release its buffers prematurely. */
     public void cancel() {
         cancelled = true;
-        changed.signalAll();
+        if (changed != null) {
+            changed.signalAll();
+        }
     }
 
     void signal() {
-        changed.signalAll();
+        if (changed != null) {
+            changed.signalAll();
+        }
     }
 
     @Override
@@ -151,7 +165,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         }
         manager = mq.manager;
         mq.activePulls.add(this);
-        waitEnd = System.nanoTime() + waitNanos;
         return scan(null);
     }
 
@@ -165,25 +178,26 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         }
     }
 
-    private void checkLease() {
-        checkCancelled();
-        if (!raftGroup.isLeaseReadValid(groupConfig.ts, deadline)) {
-            throw new RaftException("raft group is not ready");
-        }
-    }
-
     private FrameCallResult scan(Void unused) {
-        unwatch();
         releaseBuffers();
-        checkLease();
+        checkCancelled();
+        if (waitEnd == 0) {
+            // fresh anchor; a stale one would shorten the wait
+            groupConfig.ts.refresh(1);
+            waitEnd = groupConfig.ts.nanoTime + waitNanos;
+        }
         changeVersion = mq.changeVersion;
         queueIndex = 0;
         count = 0;
         bytes = 0;
         cachedZeroCopyBytes = 0;
         retry = false;
-        for (QueueResult r : results) {
-            r.reset();
+        if (results != null) {
+            for (QueueResult r : results) {
+                if (r != null) {
+                    r.reset();
+                }
+            }
         }
         return readQueue(null);
     }
@@ -193,26 +207,27 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (retry) {
             return Fiber.resume(null, this::scan);
         }
-        while (queueIndex < results.length) {
-            QueueResult r = results[queueIndex++];
-            MqIdxQueue q = manager.get(r.queueId);
-            if (q != null) {
-                return Fiber.call(new MqIdxReader(this, q, r), this::readQueue);
+        while (queueIndex < queueIds.length) {
+            int i = queueIndex++;
+            MqIdxQueue q = manager.queues.get(queueIds[i]);
+            if (!MqIdxReader.tryMemoryScan(this, q, i)) {
+                return Fiber.call(new MqIdxReader(this, q, result(i)), this::readQueue);
             }
         }
-        checkLease();
         if (!resetPositionsValid()) {
             return Fiber.resume(null, this::scan);
         }
         if (count > 0) {
             return prepareResponse();
         }
-        for (QueueResult r : results) {
-            if (r.truncated || r.requiredBytes != 0) {
-                return prepareResponse();
+        if (results != null) {
+            for (QueueResult r : results) {
+                if (r != null && (r.truncated || r.requiredBytes != 0)) {
+                    return prepareResponse();
+                }
             }
         }
-        long rest = waitEnd - System.nanoTime();
+        long rest = waitEnd - groupConfig.ts.nanoTime;
         if (waitNanos == 0 || rest <= 0) {
             return prepareResponse();
         }
@@ -225,6 +240,17 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             throw new RaftTimeoutException("mq pull timeout");
         }
         return changed.await(rest, TimeUnit.NANOSECONDS, groupConfig.fiberGroup.shouldStopCondition, this::scan);
+    }
+
+    QueueResult result(int index) {
+        if (results == null) {
+            results = new QueueResult[queueIds.length];
+        }
+        QueueResult r = results[index];
+        if (r == null) {
+            r = results[index] = new QueueResult(queueIds[index], fromSeqs[index]);
+        }
+        return r;
     }
 
     boolean add(long pos, int size, long raftIndex) {
@@ -258,14 +284,16 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     }
 
     private FrameCallResult prepareResponse() {
-        int headerSize = MqPullResp.headerSize(results, bytes);
+        int headerSize = MqPullResp.headerSize(queueIds, fromSeqs, results, bytes);
         bodySize = Math.addExact(headerSize, bytes);
         int bufferSize = bodySize - cachedZeroCopyBytes;
         buffer = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirect(bufferSize);
         ByteBuffer dest = buffer.getBuffer();
         dest.limit(bufferSize);
-        MqPullResp.writeHeader(dest, results, bytes);
-        segments = new ArrayList<>();
+        MqPullResp.writeHeader(dest, queueIds, fromSeqs, results, bytes);
+        // the segment list only exists for zero-copy responses; empty and copy-only
+        // responses finish as a single pre-encoded view
+        ArrayList<ByteBuffer> segs = null;
         int[] offsets = null;
         int readCount = 0;
         int segmentStart = 0;
@@ -285,9 +313,12 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 ByteBuffer src = ref.getBuffer().duplicate();
                 src.clear().limit(size);
                 if (size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
-                    addSegment(dest, segmentStart);
+                    if (segs == null) {
+                        segs = new ArrayList<>(2);
+                    }
+                    addSegment(dest, segmentStart, segs);
                     segmentStart = dest.position();
-                    segments.add(src);
+                    segs.add(src);
                 } else {
                     dest.put(src);
                     ref.release();
@@ -295,26 +326,36 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 }
             }
         }
-        addSegment(dest, segmentStart);
+        if (segs == null) {
+            ByteBuffer view = dest.duplicate();
+            view.flip();
+            segments = List.of(view.slice());
+        } else {
+            addSegment(dest, segmentStart, segs);
+            segments = segs;
+        }
         if (readCount == 0) {
             return afterRead(true);
         }
         return Fiber.call(raftLog.read(positions, lengths, offsets, readCount, dest), this::afterRead);
     }
 
-    private void addSegment(ByteBuffer dest, int start) {
+    private void addSegment(ByteBuffer dest, int start, ArrayList<ByteBuffer> segs) {
         if (dest.position() > start) {
             ByteBuffer view = dest.duplicate();
             view.flip().position(start);
-            segments.add(view.slice());
+            segs.add(view.slice());
         }
     }
 
     private boolean resetPositionsValid() {
         long first = raftLog.firstReadablePos();
+        if (results == null) {
+            return true;
+        }
         for (QueueResult r : results) {
-            if (r.truncated && (r.resetPos < first
-                    || (r.resetPos == Long.MAX_VALUE && manager.get(r.queueId).nextSeq > r.fromSeq))) {
+            if (r != null && r.truncated && (r.resetPos < first
+                    || (r.resetPos == Long.MAX_VALUE && manager.queues.get(r.queueId).nextSeq > r.fromSeq))) {
                 return false;
             }
         }
@@ -322,7 +363,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     }
 
     private FrameCallResult afterRead(boolean success) {
-        checkLease();
+        checkCancelled();
         if (!success || !resetPositionsValid()) {
             return Fiber.resume(null, this::scan);
         }
@@ -334,12 +375,18 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     }
 
     private void watch() {
+        if (waiting) {
+            return;
+        }
         waiting = true;
-        for (QueueResult r : results) {
-            HashSet<MqPullFrame> set = mq.waitingPulls.get(r.queueId);
+        // registration stays until doFinally; signals missed during scans are covered
+        // by the changeVersion re-check
+        changed = groupConfig.fiberGroup.newCondition("mqPull");
+        for (long id : queueIds) {
+            HashSet<MqPullFrame> set = mq.waitingPulls.get(id);
             if (set == null) {
                 set = new HashSet<>();
-                mq.waitingPulls.put(r.queueId, set);
+                mq.waitingPulls.put(id, set);
             }
             set.add(this);
         }
@@ -350,11 +397,11 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             return;
         }
         waiting = false;
-        for (QueueResult r : results) {
-            HashSet<MqPullFrame> set = mq.waitingPulls.get(r.queueId);
+        for (long id : queueIds) {
+            HashSet<MqPullFrame> set = mq.waitingPulls.get(id);
             set.remove(this);
             if (set.isEmpty()) {
-                mq.waitingPulls.remove(r.queueId);
+                mq.waitingPulls.remove(id);
             }
         }
     }

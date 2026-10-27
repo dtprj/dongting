@@ -105,10 +105,6 @@ class MqIdxManager {
         flusher.start();
     }
 
-    MqIdxQueue get(long queueId) {
-        return queues.get(queueId);
-    }
-
     /**
      * Registers a queue from a snapshot. No block is loaded here: the queue is not dirty
      * (its data below nextSeq is durable by the save-snapshot ordering), and the block
@@ -176,12 +172,17 @@ class MqIdxManager {
         if (b == null) {
             return -1;
         }
+        return getIdxItemInBlock(b, seq);
+    }
+
+    /** Returns the position; timestamp, size and raftIndex are exposed via the lastGet fields. */
+    long getIdxItemInBlock(MqIdxBlock b, long seq) {
         ByteBuffer buffer = b.buffer;
-        int offset = ((int) (seq & MqIdxBlock.BLOCK_MASK)) * MqIdxBlock.SLOT_SIZE;
-        lastGetTimestamp = buffer.getLong(offset + 8);
-        lastGetSize = buffer.getInt(offset + 16);
-        lastGetRaftIndex = buffer.getLong(offset + 20);
-        return buffer.getLong(offset);
+        int slot = ((int) (seq & MqIdxBlock.BLOCK_MASK)) * MqIdxBlock.SLOT_SIZE;
+        lastGetTimestamp = buffer.getLong(slot + 8);
+        lastGetSize = buffer.getInt(slot + 16);
+        lastGetRaftIndex = buffer.getLong(slot + 20);
+        return buffer.getLong(slot);
     }
 
     static void decode(ByteBuffer src, int itemCount, MqIdxBlock b) {

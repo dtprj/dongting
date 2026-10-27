@@ -135,7 +135,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
 
     long firstAvailableSeq() {
         long first = blocks.size() == 0 ? nextSeq : firstSeqInCache;
-        for (int i = 0; i < queue.size(); i++) {
+        for (int i = 0, size = queue.size(); i < size; i++) {
             MqIdxFile f = queue.get(i);
             if (!f.isDeleted()) {
                 return Math.min(first, posToSeq(queueStartPosition + i * fileSize));

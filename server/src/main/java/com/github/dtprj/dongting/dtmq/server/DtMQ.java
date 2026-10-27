@@ -84,10 +84,12 @@ public class DtMQ implements StateMachine {
     public void onChannelDisconnected(DtChannel channel) {
     }
 
-    /** Raft thread only; limits are shared by all queues, and waitMillis=0 disables long polling. */
+    /** Raft thread only; limits are shared by all queues, and waitMillis=0 disables long polling.
+     * The frame retains queueIds/fromSeqs until completion; callers must not modify them.
+     * The caller owns the linearizability point: validate lease read before calling; the frame never re-checks. */
     public MqPullFrame pull(long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,
                             long waitMillis, DtTime deadline) {
-        return new MqPullFrame(this, groupConfig, raftGroup,
+        return new MqPullFrame(this, groupConfig,
                 ((RaftGroupImpl) raftGroup).groupComponents.raftLog,
                 queueIds, fromSeqs, limit, bytesLimit, waitMillis, deadline);
     }

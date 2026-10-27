@@ -31,7 +31,6 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.TailCache;
-import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -275,17 +274,17 @@ class MqPullTest extends BaseFiberTest {
             assertEquals(resp.actualBodySize(), resp.getTotalPreEncodedBufferSize());
             encoded.flip().position(resp.actualSize() - resp.actualBodySize());
             DtMq.MqPullResp decoded = DtMq.MqPullResp.parseFrom(encoded.slice());
-            assertEquals(p.frame.getQueueCount(), decoded.getResultsSize());
-            assertEquals(p.frame.getQueueCount(), decoded.getResultsCount());
+            assertEquals(p.frame.queueIds.length, decoded.getResultsSize());
+            assertEquals(p.frame.queueIds.length, decoded.getResultsCount());
             for (int i = 0; i < decoded.getResultsCount(); i++) {
-                MqPullFrame.QueueResult r = p.frame.getQueueResult(i);
+                MqPullFrame.QueueResult r = p.frame.results == null ? null : p.frame.results[i];
                 DtMq.MqPullQueueResult d = decoded.getResults(i);
-                assertEquals(r.queueId, d.getQueueId());
-                assertEquals(r.fromSeq, d.getFromSeq());
-                assertEquals(r.nextSeq, d.getNextSeq());
-                assertEquals(r.count, d.getCount());
-                assertEquals(r.truncated, d.getTruncated());
-                assertEquals(r.requiredBytes, d.getRequiredBytes());
+                assertEquals(p.frame.queueIds[i], d.getQueueId());
+                assertEquals(r == null ? p.frame.fromSeqs[i] : r.fromSeq, d.getFromSeq());
+                assertEquals(r == null ? p.frame.fromSeqs[i] : r.nextSeq, d.getNextSeq());
+                assertEquals(r == null ? 0 : r.count, d.getCount());
+                assertEquals(r != null && r.truncated, d.getTruncated());
+                assertEquals(r == null ? 0 : r.requiredBytes, d.getRequiredBytes());
             }
             ByteBuffer actual = decoded.getRecords().asReadOnlyByteBuffer();
             for (RaftTask task : expected) {
@@ -304,7 +303,15 @@ class MqPullTest extends BaseFiberTest {
 
     private void assertQueue(Pull p, int index, long from, long next, int count,
                              boolean truncated, int requiredBytes) {
-        MqPullFrame.QueueResult r = p.frame.getQueueResult(index);
+        MqPullFrame.QueueResult r = p.frame.results == null ? null : p.frame.results[index];
+        if (r == null) {
+            assertEquals(p.frame.fromSeqs[index], from);
+            assertEquals(p.frame.fromSeqs[index], next);
+            assertEquals(0, count);
+            assertFalse(truncated);
+            assertEquals(0, requiredBytes);
+            return;
+        }
         assertEquals(from, r.fromSeq);
         assertEquals(next, r.nextSeq);
         assertEquals(count, r.count);
@@ -343,7 +350,7 @@ class MqPullTest extends BaseFiberTest {
         long[] seqs = {0, 0, 0};
         Pull all = pull(ids, seqs, 10, 4096, 0);
         assertRecords(all, b, d, a, c);
-        assertEquals(3, all.frame.getQueueCount());
+        assertEquals(3, all.frame.queueIds.length);
         assertQueue(all, 0, 0, 2, 2, false, 0);
         assertQueue(all, 1, 0, 2, 2, false, 0);
         assertQueue(all, 2, 0, 0, 0, false, 0);
@@ -459,8 +466,8 @@ class MqPullTest extends BaseFiberTest {
         doInFiber(() -> {
             mq.manager.register(1, 260);
             mq.manager.register(2, 131);
-            assertEquals(0, mq.manager.get(1).blocks.size());
-            assertEquals(0, mq.manager.get(2).blocks.size());
+            assertEquals(0, mq.manager.queues.get(1).blocks.size());
+            assertEquals(0, mq.manager.queues.get(2).blocks.size());
         });
         await(() -> mq.installSnapshot(0, 0, 0, true, null));
         Pull disk = pull(new long[]{1}, new long[]{254}, 10, 4096, 0);
@@ -482,7 +489,7 @@ class MqPullTest extends BaseFiberTest {
     @Test
     void testLongPollNewQueueAndTimeout() throws Exception {
         Pull waiting = waitingPull(99, 100);
-        doInFiber(() -> assertNull(mq.manager.get(99)));
+        doInFiber(() -> assertNull(mq.manager.queues.get(99)));
         RaftTask task = item(99, 128);
         append(task);
         assertRecords(waiting, task);
@@ -522,24 +529,6 @@ class MqPullTest extends BaseFiberTest {
         Pull stop = waitingPull(2, 3);
         await(mq::stop);
         assertFailure(stop, CancellationException.class);
-        assertClean();
-    }
-
-    @Test
-    void testLeaseValidation() throws Exception {
-        append(item(1, 128));
-        doInFiber(() -> {
-            rs.setRole(RaftRole.follower);
-            rs.copyShareStatus();
-        });
-        assertFailure(pull(new long[]{1}, new long[]{0}, 1, 4096, 0), NotLeaderException.class);
-        doInFiber(() -> {
-            leader();
-            rs.setLeaseStartNanos(System.nanoTime() - rs.getElectTimeoutNanos());
-            rs.copyShareStatus();
-        });
-        assertFailure(pull(new long[]{1}, new long[]{0}, 1, 4096, 0), NotLeaderException.class);
-
         assertClean();
     }
 }

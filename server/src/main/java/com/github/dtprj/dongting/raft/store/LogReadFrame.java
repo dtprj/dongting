@@ -82,7 +82,9 @@ final class LogReadFrame extends FiberFrame<Boolean> {
     }
 
     private boolean prepareReads() {
-        LinkedHashMap<MainLogFile, FileRead> byFile = new LinkedHashMap<>();
+        // single-file fast path: most pulls touch one file, so the grouping map is lazy
+        FileRead single = null;
+        LinkedHashMap<MainLogFile, FileRead> byFile = null;
         for (int i = 0; i < count; i++) {
             long pos = positions[i];
             int len = lengths[i];
@@ -96,14 +98,35 @@ final class LogReadFrame extends FiberFrame<Boolean> {
             if (len > file.endPos - pos) {
                 throw new IllegalArgumentException("record crosses file boundary: " + pos + ", " + len);
             }
-            FileRead read = byFile.get(file);
-            if (read == null) {
-                read = new FileRead(file);
+            long filePos = pos - file.startPos;
+            if (byFile != null) {
+                FileRead read = byFile.get(file);
+                if (read == null) {
+                    read = new FileRead(file);
+                    byFile.put(file, read);
+                }
+                read.add(filePos, offsets[i], len);
+            } else if (single == null) {
+                single = new FileRead(file);
+                single.add(filePos, offsets[i], len);
+            } else if (single.file == file) {
+                single.add(filePos, offsets[i], len);
+            } else {
+                byFile = new LinkedHashMap<>(4);
+                byFile.put(single.file, single);
+                single = null;
+                FileRead read = new FileRead(file);
                 byFile.put(file, read);
+                read.add(filePos, offsets[i], len);
             }
-            read.add(pos - file.startPos, offsets[i], len);
         }
-        reads = byFile.values().toArray(new FileRead[0]);
+        if (single != null) {
+            reads = new FileRead[]{single};
+        } else if (byFile != null) {
+            reads = byFile.values().toArray(new FileRead[byFile.size()]);
+        } else {
+            reads = new FileRead[0];
+        }
         return true;
     }
 

@@ -126,7 +126,7 @@ class MqIdxManagerTest extends BaseFiberTest {
         for (int i = 0; i < 600; i++) {
             append(1, i);
         }
-        MqIdxQueue q = manager.get(1);
+        MqIdxQueue q = manager.queues.get(1);
         assertEquals(600, q.nextSeq);
         assertEquals(0, q.firstSeqInCache);
         assertEquals(5, q.blocks.size());
@@ -149,7 +149,7 @@ class MqIdxManagerTest extends BaseFiberTest {
 
         append(2, 0);
         append(2, 1);
-        assertEquals(2, manager.get(2).nextSeq);
+        assertEquals(2, manager.queues.get(2).nextSeq);
         assertHit(2, 1);
         assertHit(1, 0);
     }
@@ -157,18 +157,18 @@ class MqIdxManagerTest extends BaseFiberTest {
     @Test
     void testAppendSeqContinuity() {
         append(1, 0);
-        MqIdxQueue q = manager.get(1);
+        MqIdxQueue q = manager.queues.get(1);
         assertThrows(IllegalArgumentException.class, () -> q.append(2, 20, 200, 3, 3));
         assertThrows(IllegalArgumentException.class, () -> q.append(0, 0, 0, 1, 1));
         append(1, 1);
-        assertEquals(2, manager.get(1).nextSeq);
+        assertEquals(2, manager.queues.get(1).nextSeq);
         assertHit(1, 1);
     }
 
     @Test
     void testRegister() {
         manager.register(1, 1000);
-        MqIdxQueue q = manager.get(1);
+        MqIdxQueue q = manager.queues.get(1);
         assertEquals(1000, q.nextSeq);
         assertTrue(q.needLoadHead);
         assertEquals(0, q.blocks.size());
@@ -200,7 +200,7 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertEquals(1025, manager.lastGetRaftIndex);
 
         manager.register(2, 300);
-        MqIdxQueue q2 = manager.get(2);
+        MqIdxQueue q2 = manager.queues.get(2);
         q2.installHeadBlock(null);
         assertEquals(256, q2.firstSeqInCache);
         assertEquals(44, q2.blocks.getFirst().count);
@@ -209,13 +209,13 @@ class MqIdxManagerTest extends BaseFiberTest {
         assertHit(2, 300);
 
         manager.register(3, 256);
-        MqIdxQueue q3 = manager.get(3);
+        MqIdxQueue q3 = manager.queues.get(3);
         assertFalse(q3.needLoadHead);
         assertEquals(256, q3.firstSeqInCache);
         assertEquals(-1, manager.getIdxItemInCache(3, 255));
 
         manager.register(4, 300);
-        MqIdxQueue q4 = manager.get(4);
+        MqIdxQueue q4 = manager.queues.get(4);
         ByteBuffer corrupted = buildBlockBuffer(256);
         corrupted.put(40, (byte) (corrupted.get(40) + 1));
         assertThrows(ChecksumException.class, () -> q4.installHeadBlock(corrupted));
@@ -232,7 +232,7 @@ class MqIdxManagerTest extends BaseFiberTest {
                 append(1, i);
             }
         });
-        MqIdxQueue q = manager.get(1);
+        MqIdxQueue q = manager.queues.get(1);
         // over capacity, but eviction is gated by writeFinishSeq
         assertEquals(5, q.blocks.size());
 
@@ -264,15 +264,15 @@ class MqIdxManagerTest extends BaseFiberTest {
                 append(2, i);
             }
         });
-        MqIdxQueue q2 = manager.get(2);
+        MqIdxQueue q2 = manager.queues.get(2);
         // global fifo: queue 1's unflushed head blocks queue 2's flushed blocks
         q2.writeFinishSeq = 255;
         manager.evict();
         assertEquals(2, q2.blocks.size());
 
-        manager.get(1).writeFinishSeq = 127;
+        manager.queues.get(1).writeFinishSeq = 127;
         manager.evict();
-        assertEquals(0, manager.get(1).blocks.size());
+        assertEquals(0, manager.queues.get(1).blocks.size());
         assertEquals(1, q2.blocks.size());
         assertEquals(128, q2.firstSeqInCache);
     }
@@ -303,22 +303,22 @@ class MqIdxManagerTest extends BaseFiberTest {
                 FiberFuture<Void> same = manager.appendAsync(1, 384 * 10, 384 * 100, 385, 385);
                 assertSame(blocked, same);
                 assertFalse(same.isDone());
-                assertEquals(385, manager.get(1).nextSeq);
+                assertEquals(385, manager.queues.get(1).nextSeq);
                 assertHit(1, 384);
                 return Fiber.yield(this::release);
             }
 
             private FrameCallResult release(Void v) {
-                manager.get(1).writeFinishSeq = 383;
+                manager.queues.get(1).writeFinishSeq = 383;
                 manager.evict();
                 assertTrue(blocked.isDone());
                 assertNull(blocked.getEx());
-                assertEquals(3, manager.get(1).blocks.size());
+                assertEquals(3, manager.queues.get(1).blocks.size());
 
                 FiberFuture<Void> f = manager.appendAsync(1, 385 * 10, 385 * 100, 386, 386);
                 assertTrue(f.isDone());
                 assertNull(f.getEx());
-                assertEquals(386, manager.get(1).nextSeq);
+                assertEquals(386, manager.queues.get(1).nextSeq);
                 return Fiber.frameReturn();
             }
         });
@@ -367,15 +367,15 @@ class MqIdxManagerTest extends BaseFiberTest {
             assertEquals(e[1], b.startSeq);
         }
         assertNull(manager.remove());
-        assertEquals(0, manager.get(1).blocks.size());
-        assertEquals(256, manager.get(1).firstSeqInCache);
-        assertEquals(0, manager.get(2).blocks.size());
-        assertEquals(384, manager.get(2).firstSeqInCache);
+        assertEquals(0, manager.queues.get(1).blocks.size());
+        assertEquals(256, manager.queues.get(1).firstSeqInCache);
+        assertEquals(0, manager.queues.get(2).blocks.size());
+        assertEquals(384, manager.queues.get(2).firstSeqInCache);
 
         // append after the queue was fully evicted creates a new block
         append(1, 256);
-        assertEquals(1, manager.get(1).blocks.size());
-        assertEquals(256, manager.get(1).blocks.getLast().startSeq);
+        assertEquals(1, manager.queues.get(1).blocks.size());
+        assertEquals(256, manager.queues.get(1).blocks.getLast().startSeq);
         assertEquals(-1, manager.getIdxItemInCache(1, 255));
         assertHit(1, 256);
     }

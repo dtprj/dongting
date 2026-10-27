@@ -138,7 +138,7 @@ class DtMQTest extends BaseFiberTest {
                 assertNull(result);
                 long queueId = index <= 125 ? 1 : 2;
                 long expectNextSeq = queueId == 1 ? index : index - 125;
-                assertEquals(expectNextSeq, mq.manager.get(queueId).nextSeq);
+                assertEquals(expectNextSeq, mq.manager.queues.get(queueId).nextSeq);
                 raftStatus.setLastApplied(index);
                 return Fiber.resume(null, this::nextPut);
             }
@@ -176,8 +176,8 @@ class DtMQTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterRecover(Void v) {
-                MqIdxQueue q1 = mq.manager.get(1);
-                MqIdxQueue q2 = mq.manager.get(2);
+                MqIdxQueue q1 = mq.manager.queues.get(1);
+                MqIdxQueue q2 = mq.manager.queues.get(2);
                 assertEquals(125, q1.nextSeq);
                 assertEquals(5, q2.nextSeq);
                 assertTrue(q1.needLoadHead);
@@ -193,7 +193,7 @@ class DtMQTest extends BaseFiberTest {
                 assertNull(result);
                 assertNull(f1.getEx());
                 assertNull(f2.getEx());
-                assertEquals(128, mq.manager.get(1).nextSeq);
+                assertEquals(128, mq.manager.queues.get(1).nextSeq);
                 for (long seq = 120; seq < 125; seq++) {
                     long pos = mq.manager.getIdxItemInCache(1, seq);
                     assertEquals(1_000_000 + (seq + 1) * 10, pos, "seq " + seq);
@@ -204,7 +204,7 @@ class DtMQTest extends BaseFiberTest {
 
             private FrameCallResult afterExec2(Object result) {
                 assertNull(result);
-                assertEquals(6, mq.manager.get(2).nextSeq);
+                assertEquals(6, mq.manager.queues.get(2).nextSeq);
                 for (long seq = 0; seq < 5; seq++) {
                     long pos = mq.manager.getIdxItemInCache(2, seq);
                     assertEquals(2_000_000 + (seq + 126) * 10, pos, "seq " + seq);
@@ -215,7 +215,7 @@ class DtMQTest extends BaseFiberTest {
 
             private FrameCallResult afterExec3(Object result) {
                 assertNull(result);
-                assertEquals(129, mq.manager.get(1).nextSeq);
+                assertEquals(129, mq.manager.queues.get(1).nextSeq);
                 return Fiber.frameReturn();
             }
         });
@@ -245,7 +245,7 @@ class DtMQTest extends BaseFiberTest {
 
             private FrameCallResult afterPut(Object result) {
                 assertNull(result);
-                assertEquals(index, mq.manager.get(1).nextSeq);
+                assertEquals(index, mq.manager.queues.get(1).nextSeq);
                 raftStatus.setLastApplied(index);
                 return Fiber.resume(null, this::nextPut);
             }
@@ -280,8 +280,8 @@ class DtMQTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterDone(Void v) {
-                MqIdxQueue q7 = mq.manager.get(7);
-                MqIdxQueue q8 = mq.manager.get(8);
+                MqIdxQueue q7 = mq.manager.queues.get(7);
+                MqIdxQueue q8 = mq.manager.queues.get(8);
                 assertEquals(300, q7.nextSeq);
                 assertEquals(256, q8.nextSeq);
                 assertTrue(q7.needLoadHead);
@@ -294,7 +294,7 @@ class DtMQTest extends BaseFiberTest {
 
             private FrameCallResult afterExec(Object result) {
                 assertNull(result);
-                assertEquals(301, mq.manager.get(7).nextSeq);
+                assertEquals(301, mq.manager.queues.get(7).nextSeq);
                 assertEquals(0L, mq.manager.getIdxItemInCache(7, 299));
                 return mq.manager.flusher.flushAll().await(this::afterPostInstallFlush);
             }
@@ -358,8 +358,8 @@ class DtMQTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterDone(Void v) {
-                assertNull(mq.manager.get(7));
-                MqIdxQueue q9 = mq.manager.get(9);
+                assertNull(mq.manager.queues.get(7));
+                MqIdxQueue q9 = mq.manager.queues.get(9);
                 assertNotNull(q9);
                 assertEquals(512, q9.nextSeq);
                 return Fiber.frameReturn();
