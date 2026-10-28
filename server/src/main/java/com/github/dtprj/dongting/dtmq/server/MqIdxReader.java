@@ -146,9 +146,6 @@ final class MqIdxReader extends FiberFrame<Void> {
             throw new ChecksumException("invalid mq item size: queue=" + queue.queueId + ", seq=" + seq);
         }
         if (!pull.hasCapacity(size)) {
-            if (size > pull.bytesLimit) {
-                result.requiredBytes = size;
-            }
             return false;
         }
         RaftTask task = raftIndex == 0 ? null : pull.raftStatus.tailCache.get(raftIndex);

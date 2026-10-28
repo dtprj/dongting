@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -42,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 
 /** Returns a pre-encoded response; the caller sends it or calls clean(). */
 public final class MqPullFrame extends FiberFrame<MqPullResp> {
-    /** Truncated queues return only a retry cursor; requiredBytes identifies a record exceeding bytesLimit. */
+    /** Truncated queues return only a retry cursor. */
     public static final class QueueResult {
         public final long queueId;
         final long requestedSeq;
@@ -50,7 +51,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         public long nextSeq;
         public int count;
         public boolean truncated;
-        public int requiredBytes;
         long resetPos;
         boolean needsIo;
         int memoryStart;
@@ -68,7 +68,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             nextSeq = requestedSeq;
             count = 0;
             truncated = false;
-            requiredBytes = 0;
             resetPos = Long.MAX_VALUE;
             needsIo = false;
             memoryStart = 0;
@@ -91,6 +90,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     private final DtTime deadline;
     private FiberCondition changed;
     MqIdxManager manager;
+    DtChannel channel;
     private boolean cancelled;
     private boolean waiting;
     private long waitEnd;
@@ -179,7 +179,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
 
     void checkCancelled() {
         if (cancelled || isGroupShouldStopPlain() || raftStatus.installSnapshot
-                || manager == null || manager.markClose || manager != mq.manager) {
+                || manager == null || manager.markClose || manager != mq.manager
+                || (channel != null && !channel.getChannel().isOpen())) {
             throw new CancellationException("mq pull cancelled");
         }
         if (deadline.isTimeout()) {
@@ -208,7 +209,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 }
             }
         }
-        for (int i = 0; i < queueIds.length && (count == 0 || hasCapacity(LogHeader.ITEM_HEADER_SIZE)); i++) {
+        for (int i = 0; i < queueIds.length && hasCapacity(LogHeader.ITEM_HEADER_SIZE); i++) {
             MqIdxReader.scanMemory(this, manager.queues.get(queueIds[i]), i);
             QueueResult r = results == null ? null : results[i];
             if (r != null) {
@@ -223,7 +224,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (retry) {
             return Fiber.resume(null, this::scan);
         }
-        while (results != null && queueIndex < results.length && (count == 0 || hasCapacity(LogHeader.ITEM_HEADER_SIZE))) {
+        while (results != null && queueIndex < results.length && hasCapacity(LogHeader.ITEM_HEADER_SIZE)) {
             QueueResult r = results[queueIndex++];
             if (r != null && r.needsIo) {
                 r.ioStart = count;
@@ -238,7 +239,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         }
         if (results != null) {
             for (QueueResult r : results) {
-                if (r != null && (r.truncated || r.requiredBytes != 0)) {
+                if (r != null && r.truncated) {
                     return prepareResponse();
                 }
             }
@@ -270,7 +271,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     }
 
     boolean hasCapacity(int size) {
-        return count < limit && size <= bytesLimit - bytes;
+        return count == 0 || count < limit && size <= bytesLimit - bytes;
     }
 
     void add(long pos, int size, RaftTask task) {

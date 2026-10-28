@@ -67,6 +67,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class MqPullTest extends BaseFiberTest {
     private final List<RaftTask> items = new ArrayList<>();
     private RaftGroupConfigEx config;
+    private MqServerConfig serverConfig;
     private RaftStatusImpl rs;
     private StatusManager statusManager;
     private DefaultRaftLog raftLog;
@@ -95,7 +96,8 @@ class MqPullTest extends BaseFiberTest {
         config.mqIdxFlushIntervalMillis = tick(60_000);
         statusManager = new StatusManager(config);
         raftLog = new DefaultRaftLog(config, statusManager, null);
-        mq = new DtMQ(config, new MqServerConfig());
+        serverConfig = new MqServerConfig();
+        mq = new DtMQ(config, serverConfig);
         GroupComponents components = new GroupComponents();
         components.groupConfig = config;
         components.raftStatus = rs;
@@ -284,7 +286,6 @@ class MqPullTest extends BaseFiberTest {
                 assertEquals(r == null ? p.frame.fromSeqs[i] : r.nextSeq, d.getNextSeq());
                 assertEquals(r == null ? 0 : r.count, d.getCount());
                 assertEquals(r != null && r.truncated, d.getTruncated());
-                assertEquals(r == null ? 0 : r.requiredBytes, d.getRequiredBytes());
             }
             ByteBuffer actual = decoded.getRecords().asReadOnlyByteBuffer();
             for (RaftTask task : expected) {
@@ -301,22 +302,19 @@ class MqPullTest extends BaseFiberTest {
         }
     }
 
-    private void assertQueue(Pull p, int index, long from, long next, int count,
-                             boolean truncated, int requiredBytes) {
+    private void assertQueue(Pull p, int index, long from, long next, int count, boolean truncated) {
         MqPullFrame.QueueResult r = p.frame.results == null ? null : p.frame.results[index];
         if (r == null) {
             assertEquals(p.frame.fromSeqs[index], from);
             assertEquals(p.frame.fromSeqs[index], next);
             assertEquals(0, count);
             assertFalse(truncated);
-            assertEquals(0, requiredBytes);
             return;
         }
         assertEquals(from, r.fromSeq);
         assertEquals(next, r.nextSeq);
         assertEquals(count, r.count);
         assertEquals(truncated, r.truncated);
-        assertEquals(requiredBytes, r.requiredBytes);
     }
 
     private void assertFailure(Pull p, Class<? extends Throwable> type) {
@@ -348,29 +346,35 @@ class MqPullTest extends BaseFiberTest {
         append(a, b, c, d);
         long[] ids = {22, 11, 99};
         long[] seqs = {0, 0, 0};
-        Pull all = pull(ids, seqs, 10, 4096, 0);
+        Pull all = pull(ids, seqs, Integer.MAX_VALUE, Integer.MAX_VALUE, 0);
         assertRecords(all, b, d, a, c);
+        assertEquals(1024, all.frame.limit);
+        assertEquals(256 * 1024, all.frame.bytesLimit);
         assertEquals(3, all.frame.queueIds.length);
-        assertQueue(all, 0, 0, 2, 2, false, 0);
-        assertQueue(all, 1, 0, 2, 2, false, 0);
-        assertQueue(all, 2, 0, 0, 0, false, 0);
+        assertQueue(all, 0, 0, 2, 2, false);
+        assertQueue(all, 1, 0, 2, 2, false);
+        assertQueue(all, 2, 0, 0, 0, false);
 
-        Pull countLimit = pull(ids, seqs, 3, 4096, 0);
+        doInFiber(() -> serverConfig.maxPullLimit = 3);
+        Pull countLimit = pull(ids, seqs, Integer.MAX_VALUE, 4096, 0);
         assertRecords(countLimit, b, d, a);
-        assertQueue(countLimit, 1, 0, 1, 1, false, 0);
-        Pull bytesLimit = pull(ids, seqs, 10, 383, 0);
+        assertQueue(countLimit, 1, 0, 1, 1, false);
+        doInFiber(() -> serverConfig.maxPullBytesLimit = 383);
+        Pull bytesLimit = pull(ids, seqs, 10, Integer.MAX_VALUE, 0);
         assertRecords(bytesLimit, b, d);
-        assertQueue(bytesLimit, 1, 0, 0, 0, false, 0);
+        assertQueue(bytesLimit, 1, 0, 0, 0, false);
 
         for (int maxBytes : new int[]{1, 191}) {
-            Pull tooLarge = pull(new long[]{11}, new long[]{1}, 10, maxBytes, tick(20_000));
-            assertRecords(tooLarge);
-            assertQueue(tooLarge, 0, 1, 1, 0, false, 192);
+            Pull oversized = pull(new long[]{99, 11, 22}, new long[]{0, 1, 0}, 10, maxBytes, tick(20_000));
+            assertRecords(oversized, c);
+            assertQueue(oversized, 0, 0, 0, 0, false);
+            assertQueue(oversized, 1, 1, 2, 1, false);
+            assertQueue(oversized, 2, 0, 0, 0, false);
         }
         Pull empty = pull(new long[]{11, 99}, new long[]{2, 17}, 10, 4096, 0);
         assertRecords(empty);
-        assertQueue(empty, 0, 2, 2, 0, false, 0);
-        assertQueue(empty, 1, 17, 17, 0, false, 0);
+        assertQueue(empty, 0, 2, 2, 0, false);
+        assertQueue(empty, 1, 17, 17, 0, false);
         assertEquals(0, logReadCount);
         assertClean();
     }
@@ -388,18 +392,22 @@ class MqPullTest extends BaseFiberTest {
 
         Pull countLimit = pull(ids, seqs, 2, 65536, 0);
         assertRecords(countLimit, small, large);
-        assertQueue(countLimit, 0, 0, 0, 0, false, 0);
-        assertQueue(countLimit, 1, 0, 2, 2, false, 0);
+        assertQueue(countLimit, 0, 0, 0, 0, false);
+        assertQueue(countLimit, 1, 0, 2, 2, false);
         Pull bytesLimit = pull(ids, seqs, 10, small.reqData.totalLen + large.reqData.totalLen, 0);
         assertRecords(bytesLimit, small, large);
-        assertQueue(bytesLimit, 0, 0, 0, 0, false, 0);
-        assertQueue(bytesLimit, 1, 0, 2, 2, false, 0);
+        assertQueue(bytesLimit, 0, 0, 0, 0, false);
+        assertQueue(bytesLimit, 1, 0, 2, 2, false);
+        Pull partialBudget = pull(ids, seqs, 10, 160, 0);
+        assertRecords(partialBudget, small);
+        assertQueue(partialBudget, 0, 0, 0, 0, false);
+        assertQueue(partialBudget, 1, 0, 1, 1, false);
         assertEquals(0, logReadCount);
 
         Pull remaining = pull(ids, seqs, 3, 65536, 0);
         assertRecords(remaining, cold, small, large);
-        assertQueue(remaining, 0, 0, 1, 1, false, 0);
-        assertQueue(remaining, 1, 0, 2, 2, false, 0);
+        assertQueue(remaining, 0, 0, 1, 1, false);
+        assertQueue(remaining, 1, 0, 2, 2, false);
         assertEquals(1, logReadCount);
         assertClean();
     }
@@ -493,13 +501,13 @@ class MqPullTest extends BaseFiberTest {
         append(hot);
         Pull memory = pull(new long[]{1, 3}, new long[]{126, 0}, 1, 4096, 0);
         assertRecords(memory, hot);
-        assertQueue(memory, 0, 126, 126, 0, false, 0);
-        assertQueue(memory, 1, 0, 1, 1, false, 0);
+        assertQueue(memory, 0, 126, 126, 0, false);
+        assertQueue(memory, 1, 0, 1, 1, false);
         assertEquals(0, logReadCount);
         Pull evicted = pull(new long[]{1, 3}, new long[]{126, 0}, 6, 4096, 0);
         assertRecords(evicted, batch[126], batch[127], batch[128], batch[129], batch[130], hot);
-        assertQueue(evicted, 0, 126, 131, 5, false, 0);
-        assertQueue(evicted, 1, 0, 1, 1, false, 0);
+        assertQueue(evicted, 0, 126, 131, 5, false);
+        assertQueue(evicted, 1, 0, 1, 1, false);
 
         await(() -> mq.startInstall(false));
         doInFiber(() -> {
@@ -511,17 +519,27 @@ class MqPullTest extends BaseFiberTest {
         await(() -> mq.installSnapshot(0, 0, 0, true, null));
         Pull disk = pull(new long[]{1}, new long[]{254}, 10, 4096, 0);
         assertRecords(disk, Arrays.copyOfRange(batch, 254, 260));
-        assertQueue(disk, 0, 254, 260, 6, false, 0);
+        assertQueue(disk, 0, 254, 260, 6, false);
+
+        for (int maxBytes : new int[]{1, 63}) {
+            int reads = logReadCount;
+            Pull oversized = pull(new long[]{99, 1, 2}, new long[]{0, 254, 130}, 10, maxBytes, tick(20_000));
+            assertRecords(oversized, batch[254]);
+            assertQueue(oversized, 0, 0, 0, 0, false);
+            assertQueue(oversized, 1, 254, 255, 1, false);
+            assertQueue(oversized, 2, 130, 130, 0, false);
+            assertEquals(reads + 1, logReadCount);
+        }
 
         doInFiber(() -> rs.firstValidPos = config.logFileSize);
         Pull old = pull(new long[]{1, 2}, new long[]{1, 129}, 10, 4096, tick(20_000));
         assertRecords(old);
-        assertQueue(old, 0, 256, 256, 0, true, 0);
-        assertQueue(old, 1, 130, 130, 0, true, 0);
+        assertQueue(old, 0, 256, 256, 0, true);
+        assertQueue(old, 1, 130, 130, 0, true);
         Pull zero = pull(new long[]{2, 1}, new long[]{0, 0}, 3, 4096, 0);
         assertRecords(zero, restored, batch[256], batch[257]);
-        assertQueue(zero, 0, 130, 131, 1, false, 0);
-        assertQueue(zero, 1, 256, 258, 2, false, 0);
+        assertQueue(zero, 0, 130, 131, 1, false);
+        assertQueue(zero, 1, 256, 258, 2, false);
         assertClean();
     }
 
@@ -532,15 +550,15 @@ class MqPullTest extends BaseFiberTest {
         RaftTask task = item(99, 128);
         append(task);
         assertRecords(waiting, task);
-        assertQueue(waiting, 0, 0, 1, 1, false, 0);
-        assertQueue(waiting, 1, 0, 0, 0, false, 0);
+        assertQueue(waiting, 0, 0, 1, 1, false);
+        assertQueue(waiting, 1, 0, 0, 0, false);
         assertClean();
 
         long start = System.nanoTime();
         Pull timeout = pull(new long[]{99, 100}, new long[]{1, 0}, 10, 4096, tick(30));
         assertRecords(timeout);
         assertTrue(System.nanoTime() - start >= TimeUnit.MILLISECONDS.toNanos(tick(30)));
-        assertQueue(timeout, 0, 1, 1, 0, false, 0);
+        assertQueue(timeout, 0, 1, 1, 0, false);
         assertClean();
     }
 

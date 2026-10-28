@@ -51,8 +51,7 @@ public final class MqPullResp extends PreEncodedWritePacket {
                 + PbUtil.sizeOfFix64Field(2, r == null ? requestedSeq : r.fromSeq)
                 + PbUtil.sizeOfFix64Field(3, r == null ? requestedSeq : r.nextSeq)
                 + PbUtil.sizeOfInt32Field(4, r == null ? 0 : r.count)
-                + PbUtil.sizeOfInt32Field(5, r != null && r.truncated ? 1 : 0)
-                + PbUtil.sizeOfInt32Field(6, r == null ? 0 : r.requiredBytes);
+                + PbUtil.sizeOfInt32Field(5, r != null && r.truncated ? 1 : 0);
     }
 
     static void writeHeader(ByteBuffer dest, long[] queueIds, long[] fromSeqs,
@@ -66,7 +65,6 @@ public final class MqPullResp extends PreEncodedWritePacket {
             PbUtil.writeFix64Field(dest, 3, r == null ? fromSeqs[i] : r.nextSeq);
             PbUtil.writeInt32Field(dest, 4, r == null ? 0 : r.count);
             PbUtil.writeInt32Field(dest, 5, r != null && r.truncated ? 1 : 0);
-            PbUtil.writeInt32Field(dest, 6, r == null ? 0 : r.requiredBytes);
         }
         if (bytes > 0) {
             PbUtil.writeLenFieldPrefix(dest, 15, bytes);

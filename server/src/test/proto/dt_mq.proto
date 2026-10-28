@@ -25,8 +25,8 @@ message MqPullReq {
   int32 group_id = 1;
   int32 queues_size = 2;
   repeated MqPullQueue queues = 3;
-  int32 limit = 4; // shared record limit across all queues
-  int32 bytes_limit = 5; // shared raw log byte limit, excluding protobuf metadata
+  int32 limit = 4; // shared record limit hint across all queues
+  int32 bytes_limit = 5; // shared raw log byte hint (no metadata); first pull record may exceed it
   int64 wait_millis = 6; // 0 disables long polling
 }
 
@@ -36,7 +36,6 @@ message MqPullQueueResult {
   fixed64 next_seq = 3;
   int32 count = 4;
   bool truncated = 5; // no records; retry from from_seq
-  int32 required_bytes = 6; // next record exceeds the request's bytes_limit
 }
 
 message MqPullResp {

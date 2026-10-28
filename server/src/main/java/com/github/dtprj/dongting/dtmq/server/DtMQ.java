@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -68,6 +69,8 @@ public class DtMQ implements StateMachine {
     private RaftGroup raftGroup;
 
     public DtMQ(RaftGroupConfigEx groupConfig, MqServerConfig serverConfig) {
+        DtUtil.checkPositive(serverConfig.maxPullLimit, "maxPullLimit");
+        DtUtil.checkPositive(serverConfig.maxPullBytesLimit, "maxPullBytesLimit");
         this.groupConfig = groupConfig;
         this.serverConfig = serverConfig;
         // mq deletes raft logs by time, so snapshots are kept while the logs exist
@@ -82,6 +85,14 @@ public class DtMQ implements StateMachine {
 
     @Override
     public void onChannelDisconnected(DtChannel channel) {
+        groupConfig.fiberGroup.fireFiber("mqDisconnect", new SimpleFrame<>("mqDisconnect", frame -> {
+            for (MqPullFrame pull : activePulls) {
+                if (pull.channel == channel) {
+                    pull.cancel();
+                }
+            }
+            return Fiber.frameReturn();
+        }));
     }
 
     /** Raft thread only; limits are shared by all queues, and waitMillis=0 disables long polling.
@@ -91,7 +102,8 @@ public class DtMQ implements StateMachine {
                             long waitMillis, DtTime deadline) {
         return new MqPullFrame(this, groupConfig,
                 ((RaftGroupImpl) raftGroup).groupComponents.raftLog,
-                queueIds, fromSeqs, limit, bytesLimit, waitMillis, deadline);
+                queueIds, fromSeqs, Math.min(limit, serverConfig.maxPullLimit),
+                Math.min(bytesLimit, serverConfig.maxPullBytesLimit), waitMillis, deadline);
     }
 
     /** Raft thread only; individual requests can also be cancelled through MqPullFrame.cancel(). */
@@ -207,7 +219,7 @@ public class DtMQ implements StateMachine {
         Fiber f = new Fiber(fiberName, groupConfig.fiberGroup,
                 new SimpleFrame<>(fiberName, frame -> {
             RaftStatusImpl rs = (RaftStatusImpl) groupConfig.raftStatus;
-            if (!rs.installSnapshot) {
+            if (rs.isInitFinished() && !rs.installSnapshot) {
                 long bound = groupConfig.ts.wallClockMillis - serverConfig.logRetentionMinutes * 60_000L;
                 raftGroup.markTruncateByTimestamp(bound,
                         groupConfig.autoDeleteLogDelaySeconds * 1000L);

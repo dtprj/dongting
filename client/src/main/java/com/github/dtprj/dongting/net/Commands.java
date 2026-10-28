@@ -26,6 +26,8 @@ public interface Commands {
     int RAFT_APPEND_ENTRIES = 4;
     int DTKV_GET = 5;
     int DTKV_PUT = 6;
+    int DTMQ_SEND = 7;
+    int DTMQ_PULL = 8;
 
     // 16 ~ 39 for rpc
 

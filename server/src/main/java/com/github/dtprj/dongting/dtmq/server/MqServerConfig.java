@@ -20,4 +20,6 @@ package com.github.dtprj.dongting.dtmq.server;
  */
 public class MqServerConfig {
     public int logRetentionMinutes = 2880;
+    public int maxPullLimit = 1024;
+    public int maxPullBytesLimit = 256 * 1024;
 }
