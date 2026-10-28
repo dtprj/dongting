@@ -76,7 +76,7 @@ For encapsulation purposes, some classes have a single implementation:
 ### Comments
 - Do not add comments unless necessary; leave a single line only at key points
 - Comments should only point out the key points and direction; details can be seen in the code, so there is no need to write at length
-- When modifying existing comments, do not pile on more text; consider simplifying — one line is best
+- When modifying existing comments, do not pile on more text; consider simplifying
 
 ### Field Access Pattern
 - Internal usage: Access public/package-private fields directly
