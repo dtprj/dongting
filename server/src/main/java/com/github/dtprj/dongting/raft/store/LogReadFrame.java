@@ -23,11 +23,13 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 
 import java.nio.ByteBuffer;
 import java.nio.ReadOnlyBufferException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.function.Supplier;
 
 final class LogReadFrame extends FiberFrame<Boolean> {
     private final LogFileQueue logFiles;
@@ -36,19 +38,22 @@ final class LogReadFrame extends FiberFrame<Boolean> {
     private final int[] offsets;
     private final int count;
     private final ByteBuffer dest;
+    private final Supplier<Boolean> cancelIndicator;
 
     private FileRead[] reads;
     private int readerCount;
     private int nextRead;
     private FiberFuture<Void> pending;
 
-    LogReadFrame(LogFileQueue logFiles, long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest) {
+    LogReadFrame(LogFileQueue logFiles, long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest,
+                 Supplier<Boolean> cancelIndicator) {
         this.logFiles = logFiles;
         this.positions = positions;
         this.lengths = lengths;
         this.offsets = offsets;
         this.count = count;
         this.dest = dest;
+        this.cancelIndicator = cancelIndicator;
     }
 
     @Override
@@ -132,12 +137,15 @@ final class LogReadFrame extends FiberFrame<Boolean> {
 
     private FrameCallResult readNext(Void unused) {
         pending = null;
+        if (cancelIndicator != null && cancelIndicator.get()) {
+            throw new RaftCancelException("log read cancelled");
+        }
         if (nextRead == reads.length) {
             return justReturn(true);
         }
         FileRead read = reads[nextRead++];
         int size = read.ranges.size();
-        AsyncIoTask task = new AsyncIoTask(getFiberGroup(), read.file);
+        AsyncIoTask task = new AsyncIoTask(getFiberGroup(), read.file, null, cancelIndicator);
         if (size == 1) {
             ReadRange range = read.ranges.get(0);
             pending = task.read(slice(range), range.position);

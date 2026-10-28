@@ -86,14 +86,6 @@ public class DtMQ implements StateMachine {
 
     @Override
     public void onChannelDisconnected(DtChannel channel) {
-        groupConfig.fiberGroup.fireFiber("mqDisconnect", new SimpleFrame<>("mqDisconnect", frame -> {
-            for (MqPullFrame pull : activePulls) {
-                if (pull.channel == channel) {
-                    pull.cancel();
-                }
-            }
-            return Fiber.frameReturn();
-        }));
     }
 
     /** Raft thread only; limits are shared by all queues, and waitMillis=0 disables long polling.

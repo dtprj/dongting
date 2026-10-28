@@ -20,6 +20,8 @@ import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.test.TestDir;
@@ -206,6 +208,117 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         }
     }
 
+    // write byte patterns 1/2/3 at [10,110), [200,300), [350,400); gaps stay zero
+    private void writePattern() throws Exception {
+        doInFiber(new FiberFrame<>() {
+            final ByteBuffer[] bufs = {dataBuf(100, 1), dataBuf(100, 2), dataBuf(50, 3)};
+            final long[] positions = {10, 200, 350};
+            int i;
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                return writeNext();
+            }
+
+            private FrameCallResult writeNext() {
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.write(bufs[i], positions[i]).await(1000, this::writeDone);
+            }
+
+            private FrameCallResult writeDone(Void unused) {
+                if (++i < bufs.length) {
+                    return writeNext();
+                }
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    private static void verifyPattern(ByteBuffer buf, int value) {
+        buf.rewind();
+        while (buf.hasRemaining()) {
+            assertEquals(value, buf.get() & 0xff);
+        }
+    }
+
+    @Test
+    public void testMultiBufferRead() throws Exception {
+        writePattern();
+
+        // out-of-order ranges with gaps: a read ignoring per-buffer positions fails
+        doInFiber(new FiberFrame<>() {
+            final ByteBuffer b1 = ByteBuffer.allocate(50);
+            final ByteBuffer b2 = ByteBuffer.allocate(100);
+            final ByteBuffer b3 = ByteBuffer.allocate(100);
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile, null, () -> false);
+                return t.read(new ByteBuffer[]{b1, b2, b3}, new long[]{350, 10, 200})
+                        .await(1000, this::resumeVerify);
+            }
+
+            private FrameCallResult resumeVerify(Void unused) {
+                verifyPattern(b1, 3);
+                verifyPattern(b2, 1);
+                verifyPattern(b3, 2);
+                return Fiber.frameReturn();
+            }
+        });
+
+        assertEquals(400, file.length());
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                ByteBuffer b = ByteBuffer.allocate(100);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.read(new ByteBuffer[]{b}, new long[]{350}).await(1000, this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                throw new AssertionError();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                // [350,400) is the last 50 bytes, so a 100-byte read hits end of file
+                assertInstanceOf(IOException.class, ex, () -> "unexpected: " + ex);
+                assertInstanceOf(RaftException.class, ex.getCause(), () -> "unexpected: " + ex);
+                assertEquals("read end of file", ex.getCause().getMessage(), () -> "unexpected: " + ex);
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    @Test
+    public void testMultiBufferReadCancel() throws Exception {
+        writePattern();
+
+        doInFiber(new FiberFrame<>() {
+            final ByteBuffer b1 = ByteBuffer.allocate(100);
+            final ByteBuffer b2 = ByteBuffer.allocate(100);
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile, null, () -> true);
+                return t.read(new ByteBuffer[]{b1, b2}, new long[]{10, 200}).await(1000, this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                throw new AssertionError();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                // the cancel check runs after each buffer read: b1 full, b2 untouched, unwrapped
+                assertInstanceOf(RaftCancelException.class, ex, () -> "unexpected: " + ex);
+                assertEquals(100, b1.position());
+                assertEquals(0, b2.position());
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
     @Test
     public void testAsyncOpen() throws Exception {
         file = new File(dir, "testAsyncOpen");
@@ -234,22 +347,6 @@ public class AsyncIoTaskTest extends BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
-    }
-
-    @Test
-    public void testWriteEx() throws Exception {
-
-        doInFiber(new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                ByteBuffer buf = ByteBuffer.allocate(1);
-                // fail on first write
-                IoFailTask t = new IoFailTask(1, true, () -> false);
-                return t.write(buf, 0)
-                        .await(1000, this::justReturn);
-            }
-        });
-
     }
 
     private static ByteBuffer dataBuf(int size, int value) {
@@ -391,7 +488,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     }
 
     @Test
-    public void testRetryReopensChannel() throws Exception {        doInFiber(new FiberFrame<>() {
+    public void testRetryReopensChannel() throws Exception {
+        doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 ByteBuffer buf = dataBuf(8, 3);

@@ -27,13 +27,12 @@ import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
-
-import java.util.concurrent.CancellationException;
 
 final class MqPullProcessor extends RaftProcessor<MqPullReq> {
     MqPullProcessor(RaftServer raftServer) {
@@ -126,7 +125,7 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             if (reqInfo.reqContext.getDtChannel().getChannel().isOpen()) {
-                if (ex instanceof CancellationException) {
+                if (ex instanceof RaftCancelException) {
                     ex = new NetCodeException(CmdCodes.STOPPING, "mq pull cancelled", null);
                 }
                 writeErrorResp(reqInfo, ex);

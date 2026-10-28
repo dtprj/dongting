@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.fiber.FutureFrame;
 import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -51,7 +52,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -476,7 +476,7 @@ class MqPullTest extends BaseFiberTest {
             assertFalse(task.reqData.buffer.isReleased());
         };
         Pull cancelled = pull(new long[]{1}, new long[]{0}, 10, 65536, 0);
-        assertFailure(cancelled, CancellationException.class);
+        assertFailure(cancelled, RaftCancelException.class);
         assertEquals(1, logReadCount);
         assertTrue(task.reqData.buffer.isReleased());
         assertClean();
@@ -567,7 +567,7 @@ class MqPullTest extends BaseFiberTest {
         Pull first = waitingPull(1, 2);
         Pull second = waitingPull(2, 3);
         doInFiber(first.frame::cancel);
-        assertFailure(first, CancellationException.class);
+        assertFailure(first, RaftCancelException.class);
         waitForWatch(second, 2, 3);
         doInFiber(() -> {
             assertNull(mq.waitingPulls.get(1));
@@ -575,17 +575,17 @@ class MqPullTest extends BaseFiberTest {
             assertEquals(1, mq.waitingPulls.get(2).size());
             mq.cancelPendingPulls();
         });
-        assertFailure(second, CancellationException.class);
+        assertFailure(second, RaftCancelException.class);
         assertClean();
 
         Pull install = waitingPull(1, 2);
         await(() -> mq.startInstall(false));
-        assertFailure(install, CancellationException.class);
+        assertFailure(install, RaftCancelException.class);
         assertClean();
         await(() -> mq.installSnapshot(0, 0, 0, true, null));
         Pull stop = waitingPull(2, 3);
         await(mq::stop);
-        assertFailure(stop, CancellationException.class);
+        assertFailure(stop, RaftCancelException.class);
         assertClean();
     }
 }

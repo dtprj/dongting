@@ -212,8 +212,9 @@ public final class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public FiberFrame<Boolean> read(long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest) {
-        return new LogReadFrame(logFiles, positions, lengths, offsets, count, dest);
+    public FiberFrame<Boolean> read(long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest,
+                                    Supplier<Boolean> cancelIndicator) {
+        return new LogReadFrame(logFiles, positions, lengths, offsets, count, dest, cancelIndicator);
     }
 
     @Override

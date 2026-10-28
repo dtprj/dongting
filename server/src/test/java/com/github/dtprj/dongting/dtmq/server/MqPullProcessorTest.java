@@ -110,6 +110,8 @@ class MqPullProcessorTest extends ServerTestBase {
             send(client, peer, request(22, 1, tick(20_000)));
             WaitUtil.waitUtil(() -> mq.waitingPulls.get(22) != null, server.gc.fiberGroup.getExecutor());
             client.disconnect(peer).get(tick(3000), TimeUnit.MILLISECONDS);
+            // channel close is checked lazily: data arrival wakes the parked pull and cancels it
+            append(server, 22, 32);
             WaitUtil.waitUtil(() -> mq.activePulls.isEmpty() && mq.waitingPulls.size() == 0,
                     server.gc.fiberGroup.getExecutor());
         } finally {

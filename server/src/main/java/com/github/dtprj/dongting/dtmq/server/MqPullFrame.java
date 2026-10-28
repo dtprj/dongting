@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -38,7 +39,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 
 /** Returns a pre-encoded response; the caller sends it or calls clean(). */
@@ -177,11 +177,18 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         return scan(null);
     }
 
+    private boolean isCancelled() {
+        boolean channelClosed = channel != null && !channel.getChannel().isOpen();
+        if (Thread.currentThread() != groupConfig.fiberGroup.dispatcher.thread) {
+            return channelClosed || groupConfig.fiberGroup.shareStatusSource.getShareStatus(true).shouldStop;
+        }
+        return channelClosed || cancelled || raftStatus.isShouldStop() || raftStatus.installSnapshot
+                || manager == null || manager.markClose || manager != mq.manager;
+    }
+
     void checkCancelled() {
-        if (cancelled || isGroupShouldStopPlain() || raftStatus.installSnapshot
-                || manager == null || manager.markClose || manager != mq.manager
-                || (channel != null && !channel.getChannel().isOpen())) {
-            throw new CancellationException("mq pull cancelled");
+        if (isCancelled()) {
+            throw new RaftCancelException("mq pull cancelled");
         }
         if (deadline.isTimeout()) {
             throw new RaftTimeoutException("mq pull timeout");
@@ -373,7 +380,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 offsets[readCount++] = offsets[i];
             }
         }
-        return Fiber.call(raftLog.read(positions, lengths, offsets, readCount, dest), this::afterRead);
+        return Fiber.call(raftLog.read(positions, lengths, offsets, readCount, dest, this::isCancelled),
+                this::afterRead);
     }
 
     private void addSegment(ByteBuffer dest, int start, ArrayList<ByteBuffer> segs) {

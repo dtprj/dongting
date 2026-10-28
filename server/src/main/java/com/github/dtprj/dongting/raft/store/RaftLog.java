@@ -53,7 +53,8 @@ public interface RaftLog {
     long firstReadablePos();
 
     /** Reads into absolute dest offsets without changing its position; false means expired, with no I/O. */
-    FiberFrame<Boolean> read(long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest);
+    FiberFrame<Boolean> read(long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest,
+                             Supplier<Boolean> cancelIndicator);
 
     /**
      * return null if it can't match and will cause install snapshot

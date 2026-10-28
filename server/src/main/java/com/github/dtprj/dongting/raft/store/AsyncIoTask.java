@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -37,7 +38,7 @@ import java.util.function.Supplier;
 public class AsyncIoTask {
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
     private final DtFile dtFile;
-    private final Supplier<Boolean> cancelRetryIndicator;
+    private final Supplier<Boolean> cancelIndicator;
     private final FiberFuture<Void> future;
 
     private final int[] retryInterval;
@@ -60,12 +61,12 @@ public class AsyncIoTask {
     }
 
     public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval,
-                       Supplier<Boolean> cancelRetryIndicator) {
+                       Supplier<Boolean> cancelIndicator) {
         this.fiberGroup = fiberGroup;
         Objects.requireNonNull(dtFile);
         this.dtFile = dtFile;
         this.retryInterval = retryInterval;
-        this.cancelRetryIndicator = cancelRetryIndicator;
+        this.cancelIndicator = cancelIndicator;
         this.future = fiberGroup.newFuture("asyncIoTaskFuture");
     }
 
@@ -227,7 +228,7 @@ public class AsyncIoTask {
                     log.warn("retry canceled because file is destroyed");
                     return true;
                 }
-                if (cancelRetryIndicator != null && cancelRetryIndicator.get()) {
+                if (cancelIndicator != null && cancelIndicator.get()) {
                     log.warn("retry canceled by cancelIndicator");
                     return true;
                 }
@@ -308,6 +309,10 @@ public class AsyncIoTask {
                     log.warn("read returned 0 for file={}, pos={}", dtFile.getFile().getPath(), pos);
                 }
                 pos += n;
+            }
+            if (cancelIndicator != null && cancelIndicator.get()) {
+                future.fireCompleteExceptionally(new RaftCancelException("io task cancelled"));
+                return false;
             }
         }
         return true;
