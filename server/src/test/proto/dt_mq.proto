@@ -16,6 +16,22 @@
 syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.dtmq.proto";
 
+message MqMessage {
+  fixed64 queue_id = 1;
+  bytes msg_header = 2; // opaque bytes, not interpreted by the state machine
+  bytes msg_body = 3; // maxBody applies to each message body, excluding the header
+}
+
+message MqSendReq {
+  int32 group_id = 1;
+  int32 messages_size = 2;
+  repeated MqMessage messages = 3; // one or more messages; batch writes are not atomic
+}
+
+message MqSendResp {
+  repeated fixed64 raft_indexes = 1 [packed = false]; // request order; sent only when all writes succeed
+}
+
 message MqPullQueue {
   fixed64 queue_id = 1;
   fixed64 from_seq = 2; // 0 starts at the earliest readable record

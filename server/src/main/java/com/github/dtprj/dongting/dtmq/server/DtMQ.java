@@ -55,7 +55,7 @@ public class DtMQ implements StateMachine {
     private static final long LOG_RETENTION_CHECK_MILLIS = 60_000;
 
     private final RaftGroupConfigEx groupConfig;
-    private final MqServerConfig serverConfig;
+    final MqServerConfig serverConfig;
 
     private File mqIdxDir;
 
@@ -69,6 +69,7 @@ public class DtMQ implements StateMachine {
     private RaftGroup raftGroup;
 
     public DtMQ(RaftGroupConfigEx groupConfig, MqServerConfig serverConfig) {
+        DtUtil.checkPositive(serverConfig.maxBody, "maxBody");
         DtUtil.checkPositive(serverConfig.maxPullLimit, "maxPullLimit");
         DtUtil.checkPositive(serverConfig.maxPullBytesLimit, "maxPullBytesLimit");
         this.groupConfig = groupConfig;

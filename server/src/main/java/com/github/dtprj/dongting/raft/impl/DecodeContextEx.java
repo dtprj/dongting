@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.dtmq.server.MqPullReq;
+import com.github.dtprj.dongting.dtmq.server.MqSendReq;
 import com.github.dtprj.dongting.raft.rpc.AppendReq;
 import com.github.dtprj.dongting.raft.rpc.AppendResp;
 
@@ -29,6 +30,7 @@ public final class DecodeContextEx extends DecodeContext {
     private AppendReq.Callback appendReqCallback;
     private AppendResp.Callback appendRespCallback;
     private MqPullReq.Callback mqPullReqCallback;
+    private MqSendReq.Callback mqSendReqCallback;
 
     public DecodeContextEx(Buffers buffers, byte[] threadLocalBuffer) {
         super(buffers, threadLocalBuffer);
@@ -58,5 +60,12 @@ public final class DecodeContextEx extends DecodeContext {
             mqPullReqCallback = new MqPullReq.Callback();
         }
         return mqPullReqCallback;
+    }
+
+    public MqSendReq.Callback mqSendReqCallback() {
+        if (mqSendReqCallback == null) {
+            mqSendReqCallback = new MqSendReq.Callback();
+        }
+        return mqSendReqCallback;
     }
 }
