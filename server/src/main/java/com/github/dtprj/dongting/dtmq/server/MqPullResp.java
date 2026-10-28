@@ -80,10 +80,18 @@ public final class MqPullResp extends PreEncodedWritePacket {
 
     @Override
     protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
-        if (nextSegment == segments.size()) {
-            return true;
+        if (segments == null) {
+            if (nextSegment != 0) {
+                return true;
+            }
+            nextSegment = 1;
+            preEncodedBuffer = buffer.getBuffer();
+        } else {
+            if (nextSegment == segments.size()) {
+                return true;
+            }
+            preEncodedBuffer = segments.get(nextSegment++);
         }
-        preEncodedBuffer = segments.get(nextSegment++);
         return false;
     }
 

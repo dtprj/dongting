@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.fiber.SimpleFrame;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
@@ -69,61 +70,96 @@ final class MqIdxReader extends FiberFrame<Void> {
         return loadItem(this::checkStart);
     }
 
-    /**
-     * Serves the queue entirely from in-memory idx blocks without a frame; false means the
-     * caller should run a reader instance for the I/O path.
-     */
-    static boolean tryMemoryScan(MqPullFrame pull, MqIdxQueue queue, int index) {
+    static void scanMemory(MqPullFrame pull, MqIdxQueue queue, int index) {
         long seq = pull.fromSeqs[index];
         if (queue == null || seq >= queue.nextSeq) {
-            return true;
+            return;
         }
         MqPullFrame.QueueResult result = pull.result(index);
-        if (seq == 0 || seq < queue.firstAvailableSeq()) {
-            return false;
-        }
-        // walk blocks directly: no per-item map lookup or block re-resolution
+        result.memoryStart = pull.count;
         MqIdxBlock block = queue.getBlock(seq);
-        if (block == null) {
-            return false;
-        }
-        long pos = pull.manager.getIdxItemInBlock(block, seq);
-        int size = pull.manager.lastGetSize;
-        if (pos < pull.raftStatus.firstValidPos) {
-            return false;
+        long pos = block == null ? -1 : pull.manager.getIdxItemInBlock(block, seq);
+        if (seq == 0 || (block != null && pos < pull.raftStatus.firstValidPos)) {
+            seq = findStartInMemory(pull, queue);
+            if (seq < 0) {
+                result.needsIo = true;
+                return;
+            }
+            result.fromSeq = seq;
+            result.nextSeq = seq;
+            result.truncated = result.requestedSeq != 0;
+            if (seq == queue.nextSeq) {
+                return;
+            }
+            block = queue.getBlock(seq);
+            //noinspection DataFlowIssue
+            pos = pull.manager.getIdxItemInBlock(block, seq);
+            if (result.truncated) {
+                result.resetPos = pos;
+                return;
+            }
+        } else if (block == null) {
+            result.needsIo = true;
+            return;
         }
         while (true) {
-            if (!consumeItem(pull, queue, result, queue.nextSeq, seq, pos, size,
-                    pull.manager.lastGetRaftIndex)) {
-                return true;
+            if (!consumeItem(pull, queue, result, queue.nextSeq, seq, pos, pull.manager.lastGetSize,
+                    pull.manager.lastGetRaftIndex, true)) {
+                return;
             }
             seq = result.nextSeq;
             if ((seq & MqIdxBlock.BLOCK_MASK) == 0) {
                 block = queue.getBlock(seq);
                 if (block == null) {
-                    return false;
+                    result.needsIo = true;
+                    return;
                 }
             }
             pos = pull.manager.getIdxItemInBlock(block, seq);
-            size = pull.manager.lastGetSize;
         }
     }
 
-    /** Consumes one resolved item; false means the scan is finished (limits or end reached). */
+    private static long findStartInMemory(MqPullFrame pull, MqIdxQueue queue) {
+        long minPos = pull.raftLog.firstReadablePos();
+        long low = queue.firstAvailableSeq();
+        long high = queue.nextSeq;
+        long seq = low;
+        while (low < high) {
+            MqIdxBlock block = queue.getBlock(seq);
+            if (block == null) {
+                return -1;
+            }
+            long pos = pull.manager.getIdxItemInBlock(block, seq);
+            if (pull.manager.lastGetSize == 0 || pos < minPos) {
+                low = seq + 1;
+            } else {
+                high = seq;
+            }
+            seq = low + ((high - low) >>> 1);
+        }
+        return low;
+    }
+
     private static boolean consumeItem(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result,
-                                       long endSeq, long seq, long pos, int size, long raftIndex) {
+                                       long endSeq, long seq, long pos, int size, long raftIndex, boolean memoryOnly) {
         if (size < LogHeader.ITEM_HEADER_SIZE) {
             throw new ChecksumException("invalid mq item size: queue=" + queue.queueId + ", seq=" + seq);
         }
-        if (!pull.add(pos, size, raftIndex)) {
+        if (!pull.hasCapacity(size)) {
             if (size > pull.bytesLimit) {
                 result.requiredBytes = size;
             }
             return false;
         }
+        RaftTask task = raftIndex == 0 ? null : pull.raftStatus.tailCache.get(raftIndex);
+        if (memoryOnly && task == null) {
+            result.needsIo = true;
+            return false;
+        }
+        pull.add(pos, size, task);
         result.count++;
         result.nextSeq = seq + 1;
-        return seq + 1 != endSeq && pull.count != pull.limit;
+        return seq + 1 != endSeq && pull.hasCapacity(LogHeader.ITEM_HEADER_SIZE);
     }
 
     private FrameCallResult checkStart(Void unused) {
@@ -177,7 +213,7 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     private FrameCallResult collect() {
         while (true) {
-            if (!consumeItem(pull, queue, result, endSeq, seq, pos, size, raftIndex)) {
+            if (!consumeItem(pull, queue, result, endSeq, seq, pos, size, raftIndex, false)) {
                 return Fiber.frameReturn();
             }
             seq = result.nextSeq;

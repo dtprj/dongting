@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.nio.ByteBuffer;
@@ -51,6 +52,10 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         public boolean truncated;
         public int requiredBytes;
         long resetPos;
+        boolean needsIo;
+        int memoryStart;
+        int memoryCount;
+        int ioStart;
 
         private QueueResult(long queueId, long requestedSeq) {
             this.queueId = queueId;
@@ -65,6 +70,10 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             truncated = false;
             requiredBytes = 0;
             resetPos = Long.MAX_VALUE;
+            needsIo = false;
+            memoryStart = 0;
+            memoryCount = 0;
+            ioStart = 0;
         }
     }
 
@@ -199,6 +208,13 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 }
             }
         }
+        for (int i = 0; i < queueIds.length && (count == 0 || hasCapacity(LogHeader.ITEM_HEADER_SIZE)); i++) {
+            MqIdxReader.scanMemory(this, manager.queues.get(queueIds[i]), i);
+            QueueResult r = results == null ? null : results[i];
+            if (r != null) {
+                r.memoryCount = r.count;
+            }
+        }
         return readQueue(null);
     }
 
@@ -207,11 +223,11 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (retry) {
             return Fiber.resume(null, this::scan);
         }
-        while (queueIndex < queueIds.length) {
-            int i = queueIndex++;
-            MqIdxQueue q = manager.queues.get(queueIds[i]);
-            if (!MqIdxReader.tryMemoryScan(this, q, i)) {
-                return Fiber.call(new MqIdxReader(this, q, result(i)), this::readQueue);
+        while (results != null && queueIndex < results.length && (count == 0 || hasCapacity(LogHeader.ITEM_HEADER_SIZE))) {
+            QueueResult r = results[queueIndex++];
+            if (r != null && r.needsIo) {
+                r.ioStart = count;
+                return Fiber.call(new MqIdxReader(this, manager.queues.get(r.queueId), r), this::readQueue);
             }
         }
         if (!resetPositionsValid()) {
@@ -253,22 +269,23 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         return r;
     }
 
-    boolean add(long pos, int size, long raftIndex) {
-        if (count == limit || size > bytesLimit - bytes) {
-            return false;
-        }
-        if (positions == null) {
+    boolean hasCapacity(int size) {
+        return count < limit && size <= bytesLimit - bytes;
+    }
+
+    void add(long pos, int size, RaftTask task) {
+        if (lengths == null) {
             int n = Math.min(limit, 16);
-            positions = new long[n];
             lengths = new int[n];
             cached = new RefBuffer[n];
-        } else if (count == positions.length) {
+        } else if (count == lengths.length) {
             int n = (int) Math.min(limit, (long) count * 2);
-            positions = Arrays.copyOf(positions, n);
+            if (positions != null) {
+                positions = Arrays.copyOf(positions, n);
+            }
             lengths = Arrays.copyOf(lengths, n);
             cached = Arrays.copyOf(cached, n);
         }
-        RaftTask task = raftIndex == 0 ? null : raftStatus.tailCache.get(raftIndex);
         if (task != null) {
             RefBuffer ref = task.reqData.buffer;
             ref.retain();
@@ -276,11 +293,14 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             if (size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
                 cachedZeroCopyBytes += size;
             }
+        } else {
+            if (positions == null) {
+                positions = new long[lengths.length];
+            }
+            positions[count] = pos;
         }
-        positions[count] = pos;
         lengths[count++] = size;
         bytes += size;
-        return true;
     }
 
     private FrameCallResult prepareResponse() {
@@ -291,51 +311,66 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         ByteBuffer dest = buffer.getBuffer();
         dest.limit(bufferSize);
         MqPullResp.writeHeader(dest, queueIds, fromSeqs, results, bytes);
-        // the segment list only exists for zero-copy responses; empty and copy-only
-        // responses finish as a single pre-encoded view
         ArrayList<ByteBuffer> segs = null;
         int[] offsets = null;
-        int readCount = 0;
         int segmentStart = 0;
-        for (int i = 0; i < count; i++) {
-            int size = lengths[i];
-            RefBuffer ref = cached[i];
-            if (ref == null) {
-                if (offsets == null) {
-                    offsets = new int[count];
+        for (int q = 0; count > 0 && q < results.length; q++) {
+            QueueResult r = results[q];
+            if (r == null) {
+                continue;
+            }
+            // Collection is memory-first; the wire format remains grouped in request order.
+            for (int n = 0, i = r.memoryStart; n < r.count; n++, i++) {
+                if (n == r.memoryCount) {
+                    i = r.ioStart;
                 }
-                offsets[readCount] = dest.position();
-                positions[readCount] = positions[i];
-                lengths[readCount++] = size;
-                dest.position(dest.position() + size);
-            } else {
-                // Apply and replication share the source buffer's cursor; only mutate our own view.
-                ByteBuffer src = ref.getBuffer().duplicate();
-                src.clear().limit(size);
-                if (size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
-                    if (segs == null) {
-                        segs = new ArrayList<>(2);
+                int size = lengths[i];
+                RefBuffer ref = cached[i];
+                if (ref == null) {
+                    if (offsets == null) {
+                        offsets = new int[count];
                     }
-                    addSegment(dest, segmentStart, segs);
-                    segmentStart = dest.position();
-                    segs.add(src);
+                    offsets[i] = dest.position();
+                    dest.position(dest.position() + size);
                 } else {
-                    dest.put(src);
-                    ref.release();
-                    cached[i] = null;
+                    ByteBuffer src = ref.getBuffer();
+                    if (size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
+                        if (segs == null) {
+                            segs = new ArrayList<>(2);
+                        }
+                        addSegment(dest, segmentStart, segs);
+                        segmentStart = dest.position();
+                        segs.add(src.duplicate().clear().limit(size));
+                    } else {
+                        // Apply and replication share the source cursor; leave it unchanged.
+                        if (src.hasArray()) {
+                            dest.put(src.array(), src.arrayOffset(), size);
+                        } else {
+                            dest.put(src.duplicate().clear().limit(size));
+                        }
+                        ref.release();
+                        cached[i] = null;
+                    }
                 }
             }
         }
         if (segs == null) {
-            ByteBuffer view = dest.duplicate();
-            view.flip();
-            segments = List.of(view.slice());
+            dest.flip();
         } else {
             addSegment(dest, segmentStart, segs);
             segments = segs;
         }
-        if (readCount == 0) {
+        if (offsets == null) {
             return afterRead(true);
+        }
+        int readCount = 0;
+        for (int i = 0; i < count; i++) {
+            // Every disk offset follows the header; zero denotes an in-memory record.
+            if (offsets[i] != 0) {
+                positions[readCount] = positions[i];
+                lengths[readCount] = lengths[i];
+                offsets[readCount++] = offsets[i];
+            }
         }
         return Fiber.call(raftLog.read(positions, lengths, offsets, readCount, dest), this::afterRead);
     }
@@ -344,19 +379,24 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (dest.position() > start) {
             ByteBuffer view = dest.duplicate();
             view.flip().position(start);
-            segs.add(view.slice());
+            segs.add(view);
         }
     }
 
     private boolean resetPositionsValid() {
-        long first = raftLog.firstReadablePos();
         if (results == null) {
             return true;
         }
+        long first = -1;
         for (QueueResult r : results) {
-            if (r != null && r.truncated && (r.resetPos < first
-                    || (r.resetPos == Long.MAX_VALUE && manager.queues.get(r.queueId).nextSeq > r.fromSeq))) {
-                return false;
+            if (r != null && r.truncated) {
+                if (first < 0) {
+                    first = raftLog.firstReadablePos();
+                }
+                if (r.resetPos < first
+                        || (r.resetPos == Long.MAX_VALUE && manager.queues.get(r.queueId).nextSeq > r.fromSeq)) {
+                    return false;
+                }
             }
         }
         return true;

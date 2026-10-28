@@ -362,14 +362,45 @@ class MqPullTest extends BaseFiberTest {
         assertRecords(bytesLimit, b, d);
         assertQueue(bytesLimit, 1, 0, 0, 0, false, 0);
 
-        Pull tooLarge = pull(new long[]{11}, new long[]{1}, 10, 191, tick(20_000));
-        assertRecords(tooLarge);
-        assertQueue(tooLarge, 0, 1, 1, 0, false, 192);
+        for (int maxBytes : new int[]{1, 191}) {
+            Pull tooLarge = pull(new long[]{11}, new long[]{1}, 10, maxBytes, tick(20_000));
+            assertRecords(tooLarge);
+            assertQueue(tooLarge, 0, 1, 1, 0, false, 192);
+        }
         Pull empty = pull(new long[]{11, 99}, new long[]{2, 17}, 10, 4096, 0);
         assertRecords(empty);
         assertQueue(empty, 0, 2, 2, 0, false, 0);
         assertQueue(empty, 1, 17, 17, 0, false, 0);
         assertEquals(0, logReadCount);
+        assertClean();
+    }
+
+    @Test
+    void testMemoryFirstWithSharedLimits() throws Exception {
+        RaftTask cold = item(1, 128);
+        append(cold, item(1, 160));
+        doInFiber(() -> rs.tailCache.cleanAll());
+        RaftTask small = item(2, 96);
+        RaftTask large = item(2, RaftServerConfig.GATHERING_WRITE_THRESHOLD);
+        append(small, large);
+        long[] ids = {1, 2};
+        long[] seqs = {0, 0};
+
+        Pull countLimit = pull(ids, seqs, 2, 65536, 0);
+        assertRecords(countLimit, small, large);
+        assertQueue(countLimit, 0, 0, 0, 0, false, 0);
+        assertQueue(countLimit, 1, 0, 2, 2, false, 0);
+        Pull bytesLimit = pull(ids, seqs, 10, small.reqData.totalLen + large.reqData.totalLen, 0);
+        assertRecords(bytesLimit, small, large);
+        assertQueue(bytesLimit, 0, 0, 0, 0, false, 0);
+        assertQueue(bytesLimit, 1, 0, 2, 2, false, 0);
+        assertEquals(0, logReadCount);
+
+        Pull remaining = pull(ids, seqs, 3, 65536, 0);
+        assertRecords(remaining, cold, small, large);
+        assertQueue(remaining, 0, 0, 1, 1, false, 0);
+        assertQueue(remaining, 1, 0, 2, 2, false, 0);
+        assertEquals(1, logReadCount);
         assertClean();
     }
 
@@ -458,9 +489,17 @@ class MqPullTest extends BaseFiberTest {
             assertNull(mq.manager.remove());
             assertEquals(-1, mq.manager.getIdxItemInCache(1, 126));
         });
-        Pull evicted = pull(new long[]{1}, new long[]{126}, 5, 4096, 0);
-        assertRecords(evicted, Arrays.copyOfRange(batch, 126, 131));
+        RaftTask hot = item(3, 64);
+        append(hot);
+        Pull memory = pull(new long[]{1, 3}, new long[]{126, 0}, 1, 4096, 0);
+        assertRecords(memory, hot);
+        assertQueue(memory, 0, 126, 126, 0, false, 0);
+        assertQueue(memory, 1, 0, 1, 1, false, 0);
+        assertEquals(0, logReadCount);
+        Pull evicted = pull(new long[]{1, 3}, new long[]{126, 0}, 6, 4096, 0);
+        assertRecords(evicted, batch[126], batch[127], batch[128], batch[129], batch[130], hot);
         assertQueue(evicted, 0, 126, 131, 5, false, 0);
+        assertQueue(evicted, 1, 0, 1, 1, false, 0);
 
         await(() -> mq.startInstall(false));
         doInFiber(() -> {
