@@ -95,7 +95,7 @@ class MqPullTest extends BaseFiberTest {
         config.mqIdxFlushIntervalMillis = tick(60_000);
         statusManager = new StatusManager(config);
         raftLog = new DefaultRaftLog(config, statusManager, null);
-        mq = new DtMQ(config, new MQServerConfig());
+        mq = new DtMQ(config, new MqServerConfig());
         GroupComponents components = new GroupComponents();
         components.groupConfig = config;
         components.raftStatus = rs;

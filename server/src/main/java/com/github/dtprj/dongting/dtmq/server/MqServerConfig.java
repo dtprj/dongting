@@ -18,6 +18,6 @@ package com.github.dtprj.dongting.dtmq.server;
 /**
  * @author huangli
  */
-public class MQServerConfig {
+public class MqServerConfig {
     public int logRetentionMinutes = 2880;
 }

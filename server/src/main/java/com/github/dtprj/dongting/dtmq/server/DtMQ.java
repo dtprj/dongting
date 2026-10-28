@@ -54,7 +54,7 @@ public class DtMQ implements StateMachine {
     private static final long LOG_RETENTION_CHECK_MILLIS = 60_000;
 
     private final RaftGroupConfigEx groupConfig;
-    private final MQServerConfig serverConfig;
+    private final MqServerConfig serverConfig;
 
     private File mqIdxDir;
 
@@ -67,7 +67,7 @@ public class DtMQ implements StateMachine {
 
     private RaftGroup raftGroup;
 
-    public DtMQ(RaftGroupConfigEx groupConfig, MQServerConfig serverConfig) {
+    public DtMQ(RaftGroupConfigEx groupConfig, MqServerConfig serverConfig) {
         this.groupConfig = groupConfig;
         this.serverConfig = serverConfig;
         // mq deletes raft logs by time, so snapshots are kept while the logs exist

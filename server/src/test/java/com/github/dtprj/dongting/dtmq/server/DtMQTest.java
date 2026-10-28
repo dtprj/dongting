@@ -77,7 +77,7 @@ class DtMQTest extends BaseFiberTest {
         rs.nodeIdOfPreparedObservers = Set.of();
         rs.lastAppliedTerm = 1;
         config.raftStatus = rs;
-        DtMQ m = new DtMQ(config, new MQServerConfig());
+        DtMQ m = new DtMQ(config, new MqServerConfig());
         m.setRaftGroup(new MockRaftGroup(1));
         // bind instances to locals: the supplier runs lazily, fields may be reassigned by then
         snapshotManager = new DefaultSnapshotManager(config, m,
