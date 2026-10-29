@@ -99,7 +99,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     private long[] positions;
     private int[] lengths;
     private RefBuffer[] cached;
-    int count;
+    private int count;
     private int bytes;
     private int cachedZeroCopyBytes;
     private int bodySize;
@@ -217,11 +217,20 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             }
         }
         for (int i = 0; i < queueIds.length && hasCapacity(LogHeader.ITEM_HEADER_SIZE); i++) {
-            MqIdxReader.scanMemory(this, manager.queues.get(queueIds[i]), i);
-            QueueResult r = results == null ? null : results[i];
-            if (r != null) {
-                r.memoryCount = r.count;
+            MqIdxQueue queue = manager.queues.get(queueIds[i]);
+            if (queue == null || fromSeqs[i] >= queue.nextSeq) {
+                continue;
             }
+            if (results == null) {
+                results = new QueueResult[queueIds.length];
+            }
+            QueueResult r = results[i];
+            if (r == null) {
+                r = results[i] = new QueueResult(queueIds[i], fromSeqs[i]);
+            }
+            r.memoryStart = count;
+            MqIdxReader.scanMemory(this, queue, r);
+            r.memoryCount = r.count;
         }
         return readQueue(null);
     }
@@ -264,17 +273,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             throw new RaftTimeoutException("mq pull timeout");
         }
         return changed.await(rest, TimeUnit.NANOSECONDS, groupConfig.fiberGroup.shouldStopCondition, this::scan);
-    }
-
-    QueueResult result(int index) {
-        if (results == null) {
-            results = new QueueResult[queueIds.length];
-        }
-        QueueResult r = results[index];
-        if (r == null) {
-            r = results[index] = new QueueResult(queueIds[index], fromSeqs[index]);
-        }
-        return r;
     }
 
     boolean hasCapacity(int size) {

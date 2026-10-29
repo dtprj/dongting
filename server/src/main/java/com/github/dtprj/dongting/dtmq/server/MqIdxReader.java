@@ -70,13 +70,8 @@ final class MqIdxReader extends FiberFrame<Void> {
         return loadItem(this::checkStart);
     }
 
-    static void scanMemory(MqPullFrame pull, MqIdxQueue queue, int index) {
-        long seq = pull.fromSeqs[index];
-        if (queue == null || seq >= queue.nextSeq) {
-            return;
-        }
-        MqPullFrame.QueueResult result = pull.result(index);
-        result.memoryStart = pull.count;
+    static void scanMemory(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result) {
+        long seq = result.requestedSeq;
         MqIdxBlock block = queue.getBlock(seq);
         long pos = block == null ? -1 : pull.manager.getIdxItemInBlock(block, seq);
         if (seq == 0 || (block != null && pos < pull.raftStatus.firstValidPos)) {
