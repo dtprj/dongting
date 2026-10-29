@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.LogHeader;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -54,17 +55,19 @@ public class DtMQ implements StateMachine {
 
     private static final long LOG_RETENTION_CHECK_MILLIS = 60_000;
 
-    private final RaftGroupConfigEx groupConfig;
+    final RaftGroupConfigEx groupConfig;
     final MqServerConfig serverConfig;
+    final RaftStatusImpl raftStatus;
 
     private File mqIdxDir;
 
     MqIdxManager manager;
+    RaftLog raftLog;
     final HashSet<MqPullFrame> activePulls = new HashSet<>();
     final LongObjMap<HashSet<MqPullFrame>> waitingPulls = new LongObjMap<>();
     long changeVersion;
 
-    private boolean installing;
+    boolean installing;
 
     private RaftGroup raftGroup;
 
@@ -74,6 +77,7 @@ public class DtMQ implements StateMachine {
         DtUtil.checkPositive(serverConfig.maxPullBytesLimit, "maxPullBytesLimit");
         this.groupConfig = groupConfig;
         this.serverConfig = serverConfig;
+        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         // mq deletes raft logs by time, so snapshots are kept while the logs exist
         groupConfig.maxKeepSnapshots = 0;
         groupConfig.installOldestSnapshot = true;
@@ -82,6 +86,7 @@ public class DtMQ implements StateMachine {
     @Override
     public void setRaftGroup(RaftGroup raftGroup) {
         this.raftGroup = raftGroup;
+        this.raftLog = ((RaftGroupImpl) raftGroup).groupComponents.raftLog;
     }
 
     @Override
@@ -93,9 +98,8 @@ public class DtMQ implements StateMachine {
      * The caller owns the linearizability point: validate lease read before calling; the frame never re-checks. */
     public MqPullFrame pull(long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,
                             long waitMillis, DtTime deadline) {
-        return new MqPullFrame(this, groupConfig,
-                ((RaftGroupImpl) raftGroup).groupComponents.raftLog,
-                queueIds, fromSeqs, Math.min(limit, serverConfig.maxPullLimit),
+        return new MqPullFrame(this, queueIds, fromSeqs,
+                Math.min(limit, serverConfig.maxPullLimit),
                 Math.min(bytesLimit, serverConfig.maxPullBytesLimit), waitMillis, deadline);
     }
 
@@ -211,8 +215,7 @@ public class DtMQ implements StateMachine {
         String fiberName = "mqMarkDelete" + groupConfig.groupId;
         Fiber f = new Fiber(fiberName, groupConfig.fiberGroup,
                 new SimpleFrame<>(fiberName, frame -> {
-            RaftStatusImpl rs = (RaftStatusImpl) groupConfig.raftStatus;
-            if (rs.isInitFinished() && !rs.installSnapshot) {
+            if (raftStatus.isInitFinished() && !raftStatus.installSnapshot) {
                 long bound = groupConfig.ts.wallClockMillis - serverConfig.logRetentionMinutes * 60_000L;
                 raftGroup.markTruncateByTimestamp(bound,
                         groupConfig.autoDeleteLogDelaySeconds * 1000L);

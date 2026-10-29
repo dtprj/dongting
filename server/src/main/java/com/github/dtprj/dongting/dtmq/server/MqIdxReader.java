@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.fiber.SimpleFrame;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
@@ -71,10 +72,12 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     static void scanMemory(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result) {
+        MqIdxManager mgr = pull.mq.manager;
+        RaftStatusImpl rs = pull.mq.raftStatus;
         long seq = result.requestedSeq;
         MqIdxBlock block = queue.getBlock(seq);
-        long pos = block == null ? -1 : pull.manager.getIdxItemInBlock(block, seq);
-        if (seq == 0 || (block != null && pos < pull.raftStatus.firstValidPos)) {
+        long pos = block == null ? -1 : mgr.getIdxItemInBlock(block, seq);
+        if (seq == 0 || (block != null && pos < rs.firstValidPos)) {
             seq = findStartInMemory(pull, queue);
             if (seq < 0) {
                 result.needsIo = true;
@@ -88,7 +91,7 @@ final class MqIdxReader extends FiberFrame<Void> {
             }
             block = queue.getBlock(seq);
             //noinspection DataFlowIssue
-            pos = pull.manager.getIdxItemInBlock(block, seq);
+            pos = mgr.getIdxItemInBlock(block, seq);
             if (result.truncated) {
                 result.resetPos = pos;
                 return;
@@ -98,8 +101,8 @@ final class MqIdxReader extends FiberFrame<Void> {
             return;
         }
         while (true) {
-            if (!consumeItem(pull, queue, result, queue.nextSeq, seq, pos, pull.manager.lastGetSize,
-                    pull.manager.lastGetRaftIndex, true)) {
+            RaftTask task = mgr.lastGetRaftIndex == 0 ? null : rs.tailCache.get(mgr.lastGetRaftIndex);
+            if (!consumeItem(pull, queue, result, queue.nextSeq, seq, pos, mgr.lastGetSize, task, true)) {
                 return;
             }
             seq = result.nextSeq;
@@ -110,12 +113,13 @@ final class MqIdxReader extends FiberFrame<Void> {
                     return;
                 }
             }
-            pos = pull.manager.getIdxItemInBlock(block, seq);
+            pos = mgr.getIdxItemInBlock(block, seq);
         }
     }
 
     private static long findStartInMemory(MqPullFrame pull, MqIdxQueue queue) {
-        long minPos = pull.raftLog.firstReadablePos();
+        MqIdxManager mgr = pull.mq.manager;
+        long minPos = pull.mq.raftLog.firstReadablePos();
         long low = queue.firstAvailableSeq();
         long high = queue.nextSeq;
         long seq = low;
@@ -124,8 +128,8 @@ final class MqIdxReader extends FiberFrame<Void> {
             if (block == null) {
                 return -1;
             }
-            long pos = pull.manager.getIdxItemInBlock(block, seq);
-            if (pull.manager.lastGetSize == 0 || pos < minPos) {
+            long pos = mgr.getIdxItemInBlock(block, seq);
+            if (mgr.lastGetSize == 0 || pos < minPos) {
                 low = seq + 1;
             } else {
                 high = seq;
@@ -136,14 +140,13 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private static boolean consumeItem(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result,
-                                       long endSeq, long seq, long pos, int size, long raftIndex, boolean memoryOnly) {
+                                       long endSeq, long seq, long pos, int size, RaftTask task, boolean memoryOnly) {
         if (size < LogHeader.ITEM_HEADER_SIZE) {
             throw new ChecksumException("invalid mq item size: queue=" + queue.queueId + ", seq=" + seq);
         }
         if (!pull.hasCapacity(size)) {
             return false;
         }
-        RaftTask task = raftIndex == 0 ? null : pull.raftStatus.tailCache.get(raftIndex);
         if (memoryOnly && task == null) {
             result.needsIo = true;
             return false;
@@ -155,14 +158,14 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private FrameCallResult checkStart(Void unused) {
-        if (pos < pull.raftStatus.firstValidPos) {
+        if (pos < pull.mq.raftStatus.firstValidPos) {
             return seekStart();
         }
         return collect();
     }
 
     private FrameCallResult seekStart() {
-        minPos = pull.raftLog.firstReadablePos();
+        minPos = pull.mq.raftLog.firstReadablePos();
         low = Math.min(queue.firstAvailableSeq(), endSeq);
         high = endSeq;
         return search(null);
@@ -193,7 +196,7 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterSearch(Void unused) {
-        if (size == 0 || pos < pull.raftLog.firstReadablePos()) {
+        if (size == 0 || pos < pull.mq.raftLog.firstReadablePos()) {
             return seekStart();
         }
         if (result.truncated) {
@@ -204,8 +207,10 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private FrameCallResult collect() {
+        RaftStatusImpl rs = pull.mq.raftStatus;
         while (true) {
-            if (!consumeItem(pull, queue, result, endSeq, seq, pos, size, raftIndex, false)) {
+            RaftTask task = raftIndex == 0 ? null : rs.tailCache.get(raftIndex);
+            if (!consumeItem(pull, queue, result, endSeq, seq, pos, size, task, false)) {
                 return Fiber.frameReturn();
             }
             seq = result.nextSeq;
@@ -217,7 +222,7 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     // firstValidPos may advance, or the idx file vanish, while suspended on I/O
     private FrameCallResult afterLoad(Void unused) {
-        if (pos < pull.raftStatus.firstValidPos) {
+        if (pos < pull.mq.raftStatus.firstValidPos) {
             pull.retry = true;
             return Fiber.frameReturn();
         }
@@ -225,10 +230,11 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private boolean loadCachedItem() {
-        pos = pull.manager.getIdxItemInCache(queue.queueId, seq);
+        MqIdxManager mgr = pull.mq.manager;
+        pos = mgr.getIdxItemInCache(queue.queueId, seq);
         if (pos >= 0) {
-            size = pull.manager.lastGetSize;
-            raftIndex = pull.manager.lastGetRaftIndex;
+            size = mgr.lastGetSize;
+            raftIndex = mgr.lastGetRaftIndex;
             return true;
         }
         if (diskStart <= seq && seq < diskEnd) {
@@ -252,7 +258,7 @@ final class MqIdxReader extends FiberFrame<Void> {
         diskStart = seq & ~((long) MqIdxBlock.BLOCK_MASK);
         diskEnd = Math.min(diskStart + MqIdxBlock.BLOCK_ITEMS, endSeq);
         if (diskBuffer == null) {
-            diskBuffer = pull.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirectLocal(
+            diskBuffer = pull.mq.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirectLocal(
                     MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN);
         }
         ByteBuffer buf = diskBuffer.getBuffer();
@@ -260,7 +266,7 @@ final class MqIdxReader extends FiberFrame<Void> {
         file.incReaders();
         readingFile = file;
         long offset = diskStart * MqIdxManager.ITEM_LEN & (queue.getFileSize() - 1);
-        pending = new AsyncIoTask(pull.groupConfig.fiberGroup, file).read(buf, offset);
+        pending = new AsyncIoTask(pull.mq.groupConfig.fiberGroup, file).read(buf, offset);
         return pending.await(v -> {
             endRead();
             pull.checkCancelled();

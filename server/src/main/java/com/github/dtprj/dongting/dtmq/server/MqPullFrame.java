@@ -31,7 +31,6 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.LogHeader;
-import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -76,10 +75,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         }
     }
 
-    private final DtMQ mq;
-    final RaftGroupConfigEx groupConfig;
-    final RaftStatusImpl raftStatus;
-    final RaftLog raftLog;
+    final DtMQ mq;
     final long[] queueIds;
     final long[] fromSeqs;
     // created lazily, one entry per scanned queue; null entry means idle and encodes from fromSeqs
@@ -89,7 +85,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     private final long waitNanos;
     private final DtTime deadline;
     private FiberCondition changed;
-    MqIdxManager manager;
     DtChannel channel;
     private boolean cancelled;
     private boolean waiting;
@@ -107,8 +102,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     private RefBuffer buffer;
     private List<ByteBuffer> segments;
 
-    MqPullFrame(DtMQ mq, RaftGroupConfigEx groupConfig, RaftLog raftLog,
-                long[] queueIds, long[] fromSeqs, int limit, int bytesLimit, long waitMillis, DtTime deadline) {
+    MqPullFrame(DtMQ mq, long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,
+                long waitMillis, DtTime deadline) {
         if (queueIds.length == 0 || queueIds.length != fromSeqs.length) {
             throw new IllegalArgumentException("queueIds and fromSeqs must have the same nonzero length");
         }
@@ -118,9 +113,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             throw new IllegalArgumentException("invalid waitMillis: " + waitMillis);
         }
         this.mq = mq;
-        this.groupConfig = groupConfig;
-        this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
-        this.raftLog = raftLog;
         this.limit = limit;
         this.bytesLimit = bytesLimit;
         this.waitNanos = TimeUnit.MILLISECONDS.toNanos(waitMillis);
@@ -172,18 +164,21 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (getFiber().isDaemon()) {
             throw new RaftException("mq pull should not run in daemon fiber");
         }
-        manager = mq.manager;
         mq.activePulls.add(this);
         return scan(null);
     }
 
     private boolean isCancelled() {
+        RaftGroupConfigEx gc = mq.groupConfig;
         boolean channelClosed = channel != null && !channel.getChannel().isOpen();
-        if (Thread.currentThread() != groupConfig.fiberGroup.dispatcher.thread) {
-            return channelClosed || groupConfig.fiberGroup.shareStatusSource.getShareStatus(true).shouldStop;
+        if (Thread.currentThread() != gc.fiberGroup.dispatcher.thread) {
+            return channelClosed || gc.fiberGroup.shareStatusSource.getShareStatus(true).shouldStop;
         }
-        return channelClosed || cancelled || raftStatus.isShouldStop() || raftStatus.installSnapshot
-                || manager == null || manager.markClose || manager != mq.manager;
+        RaftStatusImpl rs = mq.raftStatus;
+        MqIdxManager m = mq.manager;
+        // the manager is swapped only inside DtMQ.startInstall(), which sets installing first
+        return channelClosed || cancelled || rs.isShouldStop() || rs.installSnapshot || mq.installing
+                || m == null || m.markClose;
     }
 
     void checkCancelled() {
@@ -200,8 +195,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         checkCancelled();
         if (waitEnd == 0) {
             // fresh anchor; a stale one would shorten the wait
-            groupConfig.ts.refresh(1);
-            waitEnd = groupConfig.ts.nanoTime + waitNanos;
+            mq.groupConfig.ts.refresh(1);
+            waitEnd = mq.groupConfig.ts.nanoTime + waitNanos;
         }
         changeVersion = mq.changeVersion;
         queueIndex = 0;
@@ -217,7 +212,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             }
         }
         for (int i = 0; i < queueIds.length && hasCapacity(LogHeader.ITEM_HEADER_SIZE); i++) {
-            MqIdxQueue queue = manager.queues.get(queueIds[i]);
+            MqIdxQueue queue = mq.manager.queues.get(queueIds[i]);
             if (queue == null || fromSeqs[i] >= queue.nextSeq) {
                 continue;
             }
@@ -244,7 +239,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             QueueResult r = results[queueIndex++];
             if (r != null && r.needsIo) {
                 r.ioStart = count;
-                return Fiber.call(new MqIdxReader(this, manager.queues.get(r.queueId), r), this::readQueue);
+                return Fiber.call(new MqIdxReader(this, mq.manager.queues.get(r.queueId), r), this::readQueue);
             }
         }
         if (!resetPositionsValid()) {
@@ -260,7 +255,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 }
             }
         }
-        long rest = waitEnd - groupConfig.ts.nanoTime;
+        long rest = waitEnd - mq.groupConfig.ts.nanoTime;
         if (waitNanos == 0 || rest <= 0) {
             return prepareResponse();
         }
@@ -272,7 +267,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (rest <= 0) {
             throw new RaftTimeoutException("mq pull timeout");
         }
-        return changed.await(rest, TimeUnit.NANOSECONDS, groupConfig.fiberGroup.shouldStopCondition, this::scan);
+        return changed.await(rest, TimeUnit.NANOSECONDS, mq.groupConfig.fiberGroup.shouldStopCondition, this::scan);
     }
 
     boolean hasCapacity(int size) {
@@ -313,7 +308,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         int headerSize = MqPullResp.headerSize(queueIds, fromSeqs, results, bytes);
         bodySize = Math.addExact(headerSize, bytes);
         int bufferSize = bodySize - cachedZeroCopyBytes;
-        buffer = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirect(bufferSize);
+        buffer = mq.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirect(bufferSize);
         ByteBuffer dest = buffer.getBuffer();
         dest.limit(bufferSize);
         MqPullResp.writeHeader(dest, queueIds, fromSeqs, results, bytes);
@@ -378,7 +373,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 offsets[readCount++] = offsets[i];
             }
         }
-        return Fiber.call(raftLog.read(positions, lengths, offsets, readCount, dest, this::isCancelled),
+        return Fiber.call(mq.raftLog.read(positions, lengths, offsets, readCount, dest, this::isCancelled),
                 this::afterRead);
     }
 
@@ -398,10 +393,10 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         for (QueueResult r : results) {
             if (r != null && r.truncated) {
                 if (first < 0) {
-                    first = raftLog.firstReadablePos();
+                    first = mq.raftLog.firstReadablePos();
                 }
                 if (r.resetPos < first
-                        || (r.resetPos == Long.MAX_VALUE && manager.queues.get(r.queueId).nextSeq > r.fromSeq)) {
+                        || (r.resetPos == Long.MAX_VALUE && mq.manager.queues.get(r.queueId).nextSeq > r.fromSeq)) {
                     return false;
                 }
             }
@@ -428,7 +423,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         waiting = true;
         // registration stays until doFinally; signals missed during scans are covered
         // by the changeVersion re-check
-        changed = groupConfig.fiberGroup.newCondition("mqPull");
+        changed = mq.groupConfig.fiberGroup.newCondition("mqPull");
         for (long id : queueIds) {
             HashSet<MqPullFrame> set = mq.waitingPulls.get(id);
             if (set == null) {

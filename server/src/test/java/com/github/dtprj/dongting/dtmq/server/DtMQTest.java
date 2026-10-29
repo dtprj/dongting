@@ -20,6 +20,8 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -30,7 +32,6 @@ import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
-import com.github.dtprj.dongting.raft.test.MockRaftGroup;
 import com.github.dtprj.dongting.test.TestDir;
 import org.junit.jupiter.api.Test;
 
@@ -78,7 +79,12 @@ class DtMQTest extends BaseFiberTest {
         rs.lastAppliedTerm = 1;
         config.raftStatus = rs;
         DtMQ m = new DtMQ(config, new MqServerConfig());
-        m.setRaftGroup(new MockRaftGroup(1));
+        GroupComponents components = new GroupComponents();
+        components.groupConfig = config;
+        components.raftStatus = rs;
+        components.fiberGroup = fiberGroup;
+        components.stateMachine = m;
+        m.setRaftGroup(new RaftGroupImpl(components));
         // bind instances to locals: the supplier runs lazily, fields may be reassigned by then
         snapshotManager = new DefaultSnapshotManager(config, m,
                 () -> m.takeSnapshot(new SnapshotInfo(rs)));
