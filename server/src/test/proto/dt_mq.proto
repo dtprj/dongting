@@ -49,9 +49,8 @@ message MqPullReq {
 message MqPullQueueResult {
   fixed64 queue_id = 1;
   fixed64 from_seq = 2;
-  fixed64 next_seq = 3;
-  int32 count = 4;
-  bool truncated = 5; // no records; retry from from_seq
+  int32 count = 3; // next pull cursor = from_seq + count
+  bool truncated = 4; // no records; retry from from_seq
 }
 
 message MqPullResp {

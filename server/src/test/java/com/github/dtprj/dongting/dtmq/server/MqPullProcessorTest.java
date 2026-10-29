@@ -86,13 +86,14 @@ class MqPullProcessorTest extends ServerTestBase {
             append(server, 11, 32);
             DtMq.MqPullResp first = response(send(client, peer, request(11, 0, 0)));
             assertEquals(1, first.getResults(0).getCount());
-            assertEquals(1, first.getResults(0).getNextSeq());
+            assertEquals(0, first.getResults(0).getFromSeq());
             assertEquals(LogHeader.computeTotalLen(0, bodySize), first.getRecords().size());
 
+            long cursor = first.getResults(0).getFromSeq() + first.getResults(0).getCount();
             DtMq.MqPullResp second = response(send(client, peer,
-                    request(11, 1, 0).toBuilder().setBytesLimit(1).build()));
+                    request(11, cursor, 0).toBuilder().setBytesLimit(1).build()));
             assertEquals(1, second.getResults(0).getCount());
-            assertEquals(2, second.getResults(0).getNextSeq());
+            assertEquals(1, second.getResults(0).getFromSeq());
             assertEquals(LogHeader.computeTotalLen(0, 32), second.getRecords().size());
 
             CompletableFuture<ReadPacket<byte[]>> waiting = send(client, peer, request(22, 0, tick(20_000)));

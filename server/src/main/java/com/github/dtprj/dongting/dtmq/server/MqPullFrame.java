@@ -42,12 +42,11 @@ import java.util.concurrent.TimeUnit;
 
 /** Returns a pre-encoded response; the caller sends it or calls clean(). */
 public final class MqPullFrame extends FiberFrame<MqPullResp> {
-    /** Truncated queues return only a retry cursor. */
+    /** Truncated queues return only a retry cursor. The next cursor is fromSeq + count. */
     public static final class QueueResult {
         public final long queueId;
         final long requestedSeq;
         public long fromSeq;
-        public long nextSeq;
         public int count;
         public boolean truncated;
         long resetPos;
@@ -64,7 +63,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
 
         private void reset() {
             fromSeq = requestedSeq;
-            nextSeq = requestedSeq;
             count = 0;
             truncated = false;
             resetPos = Long.MAX_VALUE;

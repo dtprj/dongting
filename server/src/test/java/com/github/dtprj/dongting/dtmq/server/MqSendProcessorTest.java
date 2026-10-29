@@ -302,7 +302,6 @@ class MqSendProcessorTest extends ServerTestBase {
         assertEquals(queueId, result.getQueueId());
         assertEquals(0, result.getFromSeq());
         assertEquals(messages.length, result.getCount());
-        assertEquals(messages.length, result.getNextSeq());
         assertFalse(result.getTruncated());
         ByteBuffer records = resp.getRecords().asReadOnlyByteBuffer();
         for (int i = 0; i < messages.length; i++) {

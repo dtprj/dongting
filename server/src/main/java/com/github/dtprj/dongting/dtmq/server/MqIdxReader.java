@@ -63,8 +63,7 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) {
-        // nextSeq, not requestedSeq: the memory scan may have collected a prefix already
-        seq = result.nextSeq;
+        seq = result.fromSeq + result.count;
         if (seq == 0 || seq < queue.firstAvailableSeq()) {
             return seekStart();
         }
@@ -84,7 +83,6 @@ final class MqIdxReader extends FiberFrame<Void> {
                 return;
             }
             result.fromSeq = seq;
-            result.nextSeq = seq;
             result.truncated = result.requestedSeq != 0;
             if (seq == queue.nextSeq) {
                 return;
@@ -105,7 +103,7 @@ final class MqIdxReader extends FiberFrame<Void> {
             if (!consumeItem(pull, queue, result, queue.nextSeq, seq, pos, mgr.lastGetSize, task, true)) {
                 return;
             }
-            seq = result.nextSeq;
+            seq++;
             if ((seq & MqIdxBlock.BLOCK_MASK) == 0) {
                 block = queue.getBlock(seq);
                 if (block == null) {
@@ -153,7 +151,6 @@ final class MqIdxReader extends FiberFrame<Void> {
         }
         pull.add(pos, size, task);
         result.count++;
-        result.nextSeq = seq + 1;
         return seq + 1 != endSeq && pull.hasCapacity(LogHeader.ITEM_HEADER_SIZE);
     }
 
@@ -173,9 +170,9 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     private FrameCallResult search(Void unused) {
         if (low == high) {
+            // count is always 0 here: needsIo is set before any record is collected
             seq = low;
             result.fromSeq = seq;
-            result.nextSeq = seq;
             result.truncated = result.requestedSeq != 0;
             if (seq == endSeq) {
                 return Fiber.frameReturn();
@@ -213,7 +210,7 @@ final class MqIdxReader extends FiberFrame<Void> {
             if (!consumeItem(pull, queue, result, endSeq, seq, pos, size, task, false)) {
                 return Fiber.frameReturn();
             }
-            seq = result.nextSeq;
+            seq++;
             if (!loadCachedItem()) {
                 return loadItem(this::afterLoad);
             }
