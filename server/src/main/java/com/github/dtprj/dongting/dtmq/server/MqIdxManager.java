@@ -164,7 +164,8 @@ class MqIdxManager {
     }
 
     /**
-     * Returns the position, or -1 on miss; on hit, updates lastGetTimestamp/lastGetSize/lastGetRaftIndex.
+     * Returns the position, or -1 if the item is not in memory or the slot is empty;
+     * lastGetTimestamp/lastGetSize/lastGetRaftIndex are updated when the block is in memory.
      */
     long getIdxItemInCache(long queueId, long seq) {
         MqIdxQueue q = queues.get(queueId);
@@ -175,14 +176,18 @@ class MqIdxManager {
         return getIdxItemInBlock(b, seq);
     }
 
-    /** Returns the position; timestamp, size and raftIndex are exposed via the lastGet fields. */
+    /**
+     * Returns the position, or -1 if the slot holds no item (size is 0); timestamp, size and
+     * raftIndex are exposed via the lastGet fields.
+     */
     long getIdxItemInBlock(MqIdxBlock b, long seq) {
         ByteBuffer buffer = b.buffer;
         int slot = ((int) (seq & MqIdxBlock.BLOCK_MASK)) * MqIdxBlock.SLOT_SIZE;
+        long pos = buffer.getLong(slot);
         lastGetTimestamp = buffer.getLong(slot + 8);
         lastGetSize = buffer.getInt(slot + 16);
         lastGetRaftIndex = buffer.getLong(slot + 20);
-        return buffer.getLong(slot);
+        return lastGetSize == 0 ? -1 : pos;
     }
 
     static void decode(ByteBuffer src, int itemCount, MqIdxBlock b) {
@@ -194,8 +199,12 @@ class MqIdxManager {
             long timestamp = src.getLong(recStart + 8);
             // reserved at recStart + 16, not cached
             int itemSize = src.getInt(recStart + 24);
-            RaftUtil.updateCrc(crc, src, recStart, ITEM_LEN - 4);
             int actualCrc = src.getInt(recStart + 28);
+            // no item: a pre-allocated file that was never written
+            if (pos == 0 && timestamp == 0 && itemSize == 0 && actualCrc == 0) {
+                continue;
+            }
+            RaftUtil.updateCrc(crc, src, recStart, ITEM_LEN - 4);
             if (actualCrc != (int) crc.getValue()) {
                 // TODO recover use raft idx/log data
                 throw new ChecksumException("mq idx crc check failed: queue=" + b.owner.queueId

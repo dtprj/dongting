@@ -301,7 +301,9 @@ class DtMQTest extends BaseFiberTest {
             private FrameCallResult afterExec(Object result) {
                 assertNull(result);
                 assertEquals(301, mq.manager.queues.get(7).nextSeq);
-                assertEquals(0L, mq.manager.getIdxItemInCache(7, 299));
+                assertEquals(1, mq.manager.queues.get(7).blocks.size());
+                // the zeroed prefix of the loaded head block is a miss, not position 0
+                assertEquals(-1L, mq.manager.getIdxItemInCache(7, 299));
                 return mq.manager.flusher.flushAll().await(this::afterPostInstallFlush);
             }
 

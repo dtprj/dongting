@@ -160,6 +160,7 @@ class MqIdxManagerTest extends BaseFiberTest {
         MqIdxQueue q = manager.queues.get(1);
         assertThrows(IllegalArgumentException.class, () -> q.append(2, 20, 200, 3, 3));
         assertThrows(IllegalArgumentException.class, () -> q.append(0, 0, 0, 1, 1));
+        assertThrows(IllegalArgumentException.class, () -> q.append(1, 20, 200, 0, 3));
         append(1, 1);
         assertEquals(2, manager.queues.get(1).nextSeq);
         assertHit(1, 1);
@@ -204,7 +205,7 @@ class MqIdxManagerTest extends BaseFiberTest {
         q2.installHeadBlock(null);
         assertEquals(256, q2.firstSeqInCache);
         assertEquals(44, q2.blocks.getFirst().count);
-        assertEquals(0, manager.getIdxItemInCache(2, 299));
+        assertEquals(-1, manager.getIdxItemInCache(2, 299));
         append(2, 300);
         assertHit(2, 300);
 
@@ -220,6 +221,15 @@ class MqIdxManagerTest extends BaseFiberTest {
         corrupted.put(40, (byte) (corrupted.get(40) + 1));
         assertThrows(ChecksumException.class, () -> q4.installHeadBlock(corrupted));
         assertTrue(q4.needLoadHead);
+
+        manager.register(5, 300);
+        MqIdxQueue q5 = manager.queues.get(5);
+        // a crash right after file pre-allocation leaves the block all zeros
+        q5.installHeadBlock(ByteBuffer.allocate(MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN));
+        assertFalse(q5.needLoadHead);
+        assertEquals(-1, manager.getIdxItemInCache(5, 299));
+        append(5, 300);
+        assertHit(5, 300);
     }
 
     @Test

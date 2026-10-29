@@ -541,6 +541,31 @@ class MqPullTest extends BaseFiberTest {
     }
 
     @Test
+    void testPullFromZeroedHeadBlockPrefix() throws Exception {
+        doInFiber(() -> mq.manager.register(2, 300));
+        RaftTask item = item(2, 64);
+        append(item);
+        // the idx file is absent, so slots 256..299 of the installed head block stay unwritten
+        Pull truncated = pull(new long[]{2}, new long[]{280}, 10, 4096, 0);
+        assertRecords(truncated);
+        assertQueue(truncated, 0, 300, 0, true);
+        assertEquals(0, logReadCount);
+        Pull rest = pull(new long[]{2}, new long[]{300}, 10, 4096, 0);
+        assertRecords(rest, item);
+        assertQueue(rest, 0, 300, 1, false);
+
+        // the flush persists the zeroed prefix, a restarted manager reads it back from disk
+        await(() -> mq.manager.flusher.flushAll());
+        await(() -> mq.startInstall(false));
+        doInFiber(() -> mq.manager.register(2, 301));
+        await(() -> mq.installSnapshot(0, 0, 0, true, null));
+        Pull disk = pull(new long[]{2}, new long[]{280}, 10, 4096, 0);
+        assertRecords(disk);
+        assertQueue(disk, 0, 300, 0, true);
+        assertClean();
+    }
+
+    @Test
     void testLongPollNewQueueAndTimeout() throws Exception {
         Pull waiting = waitingPull(99, 100);
         doInFiber(() -> assertNull(mq.manager.queues.get(99)));

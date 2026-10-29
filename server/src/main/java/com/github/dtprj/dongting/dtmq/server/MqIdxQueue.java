@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtBugException;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -158,6 +159,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
             throw new IllegalArgumentException("seq not continuous: queue=" + queueId
                     + ", seq=" + seq + ", nextSeq=" + nextSeq);
         }
+        DtUtil.checkPositive(itemSize, "itemSize");
         if (needLoadHead) {
             throw new DtBugException("append before head block loaded: queue=" + queueId);
         }

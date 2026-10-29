@@ -127,7 +127,8 @@ final class MqIdxReader extends FiberFrame<Void> {
                 return -1;
             }
             long pos = mgr.getIdxItemInBlock(block, seq);
-            if (mgr.lastGetSize == 0 || pos < minPos) {
+            // a slot with no item is -1, also below minPos
+            if (pos < minPos) {
                 low = seq + 1;
             } else {
                 high = seq;
@@ -184,7 +185,7 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private FrameCallResult searchStep(Void unused) {
-        if (size == 0 || pos < minPos) {
+        if (pos < minPos) {
             low = seq + 1;
         } else {
             high = seq;
@@ -193,7 +194,7 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterSearch(Void unused) {
-        if (size == 0 || pos < pull.mq.raftLog.firstReadablePos()) {
+        if (pos < pull.mq.raftLog.firstReadablePos()) {
             return seekStart();
         }
         if (result.truncated) {
@@ -276,11 +277,13 @@ final class MqIdxReader extends FiberFrame<Void> {
         raftIndex = 0;
         ByteBuffer buf = diskBuffer.getBuffer();
         int offset = (int) (seq - diskStart) * MqIdxManager.ITEM_LEN;
-        // Snapshot recovery can leave whole, unwritten blocks before the append point.
-        if (buf.getLong(offset) == 0 && buf.getLong(offset + 8) == 0
-                && buf.getLong(offset + 16) == 0 && buf.getLong(offset + 24) == 0) {
+        pos = buf.getLong(offset);
+        long timestamp = buf.getLong(offset + 8);
+        size = buf.getInt(offset + 24);
+        int actualCrc = buf.getInt(offset + 28);
+        // no item: a pre-allocated file that was never written
+        if (pos == 0 && timestamp == 0 && size == 0 && actualCrc == 0) {
             pos = -1;
-            size = 0;
             return;
         }
         if (crc == null) {
@@ -289,11 +292,13 @@ final class MqIdxReader extends FiberFrame<Void> {
             crc.reset();
         }
         RaftUtil.updateCrc(crc, buf, offset, MqIdxManager.ITEM_LEN - 4);
-        if (buf.getInt(offset + 28) != (int) crc.getValue()) {
+        if (actualCrc != (int) crc.getValue()) {
             throw new ChecksumException("mq idx crc check failed: queue=" + queue.queueId + ", seq=" + seq);
         }
-        pos = buf.getLong(offset);
-        size = buf.getInt(offset + 24);
+        // a flushed hole has all-zero fields and a valid crc
+        if (size == 0) {
+            pos = -1;
+        }
     }
 
     private void endRead() {
