@@ -76,16 +76,22 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding1<E> {
                     // backward propagation (init)
                     newTail.shutdownStatus = LinkedNode.SHUTDOWN_STATUS_AFTER;
                 } else {
+                    FIND_SHUTDOWN_STATUS:
                     for (int i = 0; ; i++) {
                         if (oldTail.shutdownStatus == LinkedNode.SHUTDOWN_STATUS_AFTER) {
                             // backward propagation
                             newTail.shutdownStatus = LinkedNode.SHUTDOWN_STATUS_AFTER;
                             break;
                         }
-                        if (newTail.shutdownStatus == LinkedNode.SHUTDOWN_STATUS_BEFORE) {
-                            // forward propagation
-                            oldTail.shutdownStatus = LinkedNode.SHUTDOWN_STATUS_BEFORE;
-                            break;
+                        // forward propagation may be broken since some operation may read shutdown == false
+                        // and exit early, so we walk the next chain
+                        LinkedNode<E> next = getNextAcquire(newTail);
+                        while (next != null) {
+                            if (next.shutdownStatus == LinkedNode.SHUTDOWN_STATUS_BEFORE || next == SHUTDOWN_NODE) {
+                                newTail.shutdownStatus = LinkedNode.SHUTDOWN_STATUS_BEFORE;
+                                break FIND_SHUTDOWN_STATUS;
+                            }
+                            next = getNextAcquire(next);
                         }
                         spin(i);
                     }
