@@ -186,7 +186,8 @@ public class NioServerTest {
             assertEquals(-1, in.read());
             if (packetType != 0) {
                 assertNotNull(partialBody.get());
-                assertTrue(partialBody.get().isReleased());
+                // buffer is released by io thread after socket close, may be later than EOF
+                WaitUtil.waitUtil(() -> partialBody.get().isReleased());
             }
         }
     }
