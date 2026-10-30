@@ -196,19 +196,15 @@ public final class DefaultRaftLog implements RaftLog {
     @Override
     public long firstReadablePos() {
         IndexedQueue<MainLogFile> queue = logFiles.queue;
-        int low = 0;
-        int high = queue.size();
-        // markDelete and deleteFirstFile only mark a prefix.
-        while (low < high) {
-            int mid = (low + high) >>> 1;
-            MainLogFile file = queue.get(mid);
-            if (file.endPos <= raftStatus.firstValidPos || file.deleteTimestamp != 0 || file.deleted) {
-                low = mid + 1;
-            } else {
-                high = mid;
+        int size = queue.size();
+        // pending-delete files are only a short prefix at the head
+        for (int i = 0; i < size; i++) {
+            MainLogFile file = queue.get(i);
+            if (file.endPos > raftStatus.firstValidPos && file.deleteTimestamp == 0 && !file.deleted) {
+                return Math.max(file.startPos, raftStatus.firstValidPos);
             }
         }
-        return low == queue.size() ? Long.MAX_VALUE : Math.max(queue.get(low).startPos, raftStatus.firstValidPos);
+        return Long.MAX_VALUE;
     }
 
     @Override
