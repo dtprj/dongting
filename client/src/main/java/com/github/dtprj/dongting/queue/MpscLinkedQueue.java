@@ -91,11 +91,10 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding1<E> {
                     }
                 }
 
-                // don't keep reference
-                newTail.setValue(null);
-
                 //noinspection StatementWithEmptyBody
                 if (newTail.shutdownStatus == LinkedNode.SHUTDOWN_STATUS_AFTER) {
+                    // don't keep reference
+                    newTail.setValue(null);
                     return false;
                 } else {
                     // go down to set nextRelease and return true
