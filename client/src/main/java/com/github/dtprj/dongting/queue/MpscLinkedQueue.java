@@ -60,9 +60,8 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding1<E> {
     }
 
     private boolean offer0(LinkedNode<E> newTail) {
-        // need getAndSetProducerNodePlain, but no such method
-        LinkedNode<E> oldTail = getAndSetTailRelease(newTail);
-        if (shutdown) { // volatile read
+        LinkedNode<E> oldTail = getAndSetTail(newTail);
+        if (shutdown) { // plain read
             if (newTail == SHUTDOWN_NODE) {
                 // forward propagation (init)
                 oldTail.shutdownStatus = LinkedNode.SHUTDOWN_STATUS_BEFORE;
@@ -112,13 +111,13 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding1<E> {
         return true;
     }
 
-    protected abstract LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode);
+    protected abstract LinkedNode<E> getAndSetTail(LinkedNode<E> nextNode);
 
     /**
      * The complex shutdown logic in offer0 method ensures shutdown behavior is graceful and strict.
      * All the elements offered before SHUTDOWN_NODE will return true and be visible to the consumer.
      * All the elements offered after SHUTDOWN_NODE will return false and won't be visible to the consumer.
-     * After shutdown is called, the consumer should invoke poll() until it returns null, and then exit safely,
+     * After shutdown is called, the consumer should invoke relaxedPoll() until isConsumeFinished() returns true,
      * no elements can be added to the queue successfully and not be consumed.
      */
     @SuppressWarnings("unchecked")

@@ -39,7 +39,7 @@ public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected LinkedNode<E> getAndSetTailRelease(LinkedNode<E> nextNode) {
+    protected LinkedNode<E> getAndSetTail(LinkedNode<E> nextNode) {
         return (LinkedNode<E>) PRODUCER_NODE.getAndSet(this, nextNode);
     }
 

@@ -21,6 +21,6 @@ import com.github.dtprj.dongting.common.Padding0;
  * @author huangli
  */
 public class LinkedQueueProducerRef<E> extends Padding0 {
-    protected volatile boolean shutdown;
+    protected boolean shutdown;
     protected volatile LinkedNode<E> tail;
 }
