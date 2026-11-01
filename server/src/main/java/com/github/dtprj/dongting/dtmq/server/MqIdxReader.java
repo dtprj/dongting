@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.HandlerFrame;
 import com.github.dtprj.dongting.fiber.SimpleFrame;
+import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -163,6 +165,12 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private FrameCallResult seekStart() {
+        if (result.count > 0) {
+            // a seek would reset fromSeq and strand the collected records; fail the pull
+            BugLog.log("mq idx seek with collected records: queue={}, fromSeq={}, count={}",
+                    queue.queueId, result.fromSeq, result.count);
+            throw new RaftException("mq idx seek with collected records");
+        }
         minPos = pull.mq.raftLog.firstReadablePos();
         low = Math.min(queue.firstAvailableSeq(), endSeq);
         high = endSeq;
