@@ -48,8 +48,11 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         public long fromSeq;
         public int count;
         public boolean truncated;
+        // pos of the item at fromSeq, or Long.MAX_VALUE if the seek lands on endSeq
         long resetPos;
+        // the memory scan cannot serve this queue; the io reader continues from fromSeq + count
         boolean needsIo;
+        // indexes into the flat item arrays of MqPullFrame: memory part, then io part
         int memoryStart;
         int memoryCount;
         int ioStart;
@@ -77,26 +80,34 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     final long[] fromSeqs;
     // created lazily, one entry per scanned queue; null entry means idle and encodes from fromSeqs
     QueueResult[] results;
+    DtChannel channel;
     final int limit;
     final int bytesLimit;
     private final long waitNanos;
     private final DtTime deadline;
-    private FiberCondition changed;
-    DtChannel channel;
+
     private boolean cancelled;
-    private boolean waiting;
+    // absolute end of this long poll; 0 until the first scan anchors it
     private long waitEnd;
+    private FiberCondition changed;
+    private boolean waiting;
+    // mq.changeVersion snapshot; a mismatch after a scan means appends landed during it
     private long changeVersion;
     private int queueIndex;
-    private long[] positions;
-    private int[] lengths;
+    // set by the io reader on stale state; the whole scan restarts
+    boolean retry;
+
+    // flat item arrays shared by all queues; msgPositions is allocated lazily, disk items only
+    private long[] msgPositions;
+    private int[] msgSizes;
     private RefBuffer[] cached;
     private int count;
     private int bytes;
+    // zero-copy bytes, excluded from the borrowed response buffer size
     private int cachedZeroCopyBytes;
     private int bodySize;
-    boolean retry;
     private RefBuffer buffer;
+    // gathering-write segments for large zero-copy items
     private List<ByteBuffer> segments;
 
     MqPullFrame(DtMQ mq, long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,
@@ -182,7 +193,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (isCancelled()) {
             throw new RaftCancelException("mq pull cancelled");
         }
-        if (deadline.isTimeout()) {
+        if (deadline.isTimeout(mq.raftStatus.ts)) {
             throw new RaftTimeoutException("mq pull timeout");
         }
     }
@@ -273,16 +284,16 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     }
 
     void add(long pos, int size, RaftTask task) {
-        if (lengths == null) {
+        if (msgSizes == null) {
             int n = Math.min(limit, 16);
-            lengths = new int[n];
+            msgSizes = new int[n];
             cached = new RefBuffer[n];
-        } else if (count == lengths.length) {
+        } else if (count == msgSizes.length) {
             int n = (int) Math.min(limit, (long) count * 2);
-            if (positions != null) {
-                positions = Arrays.copyOf(positions, n);
+            if (msgPositions != null) {
+                msgPositions = Arrays.copyOf(msgPositions, n);
             }
-            lengths = Arrays.copyOf(lengths, n);
+            msgSizes = Arrays.copyOf(msgSizes, n);
             cached = Arrays.copyOf(cached, n);
         }
         if (task != null) {
@@ -293,12 +304,12 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 cachedZeroCopyBytes += size;
             }
         } else {
-            if (positions == null) {
-                positions = new long[lengths.length];
+            if (msgPositions == null) {
+                msgPositions = new long[msgSizes.length];
             }
-            positions[count] = pos;
+            msgPositions[count] = pos;
         }
-        lengths[count++] = size;
+        msgSizes[count++] = size;
         bytes += size;
     }
 
@@ -323,7 +334,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 if (n == r.memoryCount) {
                     i = r.ioStart;
                 }
-                int size = lengths[i];
+                int size = msgSizes[i];
                 RefBuffer ref = cached[i];
                 if (ref == null) {
                     if (offsets == null) {
@@ -366,12 +377,12 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         for (int i = 0; i < count; i++) {
             // Every disk offset follows the header; zero denotes an in-memory record.
             if (offsets[i] != 0) {
-                positions[readCount] = positions[i];
-                lengths[readCount] = lengths[i];
+                msgPositions[readCount] = msgPositions[i];
+                msgSizes[readCount] = msgSizes[i];
                 offsets[readCount++] = offsets[i];
             }
         }
-        return Fiber.call(mq.raftLog.read(positions, lengths, offsets, readCount, dest, this::isCancelled),
+        return Fiber.call(mq.raftLog.read(msgPositions, msgSizes, offsets, readCount, dest, this::isCancelled),
                 this::afterRead);
     }
 

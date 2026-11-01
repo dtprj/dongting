@@ -40,19 +40,26 @@ final class MqIdxReader extends FiberFrame<Void> {
     private final MqPullFrame pull;
     private final MqIdxQueue queue;
     private final MqPullFrame.QueueResult result;
+    // snapshot of queue.nextSeq: the scan window stays fixed while appends continue
     private final long endSeq;
     private CRC32C crc;
 
+    // seek search bounds: the first seq with pos >= minPos
     private long low;
     private long high;
     private long minPos;
+
+    // the current item, filled by loadCachedItem() or decodeItem()
     private long seq;
     private long pos;
     private long raftIndex;
     private int size;
+
+    // one idx block read from disk covers seqs [diskStart, diskEnd)
     private RefBuffer diskBuffer;
     private long diskStart = -1;
     private long diskEnd;
+
     private MqIdxFile readingFile;
     private FiberFuture<Void> pending;
 
@@ -61,15 +68,6 @@ final class MqIdxReader extends FiberFrame<Void> {
         this.queue = queue;
         this.result = result;
         this.endSeq = queue.nextSeq;
-    }
-
-    @Override
-    public FrameCallResult execute(Void input) {
-        seq = result.fromSeq + result.count;
-        if (seq == 0 || seq < queue.firstAvailableSeq()) {
-            return seekStart();
-        }
-        return loadItem(this::checkStart);
     }
 
     static void scanMemory(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result) {
@@ -101,6 +99,7 @@ final class MqIdxReader extends FiberFrame<Void> {
             return;
         }
         while (true) {
+            // raft index is memory-only, items decoded from the idx file after restart read 0
             RaftTask task = mgr.lastGetRaftIndex == 0 ? null : rs.tailCache.get(mgr.lastGetRaftIndex);
             if (!consumeItem(pull, queue, result, queue.nextSeq, seq, pos, mgr.lastGetSize, task, true)) {
                 return;
@@ -155,6 +154,15 @@ final class MqIdxReader extends FiberFrame<Void> {
         pull.add(pos, size, task);
         result.count++;
         return seq + 1 != endSeq && pull.hasCapacity();
+    }
+
+    @Override
+    public FrameCallResult execute(Void input) {
+        seq = result.fromSeq + result.count;
+        if (seq == 0 || seq < queue.firstAvailableSeq()) {
+            return seekStart();
+        }
+        return loadItem(this::checkStart);
     }
 
     private FrameCallResult checkStart(Void unused) {
