@@ -356,10 +356,14 @@ class MqPullTest extends BaseFiberTest {
         Pull countLimit = pull(ids, seqs, Integer.MAX_VALUE, 4096, 0);
         assertRecords(countLimit, b, d, a);
         assertQueue(countLimit, 1, 0, 1, false);
-        doInFiber(() -> serverConfig.maxPullBytesLimit = 383);
+        doInFiber(() -> {
+            serverConfig.maxPullLimit = 1024;
+            serverConfig.maxPullBytesLimit = 383;
+        });
         Pull bytesLimit = pull(ids, seqs, 10, Integer.MAX_VALUE, 0);
-        assertRecords(bytesLimit, b, d);
-        assertQueue(bytesLimit, 1, 0, 0, false);
+        // a crosses the soft byte limit (256 + 128 > 383) and is still returned
+        assertRecords(bytesLimit, b, d, a);
+        assertQueue(bytesLimit, 1, 0, 1, false);
 
         for (int maxBytes : new int[]{1, 191}) {
             Pull oversized = pull(new long[]{99, 11, 22}, new long[]{0, 1, 0}, 10, maxBytes, tick(20_000));
@@ -396,9 +400,10 @@ class MqPullTest extends BaseFiberTest {
         assertQueue(bytesLimit, 0, 0, 0, false);
         assertQueue(bytesLimit, 1, 0, 2, false);
         Pull partialBudget = pull(ids, seqs, 10, 160, 0);
-        assertRecords(partialBudget, small);
+        // large crosses the soft byte limit (96 + large > 160) and is still returned
+        assertRecords(partialBudget, small, large);
         assertQueue(partialBudget, 0, 0, 0, false);
-        assertQueue(partialBudget, 1, 0, 1, false);
+        assertQueue(partialBudget, 1, 0, 2, false);
         assertEquals(0, logReadCount);
 
         Pull remaining = pull(ids, seqs, 3, 65536, 0);

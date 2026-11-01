@@ -145,7 +145,7 @@ final class MqIdxReader extends FiberFrame<Void> {
         if (size < LogHeader.ITEM_HEADER_SIZE) {
             throw new ChecksumException("invalid mq item size: queue=" + queue.queueId + ", seq=" + seq);
         }
-        if (!pull.hasCapacity(size)) {
+        if (!pull.hasCapacity()) {
             return false;
         }
         if (memoryOnly && task == null) {
@@ -154,7 +154,7 @@ final class MqIdxReader extends FiberFrame<Void> {
         }
         pull.add(pos, size, task);
         result.count++;
-        return seq + 1 != endSeq && pull.hasCapacity(LogHeader.ITEM_HEADER_SIZE);
+        return seq + 1 != endSeq && pull.hasCapacity();
     }
 
     private FrameCallResult checkStart(Void unused) {

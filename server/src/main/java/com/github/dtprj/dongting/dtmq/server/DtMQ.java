@@ -94,6 +94,7 @@ public class DtMQ implements StateMachine {
     }
 
     /** Raft thread only; limits are shared by all queues, and waitMillis=0 disables long polling.
+     * bytesLimit is soft: a record may cross it; collection stops once the total reaches it.
      * The frame retains queueIds/fromSeqs until completion; callers must not modify them.
      * The caller owns the linearizability point: validate lease read before calling; the frame never re-checks. */
     public MqPullFrame pull(long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,

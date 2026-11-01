@@ -23,5 +23,6 @@ import com.github.dtprj.dongting.dtmq.MqClientConfig;
 public class MqServerConfig extends MqClientConfig {
     public int logRetentionMinutes = 2880;
     public int maxPullLimit = 1024;
+    // soft limit: a response may exceed it by up to one record
     public int maxPullBytesLimit = 256 * 1024;
 }

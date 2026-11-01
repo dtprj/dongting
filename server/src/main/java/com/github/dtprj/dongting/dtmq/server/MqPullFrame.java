@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.store.LogHeader;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -209,7 +208,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 }
             }
         }
-        for (int i = 0; i < queueIds.length && hasCapacity(LogHeader.ITEM_HEADER_SIZE); i++) {
+        for (int i = 0; i < queueIds.length && hasCapacity(); i++) {
             MqIdxQueue queue = mq.manager.queues.get(queueIds[i]);
             if (queue == null || fromSeqs[i] >= queue.nextSeq) {
                 continue;
@@ -233,7 +232,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (retry) {
             return Fiber.resume(null, this::scan);
         }
-        while (results != null && queueIndex < results.length && hasCapacity(LogHeader.ITEM_HEADER_SIZE)) {
+        while (results != null && queueIndex < results.length && hasCapacity()) {
             QueueResult r = results[queueIndex++];
             if (r != null && r.needsIo) {
                 r.ioStart = count;
@@ -268,8 +267,9 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         return changed.await(rest, TimeUnit.NANOSECONDS, mq.groupConfig.fiberGroup.shouldStopCondition, this::scan);
     }
 
-    boolean hasCapacity(int size) {
-        return count == 0 || count < limit && size <= bytesLimit - bytes;
+    // soft byte limit: any single item may cross it; collection stops once the total reaches it
+    boolean hasCapacity() {
+        return count < limit && bytes < bytesLimit;
     }
 
     void add(long pos, int size, RaftTask task) {

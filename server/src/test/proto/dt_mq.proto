@@ -42,7 +42,7 @@ message MqPullReq {
   int32 queues_size = 2;
   repeated MqPullQueue queues = 3;
   int32 limit = 4; // shared record limit hint across all queues
-  int32 bytes_limit = 5; // shared raw log byte hint (no metadata); first pull record may exceed it
+  int32 bytes_limit = 5; // shared raw log byte hint (no metadata); any single record may cross it, collection stops once reached
   int64 wait_millis = 6; // 0 disables long polling
 }
 
