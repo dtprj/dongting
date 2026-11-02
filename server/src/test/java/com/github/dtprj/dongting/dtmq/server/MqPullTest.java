@@ -283,7 +283,7 @@ class MqPullTest extends BaseFiberTest {
                 DtMq.MqPullQueueResult d = decoded.getResults(i);
                 assertEquals(p.frame.queueIds[i], d.getQueueId());
                 assertEquals(r == null ? p.frame.fromSeqs[i] : r.fromSeq, d.getFromSeq());
-                assertEquals(r == null ? 0 : r.count, d.getCount());
+                assertEquals(r == null ? 0 : r.queueCount, d.getCount());
                 assertEquals(r != null && r.truncated, d.getTruncated());
             }
             ByteBuffer actual = decoded.getRecords().asReadOnlyByteBuffer();
@@ -310,7 +310,7 @@ class MqPullTest extends BaseFiberTest {
             return;
         }
         assertEquals(from, r.fromSeq);
-        assertEquals(count, r.count);
+        assertEquals(count, r.queueCount);
         assertEquals(truncated, r.truncated);
     }
 

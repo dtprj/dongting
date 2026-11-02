@@ -129,7 +129,7 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     /** Phase 2a: continue a TAIL_MISS queue after all phase 1 scans, adding disk items inline. */
     static void continueScan(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result) {
-        long seq = result.fromSeq + result.count;
+        long seq = result.fromSeq + result.queueCount;
         scanLoop(pull, queue, result, queue.getBlock(seq), seq, queue.nextSeq, true);
     }
 
@@ -170,13 +170,13 @@ final class MqIdxReader extends FiberFrame<Void> {
             return false;
         }
         pull.add(pos, size, task);
-        result.count++;
+        result.queueCount++;
         return seq + 1 != endSeq && pull.hasCapacity();
     }
 
     @Override
     public FrameCallResult execute(Void input) {
-        seq = result.fromSeq + result.count;
+        seq = result.fromSeq + result.queueCount;
         if (seq == 0 || seq < queue.firstAvailableSeq()) {
             return seekStart();
         }
@@ -184,10 +184,10 @@ final class MqIdxReader extends FiberFrame<Void> {
     }
 
     private FrameCallResult seekStart() {
-        if (result.count > 0) {
-            // unreachable: a miss only occurs at a scan's first item, so count is 0 here
-            BugLog.log("mq idx seek with collected records: queue={}, fromSeq={}, count={}",
-                    queue.queueId, result.fromSeq, result.count);
+        if (result.queueCount > 0) {
+            // unreachable: a miss only occurs at a scan's first item, so queueCount is 0 here
+            BugLog.log("mq idx seek with collected records: queue={}, fromSeq={}, queueCount={}",
+                    queue.queueId, result.fromSeq, result.queueCount);
             throw new RaftException("mq idx seek with collected records");
         }
         minPos = pull.mq.raftLog.firstReadablePos();
@@ -198,7 +198,7 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     private FrameCallResult search(Void unused) {
         if (low == high) {
-            // count is always 0 here: BLOCK_MISS is set before any record is collected
+            // queueCount is always 0 here: BLOCK_MISS is set before any record is collected
             seq = low;
             result.fromSeq = seq;
             result.truncated = result.requestedSeq != 0;
@@ -224,7 +224,7 @@ final class MqIdxReader extends FiberFrame<Void> {
     private FrameCallResult afterItem(Void unused) {
         if (pos < pull.mq.raftStatus.firstValidPos
                 || (result.truncated && pos < pull.mq.raftLog.firstReadablePos())) {
-            if (result.count > 0) {
+            if (result.queueCount > 0) {
                 pull.retry = true;
                 return Fiber.frameReturn();
             }

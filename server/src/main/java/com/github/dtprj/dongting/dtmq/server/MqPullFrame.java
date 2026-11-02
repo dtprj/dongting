@@ -42,12 +42,12 @@ import java.util.concurrent.TimeUnit;
 
 /** Returns a pre-encoded response; the caller sends it or calls clean(). */
 public final class MqPullFrame extends FiberFrame<MqPullResp> {
-    /** Truncated queues return only a retry cursor. The next cursor is fromSeq + count. */
+    /** Truncated queues return only a retry cursor. The next cursor is fromSeq + queueCount. */
     public static final class QueueResult {
         public final long queueId;
         final long requestedSeq;
         public long fromSeq;
-        public int count;
+        public int queueCount;
         public boolean truncated;
         // pos of the item at fromSeq, or Long.MAX_VALUE if the seek lands on endSeq
         long resetPos;
@@ -67,7 +67,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
 
         private void reset() {
             fromSeq = requestedSeq;
-            count = 0;
+            queueCount = 0;
             truncated = false;
             resetPos = Long.MAX_VALUE;
             stopReason = NONE;
@@ -238,7 +238,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             }
             r.memoryStart = count;
             MqIdxReader.scanMemory(this, queue, r);
-            r.memoryCount = r.count;
+            r.memoryCount = r.queueCount;
         }
         // phase 2a: fill the remaining budget with TAIL_MISS queues before any idx reader
         for (int i = 0; results != null && i < results.length && hasCapacity(); i++) {
@@ -344,7 +344,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 continue;
             }
             // Items are collected in memory-first phases; the wire format stays grouped in request order.
-            for (int n = 0, i = r.memoryStart; n < r.count; n++, i++) {
+            for (int n = 0, i = r.memoryStart; n < r.queueCount; n++, i++) {
                 if (n == r.memoryCount) {
                     i = r.restStart;
                 }
