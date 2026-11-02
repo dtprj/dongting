@@ -130,7 +130,13 @@ final class MqIdxReader extends FiberFrame<Void> {
     /** Phase 2a: continue a TAIL_MISS queue after all phase 1 scans, adding disk items inline. */
     static void continueScan(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result) {
         long seq = result.fromSeq + result.queueCount;
-        scanLoop(pull, queue, result, queue.getBlock(seq), seq, queue.nextSeq, true);
+        MqIdxBlock block = queue.getBlock(seq);
+        if (block == null) {
+            // defensive: phase 1 read this seq without suspension; hand the queue to the idx reader
+            result.stopReason = MqPullFrame.QueueResult.BLOCK_MISS;
+            return;
+        }
+        scanLoop(pull, queue, result, block, seq, queue.nextSeq, true);
     }
 
     /** Same predicate as the seek below: the first seq with pos >= firstReadablePos. */

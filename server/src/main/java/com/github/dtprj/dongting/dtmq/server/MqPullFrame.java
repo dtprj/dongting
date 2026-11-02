@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
@@ -54,10 +55,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         static final byte NONE = 0, BLOCK_MISS = 1, TAIL_MISS = 2;
         // why the memory scan stopped: BLOCK_MISS goes to the idx reader, TAIL_MISS to phase 2a
         byte stopReason;
-        // indexes into the flat item arrays of MqPullFrame: memory part, then the rest
-        int memoryStart;
-        int memoryCount;
-        int restStart;
+        // the queue's items occupy [start, start + queueCount) in the flat arrays; phase 2a/2b re-anchor it
+        int start;
 
         private QueueResult(long queueId, long requestedSeq) {
             this.queueId = queueId;
@@ -71,9 +70,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             truncated = false;
             resetPos = Long.MAX_VALUE;
             stopReason = NONE;
-            memoryStart = 0;
-            memoryCount = 0;
-            restStart = 0;
+            start = 0;
         }
     }
 
@@ -236,16 +233,21 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             if (r == null) {
                 r = results[i] = new QueueResult(queueIds[i], fromSeqs[i]);
             }
-            r.memoryStart = count;
+            r.start = count;
             MqIdxReader.scanMemory(this, queue, r);
-            r.memoryCount = r.queueCount;
         }
         // phase 2a: fill the remaining budget with TAIL_MISS queues before any idx reader
         for (int i = 0; results != null && i < results.length && hasCapacity(); i++) {
             QueueResult r = results[i];
             if (r != null && r.stopReason == QueueResult.TAIL_MISS) {
-                r.restStart = count;
-                MqIdxReader.continueScan(this, queues.get(r.queueId), r);
+                // hits form a seq suffix: phase 2a/2b only run for queues that collected nothing
+                if (r.queueCount != 0) {
+                    BugLog.log("mq pull tail miss after collected records: queue={}, fromSeq={}, queueCount={}",
+                            r.queueId, r.fromSeq, r.queueCount);
+                } else {
+                    r.start = count;
+                    MqIdxReader.continueScan(this, queues.get(r.queueId), r);
+                }
             }
         }
         return readQueue(null);
@@ -259,8 +261,14 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         while (results != null && queueIndex < results.length && hasCapacity()) {
             QueueResult r = results[queueIndex++];
             if (r != null && r.stopReason == QueueResult.BLOCK_MISS) {
-                r.restStart = count;
-                return Fiber.call(new MqIdxReader(this, mq.manager.queues.get(r.queueId), r), this::readQueue);
+                // same invariant as the phase 2a guard
+                if (r.queueCount != 0) {
+                    BugLog.log("mq pull block miss after collected records: queue={}, fromSeq={}, queueCount={}",
+                            r.queueId, r.fromSeq, r.queueCount);
+                } else {
+                    r.start = count;
+                    return Fiber.call(new MqIdxReader(this, mq.manager.queues.get(r.queueId), r), this::readQueue);
+                }
             }
         }
         if (!resetPositionsValid()) {
@@ -343,11 +351,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             if (r == null) {
                 continue;
             }
-            // Items are collected in memory-first phases; the wire format stays grouped in request order.
-            for (int n = 0, i = r.memoryStart; n < r.queueCount; n++, i++) {
-                if (n == r.memoryCount) {
-                    i = r.restStart;
-                }
+            // tail-cache hits form a seq suffix: one contiguous range per queue, emitted in request order
+            for (int i = r.start, end = i + r.queueCount; i < end; i++) {
                 int size = msgSizes[i];
                 RefBuffer ref = cached[i];
                 if (ref == null) {
