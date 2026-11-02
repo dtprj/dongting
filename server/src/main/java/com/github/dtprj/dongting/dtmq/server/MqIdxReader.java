@@ -36,6 +36,7 @@ import com.github.dtprj.dongting.raft.store.LogHeader;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
+/** Static memory scans serve queues with cached idx blocks; this frame handles missing blocks. */
 final class MqIdxReader extends FiberFrame<Void> {
     private final MqPullFrame pull;
     private final MqIdxQueue queue;
@@ -70,21 +71,23 @@ final class MqIdxReader extends FiberFrame<Void> {
         this.endSeq = queue.nextSeq;
     }
 
+    /** Phase 1: scans cached idx blocks; never suspends. */
     static void scanMemory(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result) {
         MqIdxManager mgr = pull.mq.manager;
         RaftStatusImpl rs = pull.mq.raftStatus;
+        long endSeq = queue.nextSeq;
         long seq = result.requestedSeq;
         MqIdxBlock block = queue.getBlock(seq);
         long pos = block == null ? -1 : mgr.getIdxItemInBlock(block, seq);
         if (seq == 0 || (block != null && pos < rs.firstValidPos)) {
-            seq = findStartInMemory(pull, queue);
+            seq = findStartInMemory(pull, queue, endSeq);
             if (seq < 0) {
-                result.needsIo = true;
+                result.stopReason = MqPullFrame.QueueResult.BLOCK_MISS;
                 return;
             }
             result.fromSeq = seq;
             result.truncated = result.requestedSeq != 0;
-            if (seq == queue.nextSeq) {
+            if (seq == endSeq) {
                 return;
             }
             block = queue.getBlock(seq);
@@ -95,32 +98,47 @@ final class MqIdxReader extends FiberFrame<Void> {
                 return;
             }
         } else if (block == null) {
-            result.needsIo = true;
+            result.stopReason = MqPullFrame.QueueResult.BLOCK_MISS;
             return;
         }
+        scanLoop(pull, queue, result, block, seq, endSeq, false);
+    }
+
+    // pos is monotonic in seq, so watermark checks only apply to a scan's first item
+    private static void scanLoop(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result,
+                                 MqIdxBlock block, long seq, long endSeq, boolean collectDisk) {
+        MqIdxManager mgr = pull.mq.manager;
+        RaftStatusImpl rs = pull.mq.raftStatus;
         while (true) {
-            // raft index is memory-only, items decoded from the idx file after restart read 0
-            RaftTask task = mgr.lastGetRaftIndex == 0 ? null : rs.tailCache.get(mgr.lastGetRaftIndex);
-            if (!consumeItem(pull, queue, result, queue.nextSeq, seq, pos, mgr.lastGetSize, task, true)) {
+            long pos = mgr.getIdxItemInBlock(block, seq);
+            long raftIndex = mgr.lastGetRaftIndex;
+            RaftTask task = raftIndex == 0 ? null : rs.tailCache.get(raftIndex);
+            if (!consumeItem(pull, result, endSeq, seq, pos, mgr.lastGetSize, task, collectDisk)) {
                 return;
             }
             seq++;
             if ((seq & MqIdxBlock.BLOCK_MASK) == 0) {
                 block = queue.getBlock(seq);
                 if (block == null) {
-                    result.needsIo = true;
+                    result.stopReason = MqPullFrame.QueueResult.BLOCK_MISS;
                     return;
                 }
             }
-            pos = mgr.getIdxItemInBlock(block, seq);
         }
     }
 
-    private static long findStartInMemory(MqPullFrame pull, MqIdxQueue queue) {
+    /** Phase 2a: continue a TAIL_MISS queue after all phase 1 scans, adding disk items inline. */
+    static void continueScan(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result) {
+        long seq = result.fromSeq + result.count;
+        scanLoop(pull, queue, result, queue.getBlock(seq), seq, queue.nextSeq, true);
+    }
+
+    /** Same predicate as the seek below: the first seq with pos >= firstReadablePos. */
+    private static long findStartInMemory(MqPullFrame pull, MqIdxQueue queue, long endSeq) {
         MqIdxManager mgr = pull.mq.manager;
         long minPos = pull.mq.raftLog.firstReadablePos();
         long low = queue.firstAvailableSeq();
-        long high = queue.nextSeq;
+        long high = endSeq;
         long seq = low;
         while (low < high) {
             MqIdxBlock block = queue.getBlock(seq);
@@ -139,16 +157,16 @@ final class MqIdxReader extends FiberFrame<Void> {
         return low;
     }
 
-    private static boolean consumeItem(MqPullFrame pull, MqIdxQueue queue, MqPullFrame.QueueResult result,
-                                       long endSeq, long seq, long pos, int size, RaftTask task, boolean memoryOnly) {
+    private static boolean consumeItem(MqPullFrame pull, MqPullFrame.QueueResult result, long endSeq,
+                                       long seq, long pos, int size, RaftTask task, boolean collectDisk) {
         if (size < LogHeader.ITEM_HEADER_SIZE) {
-            throw new ChecksumException("invalid mq item size: queue=" + queue.queueId + ", seq=" + seq);
+            throw new ChecksumException("invalid mq item size: queue=" + result.queueId + ", seq=" + seq);
         }
         if (!pull.hasCapacity()) {
             return false;
         }
-        if (memoryOnly && task == null) {
-            result.needsIo = true;
+        if (task == null && !collectDisk) {
+            result.stopReason = MqPullFrame.QueueResult.TAIL_MISS;
             return false;
         }
         pull.add(pos, size, task);
@@ -162,19 +180,12 @@ final class MqIdxReader extends FiberFrame<Void> {
         if (seq == 0 || seq < queue.firstAvailableSeq()) {
             return seekStart();
         }
-        return loadItem(this::checkStart);
-    }
-
-    private FrameCallResult checkStart(Void unused) {
-        if (pos < pull.mq.raftStatus.firstValidPos) {
-            return seekStart();
-        }
-        return collect();
+        return loadItem(this::afterItem);
     }
 
     private FrameCallResult seekStart() {
         if (result.count > 0) {
-            // a seek would reset fromSeq and strand the collected records; fail the pull
+            // unreachable: a miss only occurs at a scan's first item, so count is 0 here
             BugLog.log("mq idx seek with collected records: queue={}, fromSeq={}, count={}",
                     queue.queueId, result.fromSeq, result.count);
             throw new RaftException("mq idx seek with collected records");
@@ -187,14 +198,14 @@ final class MqIdxReader extends FiberFrame<Void> {
 
     private FrameCallResult search(Void unused) {
         if (low == high) {
-            // count is always 0 here: needsIo is set before any record is collected
+            // count is always 0 here: BLOCK_MISS is set before any record is collected
             seq = low;
             result.fromSeq = seq;
             result.truncated = result.requestedSeq != 0;
             if (seq == endSeq) {
                 return Fiber.frameReturn();
             }
-            return loadItem(this::afterSearch);
+            return loadItem(this::afterItem);
         }
         seq = low + ((high - low) >>> 1);
         return loadItem(this::searchStep);
@@ -209,8 +220,14 @@ final class MqIdxReader extends FiberFrame<Void> {
         return Fiber.resume(null, this::search);
     }
 
-    private FrameCallResult afterSearch(Void unused) {
-        if (pos < pull.mq.raftLog.firstReadablePos()) {
+    // seek landings (truncated) are additionally checked against firstReadablePos, as in resetPositionsValid
+    private FrameCallResult afterItem(Void unused) {
+        if (pos < pull.mq.raftStatus.firstValidPos
+                || (result.truncated && pos < pull.mq.raftLog.firstReadablePos())) {
+            if (result.count > 0) {
+                pull.retry = true;
+                return Fiber.frameReturn();
+            }
             return seekStart();
         }
         if (result.truncated) {
@@ -224,29 +241,22 @@ final class MqIdxReader extends FiberFrame<Void> {
         RaftStatusImpl rs = pull.mq.raftStatus;
         while (true) {
             RaftTask task = raftIndex == 0 ? null : rs.tailCache.get(raftIndex);
-            if (!consumeItem(pull, queue, result, endSeq, seq, pos, size, task, false)) {
+            if (!consumeItem(pull, result, endSeq, seq, pos, size, task, true)) {
                 return Fiber.frameReturn();
             }
             seq++;
             if (!loadCachedItem()) {
-                return loadItem(this::afterLoad);
+                return loadItem(this::afterItem);
             }
         }
     }
 
-    // firstValidPos may advance, or the idx file vanish, while suspended on I/O
-    private FrameCallResult afterLoad(Void unused) {
-        if (pos < pull.mq.raftStatus.firstValidPos) {
-            pull.retry = true;
-            return Fiber.frameReturn();
-        }
-        return collect();
-    }
-
     private boolean loadCachedItem() {
         MqIdxManager mgr = pull.mq.manager;
-        pos = mgr.getIdxItemInCache(queue.queueId, seq);
-        if (pos >= 0) {
+        MqIdxBlock b = queue.getBlock(seq);
+        long cachedPos = b == null ? -1 : mgr.getIdxItemInBlock(b, seq);
+        if (cachedPos >= 0) {
+            pos = cachedPos;
             size = mgr.lastGetSize;
             raftIndex = mgr.lastGetRaftIndex;
             return true;

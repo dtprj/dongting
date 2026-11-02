@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtmq.server;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -50,12 +51,13 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         public boolean truncated;
         // pos of the item at fromSeq, or Long.MAX_VALUE if the seek lands on endSeq
         long resetPos;
-        // the memory scan cannot serve this queue; the io reader continues from fromSeq + count
-        boolean needsIo;
-        // indexes into the flat item arrays of MqPullFrame: memory part, then io part
+        static final byte NONE = 0, BLOCK_MISS = 1, TAIL_MISS = 2;
+        // why the memory scan stopped: BLOCK_MISS goes to the idx reader, TAIL_MISS to phase 2a
+        byte stopReason;
+        // indexes into the flat item arrays of MqPullFrame: memory part, then the rest
         int memoryStart;
         int memoryCount;
-        int ioStart;
+        int restStart;
 
         private QueueResult(long queueId, long requestedSeq) {
             this.queueId = queueId;
@@ -68,10 +70,10 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             count = 0;
             truncated = false;
             resetPos = Long.MAX_VALUE;
-            needsIo = false;
+            stopReason = NONE;
             memoryStart = 0;
             memoryCount = 0;
-            ioStart = 0;
+            restStart = 0;
         }
     }
 
@@ -212,6 +214,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         bytes = 0;
         cachedZeroCopyBytes = 0;
         retry = false;
+        QueueResult[] results = this.results;
         if (results != null) {
             for (QueueResult r : results) {
                 if (r != null) {
@@ -219,13 +222,15 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 }
             }
         }
+        LongObjMap<MqIdxQueue> queues = mq.manager.queues;
         for (int i = 0; i < queueIds.length && hasCapacity(); i++) {
-            MqIdxQueue queue = mq.manager.queues.get(queueIds[i]);
+            MqIdxQueue queue = queues.get(queueIds[i]);
             if (queue == null || fromSeqs[i] >= queue.nextSeq) {
                 continue;
             }
             if (results == null) {
                 results = new QueueResult[queueIds.length];
+                this.results = results;
             }
             QueueResult r = results[i];
             if (r == null) {
@@ -234,6 +239,14 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             r.memoryStart = count;
             MqIdxReader.scanMemory(this, queue, r);
             r.memoryCount = r.count;
+        }
+        // phase 2a: fill the remaining budget with TAIL_MISS queues before any idx reader
+        for (int i = 0; results != null && i < results.length && hasCapacity(); i++) {
+            QueueResult r = results[i];
+            if (r != null && r.stopReason == QueueResult.TAIL_MISS) {
+                r.restStart = count;
+                MqIdxReader.continueScan(this, queues.get(r.queueId), r);
+            }
         }
         return readQueue(null);
     }
@@ -245,8 +258,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         }
         while (results != null && queueIndex < results.length && hasCapacity()) {
             QueueResult r = results[queueIndex++];
-            if (r != null && r.needsIo) {
-                r.ioStart = count;
+            if (r != null && r.stopReason == QueueResult.BLOCK_MISS) {
+                r.restStart = count;
                 return Fiber.call(new MqIdxReader(this, mq.manager.queues.get(r.queueId), r), this::readQueue);
             }
         }
@@ -308,6 +321,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 msgPositions = new long[msgSizes.length];
             }
             msgPositions[count] = pos;
+            cached[count] = null;
         }
         msgSizes[count++] = size;
         bytes += size;
@@ -329,10 +343,10 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             if (r == null) {
                 continue;
             }
-            // Collection is memory-first; the wire format remains grouped in request order.
+            // Items are collected in memory-first phases; the wire format stays grouped in request order.
             for (int n = 0, i = r.memoryStart; n < r.count; n++, i++) {
                 if (n == r.memoryCount) {
-                    i = r.ioStart;
+                    i = r.restStart;
                 }
                 int size = msgSizes[i];
                 RefBuffer ref = cached[i];

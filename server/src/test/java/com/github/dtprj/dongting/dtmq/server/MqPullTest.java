@@ -511,6 +511,13 @@ class MqPullTest extends BaseFiberTest {
         assertQueue(evicted, 0, 126, 5, false);
         assertQueue(evicted, 1, 0, 1, false);
 
+        // budget order: a tail-cache-miss queue (phase 2a) is served before a block-miss queue
+        doInFiber(() -> rs.tailCache.cleanAll());
+        Pull priority = pull(new long[]{1, 2}, new long[]{126, 130}, 1, 4096, 0);
+        assertRecords(priority, restored);
+        assertQueue(priority, 0, 126, 0, false);
+        assertQueue(priority, 1, 130, 1, false);
+
         await(() -> mq.startInstall(false));
         doInFiber(() -> {
             mq.manager.register(1, 260);
