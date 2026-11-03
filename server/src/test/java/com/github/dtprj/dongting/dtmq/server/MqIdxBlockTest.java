@@ -37,13 +37,13 @@ class MqIdxBlockTest {
     }
 
     private void assertDiskRecord(ByteBuffer buf, long seq) {
-        int off = (int) seq * MqIdxManager.ITEM_LEN;
+        int off = (int) seq * MqIdxBlock.ITEM_LEN;
         assertEquals(seq * 10, buf.getLong(off));
         assertEquals(seq * 100, buf.getLong(off + 8));
         assertEquals(0L, buf.getLong(off + 16));
         assertEquals((int) seq + 1, buf.getInt(off + 24));
         CRC32C crc = new CRC32C();
-        crc.update(buf.array(), off, MqIdxManager.ITEM_LEN - 4);
+        crc.update(buf.array(), off, MqIdxBlock.ITEM_LEN - 4);
         assertEquals((int) crc.getValue(), buf.getInt(off + 28));
     }
 
@@ -71,7 +71,7 @@ class MqIdxBlockTest {
     void testFillBlocks() {
         MqIdxBlock b0 = newBlock(0, 128);
         MqIdxBlock b1 = newBlock(128, 100);
-        ByteBuffer dest = ByteBuffer.allocate(228 * MqIdxManager.ITEM_LEN);
+        ByteBuffer dest = ByteBuffer.allocate(228 * MqIdxBlock.ITEM_LEN);
         MqIdxQueue.fillBlocks(new MqIdxBlock[]{b0, b1}, 227, dest);
         assertEquals(dest.capacity(), dest.position());
         for (int i = 0; i < 228; i++) {
@@ -83,7 +83,7 @@ class MqIdxBlockTest {
     void testFillBlocksLastSeqBound() {
         MqIdxBlock b0 = newBlock(0, 128);
         MqIdxBlock b1 = newBlock(128, 128);
-        ByteBuffer dest = ByteBuffer.allocate(151 * MqIdxManager.ITEM_LEN);
+        ByteBuffer dest = ByteBuffer.allocate(151 * MqIdxBlock.ITEM_LEN);
         MqIdxQueue.fillBlocks(new MqIdxBlock[]{b0, b1}, 150, dest);
         assertEquals(dest.capacity(), dest.position());
         for (int i = 0; i <= 150; i++) {

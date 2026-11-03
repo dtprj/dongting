@@ -279,7 +279,7 @@ final class MqIdxReader extends FiberFrame<Boolean> {
         if (loadCachedItem()) {
             return Fiber.resume(null, next);
         }
-        MqIdxFile file = queue.getLogFile(seq * MqIdxManager.ITEM_LEN);
+        MqIdxFile file = queue.getLogFile(seq * MqIdxBlock.ITEM_LEN);
         if (file == null || file.isDeleted()) {
             pos = -1;
             size = 0;
@@ -289,13 +289,13 @@ final class MqIdxReader extends FiberFrame<Boolean> {
         diskEnd = Math.min(diskStart + MqIdxBlock.BLOCK_ITEMS, endSeq);
         if (diskBuffer == null) {
             diskBuffer = pull.mq.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirectLocal(
-                    MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN);
+                    MqIdxBlock.DISK_BLOCK_BYTES);
         }
         ByteBuffer buf = diskBuffer.getBuffer();
-        buf.clear().limit((int) (diskEnd - diskStart) * MqIdxManager.ITEM_LEN);
+        buf.clear().limit((int) (diskEnd - diskStart) * MqIdxBlock.ITEM_LEN);
         file.incReaders();
         readingFile = file;
-        long offset = diskStart * MqIdxManager.ITEM_LEN & (queue.getFileSize() - 1);
+        long offset = diskStart * MqIdxBlock.ITEM_LEN & (queue.getFileSize() - 1);
         pending = new AsyncIoTask(pull.mq.groupConfig.fiberGroup, file).read(buf, offset);
         return pending.await(v -> {
             endRead();
@@ -308,7 +308,7 @@ final class MqIdxReader extends FiberFrame<Boolean> {
     private void decodeItem() {
         raftIndex = 0;
         ByteBuffer buf = diskBuffer.getBuffer();
-        int offset = (int) (seq - diskStart) * MqIdxManager.ITEM_LEN;
+        int offset = (int) (seq - diskStart) * MqIdxBlock.ITEM_LEN;
         pos = buf.getLong(offset);
         long timestamp = buf.getLong(offset + 8);
         size = buf.getInt(offset + 24);
@@ -323,7 +323,7 @@ final class MqIdxReader extends FiberFrame<Boolean> {
         } else {
             crc.reset();
         }
-        RaftUtil.updateCrc(crc, buf, offset, MqIdxManager.ITEM_LEN - 4);
+        RaftUtil.updateCrc(crc, buf, offset, MqIdxBlock.ITEM_LEN - 4);
         if (actualCrc != (int) crc.getValue()) {
             throw new ChecksumException("mq idx crc check failed: queue=" + queue.queueId + ", seq=" + seq);
         }

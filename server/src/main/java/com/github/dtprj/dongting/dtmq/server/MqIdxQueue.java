@@ -44,8 +44,6 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
 
     private static final DtLog log = DtLogs.getLogger(MqIdxQueue.class);
 
-    private static final int DISK_BLOCK_BYTES = MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN;
-
     private final MqIdxManager manager;
     final long queueId;
 
@@ -93,7 +91,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
 
     MqIdxQueue(MqIdxManager manager, long queueId, long nextSeq) {
         super(new File(manager.dir, String.valueOf(queueId)), manager.groupConfig,
-                (long) MqIdxManager.ITEM_LEN * manager.groupConfig.mqIdxItemsPerFile, false);
+                (long) MqIdxBlock.ITEM_LEN * manager.groupConfig.mqIdxItemsPerFile, false);
         this.manager = manager;
         this.queueId = queueId;
         this.nextSeq = nextSeq;
@@ -203,7 +201,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         private boolean readerPending;
 
         LoadHeadFrame() {
-            this.blockStartPos = seqToPos(nextSeq) & ~(DISK_BLOCK_BYTES - 1L);
+            this.blockStartPos = seqToPos(nextSeq) & ~(MqIdxBlock.DISK_BLOCK_BYTES - 1L);
         }
 
         @Override
@@ -215,10 +213,10 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                 return afterLoad(false);
             }
             if (bufRef == null) {
-                bufRef = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowLocal(DISK_BLOCK_BYTES);
+                bufRef = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowLocal(MqIdxBlock.DISK_BLOCK_BYTES);
             }
             ByteBuffer buf = bufRef.getBuffer();
-            buf.limit(DISK_BLOCK_BYTES);
+            buf.limit(MqIdxBlock.DISK_BLOCK_BYTES);
             logFile.incReaders();
             readerPending = true;
             return new AsyncIoTask(groupConfig.fiberGroup, logFile)
@@ -280,7 +278,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         for (int i = from; i <= to; i++) {
             blockRefs[i - from] = blocks.get(i);
         }
-        int len = (int) ((batchEnd - startSeq + 1) * MqIdxManager.ITEM_LEN);
+        int len = (int) ((batchEnd - startSeq + 1) * MqIdxBlock.ITEM_LEN);
         // a file-completing batch always forces, so the unforced tail never spans files
         boolean sealsFile = batchEnd == fileLastItemSeq;
         boolean force = sealsFile || (flushForce && batchEnd == flushTargetSeq);
@@ -296,7 +294,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
             buf.limit(len);
             fillBlocks(blockRefs, batchEnd, buf);
             buf.flip();
-            lastPos = sealsFile ? buf.getLong(len - MqIdxManager.ITEM_LEN) : -1;
+            lastPos = sealsFile ? buf.getLong(len - MqIdxBlock.ITEM_LEN) : -1;
         } catch (Throwable t) {
             bufRef.release();
             throw t;
@@ -350,7 +348,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                 dest.putLong(0L);
                 dest.putInt(src.getInt(off + 16));
                 crc.reset();
-                RaftUtil.updateCrc(crc, dest, recStart, MqIdxManager.ITEM_LEN - 4);
+                RaftUtil.updateCrc(crc, dest, recStart, MqIdxBlock.ITEM_LEN - 4);
                 dest.putInt((int) crc.getValue());
             }
         }
@@ -417,7 +415,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
             if (isHeadFileSealed()) {
                 // content frozen: judged by the pos of the last item of the file
                 if (head.lastItemPos == -1) {
-                    return readItemPos(head, fileSize - MqIdxManager.ITEM_LEN, true);
+                    return readItemPos(head, fileSize - MqIdxBlock.ITEM_LEN, true);
                 }
                 return deleteHead(head, head.lastItemPos);
             }
@@ -433,7 +431,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
             }
             if (lastItemPos == -1) {
                 readSeq = nextSeq - 1;
-                long offset = (nextSeq - 1 - posToSeq(queueStartPosition)) * MqIdxManager.ITEM_LEN;
+                long offset = (nextSeq - 1 - posToSeq(queueStartPosition)) * MqIdxBlock.ITEM_LEN;
                 return readItemPos(head, offset, false);
             }
             return deleteHead(head, lastItemPos);
@@ -452,7 +450,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
 
         // returns the pos field of the item at offsetInFile, or null to give up this round
         private FrameCallResult readItemPos(MqIdxFile lf, long offsetInFile, boolean head) {
-            ByteBuffer buf = ByteBuffer.allocate(MqIdxManager.ITEM_LEN);
+            ByteBuffer buf = ByteBuffer.allocate(MqIdxBlock.ITEM_LEN);
             lf.incReaders();
             readLogFile = lf;
             readerPending = true;
@@ -466,8 +464,8 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                 return Fiber.frameReturn();
             }
             CRC32C crc = new CRC32C();
-            RaftUtil.updateCrc(crc, buf, 0, MqIdxManager.ITEM_LEN - 4);
-            if (buf.getInt(MqIdxManager.ITEM_LEN - 4) == (int) crc.getValue()) {
+            RaftUtil.updateCrc(crc, buf, 0, MqIdxBlock.ITEM_LEN - 4);
+            if (buf.getInt(MqIdxBlock.ITEM_LEN - 4) == (int) crc.getValue()) {
                 long pos = buf.getLong(0);
                 if (head) {
                     lf.lastItemPos = pos;

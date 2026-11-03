@@ -86,7 +86,7 @@ class MqIdxManagerTest extends BaseFiberTest {
 
     // a whole 4K block on disk, window starting at seqBase, same data mapping as append
     private ByteBuffer buildBlockBuffer(long seqBase) {
-        ByteBuffer buf = ByteBuffer.allocate(MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN);
+        ByteBuffer buf = ByteBuffer.allocate(MqIdxBlock.DISK_BLOCK_BYTES);
         CRC32C crc = new CRC32C();
         for (int i = 0; i < MqIdxBlock.BLOCK_ITEMS; i++) {
             long seq = seqBase + i;
@@ -96,7 +96,7 @@ class MqIdxManagerTest extends BaseFiberTest {
             buf.putLong(0L);
             buf.putInt((int) seq + 1);
             crc.reset();
-            crc.update(buf.array(), recStart, MqIdxManager.ITEM_LEN - 4);
+            crc.update(buf.array(), recStart, MqIdxBlock.ITEM_LEN - 4);
             buf.putInt((int) crc.getValue());
         }
         buf.flip();
@@ -225,7 +225,7 @@ class MqIdxManagerTest extends BaseFiberTest {
         manager.register(5, 300);
         MqIdxQueue q5 = manager.queues.get(5);
         // a crash right after file pre-allocation leaves the block all zeros
-        q5.installHeadBlock(ByteBuffer.allocate(MqIdxBlock.BLOCK_ITEMS * MqIdxManager.ITEM_LEN));
+        q5.installHeadBlock(ByteBuffer.allocate(MqIdxBlock.DISK_BLOCK_BYTES));
         assertFalse(q5.needLoadHead);
         assertEquals(-1, manager.getIdxItemInCache(5, 299));
         append(5, 300);

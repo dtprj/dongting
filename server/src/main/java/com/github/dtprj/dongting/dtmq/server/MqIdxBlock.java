@@ -24,7 +24,9 @@ import java.nio.ByteBuffer;
  */
 final class MqIdxBlock {
 
-    static final int BLOCK_ITEMS = 128; // 128 * 32 = 4096
+    static final int BLOCK_ITEMS = 128;
+    static final int ITEM_LEN = 32;
+    static final int DISK_BLOCK_BYTES = BLOCK_ITEMS * ITEM_LEN; // 128 * 32 = 4096
     static final int BLOCK_SHIFT = Integer.numberOfTrailingZeros(BLOCK_ITEMS);
     static final int BLOCK_MASK = BLOCK_ITEMS - 1;
     static final int SLOT_SIZE = 28;

@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MqIdxFlusherTest extends BaseFiberTest {
 
-    private static final long FILE_SIZE = 256L * MqIdxManager.ITEM_LEN;
+    private static final long FILE_SIZE = 256L * MqIdxBlock.ITEM_LEN;
 
     private File dir;
     private RaftGroupConfigEx config;
@@ -117,13 +117,13 @@ class MqIdxFlusherTest extends BaseFiberTest {
         ByteBuffer buf = ByteBuffer.wrap(data);
         CRC32C crc = new CRC32C();
         for (long seq = fromSeq; seq <= toSeq; seq++) {
-            int off = (int) (seq - fileStartSeq) * MqIdxManager.ITEM_LEN;
+            int off = (int) (seq - fileStartSeq) * MqIdxBlock.ITEM_LEN;
             assertEquals(seq * 10, buf.getLong(off), "pos of seq " + seq);
             assertEquals(seq * 100, buf.getLong(off + 8), "timestamp of seq " + seq);
             assertEquals(0L, buf.getLong(off + 16), "reserved of seq " + seq);
             assertEquals((int) seq + 1, buf.getInt(off + 24), "size of seq " + seq);
             crc.reset();
-            crc.update(data, off, MqIdxManager.ITEM_LEN - 4);
+            crc.update(data, off, MqIdxBlock.ITEM_LEN - 4);
             assertEquals((int) crc.getValue(), buf.getInt(off + 28), "crc of seq " + seq);
         }
     }
@@ -834,14 +834,14 @@ class MqIdxFlusherTest extends BaseFiberTest {
 
         // corrupt the last item of f0 in place: the crc check makes cleanup give up on
         // this queue
-        byte[] bad = new byte[MqIdxManager.ITEM_LEN];
+        byte[] bad = new byte[MqIdxBlock.ITEM_LEN];
         try (RandomAccessFile raf = new RandomAccessFile(idxFile(1, 0), "rw")) {
-            raf.seek(FILE_SIZE - MqIdxManager.ITEM_LEN);
+            raf.seek(FILE_SIZE - MqIdxBlock.ITEM_LEN);
             raf.readFully(bad);
             for (int i = 0; i < bad.length; i++) {
                 bad[i] ^= 0x5a;
             }
-            raf.seek(FILE_SIZE - MqIdxManager.ITEM_LEN);
+            raf.seek(FILE_SIZE - MqIdxBlock.ITEM_LEN);
             raf.write(bad);
         }
 

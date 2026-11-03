@@ -47,8 +47,6 @@ class MqIdxManager {
 
     private static final DtLog log = DtLogs.getLogger(MqIdxManager.class);
 
-    static final int ITEM_LEN = 32;
-
     final RaftGroupConfigEx groupConfig;
     final File dir;
     final MqIdxFlusher flusher;
@@ -194,7 +192,7 @@ class MqIdxManager {
         ByteBuffer buffer = b.buffer;
         CRC32C crc = new CRC32C();
         for (int i = 0; i < itemCount; i++) {
-            int recStart = i * ITEM_LEN;
+            int recStart = i * MqIdxBlock.ITEM_LEN;
             long pos = src.getLong(recStart);
             long timestamp = src.getLong(recStart + 8);
             // reserved at recStart + 16, not cached
@@ -204,7 +202,7 @@ class MqIdxManager {
             if (pos == 0 && timestamp == 0 && itemSize == 0 && actualCrc == 0) {
                 continue;
             }
-            RaftUtil.updateCrc(crc, src, recStart, ITEM_LEN - 4);
+            RaftUtil.updateCrc(crc, src, recStart, MqIdxBlock.ITEM_LEN - 4);
             if (actualCrc != (int) crc.getValue()) {
                 // TODO recover use raft idx/log data
                 throw new ChecksumException("mq idx crc check failed: queue=" + b.owner.queueId

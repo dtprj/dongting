@@ -313,15 +313,15 @@ class DtMQTest extends BaseFiberTest {
                 ByteBuffer buf = ByteBuffer.wrap(data);
                 CRC32C crc = new CRC32C();
                 for (long seq = 256; seq < 300; seq++) {
-                    int off = (int) (seq - 256) * MqIdxManager.ITEM_LEN;
+                    int off = (int) (seq - 256) * MqIdxBlock.ITEM_LEN;
                     assertEquals(0L, buf.getLong(off), "pos of seq " + seq);
                     assertEquals(0L, buf.getLong(off + 8), "timestamp of seq " + seq);
                     assertEquals(0, buf.getInt(off + 24), "size of seq " + seq);
                     crc.reset();
-                    crc.update(data, off, MqIdxManager.ITEM_LEN - 4);
+                    crc.update(data, off, MqIdxBlock.ITEM_LEN - 4);
                     assertEquals((int) crc.getValue(), buf.getInt(off + 28), "crc of seq " + seq);
                 }
-                int off = (300 - 256) * MqIdxManager.ITEM_LEN;
+                int off = (300 - 256) * MqIdxBlock.ITEM_LEN;
                 assertEquals(7_001_010L, buf.getLong(off));
                 assertEquals(7_010_100L, buf.getLong(off + 8));
                 assertEquals(LogHeader.ITEM_HEADER_SIZE, buf.getInt(off + 24));
