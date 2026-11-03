@@ -44,7 +44,6 @@ final class MqIdxReader extends FiberFrame<Boolean> {
     private final MqPullFrame.QueueResult result;
     // snapshot of queue.nextSeq: the scan window stays fixed while appends continue
     private final long endSeq;
-    private CRC32C crc;
 
     // seek search bounds: the first seq with pos >= minPos
     private long low;
@@ -59,8 +58,8 @@ final class MqIdxReader extends FiberFrame<Boolean> {
 
     // one idx block read from disk covers seqs [diskStart, diskEnd)
     private RefBuffer diskBuffer;
-    private long diskStart = -1;
-    private long diskEnd;
+    private long diskStartSeq = -1;
+    private long diskEndSeq;
 
     private MqIdxFile readingFile;
     private FiberFuture<Void> pending;
@@ -267,7 +266,7 @@ final class MqIdxReader extends FiberFrame<Boolean> {
             raftIndex = mgr.lastGetRaftIndex;
             return true;
         }
-        if (diskStart <= seq && seq < diskEnd) {
+        if (diskStartSeq <= seq && seq < diskEndSeq) {
             decodeItem();
             return true;
         }
@@ -285,17 +284,17 @@ final class MqIdxReader extends FiberFrame<Boolean> {
             size = 0;
             return Fiber.resume(null, next);
         }
-        diskStart = seq & ~((long) MqIdxBlock.BLOCK_MASK);
-        diskEnd = Math.min(diskStart + MqIdxBlock.BLOCK_ITEMS, endSeq);
+        diskStartSeq = seq & ~((long) MqIdxBlock.BLOCK_MASK);
+        diskEndSeq = Math.min(diskStartSeq + MqIdxBlock.BLOCK_ITEMS, endSeq);
         if (diskBuffer == null) {
             diskBuffer = pull.mq.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirectLocal(
                     MqIdxBlock.DISK_BLOCK_BYTES);
         }
         ByteBuffer buf = diskBuffer.getBuffer();
-        buf.clear().limit((int) (diskEnd - diskStart) * MqIdxBlock.ITEM_LEN);
+        buf.clear().limit((int) (diskEndSeq - diskStartSeq) * MqIdxBlock.ITEM_LEN);
         file.incReaders();
         readingFile = file;
-        long offset = diskStart * MqIdxBlock.ITEM_LEN & (queue.getFileSize() - 1);
+        long offset = diskStartSeq * MqIdxBlock.ITEM_LEN & (queue.getFileSize() - 1);
         pending = new AsyncIoTask(pull.mq.groupConfig.fiberGroup, file).read(buf, offset);
         return pending.await(v -> {
             endRead();
@@ -308,7 +307,7 @@ final class MqIdxReader extends FiberFrame<Boolean> {
     private void decodeItem() {
         raftIndex = 0;
         ByteBuffer buf = diskBuffer.getBuffer();
-        int offset = (int) (seq - diskStart) * MqIdxBlock.ITEM_LEN;
+        int offset = (int) (seq - diskStartSeq) * MqIdxBlock.ITEM_LEN;
         pos = buf.getLong(offset);
         long timestamp = buf.getLong(offset + 8);
         size = buf.getInt(offset + 24);
@@ -318,11 +317,7 @@ final class MqIdxReader extends FiberFrame<Boolean> {
             pos = -1;
             return;
         }
-        if (crc == null) {
-            crc = new CRC32C();
-        } else {
-            crc.reset();
-        }
+        CRC32C crc = new CRC32C();
         RaftUtil.updateCrc(crc, buf, offset, MqIdxBlock.ITEM_LEN - 4);
         if (actualCrc != (int) crc.getValue()) {
             throw new ChecksumException("mq idx crc check failed: queue=" + queue.queueId + ", seq=" + seq);
