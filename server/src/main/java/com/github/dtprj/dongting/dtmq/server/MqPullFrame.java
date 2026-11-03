@@ -89,12 +89,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     // absolute end of this long poll; 0 until the first scan anchors it
     private long waitEnd;
     private FiberCondition changed;
-    private boolean waiting;
     // mq.changeVersion snapshot; a mismatch after a scan means appends landed during it
     private long changeVersion;
-    private int queueIndex;
-    // set by the io reader on stale state; the whole scan restarts
-    boolean retry;
 
     // flat item arrays shared by all queues; msgPositions is allocated lazily, disk items only
     private long[] msgPositions;
@@ -102,8 +98,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     private RefBuffer[] cached;
     private int count;
     private int bytes;
-    // zero-copy bytes, excluded from the borrowed response buffer size
-    private int cachedZeroCopyBytes;
     private int bodySize;
     private RefBuffer buffer;
     // gathering-write segments for large zero-copy items
@@ -206,11 +200,8 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             waitEnd = mq.groupConfig.ts.nanoTime + waitNanos;
         }
         changeVersion = mq.changeVersion;
-        queueIndex = 0;
         count = 0;
         bytes = 0;
-        cachedZeroCopyBytes = 0;
-        retry = false;
         QueueResult[] results = this.results;
         if (results != null) {
             for (QueueResult r : results) {
@@ -250,16 +241,13 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 }
             }
         }
-        return readQueue(null);
+        return readQueue(0);
     }
 
-    private FrameCallResult readQueue(Void unused) {
+    private FrameCallResult readQueue(int idx) {
         checkCancelled();
-        if (retry) {
-            return Fiber.resume(null, this::scan);
-        }
-        while (results != null && queueIndex < results.length && hasCapacity()) {
-            QueueResult r = results[queueIndex++];
+        while (results != null && idx < results.length && hasCapacity()) {
+            QueueResult r = results[idx];
             if (r != null && r.stopReason == QueueResult.BLOCK_MISS) {
                 // same invariant as the phase 2a guard
                 if (r.queueCount != 0) {
@@ -267,9 +255,13 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                             r.queueId, r.fromSeq, r.queueCount);
                 } else {
                     r.start = count;
-                    return Fiber.call(new MqIdxReader(this, mq.manager.queues.get(r.queueId), r), this::readQueue);
+                    int next = idx + 1;
+                    // a false return means stale state mid-collect: the whole scan restarts
+                    return Fiber.call(new MqIdxReader(this, mq.manager.queues.get(r.queueId), r),
+                            v -> Boolean.TRUE.equals(v) ? readQueue(next) : Fiber.resume(null, this::scan));
                 }
             }
+            idx++;
         }
         if (!resetPositionsValid()) {
             return Fiber.resume(null, this::scan);
@@ -304,6 +296,10 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         return count < limit && bytes < bytesLimit;
     }
 
+    private static boolean zeroCopy(RefBuffer ref, int size) {
+        return ref != null && size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD;
+    }
+
     void add(long pos, int size, RaftTask task) {
         if (msgSizes == null) {
             int n = Math.min(limit, 16);
@@ -321,9 +317,6 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
             RefBuffer ref = task.reqData.buffer;
             ref.retain();
             cached[count] = ref;
-            if (size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
-                cachedZeroCopyBytes += size;
-            }
         } else {
             if (msgPositions == null) {
                 msgPositions = new long[msgSizes.length];
@@ -338,7 +331,14 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     private FrameCallResult prepareResponse() {
         int headerSize = MqPullResp.headerSize(queueIds, fromSeqs, results, bytes);
         bodySize = Math.addExact(headerSize, bytes);
-        int bufferSize = bodySize - cachedZeroCopyBytes;
+        // zero-copy bytes are excluded from the borrowed response buffer size
+        int zeroCopyBytes = 0;
+        for (int i = 0; i < count; i++) {
+            if (zeroCopy(cached[i], msgSizes[i])) {
+                zeroCopyBytes += msgSizes[i];
+            }
+        }
+        int bufferSize = bodySize - zeroCopyBytes;
         buffer = mq.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirect(bufferSize);
         ByteBuffer dest = buffer.getBuffer();
         dest.limit(bufferSize);
@@ -363,7 +363,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                     dest.position(dest.position() + size);
                 } else {
                     ByteBuffer src = ref.getBuffer();
-                    if (size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
+                    if (zeroCopy(ref, size)) {
                         if (segs == null) {
                             segs = new ArrayList<>(2);
                         }
@@ -445,10 +445,9 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     }
 
     private void watch() {
-        if (waiting) {
+        if (changed != null) {
             return;
         }
-        waiting = true;
         // registration stays until doFinally; signals missed during scans are covered
         // by the changeVersion re-check
         changed = mq.groupConfig.fiberGroup.newCondition("mqPull");
@@ -463,10 +462,9 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     }
 
     private void unwatch() {
-        if (!waiting) {
+        if (changed == null) {
             return;
         }
-        waiting = false;
         for (long id : queueIds) {
             HashSet<MqPullFrame> set = mq.waitingPulls.get(id);
             set.remove(this);
@@ -474,6 +472,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
                 mq.waitingPulls.remove(id);
             }
         }
+        changed = null;
     }
 
     private void releaseBuffers() {

@@ -36,8 +36,9 @@ import com.github.dtprj.dongting.raft.store.LogHeader;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
 
-/** Static memory scans serve queues with cached idx blocks; this frame handles missing blocks. */
-final class MqIdxReader extends FiberFrame<Void> {
+/** Static memory scans serve queues with cached idx blocks; this frame handles missing blocks.
+ * Returns false when a stale state collected mid-scan requires a full rescan. */
+final class MqIdxReader extends FiberFrame<Boolean> {
     private final MqPullFrame pull;
     private final MqIdxQueue queue;
     private final MqPullFrame.QueueResult result;
@@ -209,7 +210,7 @@ final class MqIdxReader extends FiberFrame<Void> {
             result.fromSeq = seq;
             result.truncated = result.requestedSeq != 0;
             if (seq == endSeq) {
-                return Fiber.frameReturn();
+                return justReturn(true);
             }
             return loadItem(this::afterItem);
         }
@@ -231,14 +232,13 @@ final class MqIdxReader extends FiberFrame<Void> {
         if (pos < pull.mq.raftStatus.firstValidPos
                 || (result.truncated && pos < pull.mq.raftLog.firstReadablePos())) {
             if (result.queueCount > 0) {
-                pull.retry = true;
-                return Fiber.frameReturn();
+                return justReturn(false);
             }
             return seekStart();
         }
         if (result.truncated) {
             result.resetPos = pos;
-            return Fiber.frameReturn();
+            return justReturn(true);
         }
         return collect();
     }
@@ -248,7 +248,7 @@ final class MqIdxReader extends FiberFrame<Void> {
         while (true) {
             RaftTask task = raftIndex == 0 ? null : rs.tailCache.get(raftIndex);
             if (!consumeItem(pull, result, endSeq, seq, pos, size, task, true)) {
-                return Fiber.frameReturn();
+                return justReturn(true);
             }
             seq++;
             if (!loadCachedItem()) {
