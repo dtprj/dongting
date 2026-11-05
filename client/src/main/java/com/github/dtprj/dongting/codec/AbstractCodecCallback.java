@@ -138,12 +138,19 @@ public abstract class AbstractCodecCallback<T> {
         return result;
     }
 
-    protected <X> ArrayList<X> createArrayList(int suggestedSize) {
-        if (suggestedSize <= 0 || suggestedSize > 50000) {
+    private static final int MAX_SUGGESTED_SIZE = 50000;
+
+    /** Returns the suggested size if it is in (0, 50000], otherwise 0. */
+    protected final int checkSuggestedSize(int suggestedSize) {
+        if (suggestedSize <= 0 || suggestedSize > MAX_SUGGESTED_SIZE) {
             log.warn("invalid suggested size: {}", suggestedSize);
-            return new ArrayList<>();
+            return 0;
         }
-        return new ArrayList<>(suggestedSize);
+        return suggestedSize;
+    }
+
+    protected <X> ArrayList<X> createArrayList(int suggestedSize) {
+        return new ArrayList<>(checkSuggestedSize(suggestedSize));
     }
 
 }

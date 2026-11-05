@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
@@ -32,18 +31,18 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.util.ArrayList;
 
-final class MqSendProcessor extends RaftProcessor<MqSendReq> {
+final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
     MqSendProcessor(RaftServer raftServer) {
         super(raftServer, true, false);
     }
 
     @Override
-    public DecoderCallback<MqSendReq> createDecoderCallback(int cmd, DecodeContext context) {
-        return context.toDecoderCallback(((DecodeContextEx) context).mqSendReqCallback());
+    public DecoderCallback<MqSendReqCallback> createDecoderCallback(int cmd, DecodeContext context) {
+        return context.toDecoderCallback(new MqSendReqCallback());
     }
 
     @Override
-    protected int getGroupId(ReadPacket<MqSendReq> packet) {
+    protected int getGroupId(ReadPacket<MqSendReqCallback> packet) {
         int groupId = packet.getBody().groupId;
         if (groupId <= 0) {
             packet.clean();
@@ -53,7 +52,7 @@ final class MqSendProcessor extends RaftProcessor<MqSendReq> {
     }
 
     @Override
-    protected WritePacket doProcess(ReqInfo<MqSendReq> reqInfo) {
+    protected WritePacket doProcess(ReqInfo<MqSendReqCallback> reqInfo) {
         try {
             if (!(reqInfo.raftGroup.getStateMachine() instanceof DtMQ)) {
                 throw new NetCodeException(CmdCodes.CLIENT_ERROR, "not a dtmq group", null);
@@ -85,11 +84,11 @@ final class MqSendProcessor extends RaftProcessor<MqSendReq> {
     }
 
     private final class SendBatch {
-        private ReqInfo<MqSendReq> reqInfo;
+        private ReqInfo<MqSendReqCallback> reqInfo;
         private int remaining;
         private Throwable failure;
 
-        private SendBatch(ReqInfo<MqSendReq> reqInfo, int size) {
+        private SendBatch(ReqInfo<MqSendReqCallback> reqInfo, int size) {
             this.reqInfo = reqInfo;
             this.remaining = size;
         }

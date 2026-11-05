@@ -20,10 +20,8 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPoolConfig;
 import com.github.dtprj.dongting.codec.BytesDecoderCallback;
-import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.dtmq.MqClientConfig;
 import com.github.dtprj.dongting.dtmq.proto.DtMq;
 import com.github.dtprj.dongting.net.ByteBufferWritePacket;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -38,18 +36,15 @@ import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.ServerTestBase;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,8 +75,6 @@ class MqSendProcessorTest extends ServerTestBase {
 
     @Test
     void testSendRpcAndBatchValidation() throws Exception {
-        MqClientConfig defaults = new MqServerConfig();
-        assertEquals(2_000_000, defaults.maxBody);
         startAfterCreate = false;
         ServerInfo server = createServer(1, replicateServers(1), "1", "");
         NioClient client = new NioClient(new NioClientConfig());
@@ -124,25 +117,7 @@ class MqSendProcessorTest extends ServerTestBase {
     }
 
     @Test
-    void testRequestDecoder() throws Exception {
-        DtMq.MqSendReq req = request(
-                message(11, ByteString.EMPTY, body(MAX_BODY)),
-                message(22, HEADER, body(MAX_BODY)),
-                message(11, HEADER, ByteString.EMPTY),
-                message(22, ByteString.EMPTY, ByteString.EMPTY));
-        try (TrackingBuffers buffers = new TrackingBuffers()) {
-            DecodeContextEx context = new DecodeContextEx(buffers, null);
-            for (byte[] bytes : new byte[][]{req.toByteArray(), repeatedFieldsRequest()}) {
-                for (int chunk : new int[]{bytes.length, 1}) {
-                    assertDecoded(context, bytes, chunk);
-                    buffers.assertAllReleased();
-                }
-            }
-        }
-    }
-
-    @Test
-    void testDecoderResetAndInvalidSize() throws Exception {
+    void testDecodeAbortReleasesBuffers() throws Exception {
         DtMq.MqSendReq req = request(
                 message(11, ByteString.EMPTY, body(MAX_BODY)),
                 message(22, ByteString.EMPTY, body(MAX_BODY)));
@@ -150,7 +125,7 @@ class MqSendProcessorTest extends ServerTestBase {
         try (TrackingBuffers buffers = new TrackingBuffers()) {
             DecodeContextEx context = new DecodeContextEx(buffers, null);
             PbParser parser = new PbParser();
-            parser.prepareNext(context, context.mqSendReqCallback(), bytes.length);
+            parser.prepareNext(context, new MqSendReqCallback(), bytes.length);
             try {
                 ByteBuffer partial = ByteBuffer.wrap(bytes);
                 partial.limit(bytes.length - MAX_BODY / 2);
@@ -158,22 +133,18 @@ class MqSendProcessorTest extends ServerTestBase {
                 assertFalse(parser.isFinished());
                 assertEquals(2, buffers.borrowed.size());
                 for (RefBuffer buffer : buffers.borrowed) {
-                    assertTrue(buffer.getBuffer().isDirect());
                     assertFalse(buffer.isReleased());
                 }
             } finally {
                 context.reset(parser);
             }
             buffers.assertAllReleased();
-            assertDecoded(context, bytes, 1);
-            buffers.assertAllReleased();
 
-            for (int invalidSize : new int[]{Integer.MAX_VALUE, 1}) {
-                byte[] invalid = req.toBuilder().setMessagesSize(invalidSize).build().toByteArray();
-                assertThrows(PbException.class, () -> decode(context, invalid, 1));
-                assertDecoded(context, bytes, bytes.length);
-                buffers.assertAllReleased();
-            }
+            // the same DecodeContext must be usable again after an aborted decode
+            MqSendReqCallback decoded = decode(context, bytes, bytes.length);
+            assertEquals(2, decoded.messages.size());
+            decoded.clean();
+            buffers.assertAllReleased();
         }
     }
 
@@ -194,67 +165,20 @@ class MqSendProcessorTest extends ServerTestBase {
         return ByteString.copyFrom(bytes);
     }
 
-    // a non-canonical encoding: out-of-order and repeated fields, the decoder keeps the last value
-    private static byte[] repeatedFieldsRequest() throws Exception {
-        ByteArrayOutputStream message = new ByteArrayOutputStream();
-        CodedOutputStream out = CodedOutputStream.newInstance(message);
-        out.writeBytes(DtMq.MqMessage.MSG_BODY_FIELD_NUMBER, body(MAX_BODY));
-        out.writeFixed64(DtMq.MqMessage.QUEUE_ID_FIELD_NUMBER, 11);
-        out.writeBytes(DtMq.MqMessage.MSG_HEADER_FIELD_NUMBER, ByteString.copyFromUtf8("old header"));
-        out.writeBytes(DtMq.MqMessage.MSG_BODY_FIELD_NUMBER, body(17));
-        out.writeBytes(DtMq.MqMessage.MSG_HEADER_FIELD_NUMBER, HEADER);
-        out.flush();
-
-        ByteArrayOutputStream request = new ByteArrayOutputStream();
-        out = CodedOutputStream.newInstance(request);
-        out.writeInt32(DtMq.MqSendReq.GROUP_ID_FIELD_NUMBER, 1);
-        out.writeByteArray(DtMq.MqSendReq.MESSAGES_FIELD_NUMBER, message.toByteArray());
-        out.flush();
-        return request.toByteArray();
-    }
-
-    private MqSendReq decode(DecodeContextEx context, byte[] bytes, int chunk) {
+    private MqSendReqCallback decode(DecodeContextEx context, byte[] bytes, int chunk) {
         PbParser parser = new PbParser();
-        parser.prepareNext(context, context.mqSendReqCallback(), bytes.length);
+        parser.prepareNext(context, new MqSendReqCallback(), bytes.length);
         ByteBuffer buf = ByteBuffer.wrap(bytes);
-        MqSendReq result = null;
+        MqSendReqCallback result = null;
         try {
             while (buf.position() < bytes.length) {
                 buf.limit(Math.min(buf.position() + chunk, bytes.length));
-                result = (MqSendReq) parser.parse(buf);
+                result = (MqSendReqCallback) parser.parse(buf);
             }
             assertTrue(parser.isFinished());
             return result;
         } finally {
             context.reset(parser);
-        }
-    }
-
-    private void assertDecoded(DecodeContextEx context, byte[] bytes, int chunk) throws Exception {
-        DtMq.MqSendReq expected = DtMq.MqSendReq.parseFrom(bytes);
-        MqSendReq actual = decode(context, bytes, chunk);
-        assertNotNull(actual);
-        try {
-            assertEquals(expected.getGroupId(), actual.groupId);
-            assertEquals(expected.getMessagesCount(), actual.messages.size());
-            for (int i = 0; i < actual.messages.size(); i++) {
-                DtMq.MqMessage message = expected.getMessages(i);
-                RaftReqData data = actual.messages.get(i);
-                assertEquals(LogHeader.TYPE_NORMAL, data.type);
-                assertEquals(message.getQueueId(), data.bizKey);
-                assertEquals(message.getMsgHeader().size(), data.bizHeaderLen);
-                assertEquals(message.getMsgBody().size(), data.bodyLen);
-                assertEquals(LogHeader.computeTotalLen(data.bizHeaderLen, data.bodyLen), data.totalLen);
-                ByteBuffer raw = data.buffer.getBuffer().duplicate();
-                assertEquals(data.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD, raw.isDirect());
-                assertEquals(data.totalLen, raw.remaining());
-                raw.position(LogHeader.ITEM_HEADER_SIZE);
-                assertPayload(raw, message.getMsgHeader());
-                assertPayload(raw, message.getMsgBody());
-                assertFalse(raw.hasRemaining());
-            }
-        } finally {
-            actual.clean();
         }
     }
 

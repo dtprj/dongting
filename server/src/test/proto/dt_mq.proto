@@ -17,7 +17,7 @@ syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.dtmq.proto";
 
 message MqMessage {
-  fixed64 queue_id = 1;
+  fixed64 queue_id = 1; // 1-based; 0 is reserved
   bytes msg_header = 2; // opaque bytes, not interpreted by the state machine
   bytes msg_body = 3; // maxBody applies to each message body, excluding the header
 }
@@ -31,7 +31,7 @@ message MqSendReq {
 // return EmptyBodyRespFrame
 
 message MqPullReqDetail {
-  fixed64 queue_id = 1;
+  fixed64 queue_id = 1; // 1-based; 0 is reserved
   fixed64 from_seq = 2; // 0 starts at the earliest readable record
 }
 
@@ -45,7 +45,7 @@ message MqPullReq {
 }
 
 message MqPullRespDetail {
-  fixed64 queue_id = 1;
+  fixed64 queue_id = 1; // 1-based; 0 is reserved
   fixed64 from_seq = 2;
   int32 count = 3; // next pull cursor = from_seq + count
   bool truncated = 4; // no records; retry from from_seq

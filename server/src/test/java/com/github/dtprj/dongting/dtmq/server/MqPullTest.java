@@ -214,7 +214,7 @@ class MqPullTest extends BaseFiberTest {
 
     private static final class Pull {
         final MqPullFrame frame;
-        final CompletableFuture<MqPullResp> result = new CompletableFuture<>();
+        final CompletableFuture<MqPullRespPacket> result = new CompletableFuture<>();
 
         Pull(MqPullFrame frame) {
             this.frame = frame;
@@ -254,7 +254,7 @@ class MqPullTest extends BaseFiberTest {
     }
 
     private void assertRecords(Pull p, RaftTask... expected) throws Exception {
-        MqPullResp resp = p.result.get(tick(3000), TimeUnit.MILLISECONDS);
+        MqPullRespPacket resp = p.result.get(tick(3000), TimeUnit.MILLISECONDS);
         try {
             ByteBuffer encoded = ByteBuffer.allocate(resp.actualSize());
             ByteBuffer dest = ByteBuffer.allocate(64);
@@ -317,7 +317,7 @@ class MqPullTest extends BaseFiberTest {
     private void assertFailure(Pull p, Class<? extends Throwable> type) {
         assertThrows(type, () -> {
             try {
-                MqPullResp unexpected = p.result.get(tick(3000), TimeUnit.MILLISECONDS);
+                MqPullRespPacket unexpected = p.result.get(tick(3000), TimeUnit.MILLISECONDS);
                 if (unexpected != null) {
                     unexpected.clean();
                 }
@@ -451,7 +451,7 @@ class MqPullTest extends BaseFiberTest {
         RaftTask task = item(1, RaftServerConfig.GATHERING_WRITE_THRESHOLD);
         append(task);
         Pull cached = pull(new long[]{1}, new long[]{0}, 1, 65536, 0);
-        MqPullResp resp = cached.result.get(tick(3000), TimeUnit.MILLISECONDS);
+        MqPullRespPacket resp = cached.result.get(tick(3000), TimeUnit.MILLISECONDS);
         doInFiber(() -> {
             rs.tailCache.cleanAll();
             task.reqData.release();

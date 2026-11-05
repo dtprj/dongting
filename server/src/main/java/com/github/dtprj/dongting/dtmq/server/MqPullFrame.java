@@ -42,7 +42,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /** Returns a pre-encoded response; the caller sends it or calls clean(). */
-public final class MqPullFrame extends FiberFrame<MqPullResp> {
+public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
     /** Truncated queues return only a retry cursor. The next cursor is fromSeq + queueCount. */
     public static final class QueueResult {
         public final long queueId;
@@ -329,7 +329,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
     }
 
     private FrameCallResult prepareResponse() {
-        int headerSize = MqPullResp.headerSize(queueIds, fromSeqs, results, bytes);
+        int headerSize = MqPullRespPacket.headerSize(queueIds, fromSeqs, results, bytes);
         bodySize = Math.addExact(headerSize, bytes);
         // zero-copy bytes are excluded from the borrowed response buffer size
         int zeroCopyBytes = 0;
@@ -342,7 +342,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         buffer = mq.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirect(bufferSize);
         ByteBuffer dest = buffer.getBuffer();
         dest.limit(bufferSize);
-        MqPullResp.writeHeader(dest, queueIds, fromSeqs, results, bytes);
+        MqPullRespPacket.writeHeader(dest, queueIds, fromSeqs, results, bytes);
         ArrayList<ByteBuffer> segs = null;
         int[] offsets = null;
         int segmentStart = 0;
@@ -437,7 +437,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         if (!success || !resetPositionsValid()) {
             return Fiber.resume(null, this::scan);
         }
-        MqPullResp result = new MqPullResp(buffer, cached, segments, bodySize);
+        MqPullRespPacket result = new MqPullRespPacket(buffer, cached, segments, bodySize);
         buffer = null;
         cached = null;
         segments = null;

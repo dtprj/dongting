@@ -17,8 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.dtmq.server.MqPullReq;
-import com.github.dtprj.dongting.dtmq.server.MqSendReq;
+import com.github.dtprj.dongting.dtmq.server.MqPullReqCallback;
 import com.github.dtprj.dongting.raft.rpc.AppendReq;
 import com.github.dtprj.dongting.raft.rpc.AppendResp;
 
@@ -29,8 +28,7 @@ public final class DecodeContextEx extends DecodeContext {
 
     private AppendReq.Callback appendReqCallback;
     private AppendResp.Callback appendRespCallback;
-    private MqPullReq.Callback mqPullReqCallback;
-    private MqSendReq.Callback mqSendReqCallback;
+    private MqPullReqCallback mqPullReqCallback;
 
     public DecodeContextEx(Buffers buffers, byte[] threadLocalBuffer) {
         super(buffers, threadLocalBuffer);
@@ -55,17 +53,10 @@ public final class DecodeContextEx extends DecodeContext {
         return appendRespCallback;
     }
 
-    public MqPullReq.Callback mqPullReqCallback() {
+    public MqPullReqCallback mqPullReqCallback() {
         if (mqPullReqCallback == null) {
-            mqPullReqCallback = new MqPullReq.Callback();
+            mqPullReqCallback = new MqPullReqCallback();
         }
         return mqPullReqCallback;
-    }
-
-    public MqSendReq.Callback mqSendReqCallback() {
-        if (mqSendReqCallback == null) {
-            mqSendReqCallback = new MqSendReq.Callback();
-        }
-        return mqSendReqCallback;
     }
 }

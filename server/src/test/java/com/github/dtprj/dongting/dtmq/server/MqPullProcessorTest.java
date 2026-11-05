@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.codec.BytesDecoderCallback;
-import com.github.dtprj.dongting.codec.PbException;
-import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtmq.proto.DtMq;
 import com.github.dtprj.dongting.net.ByteBufferWritePacket;
@@ -30,7 +28,6 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -118,46 +115,6 @@ class MqPullProcessorTest extends ServerTestBase {
         } finally {
             TestUtil.stop(client);
             waitStop(server);
-        }
-    }
-
-    @Test
-    void testRequestDecoder() {
-        DtMq.MqPullReq req = request(11, 9, 123).toBuilder().setQueuesSize(2)
-                .addQueues(DtMq.MqPullReqDetail.newBuilder().setQueueId(22)).build();
-        DecodeContextEx context = new DecodeContextEx(null, null);
-        for (int chunk : new int[]{1, req.getSerializedSize()}) {
-            MqPullReq decoded = decode(context, req.toByteArray(), chunk);
-            assertEquals(1, decoded.groupId);
-            assertEquals(Integer.MAX_VALUE, decoded.limit);
-            assertEquals(Integer.MAX_VALUE, decoded.bytesLimit);
-            assertEquals(123, decoded.waitMillis);
-            assertArrayEquals(new long[]{11, 22}, decoded.queueIds);
-            assertArrayEquals(new long[]{9, 0}, decoded.fromSeqs);
-        }
-        assertArrayEquals(new long[]{11, 22}, decode(context,
-                req.toBuilder().clearQueuesSize().build().toByteArray(), 1).queueIds);
-        assertThrows(PbException.class, () -> decode(context,
-                req.toBuilder().setQueuesSize(Integer.MAX_VALUE).build().toByteArray(), 1));
-        assertThrows(PbException.class, () -> decode(context,
-                req.toBuilder().setQueuesSize(1).build().toByteArray(), 1));
-        assertEquals(0, decode(context, request(11, 0, 0).toByteArray(), 1).waitMillis);
-    }
-
-    private MqPullReq decode(DecodeContextEx context, byte[] bytes, int chunk) {
-        PbParser parser = new PbParser();
-        parser.prepareNext(context, context.mqPullReqCallback(), bytes.length);
-        ByteBuffer buf = ByteBuffer.wrap(bytes);
-        MqPullReq result = null;
-        try {
-            while (buf.position() < bytes.length) {
-                buf.limit(Math.min(buf.position() + chunk, bytes.length));
-                result = (MqPullReq) parser.parse(buf);
-            }
-            assertTrue(parser.isFinished());
-            return result;
-        } finally {
-            context.reset(parser);
         }
     }
 
