@@ -49,8 +49,10 @@ public interface RaftLog {
      */
     LogIterator openIterator(Supplier<Boolean> cancelIndicator, boolean decode);
 
-    /** Lower position bound in the first unmarked file, respecting snapshot truncation; Long.MAX_VALUE if absent. */
-    long firstReadablePos();
+    /** Conservative lower bound when initializing a read cursor: the first pos in a file not
+     * marked for delete, past snapshot truncation; Long.MAX_VALUE if absent. Files marked
+     * for delete after the seek are still readable. */
+    long seekFloor();
 
     /** Reads into absolute dest offsets without changing its position; false means expired, with no I/O. */
     FiberFrame<Boolean> read(long[] positions, int[] lengths, int[] offsets, int count, ByteBuffer dest,

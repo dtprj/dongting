@@ -524,20 +524,20 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     @Test
-    void testFirstReadablePos() throws Exception {
+    void testSeekFloor() throws Exception {
         prepareDeleteEnv();
         doInFiber(() -> {
-            assertEquals(0, raftLog.firstReadablePos());
+            assertEquals(0, raftLog.seekFloor());
             raftLog.markTruncateByIndex(5, tick(60_000));
             assertTrue(raftLog.logFiles.getLogFile(0).shouldDeleteSoon());
             assertTrue(raftLog.logFiles.getLogFile(1024).shouldDeleteSoon());
             assertEquals(0, raftStatus.firstValidPos);
-            assertEquals(2048, raftLog.firstReadablePos());
+            assertEquals(2048, raftLog.seekFloor());
             try {
                 raftStatus.firstValidPos = 2049;
-                assertEquals(2049, raftLog.firstReadablePos());
+                assertEquals(2049, raftLog.seekFloor());
                 raftStatus.firstValidPos = raftLog.logFiles.queueEndPosition;
-                assertEquals(Long.MAX_VALUE, raftLog.firstReadablePos());
+                assertEquals(Long.MAX_VALUE, raftLog.seekFloor());
             } finally {
                 raftStatus.firstValidPos = 0;
             }

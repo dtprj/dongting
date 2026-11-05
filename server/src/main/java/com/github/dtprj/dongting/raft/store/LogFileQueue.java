@@ -58,6 +58,12 @@ final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
 
     int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
 
+    // cached seekFloor result, keyed by raftStatus.firstValidPos; the key is
+    // Long.MIN_VALUE after a queue mutation (markDelete, file delete, finishInstall).
+    // A MAX_VALUE result is not cached, so an empty queue recalculates once files exist.
+    private long seekFloorKey = Long.MIN_VALUE;
+    private long seekFloorValue;
+
     public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
         super(dir, groupConfig, groupConfig.logFileSize, true);
         this.groupConfig = groupConfig;
@@ -97,6 +103,33 @@ final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
             raftStatus.lastForceLogIndex = forceFinishRaftIndex;
         }
         raftStatus.logForceFinishCondition.signalAll();
+    }
+
+    @Override
+    protected void afterDelete() {
+        seekFloorKey = Long.MIN_VALUE;
+    }
+
+    long seekFloor() {
+        long firstValidPos = raftStatus.firstValidPos;
+        if (seekFloorKey == firstValidPos) {
+            return seekFloorValue;
+        }
+        long result = Long.MAX_VALUE;
+        int size = queue.size();
+        for (int i = 0; i < size; i++) {
+            MainLogFile file = queue.get(i);
+            // pending-delete files are only a short prefix at the head
+            if (file.endPos > firstValidPos && file.deleteTimestamp == 0 && !file.deleted) {
+                result = Math.max(file.startPos, firstValidPos);
+                break;
+            }
+        }
+        if (result != Long.MAX_VALUE) {
+            seekFloorKey = firstValidPos;
+            seekFloorValue = result;
+        }
+        return result;
     }
 
     public long fileLength() {
@@ -199,6 +232,7 @@ final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
     }
 
     public void markDelete(long boundIndex, long timestampBound, long delayMills) {
+        seekFloorKey = Long.MIN_VALUE;
         long deleteTimestamp = ts.wallClockMillis + delayMills;
         int queueSize = queue.size();
         for (int i = 0; i < queueSize - 1; i++) {
@@ -263,6 +297,7 @@ final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
         queueEndPosition = start;
         logAppender.setNext(nextLogIndex, nextLogPos);
         initQueue();
+        seekFloorKey = Long.MIN_VALUE;
         startFibers();
         return FiberFrame.voidCompletedFrame();
     }

@@ -421,7 +421,7 @@ public final class MqPullFrame extends FiberFrame<MqPullResp> {
         for (QueueResult r : results) {
             if (r != null && r.truncated) {
                 if (first < 0) {
-                    first = mq.raftLog.firstReadablePos();
+                    first = mq.raftLog.seekFloor();
                 }
                 if (r.resetPos < first
                         || (r.resetPos == Long.MAX_VALUE && mq.manager.queues.get(r.queueId).nextSeq > r.fromSeq)) {

@@ -139,10 +139,10 @@ final class MqIdxReader extends FiberFrame<Boolean> {
         scanLoop(pull, queue, result, block, seq, queue.nextSeq, true);
     }
 
-    /** Same predicate as the seek below: the first seq with pos >= firstReadablePos. */
+    /** Same predicate as the seek below: the first seq with pos >= seekFloor. */
     private static long findStartInMemory(MqPullFrame pull, MqIdxQueue queue, long endSeq) {
         MqIdxManager mgr = pull.mq.manager;
-        long minPos = pull.mq.raftLog.firstReadablePos();
+        long minPos = pull.mq.raftLog.seekFloor();
         long low = queue.firstAvailableSeq();
         long high = endSeq;
         long seq = low;
@@ -196,7 +196,7 @@ final class MqIdxReader extends FiberFrame<Boolean> {
                     queue.queueId, result.fromSeq, result.queueCount);
             throw new RaftException("mq idx seek with collected records");
         }
-        minPos = pull.mq.raftLog.firstReadablePos();
+        minPos = pull.mq.raftLog.seekFloor();
         low = Math.min(queue.firstAvailableSeq(), endSeq);
         high = endSeq;
         return search(null);
@@ -226,10 +226,10 @@ final class MqIdxReader extends FiberFrame<Boolean> {
         return Fiber.resume(null, this::search);
     }
 
-    // seek landings (truncated) are additionally checked against firstReadablePos, as in resetPositionsValid
+    // seek landings (truncated) are additionally checked against seekFloor, as in resetPositionsValid
     private FrameCallResult afterItem(Void unused) {
         if (pos < pull.mq.raftStatus.firstValidPos
-                || (result.truncated && pos < pull.mq.raftLog.firstReadablePos())) {
+                || (result.truncated && pos < pull.mq.raftLog.seekFloor())) {
             if (result.queueCount > 0) {
                 return justReturn(false);
             }
