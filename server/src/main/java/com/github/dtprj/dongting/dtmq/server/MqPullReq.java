@@ -22,6 +22,17 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 public final class MqPullReq {
+    private static final int IDX_GROUP_ID = 1;
+    private static final int IDX_QUEUES_SIZE = 2;
+    private static final int IDX_LIMIT = 3;
+    private static final int IDX_BYTES_LIMIT = 4;
+    private static final int IDX_WAIT_MILLIS = 5;
+    private static final int IDX_QUEUES = 15;
+
+    // MqPullReqDetail
+    private static final int IDX_DETAIL_QUEUE_ID = 1;
+    private static final int IDX_DETAIL_FROM_SEQ = 2;
+
     int groupId;
     long[] queueIds;
     long[] fromSeqs;
@@ -47,22 +58,22 @@ public final class MqPullReq {
         @Override
         public void readVarNumber(int index, long value) {
             switch (index) {
-                case 1:
+                case IDX_GROUP_ID:
                     req.groupId = (int) value;
                     break;
-                case 2:
+                case IDX_QUEUES_SIZE:
                     if (value < 0 || value > maxQueues) {
                         throw new PbException("invalid queues_size: " + value);
                     }
                     declaredSize = (int) value;
                     break;
-                case 4:
+                case IDX_LIMIT:
                     req.limit = (int) value;
                     break;
-                case 5:
+                case IDX_BYTES_LIMIT:
                     req.bytesLimit = (int) value;
                     break;
-                case 6:
+                case IDX_WAIT_MILLIS:
                     req.waitMillis = value;
                     break;
             }
@@ -70,7 +81,7 @@ public final class MqPullReq {
 
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index != 3) {
+            if (index != IDX_QUEUES) {
                 return;
             }
             if (currentPos == 0) {
@@ -120,9 +131,9 @@ public final class MqPullReq {
 
             @Override
             public void readFix64(int index, long value) {
-                if (index == 1) {
+                if (index == IDX_DETAIL_QUEUE_ID) {
                     queueId = value;
-                } else if (index == 2) {
+                } else if (index == IDX_DETAIL_FROM_SEQ) {
                     fromSeq = value;
                 }
             }

@@ -25,6 +25,16 @@ import java.util.List;
 
 /** Owns the response buffer and pinned TailCache buffers until clean(). */
 public final class MqPullResp extends PreEncodedWritePacket {
+    private static final int IDX_RESULTS_SIZE = 1;
+    private static final int IDX_RESULTS = 2;
+    private static final int IDX_RECORDS = 15;
+
+    // MqPullRespDetail
+    private static final int IDX_DETAIL_QUEUE_ID = 1;
+    private static final int IDX_DETAIL_FROM_SEQ = 2;
+    private static final int IDX_DETAIL_COUNT = 3;
+    private static final int IDX_DETAIL_TRUNCATED = 4;
+
     private final RefBuffer buffer;
     private final RefBuffer[] cached;
     private final List<ByteBuffer> segments;
@@ -38,34 +48,34 @@ public final class MqPullResp extends PreEncodedWritePacket {
     }
 
     static int headerSize(long[] queueIds, long[] fromSeqs, MqPullFrame.QueueResult[] results, int bytes) {
-        int size = PbUtil.sizeOfInt32Field(1, queueIds.length);
+        int size = PbUtil.sizeOfInt32Field(IDX_RESULTS_SIZE, queueIds.length);
         for (int i = 0; i < queueIds.length; i++) {
             int n = resultSize(queueIds[i], fromSeqs[i], results == null ? null : results[i]);
-            size = Math.addExact(size, PbUtil.sizeOfLenFieldPrefix(2, n) + n);
+            size = Math.addExact(size, PbUtil.sizeOfLenFieldPrefix(IDX_RESULTS, n) + n);
         }
-        return Math.addExact(size, bytes == 0 ? 0 : PbUtil.sizeOfLenFieldPrefix(15, bytes));
+        return Math.addExact(size, bytes == 0 ? 0 : PbUtil.sizeOfLenFieldPrefix(IDX_RECORDS, bytes));
     }
 
     private static int resultSize(long queueId, long requestedSeq, MqPullFrame.QueueResult r) {
-        return PbUtil.sizeOfFix64Field(1, queueId)
-                + PbUtil.sizeOfFix64Field(2, r == null ? requestedSeq : r.fromSeq)
-                + PbUtil.sizeOfInt32Field(3, r == null ? 0 : r.queueCount)
-                + PbUtil.sizeOfInt32Field(4, r != null && r.truncated ? 1 : 0);
+        return PbUtil.sizeOfFix64Field(IDX_DETAIL_QUEUE_ID, queueId)
+                + PbUtil.sizeOfFix64Field(IDX_DETAIL_FROM_SEQ, r == null ? requestedSeq : r.fromSeq)
+                + PbUtil.sizeOfInt32Field(IDX_DETAIL_COUNT, r == null ? 0 : r.queueCount)
+                + PbUtil.sizeOfInt32Field(IDX_DETAIL_TRUNCATED, r != null && r.truncated ? 1 : 0);
     }
 
     static void writeHeader(ByteBuffer dest, long[] queueIds, long[] fromSeqs,
                             MqPullFrame.QueueResult[] results, int bytes) {
-        PbUtil.writeInt32Field(dest, 1, queueIds.length);
+        PbUtil.writeInt32Field(dest, IDX_RESULTS_SIZE, queueIds.length);
         for (int i = 0; i < queueIds.length; i++) {
             MqPullFrame.QueueResult r = results == null ? null : results[i];
-            PbUtil.writeLenFieldPrefix(dest, 2, resultSize(queueIds[i], fromSeqs[i], r));
-            PbUtil.writeFix64Field(dest, 1, queueIds[i]);
-            PbUtil.writeFix64Field(dest, 2, r == null ? fromSeqs[i] : r.fromSeq);
-            PbUtil.writeInt32Field(dest, 3, r == null ? 0 : r.queueCount);
-            PbUtil.writeInt32Field(dest, 4, r != null && r.truncated ? 1 : 0);
+            PbUtil.writeLenFieldPrefix(dest, IDX_RESULTS, resultSize(queueIds[i], fromSeqs[i], r));
+            PbUtil.writeFix64Field(dest, IDX_DETAIL_QUEUE_ID, queueIds[i]);
+            PbUtil.writeFix64Field(dest, IDX_DETAIL_FROM_SEQ, r == null ? fromSeqs[i] : r.fromSeq);
+            PbUtil.writeInt32Field(dest, IDX_DETAIL_COUNT, r == null ? 0 : r.queueCount);
+            PbUtil.writeInt32Field(dest, IDX_DETAIL_TRUNCATED, r != null && r.truncated ? 1 : 0);
         }
         if (bytes > 0) {
-            PbUtil.writeLenFieldPrefix(dest, 15, bytes);
+            PbUtil.writeLenFieldPrefix(dest, IDX_RECORDS, bytes);
         }
     }
 

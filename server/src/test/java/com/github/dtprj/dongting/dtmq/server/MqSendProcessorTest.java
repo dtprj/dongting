@@ -94,9 +94,7 @@ class MqSendProcessorTest extends ServerTestBase {
                     .get(tick(3000), TimeUnit.MILLISECONDS);
 
             DtMq.MqMessage single = message(11, ByteString.EMPTY, body(32));
-            DtMq.MqSendResp first = send(client, peer, request(single));
-            assertEquals(1, first.getRaftIndexesCount());
-            assertTrue(first.getRaftIndexes(0) > 0);
+            send(client, peer, request(single));
 
             DtMq.MqMessage[] batch = {
                     message(22, HEADER, body(MAX_BODY)),
@@ -104,18 +102,9 @@ class MqSendProcessorTest extends ServerTestBase {
                     message(22, ByteString.EMPTY, ByteString.EMPTY),
                     message(11, HEADER, ByteString.EMPTY)
             };
-            DtMq.MqSendResp sent = send(client, peer, request(batch).toBuilder().clearMessagesSize().build());
-            assertEquals(batch.length, sent.getRaftIndexesCount());
-            long previous = first.getRaftIndexes(0);
-            for (long index : sent.getRaftIndexesList()) {
-                assertTrue(index > previous);
-                previous = index;
-            }
-            assertPull(client, peer, 11,
-                    new long[]{first.getRaftIndexes(0), sent.getRaftIndexes(1), sent.getRaftIndexes(3)},
-                    single, batch[1], batch[3]);
-            assertPull(client, peer, 22, new long[]{sent.getRaftIndexes(0), sent.getRaftIndexes(2)},
-                    batch[0], batch[2]);
+            send(client, peer, request(batch).toBuilder().clearMessagesSize().build());
+            assertPull(client, peer, 11, single, batch[1], batch[3]);
+            assertPull(client, peer, 22, batch[0], batch[2]);
 
             DtMq.MqMessage valid = message(33, ByteString.EMPTY, body(16));
             assertSendError(client, peer, request(valid, message(44, HEADER, body(MAX_BODY + 1))));
@@ -125,10 +114,9 @@ class MqSendProcessorTest extends ServerTestBase {
             }
             // A successful write also waits for any incorrectly submitted prefix of the rejected batch.
             DtMq.MqMessage marker = message(33, HEADER, ByteString.EMPTY);
-            DtMq.MqSendResp afterRejection = send(client, peer, request(marker));
-            assertEquals(1, afterRejection.getRaftIndexesCount());
-            assertPull(client, peer, 33, new long[]{afterRejection.getRaftIndexes(0)}, marker);
-            assertPull(client, peer, 44, new long[0]);
+            send(client, peer, request(marker));
+            assertPull(client, peer, 33, marker);
+            assertPull(client, peer, 44);
         } finally {
             TestUtil.stop(client);
             waitStop(server);
@@ -206,20 +194,21 @@ class MqSendProcessorTest extends ServerTestBase {
         return ByteString.copyFrom(bytes);
     }
 
+    // a non-canonical encoding: out-of-order and repeated fields, the decoder keeps the last value
     private static byte[] repeatedFieldsRequest() throws Exception {
         ByteArrayOutputStream message = new ByteArrayOutputStream();
         CodedOutputStream out = CodedOutputStream.newInstance(message);
-        out.writeBytes(3, body(MAX_BODY));
-        out.writeFixed64(1, 11);
-        out.writeBytes(2, ByteString.copyFromUtf8("old header"));
-        out.writeBytes(3, body(17));
-        out.writeBytes(2, HEADER);
+        out.writeBytes(DtMq.MqMessage.MSG_BODY_FIELD_NUMBER, body(MAX_BODY));
+        out.writeFixed64(DtMq.MqMessage.QUEUE_ID_FIELD_NUMBER, 11);
+        out.writeBytes(DtMq.MqMessage.MSG_HEADER_FIELD_NUMBER, ByteString.copyFromUtf8("old header"));
+        out.writeBytes(DtMq.MqMessage.MSG_BODY_FIELD_NUMBER, body(17));
+        out.writeBytes(DtMq.MqMessage.MSG_HEADER_FIELD_NUMBER, HEADER);
         out.flush();
 
         ByteArrayOutputStream request = new ByteArrayOutputStream();
         out = CodedOutputStream.newInstance(request);
-        out.writeInt32(1, 1);
-        out.writeByteArray(3, message.toByteArray());
+        out.writeInt32(DtMq.MqSendReq.GROUP_ID_FIELD_NUMBER, 1);
+        out.writeByteArray(DtMq.MqSendReq.MESSAGES_FIELD_NUMBER, message.toByteArray());
         out.flush();
         return request.toByteArray();
     }
@@ -278,9 +267,8 @@ class MqSendProcessorTest extends ServerTestBase {
         return result;
     }
 
-    private DtMq.MqSendResp send(NioClient client, Peer peer, DtMq.MqSendReq req) throws Exception {
-        return DtMq.MqSendResp.parseFrom(rpc(client, peer, Commands.DTMQ_SEND, req)
-                .get(tick(5000), TimeUnit.MILLISECONDS).getBody());
+    private void send(NioClient client, Peer peer, DtMq.MqSendReq req) throws Exception {
+        rpc(client, peer, Commands.DTMQ_SEND, req).get(tick(5000), TimeUnit.MILLISECONDS);
     }
 
     private void assertSendError(NioClient client, Peer peer, DtMq.MqSendReq req) {
@@ -289,16 +277,16 @@ class MqSendProcessorTest extends ServerTestBase {
         assertEquals(CmdCodes.CLIENT_ERROR, assertInstanceOf(NetCodeException.class, ex.getCause()).getCode());
     }
 
-    private void assertPull(NioClient client, Peer peer, long queueId, long[] indexes,
+    private void assertPull(NioClient client, Peer peer, long queueId,
                             DtMq.MqMessage... messages) throws Exception {
         DtMq.MqPullReq req = DtMq.MqPullReq.newBuilder().setGroupId(1).setQueuesSize(1)
-                .addQueues(DtMq.MqPullQueue.newBuilder().setQueueId(queueId))
+                .addQueues(DtMq.MqPullReqDetail.newBuilder().setQueueId(queueId))
                 .setLimit(Integer.MAX_VALUE).setBytesLimit(Integer.MAX_VALUE).build();
         DtMq.MqPullResp resp = DtMq.MqPullResp.parseFrom(rpc(client, peer, Commands.DTMQ_PULL, req)
                 .get(tick(5000), TimeUnit.MILLISECONDS).getBody());
         assertEquals(1, resp.getResultsSize());
         assertEquals(1, resp.getResultsCount());
-        DtMq.MqPullQueueResult result = resp.getResults(0);
+        DtMq.MqPullRespDetail result = resp.getResults(0);
         assertEquals(queueId, result.getQueueId());
         assertEquals(0, result.getFromSeq());
         assertEquals(messages.length, result.getCount());
@@ -311,7 +299,6 @@ class MqSendProcessorTest extends ServerTestBase {
             assertTrue(header.readAndCheckCrc(new CRC32C(), records));
             assertEquals(LogHeader.TYPE_NORMAL, header.type);
             assertEquals(queueId, header.bizKey);
-            assertEquals(indexes[i], header.index);
             assertEquals(message.getMsgHeader().size(), header.bizHeaderLen);
             assertEquals(message.getMsgBody().size(), header.bodyLen);
             assertEquals(LogHeader.computeTotalLen(header.bizHeaderLen, header.bodyLen), header.totalLen);

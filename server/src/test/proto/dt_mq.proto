@@ -25,14 +25,12 @@ message MqMessage {
 message MqSendReq {
   int32 group_id = 1;
   int32 messages_size = 2;
-  repeated MqMessage messages = 3; // one or more messages; batch writes are not atomic
+  repeated MqMessage messages = 15; // one or more messages; batch writes are not atomic
 }
 
-message MqSendResp {
-  repeated fixed64 raft_indexes = 1 [packed = false]; // request order; sent only when all writes succeed
-}
+// return EmptyBodyRespFrame
 
-message MqPullQueue {
+message MqPullReqDetail {
   fixed64 queue_id = 1;
   fixed64 from_seq = 2; // 0 starts at the earliest readable record
 }
@@ -40,13 +38,13 @@ message MqPullQueue {
 message MqPullReq {
   int32 group_id = 1;
   int32 queues_size = 2;
-  repeated MqPullQueue queues = 3;
-  int32 limit = 4; // shared record limit hint across all queues
-  int32 bytes_limit = 5; // shared raw log byte hint (no metadata); any single record may cross it, collection stops once reached
-  int64 wait_millis = 6; // 0 disables long polling
+  int32 limit = 3; // shared record limit hint across all queues
+  int32 bytes_limit = 4; // shared raw log byte hint (no metadata); any single record may cross it, collection stops once reached
+  int64 wait_millis = 5; // 0 disables long polling
+  repeated MqPullReqDetail queues = 15;
 }
 
-message MqPullQueueResult {
+message MqPullRespDetail {
   fixed64 queue_id = 1;
   fixed64 from_seq = 2;
   int32 count = 3; // next pull cursor = from_seq + count
@@ -55,6 +53,6 @@ message MqPullQueueResult {
 
 message MqPullResp {
   int32 results_size = 1;
-  repeated MqPullQueueResult results = 2; // same order as requested queues
+  repeated MqPullRespDetail results = 2; // same order as requested queues
   bytes records = 15; // concatenated raw raft log records, grouped by results and delimited by each record's totalLen
 }

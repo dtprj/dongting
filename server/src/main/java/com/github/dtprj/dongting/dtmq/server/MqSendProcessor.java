@@ -17,12 +17,8 @@ package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.EncodeUtil;
-import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
@@ -34,7 +30,6 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 final class MqSendProcessor extends RaftProcessor<MqSendReq> {
@@ -77,7 +72,7 @@ final class MqSendProcessor extends RaftProcessor<MqSendReq> {
             }
             SendBatch batch = new SendBatch(reqInfo, size);
             for (int i = 0; i < size; i++) {
-                SendTask task = new SendTask(batch, messages.get(i), i);
+                SendTask task = new SendTask(batch, messages.get(i));
                 messages.set(i, null);
                 reqInfo.raftGroup.submitLinearTask(task);
             }
@@ -89,21 +84,18 @@ final class MqSendProcessor extends RaftProcessor<MqSendReq> {
         return null;
     }
 
-    private final class SendBatch implements Encodable {
+    private final class SendBatch {
         private ReqInfo<MqSendReq> reqInfo;
-        private final long[] raftIndexes;
         private int remaining;
         private Throwable failure;
 
         private SendBatch(ReqInfo<MqSendReq> reqInfo, int size) {
             this.reqInfo = reqInfo;
-            this.raftIndexes = new long[size];
             this.remaining = size;
         }
 
         // Rejected submissions can call back on the IO thread while other tasks finish on the Raft thread.
-        private synchronized void complete(int index, long raftIndex, Throwable ex) {
-            raftIndexes[index] = raftIndex;
+        private synchronized void complete(Throwable ex) {
             if (ex != null && failure == null) {
                 failure = ex;
             }
@@ -112,9 +104,7 @@ final class MqSendProcessor extends RaftProcessor<MqSendReq> {
             }
             try {
                 if (failure == null) {
-                    EncodableBodyWritePacket resp = new EncodableBodyWritePacket(this);
-                    resp.respCode = CmdCodes.SUCCESS;
-                    reqInfo.reqContext.writeRespInBizThreads(resp);
+                    reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SUCCESS));
                 } else {
                     writeErrorResp(reqInfo, failure);
                 }
@@ -123,33 +113,21 @@ final class MqSendProcessor extends RaftProcessor<MqSendReq> {
                 failure = null;
             }
         }
-
-        @Override
-        public int actualSize() {
-            return PbUtil.sizeOfFix64Field(1, raftIndexes);
-        }
-
-        @Override
-        public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-            return EncodeUtil.encodeFix64s(context, destBuffer, 1, raftIndexes);
-        }
     }
 
     private static final class SendTask extends RaftTask implements RaftCallback {
         private SendBatch batch;
-        private final int index;
 
-        private SendTask(SendBatch batch, RaftReqData data, int index) {
+        private SendTask(SendBatch batch, RaftReqData data) {
             super(data, null, null, batch.reqInfo.reqContext.getTimeout(), false, null);
             this.batch = batch;
-            this.index = index;
             this.callback = this;
         }
 
         @Override
         public void success(long raftIndex, Object result) {
             try {
-                batch.complete(index, raftIndex, null);
+                batch.complete(null);
             } finally {
                 batch = null;
             }
@@ -158,7 +136,7 @@ final class MqSendProcessor extends RaftProcessor<MqSendReq> {
         @Override
         public void fail(Throwable ex) {
             try {
-                batch.complete(index, 0, ex);
+                batch.complete(ex);
             } finally {
                 batch = null;
             }

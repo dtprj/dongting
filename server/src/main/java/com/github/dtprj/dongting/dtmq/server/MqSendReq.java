@@ -29,6 +29,15 @@ import java.util.ArrayList;
 import java.util.zip.CRC32C;
 
 public final class MqSendReq implements DtCleanable {
+    private static final int IDX_GROUP_ID = 1;
+    private static final int IDX_MESSAGES_SIZE = 2;
+    private static final int IDX_MESSAGES = 15;
+
+    // MqMessage
+    private static final int IDX_MESSAGE_QUEUE_ID = 1;
+    private static final int IDX_MESSAGE_HEADER = 2;
+    private static final int IDX_MESSAGE_BODY = 3;
+
     int groupId;
     ArrayList<RaftReqData> messages;
 
@@ -59,9 +68,9 @@ public final class MqSendReq implements DtCleanable {
 
         @Override
         public void readVarNumber(int index, long value) {
-            if (index == 1) {
+            if (index == IDX_GROUP_ID) {
                 req.groupId = (int) value;
-            } else if (index == 2) {
+            } else if (index == IDX_MESSAGES_SIZE) {
                 if (value < 0 || value > maxMessages) {
                     throw new PbException("invalid messages_size: " + value);
                 }
@@ -71,7 +80,7 @@ public final class MqSendReq implements DtCleanable {
 
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            if (index == 3) {
+            if (index == IDX_MESSAGES) {
                 if (req.messages == null) {
                     req.messages = new ArrayList<>(declaredSize > 0 ? declaredSize : Math.min(4, maxMessages));
                 }
@@ -115,16 +124,16 @@ public final class MqSendReq implements DtCleanable {
 
             @Override
             public void readFix64(int index, long value) {
-                if (index == 1) {
+                if (index == IDX_MESSAGE_QUEUE_ID) {
                     queueId = value;
                 }
             }
 
             @Override
             public void readBytes(int index, ByteBuffer src, int fieldLen, int currentPos) {
-                if (index == 2) {
+                if (index == IDX_MESSAGE_HEADER) {
                     msgHeader = parseBytes(src, fieldLen, currentPos);
-                } else if (index == 3) {
+                } else if (index == IDX_MESSAGE_BODY) {
                     if (currentPos == 0) {
                         releaseBuffer();
                         if (fieldLen > Integer.MAX_VALUE - LogHeader.ITEM_HEADER_SIZE - 4) {

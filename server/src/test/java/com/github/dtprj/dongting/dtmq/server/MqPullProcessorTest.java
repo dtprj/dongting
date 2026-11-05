@@ -106,7 +106,7 @@ class MqPullProcessorTest extends ServerTestBase {
             assertError(send(client, peer, request(11, 0, 0).toBuilder().setLimit(0).build()), CmdCodes.CLIENT_ERROR);
             assertError(send(client, peer, request(11, 0, 0).toBuilder().setGroupId(-1).build()), CmdCodes.CLIENT_ERROR);
             assertError(send(client, peer, request(11, 0, 0).toBuilder().addQueues(
-                    DtMq.MqPullQueue.newBuilder().setQueueId(11)).setQueuesSize(2).build()), CmdCodes.CLIENT_ERROR);
+                    DtMq.MqPullReqDetail.newBuilder().setQueueId(11)).setQueuesSize(2).build()), CmdCodes.CLIENT_ERROR);
 
             send(client, peer, request(22, 1, tick(20_000)));
             WaitUtil.waitUtil(() -> mq.waitingPulls.get(22) != null, server.gc.fiberGroup.getExecutor());
@@ -124,7 +124,7 @@ class MqPullProcessorTest extends ServerTestBase {
     @Test
     void testRequestDecoder() {
         DtMq.MqPullReq req = request(11, 9, 123).toBuilder().setQueuesSize(2)
-                .addQueues(DtMq.MqPullQueue.newBuilder().setQueueId(22)).build();
+                .addQueues(DtMq.MqPullReqDetail.newBuilder().setQueueId(22)).build();
         DecodeContextEx context = new DecodeContextEx(null, null);
         for (int chunk : new int[]{1, req.getSerializedSize()}) {
             MqPullReq decoded = decode(context, req.toByteArray(), chunk);
@@ -163,7 +163,7 @@ class MqPullProcessorTest extends ServerTestBase {
 
     private DtMq.MqPullReq request(long queueId, long seq, long waitMillis) {
         return DtMq.MqPullReq.newBuilder().setGroupId(1).setQueuesSize(1)
-                .addQueues(DtMq.MqPullQueue.newBuilder().setQueueId(queueId).setFromSeq(seq))
+                .addQueues(DtMq.MqPullReqDetail.newBuilder().setQueueId(queueId).setFromSeq(seq))
                 .setLimit(Integer.MAX_VALUE).setBytesLimit(Integer.MAX_VALUE).setWaitMillis(waitMillis).build();
     }
 

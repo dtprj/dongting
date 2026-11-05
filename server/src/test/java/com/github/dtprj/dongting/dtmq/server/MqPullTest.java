@@ -280,7 +280,7 @@ class MqPullTest extends BaseFiberTest {
             assertEquals(p.frame.queueIds.length, decoded.getResultsCount());
             for (int i = 0; i < decoded.getResultsCount(); i++) {
                 MqPullFrame.QueueResult r = p.frame.results == null ? null : p.frame.results[i];
-                DtMq.MqPullQueueResult d = decoded.getResults(i);
+                DtMq.MqPullRespDetail d = decoded.getResults(i);
                 assertEquals(p.frame.queueIds[i], d.getQueueId());
                 assertEquals(r == null ? p.frame.fromSeqs[i] : r.fromSeq, d.getFromSeq());
                 assertEquals(r == null ? 0 : r.queueCount, d.getCount());
