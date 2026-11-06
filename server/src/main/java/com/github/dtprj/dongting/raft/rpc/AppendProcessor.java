@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -30,6 +31,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
+import com.github.dtprj.dongting.net.WorkerThread;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
@@ -40,15 +42,14 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
-import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -64,21 +65,15 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     public static final int APPEND_NOT_MEMBER_IN_GROUP = 5;
     public static final int APPEND_SERVER_ERROR = 6;
 
-    private final Function<Integer, RaftCodecFactory> decoderFactory;
-
     public AppendProcessor(RaftServer raftServer) {
         super(raftServer, false, true);
-        this.decoderFactory = groupId -> {
-            RaftGroup g = raftServer.getRaftGroup(groupId);
-            return g == null ? null : g.getStateMachine();
-        };
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
-            AppendReq.Callback c = ((DecodeContextEx) context).appendReqCallback(decoderFactory);
+            AppendReq.Callback c = ((DecodeContextEx) context).appendReqCallback();
             return context.toDecoderCallback(c);
         } else if (command == Commands.RAFT_INSTALL_SNAPSHOT) {
             return context.toDecoderCallback(new InstallSnapshotReq.Callback());
@@ -125,6 +120,57 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
                 return "CODE_SERVER_ERROR";
             default:
                 return "CODE_UNKNOWN_" + code;
+        }
+    }
+
+    // decode in io thread, so it does not occupy raft fiber time
+    @Override
+    protected void preProcess(ReqInfoEx<Object> reqInfo) {
+        if (reqInfo.reqFrame.command != Commands.RAFT_APPEND_ENTRIES) {
+            return;
+        }
+        AppendReq req = (AppendReq) reqInfo.reqFrame.getBody();
+        List<RaftTask> logs = req.logs;
+        if (logs == null || logs.isEmpty()) {
+            return;
+        }
+        RaftCodecFactory codecFactory = reqInfo.raftGroup.getStateMachine();
+        WorkerThread t = WorkerThread.currentWorkerThread();
+        Decoder decoder = t.decoder;
+        DecodeContext context = t.decodeContext;
+        for (int len = logs.size(), i = 0; i < len; i++) {
+            RaftTask li = logs.get(i);
+            RaftReqData rd = li.reqData;
+            li.bizHeader = decode(true, codecFactory, decoder, context, rd.prepareReadBizHeader(), rd);
+            rd.reset();
+            li.bizBody = decode(false, codecFactory, decoder, context, rd.prepareReadBizBody(), rd);
+            rd.reset();
+        }
+    }
+
+    private Object decode(boolean header, RaftCodecFactory codecFactory, Decoder decoder,
+                          DecodeContext context, ByteBuffer rb, RaftReqData rd) {
+        if (rb == null) {
+            return null;
+        }
+        if (rd.type != LogHeader.TYPE_NORMAL) {
+            byte[] b = new byte[rb.remaining()];
+            rb.get(b);
+            rb.rewind();
+            return b;
+        }
+        DecoderCallback<?> c = header
+                ? codecFactory.createHeaderCallback(rd.bizType, context)
+                : codecFactory.createBodyCallback(rd.bizType, context);
+        if (c == null) {
+            return null;
+        }
+        try {
+            decoder.prepareNext(context, c);
+            return decoder.decode(rb, rb.remaining(), 0);
+        } finally {
+            rb.rewind();
+            context.reset(decoder);
         }
     }
 }

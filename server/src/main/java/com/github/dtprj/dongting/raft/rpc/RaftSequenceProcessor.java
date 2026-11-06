@@ -54,6 +54,13 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
 
     protected abstract FiberFrame<Void> processInFiberGroup(ReqInfoEx<T> reqInfo);
 
+    /**
+     * Run in io thread before the request is offered to the processor fiber, may decode body here.
+     * If it throws, the request is cleaned and an error response is returned, processInFiberGroup is not called.
+     */
+    protected void preProcess(@SuppressWarnings("unused") ReqInfoEx<T> reqInfo) {
+    }
+
     public FiberChannel<Object> registerChannel(FiberGroup fg, GroupComponents gc) {
         FiberChannel<Object> channel = fg.newChannel();
         gc.processorChannels.put(typeId, channel);
@@ -138,6 +145,15 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
             wf.msg = "raft group not initialized: " + reqInfo.raftGroup.getGroupId();
             return wf;
         } else {
+            try {
+                preProcess(rix);
+            } catch (Throwable e) {
+                log.error("preProcess fail, command={}", reqInfo.reqFrame.command, e);
+                reqInfo.reqFrame.clean();
+                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+                wf.msg = "preProcess fail: " + e;
+                return wf;
+            }
             if (!c.fireOffer(reqInfo)) {
                 processAfterStop(reqInfo);
             }

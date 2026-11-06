@@ -19,9 +19,6 @@ import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.raft.rpc.AppendReq;
 import com.github.dtprj.dongting.raft.rpc.AppendResp;
-import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
-
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -40,9 +37,9 @@ public final class DecodeContextEx extends DecodeContext {
         return new DecodeContextEx(buffers, threadLocalBuffer);
     }
 
-    public AppendReq.Callback appendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {
+    public AppendReq.Callback appendReqCallback() {
         if (appendReqCallback == null) {
-            appendReqCallback = new AppendReq.Callback(decoderFactory, buffers, threadLocalBuffer);
+            appendReqCallback = new AppendReq.Callback();
         }
         return appendReqCallback;
     }

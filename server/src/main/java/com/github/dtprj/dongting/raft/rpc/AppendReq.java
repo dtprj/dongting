@@ -15,26 +15,16 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.Buffers;
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.DtCleanable;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftRpcData;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.RaftReqData;
-import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLogDataCallback;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -51,7 +41,6 @@ import java.util.function.Function;
 //bytes entries = 15;
 //}
 public class AppendReq extends RaftRpcData implements DtCleanable {
-    private static final DtLog log = DtLogs.getLogger(AppendReq.class);
 
     public static final int IDX_GROUP_ID = 1;
     public static final int IDX_TERM = 2;
@@ -83,37 +72,18 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
     // re-used
     public static class Callback extends PbCallback<AppendReq> {
 
+        // biz header/body are decoded in AppendProcessor.preProcess()
         private final RaftLogDataCallback logDataCallback;
-
-        private final Decoder headerBodyDecoder;
-        private final DecodeContext headerBodyContext;
 
         private AppendReq result;
 
-        public Callback(Function<Integer, RaftCodecFactory> decoderFactory,
-                        Buffers buffers, byte[] threadLocalBuffer) {
-            this.headerBodyDecoder = new Decoder();
-            this.headerBodyContext = DecodeContext.factory.apply(buffers, threadLocalBuffer);
-
+        public Callback() {
             this.logDataCallback = new RaftLogDataCallback(logData -> {
-                if (logData != null) {
-                    if (result.logs == null) {
-                        result.logs = new ArrayList<>();
-                    }
-                    RaftCodecFactory codecFactory = decoderFactory.apply(result.groupId);
-                    if (codecFactory == null) {
-                        log.error("can't find raft group codecFactory: {}", result.groupId);
-                        throw new RaftException("can't find raft group codecFactory: " + result.groupId);
-                    }
-                    Object bizHeader = decode(true, codecFactory, logData.prepareReadBizHeader(), logData);
-                    logData.reset();
-                    Object bizBody = decode(false, codecFactory, logData.prepareReadBizBody(), logData);
-                    logData.reset();
-                    RaftTask task = new RaftTask(logData, bizHeader, bizBody,
-                            logData.type == LogHeader.TYPE_LOG_READ);
-
-                    result.logs.add(task);
+                if (result.logs == null) {
+                    result.logs = new ArrayList<>();
                 }
+                result.logs.add(new RaftTask(logData, null, null,
+                        logData.type == LogHeader.TYPE_LOG_READ));
             });
         }
 
@@ -182,35 +152,9 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
             }
         }
 
-        private Object decode(boolean header, RaftCodecFactory codecFactory, ByteBuffer rb, RaftReqData logData) {
-            if (rb == null) {
-                return null;
-            }
-            if (logData.type != LogHeader.TYPE_NORMAL) {
-                byte[] b = new byte[rb.remaining()];
-                rb.get(b);
-                rb.rewind();
-                return b;
-            }
-            DecoderCallback<? extends Object> c = header ?
-                    codecFactory.createHeaderCallback(logData.bizType, headerBodyContext) :
-                    codecFactory.createBodyCallback(logData.bizType, headerBodyContext);
-            if (c == null) {
-                return null;
-            }
-            try {
-                headerBodyDecoder.prepareNext(headerBodyContext, c);
-                return headerBodyDecoder.decode(rb, rb.remaining(), 0);
-            } finally {
-                rb.rewind();
-                headerBodyContext.reset(headerBodyDecoder);
-            }
-        }
-
         @Override
         public AppendReq getResult() {
             return result;
         }
     }
 }
-

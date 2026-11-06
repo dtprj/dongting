@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.Buffers;
+import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 
@@ -25,12 +27,18 @@ import com.github.dtprj.dongting.common.Timestamp;
 public final class WorkerThread extends DtThread {
 
     public final Timestamp ts;
+
+    // reused by processors to decode body in io thread
+    public final Decoder decoder = new Decoder();
+    public final DecodeContext decodeContext;
+
     final NioWorker worker;
 
     WorkerThread(NioWorker worker, String name, Timestamp ts, Buffers buffers) {
         super(worker, name, buffers);
         this.ts = ts;
         this.worker = worker;
+        this.decodeContext = DecodeContext.factory.apply(buffers, threadLocalBuffer);
     }
 
     public static WorkerThread currentWorkerThread() {

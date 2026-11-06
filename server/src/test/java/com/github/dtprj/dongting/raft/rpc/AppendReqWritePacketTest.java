@@ -16,24 +16,18 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
-import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftTaskTest;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.util.CodecTestUtil;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,35 +37,29 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class AppendReqWritePacketTest {
 
-    private final RaftCodecFactory raftCodecFactory = new RaftCodecFactory() {
-
-        @Override
-        public DecoderCallback<? extends Encodable> createBodyCallback(int bizType, DecodeContext context) {
-            return new ByteArray.Callback();
-        }
-
-        @Override
-        public DecoderCallback<? extends Encodable> createHeaderCallback(int bizType, DecodeContext context) {
-            return new ByteArray.Callback();
-        }
-    };
-
     @Test
     public void testEncode() {
         testEncode0(true, true);
         testEncode0(false, false);
     }
 
-    private void testEncode0(boolean addHeader, boolean addBody) {
-        AppendReqWritePacket f = createFrame(addHeader, addBody);
-        ByteBuffer buf = ByteBuffer.allocate(f.actualBodySize());
-        Assertions.assertTrue(f.encodeBody(new EncodeContext(null), buf));
-        assertEquals(buf.position(), f.actualBodySize());
+    @Test
+    public void testEncode_LargeBizHeader() {
+        // bizHeader > ENCODE_CHUNK_SIZE, and totalLen < GATHERING_WRITE_THRESHOLD so inline encoding is used
+        int chunk = RaftServerConfig.ENCODE_CHUNK_SIZE;
+        testEncode0(chunk + 1, 10);
+    }
 
-        buf.clear();
+    private void testEncode0(boolean addHeader, boolean addBody) {
+        testEncode0(addHeader ? 10 : 0, addBody ? 20 : 0);
+    }
+
+    private void testEncode0(int bizHeaderLen, int bodyLen) {
+        AppendReqWritePacket f = createFrame(bizHeaderLen, bodyLen);
+        ByteBuffer buf = encodeBodyCollectPreEncoded(f, f.actualBodySize());
 
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory, decodeContext.buffers, decodeContext.threadLocalBuffer);
+        AppendReq.Callback c = new AppendReq.Callback();
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         AppendReq result = (AppendReq) p.parse(buf);
@@ -91,7 +79,7 @@ public class AppendReqWritePacketTest {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
         EncodeContext context = new EncodeContext(null);
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory, decodeContext.buffers, decodeContext.threadLocalBuffer);
+        AppendReq.Callback c = new AppendReq.Callback();
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         Random r = new Random();
@@ -136,8 +124,7 @@ public class AppendReqWritePacketTest {
         ByteBuffer body = encodeBodyCollectPreEncoded(f, f.actualBodySize());
 
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory,
-                decodeContext.buffers, decodeContext.threadLocalBuffer);
+        AppendReq.Callback c = new AppendReq.Callback();
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         AppendReq result = (AppendReq) p.parse(body);
@@ -152,8 +139,7 @@ public class AppendReqWritePacketTest {
         ByteBuffer body = encodeBodyCollectPreEncoded(f, f.actualBodySize());
 
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory,
-                decodeContext.buffers, decodeContext.threadLocalBuffer);
+        AppendReq.Callback c = new AppendReq.Callback();
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         AppendReq result = (AppendReq) p.parse(body);
@@ -165,6 +151,13 @@ public class AppendReqWritePacketTest {
         for (int i = 0; i < 100; i++) {
             testSmallBufferEncodeWithPreEncoded0(true, true);
         }
+    }
+
+    @Test
+    public void testSmallBufferEncode_LargeBizHeader() {
+        // bizHeader > ENCODE_CHUNK_SIZE, and totalLen < GATHERING_WRITE_THRESHOLD so inline encoding is used
+        int chunk = RaftServerConfig.ENCODE_CHUNK_SIZE;
+        smallBufferEncodeAndCheck(createFrame(chunk + 1, 10));
     }
 
     @Test
@@ -188,8 +181,7 @@ public class AppendReqWritePacketTest {
         EncodeContext context = new EncodeContext(null);
         int actualBodySize = f.actualBodySize();
         DecodeContext decodeContext = CodecTestUtil.decodeContext();
-        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory,
-                decodeContext.buffers, decodeContext.threadLocalBuffer);
+        AppendReq.Callback c = new AppendReq.Callback();
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, actualBodySize);
         Random r = new Random();
@@ -256,45 +248,35 @@ public class AppendReqWritePacketTest {
         return createFrame(addHeader, addBody, false);
     }
 
+    private AppendReqWritePacket createFrame(int bizHeaderLen, int bodyLen) {
+        return createFrame(bizHeaderLen, bodyLen, false);
+    }
+
     private AppendReqWritePacket createFrame(boolean addHeader, boolean addBody, boolean useDirect) {
-        AppendReqWritePacket f = new AppendReqWritePacket();
-        f.groupId = 12345;
-        f.term = 4;
-        f.leaderId = 2;
-        f.prevLogIndex = 100;
-        f.prevLogTerm = 3;
-        f.leaderCommit = 99;
-        f.raftClusterId = 0x12345678;
-        ArrayList<RaftTask> logs = new ArrayList<>();
-        f.logs = logs;
+        return createFrame(addHeader ? 10 : 0,
+                useDirect ? RaftServerConfig.GATHERING_WRITE_THRESHOLD : (addBody ? 20 : 0), useDirect);
+    }
+
+    private AppendReqWritePacket createFrame(int bizHeaderLen, int bodyLen, boolean useDirect) {
+        AppendReqWritePacket f = newFrame();
         for (int i = 0; i < 2; i++) {
-            byte[] bizHeader = addHeader ? new byte[10] : null;
-            if (bizHeader != null) {
-                new Random().nextBytes(bizHeader);
-            }
-            byte[] bizBody = useDirect
-                    ? new byte[RaftServerConfig.GATHERING_WRITE_THRESHOLD]
-                    : (addBody ? new byte[20] : null);
-            if (bizBody != null) {
-                new Random().nextBytes(bizBody);
-            }
-            RaftReqData reqData = useDirect
-                    ? RaftTaskTest.buildTestReqDataDirect(LogHeader.TYPE_NORMAL, 1, bizHeader, bizBody)
-                    : RaftTaskTest.buildTestReqData(LogHeader.TYPE_NORMAL, 1, bizHeader, bizBody);
-
-            reqData.term = 4;
-            reqData.prevLogTerm = 3;
-            reqData.index = 200 + i;
-            reqData.timestamp = System.currentTimeMillis();
-            LogHeader.writeAndComputeCrc(reqData, new java.util.zip.CRC32C(), reqData.buffer.getBuffer(), 0);
-
-            RaftTask rt = new RaftTask(reqData, null, null, false);
-            logs.add(rt);
+            f.logs.add(buildLog(bizHeaderLen, bodyLen, useDirect, 200 + i));
         }
         return f;
     }
 
     private AppendReqWritePacket createMixedFrame(boolean addHeader, boolean addBody) {
+        int headerLen = addHeader ? 10 : 0;
+        int heapBodyLen = addBody ? 20 : 0;
+        AppendReqWritePacket f = newFrame();
+        f.logs.add(buildLog(headerLen, heapBodyLen, false, 200));
+        f.logs.add(buildLog(headerLen, RaftServerConfig.GATHERING_WRITE_THRESHOLD, true, 201));
+        f.logs.add(buildLog(headerLen, RaftServerConfig.GATHERING_WRITE_THRESHOLD, true, 202));
+        f.logs.add(buildLog(headerLen, heapBodyLen, false, 203));
+        return f;
+    }
+
+    private AppendReqWritePacket newFrame() {
         AppendReqWritePacket f = new AppendReqWritePacket();
         f.groupId = 12345;
         f.term = 4;
@@ -303,26 +285,13 @@ public class AppendReqWritePacketTest {
         f.prevLogTerm = 3;
         f.leaderCommit = 99;
         f.raftClusterId = 0x12345678;
-        ArrayList<RaftTask> logs = new ArrayList<>();
-        f.logs = logs;
-        addLog(logs, addHeader, addBody, 200, false);
-        addLog(logs, addHeader, addBody, 201, true);
-        addLog(logs, addHeader, addBody, 202, true);
-        addLog(logs, addHeader, addBody, 203, false);
+        f.logs = new ArrayList<>();
         return f;
     }
 
-    private void addLog(List<RaftTask> logs, boolean addHeader, boolean addBody, int index, boolean useDirect) {
-        byte[] bizHeader = addHeader ? new byte[10] : null;
-        if (bizHeader != null) {
-            new Random().nextBytes(bizHeader);
-        }
-        byte[] bizBody = useDirect
-                ? new byte[RaftServerConfig.GATHERING_WRITE_THRESHOLD]
-                : (addBody ? new byte[20] : null);
-        if (bizBody != null) {
-            new Random().nextBytes(bizBody);
-        }
+    private RaftTask buildLog(int bizHeaderLen, int bodyLen, boolean useDirect, int index) {
+        byte[] bizHeader = randomBytes(bizHeaderLen);
+        byte[] bizBody = randomBytes(bodyLen);
         RaftReqData reqData = useDirect
                 ? RaftTaskTest.buildTestReqDataDirect(LogHeader.TYPE_NORMAL, 1, bizHeader, bizBody)
                 : RaftTaskTest.buildTestReqData(LogHeader.TYPE_NORMAL, 1, bizHeader, bizBody);
@@ -331,7 +300,16 @@ public class AppendReqWritePacketTest {
         reqData.index = index;
         reqData.timestamp = System.currentTimeMillis();
         LogHeader.writeAndComputeCrc(reqData, new java.util.zip.CRC32C(), reqData.buffer.getBuffer(), 0);
-        logs.add(new RaftTask(reqData, null, null, false));
+        return new RaftTask(reqData, null, null, false);
+    }
+
+    private static byte[] randomBytes(int len) {
+        if (len <= 0) {
+            return null;
+        }
+        byte[] b = new byte[len];
+        new Random().nextBytes(b);
+        return b;
     }
 
     private void check(AppendReqWritePacket f, AppendReq c) {
