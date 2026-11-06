@@ -27,7 +27,7 @@ public class PbBytesCallback extends PbCallback<byte[]> {
     @Override
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 1) {
-            bs = parseBytes(buf, fieldLen, currentPos);
+            bs = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
         }
     }
 

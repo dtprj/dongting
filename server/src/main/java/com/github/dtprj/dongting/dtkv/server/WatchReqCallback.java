@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.WatchReq;
@@ -69,7 +70,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     @Override
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == WatchReq.IDX_KEYS) {
-            byte[] b = parseBytes(buf, fieldLen, currentPos);
+            byte[] b = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
             if (b != null) {
                 // not handled NPE/ArrayIndexOutOfBoundsException, require client keep field sequence
                 this.keys[keysIndex++] = new ByteArray(b);

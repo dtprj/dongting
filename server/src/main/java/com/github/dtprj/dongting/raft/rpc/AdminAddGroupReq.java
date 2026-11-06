@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -58,9 +59,9 @@ public class AdminAddGroupReq extends PbCallback<AdminAddGroupReq> implements Si
     @Override
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 2) {
-            nodeIdOfMembers = parseUTF8(buf, fieldLen, currentPos);
+            nodeIdOfMembers = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         } else if (index == 3) {
-            nodeIdOfObservers = parseUTF8(buf, fieldLen, currentPos);
+            nodeIdOfObservers = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         }
     }
 }

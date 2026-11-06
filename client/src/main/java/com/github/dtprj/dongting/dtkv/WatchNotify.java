@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -110,9 +111,9 @@ public class WatchNotify implements Encodable {
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_KEY) {
-                key = parseBytes(buf, fieldLen, currentPos);
+                key = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
             } else if (index == IDX_VALUE) {
-                value = parseBytes(buf, fieldLen, currentPos);
+                value = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
             }
         }
 

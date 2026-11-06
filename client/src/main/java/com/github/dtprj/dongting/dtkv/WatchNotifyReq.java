@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -98,7 +99,7 @@ public class WatchNotifyReq implements Encodable {
                 nodeId = (int) value;
             } else if (index == IDX_LIST_SIZE) {
                 if (notifyList == null) {
-                    notifyList = createArrayList((int) value);
+                    notifyList = ParseUtil.createArrayList((int) value);
                 }
             }
         }
@@ -106,7 +107,7 @@ public class WatchNotifyReq implements Encodable {
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_NOTIFY_LIST) {
-                WatchNotify wn = parseNested(buf, fieldLen, currentPos, notifyCallback);
+                WatchNotify wn = ParseUtil.parseNested(context, buf, fieldLen, currentPos, notifyCallback);
                 if (wn != null) {
                     if (notifyList == null) {
                         notifyList = new ArrayList<>();

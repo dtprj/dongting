@@ -88,7 +88,7 @@ public class StrDecoderCallback extends DecoderCallback<String> {
 
     /**
      * Single-buffer fast path, shared by {@link #doDecode} and
-     * {@link AbstractCodecCallback#parseUTF8} to avoid nested-decoder overhead.
+     * {@link ParseUtil#parseUTF8} to avoid nested-decoder overhead.
      */
     static String decodeSingleBuffer(ByteBuffer buf, int fieldLen, DecodeContext context) {
         byte[] arr;

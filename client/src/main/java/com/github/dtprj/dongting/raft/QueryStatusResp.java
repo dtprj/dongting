@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -331,7 +332,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_FIRST_ERROR) {
-                resp.firstError = parseUTF8(buf, fieldLen, currentPos);
+                resp.firstError = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
             }
         }
 

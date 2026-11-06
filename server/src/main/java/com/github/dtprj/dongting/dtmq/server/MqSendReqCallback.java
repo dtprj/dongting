@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.common.DtCleanable;
@@ -69,9 +70,9 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == MqSendReq.IDX_MESSAGES) {
             if (messages == null) {
-                messages = createArrayList(declaredSize > 0 ? declaredSize : 4);
+                messages = ParseUtil.createArrayList(declaredSize > 0 ? declaredSize : 4);
             }
-            parseNested(buf, fieldLen, currentPos, messageCallback);
+            ParseUtil.parseNested(context, buf, fieldLen, currentPos, messageCallback);
         }
     }
 
@@ -133,7 +134,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
         @Override
         public void readBytes(int index, ByteBuffer src, int fieldLen, int currentPos) {
             if (index == MqMessage.IDX_MSG_HEADER) {
-                msgHeader = parseBytes(src, fieldLen, currentPos);
+                msgHeader = ParseUtil.parseBytes(context, src, fieldLen, currentPos);
             } else if (index == MqMessage.IDX_MSG_BODY) {
                 if (currentPos == 0) {
                     startBody(fieldLen);

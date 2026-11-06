@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.DtCleanable;
 import com.github.dtprj.dongting.raft.RaftRpcData;
@@ -117,7 +118,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     break;
                 case IDX_LOGS_SIZE:
                     if (result.logs == null) {
-                        result.logs = createArrayList((int) value);
+                        result.logs = ParseUtil.createArrayList((int) value);
                     }
                     break;
             }
@@ -146,9 +147,9 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_ENTRIES) {
                 if (result.logs == null) {
-                    result.logs = createArrayList(8);
+                    result.logs = ParseUtil.createArrayList(8);
                 }
-                parseNested(buf, len, currentPos, logDataCallback);
+                ParseUtil.parseNested(context, buf, len, currentPos, logDataCallback);
             }
         }
 

@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -174,7 +175,7 @@ public class KvNode implements Encodable {
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_DATA) {
-                data = parseBytes(buf, fieldLen, currentPos);
+                data = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
             }
         }
 

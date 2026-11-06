@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -71,7 +72,7 @@ public class AdminListNodesResp extends PbCallback<AdminListNodesResp> implement
     @Override
     public void readVarNumber(int index, long value) {
         if (index == IDX_SIZE && nodes == null) {
-            nodes = createArrayList((int) value);
+            nodes = ParseUtil.createArrayList((int) value);
         }
     }
 
@@ -82,9 +83,9 @@ public class AdminListNodesResp extends PbCallback<AdminListNodesResp> implement
                 nodeCallback = new RaftNode.Callback();
             }
             if (nodes == null) {
-                nodes = createArrayList(8);
+                nodes = ParseUtil.createArrayList(8);
             }
-            RaftNode r = parseNested(buf, fieldLen, currentPos, nodeCallback);
+            RaftNode r = ParseUtil.parseNested(context, buf, fieldLen, currentPos, nodeCallback);
             if (r != null) {
                 nodes.add(r);
             }

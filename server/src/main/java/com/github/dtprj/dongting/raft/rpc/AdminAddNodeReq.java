@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -60,7 +61,7 @@ public class AdminAddNodeReq extends PbCallback<AdminAddNodeReq> implements Simp
     @Override
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 2) {
-            host = parseUTF8(buf, fieldLen, currentPos);
+            host = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         }
     }
 }

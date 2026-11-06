@@ -25,48 +25,31 @@ import java.util.ArrayList;
 /**
  * @author huangli
  */
-public abstract class AbstractCodecCallback<T> {
+public final class ParseUtil {
 
-    private static final DtLog log = DtLogs.getLogger(AbstractCodecCallback.class);
+    private static final DtLog log = DtLogs.getLogger(ParseUtil.class);
 
-    protected DecodeContext context;
-
-    protected abstract T getResult();
-
-    protected void begin(int len) {
-    }
-
-    /**
-     * @param success whether the parse/decode completed successfully
-     * @param ex      the exception that caused the failure; null if success is true, or if the
-     *                parse/decode was cancelled (e.g. by reset) without a specific exception.
-     *                It may be any exception thrown during parse/decode (e.g. CodecException),
-     *                not necessarily a NetException
-     */
-    protected void end(boolean success, Throwable ex) {
-    }
-
-    protected final StrEncoder parseStrEncoder(ByteBuffer buf, int fieldLen, int currentPos) {
-        String s = parseUTF8(buf, fieldLen, currentPos);
+    public static StrEncoder parseStrEncoder(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
+        String s = parseUTF8(context, buf, fieldLen, currentPos);
         return s == null ? null : new StrEncoder(s);
     }
 
-    protected final String parseUTF8(ByteBuffer buf, int fieldLen, int currentPos) {
+    public static String parseUTF8(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
         if (fieldLen == 0) {
             return "";
         }
         if (currentPos == 0 && buf.remaining() >= fieldLen) {
             return StrDecoderCallback.decodeSingleBuffer(buf, fieldLen, context);
         }
-        return parseNested(buf, fieldLen, currentPos, context.strDecoderCallback());
+        return parseNested(context, buf, fieldLen, currentPos, context.strDecoderCallback());
     }
 
-    protected final ByteArray parseByteArray(ByteBuffer buf, int fieldLen, int currentPos) {
-        byte[] arr = parseBytes(buf, fieldLen, currentPos);
+    public static ByteArray parseByteArray(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
+        byte[] arr = parseBytes(context, buf, fieldLen, currentPos);
         return arr == null ? null : new ByteArray(arr);
     }
 
-    protected final byte[] parseBytes(ByteBuffer buf, int fieldLen, int currentPos) {
+    public static byte[] parseBytes(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
         if (fieldLen == 0) {
             return new byte[0];
         }
@@ -89,7 +72,7 @@ public abstract class AbstractCodecCallback<T> {
     }
 
     @SuppressWarnings("unchecked")
-    protected final <X> X parseNested(ByteBuffer buf, int fieldLen, int currentPos,
+    public static <X> X parseNested(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos,
                                       PbCallback<X> nestedCallback) {
         PbParser nestedParser = context.createOrGetNestedParser();
         DecodeContext nestedContext = context.createOrGetNestedContext();
@@ -101,20 +84,22 @@ public abstract class AbstractCodecCallback<T> {
         if (end) {
             if (!nestedParser.isFinished()) {
                 throw new PbException("parse not finish after read all bytes. fieldLen=" + fieldLen
-                        + ", currentPos=" + currentPos + "class=" + getClass());
+                        + ", currentPos=" + currentPos
+                        + ", class=" + nestedCallback.getClass().getName());
             }
             nestedContext.reset(nestedParser);
         } else {
             if (nestedParser.isFinished()) {
                 throw new PbException("parse finished without read all bytes. fieldLen=" + fieldLen
-                        + ", currentPos=" + currentPos + "class=" + getClass());
+                        + ", currentPos=" + currentPos
+                        + ", class=" + nestedCallback.getClass().getName());
             }
         }
         return result;
     }
 
     @SuppressWarnings("unchecked")
-    protected final <X> X parseNested(ByteBuffer buf, int fieldLen, int currentPos,
+    public static <X> X parseNested(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos,
                                       DecoderCallback<X> nestedCallback) {
         Decoder nestedDecoder = context.createOrGetNestedDecoder();
         DecodeContext nestedContext = context.createOrGetNestedContext();
@@ -126,13 +111,15 @@ public abstract class AbstractCodecCallback<T> {
         if (end) {
             if (!nestedDecoder.isFinished()) {
                 throw new PbException("decode not finish after read all bytes. fieldLen="
-                        + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
+                        + fieldLen + ", currentPos=" + currentPos
+                        + ", class=" + nestedCallback.getClass().getName());
             }
             nestedContext.reset(nestedDecoder);
         } else {
             if (nestedDecoder.isFinished()) {
                 throw new PbException("decode finished without read all bytes. fieldLen="
-                        + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
+                        + fieldLen + ", currentPos=" + currentPos
+                        + ", class=" + nestedCallback.getClass().getName());
             }
         }
         return result;
@@ -141,7 +128,7 @@ public abstract class AbstractCodecCallback<T> {
     private static final int MAX_SUGGESTED_SIZE = 50000;
 
     /** Returns the suggested size if it is in (0, 50000], otherwise 0. */
-    protected final int checkSuggestedSize(int suggestedSize) {
+    public static int checkSuggestedSize(int suggestedSize) {
         if (suggestedSize <= 0 || suggestedSize > MAX_SUGGESTED_SIZE) {
             log.warn("invalid suggested size: {}", suggestedSize);
             return 0;
@@ -149,7 +136,7 @@ public abstract class AbstractCodecCallback<T> {
         return suggestedSize;
     }
 
-    protected <X> ArrayList<X> createArrayList(int suggestedSize) {
+    public static <X> ArrayList<X> createArrayList(int suggestedSize) {
         return new ArrayList<>(checkSuggestedSize(suggestedSize));
     }
 

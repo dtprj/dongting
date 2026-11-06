@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
@@ -172,7 +173,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         @Override
         public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_DATA) {
-                RefBuffer rb = parseNested(buf, len, currentPos, refBufferCallback);
+                RefBuffer rb = ParseUtil.parseNested(context, buf, len, currentPos, refBufferCallback);
                 if (rb != null) {
                     if (result.data != null) {
                         log.error("duplicate data field in InstallSnapshotReq. groupId={}, leaderId={}",

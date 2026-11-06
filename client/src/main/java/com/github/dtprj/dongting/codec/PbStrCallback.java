@@ -27,7 +27,7 @@ public final class PbStrCallback extends PbCallback<String> {
     @Override
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 1) {
-            s = parseUTF8(buf, fieldLen, currentPos);
+            s = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         }
     }
 

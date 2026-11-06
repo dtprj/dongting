@@ -52,7 +52,7 @@ public final class StrEncoder extends ByteArray {
 
         @Override
         protected void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
-            byte[] bytes = parseBytes(buffer, bodyLen, currentPos);
+            byte[] bytes = ParseUtil.parseBytes(context, buffer, bodyLen, currentPos);
             if (bytes != null) {
                 r = new StrEncoder(bytes);
             }

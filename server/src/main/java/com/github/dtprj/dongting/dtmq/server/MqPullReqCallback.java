@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtmq.server;
 
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.dtmq.MqPullReq;
@@ -80,13 +81,13 @@ public final class MqPullReqCallback extends PbCallback<MqPullReq> {
                 req.fromSeqs = Arrays.copyOf(req.fromSeqs, capacity);
             }
         }
-        if (parseNested(buf, fieldLen, currentPos, queueCallback) != null) {
+        if (ParseUtil.parseNested(context, buf, fieldLen, currentPos, queueCallback) != null) {
             queueCount++;
         }
     }
 
     private int initialCapacity() {
-        int capacity = checkSuggestedSize(declaredSize > 0 ? declaredSize : MIN_CAPACITY);
+        int capacity = ParseUtil.checkSuggestedSize(declaredSize > 0 ? declaredSize : MIN_CAPACITY);
         return capacity > 0 ? capacity : MIN_CAPACITY;
     }
 

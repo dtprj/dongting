@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -106,9 +107,9 @@ public class KvResult implements Encodable {
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_NODE) {
-                data = parseNested(buf, fieldLen, currentPos, nodeCallback);
+                data = ParseUtil.parseNested(context, buf, fieldLen, currentPos, nodeCallback);
             } else if (index == IDX_KEY_IN_DIR) {
-                keyInDir = parseByteArray(buf, fieldLen, currentPos);
+                keyInDir = ParseUtil.parseByteArray(context, buf, fieldLen, currentPos);
             }
         }
 

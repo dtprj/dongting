@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -157,7 +158,7 @@ public class RaftNode implements Encodable, Comparable<RaftNode> {
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_HOST) {
-                host = parseUTF8(buf, fieldLen, currentPos);
+                host = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
             }
         }
 

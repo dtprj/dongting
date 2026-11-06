@@ -26,7 +26,7 @@ public class BytesDecoderCallback extends DecoderCallback<byte[]> {
 
     @Override
     public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
-        r = parseBytes(buffer, bodyLen, currentPos);
+        r = ParseUtil.parseBytes(context, buffer, bodyLen, currentPos);
     }
 
     @Override

@@ -314,7 +314,7 @@ public class PbParserTest {
                 if (nestedCallback == null) {
                     nestedCallback = new NestedCallback();
                 }
-                readMsg.f7 = parseNested(buf, len, currentPos, nestedCallback);
+                readMsg.f7 = ParseUtil.parseNested(context, buf, len, currentPos, nestedCallback);
             } else {
                 fail();
             }

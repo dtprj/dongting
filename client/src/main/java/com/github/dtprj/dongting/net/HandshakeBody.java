@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
@@ -79,10 +80,10 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_CONFIG) {
             ConfigBody nestedCallback = currentPos == 0 ? new ConfigBody() : null;
-            config = parseNested(buf, fieldLen, currentPos, nestedCallback);
+            config = ParseUtil.parseNested(context, buf, fieldLen, currentPos, nestedCallback);
         } else if (index == IDX_PROCESS_INFO) {
             ProcessInfoBody nestedCallback = currentPos == 0 ? new ProcessInfoBody() : null;
-            processInfo = parseNested(buf, fieldLen, currentPos, nestedCallback);
+            processInfo = ParseUtil.parseNested(context, buf, fieldLen, currentPos, nestedCallback);
         }
     }
 

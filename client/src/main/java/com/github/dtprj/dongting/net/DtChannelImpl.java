@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -242,11 +243,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         switch (index) {
             case Packet.IDX_MSG: {
-                this.packet.msg = parseUTF8(buf, fieldLen, currentPos);
+                this.packet.msg = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
                 return;
             }
             case Packet.IDX_EXTRA: {
-                this.packet.extra = parseBytes(buf, fieldLen, currentPos);
+                this.packet.extra = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                 return;
             }
             case Packet.IDX_BODY: {
@@ -292,7 +293,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         ReadPacket p = packet;
 
         try {
-            p.body = parseNested(buf, fieldLen, currentPos, currentDecoderCallback);
+            p.body = ParseUtil.parseNested(context, buf, fieldLen, currentPos, currentDecoderCallback);
         } catch (RuntimeException | Error e) {
             cleanParseStatus(e, null); // update packet to null
             if (p.packetType == PacketType.TYPE_REQ) {

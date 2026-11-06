@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -210,31 +211,31 @@ public class KvReq extends RaftRpcData implements Encodable {
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             switch (index) {
                 case IDX_KEY:
-                    req.key = parseBytes(buf, fieldLen, currentPos);
+                    req.key = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     break;
                 case IDX_VALUE:
-                    req.value = parseBytes(buf, fieldLen, currentPos);
+                    req.value = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     break;
                 case IDX_KEYS:
                     if (req.keys == null) {
-                        req.keys = createArrayList(keysSize);
+                        req.keys = ParseUtil.createArrayList(keysSize);
                     }
-                    byte[] k = parseBytes(buf, fieldLen, currentPos);
+                    byte[] k = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     if (k != null) {
                         req.keys.add(k);
                     }
                     break;
                 case IDX_VALUES:
                     if (req.values == null) {
-                        req.values = createArrayList(keysSize);
+                        req.values = ParseUtil.createArrayList(keysSize);
                     }
-                    byte[] v = parseBytes(buf, fieldLen, currentPos);
+                    byte[] v = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     if (v != null) {
                         req.values.add(v);
                     }
                     break;
                 case IDX_EXPECT_VALUE:
-                    req.expectValue = parseBytes(buf, fieldLen, currentPos);
+                    req.expectValue = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     break;
             }
         }

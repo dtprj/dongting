@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.CodecTestUtil;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
@@ -54,7 +55,7 @@ public class MultiParserTest {
 
         @Override
         public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            f1 = parseUTF8(buf, fieldLen, currentPos);
+            f1 = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         }
 
         @Override

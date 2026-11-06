@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -53,7 +54,7 @@ public class KvStatusResp extends PbCallback<KvStatusResp> implements Encodable 
     @Override
     public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_RAFT_SERVER_STATUS) {
-            raftServerStatus = parseNested(buf, fieldLen, currentPos,
+            raftServerStatus = ParseUtil.parseNested(context, buf, fieldLen, currentPos,
                     currentPos == 0 ? new QueryStatusResp.Callback() : null);
         }
     }
