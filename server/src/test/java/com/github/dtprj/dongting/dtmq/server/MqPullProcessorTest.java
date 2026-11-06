@@ -102,6 +102,7 @@ class MqPullProcessorTest extends ServerTestBase {
 
             assertError(send(client, peer, request(11, 0, 0).toBuilder().setLimit(0).build()), CmdCodes.CLIENT_ERROR);
             assertError(send(client, peer, request(11, 0, 0).toBuilder().setGroupId(-1).build()), CmdCodes.CLIENT_ERROR);
+            assertError(send(client, peer, request(0, 0, 0)), CmdCodes.CLIENT_ERROR);
             assertError(send(client, peer, request(11, 0, 0).toBuilder().addQueues(
                     DtMq.MqPullReqDetail.newBuilder().setQueueId(11)).setQueuesSize(2).build()), CmdCodes.CLIENT_ERROR);
 

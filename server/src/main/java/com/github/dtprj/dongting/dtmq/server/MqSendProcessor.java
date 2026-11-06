@@ -65,7 +65,11 @@ final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
             int size = messages.size();
             int maxBody = mq.serverConfig.maxBody;
             for (int i = 0; i < size; i++) {
-                if (messages.get(i).bodyLen > maxBody) {
+                RaftReqData data = messages.get(i);
+                if (data.bizKey <= 0) {
+                    throw new NetCodeException(CmdCodes.CLIENT_ERROR, "queueId must be positive", null);
+                }
+                if (data.bodyLen > maxBody) {
                     throw new NetCodeException(CmdCodes.CLIENT_ERROR, "message body exceeds maxBody: " + maxBody, null);
                 }
             }

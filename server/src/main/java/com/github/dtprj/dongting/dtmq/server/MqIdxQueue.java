@@ -93,8 +93,8 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
         super(new File(manager.dir, String.valueOf(queueId)), manager.groupConfig,
                 (long) MqIdxBlock.ITEM_LEN * manager.groupConfig.mqIdxItemsPerFile, false);
         this.manager = manager;
-        this.queueId = queueId;
-        this.nextSeq = nextSeq;
+        this.queueId = DtUtil.checkPositive(queueId, "queueId");
+        this.nextSeq = DtUtil.checkNotNegative(nextSeq, "nextSeq");
         this.firstSeqInCache = nextSeq & ~((long) MqIdxBlock.BLOCK_MASK);
         this.forceFinishSeq = nextSeq - 1;
         this.writeFinishSeq = nextSeq - 1;

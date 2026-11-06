@@ -101,6 +101,7 @@ class MqSendProcessorTest extends ServerTestBase {
 
             DtMq.MqMessage valid = message(33, ByteString.EMPTY, body(16));
             assertSendError(client, peer, request(valid, message(44, HEADER, body(MAX_BODY + 1))));
+            assertSendError(client, peer, request(valid, message(0, HEADER, ByteString.EMPTY)));
             assertSendError(client, peer, request());
             for (int invalidGroupId : new int[]{0, -1}) {
                 assertSendError(client, peer, request(valid).toBuilder().setGroupId(invalidGroupId).build());

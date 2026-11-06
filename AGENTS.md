@@ -36,6 +36,7 @@
 
 ### ID Constraints
 - Both **groupId** and **nodeId** must be positive integers (> 0). Zero and negative values are rejected.
+- dtmq **queueId** is 1-based (> 0, zero is reserved); the **seq** inside a queue is 0-based, starting at 0.
 
 ### Fiber/Coroutines
 - Each raft group runs in a fiber group (single-threaded)

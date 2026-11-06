@@ -140,6 +140,9 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
             }
         }
         for (int i = 0; i < len; i++) {
+            if (queueIds[i] <= 0) {
+                throw new IllegalArgumentException("queueId must be positive: " + queueIds[i]);
+            }
             if (fromSeqs[i] < 0) {
                 throw new IllegalArgumentException("negative fromSeq: " + fromSeqs[i]);
             }

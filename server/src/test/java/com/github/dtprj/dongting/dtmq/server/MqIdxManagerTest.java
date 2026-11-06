@@ -168,6 +168,8 @@ class MqIdxManagerTest extends BaseFiberTest {
 
     @Test
     void testRegister() {
+        assertThrows(IllegalArgumentException.class, () -> manager.register(0, 0));
+        assertThrows(IllegalArgumentException.class, () -> manager.register(1, -1));
         manager.register(1, 1000);
         MqIdxQueue q = manager.queues.get(1);
         assertEquals(1000, q.nextSeq);

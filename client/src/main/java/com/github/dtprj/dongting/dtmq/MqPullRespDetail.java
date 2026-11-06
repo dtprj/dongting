@@ -26,6 +26,7 @@ public class MqPullRespDetail {
 
     // 1-based; 0 is reserved
     public long queueId;
+    // 0-based
     public long fromSeq;
     // next pull cursor = fromSeq + count
     public int count;
