@@ -1,55 +1,33 @@
 ---
 name: idea-mcp
 description: |
-  IntelliJ IDEA MCP for Java code analysis, testing, refactoring, and project navigation. Use when: (1) Checking Java compilation errors (get_file_problems is more accurate than LSP for multi-module Maven), (2) Performing rename refactoring across the codebase, (3) Searching code or finding files in the project. Requires IDEA to be running with MCP plugin connected.
+  IntelliJ IDEA MCP for Java code analysis, testing, refactoring, and project navigation. Use when: (1) Checking Java compilation errors (get_file_problems / lint_files), (2) Call hierarchy analysis (analyze_calls), (3) Rename refactoring across the codebase, (4) Searching code or finding files in the project, (5) Running tests or run configurations. Requires IDEA to be running with MCP plugin connected.
 ---
 
 # IntelliJ IDEA MCP Skill
 
-## Path Rules (Most Common Error Source)
-
-| Parameter | Path Type | Example |
-|-----------|-----------|---------|
-| `projectPath` | **ABSOLUTE** | `/Users/huangli/dt/dongting` |
-| `filePath`, `pathInProject`, `directoryPath`, `contextPath` | **RELATIVE** | `server/src/main/java/...` |
-
-Getting this wrong is the #1 cause of "file not found" errors.
+Only documents what the tools' own descriptions don't say clearly, plus pitfalls found in real use.
 
 ## File Reading
 
-For reading Java source files, prefer IDEA's **`read_file`** over the system's `read` tool. It supports structured modes like `indentation` (reads by code structure/levels) and precise range reads.
+Use `read_file` only for what the system `read` tool cannot reach: dependency sources and decompiled classes — get a path from `search_symbol({include_external: true})` and pass it back as is (e.g. `../.m2/.../foo-sources.jar!/pkg/Foo.java`). Hand-written `jrt://` URLs fail. For regular project files prefer the system `read` tool (exact line windows); images, PDFs, and directories also require it.
 
-## Gotchas and Tips
+## Multiple Projects
 
-### Two Search API Families
+With several projects open in IDEA, a call can route to a project other than the current directory. Before write operations (`rename_refactoring`, `reformat_file`, `optimize_imports`, `build_project`), pass `projectPath` explicitly — the absolute path of the current working directory. It is undocumented and absent from tool schemas, but direct calls forward it. Never operate on a project outside the current directory.
 
-IDEA MCP has two sets of search tools that return different formats. Pick the right one:
+## Pitfalls
 
-- **`search_in_files_by_text` / `search_in_files_by_regex`** — Returns matched lines with `||highlight||` markers. Good for quick "where is this string used" lookups. Supports `fileMask` filter.
-- **`search_text` / `search_regex` / `search_file` / `search_symbol`** — Returns structured results with exact coordinates (line, column, byte offsets). Supports `paths` glob filters and `!` excludes. Use this when you need precise locations for further operations.
-  - `search_symbol` is especially powerful — semantic symbol lookup (classes, methods, fields) returning full code snippets.
+- `read_file`: `limit` is unreliable (server-side, verified with a raw JSON-RPC call) — the result may span more lines than requested, and may contain literal `…N lines truncated…` lines that hide middle content. Use the system `read` tool when you need an exact line window.
+- `read_file` structured modes (`indentation` etc., described in JetBrains docs) are NOT implemented in the current build — the `mode` parameter is silently ignored. Read methods via `search_symbol` coordinates + `offset`.
+- `execute_tool` silently drops unknown or misspelled parameters; it cannot pass `projectPath`.
+- `analyze_calls` rejects a plain class name; it wants a callable FQN (method/constructor). Find one via `search_symbol` first.
 
-### `execute_terminal_command` Does Not Use Shell by Default
+## Notes
 
-Without `executeInShell: true`, shell features like `$()` expansion, pipes, and wildcards won't work. For most shell commands, prefer the Bash tool directly.
-
-### `rename_refactoring` Takes Symbol Name, Not Position
-
-Parameters are `symbolName` (the exact identifier string) and `newName`, not file path + line/column. This is different from LSP-based rename.
-
-### `build_project` for Single-File Compilation
-
-`build_project` with `filesToRebuild` parameter compiles specific files much faster than running `mvn compile`. Useful for quick verification after edits.
-
-### `get_file_problems` vs LSP Diagnostics
-
-For multi-module Maven projects, `get_file_problems` is significantly more accurate than LSP `lsp_diagnostics`. Prefer it for Java error checking.
-
-## High-Risk Operations
-
-- `rename_refactoring` & `replace_text_in_file` — Modify code globally, verify with `get_file_problems` after use
-- `reformat_file` — Modifies formatting without confirmation
-- The High-Risk Operations may be disabled and invisible.
+- `build_project` with `filesToRebuild` compiles specific files much faster than `mvn compile`.
+- `get_file_problems` / `lint_files` use IDE inspections and are more accurate than command-line builds for multi-module Maven.
+- `rename_refactoring`, `reformat_file`, `optimize_imports` write files without confirmation; use `rename_refactoring({preview: true})` to inspect the impact first.
 
 ## Troubleshooting
 
@@ -57,4 +35,4 @@ For multi-module Maven projects, `get_file_problems` is significantly more accur
 |-------|----------|
 | Connection refused | Verify IDEA running with MCP plugin |
 | Request timed out | Accept permission dialog in IDEA |
-| File not found | Check absolute vs relative path (see Path Rules above) |
+| File not found | Paths are project-relative; verify the project routing (see Multiple Projects) |
