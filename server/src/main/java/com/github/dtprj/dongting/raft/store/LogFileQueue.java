@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -70,8 +69,7 @@ final class LogFileQueue extends AllocatingFileQueue<MainLogFile> {
         this.idxOps = idxOps;
         this.ts = groupConfig.ts;
         this.fiberGroup = groupConfig.fiberGroup;
-        DispatcherThread t = fiberGroup.dispatcher.thread;
-        this.buffers = t.buffers;
+        this.buffers = fiberGroup.buffers;
 
         this.chainWriter = new ChainWriter("LogForce", groupConfig, this::writeFinish, this::forceFinish);
         chainWriter.setWritePerfType1(PerfConsts.RAFT_D_LOG_WRITE1);

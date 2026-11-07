@@ -42,7 +42,7 @@ class MqSnapshot extends Snapshot {
     MqSnapshot(SnapshotInfo snapshotInfo, LongObjMap<MqIdxQueue> queues, FiberGroup fiberGroup) {
         super(snapshotInfo);
         this.fiberGroup = fiberGroup;
-        Buffers buffers = fiberGroup.dispatcher.thread.buffers;
+        Buffers buffers = fiberGroup.buffers;
         try {
             queues.forEach((queueId, q) -> {
                 if (writePage == null) {

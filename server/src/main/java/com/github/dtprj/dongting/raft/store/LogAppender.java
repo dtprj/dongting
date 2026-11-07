@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
-import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -68,9 +67,8 @@ class LogAppender {
         this.raftStatus = (RaftStatusImpl) groupConfig.raftStatus;
         this.chainWriter = chainWriter;
 
-        DispatcherThread thread = groupConfig.fiberGroup.dispatcher.thread;
-        this.buffers = thread.buffers;
-        this.encodeContext = new EncodeContext(thread.buffers);
+        this.buffers = groupConfig.fiberGroup.buffers;
+        this.encodeContext = new EncodeContext(buffers);
         this.fileLenMask = logFileQueue.fileLength() - 1;
         this.perfCallback = groupConfig.perfCallback;
     }

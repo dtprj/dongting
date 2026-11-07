@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -246,8 +245,7 @@ final class RaftIdxFileQueue extends AllocatingFileQueue<QueueFile> implements I
             // don't cross file
             len = (int) (logFile.endPos - startIdxPos);
         }
-        DispatcherThread t = groupConfig.fiberGroup.dispatcher.thread;
-        RefBuffer bufRef = t.buffers.borrowDirectLocal(len);
+        RefBuffer bufRef = groupConfig.fiberGroup.buffers.borrowDirectLocal(len);
         bufRef.getBuffer().limit(len);
         fillAndSubmit(bufRef, startIdx, logFile, suggestForce);
     }

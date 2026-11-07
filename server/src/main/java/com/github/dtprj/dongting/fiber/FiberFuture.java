@@ -102,7 +102,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void fireComplete0(T r, Throwable ex) {
-        DispatcherThread dispatcherThread = group.dispatcher.thread;
+        DispatcherThread dispatcherThread = group.thread;
         if (Thread.currentThread() == dispatcherThread) {
             if (group.finished) {
                 log.warn("group is stopped, ignore fireComplete");

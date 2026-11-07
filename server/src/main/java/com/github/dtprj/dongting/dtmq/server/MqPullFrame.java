@@ -175,7 +175,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
     private boolean isCancelled() {
         RaftGroupConfigEx gc = mq.groupConfig;
         boolean channelClosed = channel != null && !channel.getChannel().isOpen();
-        if (Thread.currentThread() != gc.fiberGroup.dispatcher.thread) {
+        if (Thread.currentThread() != gc.fiberGroup.thread) {
             return channelClosed || gc.fiberGroup.shareStatusSource.getShareStatus(true).shouldStop;
         }
         RaftStatusImpl rs = mq.raftStatus;
@@ -342,7 +342,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
             }
         }
         int bufferSize = bodySize - zeroCopyBytes;
-        buffer = mq.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirect(bufferSize);
+        buffer = mq.groupConfig.fiberGroup.buffers.borrowDirect(bufferSize);
         ByteBuffer dest = buffer.getBuffer();
         dest.limit(bufferSize);
         MqPullRespPacket.writeHeader(dest, queueIds, fromSeqs, results, bytes);

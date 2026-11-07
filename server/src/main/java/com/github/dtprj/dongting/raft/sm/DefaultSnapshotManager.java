@@ -558,7 +558,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
-            this.buffers = getFiberGroup().dispatcher.thread.buffers;
+            this.buffers = getFiberGroup().buffers;
             FiberFuture<Snapshot> f = snapshotCreator.get();
             return f.await(this::afterTakeSnapshot);
         }
@@ -714,7 +714,7 @@ class RecoverFiberFrame extends FiberFrame<Void> {
         this.stateMachine = stateMachine;
         this.groupConfig = groupConfig;
         this.snapshot = snapshot;
-        Buffers buffers = groupConfig.fiberGroup.dispatcher.thread.buffers;
+        Buffers buffers = groupConfig.fiberGroup.buffers;
         this.bufferCreator = () -> {
             int s = snapshot.getBufferSize();
             RefBuffer rb = buffers.borrowDirect(s);

@@ -639,7 +639,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
-        this.buffers = groupConfig.fiberGroup.dispatcher.thread.buffers;
+        this.buffers = groupConfig.fiberGroup.buffers;
     }
 
     @Override

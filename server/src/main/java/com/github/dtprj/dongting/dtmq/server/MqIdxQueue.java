@@ -213,7 +213,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
                 return afterLoad(false);
             }
             if (bufRef == null) {
-                bufRef = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowLocal(MqIdxBlock.DISK_BLOCK_BYTES);
+                bufRef = groupConfig.fiberGroup.buffers.borrowLocal(MqIdxBlock.DISK_BLOCK_BYTES);
             }
             ByteBuffer buf = bufRef.getBuffer();
             buf.limit(MqIdxBlock.DISK_BLOCK_BYTES);
@@ -287,7 +287,7 @@ final class MqIdxQueue extends FileQueue<MqIdxFile> {
             BugLog.logAndThrow("idx file not allocated: queue=" + queueId + ", pos=" + startPos);
         }
 
-        RefBuffer bufRef = groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirectLocal(len);
+        RefBuffer bufRef = groupConfig.fiberGroup.buffers.borrowDirectLocal(len);
         long lastPos;
         try {
             ByteBuffer buf = bufRef.getBuffer();

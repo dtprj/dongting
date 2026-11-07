@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.log.BugLog;
@@ -37,6 +38,8 @@ public class FiberGroup {
     public final ShareStatusSource shareStatusSource;
     public final String name;
     public final Dispatcher dispatcher;
+    public final DispatcherThread thread;
+    public final Buffers buffers;
     public final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
     public final FiberCondition shouldStopCondition;
 
@@ -63,6 +66,8 @@ public class FiberGroup {
     public FiberGroup(String name, Dispatcher dispatcher, ShareStatusSource sss) {
         this.name = name;
         this.dispatcher = dispatcher;
+        this.thread = dispatcher.thread;
+        this.buffers = thread.buffers;
         this.sysChannel = new FiberChannel<>(this);
         this.executor = new GroupExecutor(this);
         this.shouldStopCondition = newCondition(name + "-shouldStop");
@@ -107,7 +112,7 @@ public class FiberGroup {
             shareStatusSource.fatalError = true;
             shareStatusSource.copy(true);
         }
-        if (Thread.currentThread() == dispatcher.thread && dispatcher.thread.currentGroup == this) {
+        if (Thread.currentThread() == thread && thread.currentGroup == this) {
             requestShutdown0();
         } else {
             Fiber shutdownGroupFiber = new Fiber("shutdownGroup", this,
@@ -294,7 +299,7 @@ public class FiberGroup {
         if (!log.isInfoEnabled()) {
             return;
         }
-        if (Thread.currentThread() == dispatcher.thread) {
+        if (Thread.currentThread() == thread) {
             logGroupInfo0(msg);
         } else {
             CompletableFuture<Void> f = new CompletableFuture<>();
@@ -315,7 +320,7 @@ public class FiberGroup {
                 log.error("log group info timeout, group={}", name, e);
                 try {
                     Exception stack = new Exception();
-                    stack.setStackTrace(dispatcher.thread.getStackTrace());
+                    stack.setStackTrace(thread.getStackTrace());
                     log.error("dispatcher thread stack", stack);
                 } catch (Exception ignored) {
                 }
@@ -378,8 +383,7 @@ public class FiberGroup {
     }
 
     public boolean isCurrentGroup() {
-        DispatcherThread t = dispatcher.thread;
-        return Thread.currentThread() == t && this == t.currentGroup;
+        return Thread.currentThread() == thread && this == thread.currentGroup;
     }
 }
 

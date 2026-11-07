@@ -287,7 +287,7 @@ final class MqIdxReader extends FiberFrame<Boolean> {
         diskStartSeq = seq & ~((long) MqIdxBlock.BLOCK_MASK);
         diskEndSeq = Math.min(diskStartSeq + MqIdxBlock.BLOCK_ITEMS, endSeq);
         if (diskBuffer == null) {
-            diskBuffer = pull.mq.groupConfig.fiberGroup.dispatcher.thread.buffers.borrowDirectLocal(
+            diskBuffer = pull.mq.groupConfig.fiberGroup.buffers.borrowDirectLocal(
                     MqIdxBlock.DISK_BLOCK_BYTES);
         }
         ByteBuffer buf = diskBuffer.getBuffer();
