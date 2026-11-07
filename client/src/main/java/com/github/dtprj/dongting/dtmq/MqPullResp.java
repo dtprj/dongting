@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtmq;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -26,7 +27,7 @@ public class MqPullResp {
     public static final int IDX_RECORDS = 15;
 
     // same order as requested queues
-    public List<MqPullRespDetail> results;
-    // concatenated raw raft log records, grouped by results and delimited by each record's totalLen
-    public byte[] records;
+    public List<MqPullRespDetail> results = Collections.emptyList();
+    // grouped by results, in the same order
+    public List<DtMsg> records = Collections.emptyList();
 }

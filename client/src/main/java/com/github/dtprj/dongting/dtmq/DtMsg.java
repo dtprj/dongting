@@ -18,14 +18,26 @@ package com.github.dtprj.dongting.dtmq;
 /**
  * @author huangli
  */
-public class MqMessage {
-    public static final int IDX_QUEUE_ID = 1;
-    public static final int IDX_MSG_HEADER = 2;
-    public static final int IDX_MSG_BODY = 3;
-
+public class DtMsg {
     // 1-based; 0 is reserved
     public long queueId;
-    // opaque bytes, not interpreted by the state machine
-    public byte[] msgHeader;
-    public byte[] msgBody;
+    public byte[] header;
+    public byte[] body;
+    public long timestamp;
+    // 0-based, assigned by the server when received
+    public long seq;
+
+    public DtMsg(long queueId, byte[] header, byte[] body) {
+        this.queueId = queueId;
+        this.header = header;
+        this.body = body;
+    }
+
+    public DtMsg(long queueId, byte[] header, byte[] body, long timestamp, long seq) {
+        this.queueId = queueId;
+        this.header = header;
+        this.body = body;
+        this.timestamp = timestamp;
+        this.seq = seq;
+    }
 }

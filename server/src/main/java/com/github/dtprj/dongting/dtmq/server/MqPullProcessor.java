@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.dtmq.MqPullReq;
+import com.github.dtprj.dongting.dtmq.codec.MqPullReq;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;

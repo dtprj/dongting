@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
-import com.github.dtprj.dongting.dtmq.MqPullReq;
+import com.github.dtprj.dongting.dtmq.codec.MqPullReq;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;

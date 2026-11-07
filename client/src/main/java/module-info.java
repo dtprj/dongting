@@ -21,6 +21,7 @@ module dongting.client {
     exports com.github.dtprj.dongting.common;
     exports com.github.dtprj.dongting.dtkv;
     exports com.github.dtprj.dongting.dtmq;
+    exports com.github.dtprj.dongting.dtmq.codec to dongting.server;
     exports com.github.dtprj.dongting.log;
     exports com.github.dtprj.dongting.net;
     exports com.github.dtprj.dongting.codec;

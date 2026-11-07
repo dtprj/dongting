@@ -21,8 +21,7 @@ import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.common.DtCleanable;
-import com.github.dtprj.dongting.dtmq.MqMessage;
-import com.github.dtprj.dongting.dtmq.MqSendReq;
+import com.github.dtprj.dongting.dtmq.codec.MqSendReq;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -127,16 +126,16 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
 
         @Override
         public void readFix64(DecodeContext context, int index, long value) {
-            if (index == MqMessage.IDX_QUEUE_ID) {
+            if (index == MqSendReq.IDX_MESSAGE_QUEUE_ID) {
                 queueId = value;
             }
         }
 
         @Override
         public void readBytes(DecodeContext context, int index, ByteBuffer src, int fieldLen, int currentPos) {
-            if (index == MqMessage.IDX_MSG_HEADER) {
+            if (index == MqSendReq.IDX_MESSAGE_HEADER) {
                 msgHeader = ParseUtil.parseBytes(context, src, fieldLen, currentPos);
-            } else if (index == MqMessage.IDX_MSG_BODY) {
+            } else if (index == MqSendReq.IDX_MESSAGE_BODY) {
                 if (currentPos == 0) {
                     startBody(context, fieldLen);
                 }
