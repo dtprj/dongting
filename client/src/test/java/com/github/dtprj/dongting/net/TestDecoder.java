@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.CopyDecoderCallback;
+import com.github.dtprj.dongting.codec.DecodeContext;
 
 import java.nio.ByteBuffer;
 
@@ -34,7 +35,7 @@ class IoFullPackByteBufferDecoderCallback extends CopyDecoderCallback<ByteBuffer
     }
 
     @Override
-    protected ByteBuffer getResult() {
+    public ByteBuffer getResult(DecodeContext context) {
         return r;
     }
 

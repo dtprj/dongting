@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.Encodable;
@@ -245,11 +246,11 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
         }
     }
 
-    public static final class Callback extends PbCallback<QueryStatusResp> {
+    public static final class Callback implements PbCallback<QueryStatusResp> {
         private final QueryStatusResp resp = new QueryStatusResp();
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     resp.groupId = (int) value;
@@ -273,7 +274,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
         }
 
         @Override
-        public void readFix32(int index, int value) {
+        public void readFix32(DecodeContext context, int index, int value) {
             switch (index) {
                 case IDX_MEMBERS:
                     if (resp.members == Collections.EMPTY_SET) {
@@ -303,7 +304,7 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_COMMIT_INDEX:
                     resp.commitIndex = value;
@@ -330,14 +331,14 @@ public class QueryStatusResp extends RaftConfigRpcData implements Encodable {
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_FIRST_ERROR) {
                 resp.firstError = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
             }
         }
 
         @Override
-        public QueryStatusResp getResult() {
+        public QueryStatusResp getResult(DecodeContext context) {
             return resp;
         }
     }

@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -26,7 +27,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable {
+class HandshakeBody implements PbCallback<HandshakeBody>, SimpleEncodable {
 
     public static final long MAGIC1 = 0xAE10_9045_1C22_DA13L;
     public static final long MAGIC2 = 0x1CD7_D1A3_0A61_935FL;
@@ -44,12 +45,12 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
     ConfigBody config;
 
     @Override
-    protected HandshakeBody getResult() {
+    public HandshakeBody getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readFix64(int index, long value) {
+    public void readFix64(DecodeContext context, int index, long value) {
         switch (index) {
             case IDX_MAGIC1:
                 if (value != MAGIC1) {
@@ -65,7 +66,7 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         switch (index) {
             case IDX_MAJOR_VERSION:
                 majorVersion = (int) value;
@@ -77,7 +78,7 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_CONFIG) {
             ConfigBody nestedCallback = currentPos == 0 ? new ConfigBody() : null;
             config = ParseUtil.parseNested(context, buf, fieldLen, currentPos, nestedCallback);
@@ -108,7 +109,7 @@ class HandshakeBody extends PbCallback<HandshakeBody> implements SimpleEncodable
     }
 }
 
-class ProcessInfoBody extends PbCallback<ProcessInfoBody> implements SimpleEncodable {
+class ProcessInfoBody implements PbCallback<ProcessInfoBody>, SimpleEncodable {
 
     private static final int IDX_UUID1 = 1;
     private static final int IDX_UUID2 = 2;
@@ -117,12 +118,12 @@ class ProcessInfoBody extends PbCallback<ProcessInfoBody> implements SimpleEncod
     long uuid2;
 
     @Override
-    protected ProcessInfoBody getResult() {
+    public ProcessInfoBody getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readFix64(int index, long value) {
+    public void readFix64(DecodeContext context, int index, long value) {
         switch (index) {
             case IDX_UUID1:
                 uuid1 = value;

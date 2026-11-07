@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -66,11 +67,11 @@ public class RaftServerEventPush extends RaftRpcData implements SimpleEncodable 
         PbUtil.writeInt32Field(buf, IDX_EVENT_TYPE, eventType);
     }
 
-    public static final class Callback extends PbCallback<RaftServerEventPush> {
+    public static final class Callback implements PbCallback<RaftServerEventPush> {
         private final RaftServerEventPush push = new RaftServerEventPush();
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     push.groupId = (int) value;
@@ -85,7 +86,7 @@ public class RaftServerEventPush extends RaftRpcData implements SimpleEncodable 
         }
 
         @Override
-        public RaftServerEventPush getResult() {
+        public RaftServerEventPush getResult(DecodeContext context) {
             return push;
         }
     }

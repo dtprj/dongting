@@ -158,9 +158,9 @@ public class NioServerTest {
             public DecoderCallback<RefBuffer> createDecoderCallback(int command, DecodeContext context) {
                 return new RefBufferDecoderCallback() {
                     @Override
-                    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
-                        super.doDecode(buffer, bodyLen, currentPos);
-                        partialBody.set(getResult());
+                    public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+                        super.doDecode(context, buffer, bodyLen, currentPos);
+                        partialBody.set(getResult(context));
                     }
                 };
             }
@@ -206,8 +206,8 @@ public class NioServerTest {
             public DecoderCallback<RefBuffer> createDecoderCallback(int command, DecodeContext context) {
                 return new RefBufferDecoderCallback() {
                     @Override
-                    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
-                        super.doDecode(buffer, bodyLen, currentPos);
+                    public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+                        super.doDecode(context, buffer, bodyLen, currentPos);
                         throw new CodecException("mock decode fail");
                     }
                 };
@@ -634,7 +634,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    protected Object getResult() {
+                    public Object getResult(DecodeContext context) {
                         return null;
                     }
                 };
@@ -678,7 +678,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    protected Object getResult() {
+                    public Object getResult(DecodeContext context) {
                         return null;
                     }
                 };

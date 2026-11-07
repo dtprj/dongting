@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.DtCleanable;
@@ -71,7 +72,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
     }
 
     // re-used
-    public static class Callback extends PbCallback<AppendReq> {
+    public static class Callback implements PbCallback<AppendReq> {
 
         // biz header/body are decoded in AppendProcessor.preProcess()
         private final RaftLogDataCallback logDataCallback;
@@ -89,12 +90,12 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             result = new AppendReq();
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             if (!success) {
                 result.clean();
             }
@@ -102,7 +103,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     result.groupId = (int) value;
@@ -125,7 +126,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_PREV_LOG_INDEX:
                     result.prevLogIndex = value;
@@ -137,14 +138,14 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
 
         @Override
-        public void readFix32(int index, int value) {
+        public void readFix32(DecodeContext context, int index, int value) {
             if (index == IDX_RAFT_CLUSTER_ID) {
                 result.raftClusterId = value;
             }
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_ENTRIES) {
                 if (result.logs == null) {
                     result.logs = ParseUtil.createArrayList(8);
@@ -154,7 +155,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
 
         @Override
-        public AppendReq getResult() {
+        public AppendReq getResult(DecodeContext context) {
             return result;
         }
     }

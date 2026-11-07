@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -29,7 +30,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class KvStatusResp extends PbCallback<KvStatusResp> implements Encodable {
+public class KvStatusResp implements PbCallback<KvStatusResp>, Encodable {
     public static final int IDX_RAFT_SERVER_STATUS = 1;
     public static final int IDX_WATCH_COUNT = 2;
 
@@ -40,19 +41,19 @@ public class KvStatusResp extends PbCallback<KvStatusResp> implements Encodable 
     }
 
     @Override
-    protected KvStatusResp getResult() {
+    public KvStatusResp getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_WATCH_COUNT) {
             this.watchCount = (int) value;
         }
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_RAFT_SERVER_STATUS) {
             raftServerStatus = ParseUtil.parseNested(context, buf, fieldLen, currentPos,
                     currentPos == 0 ? new QueryStatusResp.Callback() : null);

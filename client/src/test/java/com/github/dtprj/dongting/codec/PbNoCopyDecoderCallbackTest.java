@@ -57,13 +57,13 @@ public class PbNoCopyDecoderCallbackTest {
         PbCallback<Object> callback = new PbCallback<>() {
 
             @Override
-            public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+            public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
                 count.value++;
                 throw new CodecException("cancel");
             }
 
             @Override
-            protected Object getResult() {
+            public Object getResult(DecodeContext context) {
                 return null;
             }
         };

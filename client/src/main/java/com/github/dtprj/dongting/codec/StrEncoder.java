@@ -46,12 +46,12 @@ public final class StrEncoder extends ByteArray {
         return str;
     }
 
-    public static class Callback extends DecoderCallback<StrEncoder> {
+    public static class Callback implements DecoderCallback<StrEncoder> {
 
         private StrEncoder r;
 
         @Override
-        protected void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+        public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
             byte[] bytes = ParseUtil.parseBytes(context, buffer, bodyLen, currentPos);
             if (bytes != null) {
                 r = new StrEncoder(bytes);
@@ -59,7 +59,7 @@ public final class StrEncoder extends ByteArray {
         }
 
         @Override
-        protected StrEncoder getResult() {
+        public StrEncoder getResult(DecodeContext context) {
             return r;
         }
     }

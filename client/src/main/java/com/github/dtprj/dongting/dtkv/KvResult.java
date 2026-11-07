@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -84,28 +85,28 @@ public class KvResult implements Encodable {
     }
 
     // re-used
-    public static class Callback extends PbCallback<KvResult> {
+    public static class Callback implements PbCallback<KvResult> {
         private final KvNode.Callback nodeCallback = new KvNode.Callback();
         private int bizCode;
         private KvNode data;
         private ByteArray keyInDir;
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             bizCode = 0;
             data = null;
             keyInDir = null;
         }
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == IDX_BIZ_CODE) {
                 bizCode = (int) value;
             }
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_NODE) {
                 data = ParseUtil.parseNested(context, buf, fieldLen, currentPos, nodeCallback);
             } else if (index == IDX_KEY_IN_DIR) {
@@ -114,7 +115,7 @@ public class KvResult implements Encodable {
         }
 
         @Override
-        protected KvResult getResult() {
+        public KvResult getResult(DecodeContext context) {
             return new KvResult(bizCode, data, keyInDir);
         }
     }

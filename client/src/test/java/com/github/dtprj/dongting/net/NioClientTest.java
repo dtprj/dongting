@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.BytesDecoderCallback;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.DtPacket;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -259,9 +260,9 @@ public class NioClientTest {
         CompletableFuture<ReadPacket<RefBuffer>> future = new CompletableFuture<>();
         client.sendRequest(request, ctx -> new RefBufferDecoderCallback() {
             @Override
-            public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
-                super.doDecode(buffer, bodyLen, currentPos);
-                partialBody.set(getResult());
+            public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+                super.doDecode(context, buffer, bodyLen, currentPos);
+                partialBody.set(getResult(context));
             }
         }, new DtTime(tick(500), TimeUnit.MILLISECONDS), RpcCallback.fromFuture(future));
 
@@ -793,12 +794,12 @@ public class NioClientTest {
             DecoderCallback<Object> decoderCallback = new DecoderCallback<Object>() {
 
                 @Override
-                protected void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+                public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
                     throw new MockRuntimeException();
                 }
 
                 @Override
-                protected Object getResult() {
+                public Object getResult(DecodeContext context) {
                     return null;
                 }
             };

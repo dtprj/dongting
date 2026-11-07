@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -140,14 +141,14 @@ public class RaftNode implements Encodable, Comparable<RaftNode> {
                 + PbUtil.sizeOfInt32Field(IDX_PORT, hostPort.getPort());
     }
 
-    public static class Callback extends PbCallback<RaftNode> {
+    public static class Callback implements PbCallback<RaftNode> {
 
         private int nodeId;
         private String host;
         private int port;
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == IDX_NODE_ID) {
                 nodeId = (int) value;
             } else if (index == IDX_PORT) {
@@ -156,19 +157,19 @@ public class RaftNode implements Encodable, Comparable<RaftNode> {
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_HOST) {
                 host = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
             }
         }
 
         @Override
-        protected RaftNode getResult() {
+        public RaftNode getResult(DecodeContext context) {
             return new RaftNode(nodeId, new HostPort(host, port));
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             this.nodeId = 0;
             this.host = null;
             this.port = 0;

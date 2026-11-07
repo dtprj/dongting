@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
@@ -25,7 +26,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class AdminAddNodeReq extends PbCallback<AdminAddNodeReq> implements SimpleEncodable {
+public class AdminAddNodeReq implements PbCallback<AdminAddNodeReq>, SimpleEncodable {
     public int nodeId;
     public String host;
     public int port;
@@ -45,12 +46,12 @@ public class AdminAddNodeReq extends PbCallback<AdminAddNodeReq> implements Simp
     }
 
     @Override
-    protected AdminAddNodeReq getResult() {
+    public AdminAddNodeReq getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == 1) {
             nodeId = (int) value;
         } else if (index == 3) {
@@ -59,7 +60,7 @@ public class AdminAddNodeReq extends PbCallback<AdminAddNodeReq> implements Simp
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 2) {
             host = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         }

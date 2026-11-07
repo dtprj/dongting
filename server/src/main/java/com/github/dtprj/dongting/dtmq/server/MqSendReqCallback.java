@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
@@ -36,7 +37,7 @@ import java.util.zip.CRC32C;
  *
  * @author huangli
  */
-final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements DtCleanable {
+final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleanable {
     private final MessageCallback messageCallback = new MessageCallback();
     int groupId;
     ArrayList<RaftReqData> messages;
@@ -44,7 +45,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
     private boolean returned;
 
     @Override
-    protected void begin(int len) {
+    public void begin(int len) {
         groupId = 0;
         messages = null;
         declaredSize = -1;
@@ -52,7 +53,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         switch (index) {
             case MqSendReq.IDX_GROUP_ID:
                 groupId = (int) value;
@@ -67,7 +68,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == MqSendReq.IDX_MESSAGES) {
             if (messages == null) {
                 messages = ParseUtil.createArrayList(declaredSize > 0 ? declaredSize : 4);
@@ -77,7 +78,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
     }
 
     @Override
-    protected MqSendReqCallback getResult() {
+    public MqSendReqCallback getResult(DecodeContext context) {
         int size = messages == null ? 0 : messages.size();
         if (declaredSize >= 0 && declaredSize != size) {
             throw new PbException("messages_size mismatch");
@@ -88,7 +89,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
     }
 
     @Override
-    protected void end(boolean success, Throwable ex) {
+    public void end(boolean success, Throwable ex) {
         messageCallback.releaseBuffer();
         if (!returned) {
             clean();
@@ -107,7 +108,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
         }
     }
 
-    private final class MessageCallback extends PbCallback<Boolean> {
+    private final class MessageCallback implements PbCallback<Boolean> {
         private final CRC32C crc = new CRC32C();
         private long queueId;
         private byte[] msgHeader;
@@ -117,7 +118,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
         private byte[] bakedHeader;
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             queueId = 0;
             msgHeader = null;
             bodyLen = 0;
@@ -125,19 +126,19 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             if (index == MqMessage.IDX_QUEUE_ID) {
                 queueId = value;
             }
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer src, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer src, int fieldLen, int currentPos) {
             if (index == MqMessage.IDX_MSG_HEADER) {
                 msgHeader = ParseUtil.parseBytes(context, src, fieldLen, currentPos);
             } else if (index == MqMessage.IDX_MSG_BODY) {
                 if (currentPos == 0) {
-                    startBody(fieldLen);
+                    startBody(context, fieldLen);
                 }
                 ByteBuffer dest = buffer.getBuffer();
                 int len = src.remaining();
@@ -160,10 +161,10 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
         }
 
         // the header usually arrives before the body, so it is written into the item buffer up front
-        private void startBody(int fieldLen) {
+        private void startBody(DecodeContext context, int fieldLen) {
             releaseBuffer();
             bodyLen = fieldLen;
-            buffer = borrowItem();
+            buffer = borrowItem(context);
             bakedHeader = msgHeader;
             ByteBuffer dest = buffer.getBuffer();
             dest.position(LogHeader.ITEM_HEADER_SIZE);
@@ -174,8 +175,8 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
         }
 
         // handles a header that arrives after the body (non-canonical encoding), or a repeated header
-        private void relayout() {
-            RefBuffer full = borrowItem();
+        private void relayout(DecodeContext context) {
+            RefBuffer full = borrowItem(context);
             try {
                 ByteBuffer dest = full.getBuffer();
                 dest.position(LogHeader.ITEM_HEADER_SIZE);
@@ -206,7 +207,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
             dest.putInt((int) crc.getValue());
         }
 
-        private RefBuffer borrowItem() {
+        private RefBuffer borrowItem(DecodeContext context) {
             int headerLen = msgHeader == null ? 0 : msgHeader.length;
             long size = (long) LogHeader.ITEM_HEADER_SIZE
                     + (headerLen == 0 ? 0 : headerLen + 4L)
@@ -225,9 +226,9 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
         }
 
         @Override
-        protected Boolean getResult() {
+        public Boolean getResult(DecodeContext context) {
             if (!sameHeader(msgHeader, bakedHeader)) {
-                relayout();
+                relayout(context);
             }
             RaftReqData data;
             if (buffer == null) {
@@ -253,7 +254,7 @@ final class MqSendReqCallback extends PbCallback<MqSendReqCallback> implements D
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             releaseBuffer();
             msgHeader = null;
             bakedHeader = null;

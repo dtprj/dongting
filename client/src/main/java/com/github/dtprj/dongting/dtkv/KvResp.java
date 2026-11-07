@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -76,7 +77,7 @@ public class KvResp implements Encodable {
         }
     }
 
-    public static class Callback extends PbCallback<KvResp> {
+    public static class Callback implements PbCallback<KvResp> {
         private final KvResult.Callback resultCallback = new KvResult.Callback();
 
         private long raftIndex;
@@ -84,14 +85,14 @@ public class KvResp implements Encodable {
         private ArrayList<KvResult> results;
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == IDX_RESULTS_SIZE) {
                 resultsSize = (int) value;
             }
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_RESULTS) {
                 if (results == null) {
                     results = ParseUtil.createArrayList(resultsSize);
@@ -104,14 +105,14 @@ public class KvResp implements Encodable {
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             if (index == IDX_RAFT_INDEX) {
                 this.raftIndex = value;
             }
         }
 
         @Override
-        protected KvResp getResult() {
+        public KvResp getResult(DecodeContext context) {
             return new KvResp(raftIndex, results);
         }
     }

@@ -34,18 +34,18 @@ public class PbParserExTest {
         }
     }
 
-    private static class EmptyCallback extends PbCallback<Object> {
+    private static class EmptyCallback implements PbCallback<Object> {
         int beginCount;
         int endSuccessCount;
         int endFailCount;
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             beginCount++;
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             if (success) {
                 endSuccessCount++;
             } else {
@@ -54,7 +54,7 @@ public class PbParserExTest {
         }
 
         @Override
-        protected Object getResult() {
+        public Object getResult(DecodeContext context) {
             return this;
         }
     }

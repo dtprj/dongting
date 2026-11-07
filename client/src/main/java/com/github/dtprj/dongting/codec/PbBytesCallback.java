@@ -20,24 +20,24 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class PbBytesCallback extends PbCallback<byte[]> {
+public class PbBytesCallback implements PbCallback<byte[]> {
 
     private byte[] bs;
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 1) {
             bs = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
         }
     }
 
     @Override
-    protected byte[] getResult() {
+    public byte[] getResult(DecodeContext context) {
         return bs;
     }
 
     @Override
-    protected void end(boolean success, Throwable ex) {
+    public void end(boolean success, Throwable ex) {
         bs = null;
     }
 }

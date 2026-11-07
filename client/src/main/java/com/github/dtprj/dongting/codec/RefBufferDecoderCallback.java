@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
+public class RefBufferDecoderCallback implements DecoderCallback<RefBuffer> {
 
     private final boolean plain;
     private RefBuffer r;
@@ -36,7 +36,7 @@ public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
     }
 
     @Override
-    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+    public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (currentPos == 0) {
             r = context.buffers.borrow(bodyLen, plain, true, 512);
@@ -59,7 +59,7 @@ public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
     }
 
     @Override
-    protected RefBuffer getResult() {
+    public RefBuffer getResult(DecodeContext context) {
         return r;
     }
 }

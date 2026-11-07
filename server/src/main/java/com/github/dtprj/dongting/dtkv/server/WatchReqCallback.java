@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
@@ -27,7 +28,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class WatchReqCallback extends PbCallback<WatchReqCallback> {
+public class WatchReqCallback implements PbCallback<WatchReqCallback> {
     public int groupId;
     public boolean syncAll;
     public long[] knownRaftIndexes;
@@ -37,7 +38,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     private int keysIndex = 0;
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         switch (index) {
             case WatchReq.IDX_GROUP_ID:
                 this.groupId = (int) value;
@@ -60,7 +61,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     }
 
     @Override
-    public void readFix64(int index, long value) {
+    public void readFix64(DecodeContext context, int index, long value) {
         if (index == WatchReq.IDX_KNOWN_RAFT_INDEXES) {
             // not handled NPE/ArrayIndexOutOfBoundsException, require client keep field sequence
             knownRaftIndexes[knownRaftIndexesIndex++] = value;
@@ -68,7 +69,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == WatchReq.IDX_KEYS) {
             byte[] b = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
             if (b != null) {
@@ -79,7 +80,7 @@ public class WatchReqCallback extends PbCallback<WatchReqCallback> {
     }
 
     @Override
-    protected WatchReqCallback getResult() {
+    public WatchReqCallback getResult(DecodeContext context) {
         return this;
     }
 }

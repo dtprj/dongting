@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.common;
 
 import com.github.dtprj.dongting.codec.ParseUtil;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -169,15 +170,15 @@ public class ByteArray implements Encodable, Comparable<ByteArray> {
         return length;
     }
 
-    public static final class Callback extends DecoderCallback<ByteArray> {
+    public static final class Callback implements DecoderCallback<ByteArray> {
 
         @Override
-        public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+        public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
             ParseUtil.parseBytes(context, buffer, bodyLen, currentPos);
         }
 
         @Override
-        protected ByteArray getResult() {
+        public ByteArray getResult(DecodeContext context) {
             if (context.status == null) {
                 return EMPTY;
             } else {

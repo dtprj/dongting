@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -27,7 +28,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class AdminListGroupsResp extends PbCallback<AdminListGroupsResp> implements Encodable {
+public class AdminListGroupsResp implements PbCallback<AdminListGroupsResp>, Encodable {
 
     private static final int IDX_SIZE = 1;
     private static final int IDX_GROUP_ID = 2;
@@ -36,12 +37,12 @@ public class AdminListGroupsResp extends PbCallback<AdminListGroupsResp> impleme
     private int writePos = 0;
 
     @Override
-    protected AdminListGroupsResp getResult() {
+    public AdminListGroupsResp getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_SIZE) {
             int len = (int) value;
             if (len < 0 || len > 1000000) {

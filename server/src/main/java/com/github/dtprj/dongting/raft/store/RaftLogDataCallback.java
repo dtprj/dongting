@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
@@ -30,7 +31,7 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 // re-used
-public class RaftLogDataCallback extends DecoderCallback<Void> {
+public class RaftLogDataCallback implements DecoderCallback<Void> {
 
     private final Consumer<RaftReqData> consumer;
 
@@ -66,7 +67,7 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
     }
 
     @Override
-    protected void doDecode(ByteBuffer src, int totalBlockLen, int notUsedCurrentPos) {
+    public void doDecode(DecodeContext context, ByteBuffer src, int totalBlockLen, int notUsedCurrentPos) {
         ByteBuffer fullBuffer = fullRefBuffer == null ? null : fullRefBuffer.getBuffer();
         while (true) {
             int remaining = src.remaining();
@@ -239,12 +240,12 @@ public class RaftLogDataCallback extends DecoderCallback<Void> {
     }
 
     @Override
-    protected Void getResult() {
+    public Void getResult(DecodeContext context) {
         return null;
     }
 
     @Override
-    protected void end(boolean success, Throwable ex) {
+    public void end(boolean success, Throwable ex) {
         totalParsedBytes = 0;
         if (fullRefBuffer != null) {
             fullRefBuffer.release();

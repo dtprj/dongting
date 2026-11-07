@@ -20,13 +20,11 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public abstract class DecoderCallback<T> {
+public interface DecoderCallback<T> {
 
-    protected DecodeContext context;
+    T getResult(DecodeContext context);
 
-    protected abstract T getResult();
-
-    protected void begin(int len) {
+    default void begin(int len) {
     }
 
     /**
@@ -36,19 +34,19 @@ public abstract class DecoderCallback<T> {
      *                It may be any exception thrown during parse/decode (e.g. CodecException),
      *                not necessarily a NetException
      */
-    protected void end(boolean success, Throwable ex) {
+    default void end(boolean success, Throwable ex) {
     }
 
-    protected abstract void doDecode(ByteBuffer buffer, int bodyLen, int currentPos);
+    void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
 
-    public static final DecoderCallback<Void> VOID_DECODE_CALLBACK = new DecoderCallback<Void>() {
+    DecoderCallback<Void> VOID_DECODE_CALLBACK = new DecoderCallback<Void>() {
         @Override
-        protected void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+        public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
             buffer.position(buffer.limit());
         }
 
         @Override
-        protected Void getResult() {
+        public Void getResult(DecodeContext context) {
             return null;
         }
     };

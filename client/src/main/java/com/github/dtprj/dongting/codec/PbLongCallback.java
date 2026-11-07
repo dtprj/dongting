@@ -18,21 +18,21 @@ package com.github.dtprj.dongting.codec;
 /**
  * @author huangli
  */
-public final class PbLongCallback extends PbCallback<Long> {
+public final class PbLongCallback implements PbCallback<Long> {
 
     public static DecoderCallbackCreator<Long> CALLBACK_CREATOR =
             ctx -> ctx.toDecoderCallback(ctx.cachedPbLongCallback());
 
     @Override
-    public void readFix64(int index, long value) {
+    public void readFix64(DecodeContext context, int index, long value) {
         if (index == 1) {
-            this.context.status = value;
+            context.status = value;
         }
     }
 
     @Override
-    protected Long getResult() {
-        Long r = (Long) this.context.status;
+    public Long getResult(DecodeContext context) {
+        Long r = (Long) context.status;
         return r == null ? 0 : r;
     }
 }

@@ -22,12 +22,12 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
+public abstract class CopyDecoderCallback<T> implements DecoderCallback<T> {
 
     private RefBuffer tempRef;
 
     @Override
-    public final void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+    public final void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean start = currentPos == 0;
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (start && end) {

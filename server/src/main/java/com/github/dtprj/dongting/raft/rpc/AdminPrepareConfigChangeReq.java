@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -61,23 +62,23 @@ public class AdminPrepareConfigChangeReq extends RaftConfigRpcData implements Si
         PbUtil.writeFix32Field(buf, 5, preparedObservers);
     }
 
-    static final class Callback extends PbCallback<AdminPrepareConfigChangeReq> {
+    static final class Callback implements PbCallback<AdminPrepareConfigChangeReq> {
         private final AdminPrepareConfigChangeReq req = new AdminPrepareConfigChangeReq();
 
         @Override
-        protected AdminPrepareConfigChangeReq getResult() {
+        public AdminPrepareConfigChangeReq getResult(DecodeContext context) {
             return req;
         }
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == 1) {
                 req.groupId = (int) value;
             }
         }
 
         @Override
-        public void readFix32(int index, int value) {
+        public void readFix32(DecodeContext context, int index, int value) {
             switch (index) {
                 case 2:
                     if (req.members == Collections.EMPTY_SET) {

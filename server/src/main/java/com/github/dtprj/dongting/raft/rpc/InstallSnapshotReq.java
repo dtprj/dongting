@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -95,12 +96,12 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         }
     }
 
-    public static class Callback extends PbCallback<InstallSnapshotReq> {
+    public static class Callback implements PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
         private final RefBufferDecoderCallback refBufferCallback = new RefBufferDecoderCallback();
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     result.groupId = (int) value;
@@ -121,7 +122,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_LAST_INCLUDED_INDEX:
                     result.lastIncludedIndex = value;
@@ -138,7 +139,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
             }
         }
 
-        public void readFix32(int index, int value) {
+        public void readFix32(DecodeContext context, int index, int value) {
             switch (index) {
                 case IDX_RAFT_CLUSTER_ID:
                     result.raftClusterId = value;
@@ -171,7 +172,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_DATA) {
                 RefBuffer rb = ParseUtil.parseNested(context, buf, len, currentPos, refBufferCallback);
                 if (rb != null) {
@@ -186,14 +187,14 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             if (!success) {
                 result.clean();
             }
         }
 
         @Override
-        public InstallSnapshotReq getResult() {
+        public InstallSnapshotReq getResult(DecodeContext context) {
             return result;
         }
     }

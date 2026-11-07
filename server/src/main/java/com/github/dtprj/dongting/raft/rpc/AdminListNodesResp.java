@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -30,7 +31,7 @@ import java.util.List;
 /**
  * @author huangli
  */
-public class AdminListNodesResp extends PbCallback<AdminListNodesResp> implements Encodable {
+public class AdminListNodesResp implements PbCallback<AdminListNodesResp>, Encodable {
     private static final int IDX_SIZE = 1;
     private static final int IDX_NODE = 2;
 
@@ -65,19 +66,19 @@ public class AdminListNodesResp extends PbCallback<AdminListNodesResp> implement
     }
 
     @Override
-    protected AdminListNodesResp getResult() {
+    public AdminListNodesResp getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_SIZE && nodes == null) {
             nodes = ParseUtil.createArrayList((int) value);
         }
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_NODE) {
             if (nodeCallback == null) {
                 nodeCallback = new RaftNode.Callback();

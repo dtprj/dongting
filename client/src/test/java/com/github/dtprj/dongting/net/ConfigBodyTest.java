@@ -45,7 +45,7 @@ public class ConfigBodyTest {
         DecodeContext context = CodecTestUtil.createContext();
         parser.prepareNext(context, callback, bs.length);
         parser.parse(ByteBuffer.wrap(bs));
-        ConfigBody result = callback.getResult();
+        ConfigBody result = callback.getResult(context);
         Assertions.assertEquals(c.getMaxPacketSize(), result.maxPacketSize);
         Assertions.assertEquals(c.getMaxBodySize(), result.maxBodySize);
         Assertions.assertEquals(c.getMaxInPending(), result.maxInPending);

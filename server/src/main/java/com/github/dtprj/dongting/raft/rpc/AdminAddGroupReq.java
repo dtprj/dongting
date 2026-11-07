@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
@@ -25,7 +26,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class AdminAddGroupReq extends PbCallback<AdminAddGroupReq> implements SimpleEncodable {
+public class AdminAddGroupReq implements PbCallback<AdminAddGroupReq>, SimpleEncodable {
     public int groupId;
     public String nodeIdOfMembers;
     public String nodeIdOfObservers;
@@ -45,19 +46,19 @@ public class AdminAddGroupReq extends PbCallback<AdminAddGroupReq> implements Si
     }
 
     @Override
-    protected AdminAddGroupReq getResult() {
+    public AdminAddGroupReq getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == 1) {
             groupId = (int) value;
         }
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 2) {
             nodeIdOfMembers = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         } else if (index == 3) {

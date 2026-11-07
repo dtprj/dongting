@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -25,7 +26,7 @@ import java.util.UUID;
 /**
  * @author huangli
  */
-public class NodePing extends PbCallback<NodePing> implements SimpleEncodable {
+public class NodePing implements PbCallback<NodePing>, SimpleEncodable {
     public int localNodeId;
     public int remoteNodeId;
     public long uuidHigh;
@@ -58,7 +59,7 @@ public class NodePing extends PbCallback<NodePing> implements SimpleEncodable {
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == 1) {
             this.localNodeId = (int) value;
         } else if (index == 2) {
@@ -67,7 +68,7 @@ public class NodePing extends PbCallback<NodePing> implements SimpleEncodable {
     }
 
     @Override
-    public void readFix64(int index, long value) {
+    public void readFix64(DecodeContext context, int index, long value) {
         if (index == 3) {
             this.uuidHigh = value;
         } else if (index == 4) {
@@ -76,7 +77,7 @@ public class NodePing extends PbCallback<NodePing> implements SimpleEncodable {
     }
 
     @Override
-    public NodePing getResult() {
+    public NodePing getResult(DecodeContext context) {
         return this;
     }
 }

@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class MultiParserTest {
 
-    private static class Callback extends PbCallback<Object> {
+    private static class Callback implements PbCallback<Object> {
         int beginCount;
         int endSuccessCount;
         int endFailCount;
@@ -40,12 +40,12 @@ public class MultiParserTest {
         String f1;
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             beginCount++;
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             if (success) {
                 endSuccessCount++;
             } else {
@@ -54,12 +54,12 @@ public class MultiParserTest {
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             f1 = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         }
 
         @Override
-        protected Object getResult() {
+        public Object getResult(DecodeContext context) {
             return this;
         }
     }

@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -172,7 +173,7 @@ public class KvReq extends RaftRpcData implements Encodable {
      * @author huangli
      */
     // re-used
-    public static class KvReqCallback extends PbCallback<KvReq> {
+    public static class KvReqCallback implements PbCallback<KvReq> {
 
         private int keysSize;
         private long uuid1;
@@ -180,12 +181,12 @@ public class KvReq extends RaftRpcData implements Encodable {
         KvReq req;
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             req = new KvReq();
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             req = null;
             keysSize = 0;
             uuid1 = 0;
@@ -193,7 +194,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         }
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
                     req.groupId = (int) value;
@@ -208,7 +209,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             switch (index) {
                 case IDX_KEY:
                     req.key = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
@@ -241,7 +242,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_OWNER_UUID1:
                     uuid1 = value;
@@ -253,7 +254,7 @@ public class KvReq extends RaftRpcData implements Encodable {
         }
 
         @Override
-        protected KvReq getResult() {
+        public KvReq getResult(DecodeContext context) {
             req.checkKeysAndValues();
             if (uuid1 != 0 && uuid2 != 0) {
                 req.ownerUuid = new UUID(uuid1, uuid2);

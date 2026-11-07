@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -64,11 +65,11 @@ public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
         PbUtil.writeFix32Field(buf, 6, raftClusterId);
     }
 
-    static final class Callback extends PbCallback<TransferLeaderReq> {
+    static final class Callback implements PbCallback<TransferLeaderReq> {
         private final TransferLeaderReq req = new TransferLeaderReq();
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case 1:
                     req.groupId = (int) value;
@@ -86,21 +87,21 @@ public class TransferLeaderReq extends RaftRpcData implements SimpleEncodable {
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             if (index == 5) {
                 req.logIndex = value;
             }
         }
 
         @Override
-        public void readFix32(int index, int value) {
+        public void readFix32(DecodeContext context, int index, int value) {
             if (index == 6) {
                 req.raftClusterId = value;
             }
         }
 
         @Override
-        public TransferLeaderReq getResult() {
+        public TransferLeaderReq getResult(DecodeContext context) {
             return req;
         }
     }

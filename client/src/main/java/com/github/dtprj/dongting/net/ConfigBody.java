@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -24,7 +25,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class ConfigBody extends PbCallback<ConfigBody> implements SimpleEncodable {
+public class ConfigBody implements PbCallback<ConfigBody>, SimpleEncodable {
 
     private static final int IDX_MAX_PACKET_SIZE = 1;
     private static final int IDX_MAX_BODY_SIZE = 2;
@@ -41,7 +42,7 @@ public class ConfigBody extends PbCallback<ConfigBody> implements SimpleEncodabl
     public long maxOutPendingBytes;
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         switch (index) {
             case IDX_MAX_PACKET_SIZE:
                 maxPacketSize = (int) value;
@@ -65,7 +66,7 @@ public class ConfigBody extends PbCallback<ConfigBody> implements SimpleEncodabl
     }
 
     @Override
-    protected ConfigBody getResult() {
+    public ConfigBody getResult(DecodeContext context) {
         return this;
     }
 

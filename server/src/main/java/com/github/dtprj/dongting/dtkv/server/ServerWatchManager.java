@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
@@ -744,7 +745,7 @@ final class WatchHolder {
     }
 }
 
-final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> {
+final class WatchNotifyRespCallback implements PbCallback<WatchNotifyRespCallback> {
     private static final int IDX_RESULTS = 1;
 
     final int[] results;
@@ -755,12 +756,12 @@ final class WatchNotifyRespCallback extends PbCallback<WatchNotifyRespCallback> 
     }
 
     @Override
-    protected WatchNotifyRespCallback getResult() {
+    public WatchNotifyRespCallback getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_RESULTS) {
             if (nextWriteIndex >= results.length) {
                 throw new RaftException("response results size exceed " + results.length);

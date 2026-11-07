@@ -81,8 +81,6 @@ public class PbParser {
 
         context.status = null;
 
-        callback.context = context;
-
         this.pendingBytes = 0;
         this.parsedBytes = 0;
 
@@ -147,7 +145,7 @@ public class PbParser {
             try {
                 if (success) {
                     try {
-                        return callback.getResult();
+                        return callback.getResult(context);
                     } finally {
                         callback.end(true, null);
                     }
@@ -162,7 +160,6 @@ public class PbParser {
                 this.parsedBytes = 0;
 
                 context.status = null;
-                callback.context = null;
 
                 this.callback = null;
             }
@@ -292,7 +289,7 @@ public class PbParser {
                     throw new PbException("size exceed " + size);
                 }
 
-                callback.readVarNumber(this.fieldIndex, value);
+                callback.readVarNumber(context, this.fieldIndex, value);
                 this.status = STATUS_PARSE_TAG;
 
                 this.pendingBytes = 0;
@@ -351,7 +348,7 @@ public class PbParser {
                 buf.limit(end);
             }
             try {
-                callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
+                callback.readBytes(context, this.fieldIndex, buf, fieldLen, pendingBytes);
             } finally {
                 if (oldLimit > end) {
                     buf.limit(oldLimit);
@@ -430,9 +427,9 @@ public class PbParser {
 
     private void callbackOnReadFixNumber(PbCallback<?> callback, int len, long value) {
         if (len == 4) {
-            callback.readFix32(this.fieldIndex, (int) value);
+            callback.readFix32(context, this.fieldIndex, (int) value);
         } else {
-            callback.readFix64(this.fieldIndex, value);
+            callback.readFix64(context, this.fieldIndex, value);
         }
         this.status = STATUS_PARSE_TAG;
     }

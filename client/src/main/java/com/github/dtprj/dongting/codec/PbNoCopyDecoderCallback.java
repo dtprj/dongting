@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
+final class PbNoCopyDecoderCallback implements DecoderCallback<Object> {
 
     private Object result;
     private PbCallback<?> callback;
@@ -35,19 +35,19 @@ final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
     }
 
     @Override
-    protected void end(boolean success, Throwable ex) {
+    public void end(boolean success, Throwable ex) {
         result = null;
         callback = null;
         parser.reset();
     }
 
     @Override
-    protected Object getResult() {
+    public Object getResult(DecodeContext context) {
         return result;
     }
 
     @Override
-    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+    public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         if (currentPos == 0) {
             parser.prepareNext(context, callback, bodyLen);
         }

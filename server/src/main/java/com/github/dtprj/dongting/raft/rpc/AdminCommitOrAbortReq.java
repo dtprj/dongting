@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -24,7 +25,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class AdminCommitOrAbortReq extends PbCallback<AdminCommitOrAbortReq> implements SimpleEncodable {
+public class AdminCommitOrAbortReq implements PbCallback<AdminCommitOrAbortReq>, SimpleEncodable {
     public int groupId;
     public long prepareIndex;
 
@@ -44,19 +45,19 @@ public class AdminCommitOrAbortReq extends PbCallback<AdminCommitOrAbortReq> imp
     }
 
     @Override
-    protected AdminCommitOrAbortReq getResult() {
+    public AdminCommitOrAbortReq getResult(DecodeContext context) {
         return this;
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == 1) {
             this.groupId = (int) value;
         }
     }
 
     @Override
-    public void readFix64(int index, long value) {
+    public void readFix64(DecodeContext context, int index, long value) {
         if (index == 2) {
             this.prepareIndex = value;
         }

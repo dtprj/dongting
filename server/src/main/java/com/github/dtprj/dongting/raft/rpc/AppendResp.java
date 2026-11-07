@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -57,22 +58,22 @@ public class AppendResp extends RaftRpcData implements SimpleEncodable {
     }
 
     // re-used
-    public static class Callback extends PbCallback<AppendResp> {
+    public static class Callback implements PbCallback<AppendResp> {
 
         private AppendResp result;
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             result = new AppendResp();
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             result = null;
         }
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case 1:
                     result.term = (int) value;
@@ -90,14 +91,14 @@ public class AppendResp extends RaftRpcData implements SimpleEncodable {
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             if (index == 5) {
                 result.suggestIndex = value;
             }
         }
 
         @Override
-        public AppendResp getResult() {
+        public AppendResp getResult(DecodeContext context) {
             return result;
         }
     }

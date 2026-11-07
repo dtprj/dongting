@@ -50,7 +50,7 @@ public class HandshakeBodyTest {
         parser.prepareNext(context, callback, bs.length);
         parser.parse(ByteBuffer.wrap(bs));
 
-        HandshakeBody result = callback.getResult();
+        HandshakeBody result = callback.getResult(context);
         Assertions.assertEquals(HandshakeBody.MAGIC1, h.getMagic1());
         Assertions.assertEquals(HandshakeBody.MAGIC2, h.getMagic2());
         Assertions.assertEquals(h.getMajorVersion(), result.majorVersion);

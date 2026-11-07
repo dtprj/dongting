@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
-class DtChannelImpl extends PbCallback<Object> implements DtChannel {
+class DtChannelImpl implements DtChannel, PbCallback<Object> {
     private static final DtLog log = DtLogs.getLogger(DtChannelImpl.class);
 
     UUID remoteUuid;
@@ -127,12 +127,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    public Object getResult() {
+    public Object getResult(DecodeContext context) {
         return null;
     }
 
     @Override
-    protected void begin(int len) {
+    public void begin(int len) {
         if (closed || closePending) {
             throw new NetException("channel closed");
         }
@@ -146,7 +146,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    protected void end(boolean success, Throwable ex) {
+    public void end(boolean success, Throwable ex) {
         if (!success) {
             cleanParseStatus(ex, "unknown error");
             return;
@@ -196,7 +196,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         if (readBody) {
             throw new PbException("body has read");
         }
@@ -217,7 +217,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    public void readFix32(int index, int value) {
+    public void readFix32(DecodeContext context, int index, int value) {
         if (this.readBody) {
             throw new PbException("body has read");
         }
@@ -227,7 +227,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    public void readFix64(int index, long value) {
+    public void readFix64(DecodeContext context, int index, long value) {
         if (this.readBody) {
             throw new PbException("body has read");
         }
@@ -237,7 +237,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (this.readBody) {
             throw new PbException("body has read");
         }
@@ -271,6 +271,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     }
 
+    // context is the fixed decodeContext of this channel, so end() can call it for empty body
     private void readBody(ByteBuffer buf, int fieldLen, int currentPos) {
         if (skipBody) {
             buf.position(buf.limit());
@@ -293,7 +294,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         ReadPacket p = packet;
 
         try {
-            p.body = ParseUtil.parseNested(context, buf, fieldLen, currentPos, currentDecoderCallback);
+            p.body = ParseUtil.parseNested(decodeContext, buf, fieldLen, currentPos, currentDecoderCallback);
         } catch (RuntimeException | Error e) {
             cleanParseStatus(e, null); // update packet to null
             if (p.packetType == PacketType.TYPE_REQ) {

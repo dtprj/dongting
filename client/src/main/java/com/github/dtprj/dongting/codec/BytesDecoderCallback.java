@@ -20,22 +20,22 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class BytesDecoderCallback extends DecoderCallback<byte[]> {
+public class BytesDecoderCallback implements DecoderCallback<byte[]> {
 
     private byte[] r;
 
     @Override
-    public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+    public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         r = ParseUtil.parseBytes(context, buffer, bodyLen, currentPos);
     }
 
     @Override
-    protected byte[] getResult() {
+    public byte[] getResult(DecodeContext context) {
         return r;
     }
 
     @Override
-    protected void end(boolean success, Throwable ex) {
+    public void end(boolean success, Throwable ex) {
         r = null;
     }
 }

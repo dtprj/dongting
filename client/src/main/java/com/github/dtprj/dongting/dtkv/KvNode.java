@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -128,7 +129,7 @@ public class KvNode implements Encodable {
     }
 
     // re-used
-    public static class Callback extends PbCallback<KvNode> {
+    public static class Callback implements PbCallback<KvNode> {
 
         private long createIndex;
         private long createTime;
@@ -138,7 +139,7 @@ public class KvNode implements Encodable {
         private byte[] data;
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             createIndex = 0;
             createTime = 0;
             updateIndex = 0;
@@ -148,14 +149,14 @@ public class KvNode implements Encodable {
         }
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == IDX_FLAG) {
                 flag = (int) value;
             }
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_CREATE_INDEX:
                     createIndex = value;
@@ -173,14 +174,14 @@ public class KvNode implements Encodable {
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_DATA) {
                 data = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
             }
         }
 
         @Override
-        protected KvNode getResult() {
+        public KvNode getResult(DecodeContext context) {
             return new KvNode(createIndex, createTime, updateIndex, updateTime, flag, data);
         }
     }

@@ -29,14 +29,14 @@ import java.nio.charset.StandardCharsets;
  *
  * @author huangli
  */
-public class StrDecoderCallback extends DecoderCallback<String> {
+public class StrDecoderCallback implements DecoderCallback<String> {
 
     private RefBuffer tempRef;
     private byte[] smallArr;
     private String s;
 
     @Override
-    public void doDecode(ByteBuffer buf, int fieldLen, int currentPos) {
+    public void doDecode(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
         if (fieldLen == 0) {
             s = "";
             return;
@@ -114,12 +114,12 @@ public class StrDecoderCallback extends DecoderCallback<String> {
     }
 
     @Override
-    protected String getResult() {
+    public String getResult(DecodeContext context) {
         return s;
     }
 
     @Override
-    protected void end(boolean success, Throwable ex) {
+    public void end(boolean success, Throwable ex) {
         if (tempRef != null) {
             tempRef.release();
             tempRef = null;

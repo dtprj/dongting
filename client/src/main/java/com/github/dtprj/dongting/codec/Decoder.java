@@ -45,7 +45,6 @@ public class Decoder {
             callback.end(success, ex);
         } finally {
             context.status = null;
-            callback.context = null;
         }
     }
 
@@ -61,7 +60,6 @@ public class Decoder {
         this.callback = callback;
 
         context.status = null;
-        callback.context = context;
 
         this.beginCalled = false;
         this.endCalled = false;
@@ -82,13 +80,13 @@ public class Decoder {
             if (oldLimit > recordEndPos) {
                 buffer.limit(recordEndPos);
             }
-            callback.doDecode(buffer, bodyLen, currentPos);
+            callback.doDecode(context, buffer, bodyLen, currentPos);
             if (buffer.position() != (allDataAvailable ? recordEndPos : oldLimit)) {
                 throw new CodecException("doDecode didn't consume all bytes. "
                         + "bodyLen=" + bodyLen + ", currentPos=" + currentPos
                         + ", class=" + callback.getClass().getName());
             }
-            return allDataAvailable ? callback.getResult() : null;
+            return allDataAvailable ? callback.getResult(context) : null;
         } catch (RuntimeException | Error e) {
             if (oldLimit > recordEndPos) {
                 buffer.limit(oldLimit);

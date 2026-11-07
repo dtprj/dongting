@@ -58,7 +58,7 @@ public class PbParserTest {
         }
     }
 
-    static class NestedCallback extends PbCallback<NestedMsg> {
+    static class NestedCallback implements PbCallback<NestedMsg> {
         private final NestedMsg msg = new NestedMsg(0, null);
         private int set101Count;
         private int begin102Count;
@@ -67,7 +67,7 @@ public class PbParserTest {
         private int endCount;
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == 101) {
                 msg.f101 = (int) value;
                 set101Count++;
@@ -75,7 +75,7 @@ public class PbParserTest {
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int len, int currentPos) {
             boolean end = buf.remaining() >= len - currentPos;
             if (index == 102) {
                 byte[] bs = new byte[buf.remaining()];
@@ -92,17 +92,17 @@ public class PbParserTest {
         }
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             beginCount++;
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             endCount++;
         }
 
         @Override
-        protected NestedMsg getResult() {
+        public NestedMsg getResult(DecodeContext context) {
             return msg;
         }
     }
@@ -131,7 +131,7 @@ public class PbParserTest {
         }
     }
 
-    static class Callback extends PbCallback<Object> {
+    static class Callback implements PbCallback<Object> {
 
         final Msg msg;
         Msg readMsg;
@@ -219,7 +219,7 @@ public class PbParserTest {
         }
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             beginCount++;
             assertEquals(expectLen, len);
             readMsg = new Msg();
@@ -239,7 +239,7 @@ public class PbParserTest {
         }
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             if (success) {
                 endSuccessCount++;
                 afterSuccess();
@@ -280,7 +280,7 @@ public class PbParserTest {
         }
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == 1) {
                 readMsg.f1 = (int) value;
                 setF1Count++;
@@ -293,7 +293,7 @@ public class PbParserTest {
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int len, int currentPos) {
             boolean begin = currentPos == 0;
             boolean end = buf.remaining() >= len - currentPos;
             if (index == 3) {
@@ -321,21 +321,21 @@ public class PbParserTest {
         }
 
         @Override
-        public void readFix32(int index, int value) {
+        public void readFix32(DecodeContext context, int index, int value) {
             assertEquals(5, index);
             readMsg.f5 = value;
             setF5Count++;
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             assertEquals(6, index);
             readMsg.f6 = value;
             setF6Count++;
         }
 
         @Override
-        protected Object getResult() {
+        public Object getResult(DecodeContext context) {
             return this;
         }
     }
@@ -471,51 +471,51 @@ public class PbParserTest {
 
         Supplier<Callback> supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public void readVarNumber(int index, long value) {
+            public void readVarNumber(DecodeContext context, int index, long value) {
                 if (index == 2) {
                     throw new CodecException("test fail");
                 }
-                super.readVarNumber(index, value);
+                super.readVarNumber(context, index, value);
             }
         };
         testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public void readVarNumber(int index, long value) {
+            public void readVarNumber(DecodeContext context, int index, long value) {
                 if (index == 2) {
                     throw new ArrayIndexOutOfBoundsException();
                 }
-                super.readVarNumber(index, value);
+                super.readVarNumber(context, index, value);
             }
         };
         testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+            public void readBytes(DecodeContext context, int index, ByteBuffer buf, int len, int currentPos) {
                 if (index == 3) {
                     throw new CodecException("test fail");
                 }
-                super.readBytes(index, buf, len, currentPos);
+                super.readBytes(context, index, buf, len, currentPos);
             }
         };
         testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public void readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+            public void readBytes(DecodeContext context, int index, ByteBuffer buf, int len, int currentPos) {
                 if (index == 4000) {
                     throw new ArrayIndexOutOfBoundsException();
                 }
-                super.readBytes(index, buf, len, currentPos);
+                super.readBytes(context, index, buf, len, currentPos);
             }
         };
         testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public void readFix32(int index, int value) {
+            public void readFix32(DecodeContext context, int index, int value) {
                 throw new CodecException("test fail");
             }
         };
@@ -523,7 +523,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public void readFix32(int index, int value) {
+            public void readFix32(DecodeContext context, int index, int value) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
@@ -531,7 +531,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            protected void begin(int len) {
+            public void begin(int len) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
@@ -539,7 +539,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            protected void end(boolean success, Throwable ex) {
+            public void end(boolean success, Throwable ex) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
@@ -620,26 +620,26 @@ public class PbParserTest {
         int[] f5 = new int[1];
         PbCallback<Object> callback = new PbCallback<Object>() {
             @Override
-            public void readVarNumber(int index, long value) {
+            public void readVarNumber(DecodeContext context, int index, long value) {
                 if (index == 1) {
                     f1[0] = value;
                 }
             }
 
             @Override
-            public void readBytes(int index, ByteBuffer b, int fieldLen, int currentPos) {
+            public void readBytes(DecodeContext context, int index, ByteBuffer b, int fieldLen, int currentPos) {
                 // unknown index: leave the chunk untouched, the parser skips it
             }
 
             @Override
-            public void readFix32(int index, int value) {
+            public void readFix32(DecodeContext context, int index, int value) {
                 if (index == 5) {
                     f5[0] = value;
                 }
             }
 
             @Override
-            protected Object getResult() {
+            public Object getResult(DecodeContext context) {
                 return this;
             }
         };
@@ -661,12 +661,12 @@ public class PbParserTest {
 
         PbCallback<Object> callback = new PbCallback<Object>() {
             @Override
-            public void readBytes(int index, ByteBuffer b, int fieldLen, int currentPos) {
+            public void readBytes(DecodeContext context, int index, ByteBuffer b, int fieldLen, int currentPos) {
                 b.get(); // consume only one of the two bytes
             }
 
             @Override
-            protected Object getResult() {
+            public Object getResult(DecodeContext context) {
                 return this;
             }
         };
@@ -697,20 +697,20 @@ public class PbParserTest {
         int[] readBytesCount = new int[1];
         PbCallback<Object> callback = new PbCallback<Object>() {
             @Override
-            public void readBytes(int index, ByteBuffer b, int fieldLen, int currentPos) {
+            public void readBytes(DecodeContext context, int index, ByteBuffer b, int fieldLen, int currentPos) {
                 // unknown index: leave the chunk untouched, the parser then skips the field
                 readBytesCount[0]++;
             }
 
             @Override
-            public void readFix32(int index, int value) {
+            public void readFix32(DecodeContext context, int index, int value) {
                 if (index == 5) {
                     f5[0] = value;
                 }
             }
 
             @Override
-            protected Object getResult() {
+            public Object getResult(DecodeContext context) {
                 return this;
             }
         };
@@ -740,14 +740,14 @@ public class PbParserTest {
 
         PbCallback<Object> callback = new PbCallback<Object>() {
             @Override
-            public void readBytes(int index, ByteBuffer b, int fieldLen, int currentPos) {
+            public void readBytes(DecodeContext context, int index, ByteBuffer b, int fieldLen, int currentPos) {
                 if (currentPos == 0) {
                     b.position(b.limit());
                 }
             }
 
             @Override
-            protected Object getResult() {
+            public Object getResult(DecodeContext context) {
                 return this;
             }
         };

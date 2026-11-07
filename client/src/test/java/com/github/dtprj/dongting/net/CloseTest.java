@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
@@ -285,11 +286,11 @@ public class CloseTest {
                         deferred.complete(outsideDecode && (decodeFail == (ex != null)));
                     }, ctx -> new RefBufferDecoderCallback() {
                         @Override
-                        public void doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+                        public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
                             if (decodeFail) {
                                 throw new NetException("mock decode failure");
                             }
-                            super.doDecode(buffer, bodyLen, currentPos);
+                            super.doDecode(context, buffer, bodyLen, currentPos);
                         }
                     }, true);
             dtc.workerStatus.addPendingReq(pi);

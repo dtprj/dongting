@@ -20,13 +20,11 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public abstract class PbCallback<T> {
+public interface PbCallback<T> {
 
-    protected DecodeContext context;
+    T getResult(DecodeContext context);
 
-    protected abstract T getResult();
-
-    protected void begin(int len) {
+    default void begin(int len) {
     }
 
     /**
@@ -36,23 +34,23 @@ public abstract class PbCallback<T> {
      *                It may be any exception thrown during parse/decode (e.g. CodecException),
      *                not necessarily a NetException
      */
-    protected void end(boolean success, Throwable ex) {
+    default void end(boolean success, Throwable ex) {
     }
 
-    public void readVarNumber(int index, long value) {
+    default void readVarNumber(DecodeContext context, int index, long value) {
     }
 
-    public void readFix32(int index, int value) {
+    default void readFix32(DecodeContext context, int index, int value) {
     }
 
-    public void readFix64(int index, long value) {
+    default void readFix64(DecodeContext context, int index, long value) {
     }
 
     /**
      * Consume the whole chunk for recognized indexes (buf limit is the chunk end), or leave the
      * first chunk untouched to skip an unknown field; partial consumption fails the parse.
      */
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    default void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         buf.position(buf.limit());
     }
 }

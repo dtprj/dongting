@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtmq.server;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
@@ -26,7 +27,7 @@ import java.util.Arrays;
 /**
  * @author huangli
  */
-public final class MqPullReqCallback extends PbCallback<MqPullReq> {
+public final class MqPullReqCallback implements PbCallback<MqPullReq> {
     private static final int MIN_CAPACITY = 16;
 
     private final QueueCallback queueCallback = new QueueCallback();
@@ -35,14 +36,14 @@ public final class MqPullReqCallback extends PbCallback<MqPullReq> {
     private int queueCount;
 
     @Override
-    protected void begin(int len) {
+    public void begin(int len) {
         req = new MqPullReq();
         declaredSize = -1;
         queueCount = 0;
     }
 
     @Override
-    public void readVarNumber(int index, long value) {
+    public void readVarNumber(DecodeContext context, int index, long value) {
         switch (index) {
             case MqPullReq.IDX_GROUP_ID:
                 req.groupId = (int) value;
@@ -66,7 +67,7 @@ public final class MqPullReqCallback extends PbCallback<MqPullReq> {
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+    public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index != MqPullReq.IDX_QUEUES) {
             return;
         }
@@ -92,7 +93,7 @@ public final class MqPullReqCallback extends PbCallback<MqPullReq> {
     }
 
     @Override
-    protected MqPullReq getResult() {
+    public MqPullReq getResult(DecodeContext context) {
         if (declaredSize >= 0 && declaredSize != queueCount) {
             throw new PbException("queues_size mismatch");
         }
@@ -108,22 +109,22 @@ public final class MqPullReqCallback extends PbCallback<MqPullReq> {
     }
 
     @Override
-    protected void end(boolean success, Throwable ex) {
+    public void end(boolean success, Throwable ex) {
         req = null;
     }
 
-    private final class QueueCallback extends PbCallback<Boolean> {
+    private final class QueueCallback implements PbCallback<Boolean> {
         private long queueId;
         private long fromSeq;
 
         @Override
-        protected void begin(int len) {
+        public void begin(int len) {
             queueId = 0;
             fromSeq = 0;
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             if (index == MqPullReq.IDX_DETAIL_QUEUE_ID) {
                 queueId = value;
             } else if (index == MqPullReq.IDX_DETAIL_FROM_SEQ) {
@@ -132,7 +133,7 @@ public final class MqPullReqCallback extends PbCallback<MqPullReq> {
         }
 
         @Override
-        protected Boolean getResult() {
+        public Boolean getResult(DecodeContext context) {
             req.queueIds[queueCount] = queueId;
             req.fromSeqs[queueCount] = fromSeq;
             return Boolean.TRUE;

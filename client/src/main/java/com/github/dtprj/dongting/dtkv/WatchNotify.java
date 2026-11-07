@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -80,14 +81,14 @@ public class WatchNotify implements Encodable {
     }
 
     // re-used
-    public static class Callback extends PbCallback<WatchNotify> {
+    public static class Callback implements PbCallback<WatchNotify> {
         private long raftIndex;
         private int state;
         private byte[] key;
         private byte[] value;
 
         @Override
-        protected void end(boolean success, Throwable ex) {
+        public void end(boolean success, Throwable ex) {
             raftIndex = 0;
             state = 0;
             key = null;
@@ -95,21 +96,21 @@ public class WatchNotify implements Encodable {
         }
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == IDX_STATE) {
                 state = (int) value;
             }
         }
 
         @Override
-        public void readFix64(int index, long value) {
+        public void readFix64(DecodeContext context, int index, long value) {
             if (index == IDX_RAFT_INDEX) {
                 raftIndex = value;
             }
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_KEY) {
                 key = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
             } else if (index == IDX_VALUE) {
@@ -118,7 +119,7 @@ public class WatchNotify implements Encodable {
         }
 
         @Override
-        protected WatchNotify getResult() {
+        public WatchNotify getResult(DecodeContext context) {
             return new WatchNotify(raftIndex, state, key, value);
         }
     }

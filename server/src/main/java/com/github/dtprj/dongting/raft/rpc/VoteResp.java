@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
@@ -43,11 +44,11 @@ public class VoteResp extends RaftRpcData implements SimpleEncodable {
         PbUtil.writeInt32Field(buf, 2, voteGranted ? 1 : 0);
     }
 
-    public static class Callback extends PbCallback<VoteResp> {
+    public static class Callback implements PbCallback<VoteResp> {
         private final VoteResp result = new VoteResp();
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case 1:
                     result.term = (int) value;
@@ -59,7 +60,7 @@ public class VoteResp extends RaftRpcData implements SimpleEncodable {
         }
 
         @Override
-        public VoteResp getResult() {
+        public VoteResp getResult(DecodeContext context) {
             return result;
         }
     }

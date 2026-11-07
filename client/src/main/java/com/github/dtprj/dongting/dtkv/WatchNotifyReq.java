@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.CodecException;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -85,14 +86,14 @@ public class WatchNotifyReq implements Encodable {
         return encodeSize;
     }
 
-    public static class Callback extends PbCallback<WatchNotifyReq> {
+    public static class Callback implements PbCallback<WatchNotifyReq> {
         private int groupId;
         private int nodeId;
         private ArrayList<WatchNotify> notifyList;
         private final WatchNotify.Callback notifyCallback = new WatchNotify.Callback();
 
         @Override
-        public void readVarNumber(int index, long value) {
+        public void readVarNumber(DecodeContext context, int index, long value) {
             if (index == IDX_GROUP_ID) {
                 groupId = (int) value;
             } else if (index == IDX_NODE_ID) {
@@ -105,7 +106,7 @@ public class WatchNotifyReq implements Encodable {
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_NOTIFY_LIST) {
                 WatchNotify wn = ParseUtil.parseNested(context, buf, fieldLen, currentPos, notifyCallback);
                 if (wn != null) {
@@ -118,7 +119,7 @@ public class WatchNotifyReq implements Encodable {
         }
 
         @Override
-        protected WatchNotifyReq getResult() {
+        public WatchNotifyReq getResult(DecodeContext context) {
             return new WatchNotifyReq(groupId, nodeId, notifyList == null ? Collections.emptyList() : notifyList);
         }
     }
